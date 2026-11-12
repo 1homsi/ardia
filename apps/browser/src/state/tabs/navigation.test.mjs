@@ -89,7 +89,7 @@ test("back on a Peek whose page has history goes back in the page, and the Peek 
   S().updateTab(peek, {}, { canGoBack: true });
   assert.equal(live(peek).canGoBack, true);
   goBack(peek);
-  assert.ok(S().peeks[w], "the Peek stays: its page went back instead");
+  assert.ok(S().peeks[a], "the Peek stays: its page went back instead");
   assert.ok(S().tabs[peek]);
 });
 
