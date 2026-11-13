@@ -21,6 +21,7 @@ import { settleThemeAdoption, themeChosenHere } from "./syncThemes";
 import { editClock, startEditClock } from "./editClock";
 import { addLinkedProfile, appScopeOf, linkedProfileId, linkProfiles, readyToPair, remoteProfileRecord, sharedDataChain } from "./profileLinks";
 import { summarize } from "./syncSummary";
+import { markRemoved, settleRemovals } from "./profileRemoval";
 import { profileScope } from "./records";
 import { queueSend, sendTargetsIn } from "./sentTabs";
 import { errorText } from "../../lib/errors";
@@ -151,6 +152,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
     } finally {
       await appSettled();
     }
+    if (doc.removing) settleRemovals(doc, app);
     if (app.joined && readyToPair(doc, app) && !isQuitting()) linkProfiles(doc, app);
     settleThemeAdoption(doc.profiles, app, true);
     let pending = app.pending;
@@ -200,12 +202,8 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
     clearTimeout(slow);
     save();
     if (doc.enabled) {
-      if (again) {
-        again = false;
-        scheduleSync(0);
-      } else {
-        scheduleSync(CYCLE_MS);
-      }
+      scheduleSync(again ? 0 : CYCLE_MS);
+      again = false;
     }
   }
 }
@@ -311,11 +309,15 @@ export async function stopSync({ deleteData = false } = {}) {
   publishUi({ status: "off", error: null });
 }
 
-export function setTypeSynced(type: DataType, enabled: boolean) {
-  doc.types = { ...doc.types, [type]: enabled };
+function commitChange() {
   save();
   publishUi();
   scheduleSync(0);
+}
+
+export function setTypeSynced(type: DataType, enabled: boolean) {
+  doc.types = { ...doc.types, [type]: enabled };
+  commitChange();
 }
 
 export function setProfileSynced(profileId: string, enabled: boolean) {
@@ -323,9 +325,7 @@ export function setProfileSynced(profileId: string, enabled: boolean) {
   if (!link) return;
   const { retire: _retire, ...kept } = link;
   doc.profiles[profileId] = enabled ? { ...kept, enabled } : { ...link, enabled, retire: true };
-  save();
-  publishUi();
-  scheduleSync(0);
+  commitChange();
 }
 
 export function sendTargets(profileId: string): SendTarget[] {
@@ -347,10 +347,14 @@ export function addRemoteProfile(syncId: string): string | null {
   if (waitingFor) return null;
   let shareWith = sharesWith;
   for (const add of adds.reverse()) shareWith = addLinkedProfile(doc, add, remoteProfileRecord(doc, add)!, shareWith);
-  save();
-  publishUi();
-  scheduleSync(0);
+  commitChange();
   return shareWith;
+}
+
+export function removeRemoteProfile(syncId: string): boolean {
+  if (!markRemoved(doc, syncId)) return false;
+  commitChange();
+  return true;
 }
 
 export function startSync() {

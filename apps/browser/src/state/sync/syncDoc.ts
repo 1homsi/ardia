@@ -57,6 +57,7 @@ export type SyncDoc = {
   joining: boolean;
   seqs?: Record<string, number>;
   sends?: Record<string, SendLedger>;
+  removing?: string[];
 };
 
 export const DOC = "sync.json";
