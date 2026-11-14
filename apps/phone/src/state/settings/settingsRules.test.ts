@@ -193,3 +193,16 @@ test("the engine picker lists only built-in engines, never the Mac's custom ones
   );
   assert.deepEqual(pickerEngines([]), FALLBACK_ENGINES);
 });
+
+test("where website data can't be cleared by time, the title and footer say cookies and cache clear from all time while history keeps the range", () => {
+  const all = { history: true, cache: true, cookies: true, archive: false };
+  assert.equal(clearTitle(all, "lastHour"), "Clear History, Cache, and Cookies from the last hour?");
+  assert.equal(clearTitle(all, "lastHour", false), "Clear History from the last hour, and Cache and Cookies from all time?");
+  assert.equal(clearTitle({ ...all, history: false, cookies: false }, "today", false), "Clear Cache from all time?");
+  assert.equal(clearTitle({ ...all, cache: false, cookies: false }, "today", false), "Clear History from today?");
+  assert.equal(clearTitle(all, "allTime", false), "Clear History, Cache, and Cookies from all time?");
+  assert.match(clearFooter(all, "today", false), /This phone can only clear the cache and cookies and site data entirely, so they clear from all time\.$/);
+  assert.match(clearFooter({ ...all, cookies: false }, "today", false), /can only clear the cache entirely, so it clears from all time\.$/);
+  assert.doesNotMatch(clearFooter(all, "today", true), /entirely/);
+  assert.doesNotMatch(clearFooter(all, "allTime", false), /entirely/);
+});

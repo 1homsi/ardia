@@ -133,10 +133,12 @@ export async function applyMyFilters(text: string) {
 export async function clearBrowsingData(choice: ClearChoice, range: ClearRange) {
   if (choice.history) history().clear(clearSince(range, Date.now()));
   const kinds = websiteDataKinds(choice);
-  if (kinds.length) await settled(() => pages.clearWebsiteData(kinds), undefined);
+  if (kinds.length) await settled(() => pages.clearWebsiteData(kinds, clearSince(range, Date.now())), undefined);
   if (choice.archive && range === "allTime") clearArchivedTabs();
   showToast("Cleared Browsing Data", "checkmark");
 }
+
+export const websiteDataClearsByTime = () => pages.clearsWebsiteDataSince();
 
 export function exportOpenTabs() {
   const urls = exportableUrls(currentTabs().open);

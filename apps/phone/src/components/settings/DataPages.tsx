@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { haptics } from "../../state/app/haptics";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { appVersion, clearBrowsingData, openFromSettings } from "../../state/settings/actions";
+import { appVersion, clearBrowsingData, openFromSettings, websiteDataClearsByTime } from "../../state/settings/actions";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { CLEAR_RANGES, clearChoice, clearFooter, clearIsEmpty, clearMessage, clearTitle, type ClearRange } from "../../state/settings/settingsRules";
 import { AppIcon, appIconLayout, ConfirmDialog, font, settingsLayout, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
@@ -18,6 +18,7 @@ export function ClearDataPage() {
   const [clearing, setClearing] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const choice = clearChoice(history, cache, cookies, archive, range);
+  const [byTime] = useState(websiteDataClearsByTime);
   const clear = async () => {
     haptics.warning();
     setClearing(true);
@@ -30,7 +31,7 @@ export function ClearDataPage() {
       <Group>
         <PickerRow title="Time Range" options={CLEAR_RANGES} selected={range} onSelect={setRange} />
       </Group>
-      <Group header="Clear" footer={clearFooter(choice)}>
+      <Group header="Clear" footer={clearFooter(choice, range, byTime)}>
         <ToggleRow title="History" value={history} divider onChange={setHistory} />
         <ToggleRow title="Cache" value={cache} divider onChange={setCache} />
         <ToggleRow title="Cookies and Site Data" value={cookies} divider={range === "allTime"} onChange={setCookies} />
@@ -42,7 +43,7 @@ export function ClearDataPage() {
           destructive
           enabled={!clearIsEmpty(choice) && !clearing}
           busy={clearing}
-          onPress={() => setConfirmation({ title: clearTitle(choice, range), message: clearMessage(choice), action: "Clear Data", run: () => void clear() })}
+          onPress={() => setConfirmation({ title: clearTitle(choice, range, byTime), message: clearMessage(choice), action: "Clear Data", run: () => void clear() })}
         />
       </Group>
       {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}

@@ -50,17 +50,34 @@ export function clearNames(choice: ClearChoice): string[] {
   return names;
 }
 
-export const clearTitle = (choice: ClearChoice, range: ClearRange) =>
-  `Clear ${joinList(clearNames(choice))} ${CLEAR_RANGES.find((r) => r.id === range)!.phrase}?`;
+function websiteDataNames(choice: ClearChoice): string[] {
+  const names: string[] = [];
+  if (choice.cache) names.push("Cache");
+  if (choice.cookies) names.push("Cookies");
+  return names;
+}
+
+const websiteDataIgnoresRange = (choice: ClearChoice, range: ClearRange, byTime: boolean) => !byTime && range !== "allTime" && (choice.cache || choice.cookies);
+
+export function clearTitle(choice: ClearChoice, range: ClearRange, websiteDataByTime = true): string {
+  const phrase = CLEAR_RANGES.find((r) => r.id === range)!.phrase;
+  if (!websiteDataIgnoresRange(choice, range, websiteDataByTime)) return `Clear ${joinList(clearNames(choice))} ${phrase}?`;
+  const allTime = `${joinList(websiteDataNames(choice))} from all time`;
+  return choice.history ? `Clear History ${phrase}, and ${allTime}?` : `Clear ${allTime}?`;
+}
 
 export const clearMessage = (choice: ClearChoice) =>
   choice.cookies ? "You’ll be signed out of websites. Open tabs stay open." : "Open tabs stay open, and you stay signed in to websites.";
 
-export function clearFooter(choice: ClearChoice): string {
+export function clearFooter(choice: ClearChoice, range: ClearRange = "allTime", websiteDataByTime = true): string {
   if (clearIsEmpty(choice)) return "Choose what to clear.";
   const lines: string[] = [];
   if (choice.history) lines.push(copy().historyClears);
   lines.push(choice.cookies ? "Clearing cookies signs you out of websites." : "You’ll stay signed in to websites.");
+  if (websiteDataIgnoresRange(choice, range, websiteDataByTime)) {
+    const names = [choice.cache ? "the cache" : null, choice.cookies ? "cookies and site data" : null].filter((name): name is string => name !== null);
+    lines.push(`This phone can only clear ${joinList(names)} entirely, so ${names.length > 1 ? "they clear" : "it clears"} from all time.`);
+  }
   return lines.join(" ");
 }
 
