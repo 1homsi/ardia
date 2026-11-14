@@ -2,16 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ALL_COVERS, coversToClose, heldAfterOnboarding, linkAction, opensLaunchTray, type LinkState } from "./linkRules.ts";
 
-const browsing: LinkState = { onboarding: false, syncEnabled: true, canSearchByVoice: false, hasTab: (id) => id === "t1" };
+const kinds: Record<string, "open" | "private" | "archived"> = { t1: "open", p1: "private", a1: "archived" };
+const browsing: LinkState = { onboarding: false, syncEnabled: true, canSearchByVoice: false, sharesAsShare: false, tabKind: (id) => kinds[id] ?? null };
 
 test("a web link from another app opens in a new tab in front; anything else is ignored", () => {
-  assert.deepEqual(linkAction({ kind: "open", url: " https://example.com/a " }, browsing), { kind: "openUrl", url: "https://example.com/a" });
+  assert.deepEqual(linkAction({ kind: "open", url: " https://example.com/a " }, browsing), { kind: "openUrl", url: "https://example.com/a", origin: "link" });
   assert.deepEqual(linkAction({ kind: "open", url: "javascript:alert(1)" }, browsing), { kind: "none" });
   assert.deepEqual(linkAction({ kind: "open", url: "file:///etc/hosts" }, browsing), { kind: "none" });
 });
 
 test("search, voice search and incognito open the tray, with the query filled when given", () => {
-  assert.deepEqual(linkAction({ kind: "search", query: "otters " }, browsing), { kind: "tray", query: "otters", incognito: false });
+  assert.deepEqual(linkAction({ kind: "search", query: "otters " }, browsing), { kind: "searchNow", query: "otters" });
   assert.deepEqual(linkAction({ kind: "search", query: null }, browsing), { kind: "tray", query: "", incognito: false });
   assert.deepEqual(linkAction({ kind: "voiceSearch" }, browsing), { kind: "tray", query: "", incognito: false });
   assert.deepEqual(linkAction({ kind: "incognito" }, browsing), { kind: "tray", query: "", incognito: true });
@@ -64,12 +65,26 @@ test("a link leaves one surface: Spaces, Sync With Mac, a page or a tab close th
   assert.ok(coversToClose(linkAction({ kind: "macTabs" }, browsing)).includes("tray"));
 });
 
-test("a search link keeps the tray it reopens, voice keeps its screen, and links that do nothing close nothing", () => {
-  assert.ok(!coversToClose(linkAction({ kind: "search", query: "otters" }, browsing)).includes("tray"));
-  assert.ok(coversToClose(linkAction({ kind: "search", query: "otters" }, browsing)).includes("voice"));
+test("an empty search link keeps the tray it reopens, voice keeps its screen, and links that do nothing close nothing", () => {
+  assert.ok(!coversToClose(linkAction({ kind: "search", query: null }, browsing)).includes("tray"));
+  assert.ok(coversToClose(linkAction({ kind: "search", query: null }, browsing)).includes("voice"));
+  assert.ok(coversToClose(linkAction({ kind: "search", query: "otters" }, browsing)).includes("tray"));
   assert.ok(!coversToClose(linkAction({ kind: "voiceSearch" }, { ...browsing, canSearchByVoice: true })).includes("voice"));
-  assert.ok(coversToClose(linkAction({ kind: "voiceSearch" }, { ...browsing, canSearchByVoice: true })).includes("tray"));
   assert.deepEqual(coversToClose(linkAction({ kind: "tab", id: "gone" }, browsing)), []);
   assert.deepEqual(coversToClose(linkAction({ kind: "macTabs" }, { ...browsing, onboarding: true })), []);
   assert.deepEqual(coversToClose(linkAction({ kind: "inbox" }, browsing)), []);
+});
+
+test("words from a link search at once, a page shared on iPhone keeps the share origin, and a tab link restores an archived tab but never opens a private one", () => {
+  assert.deepEqual(linkAction({ kind: "search", query: "   " }, browsing), { kind: "tray", query: "", incognito: false });
+  assert.deepEqual(linkAction({ kind: "open", url: "https://example.com/", source: "share" }, { ...browsing, sharesAsShare: true }), { kind: "openUrl", url: "https://example.com/", origin: "share" });
+  assert.deepEqual(linkAction({ kind: "open", url: "https://example.com/", source: "share" }, browsing), { kind: "openUrl", url: "https://example.com/", origin: "link" });
+  assert.deepEqual(linkAction({ kind: "tab", id: "a1" }, browsing), { kind: "restoreTab", id: "a1" });
+  assert.deepEqual(linkAction({ kind: "tab", id: "p1" }, browsing), { kind: "none" });
+});
+
+test("a voice link keeps the tray under the voice screen, so Cancel lands on it", () => {
+  const covers = coversToClose(linkAction({ kind: "voiceSearch" }, { ...browsing, canSearchByVoice: true }));
+  assert.ok(!covers.includes("tray") && !covers.includes("voice"));
+  assert.deepEqual(coversToClose({ kind: "searchNow", query: "otters" }), ALL_COVERS);
 });

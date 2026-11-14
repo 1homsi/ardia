@@ -41,6 +41,11 @@ export const readOpenTabs = (db: SqlDatabase) =>
 export const readArchivedTabs = (db: SqlDatabase, limit: number, offset = 0) =>
   db.all<TabRow>(`SELECT ${TAB_COLUMNS} FROM tabs WHERE archivedAt IS NOT NULL ORDER BY archivedAt DESC LIMIT ? OFFSET ?`, [limit, offset]).map(tabOf);
 
+export const readArchivedTab = (db: SqlDatabase, id: string) => {
+  const row = db.first<TabRow>(`SELECT ${TAB_COLUMNS} FROM tabs WHERE id = ? AND archivedAt IS NOT NULL`, [id]);
+  return row ? tabOf(row) : null;
+};
+
 export const searchArchivedTabs = (db: SqlDatabase, text: string, limit: number) => {
   const pattern = escapeLike(text);
   return db

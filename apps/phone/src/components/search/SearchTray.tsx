@@ -128,6 +128,15 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     [],
   );
 
+  const voice = useVoice((state) => state.presented);
+  const voiceWasUp = useRef(voice);
+  useEffect(() => {
+    if (closing) return;
+    if (voice) trayInput?.blur();
+    else if (voiceWasUp.current && mayFocusTray()) focusTray();
+    voiceWasUp.current = voice;
+  }, [voice, closing]);
+
   const dismissDrag = useMemo(
     () =>
       Gesture.Pan()

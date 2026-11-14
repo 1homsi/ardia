@@ -1,5 +1,5 @@
 export type IncomingLink =
-  | { kind: "open"; url: string }
+  | { kind: "open"; url: string; source?: string }
   | { kind: "search"; query: string | null }
   | { kind: "voiceSearch" }
   | { kind: "incognito" }
@@ -7,14 +7,18 @@ export type IncomingLink =
   | { kind: "macTabs" }
   | { kind: "inbox" };
 
-export type LinkState = { onboarding: boolean; syncEnabled: boolean; canSearchByVoice: boolean; hasTab: (id: string) => boolean };
+export type TabKind = "open" | "private" | "archived";
+
+export type LinkState = { onboarding: boolean; syncEnabled: boolean; canSearchByVoice: boolean; sharesAsShare: boolean; tabKind: (id: string) => TabKind | null };
 
 export type LinkAction =
   | { kind: "hold" }
-  | { kind: "openUrl"; url: string }
+  | { kind: "openUrl"; url: string; origin: "link" | "share" }
+  | { kind: "searchNow"; query: string }
   | { kind: "tray"; query: string; incognito: boolean }
   | { kind: "voice" }
   | { kind: "switchTab"; id: string }
+  | { kind: "restoreTab"; id: string }
   | { kind: "spaces" }
   | { kind: "syncSettings" }
   | { kind: "inbox" }
@@ -26,15 +30,25 @@ export function linkAction(link: IncomingLink, state: LinkState): LinkAction {
   if (state.onboarding && link.kind !== "inbox") return { kind: "hold" };
   switch (link.kind) {
     case "open":
-      return WEB.test(link.url.trim()) ? { kind: "openUrl", url: link.url.trim() } : { kind: "none" };
-    case "search":
-      return { kind: "tray", query: link.query?.trim() ?? "", incognito: false };
+      if (!WEB.test(link.url.trim())) return { kind: "none" };
+      return { kind: "openUrl", url: link.url.trim(), origin: state.sharesAsShare && link.source === "share" ? "share" : "link" };
+    case "search": {
+      const query = link.query?.trim() ?? "";
+      return query ? { kind: "searchNow", query } : { kind: "tray", query: "", incognito: false };
+    }
     case "voiceSearch":
       return state.canSearchByVoice ? { kind: "voice" } : { kind: "tray", query: "", incognito: false };
     case "incognito":
       return { kind: "tray", query: "", incognito: true };
     case "tab":
-      return state.hasTab(link.id) ? { kind: "switchTab", id: link.id } : { kind: "none" };
+      switch (state.tabKind(link.id)) {
+        case "open":
+          return { kind: "switchTab", id: link.id };
+        case "archived":
+          return { kind: "restoreTab", id: link.id };
+        default:
+          return { kind: "none" };
+      }
     case "macTabs":
       return state.syncEnabled ? { kind: "spaces" } : { kind: "syncSettings" };
     case "inbox":
@@ -55,7 +69,7 @@ export function coversToClose(action: LinkAction): readonly Cover[] {
     case "tray":
       return ALL_COVERS.filter((cover) => cover !== "tray");
     case "voice":
-      return ALL_COVERS.filter((cover) => cover !== "voice");
+      return ALL_COVERS.filter((cover) => cover !== "voice" && cover !== "tray");
     default:
       return ALL_COVERS;
   }
