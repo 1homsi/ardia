@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { emptySide, nextRecord, parseListing, plan } from "../../scripts/phone-sync-relay.mjs";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { after, test } from "node:test";
+import { copyInto, emptySide, nextRecord, parseListing, partsFolder, pass, plan, probePhone } from "../../scripts/phone-sync-relay.mjs";
+import { writeFakeAdb } from "../../test/fakeAdb.ts";
 
 type Entry = { mtime: number; size: number };
 type Side = Record<string, Entry>;
@@ -85,4 +90,91 @@ test("the relay's probe file is left out of a pass's listing and kept for the pr
   const out = "1700000000 18 ./.ardia-relay-probe\n1700000001 7 ./b.json\n";
   assert.deepEqual(Object.keys(parseListing(out)), ["b.json"]);
   assert.deepEqual(parseListing(out, { withProbe: true })[".ardia-relay-probe"], { mtime: 1700000000, size: 18 });
+});
+
+const made: string[] = [];
+after(() => made.forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));
+
+function relayWorld() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "relay-world-"));
+  made.push(root);
+  const adb = writeFakeAdb(root);
+  const mac = path.join(root, "mac", "folder");
+  const phone = path.join(root, "phone", "Ardia Sync");
+  const work = path.join(root, "work");
+  fs.mkdirSync(mac, { recursive: true });
+  fs.mkdirSync(phone, { recursive: true });
+  fs.mkdirSync(work, { recursive: true });
+  const opts = { mac, phoneFolder: phone, work, adb, serial: "fake" };
+  const phoneSide = {
+    folder: phone,
+    shell: (command: string): [string, string[]] => [adb, ["-s", "fake", "shell", command]],
+    write: (part: string): [string, string[]] => [adb, ["-s", "fake", "exec-in", `cat > '${part}'`]],
+    read: (file: string): [string, string[]] => [adb, ["-s", "fake", "exec-out", `cat '${file}'`]],
+  };
+  const files = (dir: string) => (fs.existsSync(dir) ? (fs.readdirSync(dir, { recursive: true }) as string[]).filter((f) => fs.statSync(path.join(dir, f)).isFile()).sort() : []);
+  return { root, adb, mac, phone, work, opts, phoneSide, files };
+}
+
+test("the stand-in adb behaves like the F4: exec-in runs only the command that reads stdin and drops the rest", () => {
+  const { adb, root } = relayWorld();
+  execFileSync(adb, ["-s", "fake", "exec-in", `cat > '${root}/p' && mv -f '${root}/p' '${root}/q'`], { input: "hello" });
+  assert.equal(fs.readFileSync(path.join(root, "p"), "utf8"), "hello");
+  assert.equal(fs.existsSync(path.join(root, "q")), false);
+});
+
+test("a copy to the phone is written whole beside the folder, checked, then renamed into place, leaving no part file", async () => {
+  const { phone, phoneSide, files, mac } = relayWorld();
+  fs.writeFileSync(path.join(mac, "a.nns"), "x".repeat(70_000));
+  const target = path.join(phone, "scope", "a.nns");
+  const sent = await copyInto(phoneSide, ["cat", [path.join(mac, "a.nns")]], target);
+  assert.equal(sent.bytes, 70_000);
+  assert.equal(fs.readFileSync(target, "utf8"), "x".repeat(70_000));
+  assert.deepEqual(files(phone), ["scope/a.nns"]);
+  assert.deepEqual(files(partsFolder(phone)), []);
+});
+
+test("a copy that arrives short is not put in place and its part is removed", async () => {
+  const { phone, phoneSide, files, mac } = relayWorld();
+  fs.writeFileSync(path.join(mac, "a.nns"), "y".repeat(5_000));
+  process.env.FAKE_ADB_TRUNCATE = "1";
+  try {
+    await assert.rejects(copyInto(phoneSide, ["cat", [path.join(mac, "a.nns")]], path.join(phone, "a.nns")), /didn't arrive whole/);
+  } finally {
+    delete process.env.FAKE_ADB_TRUNCATE;
+  }
+  assert.deepEqual(files(phone), []);
+  assert.deepEqual(files(partsFolder(phone)), []);
+});
+
+test("the probe goes through the real copy path, and leaves neither name nor an old run's part behind", async () => {
+  const { phone, opts, files } = relayWorld();
+  fs.writeFileSync(path.join(phone, ".ardia-relay-probe.relay-part"), "left by sync10's relay");
+  const log = path.join(opts.work, "adb.log");
+  process.env.FAKE_ADB_LOG = log;
+  try {
+    await probePhone(opts);
+  } finally {
+    delete process.env.FAKE_ADB_LOG;
+  }
+  assert.deepEqual(files(phone), []);
+  assert.equal(fs.existsSync(partsFolder(phone)), false);
+  const calls = fs.readFileSync(log, "utf8");
+  assert.match(calls, /^exec-in cat > '[^']*\.ardia-relay-parts\/[^']*\.relay-part'$/m);
+  assert.match(calls, /relay-committed/);
+});
+
+test("a pass copies both ways through the stand-in and a second pass does nothing", async () => {
+  const { mac, phone, opts, files } = relayWorld();
+  fs.mkdirSync(path.join(mac, "s"), { recursive: true });
+  fs.writeFileSync(path.join(mac, "s", "from-mac.nns"), "mac bytes");
+  fs.writeFileSync(path.join(phone, "from-phone.nns"), "phone bytes");
+  const first = await pass(opts);
+  assert.deepEqual(first.failed, []);
+  assert.deepEqual(files(mac), ["from-phone.nns", "s/from-mac.nns"]);
+  assert.deepEqual(files(phone), ["from-phone.nns", "s/from-mac.nns"]);
+  assert.equal(fs.readFileSync(path.join(phone, "s", "from-mac.nns"), "utf8"), "mac bytes");
+  assert.equal(fs.readFileSync(path.join(mac, "from-phone.nns"), "utf8"), "phone bytes");
+  const second = await pass(opts);
+  assert.deepEqual(second.steps, []);
 });

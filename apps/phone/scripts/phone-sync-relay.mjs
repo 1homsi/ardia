@@ -12,17 +12,21 @@
 // prints it; both remember the options, so later commands need only --serial, and both first write, read back, list
 // and delete a probe file on the phone, so a phone that doesn't behave fails before anything is copied. status says
 // whether the loop runs, its last pass and the file counts on both sides; stop ends the loop and forgets the state.
-// A file changed on one side since the last pass is copied to the other (through a temporary name, then renamed);
-// changed on both, the newer wins; gone from one side after a pass saw it on both, it is deleted on the other. A
+// A file changed on one side since the last pass is copied to the other; changed on both, the newer wins; gone from
+// one side after a pass saw it on both, it is deleted on the other. A copy is written whole into .ardia-relay-parts
+// beside the sync folder by a lone cat (adb exec-in drops anything after the command that reads stdin), then a
+// separate command checks its SHA-256 and only then renames it into place, so an app never reads half a file. A
 // pass that finds a side empty after seeing files there stops without changing anything. State lives in
 // $TMPDIR/ardia-phone-relay-<serial>. --adb PATH runs another adb.
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TEMP_SUFFIX = ".relay-part";
+const PARTS_FOLDER = ".ardia-relay-parts";
 const PROBE_NAME = ".ardia-relay-probe";
 const PROBE_TEXT = "ardia relay probe\n";
 
@@ -81,14 +85,27 @@ export function parseListing(out, { withProbe = false } = {}) {
 const LIST = (folder) =>
   `mkdir -p ${quoted(folder)} && cd ${quoted(folder)} && find . -type f -exec sh -c 'stat -c "%Y %s %n" "$@" 2>/dev/null || stat -f "%m %z %N" "$@"' sh {} +`;
 
+export const partsFolder = (folder) => path.posix.join(path.posix.dirname(folder), PARTS_FOLDER);
+
+export const COMMITTED = "relay-committed";
+
+export const commitCommand = (part, target, sha256) =>
+  `h=$( (sha256sum ${quoted(part)} 2>/dev/null || shasum -a 256 ${quoted(part)}) | cut -d " " -f 1 ); ` +
+  `if [ "$h" = "${sha256}" ]; then mkdir -p ${quoted(path.posix.dirname(target))} && mv -f ${quoted(part)} ${quoted(target)} && echo ${COMMITTED}; ` +
+  `else rm -f ${quoted(part)}; echo "relay-mismatch $h"; fi`;
+
 function endpoints(opts) {
   const match = /^([^/:]+):(\/.*)$/.exec(opts.mac);
   const host = match ? match[1] : null;
   const macFolder = match ? match[2] : path.resolve(opts.mac);
   const control = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ControlMaster=auto", "-o", `ControlPath=${path.join(opts.work, "ssh-%C")}`, "-o", "ControlPersist=120"];
-  const macArgs = (command) => (host ? ["ssh", [...control, host, command]] : ["sh", ["-c", command]]);
+  const macArgs = (command) => (host ? ["ssh", [...control, host, `sh -c ${quoted(command)}`]] : ["sh", ["-c", command]]);
   const adb = (kind, command) => [opts.adb, [...(opts.serial ? ["-s", opts.serial] : []), kind, command]];
-  return { host, macFolder, macArgs, adb };
+  const sides = {
+    mac: { folder: macFolder, shell: macArgs, write: (part) => macArgs(`cat > ${quoted(part)}`), read: (file) => macArgs(`cat ${quoted(file)}`) },
+    phone: { folder: opts.phoneFolder, shell: (command) => adb("shell", command), write: (part) => adb("exec-in", `cat > ${quoted(part)}`), read: (file) => adb("exec-out", `cat ${quoted(file)}`) },
+  };
+  return { host, macFolder, macArgs, adb, sides };
 }
 
 function run([command, args], input) {
@@ -102,16 +119,23 @@ function pipe(from, to) {
   return new Promise((resolve, reject) => {
     const reader = spawn(from[0], from[1], { stdio: ["ignore", "pipe", "pipe"] });
     const writer = spawn(to[0], to[1], { stdio: ["pipe", "pipe", "pipe"] });
+    const hash = createHash("sha256");
+    let bytes = 0;
     let errors = "";
     reader.stderr.on("data", (chunk) => (errors += chunk));
     writer.stderr.on("data", (chunk) => (errors += chunk));
     writer.stdout.on("data", (chunk) => (errors += chunk));
+    reader.stdout.on("data", (chunk) => {
+      hash.update(chunk);
+      bytes += chunk.length;
+    });
     reader.stdout.pipe(writer.stdin);
+    writer.stdin.on("error", () => undefined);
     const codes = [];
     const done = (code) => {
       codes.push(code);
       if (codes.length < 2) return;
-      if (codes.every((c) => c === 0)) resolve();
+      if (codes.every((c) => c === 0)) resolve({ sha256: hash.digest("hex"), bytes });
       else reject(new Error(`copy failed (${codes.join(", ")}): ${errors.trim().split("\n")[0]}`));
     };
     reader.on("close", done);
@@ -121,10 +145,20 @@ function pipe(from, to) {
   });
 }
 
-const writeInto = (target) => {
-  const part = `${target}${TEMP_SUFFIX}`;
-  return `mkdir -p ${quoted(path.posix.dirname(target))} && cat > ${quoted(part)} && mv -f ${quoted(part)} ${quoted(target)}`;
-};
+let partNumber = 0;
+
+export async function copyInto(side, from, target) {
+  const parts = partsFolder(side.folder);
+  const part = path.posix.join(parts, `${process.pid}-${Date.now()}-${++partNumber}${TEMP_SUFFIX}`);
+  run(side.shell(`mkdir -p ${quoted(parts)}`));
+  const sent = await pipe(from, side.write(part));
+  const answer = run(side.shell(commitCommand(part, target, sent.sha256))).trim();
+  if (!answer.split("\n").includes(COMMITTED)) {
+    run(side.shell(`rm -f ${quoted(part)}`));
+    throw new Error(`the copy didn't arrive whole, so it wasn't put in place (${sent.bytes} bytes sent, sha256 ${sent.sha256.slice(0, 12)}; the other side said ${JSON.stringify(answer)})`);
+  }
+  return sent;
+}
 
 export function emptySide(before, record) {
   const had = (side) => Object.values(record).some((entry) => entry[side]);
@@ -133,15 +167,30 @@ export function emptySide(before, record) {
   return null;
 }
 
+const leftovers = (folder) =>
+  `mkdir -p ${quoted(folder)} && rm -f ${quoted(path.posix.join(folder, PROBE_NAME))} && find ${quoted(folder)} -name ${quoted(`*${TEMP_SUFFIX}`)} -type f -exec rm -f {} + ; ` +
+  `rm -rf ${quoted(partsFolder(folder))}; echo relay-clean`;
+
 export async function probePhone(opts) {
   const ends = endpoints(opts);
+  const phone = ends.sides.phone;
   const probe = path.posix.join(opts.phoneFolder, PROBE_NAME);
-  await pipe(["printf", [PROBE_TEXT.replace(/\n/g, "\\n")]], ends.adb("exec-in", writeInto(probe)));
-  const back = run(ends.adb("exec-out", `cat ${quoted(probe)}`));
-  const listed = parseListing(run(ends.adb("shell", LIST(opts.phoneFolder))), { withProbe: true })[PROBE_NAME];
-  run(ends.adb("shell", `rm -f ${quoted(probe)}`));
-  if (back !== PROBE_TEXT || listed?.size !== Buffer.byteLength(PROBE_TEXT) || !(listed.mtime > 1_000_000_000)) {
-    throw new Error(`the phone's folder doesn't behave as expected over adb (read back ${JSON.stringify(back)}, listed ${JSON.stringify(listed)}); nothing was copied or deleted`);
+  if (!run(phone.shell(leftovers(opts.phoneFolder))).includes("relay-clean")) throw new Error("the phone didn't answer a cleanup command over adb; nothing was copied or deleted");
+  let sent = null;
+  let failure = null;
+  try {
+    sent = await copyInto(phone, [process.execPath, ["-e", `process.stdout.write(${JSON.stringify(PROBE_TEXT)})`]], probe);
+  } catch (error) {
+    failure = error.message;
+  }
+  const back = failure ? null : run(phone.read(probe));
+  const listed = parseListing(run(phone.shell(LIST(opts.phoneFolder))), { withProbe: true })[PROBE_NAME];
+  run(phone.shell(leftovers(opts.phoneFolder)));
+  const stray = run(phone.shell(`find ${quoted(opts.phoneFolder)} ${quoted(partsFolder(opts.phoneFolder))} -name ${quoted(`*${TEMP_SUFFIX}`)} 2>/dev/null; true`)).trim();
+  if (failure || back !== PROBE_TEXT || listed?.size !== Buffer.byteLength(PROBE_TEXT) || !(listed.mtime > 1_000_000_000) || stray) {
+    throw new Error(
+      `the phone's folder doesn't behave as expected over adb (${failure ? `write: ${failure}` : `wrote ${sent?.bytes} bytes, read back ${JSON.stringify(back)}, listed ${JSON.stringify(listed)}`}${stray ? `, left behind ${stray}` : ""}); nothing was copied or deleted`,
+    );
   }
 }
 
@@ -161,8 +210,8 @@ export async function pass(opts) {
     const onMac = path.posix.join(ends.macFolder, step.file);
     const onPhone = path.posix.join(opts.phoneFolder, step.file);
     try {
-      if (step.kind === "toPhone") await pipe(ends.macArgs(`cat ${quoted(onMac)}`), ends.adb("exec-in", writeInto(onPhone)));
-      else if (step.kind === "toMac") await pipe(ends.adb("exec-out", `cat ${quoted(onPhone)}`), ends.macArgs(writeInto(onMac)));
+      if (step.kind === "toPhone") await copyInto(ends.sides.phone, ends.sides.mac.read(onMac), onPhone);
+      else if (step.kind === "toMac") await copyInto(ends.sides.mac, ends.sides.phone.read(onPhone), onMac);
       else if (step.kind === "deleteOnMac") run(ends.macArgs(`rm -f ${quoted(onMac)}`));
       else run(ends.adb("shell", `rm -f ${quoted(onPhone)}`));
       done.push(step);
@@ -264,6 +313,16 @@ async function main() {
     if (fs.existsSync(log)) console.log(fs.readFileSync(log, "utf8").trim().split("\n").slice(-10).join("\n"));
   } else if (opts.command === "stop") {
     if (opts.pid && alive(opts.pid)) process.kill(opts.pid, "SIGTERM");
+    if (opts.mac) {
+      const ends = endpoints(opts);
+      for (const side of [ends.sides.phone, ends.sides.mac]) {
+        try {
+          run(side.shell(`rm -rf ${quoted(partsFolder(side.folder))}`));
+        } catch (error) {
+          console.log(`could not remove ${partsFolder(side.folder)}: ${error.message}`);
+        }
+      }
+    }
     if (opts.mac && /^[^/:]+:\//.test(opts.mac)) spawnSync("ssh", ["-o", `ControlPath=${path.join(opts.work, "ssh-%C")}`, "-O", "exit", opts.mac.split(":")[0]], { stdio: "ignore" });
     fs.rmSync(opts.work, { recursive: true, force: true });
     console.log(`relay stopped; removed ${opts.work}`);

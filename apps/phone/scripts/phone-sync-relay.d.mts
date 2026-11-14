@@ -7,3 +7,13 @@ export function nextRecord(record: RelayRecord, before: { mac: RelaySide; phone:
 export function parseListing(out: string, options?: { withProbe?: boolean }): RelaySide;
 export function quoted(text: string): string;
 export function emptySide(before: { mac: RelaySide; phone: RelaySide }, record: RelayRecord): "mac" | "phone" | null;
+export type RelayCommand = [string, string[]];
+export type RelaySideAccess = { folder: string; shell: (command: string) => RelayCommand; write: (part: string) => RelayCommand; read: (file: string) => RelayCommand };
+export type RelayOptions = { mac: string; phoneFolder: string; work: string; adb: string; serial?: string };
+export type RelaySummary = { at: string; mac: number; phone: number; steps: RelayStep[]; failed: (RelayStep & { error: string })[] };
+export const COMMITTED: string;
+export function partsFolder(folder: string): string;
+export function commitCommand(part: string, target: string, sha256: string): string;
+export function copyInto(side: RelaySideAccess, from: RelayCommand, target: string): Promise<{ sha256: string; bytes: number }>;
+export function probePhone(opts: RelayOptions): Promise<void>;
+export function pass(opts: RelayOptions): Promise<RelaySummary>;
