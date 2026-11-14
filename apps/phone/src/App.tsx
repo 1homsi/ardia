@@ -28,6 +28,7 @@ import { VoiceSearchView } from "./components/search/VoiceSearchView";
 import { useVoicePresented } from "./state/voice/store";
 import { useSharedValue } from "react-native-reanimated";
 import { closeSettings } from "./state/settings/nav";
+import { applyLaunchSettings, runLaunchScenario } from "./state/app/launch";
 import { frontSheet } from "./state/settings/settingsRules";
 import { inkLayer, lightStatusIcons } from "./lib/statusInk";
 import { reportLaunch, startTelemetry } from "./state/telemetry/telemetry";
@@ -37,11 +38,12 @@ export default function App() {
   useState(() =>
     bootApp(() => {
       startTelemetry();
-      startBrowser();
+      startBrowser(applyLaunchSettings);
       startPageUi();
       startSettingsSources();
       startSync();
       startLinks();
+      runLaunchScenario();
     }),
   );
   const ready = useBoot((s) => s.ready);

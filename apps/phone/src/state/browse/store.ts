@@ -61,10 +61,11 @@ const DECK_SNAPSHOT_WAIT_MS = 400;
 
 let started = false;
 
-export function startBrowser() {
+export function startBrowser(beforeOpening: () => void = () => undefined) {
   if (started) return;
   started = true;
   loadPreferences();
+  beforeOpening();
   applySearchEngine();
   loadTabs();
   history().pruneBefore(Date.now() - HISTORY_RETENTION_MS);

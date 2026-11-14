@@ -1,0 +1,144 @@
+import { deckSteps, LAUNCH_TIMING, NO_LAUNCH_ARGUMENTS, parseLaunchArguments, TRUSTED_SITES_SAMPLE, type DeckStep, type LaunchArguments } from "../../lib/launchArguments";
+import { launchValues } from "../../platform/launch";
+import { newTab, openArchive, openPage, openSpaces, openTab, showDeck } from "../browse/store";
+import { openPageMenu, showReader } from "../page/actions";
+import { presentSearch } from "../search/store";
+import { trustSite } from "../settings/actions";
+import { openSettings } from "../settings/nav";
+import { acceptsPreference, type ColorChoice } from "../settings/preferences";
+import { setPreference } from "../settings/store";
+import { closeEveryTab, closeTabById, currentTabs, openNewTab, receiveSentTabs, setIncognito, updateTabById } from "../tabs/store";
+import { deckOrder } from "../tabs/tabsState";
+import { showToast } from "../toasts/store";
+import { DEMO_PRIVATE_URLS, manyTabTitle, sampleToast } from "./launchRules";
+
+let launch: LaunchArguments = NO_LAUNCH_ARGUMENTS;
+let read = false;
+
+export function launchArguments(): LaunchArguments {
+  if (!read) {
+    read = true;
+    launch = parseLaunchArguments(launchValues());
+  }
+  return launch;
+}
+
+const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+export function applyLaunchSettings() {
+  const args = launchArguments();
+  if (!args.isDemo) return;
+  if (!args.showsOnboarding) setPreference("hasFinishedOnboarding", true);
+  if (args.restingStart) setPreference("autoOpensKeyboard", false);
+  const color = args.color?.toLowerCase() ?? null;
+  if (color && acceptsPreference("colorChoice", color)) setPreference("colorChoice", color as ColorChoice);
+}
+
+export function runLaunchScenario() {
+  const args = launchArguments();
+  if (args.isDemo) void runDemoScenario(args);
+  void runLaunchHooks(args);
+  if (args.deckScript) void runDeckScript(args.deckScript);
+}
+
+async function runDemoScenario(args: LaunchArguments) {
+  if (args.browseIncognito) setIncognito(true);
+  if (args.browseOpen) openPage(args.browseOpen, "typed");
+  if (args.browseQuery !== null) presentSearch("home", args.browseQuery);
+  if (args.browseSurface === "browsing") {
+    const open = currentTabs().open;
+    const chosen = (args.browseTab !== null ? open[args.browseTab]?.id : null) ?? currentTabs().selectedId;
+    if (chosen) openTab(chosen);
+  }
+  await wait(args.browseDelayMs);
+  if (args.browseToolbar) void openPageMenu();
+  if (args.browseOverlay !== null) presentSearch("page", args.browseOverlay);
+  if (args.browseReader) showReader();
+  if (args.browseDeck) {
+    void showDeck();
+    if (args.browseDeckOpen !== null) {
+      await wait(LAUNCH_TIMING.deckOpenMs);
+      const tab = currentTabs().open[args.browseDeckOpen];
+      if (tab) openTab(tab.id);
+    }
+  }
+  if (args.browsePlus) {
+    await wait(args.browseDelayMs);
+    newTab();
+  }
+  if (args.browseSteps.length) console.log("ardia-launch BrowseSteps needs the pager's step command; skipped");
+}
+
+async function runLaunchHooks(args: LaunchArguments) {
+  if (args.trustedSitesSample) for (const host of TRUSTED_SITES_SAMPLE) void trustSite(host, true);
+  if (!args.opensSettings && args.openSheet === null && args.toast === null) return;
+  await wait(LAUNCH_TIMING.sheetMs);
+  if (args.opensSettings || args.openSheet === "settings") openSettings();
+  if (args.openSheet === "archive") openArchive();
+  if (args.openSheet === "spaces") openSpaces();
+  if (args.toast === null) return;
+  await wait(LAUNCH_TIMING.toastMs - LAUNCH_TIMING.sheetMs);
+  const toast = sampleToast(args.toast);
+  if (toast) showToast(toast.message, toast.icon);
+}
+
+async function runDeckScript(script: string) {
+  await wait(LAUNCH_TIMING.deckScriptStartMs);
+  for (const step of deckSteps(script)) await deckStep(step);
+}
+
+const SUPPORTED_LATER = new Set(["warm", "open", "snapall", "scroll", "close", "tap", "lift", "archivecard"]);
+
+async function deckStep({ kind, argument }: DeckStep) {
+  switch (kind) {
+    case "wait":
+      await wait((Number(argument) || 1) * 1000);
+      return;
+    case "deck":
+    case "switcher":
+      await showDeck();
+      return;
+    case "browse": {
+      const selected = currentTabs().selectedId;
+      if (selected) openTab(selected);
+      return;
+    }
+    case "incognito":
+      for (const url of DEMO_PRIVATE_URLS) openNewTab({ url, origin: "typed", isPrivate: true });
+      await showDeck();
+      return;
+    case "keep": {
+      const order = deckOrder(currentTabs());
+      for (const tab of order.slice(0, Math.max(0, order.length - (Number(argument) || 3)))) closeTabById(tab.id);
+      return;
+    }
+    case "private": {
+      const tab = openNewTab({ url: DEMO_PRIVATE_URLS[0], origin: "typed", isPrivate: true, selecting: false });
+      updateTabById(tab.id, { title: "Moon - Wikipedia" });
+      return;
+    }
+    case "empty":
+      closeEveryTab();
+      await showDeck();
+      return;
+    case "archive":
+      openArchive();
+      return;
+    case "spaces":
+      openSpaces();
+      return;
+    case "received":
+      receiveSentTabs([
+        { key: `demo-received-${Date.now()}`, url: "https://www.swift.org/blog/", title: "Blog | Swift.org", fromDevice: "MacBook Pro", sentAt: Date.now(), profileSyncId: "demo-personal" },
+      ]);
+      return;
+    case "many":
+      for (let index = 0; index < (Number(argument) || 50); index++) {
+        const tab = openNewTab({ url: `https://en.wikipedia.org/wiki/Special:Random?n=${index}`, origin: "typed", isPrivate: false, selecting: false });
+        updateTabById(tab.id, { title: manyTabTitle(index) });
+      }
+      return;
+    default:
+      console.log(`ardia-launch deck step ${kind}${SUPPORTED_LATER.has(kind) ? " needs the deck's commands" : " is unknown"}; skipped`);
+  }
+}
