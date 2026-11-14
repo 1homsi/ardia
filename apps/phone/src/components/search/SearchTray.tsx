@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import type { GestureType } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
 import { useSearchFieldVersion, useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
 import { initialPresence, presenceSettled, presenceShown, presenceTarget } from "../../lib/sheetPresence";
-import { keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayMaxHeight, trayOffset } from "../../lib/trayMotion";
+import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayDragDismisses, trayDragOffset, trayDragReleasesKeyboard, trayMaxHeight, trayOffset } from "../../lib/trayMotion";
+import { useOnboarding } from "../../state/onboarding/store";
+import { useVoice } from "../../state/voice/store";
 import { wholeRowsHeight } from "../../lib/trayRows";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
@@ -67,6 +70,11 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const hasLanded = useSharedValue(false);
   const isClosing = useSharedValue(closing);
   const dim = useSharedValue(0);
+  const drag = useSharedValue(0);
+  const dragging = useSharedValue(false);
+  const released = useSharedValue(false);
+  const heldLift = useSharedValue(-1);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safeBottom = insets.bottom;
   const preferred = SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
   const trayHeight = trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s);
@@ -95,11 +103,72 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     return () => clearTimeout(land);
   }, [session, closing]);
 
+  const settleAfterDrag = () => {
+    if (heldLift.value < 0 || isClosing.value) return;
+    if (mayFocusTray()) focusTray();
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => {
+      if (heldLift.value < 0 || isClosing.value) return;
+      const to = liveLift(keyboard.height.value, safeBottom, hasLanded.value, false);
+      heldLift.value = reduceMotion
+        ? withTiming(to, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }, (finished) => {
+            if (finished) heldLift.value = -1;
+          })
+        : withSpring(to, trayMotion.settle, (finished) => {
+            if (finished) heldLift.value = -1;
+          });
+    }, TRAY_LIFT.settleHoldMs);
+  };
+  useEffect(
+    () => () => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+    },
+    [],
+  );
+
+  const dismissDrag = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!closing)
+        .activeOffsetY([-10, 10])
+        .failOffsetX([-24, 24])
+        .onStart(() => {
+          cancelAnimation(drag);
+          dragging.value = true;
+          released.value = false;
+        })
+        .onUpdate((event) => {
+          if (!released.value && trayDragReleasesKeyboard(event.translationY)) {
+            released.value = true;
+            if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
+            runOnJS(Keyboard.dismiss)();
+          }
+          drag.value = trayDragOffset(event.translationY);
+        })
+        .onEnd((event) => {
+          dragging.value = false;
+          if (trayDragDismisses(event.translationY, event.velocityY, trayHeight)) {
+            runOnJS(cancelSearch)();
+            return;
+          }
+          drag.value = reduceMotion ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(0, trayMotion.settle);
+          runOnJS(settleAfterDrag)();
+        }),
+    [closing, trayHeight, safeBottom, reduceMotion],
+  );
+
+  useAnimatedReaction(
+    () => (heldLift.value >= 0 && !dragging.value ? Math.abs(liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value) - heldLift.value) : Infinity),
+    (gap) => {
+      if (gap < TRAY_LIFT.heldReleaseTolerance) heldLift.value = -1;
+    },
+  );
+
   useEffect(() => {
     if (!closing) return;
     isClosing.value = true;
     Keyboard.dismiss();
-    const followsKeyboard = keyboardIsUp(keyboard.height.value);
+    const followsKeyboard = keyboardIsUp(keyboard.height.value) && heldLift.value < 0;
     landing.value = followsKeyboard
       ? 0
       : reduceMotion
@@ -133,13 +202,17 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     },
   );
 
-  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
+  const currentLift = () => {
+    "worklet";
+    return heldLift.value >= 0 ? heldLift.value : liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
+  };
+  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * (1 - clampedProgress(drag.value, trayHeight + currentLift())) }), [trayHeight, safeBottom]);
   const trayStyle = useAnimatedStyle(() => {
-    const lift = liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
+    const lift = currentLift();
     const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
     return {
       opacity: reduceMotion ? dim.value : 1,
-      transform: [{ translateY: trayOffset(lift, 0, rise, trayHeight, radius.sheet) }],
+      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, radius.sheet) }],
     };
   }, [trayHeight, safeBottom, reduceMotion]);
 
@@ -172,8 +245,12 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
       >
         {incognito ? null : <LookFrost source={SURFACES_FROST} variant="sheet" cornerRadius={radius.sheet} fill={theme.surface} style={StyleSheet.absoluteFill} />}
         <View style={{ height: trayHeight }}>
-          <TrayField key={session} />
-          <TrayRows />
+          <GestureDetector gesture={dismissDrag}>
+            <View collapsable={false}>
+              <TrayField key={session} />
+            </View>
+          </GestureDetector>
+          <TrayRows dismissDrag={dismissDrag} />
         </View>
       </Animated.View>
     </View>
@@ -181,6 +258,12 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 }
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+let trayInput: TextInput | null = null;
+
+const focusTray = () => trayInput?.focus();
+
+const mayFocusTray = () => !useOnboarding.getState().showing && !useVoice.getState().presented;
 
 function TrayField() {
   const version = useSearchFieldVersion();
@@ -206,7 +289,10 @@ function FieldInput({ first }: { first: boolean }) {
     <View style={styles.fieldArea}>
       <View style={[styles.field, { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
         <TextInput
-          ref={input}
+          ref={(field) => {
+            input.current = field;
+            trayInput = field;
+          }}
           style={[font.body, styles.input, { color: theme.foregroundPrimary }]}
           defaultValue={start}
           selection={selection}
@@ -270,7 +356,7 @@ function IncognitoToggle() {
   );
 }
 
-function TrayRows() {
+function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   const theme = useTrayTheme();
   const rows = useSearchRows();
   const typed = useSearchText();
@@ -291,9 +377,18 @@ function TrayRows() {
   );
   if (incognito && !typed.trim()) {
     return (
-      <View style={[styles.rows, styles.incognitoNote]}>
-        <Text style={[font.title3, styles.medium, { color: tabsInk.onDarkSoft }]}>You’re browsing Incognito</Text>
-      </View>
+      <GestureDetector gesture={dismissDrag}>
+        <View style={[styles.rows, styles.incognitoNote]}>
+          <Text style={[font.title3, styles.medium, { color: tabsInk.onDarkSoft }]}>You’re browsing Incognito</Text>
+        </View>
+      </GestureDetector>
+    );
+  }
+  if (!rows.length) {
+    return (
+      <GestureDetector gesture={dismissDrag}>
+        <View style={styles.rows} collapsable={false} />
+      </GestureDetector>
     );
   }
   return (
