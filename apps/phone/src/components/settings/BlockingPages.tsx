@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut, useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { pastedText } from "../../state/sync/actions";
@@ -305,21 +305,41 @@ export function MyFiltersPage() {
   const [draft, setDraft] = useState<string | null>(null);
   const text = draft ?? saved;
   const changed = draft !== null && draft !== saved;
+  const [applying, setApplying] = useState(false);
+  const applyingNow = useRef(false);
+  const insets = useSafeAreaInsets();
+  const keyboard = useAnimatedKeyboard({ isStatusBarTranslucentAndroid: true, isNavigationBarTranslucentAndroid: true });
+  const lift = useAnimatedStyle(() => ({ height: Math.max(keyboard.height.value - insets.bottom, 0) }));
+  const large = useWindowDimensions().fontScale >= settingsLayout.accessibilityFontScale;
   const apply = async () => {
+    if (!changed || applyingNow.current) return;
+    applyingNow.current = true;
+    setApplying(true);
     await applyMyFilters(text);
+    applyingNow.current = false;
+    setApplying(false);
+    Keyboard.dismiss();
     setDraft(null);
   };
+  useEffect(() => {
+    if (!changed) return;
+    const back = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => back.remove();
+  }, [changed]);
   return (
     <SettingsPage
       title="My Filters"
-      onBack={popSettings}
+      onBack={changed ? undefined : popSettings}
+      scroll={false}
       leading={changed ? <BarButton title="Revert" onPress={() => setDraft(null)} /> : null}
-      trailing={<BarButton title="Apply" emphasized enabled={changed} onPress={() => void apply()} />}
+      trailing={applying ? <ActivityIndicator testID="applyingFilters" color={theme.secondaryLabel} style={styles.barSpinner} /> : <BarButton title="Apply" emphasized enabled={changed} onPress={() => void apply()} />}
     >
       <View style={[styles.editor, { backgroundColor: theme.groupFill }]}>
         <TextInput
+          testID="myFiltersField"
           accessibilityLabel="My Filters"
           multiline
+          scrollEnabled
           value={text}
           onChangeText={setDraft}
           placeholder={"||ads.example.com^\nexample.com##.newsletter-popup"}
@@ -330,14 +350,16 @@ export function MyFiltersPage() {
         />
       </View>
       <View style={styles.footer}>
-        <Text style={[font.footnote, { color: changed ? theme.formAccent : theme.secondaryLabel }]}>
-          {myFiltersSummary(state?.myFiltersRuleCount ?? 0, state?.myFiltersSkippedCount ?? 0, changed)}
-        </Text>
-        <Text style={[font.footnote, { color: theme.secondaryLabel }]}>||site.com^ blocks a site. site.com##.ad hides part of a page. Lines that start with ! are notes.</Text>
+        <CrossfadeText
+          text={myFiltersSummary(state?.myFiltersRuleCount ?? 0, state?.myFiltersSkippedCount ?? 0, changed)}
+          style={[font.footnote, styles.bold, { color: changed ? theme.formAccent : theme.secondaryLabel }]}
+        />
+        {large ? null : <Text style={[font.footnote, { color: theme.secondaryLabel }]}>||site.com^ blocks a site. site.com##.ad hides part of a page. Lines that start with ! are notes.</Text>}
         <Pressable accessibilityRole="link" onPress={() => openFromSettings(FILTER_SYNTAX_URL)} style={styles.syntax}>
           <Text style={[font.footnote, styles.bold, { color: theme.formAccent }]}>Filter Syntax</Text>
         </Pressable>
       </View>
+      <Animated.View style={lift} />
     </SettingsPage>
   );
 }
@@ -385,7 +407,8 @@ const styles = StyleSheet.create({
   fieldSurface: { marginHorizontal: space.l, borderRadius: settingsLayout.groupRadius, paddingHorizontal: settingsLayout.rowInset, minHeight: settingsLayout.rowMinHeight, justifyContent: "center" },
   sheetField: { minHeight: settingsLayout.rowMinHeight },
   paste: { alignItems: "center", paddingTop: space.s },
-  editor: { marginHorizontal: space.l, borderRadius: settingsLayout.groupRadius, padding: space.l, minHeight: 240 },
+  editor: { flex: 1, marginHorizontal: space.l, marginTop: space.xs, borderRadius: settingsLayout.groupRadius, padding: space.l },
+  barSpinner: { marginRight: space.s },
   editorText: { flex: 1, textAlignVertical: "top", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   footer: { paddingHorizontal: space.l + settingsLayout.rowInset, gap: space.xs },
   remove: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
