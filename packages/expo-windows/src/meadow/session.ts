@@ -59,6 +59,8 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
   let pageNight = night;
   let wantedNight = night;
   let reading = false;
+  let pageMuted = intro.muted;
+  let wantedMuted = intro.muted;
   let frames = 0;
   let framesMs = 0;
   let closeTimer: Cancel = () => {};
@@ -98,16 +100,25 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
     phase = "closing";
     stopTimers();
     const last = await Promise.race([deps.evaluate(TAKE).then((raw) => reportOf(readPoll(raw)), () => null), new Promise<null>((done) => deps.later(MEADOW_LAST_READ_MS, () => done(null)))]);
+    if (phase !== "closing") return;
     if (last) noteFrames(last);
     deps.log(`[ardia windows] meadow ${frames} frames in ${framesMs} ms`);
     await deps.close();
+    if (phase !== "closing") return;
     phase = "closed";
     logClosed(reason);
+    deps.tell({ kind: "closed" });
   }
 
   function noteFrames(report: MeadowPageReport) {
     if (typeof report.frames === "number") frames = report.frames;
     if (typeof report.ms === "number") framesMs = report.ms;
+  }
+
+  function sendMuted() {
+    if ((phase !== "opening" && phase !== "live") || pageMuted === wantedMuted) return;
+    pageMuted = wantedMuted;
+    deps.run(`window.${MEADOW_PAGE_API} && window.${MEADOW_PAGE_API}.muted(${wantedMuted === true})`);
   }
 
   function sendNight() {
@@ -125,10 +136,14 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
       closeAt(intro.startedAt + intro.motion.exit.delay + intro.motion.holds.exit, "finished");
     } else if (state.state === "tone" && isTone(state.tone)) deps.tone({ tone: state.tone, halo: typeof state.halo === "number" ? state.halo : 0 });
     else if (state.state === "failed") fallBack("the scene failed");
-    else if (state.state === "skip" && phase === "live") {
+    else if (state.state === "skip" && (phase === "live" || phase === "opening")) {
+      stopDeadline();
       deps.tell({ kind: "skip" });
       closeAt(deps.now() + intro.motion.holds.skip, "skipped");
-    } else if (state.state === "mute" && typeof state.muted === "boolean") deps.tell({ kind: "mute", muted: state.muted });
+    } else if (state.state === "mute" && typeof state.muted === "boolean") {
+      pageMuted = wantedMuted = state.muted;
+      deps.tell({ kind: "mute", muted: state.muted });
+    }
   }
 
   function inject() {
@@ -156,6 +171,7 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
     if (phase === "booting") {
       phase = "opening";
       deps.show();
+      sendMuted();
     }
     noteFrames(report);
     for (const state of report.states) {
@@ -179,7 +195,8 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
       sendNight();
     },
     setMuted(muted) {
-      if (!finished()) deps.run(`window.${MEADOW_PAGE_API} && window.${MEADOW_PAGE_API}.muted(${muted === true})`);
+      wantedMuted = muted;
+      if (!finished()) sendMuted();
     },
     end() {
       if (phase === "closed" || phase === "fallen") return;

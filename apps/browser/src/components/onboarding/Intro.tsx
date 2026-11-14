@@ -27,6 +27,8 @@ const CUES = INTRO_CUES;
 const ms = (s: number) => Math.round(s * 1000);
 const OPENING_TONE: Record<"day" | "night", MeadowTone> = { day: { tone: "light", halo: 0 }, night: { tone: "dark", halo: 0 } };
 
+const PAGE_GONE_LIMIT_MS = 600;
+
 export function Intro({ onDone }: { onDone: () => void }) {
   const colors = useOnboardingColors();
   const dark = useTheme().dark;
@@ -42,6 +44,8 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const [leaving, setLeaving] = useState(false);
   const startedAt = useRef(Date.now()).current;
   const scene = useRef<{ shown: IntroScene | null; firstFrameMs: number | null }>({ shown: null, firstFrameMs: null });
+  const pageOpen = useRef<(() => void) | null>(null);
+  const pageGone = useRef<Promise<void>>(Promise.resolve());
   const ink = isWebDemo ? null : meadowTextStyle(tone);
   const pageIntro = useMemo(() => meadowIntroFor({ colors, muted, startedAt }), [colors, muted]);
 
@@ -49,7 +53,12 @@ export function Intro({ onDone }: { onDone: () => void }) {
     if (done.current) return;
     done.current = true;
     noteIntroEnded({ skipped: skipped.current, ...scene.current });
-    onDone();
+    void Promise.race([pageGone.current, new Promise((settle) => setTimeout(settle, PAGE_GONE_LIMIT_MS))]).then(onDone);
+  };
+
+  const pageClosed = () => {
+    pageOpen.current?.();
+    pageOpen.current = null;
   };
 
   useEffect(() => {
@@ -87,9 +96,12 @@ export function Intro({ onDone }: { onDone: () => void }) {
 
   const onIntro = (event: MeadowIntroEvent) => {
     if (event.kind === "live") {
+      pageGone.current = new Promise((closed) => (pageOpen.current = closed));
       setLive(true);
       scene.current = { shown: "animated", firstFrameMs: event.firstFrameMs };
-    } else if (event.kind === "fallback") {
+    } else if (event.kind === "closed") pageClosed();
+    else if (event.kind === "fallback") {
+      pageClosed();
       setLive(false);
       scene.current = { ...scene.current, shown: "fallback" };
     } else if (event.kind === "poster") scene.current = { ...scene.current, shown: "poster" };

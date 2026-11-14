@@ -7,7 +7,7 @@ turboModules.ArdiaEngineHost = { available: () => true, hostCall: async () => JS
 
 const repo = new URL("../../../../", import.meta.url);
 const { meadowPageConfig, meadowPageUrl, base64InThrees, meadowScriptsCode } = await import("../../../../packages/expo-windows/src/meadow/pageUrl.ts");
-const { startMeadowSession, MEADOW_READY_LIMIT_MS, MEADOW_POLL_MS } = await import("../../../../packages/expo-windows/src/meadow/session.ts");
+const { startMeadowSession, MEADOW_READY_LIMIT_MS, MEADOW_POLL_MS, MEADOW_LAST_READ_MS } = await import("../../../../packages/expo-windows/src/meadow/session.ts");
 const { MEADOW_PAGE_BODY, MEADOW_PAGE_HEAD, MEADOW_PAGE_SCRIPT, MEADOW_POSTERS } = await import("../../../../packages/shaders/windows/meadow/page.ts");
 const { MEADOW_PAGE_CONFIG_ID } = await import("../../../../packages/shaders/src/meadowPage/config.ts");
 const { meadowIntroFor } = await import("../components/onboarding/introPage.ts");
@@ -289,4 +289,51 @@ test("an intro that ends first stops the session without closing twice", async (
   assert.equal(session.phase(), "closed");
   assert.deepEqual(page.told, []);
   assert.equal(page.closed, 0, "unmounting the page view closes it");
+});
+
+test("Skip pressed while the scene is still opening skips the intro and closes the page", async () => {
+  const { page, deps } = fakePage();
+  startMeadowSession(startedNow, false, URL_OF_PAGE, deps);
+  page.report([{ state: "skip" }]);
+  await page.advance(MEADOW_POLL_MS);
+  assert.deepEqual(page.told.at(-1), { kind: "skip" });
+  await page.advance(intro.motion.holds.skip + 2);
+  assert.equal(page.closed, 1);
+});
+
+test("the session tells the app once the page is closed, so the intro can wait for it", async () => {
+  const { page, deps } = fakePage();
+  startMeadowSession(startedNow, false, URL_OF_PAGE, deps);
+  page.report([{ state: "ready", at: 1 }, { state: "skip" }]);
+  await page.advance(MEADOW_POLL_MS + intro.motion.holds.skip + 2);
+  assert.equal(page.closed, 1);
+  assert.deepEqual(page.told.at(-1), { kind: "closed" });
+});
+
+test("an intro that ends during the page's last read leaves the closing to the unmount", async () => {
+  const { page, deps } = fakePage();
+  let finishRead = () => {};
+  const evaluate = deps.evaluate;
+  let slow = false;
+  deps.evaluate = (code) => (slow ? new Promise((done) => (finishRead = () => done(JSON.stringify({ states: [], frames: 3, ms: 50 })))) : evaluate(code));
+  const session = startMeadowSession(startedNow, false, URL_OF_PAGE, deps);
+  page.report([{ state: "ready", at: 1 }, { state: "skip" }]);
+  await page.advance(MEADOW_POLL_MS);
+  slow = true;
+  await page.advance(intro.motion.holds.skip + 2);
+  session.end();
+  finishRead();
+  await page.advance(MEADOW_LAST_READ_MS + 10);
+  assert.equal(page.closed, 0);
+});
+
+test("a mute set before the page's scripts are in reaches the page once they are", async () => {
+  const { page, deps } = fakePage();
+  const session = startMeadowSession({ ...startedNow, muted: false }, false, URL_OF_PAGE, deps);
+  session.setMuted(true);
+  page.report([]);
+  await page.advance(MEADOW_POLL_MS);
+  assert.equal(page.ran.at(-1), "window.ardiaIntro && window.ardiaIntro.muted(true)");
+  session.setMuted(true);
+  assert.equal(page.ran.filter((code) => code.includes("muted(")).length, 1, "a mute the page already has is not sent again");
 });

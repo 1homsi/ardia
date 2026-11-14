@@ -333,6 +333,11 @@ export function releasePage(key: string) {
   if (page.mounts <= 0) closePage(page);
 }
 
+export async function pageGone(key: string, waits = 25): Promise<void> {
+  for (let left = waits; left > 0 && pages.has(key); left--) await new Promise((done) => setTimeout(done, 16));
+  await closings.get(key);
+}
+
 export function discardOffered(adopt: string): Promise<boolean> {
   return hostCall("tab.discard", { adopt }).then(
     () => true,

@@ -88,7 +88,7 @@ export function meadowTextStyle({ tone, halo }: MeadowTone) {
   };
 }
 
-export type MeadowText = { fontSize: number; fontWeight: string; letterSpacing?: number };
+export type MeadowText = { fontSize: number; fontWeight: string; letterSpacing?: number; fontFamily?: string };
 
 export type MeadowMotion = { delay: number; duration: number; easing: string };
 
@@ -110,7 +110,8 @@ export type MeadowIntroEvent =
   | { kind: "fallback"; reason: string }
   | { kind: "poster" }
   | { kind: "skip" }
-  | { kind: "mute"; muted: boolean };
+  | { kind: "mute"; muted: boolean }
+  | { kind: "closed" };
 
 export type MeadowProps = ViewProps & { night: boolean; onTone?: (tone: MeadowTone) => void; intro?: MeadowIntro; onIntro?: (event: MeadowIntroEvent) => void };
 

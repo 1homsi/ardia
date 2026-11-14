@@ -4,7 +4,7 @@ import type { MeadowIntroEvent, MeadowProps } from "@ardia/shaders";
 import { takeKeyboardFor } from "../appKeyboard";
 import { EngineWebView } from "../engine/EngineWebView";
 import { engineAvailable } from "../engine/host";
-import { callPage, discardOffered } from "../engine/pages";
+import { callPage, discardOffered, pageGone } from "../engine/pages";
 import { privateWindowShown } from "../engine/privateWindows";
 import { WindowIdContext } from "../engine/windowId";
 import { requireNativeModule } from "../modules";
@@ -14,6 +14,7 @@ import { startMeadowSession, type MeadowSession } from "./session";
 
 const PAGE_EVENTS = ["navigation", "loadError", "crashed", "openWindow"];
 const KEYBOARD_BACK_MS = 150;
+const PAGE_CLOSE_MS = 400;
 
 let opened = 0;
 
@@ -43,6 +44,7 @@ export function MeadowPage({ intro, night, onIntro, onTone, style }: MeadowProps
   const [open, setOpen] = useState(true);
   const [shown, setShown] = useState(false);
   const session = useRef<MeadowSession | null>(null);
+  const mounted = useRef(true);
   const latest = useRef({ onIntro, onTone, night, muted: intro?.muted });
   latest.current = { onIntro, onTone, night, muted: intro?.muted };
   const usable = !!intro && engineAvailable();
@@ -66,7 +68,9 @@ export function MeadowPage({ intro, night, onIntro, onTone, style }: MeadowProps
       },
       async close() {
         await within(KEYBOARD_BACK_MS, takeKeyboardFor(focusModule(), windowId));
+        if (!mounted.current) return;
         setOpen(false);
+        await within(PAGE_CLOSE_MS, pageGone(key));
       },
       tell,
       tone: (tone) => latest.current.onTone?.(tone),
@@ -79,6 +83,8 @@ export function MeadowPage({ intro, night, onIntro, onTone, style }: MeadowProps
       release();
     };
   }, [url]);
+
+  useEffect(() => () => void (mounted.current = false), []);
 
   useEffect(() => session.current?.setNight(night), [night]);
 

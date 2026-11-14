@@ -49,7 +49,7 @@ const rgba = (rgb: readonly number[]) => `rgba(${rgb.join(",")},clamp(0,var(--ha
 function styleFor(config: MeadowPageConfig): string {
   const { intro, ink, handoff } = config;
   const { layout, type, colors, motion } = intro;
-  const text = (t: MeadowPageConfig["intro"]["type"]["wordmark"]) => `font-size:${t.fontSize}px;font-weight:${t.fontWeight};letter-spacing:${t.letterSpacing ?? 0}px`;
+  const text = (t: MeadowPageConfig["intro"]["type"]["wordmark"]) => `${t.fontFamily ? `font-family:${JSON.stringify(t.fontFamily)};` : ""}font-size:${t.fontSize}px;font-weight:${t.fontWeight};letter-spacing:${t.letterSpacing ?? 0}px`;
   return `.hero-title{color:${ink.light.ink};text-shadow:0 0 2px ${rgba(ink.light.halo)};gap:${layout.gap}px}
 .hero-title[data-tone=dark]{color:${ink.dark.ink};text-shadow:0 0 2px ${rgba(ink.dark.halo)}}
 .hero-title .line>span{line-height:normal}
@@ -60,7 +60,7 @@ function styleFor(config: MeadowPageConfig): string {
 .hero-title .tagline{${text(type.tagline)}}
 .meadow-canvas{opacity:0;transition:opacity ${handoff.duration}ms ${handoff.easing}}
 .meadow-canvas.shown{opacity:1}
-.intro-button{position:fixed;bottom:${layout.inset}px;height:${layout.button}px;min-width:${layout.button}px;box-sizing:border-box;border-radius:${layout.button / 2}px;border:1px solid ${colors.buttonBorder};background:none;color:${colors.buttonText};font-family:-apple-system,system-ui,sans-serif;${text(type.button)};padding:0 ${layout.buttonPad}px;display:flex;align-items:center;justify-content:center;cursor:default;--press:${motion.press.scale};transition:transform ${motion.press.duration}ms ${motion.press.easing}}
+.intro-button{position:fixed;bottom:${layout.inset}px;height:${layout.button}px;min-width:${layout.button}px;box-sizing:border-box;border-radius:${layout.button / 2}px;border:1px solid ${colors.buttonBorder};background:none;color:${colors.buttonText};font-family:inherit;${text(type.button)};padding:0 ${layout.buttonPad}px;display:flex;align-items:center;justify-content:center;cursor:default;--press:${motion.press.scale};transition:transform ${motion.press.duration}ms ${motion.press.easing}}
 .intro-button:hover{background:${colors.buttonHover}}
 .intro-button:active,.intro-button.pressed{transform:scale(var(--press))}
 .intro-button:focus{outline:none}
@@ -156,6 +156,7 @@ function start(config: MeadowPageConfig): Controls {
   };
 
   let keyPressAt = 0;
+  let keyPressed: HTMLButtonElement | null = null;
   const pressed = (button: HTMLButtonElement) => {
     if (button === skip) return skipNow(true);
     muted = !muted;
@@ -164,7 +165,7 @@ function start(config: MeadowPageConfig): Controls {
   };
   for (const button of [mute, skip]) {
     button.addEventListener("click", () => {
-      if (Date.now() - keyPressAt < KEY_CLICK_MS) return;
+      if (button === keyPressed && Date.now() - keyPressAt < KEY_CLICK_MS) return;
       pressed(button);
     });
   }
@@ -182,6 +183,7 @@ function start(config: MeadowPageConfig): Controls {
       if (!focused || !PRESS_KEYS.has(event.key)) return;
       event.preventDefault();
       keyPressAt = Date.now();
+      keyPressed = focused;
       focused.classList.add("pressed");
       pressed(focused);
     },

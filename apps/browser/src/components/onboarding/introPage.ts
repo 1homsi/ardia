@@ -9,10 +9,11 @@ import { onboardingButton, onboardingMotion, onboardingType } from "./tokens";
 
 const ms = (s: number) => Math.round(s * 1000);
 
-const textOf = (style: { fontSize: number; fontWeight?: string; letterSpacing?: number }) => ({
+const textOf = (style: { fontSize: number; fontWeight?: string; letterSpacing?: number; fontFamily?: string }) => ({
   fontSize: style.fontSize,
   fontWeight: style.fontWeight ?? weight.regular,
   letterSpacing: style.letterSpacing,
+  ...(style.fontFamily ? { fontFamily: style.fontFamily } : {}),
 });
 
 export function meadowIntroFor({ colors, muted, startedAt }: { colors: OnboardingColors; muted: boolean; startedAt: number }): MeadowIntro {
