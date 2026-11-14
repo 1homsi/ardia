@@ -1,6 +1,6 @@
 import { createElement, forwardRef, useImperativeHandle, useRef, type ComponentType, type Ref } from "react";
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
-import { TextInput, type NativeSyntheticEvent, type TextInputProps, type ViewProps } from "react-native";
+import { Platform, processColor, TextInput, type ColorValue, type NativeSyntheticEvent, type TextInputProps, type ViewProps } from "react-native";
 
 export type CompletionOffer = { query: string; completion: string };
 
@@ -39,8 +39,13 @@ export type CompletingFieldProps = ViewProps &
     onSuffixChange?: (suffix: string) => void;
   };
 
-type NativeProps = Omit<CompletingFieldProps, "onTypedChange" | "onSubmit" | "onFocusChange" | "onSuffixChange" | "accessibilityLabel"> & {
+type NativeColor = ColorValue | number;
+
+type NativeProps = Omit<CompletingFieldProps, "onTypedChange" | "onSubmit" | "onFocusChange" | "onSuffixChange" | "accessibilityLabel" | "highlightColor" | "color" | "placeholderTextColor"> & {
   ref?: Ref<CompletingFieldHandle>;
+  highlightColor?: NativeColor;
+  color?: NativeColor;
+  placeholderTextColor?: NativeColor;
   textEventCount: number;
   fieldLabel?: string;
   onTypedChange?: (event: NativeSyntheticEvent<{ typed: string; eventCount: number }>) => void;
@@ -55,6 +60,12 @@ let nativeView: ComponentType<NativeProps> | undefined;
 const view = () => (nativeView ??= requireNativeViewManager<NativeProps>("ArdiaPhoneCompletingField"));
 
 export const completingFieldIsNative = () => hasNative;
+
+export function nativeFieldColor(value: ColorValue | undefined): NativeColor | undefined {
+  if (value == null || Platform.OS !== "android") return value ?? undefined;
+  const processed = processColor(value);
+  return typeof processed === "number" ? processed : undefined;
+}
 
 const fallbackWeights = { regular: "400", medium: "500", semibold: "600", bold: "700" } as const;
 
@@ -81,15 +92,16 @@ export const CompletingField = forwardRef<CompletingFieldHandle, CompletingField
   if (hasNative) {
     return createElement(view(), {
       ...rest,
+      placeholderTextColor: nativeFieldColor(rest.placeholderTextColor),
       ref: native,
       style,
       text,
       textEventCount: eventCount.current,
       fieldLabel: accessibilityLabel,
       offer: offer ?? null,
-      highlightColor,
+      highlightColor: nativeFieldColor(highlightColor),
       selectsAllOnFocus,
-      color,
+      color: nativeFieldColor(color),
       fontSize,
       fontWeight,
       onTypedChange: (event) => {

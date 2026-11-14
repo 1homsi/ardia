@@ -1,6 +1,5 @@
 package com.ardia.phone
 
-import android.graphics.Color
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -17,11 +16,11 @@ class CompletingFieldModule : Module() {
             Prop("offer") { view: CompletingFieldView, offer: Map<String, Any?>? ->
                 view.setOffer(offer?.get("query") as? String, offer?.get("completion") as? String)
             }
-            Prop("highlightColor") { view: CompletingFieldView, color: Color? -> view.highlightColor = color?.toArgb() ?: CompletingFieldView.DEFAULT_HIGHLIGHT }
+            Prop("highlightColor") { view: CompletingFieldView, color: Int? -> view.highlightColor = color ?: CompletingFieldView.DEFAULT_HIGHLIGHT }
             Prop("selectsAllOnFocus") { view: CompletingFieldView, value: Boolean? -> view.setSelectsAllOnFocus(value == true) }
             Prop("placeholder") { view: CompletingFieldView, text: String? -> view.setPlaceholder(text) }
-            Prop("placeholderTextColor") { view: CompletingFieldView, color: Color? -> view.setPlaceholderColor(color?.toArgb()) }
-            Prop("color") { view: CompletingFieldView, color: Color? -> view.setTextColor(color?.toArgb()) }
+            Prop("placeholderTextColor") { view: CompletingFieldView, color: Int? -> view.setPlaceholderColor(color) }
+            Prop("color") { view: CompletingFieldView, color: Int? -> view.setTextColor(color) }
             Prop("fontSize") { view: CompletingFieldView, size: Float? -> view.setFontSize(size) }
             Prop("fontWeight") { view: CompletingFieldView, weight: String? -> view.setFontWeight(weight) }
             Prop("keyboardType") { view: CompletingFieldView, value: String? -> view.keyboardType = value }

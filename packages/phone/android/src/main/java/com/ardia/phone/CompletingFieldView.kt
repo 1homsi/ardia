@@ -180,6 +180,10 @@ class CompletingFieldView(context: Context, appContext: AppContext) : ExpoView(c
         editor.hint = text
     }
 
+    internal val shownTextColor: Int get() = editor.currentTextColor
+
+    internal val shownPlaceholderColor: Int get() = editor.currentHintTextColor
+
     fun setPlaceholderColor(color: Int?) {
         if (color != null) editor.setHintTextColor(color)
     }
