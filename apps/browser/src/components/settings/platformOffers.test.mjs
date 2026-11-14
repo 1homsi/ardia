@@ -17,6 +17,7 @@ const OFFERS = `
 const { useBrowser } = await import("./src/state/browser/store.ts");
 const { PANES, SETTINGS, unshownSettings } = await import("./src/components/settings/settingsIndex.ts");
 const { UNAVAILABLE_COMMANDS } = await import("./src/state/commands/commandCatalog.ts");
+const { profileUnloadDelay } = await import("./src/state/profiles/idleProfiles.ts");
 const { canSwitchEngine, engineForUrl, tabEngine, typedNavigationEngine } = await import("./src/state/engines/engines.ts");
 const { goToSettingsPane, useSettingsNav } = await import("./src/state/settings/settingsWindows.ts");
 const { DATA_TYPES, SYNCED_KINDS, typeSyncedFor, defaultTypes } = await import("./src/state/sync/syncDoc.ts");
@@ -43,6 +44,7 @@ console.log(JSON.stringify({
   hidden: watched.filter((id) => unshown.has(id)),
   engineCommand: UNAVAILABLE_COMMANDS.has("togglePageEngine"),
   hidingCommands: ["hideElement", "showHiddenElements"].map((id) => UNAVAILABLE_COMMANDS.has(id)),
+  unloadsProfiles: profileUnloadDelay({ memorySaver: true, unloadProfilesAfter: "15m" }) !== null,
   switchesEngine: canSwitchEngine("https://example.com/"),
   pageEngines: pageEngines(),
   calendarLink,
@@ -66,6 +68,7 @@ test("Windows offers Sync without passwords but no Calendar or WebKit pane, no b
     hidden: ["calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"],
     engineCommand: true,
     hidingCommands: [true, true],
+    unloadsProfiles: false,
     switchesEngine: false,
     pageEngines: ["chromium", "chromium", "chromium", "chromium", "chromium"],
     calendarLink: "general",
@@ -82,6 +85,7 @@ test("the Mac keeps every pane, row and the engine switch", () => {
   assert.deepEqual(mac.hidden, []);
   assert.equal(mac.engineCommand, false);
   assert.deepEqual(mac.hidingCommands, [false, false]);
+  assert.equal(mac.unloadsProfiles, true);
   assert.equal(mac.switchesEngine, true);
   assert.deepEqual(mac.pageEngines, ["webkit", "webkit", "webkit", "webkit", "webkit"]);
   assert.equal(mac.calendarLink, "calendar");

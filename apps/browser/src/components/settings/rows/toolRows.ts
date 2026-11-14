@@ -1,6 +1,7 @@
 import { type SettingSection } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 import { keyText } from "../../../state/commands/keyText";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
 export const toolRows = {
   shortcuts: [
@@ -176,7 +177,7 @@ export const toolRows = {
           advanced: true,
           title: "Unload inactive profiles",
           description: "A profile no window has shown for this long is unloaded with its extensions once its tabs can sleep, and loads again when you open it. Tabs playing sound, holding a form you started or downloading keep it loaded. Its extensions and notifications stop until then.",
-          shown: (s) => s.memorySaver,
+          shown: (s) => PLATFORM_FEATURES.unloadsIdleProfiles && s.memorySaver,
           keywords: ["profiles", "unload", "idle", "inactive", "timeout", "memory", "ram", "extensions", "sleep", "performance"],
         },
       },
