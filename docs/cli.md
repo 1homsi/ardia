@@ -829,7 +829,7 @@ can't be saved (`flow_not_get`), and GraphQL over GET works only when its URL va
 - **`flow save <name> [--from n] [--to n] [--param k=v]… [--output s3r1] [--description text]`** saves steps from the
   last `open` after the previous save to the latest (or `--from`/`--to`). It keeps the GET requests on the start
   page's site whose answer was JSON (or a document's largest JSON block) and whose URL passes the literal rule, and
-  for each: the URL, the `accept` and `x-requested-with` headers when plain, and the answer's status, MIME type, size,
+  for each: the URL, the `accept` header when it is CORS-safelisted, and the answer's status, MIME type, size,
   shape, main list and its item fields (only names of up to 24 letters, digits and `_`, dotted once). Params: every
   value typed into an ordinary field becomes `{{name}}` (named after the field's name, id or label when that is a short
   identifier, `[a-z][a-z0-9_]{0,23}`, else `p1`, `p2`, …) wherever it appears in a request's path segments and query
@@ -838,7 +838,9 @@ can't be saved (`flow_not_get`), and GraphQL over GET works only when its URL va
   request also sent becomes a param. `--output` defaults to the largest answer among requests that use a param, else
   the largest; it must name a kept GET. The steps are kept only so `flow show` can list them; nothing runs them. The
   saved flow is checked with the same validation as a load before it's written. Cookies and credential headers are
-  never kept (the request is marked `strippedAuth`).
+  never kept (the request is marked `strippedAuth`). The known secrets are every value typed into a secret field
+  anywhere in the session's recording, including steps outside the saved range and steps already dropped from it
+  (up to 200 values); a request whose URL (path, query key or value) or kept header carries one is left out.
 - **Storage.** `<data dir>/Flows/<site>/<name>.json`, where `<site>` is the start URL's base domain (`example.com`
   for `shop.example.com`, `example.co.uk` for `www.example.co.uk`, an IP or `localhost` as is) plus a non-default
   port. Folders are 0700 and must be real folders the user owns, files 0600, opened relative to the folder with
@@ -849,14 +851,15 @@ can't be saved (`flow_not_get`), and GraphQL over GET works only when its URL va
   body). Loading fails with `code: "flow_invalid"` for an unknown field, another version, a site or name that doesn't
   match where the file sits, an `origin` that isn't the start URL's, an origin in `hosts` the URL rules don't allow, a
   request that isn't a GET, has a body or another field, or whose URL fails the parser, the rule or isn't on a listed
-  origin, a header beyond plain `accept` and `x-requested-with`, a param name, example or item field that isn't a short
+  origin, a header other than a CORS-safelisted `accept`, a param name, example or item field that isn't a short
   identifier or value, a description over 120 characters or with a line break, a step command that isn't a short list
   of words, or a missing output request.
 - **`flow run <name> [--param k=v]… [--fields a,b.c] [--where f=v]… [--limit n] [--site s] [--timeout 60s]`.**
   Unknown params fail with the list of real ones; a param with no example must be given. Values are encoded for where
   they land, and the filled URL must still parse and sit on a listed origin (`off_site`). The request is sent with
-  `fetch(url, {method: "GET", credentials: "include", cache: "no-store", redirect: "manual"})` and the recorded
-  headers, from the session's tab when it is already on the request's or the start page's origin, else from a
+  `fetch(url, {method: "GET", credentials: "include", cache: "no-store", redirect: "manual"})` with no header but the
+  recorded `accept` (so no CORS preflight), once and never retried, from a tab the session opened itself (never the
+  user's tab picked with `tab active`) when it is already on the request's or the start page's origin, else from a
   temporary background tab that loads the start URL the way `open` does (closed again afterwards); a start page that
   lands off the flow's origins (a sign-in page) is `redirected`. No body is ever sent and cookies stay in Ardia.
   There is no direct-HTTP tier (it would need the cookies through `Network.getCookies`, which the token policy
@@ -864,7 +867,8 @@ can't be saved (`flow_not_get`), and GraphQL over GET works only when its URL va
 - **Outcomes.** One answer, checked once; every failure says to drive the page instead: a redirect is `redirected`
   (a flow never follows one), a 401 or 403 `auth_expired` (or `credential_not_sendable` for a request recorded with
   a stripped credential header), 429 `rate_limited` (`data.retryAfter`), a bot-check page `blocked`, another status
-  `http_error`, a network or CORS failure `fetch_failed`, an answer over 8 MB `answer_too_large`. The answer is
+  `http_error`, a network or CORS failure `fetch_failed`, a page that navigated or closed while the GET was in flight
+  `fetch_interrupted` (whether it reached the site is unknown), an answer over 8 MB `answer_too_large`. The answer is
   compared with the recorded shape: a missing key, a changed type, or the main list gone or no longer a list is
   `drifted` (a present, empty list isn't), and the file is marked `verified: false` (true again after a clean run).
 - **Output.** The list at the path the recording saw, else the answer's heaviest list of objects (or the answer
