@@ -23,6 +23,7 @@ type NativeScanProps = ViewProps & {
 type ScanNative = {
   permission(): Promise<ScanPermission>;
   requestPermission(): Promise<ScanPermission>;
+  labFeed?(kind: "phrase" | "other"): Promise<number>;
 };
 
 const native = requireOptionalNativeModule<ScanNative>("ArdiaPhoneScan");
@@ -45,4 +46,8 @@ export const scanner = {
   isAvailable: () => native !== null,
   permission: async (): Promise<ScanPermission> => (native ? native.permission() : unavailable),
   requestPermission: async (): Promise<ScanPermission> => (native ? native.requestPermission() : unavailable),
+};
+
+export const scanLab = {
+  feed: async (kind: "phrase" | "other"): Promise<number> => (await native?.labFeed?.(kind)) ?? 0,
 };

@@ -39,12 +39,20 @@ class ScanView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        shown.add(this)
         update()
     }
 
     override fun onDetachedFromWindow() {
+        shown.remove(this)
         stop()
         super.onDetachedFromWindow()
+    }
+
+    fun feedForLab(text: String) {
+        val payload = ScanFeed.decodeAsCamera(text) ?: return
+        val event = ScanPayloads.event(judge.judge(payload)) ?: return
+        if (event.name == "onCode") onCode(event.body) else onRejected(event.body)
     }
 
     private fun start() {
@@ -106,5 +114,9 @@ class ScanView(context: Context, appContext: AppContext) : ExpoView(context, app
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         preview.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+    }
+
+    companion object {
+        internal val shown: MutableSet<ScanView> = java.util.Collections.newSetFromMap(java.util.WeakHashMap())
     }
 }

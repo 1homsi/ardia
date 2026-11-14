@@ -20,6 +20,14 @@ class ScanModule : Module() {
 
         AsyncFunction("requestPermission") { promise: Promise -> answer(promise, ask = true) }
 
+        AsyncFunction("labFeed") { kind: String ->
+            check(PhoneLab.isOn) { "feeding the scanner is a lab tool" }
+            val text = if (kind == "phrase") ScanFeed.throwawayPhrase() else "https://example.com/not-a-recovery-phrase"
+            val views = ScanView.shown.toList()
+            views.forEach { it.feedForLab(text) }
+            views.size
+        }.runOnQueue(expo.modules.kotlin.functions.Queues.MAIN)
+
         View(ScanView::class) {
             Events("onCode", "onRejected", "onError")
 

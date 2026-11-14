@@ -1,4 +1,4 @@
-import { scanner, ScanView, sync, type ScanPermission } from "@ardia/phone-native";
+import { scanLab, scanner, ScanView, sync, type ScanPermission } from "@ardia/phone-native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -39,6 +39,8 @@ export function ScanLab({ note }: { note: (line: string) => void }) {
           report(`permission ${next.status}`);
         })} />
         <Button label={active ? "Pause" : "Resume"} onPress={() => setActive((on) => !on)} />
+        <Button label="Feed a phrase code" onPress={() => scanLab.feed("phrase").then((count) => report(`fed a generated phrase code to ${count} scanner(s)`))} />
+        <Button label="Feed another code" onPress={() => scanLab.feed("other").then((count) => report(`fed a non-phrase code to ${count} scanner(s)`))} />
       </View>
       {permission?.status === "granted" && (
         <ScanView
