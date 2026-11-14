@@ -568,6 +568,22 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 
 On the dashboard they are kept out of every Mac section by source and lib (`PHONE_APP_SOURCE` in `apps/dashboard/src/server/sql.ts`).
 
+Every count and timing the phone can send, for the owner to read as one set and strike what he doesn't want (the approved starting point was "the smallest set", c6ebf08a8). A new count needs a question someone would act on; those near the line say so.
+
+| Count | Added in | What it answers on the dashboard |
+| --- | --- | --- |
+| `tabs_opened` | c6ebf08a8 | Is the phone used for browsing at all, per active day |
+| `searches` | c6ebf08a8 | How much of that browsing starts from the tray |
+| `pins_to_mac` | c6ebf08a8 | Whether pinning to the Mac is used enough to keep |
+| `tabs_sent` | c6ebf08a8 | Whether Send to my Mac is used enough to keep |
+| `page_processes_gone` | c6ebf08a8 | How often the page engine dies under people; a rise after a release is a regression |
+| `launch_ms`, `js_ms` (`perf_launch`) | c6ebf08a8 | Cold launch time, process start to first screen, and the JavaScript share of it |
+| `legacy_import_failures` (`app_launched`) | 12a33bf03 | Whether the upgrade import fails in the field, and how many tries it takes |
+| `links_given_up` | 16509434e | Whether a link's handling still hangs past 8 s; anything above zero is a bug to chase |
+| `pages_reloaded_online` | b59e43a94 | Whether the reload on reconnect fires; near the line, worth striking once it is seen working |
+| `spaces_swiped` | b9bb6e53e | Whether people find the swipe in Spaces or only use the switcher |
+| `tray_hidden_rows_opened` | f5071fd5f | Whether rows past the keyboard are reached; near the line: zero would argue for a scrolling list, otherwise strike it |
+
 ## What is left before the Expo app replaces both native apps
 
 The bar is the Compose app on Android and the SwiftUI app on iPhone, screen by screen and setting by setting:
