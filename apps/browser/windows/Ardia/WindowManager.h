@@ -67,6 +67,10 @@ struct ManagedWindow {
   bool IsBrowser() const noexcept {
     return kind == "browser" || kind == "small";
   }
+
+  bool IsPopup() const noexcept {
+    return kind == "popup";
+  }
 };
 
 struct WindowManager {
@@ -411,6 +415,11 @@ struct WindowManager {
     return entry && entry->IsBrowser();
   }
 
+  bool IsPopupWindow(std::string_view id) const noexcept {
+    const ManagedWindow *entry = Find(id);
+    return entry && entry->IsPopup();
+  }
+
   void ReplyToTerminate(bool ok) noexcept {
     if (!m_quitting) return;
     if (ok) return Finish();
@@ -431,6 +440,11 @@ struct WindowManager {
 
  private:
   static constexpr UINT_PTR kSubclassId = 0xA2D1A;
+  static constexpr double kPopupMinWidth = 200;
+  static constexpr double kPopupMinPageHeight = 150;
+  static constexpr double kPopupChromeHeight = 60;
+  static constexpr double kPopupWidth = 500;
+  static constexpr double kPopupPageHeight = 600;
   static constexpr int kEdgePollMs = 40;
   static constexpr double kEdgeReach = 24.0;
 
@@ -505,6 +519,14 @@ struct WindowManager {
           presenter.PreferredMinimumWidth(pixels(entry.kind == "small" ? 420 : 480));
           presenter.PreferredMinimumHeight(pixels(entry.kind == "small" ? 300 : 360));
         }
+      } else if (entry.IsPopup()) {
+        if (presenter) {
+          presenter.IsMaximizable(true);
+          presenter.IsMinimizable(true);
+          presenter.IsResizable(true);
+          presenter.PreferredMinimumWidth(pixels(kPopupMinWidth));
+          presenter.PreferredMinimumHeight(pixels(kPopupMinPageHeight + kPopupChromeHeight));
+        }
       } else if (presenter) {
         bool settings = entry.kind == "settings";
         presenter.IsMaximizable(settings);
@@ -546,6 +568,9 @@ struct WindowManager {
       } else if (entry.kind == "small") {
         width = request.size ? (*request.size)[0] : 900;
         height = request.size ? (*request.size)[1] : 640;
+      } else if (entry.IsPopup()) {
+        width = (std::max)(request.size ? (*request.size)[0] : kPopupWidth, kPopupMinWidth);
+        height = (std::max)(request.size ? (*request.size)[1] : kPopupPageHeight + kPopupChromeHeight, kPopupMinPageHeight + kPopupChromeHeight);
       }
       auto area = winrt::Microsoft::UI::Windowing::DisplayArea::GetFromWindowId(
                       entry.appWindow.Id(), winrt::Microsoft::UI::Windowing::DisplayAreaFallback::Primary)
@@ -695,11 +720,18 @@ struct WindowManager {
     for (auto &exit : exits) exit();
     for (auto &waiter : revealWaiters) waiter();
     After(std::chrono::milliseconds(1), [closedWindow]() noexcept {});
-    if (m_windows.empty() && !m_quitting) {
+    if (OnlyPopupsLeft() && !m_quitting) {
       After(std::chrono::milliseconds(400), [this]() noexcept {
-        if (m_windows.empty()) Quit();
+        if (OnlyPopupsLeft()) Quit();
       });
     }
+  }
+
+  bool OnlyPopupsLeft() const noexcept {
+    for (auto const &[id, entry] : m_windows) {
+      if (!entry.IsPopup()) return false;
+    }
+    return true;
   }
 
   static bool OwnPageWindow(HWND hwnd, HWND page) noexcept {
