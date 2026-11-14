@@ -71,6 +71,7 @@
 #include "ardia/linux/ac_linux_page_prompts.h"
 #include "ardia/linux/ac_linux_power.h"
 #include "ardia/linux/ac_linux_tab_policy.h"
+#include "ardia/linux/ac_linux_tab_sleep.h"
 #include "ardia/linux/ac_linux_launch_steps.h"
 #include "ardia/linux/ac_linux_launch_urls.h"
 #include "ardia/linux/ac_linux_link_tabs.h"
@@ -5540,6 +5541,10 @@ void ShellHostView::TabCommand(
     const auto request = ardiacore::ParseLinuxDiscardRequest(values);
     if (!request) return std::move(done).Run(false, base::Value("discard takes an optional {unload} object"));
     return std::move(done).Run(true, base::Value(binding->Discard(*request)));
+  } else if (command == "sleepIfHidden") {
+    const auto seconds = ardiacore::ParseLinuxSleepSeconds(values);
+    if (!seconds) return std::move(done).Run(false, base::Value("sleepIfHidden requires a hidden time in seconds"));
+    return std::move(done).Run(true, base::Value(ardiacore::SleepLinuxTabIfHidden(contents, *seconds)));
   } else if (command == "setFrozen") {
     const auto frozen = ardiacore::ParseLinuxFrozen(values);
     if (!frozen) return std::move(done).Run(false, base::Value("setFrozen requires a boolean"));

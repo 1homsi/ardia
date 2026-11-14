@@ -857,6 +857,12 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
 - **Startup.** Helium's `memory-saving-by-default.patch` applies on Linux, and the app pushes its setting at launch.
 - **Tests.** `engine/ardiacore-linux/tests/test_memory_saver.py` and `apps/linux/src/hostCapabilities.test.mjs`.
 - **Tab protection.** Unknown protection state counts as protected. `unsavedInput: null` protects a tab.
+- **Loaded tab budget.** The shared budget (`state/tabs/loadedTabBudget.ts`) asks a hidden tab to sleep through its
+  WebView handle's `sleepIfHidden(seconds)`, the `sleepIfHidden` tab command (`ac_linux_tab_sleep.cc`). As on the Mac,
+  Chrome decides: `DiscardEligibilityPolicy` with the proactive reason and that hidden time, then
+  `PageDiscardingHelper`'s own discard. The answer is `[]` when the tab slept, Chrome's `CannotDiscardReason` codes
+  when something kept it, and `[-1]` when Chrome's performance manager has no page for it. The hidden time must be
+  0 to 7 days. Test: `engine/ardiacore-linux/tests/test_tab_sleep.py`.
 - **Memory pressure.** Read from PSI, falling back to `MemAvailable`. Power state comes from UPower and
   power-profiles-daemon signals.
 
