@@ -2,6 +2,7 @@ import { takeDownloadsPanelCounts } from "./downloadsPanelCounts";
 import { takeExportCounts } from "./exportCounts";
 import { takeDialogPageCounts } from "./dialogPageCounts";
 import { takeExternalAppCounts } from "./externalAppCounts";
+import { takeFindCounts } from "./findCounts";
 import { takeFirstRunCounts } from "./firstRunCounts";
 import { takeImportRuns } from "./importRuns";
 import { takeInlineCompletionCounts } from "./inlineCompletionCounts";
@@ -12,4 +13,4 @@ import { takeSyncFileCounts } from "./syncFileCounts";
 
 export { watchPlatformCounts };
 
-export const takeHourlyExtras = () => ({ ...takePlatformCounts(), ...takeImportRuns(), ...takeProfileDataCounts(), ...takeExportCounts(), ...takeInlineCompletionCounts(), ...takeFirstRunCounts(), ...takeMemoryTrimCounts(), ...takeDownloadsPanelCounts(), ...takeExternalAppCounts(), ...takeDialogPageCounts(), ...takeSyncFileCounts() });
+export const takeHourlyExtras = () => ({ ...takePlatformCounts(), ...takeImportRuns(), ...takeProfileDataCounts(), ...takeExportCounts(), ...takeInlineCompletionCounts(), ...takeFirstRunCounts(), ...takeMemoryTrimCounts(), ...takeDownloadsPanelCounts(), ...takeExternalAppCounts(), ...takeDialogPageCounts(), ...takeFindCounts(), ...takeSyncFileCounts() });
