@@ -3,6 +3,7 @@ import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { addNativeListener, type EventSubscription } from "../events";
 import type { AppWindowsModule } from "../nativeModuleTypes";
 import { popupFrame, popupSize, popupTitle, type PopupFeatures } from "./popupPlacement";
+import { privateWindowShown } from "./privateWindows";
 
 export const POPUP_WINDOW_PREFIX = "popup:";
 
@@ -34,7 +35,10 @@ const windows = (): PopupWindows => {
   return native;
 };
 
+export type PopupWindowOutcome = "shown" | "closed" | "failed";
+
 const popups = new Map<string, PopupWindowInfo>();
+const privateHolds = new Map<string, () => void>();
 const closedListeners = new Set<(popup: PopupWindowInfo) => void>();
 let closes: EventSubscription | null = null;
 let made = 0;
@@ -52,10 +56,16 @@ export function onPopupWindowClosed(listener: (popup: PopupWindowInfo) => void):
   return () => void closedListeners.delete(listener);
 }
 
+function letGoOfPrivateSession(windowId: string) {
+  privateHolds.get(windowId)?.();
+  privateHolds.delete(windowId);
+}
+
 function popupClosed(windowId: string) {
   const popup = popups.get(windowId);
   if (!popup) return;
   popups.delete(windowId);
+  letGoOfPrivateSession(windowId);
   for (const listener of [...closedListeners]) listener(popup);
 }
 
@@ -74,11 +84,12 @@ const openerFrame = (windowId: string) =>
       )
     : Promise.resolve(null);
 
-export async function openPopupWindow(ask: PopupWindowAsk): Promise<boolean> {
+export async function openPopupWindow(ask: PopupWindowAsk): Promise<PopupWindowOutcome> {
   listenForCloses();
   made += 1;
   const windowId = `${POPUP_WINDOW_PREFIX}${Date.now().toString(36)}-${made}`;
   popups.set(windowId, { windowId, pageKey: `${windowId}:page`, adopt: ask.adopt, url: ask.url, profile: ask.profile, openerKey: ask.openerKey });
+  privateHolds.set(windowId, privateWindowShown(ask.profile));
   try {
     const frame = popupFrame(ask.features, await openerFrame(ask.openerWindowId));
     await windows().openWindow(windowId, {
@@ -88,13 +99,17 @@ export async function openPopupWindow(ask: PopupWindowAsk): Promise<boolean> {
       profile: ask.profile,
       ...(frame ? { frame } : { size: popupSize(ask.features) }),
     });
-    if ((await windows().windowIds()).includes(windowId)) return true;
+    if (!popups.has(windowId)) return "closed";
+    if ((await windows().windowIds()).includes(windowId)) return "shown";
+    if (!popups.has(windowId)) return "closed";
     console.warn("[ardia windows] a pop-up window did not open; its page goes to a tab");
   } catch (error) {
+    if (!popups.has(windowId)) return "closed";
     console.warn(`[ardia windows] a pop-up window did not open: ${String((error as Error)?.message ?? error)}`);
   }
   popups.delete(windowId);
-  return false;
+  letGoOfPrivateSession(windowId);
+  return "failed";
 }
 
 export function closePopupWindow(windowId: string) {

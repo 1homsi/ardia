@@ -202,7 +202,12 @@ function PopupContent({ popup }: { popup: PopupWindowInfo }) {
   const onPageEvent = useCallback(
     ({ nativeEvent: { name, data } }: PageEvent) => {
       const fields = (data ?? {}) as { url?: unknown; title?: unknown; level?: unknown };
-      if (name === "ready") return void callPage(pageKey, "focus");
+      if (name === "ready") {
+        void callPage<{ level?: unknown }>(pageKey, "getSecurityInfo").then((info) => {
+          if (typeof info?.level === "string") setLevel(info.level);
+        });
+        return void callPage(pageKey, "focus");
+      }
       if (name === "windowClose") return closePopupWindow(windowId);
       if (name === "security") return setLevel(typeof fields.level === "string" ? fields.level : null);
       if (name !== "navigation") return;

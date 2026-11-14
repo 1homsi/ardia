@@ -7,6 +7,7 @@ const opened = [];
 const closed = [];
 const openIds = new Set();
 let refuseWindows = false;
+let closeWhileOpening = false;
 
 turboModules.ArdiaEngineHost = {
   available: () => true,
@@ -21,6 +22,10 @@ turboModules.ArdiaAppWindows = {
   openWindow: async (id, options) => {
     opened.push({ id, options });
     if (!refuseWindows) openIds.add(id);
+    if (closeWhileOpening) {
+      openIds.delete(id);
+      DeviceEventEmitter.emit("ArdiaAppWindows:onWindowEvent", { type: "close", id });
+    }
   },
   closeWindow: async (id) => {
     closed.push(id);
@@ -34,6 +39,7 @@ turboModules.ArdiaAppWindows = {
 
 const { mountPage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
 const { popupWindowInfo, isPopupWindowId } = await import("../../../../packages/expo-windows/src/engine/popupWindows.ts");
+const { privateWindowShown } = await import("../../../../packages/expo-windows/src/engine/privateWindows.ts");
 
 const emitTopic = (topic, payload) => DeviceEventEmitter.emit("ArdiaEngineHost:event", { topic, json: JSON.stringify(payload) });
 const settle = async () => {
@@ -134,5 +140,58 @@ test("a tab.opened with no popup field still goes to the page as before", async 
   await settle();
   assert.equal(opened.length, before);
   assert.equal(events.filter(([name]) => name === "openWindow").at(-1)[1].disposition, "window");
+  unmount();
+});
+
+test("a private pop-up keeps its private session while it is open, after its opener's window closes", async () => {
+  const profile = "p-work@private-1";
+  const unmount = mountPage("private-opener", { url: "https://app.example/", profile, windowId: "main" }, () => {});
+  const openerWindowGone = privateWindowShown(profile, (run) => run());
+  await settle();
+  emitTopic("tab.opened", { adopt: "ardiacore:20", url: "https://auth.example/login", foreground: true, window: true, opener: "private-opener", profile, parent: "", fromClick: false, popup: {} });
+  await settle();
+  const made = opened.at(-1);
+  assert.equal(popupWindowInfo(made.id)?.profile, profile);
+  openerWindowGone();
+  unmount();
+  await settle();
+  assert.ok(!calls.some((call) => call.verb === "profile.release" && call.args.profile === profile), "the private profile is not released while its pop-up is open");
+  turboModules.ArdiaAppWindows.closeWindow(made.id);
+  await settle();
+});
+
+test("a link a pop-up page opens in a new window (shift-click) goes to the pop-up's opener, without the pop-up's click point", async () => {
+  const events = [];
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, (name, data) => events.push([name, data]));
+  await settle();
+  popupOpened("ardiacore:21", {});
+  await settle();
+  const made = opened.at(-1);
+  const info = popupWindowInfo(made.id);
+  const closeShown = mountPage(info.pageKey, { url: "", profile: info.profile, adopt: info.adopt, windowId: made.id }, () => {});
+  await settle();
+  emitTopic("tab", { key: info.pageKey, name: "openWindow", data: { url: "https://auth.example/help", disposition: "window", userGesture: true, point: { x: 10, y: 20 } } });
+  await settle();
+  const asked = events.filter(([name]) => name === "openWindow").map(([, data]) => data);
+  assert.equal(asked.length, 1, "the opener's page gets the pop-up's link");
+  assert.equal(asked[0].url, "https://auth.example/help");
+  assert.equal(asked[0].disposition, "window");
+  assert.equal(asked[0].point, undefined);
+  turboModules.ArdiaAppWindows.closeWindow(made.id);
+  await settle();
+  closeShown();
+  unmount();
+});
+
+test("a pop-up window closed while it was opening is not opened again as a tab", async () => {
+  const events = [];
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, (name, data) => events.push([name, data]));
+  await settle();
+  closeWhileOpening = true;
+  popupOpened("ardiacore:22", {});
+  await settle();
+  closeWhileOpening = false;
+  assert.equal(events.filter(([name]) => name === "openWindow").length, 0, "the closed pop-up does not come back as a tab");
+  assert.ok(calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:22"), "its offered tab is given back");
   unmount();
 });

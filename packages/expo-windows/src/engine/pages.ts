@@ -104,12 +104,16 @@ function handOpenedTab(opener: Page | undefined, request: OpenedRequest) {
   for (const listener of [...taker.listeners]) listener("openWindow", request);
 }
 
+function openFromPopup(page: Page, request: unknown) {
+  const moved = typeof request === "object" && request !== null ? { ...request, point: undefined } : request;
+  for (const listener of [...promptHostOf(page).listeners]) listener("openWindow", moved);
+}
+
 function popupWindowGone(popup: PopupWindowInfo) {
   const page = pages.get(popup.pageKey);
   if (page && !page.closed) return closePage(page);
   if (!page) quietly(discardOffered(popup.adopt));
 }
-
 
 export function onPagePress(listener: (windowId: string) => void): () => void {
   pressListeners.add(listener);
@@ -148,6 +152,7 @@ function listen() {
     }
     if (event.name === "externalApp") return askExternalApp(page, event.data);
     if (event.name === "navigation" && (event.data as Partial<Pick<NavigationState, "isLoading">> | null)?.isLoading === false) notePageSettled(page.key);
+    if (event.name === "openWindow" && isPopupWindowId(page.windowId)) return openFromPopup(page, shapedPageEvent(page.opening, event.name, event.data));
     const data = placedPoint(page, event.name, shapedPageEvent(page.opening, event.name, event.data));
     for (const listener of [...page.listeners]) listener(event.name, data);
   });
@@ -169,16 +174,10 @@ function listen() {
     const features = popupFeatures(opened.popup);
     if (!features) return handOpenedTab(opener, request);
     const openedFrom = opener && !opener.closed ? opener : undefined;
+    const ask = { adopt: request.adoptId, url: request.url, profile: request.profile ?? openedFrom?.profile ?? "", openerKey: openedFrom?.key ?? "", openerWindowId: openedFrom?.windowId ?? "", features };
     quietly(
-      openPopupWindow({
-        adopt: request.adoptId,
-        url: request.url,
-        profile: request.profile ?? openedFrom?.profile ?? "",
-        openerKey: openedFrom?.key ?? "",
-        openerWindowId: openedFrom?.windowId ?? "",
-        features,
-      }).then((shown) => {
-        if (!shown) handOpenedTab(opener, { ...request, disposition: "foreground" });
+      openPopupWindow(ask).then((outcome) => {
+        if (outcome === "failed") handOpenedTab(opener, { ...request, disposition: "foreground" });
       }),
     );
   });
