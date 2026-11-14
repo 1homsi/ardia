@@ -88,35 +88,31 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
 
   const { scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
 
-  const cardStyle = useAnimatedStyle(() => {
-    const flying = flyIndex.value === index;
-    const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
-    const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
-    return {
-      opacity: p.opacity,
-      borderRadius: p.corner / Math.max(p.scale, 0.01),
-      transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
-    };
-  }, [g, role, index, isLast]);
-  const header = useDerivedValue(() => {
+  const placed = useDerivedValue(() => {
     const flying = flyIndex.value === index;
     const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
     const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
     const top = p.y - (g.cardHeight * p.scale) / 2 - tabsLayout.headerGap - tabsLayout.headerHeight;
     return { pose: p, top, place: deckHeaderPlacement(p.x - (g.cardWidth * p.scale) / 2, p.visible) };
   }, [g, role, index, isLast]);
+  const cardStyle = useAnimatedStyle(() => {
+    const p = placed.value.pose;
+    return {
+      opacity: p.opacity,
+      borderRadius: p.corner / Math.max(p.scale, 0.01),
+      transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
+    };
+  }, [g]);
   const titleWidth = useSharedValue(0);
   const headerStyle = useAnimatedStyle(() => {
-    const { pose: p, top, place } = header.value;
+    const { pose: p, top, place } = placed.value;
     return {
       opacity: p.header * deckHeaderIconReveal(place.available, tabsLayout.faviconSize),
       transform: [{ translateX: place.left + place.available - g.cardWidth }, { translateY: top }],
     };
   });
   const reachStyle = useAnimatedStyle(() => {
-    const flying = flyIndex.value === index;
-    const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
-    const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
+    const p = placed.value.pose;
     return {
       transform: [
         { translateX: p.x - (g.cardWidth * p.scale) / 2 },
@@ -125,12 +121,12 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
         { scaleY: p.scale },
       ],
     };
-  }, [g, role, index, isLast]);
+  }, [g]);
   const rowStyle = useAnimatedStyle(() => {
-    const available = header.value.place.available;
+    const available = placed.value.place.available;
     return { transform: [{ translateX: g.cardWidth - available + deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
   });
-  const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(header.value.place.available) }));
+  const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(placed.value.place.available) }));
   const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: role === "expanded" ? deckStatusStrip(g, scaleProgress.value) : 0 }] }), [g, role]);
 
   const host = display(tab.url).host;

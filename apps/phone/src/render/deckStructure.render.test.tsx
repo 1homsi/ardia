@@ -61,3 +61,28 @@ test("a deck scroll animates only transforms and opacity, so no animated style a
   expect([...animatedKeys].filter((key) => LAYOUT_KEYS.includes(key))).toEqual([]);
   unmount(root);
 });
+
+test("each card works out its position once per frame: one derived value per card computes the pose, and no animated style computes it again", () => {
+  type Updater = { __closure?: Record<string, unknown> };
+  const computes = (updater: Updater) => Object.keys(updater.__closure ?? {}).includes("cardPose");
+  const derivedPoses: Updater[] = [];
+  const stylePoses: Updater[] = [];
+  const originalDerived = Reanimated.useDerivedValue;
+  const originalStyle = Reanimated.useAnimatedStyle;
+  const derived = jest.spyOn(Reanimated, "useDerivedValue").mockImplementation(((updater: Updater, ...rest: unknown[]) => {
+    if (computes(updater)) derivedPoses.push(updater);
+    return (originalDerived as (...args: unknown[]) => unknown)(updater, ...rest);
+  }) as never);
+  const styles = jest.spyOn(Reanimated, "useAnimatedStyle").mockImplementation(((updater: Updater, ...rest: unknown[]) => {
+    if (computes(updater)) stylePoses.push(updater);
+    return (originalStyle as (...args: unknown[]) => unknown)(updater, ...rest);
+  }) as never);
+  const root = renderSurface(<TabDeck />);
+  derived.mockRestore();
+  styles.mockRestore();
+  const mounted = cards(root).length;
+  expect(mounted).toBeGreaterThanOrEqual(7);
+  expect(stylePoses).toHaveLength(0);
+  expect(derivedPoses).toHaveLength(mounted);
+  unmount(root);
+});
