@@ -176,7 +176,9 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     override fun drawLook(canvas: Canvas) {
         val dark = isDark
         val look = look
-        val drawn = "${if (dark) "dark" else "light"}, look $look"
+        val drawn = "${if (dark) "dark" else "light"}, look $look, ${width}x$height, " +
+            "${if (reduceMotion) "still (reduce motion)" else "moving"}, ${if (reduceTransparency) "no blobs (reduce transparency)" else "blobs"}, " +
+            if (lookIsOff) "look switched off in the lab: flat colour" else "look on"
         if (drawn != drawnMode) {
             drawnMode = drawn
             if (PhoneLab.isOn) {

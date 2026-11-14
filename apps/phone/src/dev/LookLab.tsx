@@ -3,10 +3,11 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 const LOOKS = [
-  { color: "plum", themeColors: [] as string[] },
-  { color: "green", themeColors: ["#4F7CFF", "#9B6BFF"] },
-  { color: "orange", themeColors: [] as string[] },
-  { color: INCOGNITO_LOOK, themeColors: [] as string[] },
+  { label: "plum", color: "plum", themeColors: [] as string[] },
+  { label: "green", color: "green", themeColors: [] as string[] },
+  { label: "green + blue theme", color: "green", themeColors: ["#4F7CFF", "#9B6BFF"] },
+  { label: "orange", color: "orange", themeColors: [] as string[] },
+  { label: "incognito", color: INCOGNITO_LOOK, themeColors: [] as string[] },
 ];
 
 const PAGE_URL = "https://en.wikipedia.org/wiki/Hippopotamus";
@@ -37,7 +38,7 @@ export function LookLab() {
     <View style={styles.panel}>
       <Text style={styles.title}>Look (native {String(lookIsNative())})</Text>
       <View style={styles.row}>
-        <Button label={`Look ${look.color}`} onPress={() => setLookIndex((index) => (index + 1) % LOOKS.length)} />
+        <Button label={`Look ${look.label}`} onPress={() => setLookIndex((index) => (index + 1) % LOOKS.length)} />
         <Button
           label={alwaysDark ? `Dark (incognito; asked ${dark ? "dark" : "light"})` : dark ? "Dark" : "Light"}
           onPress={() => {
@@ -57,24 +58,26 @@ export function LookLab() {
         <Button label="Probe frost" onPress={() => lookLab.probeFrosts()} />
         <Button label={lookOff ? "Look off" : "Look on"} onPress={() => setLookOff(lookLab.setLookOff(!lookOff) ?? lookOff)} />
       </View>
-      <FrostSource name="lab" style={styles.stage}>
-        <DeckBackdrop style={StyleSheet.absoluteFill} color={look.color} themeColors={look.themeColors} dark={dark} reduceMotion={still} />
-        <Text style={[styles.stageText, { color: ink }]}>The deck's mesh, blobs and grain. The frost below blurs this.</Text>
-      </FrostSource>
+      <View style={styles.stage}>
+        <FrostSource name="lab" style={StyleSheet.absoluteFill}>
+          <DeckBackdrop style={StyleSheet.absoluteFill} color={look.color} themeColors={look.themeColors} dark={dark} reduceMotion={still} />
+          <Text style={[styles.stageText, { color: ink }]}>The deck's mesh, blobs and grain. The frost below blurs this.</Text>
+        </FrostSource>
+        <Frost source="lab" name="lab-bar" variant={VARIANTS[variant]} color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.frost}>
+          <Text style={{ color: ink }}>Frosted {VARIANTS[variant]}</Text>
+        </Frost>
+      </View>
       <View style={styles.pair}>
         <ProfileBackdrop style={styles.tile} color={look.color} themeColors={look.themeColors} dark={dark} themed />
         <ProfileBackdrop style={styles.tile} color={look.color} themeColors={look.themeColors} dark={dark} softened fadesOut={faded} />
         <FilmGrain style={[styles.tile, { backgroundColor: dark ? "#2a2a2c" : "#e8e4f0" }]} opacity={0.2} />
       </View>
-      <Frost source="lab" variant={VARIANTS[variant]} color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.frost}>
-        <Text style={{ color: ink }}>Frosted {VARIANTS[variant]}</Text>
-      </Frost>
       <Text style={styles.note}>A sheet frost over a live page: scroll the page; the frost should follow it, not stay black or frozen.</Text>
       <View style={styles.pageStage}>
         <FrostSource name="lab-page" style={StyleSheet.absoluteFill}>
           <PageView style={StyleSheet.absoluteFill} pageId="lab-look-page" initialUrl={PAGE_URL} />
         </FrostSource>
-        <Frost source="lab-page" variant="sheet" color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.pageFrost} pointerEvents="none">
+        <Frost source="lab-page" name="lab-page-sheet" variant="sheet" color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.pageFrost} pointerEvents="none">
           <Text style={{ color: ink }}>Sheet frost over the page</Text>
         </Frost>
       </View>
@@ -88,12 +91,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   button: { backgroundColor: "#ddd6c9", paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6 },
   buttonText: { fontSize: 13, color: "#1d1a17" },
-  stage: { height: 220, borderRadius: 10, overflow: "hidden", justifyContent: "flex-end", padding: 10 },
-  stageText: { fontSize: 13 },
+  stage: { height: 220, borderRadius: 10, overflow: "hidden" },
+  stageText: { fontSize: 13, padding: 10 },
   pair: { flexDirection: "row", gap: 6 },
   tile: { flex: 1, height: 70, borderRadius: 8, overflow: "hidden" },
   note: { fontSize: 11, color: "#1d1a17" },
   pageStage: { height: 320, borderRadius: 10, overflow: "hidden" },
   pageFrost: { position: "absolute", left: 12, right: 12, bottom: 12, height: 90, justifyContent: "center", alignItems: "center" },
-  frost: { height: 56, marginTop: -150, marginHorizontal: 16, justifyContent: "center", alignItems: "center" },
+  frost: { position: "absolute", left: 16, right: 16, bottom: 16, height: 56, justifyContent: "center", alignItems: "center" },
 });
