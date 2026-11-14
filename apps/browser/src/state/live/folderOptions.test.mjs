@@ -6,8 +6,9 @@ const savedBeforeOptions = { id: "old", profileId: "p", kind: "pullRequests", na
 docs.set("live.json", JSON.stringify({ folders: { old: savedBeforeOptions }, folderOrder: ["old"] }));
 const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
-const { folderRows, liveTabPlace } = await import("./rows.ts");
+const { folderRows, liveTabOpen, liveTabPlace, stackMembers } = await import("./rows.ts");
 const { liveFolderMenuItems } = await import("../sidebar/liveMenus.ts");
+const { hideNewRepos, setShowNewRepos, showAllRepos } = await import("./repoFilter.ts");
 const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, setRepoHidden, showAllIn, toggleStack, updateFolder, useLive } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
@@ -182,6 +183,28 @@ test("a refresh doesn't ask about hidden pull requests from a source the folder 
   assert.deepEqual(live().hidden[id].map((it) => it.id), ["x"]);
 });
 
+test("a pull request counts as open while any window has its tab, so another window never offers to hide it", () => {
+  const tabs = {
+    a: { id: "a", windowId: "w1", liveItem: { folderId: "f", itemId: "pr1" } },
+    b: { id: "b", windowId: "w2", liveItem: { folderId: "other", itemId: "pr2" } },
+    c: { id: "c", windowId: "w2" },
+  };
+  assert.equal(liveTabOpen(tabs, "f", ["pr1"]), true);
+  assert.equal(liveTabOpen(tabs, "f", ["pr2"]), false, "the same item id in another folder is a different pull request");
+  assert.equal(liveTabOpen(tabs, "f", ["pr3", "pr1"]), true, "a stack is open when any of its pull requests is");
+  assert.equal(liveTabOpen(tabs, "f", ["pr3"]), false);
+});
+
+test("a stack split across sections counts as open when a member in the other section has its tab open", () => {
+  const spanning = [stacked[0], { ...stacked[1], section: "review" }];
+  const header = folderRows({ id: "f", kind: "pullRequests", groupStacks: true }, spanning, {}).find((r) => r.kind === "stack");
+  assert.deepEqual(header.items.map((it) => it.id), ["a"]);
+  const tabs = { t: { id: "t", windowId: "w", liveItem: { folderId: "f", itemId: "b" } } };
+  assert.equal(liveTabOpen(tabs, "f", header.items.map((it) => it.id)), false, "the header's own section has no open tab");
+  assert.deepEqual(stackMembers(spanning, "stack:a").map((it) => it.id), ["a", "b"]);
+  assert.equal(liveTabOpen(tabs, "f", stackMembers(spanning, "stack:a").map((it) => it.id)), true);
+});
+
 test("an open tab of a hidden pull request stays out of the folder instead of coming back as a stray row", () => {
   const id = createFolder("p", "pullRequests", []);
   applyFetch(id, stacked, {});
@@ -261,6 +284,17 @@ test("hiding a repo also keeps aside its completed pull requests, so their open 
   assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["x"]);
 });
 
+test("with Show New Repositories off, a repo hidden on its return keeps its completed pull requests aside too", () => {
+  const id = createFolder("p", "pullRequests", []);
+  applyFetch(id, [inRepo("x", "me/dotfiles")], {});
+  applyFetch(id, [], { x: "merged" });
+  finishCompleting(id, ["x"]);
+  setShowNewRepos(id, false);
+  hideNewRepos(id, [inRepo("y", "me/dotfiles")]);
+  assert.deepEqual(live().completed[id], []);
+  assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["x"]);
+});
+
 test("a pull request hidden until refresh stays hidden when its repo is hidden and shown again, and a manual refresh doesn't show a hidden repo's", async () => {
   const id = createFolder("p", "pullRequests", []);
   const parked = inRepo("p1", "me/dotfiles");
@@ -287,16 +321,37 @@ const repoMenu = (id) => {
 
 test("the Repositories submenu lists every repo the folder knows, sorted, and names the service only when the folder has two", () => {
   const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
-  assert.deepEqual(repoMenu(id), { enabled: false, rows: ["Show All Repositories (off)"] });
+  assert.deepEqual(repoMenu(id), { enabled: false, rows: ["Show All Repositories (off)", "Hide All Repositories (off)", "---", "[x]Show New Repositories"] });
   applyFetch(id, [inRepo("a", "zed/app"), inRepo("b", "acme/app"), inRepo("c", "me/parked")], {});
-  assert.deepEqual(repoMenu(id).rows, ["Show All Repositories (off)", "---", "[x]acme/app", "[x]me/parked", "[x]zed/app"]);
+  assert.deepEqual(repoMenu(id).rows, ["Show All Repositories (off)", "Hide All Repositories", "---", "[x]acme/app", "[x]me/parked", "[x]zed/app", "---", "[x]Show New Repositories"]);
   hideItems(id, [inRepo("c", "me/parked")]);
   setRepoHidden(id, "bitbucket:zed/app", true);
   applyFetch(id, [inRepo("b", "acme/app"), inRepo("g", "acme/app", "github")], {});
   assert.deepEqual(repoMenu(id), {
     enabled: true,
-    rows: ["Show All Repositories", "---", "[x]acme/app (Bitbucket)", "[x]acme/app (GitHub)", "[x]me/parked (Bitbucket)", "[ ]zed/app (Bitbucket)"],
+    rows: ["Show All Repositories", "Hide All Repositories", "---", "[x]acme/app (Bitbucket)", "[x]acme/app (GitHub)", "[x]me/parked (Bitbucket)", "[ ]zed/app (Bitbucket)", "---", "[x]Show New Repositories"],
   });
+});
+
+test("with Show New Repositories off, a repo the folder hasn't seen stays out, and a shown repo comes back after a gap without pull requests", async () => {
+  const id = createFolder("p", "pullRequests", ["bitbucket"]);
+  const { fetch, resolveGone } = SOURCES.bitbucket;
+  SOURCES.bitbucket.resolveGone = async () => ({});
+  try {
+    SOURCES.bitbucket.fetch = async () => [inRepo("w", "acme/app")];
+    await refreshFolder(id);
+    setShowNewRepos(id, false);
+    SOURCES.bitbucket.fetch = async () => [];
+    await refreshFolder(id);
+    showAllRepos(id);
+    SOURCES.bitbucket.fetch = async () => [inRepo("w2", "acme/app"), inRepo("m", "me/dotfiles")];
+    await refreshFolder(id);
+    assert.deepEqual(live().items[id].map((it) => it.id), ["w2"]);
+    assert.deepEqual(live().folders[id].hiddenRepos, ["bitbucket:me/dotfiles"]);
+  } finally {
+    SOURCES.bitbucket.fetch = fetch;
+    SOURCES.bitbucket.resolveGone = resolveGone;
+  }
 });
 
 test("a shown repo whose service left the folder lets its kept-aside pull requests go, so their open tabs aren't hidden for good", async () => {

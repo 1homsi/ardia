@@ -3,8 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { domainCall, domainFunctions, domainsOf, reproduced, topicRouter } from "../../../../packages/expo-windows/src/engine/domains/tables.ts";
 import { watchDownloads } from "../../../../packages/expo-windows/src/engine/domains/downloads.ts";
-import { suggestCalls } from "../../../../packages/expo-windows/src/engine/domains/suggest.ts";
 import { readArgs } from "../../../../packages/expo-windows/src/engine/domains/calling.ts";
+import { privateWindowShown } from "../../../../packages/expo-windows/src/engine/privateWindows.ts";
 
 const repo = new URL("../../../../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, repo), "utf8");
@@ -43,6 +43,11 @@ function fakeEngine(reply = () => "{}") {
     missing: async (domain, verb) => {
       engine.missed.push(`${domain}.${verb}`);
       return "null";
+    },
+    hosted: [],
+    host: async (verb, args = {}) => {
+      engine.hosted.push({ verb, args });
+      return {};
     },
   };
   return engine;
@@ -104,6 +109,79 @@ test("the forwarded topics and their event names are the Mac's", () => {
   const renamed = new Map([...between("NSString *AppEventOfTopic(", "\n}").matchAll(/isEqualToString:@"([^"]+)"\] \? @"([^"]+)"/g)].map((match) => [match[1], match[2]]));
   const topics = Object.fromEntries([...between("ForwardedTopics()", "];").matchAll(/@"([^"]+)"/g)].map((match) => [match[1], renamed.get(match[1]) ?? match[1]]));
   assert.deepEqual(rows.topics, topics);
+});
+
+test("releasing a profile asks the host to end that private session and answers null", async () => {
+  const engine = fakeEngine();
+  const profiles = calling(engine, "profiles");
+  assert.equal(await profiles("release", {}, "incognito:w1@work"), null);
+  assert.equal(await profiles("release", {}, "work"), null);
+  assert.deepEqual(engine.hosted, [
+    { verb: "profile.release", args: { profile: "incognito:w1@work" } },
+    { verb: "profile.release", args: { profile: "work" } },
+  ]);
+  assert.deepEqual(engine.calls, []);
+  assert.deepEqual(engine.missed, []);
+});
+
+test("the Peek keys go to the engine host, which hands them to every page's link script", async () => {
+  const engine = fakeEngine();
+  const webView = calling(engine, "webView");
+  assert.equal(await webView("setPeekModifier", { modifier: "alt" }), null);
+  assert.equal(await webView("setSplitLinkModifier", { modifier: "altShift" }), null);
+  assert.equal(await webView("setPeekOtherSiteTabs", { tabIds: ["t1", "t2"] }), null);
+  assert.deepEqual(engine.hosted, [
+    { verb: "peek.config", args: { peek: "alt" } },
+    { verb: "peek.config", args: { split: "altShift" } },
+    { verb: "peek.config", args: { otherSitePages: ["t1", "t2"] } },
+  ]);
+  await assert.rejects(webView("setPeekModifier", { modifier: "ctrl" }), /isn't one of the values/);
+});
+
+test("a private window's release waits while another private window of its profile is open, then both go together", async () => {
+  const engine = fakeEngine();
+  const release = (profile) => calling(engine, "profiles")("release", {}, profile);
+  const closeA = privateWindowShown("incognito:hold-a@hold");
+  const closeB = privateWindowShown("incognito:hold-b@hold");
+  const closeOther = privateWindowShown("incognito:hold-other@elsewhere");
+  closeA();
+  assert.equal(await release("incognito:hold-a@hold"), null);
+  assert.deepEqual(engine.hosted, [], "A's session goes on while B is open");
+  assert.equal(await release("incognito:hold-other@elsewhere-closed"), null);
+  assert.deepEqual(engine.hosted.map((call) => call.args.profile), ["incognito:hold-other@elsewhere-closed"], "another profile's private windows don't hold it");
+  assert.equal(await release("incognito:hold-b@hold"), null);
+  closeB();
+  assert.deepEqual(
+    engine.hosted.map((call) => call.args.profile),
+    ["incognito:hold-other@elsewhere-closed", "incognito:hold-a@hold", "incognito:hold-b@hold"],
+    "the held release goes with the last one",
+  );
+  closeOther();
+});
+
+test("a private window that closed before its profile view mounted, or a name never seen, is released as its siblings allow", async () => {
+  const engine = fakeEngine();
+  const release = (profile) => calling(engine, "profiles")("release", {}, profile);
+  assert.equal(await release("incognito:never-seen@solo"), null);
+  assert.deepEqual(engine.hosted.map((call) => call.args.profile), ["incognito:never-seen@solo"], "nothing else of its profile is open");
+  const closeOpen = privateWindowShown("incognito:still-open@pair");
+  assert.equal(await release("incognito:never-mounted@pair"), null);
+  assert.equal(engine.hosted.length, 1, "held while its sibling is open");
+  closeOpen();
+  assert.equal(await release("incognito:still-open@pair"), null);
+  assert.deepEqual(engine.hosted.slice(1).map((call) => call.args.profile), ["incognito:never-mounted@pair", "incognito:still-open@pair"]);
+  const closeLate = privateWindowShown("incognito:late@late");
+  assert.equal(await release("incognito:late@late"), null);
+  closeLate();
+  assert.deepEqual(engine.hosted.at(-1).args.profile, "incognito:late@late", "a release before its view unmounts goes at once");
+});
+
+test("a regular profile's release goes to the host at once, and an open window of it holds nothing", async () => {
+  const engine = fakeEngine();
+  const closeRegular = privateWindowShown("work");
+  assert.equal(await calling(engine, "profiles")("release", {}, "work"), null);
+  closeRegular();
+  assert.deepEqual(engine.hosted, [{ verb: "profile.release", args: { profile: "work" } }]);
 });
 
 test("a forwarded verb sends the profile and arguments unchanged and returns the engine's reply", async () => {
@@ -230,14 +308,15 @@ test("engine topics reach the app under the Mac's event names, with a burst of t
 });
 
 test("a download carries its profile, and its commands go to that profile", async () => {
-  const engine = fakeEngine((name) => (name === "ac_downloads_list" ? '{"downloads":[{"id":"d2","state":"finished"}]}' : '{"ok":true}'));
+  const startTime = Date.now() + 60_000;
+  const engine = fakeEngine((name) => (name === "ac_downloads_list" ? JSON.stringify({ downloads: [{ id: "d2", state: "finished", startTime }] }) : '{"ok":true}'));
   const route = topicRouter(rows.topics, engine, () => assert.fail("downloads aren't held back"));
   route({ topic: "downloads.changed", payload: { profile: "work", offTheRecord: true, download: { id: "d1", state: "downloading" } } });
   route({ topic: "downloads.changed", payload: { profile: "work" } });
   await watchDownloads(engine, "play");
   assert.deepEqual(engine.events, [
     { name: "downloads.changed", data: { id: "d1", state: "downloading", profile: "work" } },
-    { name: "downloads.changed", data: { id: "d2", state: "finished", profile: "play" } },
+    { name: "downloads.changed", data: { id: "d2", state: "finished", startTime, profile: "play" } },
   ]);
   const downloads = calling(engine, "downloads");
   assert.equal(await downloads("pause", { id: "d1" }), null);
@@ -448,26 +527,4 @@ test("deleting the original profile's data names each step that failed", async (
   assert.deepEqual(await calling(stuck.engine, "profiles")("deleteData", {}, ""), { remaining: ["passwords"] });
   const nothing = originalProfileEngine({ failing: "ac_browsing_data_clear" });
   assert.deepEqual((await calling(nothing.engine, "profiles")("deleteData", {}, "")).remaining, ORIGINAL_STEPS.slice(0, 2));
-});
-
-test("search suggestions are fetched by the app until the Windows engine does it, and a stopped one says so", async () => {
-  const asked = [];
-  let release;
-  const held = new Promise((resolve) => (release = resolve));
-  const calls = suggestCalls(async (url, { signal }) => {
-    asked.push(url);
-    if (url.endsWith("slow")) await held;
-    if (signal.aborted) throw new Error("aborted");
-    return { status: url.endsWith("blocked") ? 429 : 200, text: async () => (url.endsWith("blocked") ? "" : '["q",["q1"]]') };
-  });
-  const args = (fields) => readArgs("", JSON.stringify(fields));
-  assert.deepEqual(JSON.parse(await calls.suggest(args({ url: "https://www.google.com/complete/search?q=q", id: 1 }))), { status: 200, body: '["q",["q1"]]' });
-  assert.deepEqual(JSON.parse(await calls.suggest(args({ url: "https://example.com/blocked", id: 2 }))), { status: 429, body: "" });
-  const slow = calls.suggest(args({ url: "https://example.com/slow", id: 3 }));
-  await calls.stopSuggest(args({ id: 3 }));
-  release();
-  assert.deepEqual(JSON.parse(await slow), { stopped: true });
-  await calls.stopSuggest(args({ id: 99 }));
-  await assert.rejects(calls.suggest(args({ url: "file:///etc/passwd", id: 4 })), /web address/);
-  assert.deepEqual(asked, ["https://www.google.com/complete/search?q=q", "https://example.com/blocked", "https://example.com/slow"]);
 });

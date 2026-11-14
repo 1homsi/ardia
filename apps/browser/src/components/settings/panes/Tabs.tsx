@@ -4,6 +4,7 @@ import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { chooseSidebarSide, chooseTabLayout, updateSettings } from "../../../state/settings/actions";
 import { splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../state/settings/settings";
+import { splitViewAvailable } from "../../../state/splits/splits";
 import { Box, Button, Checkbox, DialogActions, DialogTitle, PopUp, Segmented, Sheet, space, Text, TextField, Toggle, type Option, type SegmentOption } from "../../ui";
 import { durationMinutes, durationParts, type DurationUnit } from "../../../lib/time";
 import { cleanUpChoices, CUSTOM_CLEAN_UP, DAILY_CLEAN_UP_MINUTES } from "../../../state/settings/cleanUpAfter";
@@ -14,6 +15,7 @@ import { PictureChoice } from "../PictureChoice";
 import { setting, type SettingId } from "../settingsIndex";
 import { useSettingsColors } from "../useSettingsColors";
 import { keyText } from "../../../state/commands/keyText";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
   { value: "shift", title: `${keyText("⇧")}-click` },
@@ -49,9 +51,11 @@ function LinkKeys() {
       <Row anchor="tabs.peekModifier" description={withNote("tabs.peekModifier", splitWith === "alt" ? `${keyText("⌥")}-click opens a split now: choosing it here moves split view back to ${keyText("⌥⇧")}-click.` : null)}>
         <PopUp value={peekWith} options={peekOptions} onChange={(peekModifier) => updateSettings({ peekModifier })} />
       </Row>
-      <Row anchor="tabs.splitLinkModifier" description={withNote("tabs.splitLinkModifier", peekWith === "alt" ? `${keyText("⌥")}-click peeks now: choosing it here moves Peek back to ${keyText("⇧")}-click.` : null)}>
-        <PopUp value={splitWith} options={splitOptions} onChange={(splitLinkModifier) => updateSettings({ splitLinkModifier })} />
-      </Row>
+      {splitViewAvailable ? (
+        <Row anchor="tabs.splitLinkModifier" description={withNote("tabs.splitLinkModifier", peekWith === "alt" ? `${keyText("⌥")}-click peeks now: choosing it here moves Peek back to ${keyText("⇧")}-click.` : null)}>
+          <PopUp value={splitWith} options={splitOptions} onChange={(splitLinkModifier) => updateSettings({ splitLinkModifier })} />
+        </Row>
+      ) : null}
     </Group>
   );
 }
@@ -103,7 +107,7 @@ export function TabsPane() {
         <Group>
           <SettingToggle
             anchor="tabs.autoHideTabs"
-            description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. ${keyText("⌘S")} and View › Auto-Hide Tabs flip this same switch.`}
+            description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. Changing it here resets every window; ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs hide or show" : "hides or shows"} the tabs in one window only.`}
           />
         <Row anchor="tabs.sidebarSide">
           <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />
@@ -111,8 +115,10 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.hideToolbarWhileScrolling" />
         <SettingToggle anchor="tabs.showSidebarButton" />
         <SettingToggle anchor="tabs.showClearButton" />
+        <SettingToggle anchor="tabs.tidyTabs" />
         <SettingToggle anchor="tabs.balancedTopApps" />
         <SettingToggle anchor="tabs.showUnreadCounts" />
+        <SettingToggle anchor="tabs.showTopAppBadges" />
         <SettingToggle anchor="tabs.fadeUnloadedTabs" />
         </Group>
       </Box>
@@ -130,12 +136,14 @@ export function TabsPane() {
             minWidth={160}
           />
         </Row>
+        <SettingToggle anchor="tabs.reuseEmptyNewTab" />
         <Row anchor="tabs.newTabPosition">
           <PopUp value={newTabPosition} options={top ? NEW_TABS_ACROSS : NEW_TABS_DOWN} onChange={(v) => updateSettings({ newTabPosition: v })} minWidth={190} />
         </Row>
         <Row anchor="tabs.newTabButtonPosition">
           <PopUp value={newTabButtonPosition} options={NEW_TAB_BUTTON} onChange={(v) => updateSettings({ newTabButtonPosition: v })} minWidth={190} />
         </Row>
+        <SettingToggle anchor="tabs.appLinksFirst" />
         <SettingToggle anchor="tabs.shareTabsAcrossWindows" />
         <SettingToggle anchor="tabs.warnBeforeClosingLastTab" />
         <SettingToggle anchor="tabs.tabReorderHaptics" />
@@ -178,6 +186,7 @@ function CleanUpRow({ minutes }: { minutes: number | null }) {
           onChange={(v) => (v === CUSTOM_CLEAN_UP ? showSettingsSheet(<CustomCleanUpSheet minutes={shown} />) : updateSettings({ cleanUpInactiveTabsAfterMinutes: Number(v) }))}
         />
       </Row>
+      <SettingToggle anchor="tabs.suggestCleanUp" />
     </Group>
   );
 }

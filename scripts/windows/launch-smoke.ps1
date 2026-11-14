@@ -7,7 +7,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "process-tree.ps1")
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
+$testBuild = Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "Ardia.test-build"
+New-Item -ItemType File -Force -Path $testBuild | Out-Null
 $log = Join-Path $Out "launch.log"
 $checkLog = Join-Path $Out "self-check.log"
 $shot = Join-Path $Out "window.png"
@@ -464,8 +467,19 @@ elseif (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Qui
 elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first window" -Quiet)) { $failures += "the browser window never rendered with onboarding done" }
 
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
+$importFixtures = Join-Path $env:ARDIA_DATA_DIR "import-fixtures"
+$fixtureProfiles = Join-Path $PSScriptRoot "..\..\packages\import\fixtures\home\Library\Application Support"
+foreach ($fixture in @(@("firefox", "Firefox\Profiles\abcd1234.default-release"), @("work", "Firefox\Profiles\zzzz9999.work"), @("zen", "zen\Profiles\zen12345.Default (release)"), @("chrome", "Google\Chrome\Default"))) {
+  $to = Join-Path $importFixtures $fixture[0]
+  New-Item -ItemType Directory -Force -Path $to | Out-Null
+  foreach ($name in @("key4.db", "logins.json", "logins.db", "cookies.sqlite", "Web Data")) {
+    $from = Join-Path (Join-Path $fixtureProfiles $fixture[1]) $name
+    if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $to }
+  }
+}
 $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 $env:ARDIA_BACKGROUND = "1"
+$env:ARDIA_TEST = "pipHover=first,pipHover=last"
 $leftover = Join-Path $env:ARDIA_DATA_DIR "Chromium\Ardia self-check-stuck (removing)"
 $held = $null
 $check = $null
@@ -473,8 +487,18 @@ try {
   New-Item -ItemType Directory -Force -Path $leftover | Out-Null
   $held = [System.IO.File]::Open((Join-Path $leftover "held.txt"), [System.IO.FileMode]::Create, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
   $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
+  $env:ARDIA_TEST = ""
   if (-not $check.WaitForExit($SelfCheckSeconds * 1000)) { $failures += "the self-check did not finish within $SelfCheckSeconds s" }
   elseif ($check.ExitCode -ne 0) { $failures += "the self-check launch exited with code $($check.ExitCode)" }
+  else {
+    $ending = Select-String -LiteralPath $checkLog -Pattern "^launch (\d+) process ending" | Select-Object -Last 1
+    if ($ending) {
+      $lived = [int](($check.ExitTime - $check.StartTime).TotalMilliseconds)
+      $after = $lived - [int]$ending.Matches[0].Groups[1].Value
+      Write-Host "the self-check process exited $after ms after the app ended"
+      if ($after -gt 10000) { $failures += "the self-check process took $after ms to exit after the app ended (#1706)" }
+    }
+  }
 } finally {
   try {
     if ($check -and -not $check.HasExited) {
@@ -498,6 +522,165 @@ if (Test-Path $checkLog) {
 } else {
   $failures += "the self-check wrote no log"
 }
+
+$gateApp = (Resolve-Path -LiteralPath $App).Path
+$withEngine = Test-Path -LiteralPath (Join-Path (Split-Path -Parent $gateApp) "chrome.dll")
+$gatePort = 9338
+
+function Test-PortOpen([int]$Port) {
+  $client = New-Object System.Net.Sockets.TcpClient
+  try { return $client.ConnectAsync("127.0.0.1", $Port).Wait(1500) -and $client.Connected } catch { return $false } finally { $client.Dispose() }
+}
+
+function Start-GateLaunch([string]$DataDirectory, [string]$Case, [string]$Test, [string[]]$Extra = @()) {
+  $caseLog = Join-Path $Out "gate-$Case.log"
+  Remove-Item -Force -ErrorAction SilentlyContinue $caseLog
+  $env:ARDIA_DATA_DIR = $DataDirectory
+  $env:ARDIA_TEST = $Test
+  $env:ARDIA_BACKGROUND = "1"
+  $env:ARDIA_REMOTE_DEBUGGING_PORT = if ($withEngine) { "$gatePort" } else { "" }
+  $run = Start-Process -FilePath $gateApp -ArgumentList (@("--log-file=`"$caseLog`"") + $Extra) -PassThru
+  $env:ARDIA_TEST = ""
+  $env:ARDIA_REMOTE_DEBUGGING_PORT = ""
+  return @($run, $caseLog)
+}
+
+function Wait-GateLine([object]$Run, [string]$CaseLog, [string]$Pattern) {
+  $deadline = (Get-Date).AddSeconds(40)
+  while ((Get-Date) -lt $deadline -and -not $Run.HasExited) {
+    if (Test-Path -LiteralPath $CaseLog) {
+      $line = Select-String -LiteralPath $CaseLog -Pattern $Pattern | Select-Object -First 1
+      if ($line) { return $line }
+    }
+    Start-Sleep -Milliseconds 500
+  }
+  return $null
+}
+
+function Stop-Tree([int]$Id) {
+  $running = @(Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, CreationDate -OperationTimeoutSec 15 -ErrorAction SilentlyContinue)
+  $order = Get-StopOrder $Id $running
+  Write-Host "stopping $($order.Count) process(es) under $Id"
+  foreach ($process in $order) { Stop-Process -Id $process -Force -ErrorAction SilentlyContinue }
+}
+
+function Stop-GateLaunch([object]$Run) {
+  Stop-Tree $Run.Id
+  $Run.WaitForExit(10000) | Out-Null
+}
+
+function Wait-PortOpen([int]$Port, [int]$Seconds) {
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-PortOpen $Port) { return $true }
+    Start-Sleep -Milliseconds 500
+  }
+  return $false
+}
+
+function New-CallingExtension([int]$Port) {
+  $folder = New-DataDirectory "gate-extension"
+  Set-Content -LiteralPath (Join-Path $folder "manifest.json") -Encoding ascii -Value ('{"name":"gate","version":"1","manifest_version":3,"permissions":["cookies"],"host_permissions":["<all_urls>"],"background":{"service_worker":"worker.js"}}')
+  Set-Content -LiteralPath (Join-Path $folder "worker.js") -Encoding ascii -Value ('fetch("http://127.0.0.1:' + $Port + '/loaded").catch(() => {});')
+  return $folder
+}
+
+function Start-ExtensionListener([int]$Port) {
+  $listener = New-Object System.Net.Sockets.TcpListener ([System.Net.IPAddress]::Loopback), $Port
+  $listener.Start()
+  return @($listener, $listener.AcceptTcpClientAsync())
+}
+
+function Test-WalkAround([string]$DataDirectory, [string]$Case, [string]$Test, [string[]]$Extra, [int]$ExtensionPort = 0) {
+  if (-not $withEngine) { return }
+  $listener = $null
+  if ($ExtensionPort) { $listener, $accept = Start-ExtensionListener $ExtensionPort }
+  $run, $caseLog = Start-GateLaunch $DataDirectory $Case $Test $Extra
+  try {
+    $engine = Wait-GateLine $run $caseLog "^engine 0 test gate: "
+    if (-not $engine) { $script:failures += "the engine never started, or said nothing about the test gate, with $Case"; return }
+    Write-Host "engine test gate, $Case`: $($engine.Line)"
+    if ($engine.Line -notmatch "not a test instance \(.*ardiacore test instance: no; reauth=granted honoured: no$") { $script:failures += "the engine counted the test instance or reauth=granted with $Case" }
+    if (Wait-PortOpen $gatePort 15) { $script:failures += "remote debugging listened on port $gatePort with $Case" } else { Write-Host "walk-around, $Case`: port $gatePort stayed closed" }
+    if ($listener) {
+      if ($accept.Wait(10000)) { $accept.Result.Dispose(); $script:failures += "an extension from --load-extension ran with $Case" } else { Write-Host "walk-around, $Case`: the extension never ran" }
+    }
+  } finally {
+    Stop-GateLaunch $run
+    if ($listener) { $listener.Stop() }
+  }
+}
+
+function Test-ExtensionRunsInATestInstance([string]$Extension, [int]$Port) {
+  $listener, $accept = Start-ExtensionListener $Port
+  $run, $caseLog = Start-GateLaunch (New-DataDirectory "gate-extension-control") "--load-extension in a test instance" "" @("--load-extension=`"$Extension`"")
+  try {
+    if ($accept.Wait(30000)) { $accept.Result.Dispose(); Write-Host "control, --load-extension in a test instance: the extension ran" } else { $script:failures += "the same extension never ran in a test instance, so the refused case proves nothing" }
+  } finally {
+    Stop-GateLaunch $run
+    $listener.Stop()
+  }
+}
+
+function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
+  $run, $caseLog = Start-GateLaunch $DataDirectory $Case "appDialog,reauth=granted"
+  try {
+    $refused = Wait-GateLine $run $caseLog "not a test instance \("
+    if ($refused) { Write-Host "test gate, $Case`: $($refused.Line)" } else { $script:failures += "ARDIA_TEST counted, or the launch said nothing, with $Case"; return }
+    if (-not $withEngine) { return }
+    if (Test-PortOpen $gatePort) { $script:failures += "remote debugging listened on port $gatePort with $Case" }
+    $engine = Wait-GateLine $run $caseLog "^engine 0 test gate: "
+    if (-not $engine) { $script:failures += "the engine said nothing about the test gate with $Case"; return }
+    Write-Host "engine test gate, $Case`: $($engine.Line)"
+    if ($engine.Line -notmatch "not a test instance \(.*ardiacore test instance: no; reauth=granted honoured: no$") { $script:failures += "the engine counted the test instance or reauth=granted with $Case" }
+  } finally { Stop-GateLaunch $run }
+}
+
+function Test-ATestInstance([string]$DataDirectory, [string]$Case) {
+  $run, $caseLog = Start-GateLaunch $DataDirectory $Case "reauth=granted"
+  try {
+    $engine = Wait-GateLine $run $caseLog "^engine 0 test gate: "
+    if (-not $engine) { $script:failures += "the engine said nothing about the test gate with $Case"; return }
+    Write-Host "engine test gate, $Case`: $($engine.Line)"
+    if ($engine.Line -notmatch "a test instance; remote debugging port: $gatePort; ardiacore test instance: yes; reauth=granted honoured: yes$") { $script:failures += "the engine refused the test instance or reauth=granted with $Case" }
+    $deadline = (Get-Date).AddSeconds(20)
+    while ((Get-Date) -lt $deadline -and -not (Test-PortOpen $gatePort)) { Start-Sleep -Milliseconds 500 }
+    try {
+      $version = Invoke-RestMethod -Uri "http://127.0.0.1:$gatePort/json/version" -TimeoutSec 10
+      Write-Host "remote debugging, $Case`: $($version.Browser)"
+    } catch { $script:failures += "remote debugging didn't answer on port $gatePort with $Case" }
+  } finally { Stop-GateLaunch $run }
+}
+
+$gateData = New-DataDirectory "gate-scratch"
+$marker = Join-Path (Split-Path -Parent $gateApp) "Ardia.test-build"
+Remove-Item -Force -LiteralPath $marker
+try { Test-NotATestInstance $gateData "no test-build marker" } finally { New-Item -ItemType File -Force -Path $marker | Out-Null }
+Test-NotATestInstance "gate-relative" "a relative ARDIA_DATA_DIR"
+if ($env:GITHUB_ACTIONS -eq "true") {
+  $realProfile = Join-Path $env:LOCALAPPDATA "Ardia"
+  New-Item -ItemType Directory -Force -Path $realProfile | Out-Null
+  Test-NotATestInstance $realProfile "the real profile folder"
+  $junction = Join-Path (New-DataDirectory "gate-junction") "profile"
+  New-Item -ItemType Junction -Path $junction -Target $realProfile | Out-Null
+  try { Test-NotATestInstance $junction "a junction to the real profile folder" } finally { (Get-Item -LiteralPath $junction).Delete() }
+}
+if ($withEngine -and $env:GITHUB_ACTIONS -eq "true") {
+  $realUserData = Join-Path $env:LOCALAPPDATA "Ardia\User Data"
+  Test-WalkAround "" "an empty --type on the real profile" "" @("--type=", "--user-data-dir=`"$realUserData`"", "--remote-debugging-port=$gatePort", "--remote-allow-origins=*")
+  Test-WalkAround (New-DataDirectory "gate-other-user-data") "a --user-data-dir other than the approved folder" "reauth=granted" @("--user-data-dir=`"$realUserData`"")
+  $aliased = New-DataDirectory "gate-alias"
+  New-Item -ItemType Directory -Force -Path (Join-Path $aliased "Chromium") | Out-Null
+  $alias = Join-Path (New-DataDirectory "gate-alias-link") "chromium"
+  New-Item -ItemType Junction -Path $alias -Target (Join-Path $aliased "Chromium") | Out-Null
+  try { Test-WalkAround $aliased "a --user-data-dir junction to the approved folder" "reauth=granted" @("--user-data-dir=`"$alias`"") } finally { (Get-Item -LiteralPath $alias).Delete() }
+  $extension = New-CallingExtension 9341
+  Test-WalkAround "" "--load-extension and debugging switches without a test instance" "" @("--load-extension=`"$extension`"", "--remote-debugging-port=$gatePort", "--remote-allow-origins=*", "--disable-web-security", "--enable-automation", "--no-sandbox", "--renderer-cmd-prefix=cmd.exe") -ExtensionPort 9341
+  Test-ExtensionRunsInATestInstance $extension 9341
+}
+if ($withEngine) { Test-ATestInstance (New-DataDirectory "gate-test-instance") "a scratch folder with the marker" }
+$env:ARDIA_DATA_DIR = ""
+$env:ARDIA_BACKGROUND = ""
 
 if ($failures.Count) {
   $failures | ForEach-Object { Write-Host "::error::$_" }

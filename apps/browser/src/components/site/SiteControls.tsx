@@ -25,7 +25,8 @@ import { patchPage, setPopover, usePage } from "../../state/tabs/pageState";
 import { dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { toggleCastPicker } from "../../state/media/cast";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
-import { openSettings } from "../../state/settings/settingsWindows";
+import { openSettings, openSiteSettings } from "../../state/settings/settingsWindows";
+import { noteSiteControls } from "../../state/telemetry/usage";
 import { copyPageUrl } from "../../state/site/selection";
 import { clearSiteDataAfterConfirm, setSiteBlocking, siteOrigin } from "../../state/site/reloadMenu";
 import { canShare, shareTab } from "../../state/site/share";
@@ -37,6 +38,7 @@ import { TranslateRows } from "./TranslateControls";
 import { ZoomStepper } from "./ZoomControls";
 import { blockerLabel, choiceTitle, featuredPermissions, permissionValue, readSiteSettings, setSitePermission, sitePermissionsFor, type SitePermission } from "../../state/site/siteControls";
 import { isWebPageUrl } from "../../lib/url";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { ALL_UNREAD_TITLE, canChooseSiteUnread, isUnreadSiteHidden, setSiteUnreadShown, showUnreadCounts } from "../../state/tabs/unreadSites";
 
 type Expanded = "connection" | "more" | null;
@@ -118,6 +120,12 @@ function SiteControlsPanel({
   const toggleBlocker = async (on: boolean) => {
     const allowed = await setSiteBlocking(tab, host, on);
     setBlocker((b) => (b ? { ...b, allowed } : b));
+  };
+  const showSiteSettings = () => {
+    if (!origin) return;
+    close();
+    noteSiteControls("siteSettings");
+    openSiteSettings(origin, tab.profileId);
   };
   const clearData = async () => {
     if (!origin) return;
@@ -208,23 +216,25 @@ function SiteControlsPanel({
         {origin ? (
           <>
             <SectionLabel title="Settings" inset={PANEL.inset} top={SITE_PANEL.sectionTop} bottom={SITE_PANEL.sectionGap - (SITE_PANEL.settingHeight - SITE_PANEL.settingBadge) / 2} />
-            <SettingRow
-              icon="shield.lefthalf.filled"
-              title="Block Ads & Trackers"
-              value={blockerValue}
-              on={!!blocker?.enabled && !blocker.allowed}
-              onPress={
-                !blocker
-                  ? undefined
-                  : blocker.enabled
-                    ? () => void toggleBlocker(blocker.allowed)
-                    : () => {
-                        close();
-                        openSettings("privacy");
-                      }
-              }
-            />
-            <SettingRow icon={ENGINE_SYMBOLS[pageEngine]} title="Opens in" value={opensIn} on={!!engineRule} onPress={() => void pickEngine()} />
+            {PLATFORM_FEATURES.contentBlocker && (
+              <SettingRow
+                icon="shield.lefthalf.filled"
+                title="Block Ads & Trackers"
+                value={blockerValue}
+                on={!!blocker?.enabled && !blocker.allowed}
+                onPress={
+                  !blocker
+                    ? undefined
+                    : blocker.enabled
+                      ? () => void toggleBlocker(blocker.allowed)
+                      : () => {
+                          close();
+                          openSettings("privacy");
+                        }
+                }
+              />
+            )}
+            {PLATFORM_FEATURES.webKit && <SettingRow icon={ENGINE_SYMBOLS[pageEngine]} title="Opens in" value={opensIn} on={!!engineRule} onPress={() => void pickEngine()} />}
             {shownPermissions.map((p) => (
               <SettingRow
                 key={p.type}
@@ -256,7 +266,7 @@ function SiteControlsPanel({
             <MenuSeparator />
             <MenuRow icon="plus.magnifyingglass" title="Zoom" accessory={<ZoomStepper tabId={tabId} zoom={tab.zoom} />} />
             {origin && !castTile ? <MenuRow icon="tv.and.mediabox" title="Cast…" onPress={cast} /> : null}
-            {origin ? (
+            {origin && PLATFORM_FEATURES.webKit ? (
               <MenuRow
                 icon={ENGINE_SYMBOLS[otherEngine(pageEngine)]}
                 title={`Open Page in ${ENGINE_NAMES[otherEngine(pageEngine)]}`}
@@ -278,7 +288,8 @@ function SiteControlsPanel({
                     accessory={<PopoverValue title={value(p)} onPress={() => void pickPermission(p.type, p.choices)} />}
                   />
                 ))}
-                {otherPermissions.length ? <MenuSeparator /> : null}
+                {pageEngine === "chromium" ? <MenuRow icon="slider.horizontal.3" title="Site Settings…" onPress={showSiteSettings} /> : null}
+                <MenuSeparator />
                 <MenuRow icon="trash" title="Clear Cookies and Site Data…" detail={cleared ?? undefined} onPress={() => void clearData()} />
               </>
             ) : null}

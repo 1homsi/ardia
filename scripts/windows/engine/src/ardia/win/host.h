@@ -13,6 +13,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -47,9 +48,16 @@ class Host : public TabStripModelObserver,
             HWND window,
             Reply reply);
   bool Keeps(const BrowserWindowInterface* browser) const;
+  int BrowsersOf(Profile* profile) const;
+  int CloseBrowsersOf(Profile* profile);
+  void ForgetProfile(Profile* profile);
+  bool Shows(const std::string& key) const;
+  HWND VisibleParent() const;
   void TabDestroyed(TabState* state);
+  void DeleteClosedTab(content::WebContents* contents);
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);
+  void ParentActivated(HWND parent);
 
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
@@ -93,6 +101,10 @@ class Host : public TabStripModelObserver,
   content::WebContents* Find(const std::string& key) const;
   content::WebContents* FindOffered(const std::string& adopt) const;
   Browser* BrowserFor(HWND parent, Profile* profile);
+  Browser* FreePageFor(HWND parent, Profile* profile, const Browser* except);
+  Browser* NewPage(HWND parent, Profile* profile);
+  bool Fits(const Hosted& hosted, HWND parent, const std::string& key) const;
+  bool MoveTab(content::WebContents* contents, Browser* from, Browser* target);
   Browser* BrowserOf(content::WebContents* contents) const;
   Browser* OwnerOf(const TabStripModel* model) const;
   bool PlaceTab(content::WebContents* contents, HWND parent);
@@ -100,9 +112,21 @@ class Host : public TabStripModelObserver,
   void Park(Browser* browser);
   void ParkForeign(base::WeakPtr<BrowserWindowInterface> browser);
   void Hide(Browser* browser, Hosted& hosted);
+  void GiveKeyboard(Browser* browser,
+                    content::WebContents* contents,
+                    bool follow,
+                    bool background);
+  void ApplyWantedKeyboard(HWND parent);
+  std::string KeyboardPage() const;
+  void CloseSparePages();
   void Place(HWND window, const Hosted& hosted);
   void WatchParent(HWND parent);
   void FocusFor(ui::Event* event);
+  std::string PageKeyFor(ui::Event* event) const;
+  void EmitOpened(base::DictValue payload,
+                  base::WeakPtr<content::WebContents> contents,
+                  std::string opener_key,
+                  int tries);
   void NoteOpened(Browser* browser,
                   TabStripModel* model,
                   content::WebContents* contents,
@@ -115,6 +139,7 @@ class Host : public TabStripModelObserver,
   std::map<std::string, raw_ptr<content::WebContents>> tabs_;
   std::map<Profile*, std::string> profile_names_;
   std::set<HWND> parents_;
+  std::map<HWND, std::string> keyboard_wanted_;
   bool creating_browser_ = false;
   bool creating_tab_ = false;
   bool moving_tab_ = false;

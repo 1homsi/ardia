@@ -26,11 +26,14 @@ import { setting, type SettingId } from "../settingsIndex";
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { replaceSettingsPlace } from "../../../state/settings/settingsWindows";
 import { updateSettings } from "../../../state/settings/actions";
 import { blockerAvailable, categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { noteContentBlockerUnavailable, noteContentBlockerWriteFailure } from "../../../state/telemetry/usage";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 
 const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
   { id: "ads", section: "Ad blockers", anchor: "privacy.blockAds" },
@@ -80,7 +83,7 @@ async function writeBlocker(write: () => Promise<unknown>, refresh: () => void) 
   }
 }
 
-export function PrivacyPane() {
+export function PrivacyPane({ profileId, site }: { profileId: string | null; site: string | null }) {
   const [blocker, refresh, unavailable] = useContentBlocker({ countOutages: true });
   const commandScrollZoom = useSettings((s) => s.commandScrollZoom);
 
@@ -99,40 +102,44 @@ export function PrivacyPane() {
 
   return (
     <View>
-      <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
-      <Group>
-        {CATEGORIES.filter((c) => c.anchor).map((c) => (
-          <Row key={c.id} anchor={c.anchor}>
-            <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
-          </Row>
-        ))}
-        <Row anchor="privacy.filterLists">
-          <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
-        </Row>
-        {unavailable && (
-          <Row title="uBlock Origin isn't answering" description="Its settings show here once it responds. Pages keep the blocking they had.">
-            <Button title="Try Again" onPress={refresh} />
-          </Row>
-        )}
-      </Group>
-
-      {!!blocker?.allowedHosts.length && (
+      {PLATFORM_FEATURES.contentBlocker && (
         <>
-          <SectionHeader title="Sites without blocking" description="Turned off from a site's controls. Blocking applies to subdomains too." />
+          <SectionHeader title="Content blocking" description={`Built on EasyList and EasyPrivacy. Blocking happens on this ${PLATFORM_TERMS.computer}.`} />
           <Group>
-            {blocker.allowedHosts.map((host) => (
-              <Row key={host} icon={<Favicon url={`https://${host}`} />} title={host}>
-                <Button
-                  title="Block Again"
-                  onPress={() => void setContentBlockerAllowed(host, false).then(refresh)}
-                />
+            {CATEGORIES.filter((c) => c.anchor).map((c) => (
+              <Row key={c.id} anchor={c.anchor}>
+                <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
               </Row>
             ))}
+            <Row anchor="privacy.filterLists">
+              <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
+            </Row>
+            {unavailable && (
+              <Row title="uBlock Origin isn't answering" description="Its settings show here once it responds. Pages keep the blocking they had.">
+                <Button title="Try Again" onPress={refresh} />
+              </Row>
+            )}
           </Group>
+
+          {!!blocker?.allowedHosts.length && (
+            <>
+              <SectionHeader title="Sites without blocking" description="Turned off from a site's controls. Blocking applies to subdomains too." />
+              <Group>
+                {blocker.allowedHosts.map((host) => (
+                  <Row key={host} icon={<Favicon url={`https://${host}`} />} title={host}>
+                    <Button
+                      title="Block Again"
+                      onPress={() => void setContentBlockerAllowed(host, false).then(refresh)}
+                    />
+                  </Row>
+                ))}
+              </Group>
+            </>
+          )}
         </>
       )}
 
-      <SitePermissions />
+      <SitePermissions shownProfileId={profileId} site={site} />
       <AppLinks />
       <SectionHeader anchor="privacy.commandScrollZoom" description={null} />
       <Group>
@@ -141,7 +148,7 @@ export function PrivacyPane() {
         </Row>
       </Group>
       <ZoomLevels />
-      {blocker && (
+      {PLATFORM_FEATURES.contentBlocker && blocker && (
         <Text size="caption" tone="textTertiary" style={RULES_LOADED}>
           {`${(blocker.stats.networkFilters ?? 0).toLocaleString(UI_LOCALE)} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString(UI_LOCALE)} cosmetic rules loaded.`}
         </Text>
@@ -248,11 +255,21 @@ const VALUE_OPTIONS: { value: SiteSettingValue; title: string }[] = [
   { value: "ask", title: "Ask" },
 ];
 
-function SitePermissions() {
-  const [profileId, setProfileId] = useSettingsProfile();
+function SitePermissions({ shownProfileId, site }: { shownProfileId: string | null; site: string | null }) {
+  const [profileId, setProfileId] = useSettingsProfile(shownProfileId);
   const [loaded, reload] = useResource(siteOrigins, currentEngineProfile(profileId));
   const origins = loaded ?? null;
   const refresh = () => void reload();
+  useEffect(() => {
+    if (!site) return;
+    const siteProfileId = shownProfileId ?? profileId;
+    setProfileId(siteProfileId);
+    const close = () => {
+      closeSettingsSheet();
+      replaceSettingsPlace(shownProfileId, null);
+    };
+    showSettingsSheet(<SiteSheet key={`${siteProfileId}|${site}`} profileId={siteProfileId} origin={site} onChanged={refresh} onClose={close} />);
+  }, [site, shownProfileId]);
 
   return (
     <>
@@ -271,7 +288,7 @@ function SitePermissions() {
               key={origin}
               icon={<Favicon url={origin} />}
               title={origin.replace(/^https?:\/\//, "")}
-              onPress={() => showSettingsSheet(<SiteSheet profileId={profileId} origin={origin} onChanged={refresh} />)}
+              onPress={() => showSettingsSheet(<SiteSheet profileId={profileId} origin={origin} onChanged={refresh} onClose={closeSettingsSheet} />)}
             />
           ))
         )}
@@ -317,7 +334,7 @@ function AppLinks() {
   );
 }
 
-function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin: string; onChanged: () => void }) {
+function SiteSheet({ profileId, origin, onChanged, onClose }: { profileId: string; origin: string; onChanged: () => void; onClose: () => void }) {
   const profile = currentEngineProfile(profileId);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [status, setStatus] = useState("");
@@ -329,7 +346,7 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
     onChanged();
   };
   return (
-    <Sheet size="l" onClose={closeSettingsSheet}>
+    <Sheet size="l" onClose={onClose}>
       <DialogTitle icon={<Favicon url={origin} size={20} />}>{origin.replace(/^https?:\/\//, "")}</DialogTitle>
       <ScrollView style={SITE_LIST}>
         <Group>
@@ -369,7 +386,7 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
           </>
         }
       >
-        <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
+        <Button title="Done" kind="primary" onPress={onClose} />
       </DialogActions>
     </Sheet>
   );

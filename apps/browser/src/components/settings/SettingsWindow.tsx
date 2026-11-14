@@ -8,11 +8,12 @@ import { trackSettingsSection } from "../../state/telemetry/track";
 import { preparePane, usePaneLoaded } from "../../state/settings/paneData";
 import { clearSettingsReveal, flashSetting, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
 import { anchorView } from "./anchors";
-import { ADVANCED_PANES, findSetting, PANES } from "./settingsIndex";
+import { ADVANCED_PANES, findSetting, PANES, paneTitle } from "./settingsIndex";
 import { SettingsPaneContext } from "./Form";
 import { PageToolbar } from "../pages/PageLayout";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
 import { AdvancedPane } from "./panes/Advanced";
+import { AirTrafficPane } from "./panes/AirTraffic";
 import { AppearancePane } from "./panes/Appearance";
 import { CalendarPane } from "./panes/Calendar";
 import { GeneralPane } from "./panes/General";
@@ -82,7 +83,7 @@ export function SettingsWindow() {
   const shown = useShownPane();
   usePrefetchAllPanes(!!shown);
   const profileName = useProfile(shown?.profileId, (p) => p?.name);
-  const title = shown ? (shown.pane === "profiles" && profileName ? profileName : PANES.find((p) => p.id === shown.pane)!.title) : "";
+  const title = shown ? (shown.pane === "profiles" && profileName ? profileName : paneTitle(shown.pane)) : "";
   const sheet = useSettingsSheet((s) => s.sheet);
   useEffect(() => trackSettingsSection(nav.pane), [nav.pane]);
   useEffect(() => markCaptionRegions(SETTINGS_WINDOW_ID, [[TITLE_LEFT, 0, CONTROLS_ROOM, TOOLBAR]]), []);
@@ -187,10 +188,11 @@ const FILL = { flex: 1 } as const;
 const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
   general: () => <GeneralPane />,
   profiles: ({ profileId }) => (profileId ? <ProfileDetailsPane profileId={profileId} /> : <ProfilesPane />),
+  airTraffic: () => <AirTrafficPane />,
   sync: () => <SyncPane />,
   tabs: () => <TabsPane />,
   appearance: () => <AppearancePane />,
-  privacy: () => <PrivacyPane />,
+  privacy: ({ profileId, detail }) => <PrivacyPane profileId={profileId} site={detail} />,
   passwords: ({ profileId }) => <PasswordsPane profileId={profileId} />,
   autofill: ({ profileId }) => <AutofillPane profileId={profileId} />,
   extensions: ({ profileId, detail }) => <ExtensionsPane profileId={profileId} detail={detail} />,

@@ -10,6 +10,7 @@
 #include "AppImage.h"
 #include "CrashLog.h"
 #include "EngineApi.h"
+#include "LaunchConfig.h"
 #include "Host.h"
 #include "LaunchLog.h"
 #include "LoggedErrors.h"
@@ -142,7 +143,12 @@ static int Prepare(const ArdiaEngineApi *engine) {
 }
 
 static void ShutDown(Ardia::Host &host) {
+  const ULONGLONG flushing = GetTickCount64();
+  Ardia::TelemetryLocalStore::Drain();
+  const bool documentsWritten = Ardia::DocumentStore::Flush(false);
+  Ardia::LaunchLog::Write(L"launch", std::wstring(L"telemetry and documents written in ") + std::to_wstring(GetTickCount64() - flushing) + L" ms" + (documentsWritten ? L"" : L", some documents still staged"));
   host.engine = nullptr;
+  SetFocus(nullptr);
   if (host.queue) host.queue.ShutdownQueue();
   Ardia::LaunchLog::Write(L"launch", L"process ending");
 }
@@ -177,7 +183,9 @@ __declspec(dllexport) int ArdiaAppStart(const ArdiaEngineApi *engine) {
             .append(std::to_wstring(sizeof(ArdiaEngineApi)))
             .append(L" bytes"));
   }
-  if (!engine->setEventSink || !engine->hostCall || !engine->engineCall) return Refuse(kEngineMismatch, L"the engine API table has an empty entry");
+  if (!engine->setEventSink || !engine->hostCall || !engine->engineCall || !engine->testGateRefusal) return Refuse(kEngineMismatch, L"the engine API table has an empty entry");
+  const char *engineRefusal = engine->testGateRefusal();
+  Ardia::AppLaunch::EngineTestGate() = Ardia::Paths::Wide(engineRefusal ? engineRefusal : "the engine gave no test gate decision");
   try {
     const int prepared = Prepare(engine);
     if (prepared != 0) return prepared;
@@ -201,6 +209,9 @@ __declspec(dllexport) int ArdiaAppPreTranslateMessage(const void *message) {
 }
 
 __declspec(dllexport) void ArdiaAppStop(void) {
+  int dialogsOpen = Ardia::DialogParts::ModalRegistry::Shared().threads.load();
+  int waited = Ardia::DialogParts::StopAllModals();
+  if (dialogsOpen) Ardia::LaunchLog::Write(L"launch", std::to_wstring(dialogsOpen) + L" dialog(s) open at stop, closed in " + std::to_wstring(waited) + L" ms, " + std::to_wstring(Ardia::DialogParts::ModalRegistry::Shared().threads.load()) + L" left");
   if (!EngineLoopRunning()) return;
   EngineLoopRunning() = false;
   Ardia::Host *host = Ardia::Host::Current();

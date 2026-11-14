@@ -15,19 +15,11 @@ struct ToastView: View {
         .multilineTextAlignment(.leading)
         .lineLimit(3)
     }
-    .foregroundStyle(.white)
+    .foregroundStyle(.primary)
     .padding(.horizontal, Spacing.page)
     .padding(.vertical, 11)
     .frame(minHeight: 44)
-    .background {
-      Capsule(style: .continuous)
-        .fill(Palette.toast.gradient)
-        .overlay {
-          Capsule(style: .continuous)
-            .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
-        }
-        .shadow(color: Palette.toastShadow.opacity(0.32), radius: 14, y: 6)
-    }
+    .chromeSurface(in: .capsule(style: .continuous), interactive: false)
     .contentShape(Capsule())
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(toast.onTap == nil ? .isStaticText : .isButton)
@@ -35,7 +27,7 @@ struct ToastView: View {
 }
 
 struct ToastOverlay: ViewModifier {
-  static let barClearance: CGFloat = 64
+  static let barClearance: CGFloat = 59
   static let sheetClearance: CGFloat = 12
 
   let center: ToastCenter

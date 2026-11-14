@@ -1,38 +1,21 @@
 import { createElement, forwardRef, useContext, useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "react";
-import { RootTagContext, View, type ViewProps } from "react-native";
+import type { WindowDragRegionProps } from "@ardia/shell";
+import { RootTagContext, View } from "react-native";
+import type { EventSubscription } from "./events";
+import type { Fiber } from "./fiber";
 import { requireNativeModule } from "./modules";
-
-type DragRegionProps = ViewProps & {
-  titleBarDoubleClick?: boolean;
-  onRegionDoubleClick?: () => void;
-  clickable?: boolean;
-  onRegionClick?: () => void;
-};
-
-type Subscription = { remove(): void };
-
-type WindowDragging = {
-  beginWindowDrag(rootTag: number): Promise<void>;
-  pressDragArea(rootTag: number): Promise<void>;
-  toggleMaximize(rootTag: number): Promise<void>;
-  addListener(event: string, listener: (payload: unknown) => void): Subscription;
-};
+import type { AppWindowsModule } from "./nativeModuleTypes";
 
 type Press = { nativeEvent: { pageX: number; pageY: number } };
 
-export type DragOptions = {
-  titleBarDoubleClick: boolean;
-  onRegionDoubleClick?: () => void;
-  clickable?: boolean;
-  onRegionClick?: () => void;
-  claims?: (press: Press) => boolean;
-};
+export type DragOptions = Pick<WindowDragRegionProps, "onRegionDoubleClick" | "clickable" | "onRegionClick"> &
+  Required<Pick<WindowDragRegionProps, "titleBarDoubleClick">> & { claims?: (press: Press) => boolean };
 
 type LatestOptions = { current: DragOptions };
 
 type Props = Record<string, unknown>;
 
-export type HostFiber = {
+export type HostFiber = Fiber & {
   tag: number;
   type: unknown;
   return: HostFiber | null;
@@ -49,10 +32,10 @@ const HOST_COMPONENT = 5;
 const MOST_ANCESTORS = 512;
 const RIGHT_BUTTON = 2;
 
-const windows = () => requireNativeModule<WindowDragging>("ArdiaAppWindows");
+const windows = () => requireNativeModule<Pick<AppWindowsModule, "beginWindowDrag" | "pressDragArea" | "toggleMaximize" | "addListener">>("ArdiaAppWindows");
 
 const bands = new Map<number, { current: unknown }>();
-let titleBandPresses: Subscription | null = null;
+let titleBandPresses: EventSubscription | null = null;
 
 const takesPressItself = (options: DragOptions) => options.clickable === true || options.onRegionDoubleClick !== undefined || !options.titleBarDoubleClick;
 
@@ -192,7 +175,7 @@ function listenForTitleBandPresses() {
   titleBandPresses ??= windows().addListener("onCaptionPress", titleBandPressed);
 }
 
-export const WindowDragRegion = forwardRef<View, DragRegionProps>(function WindowDragRegion(
+export const WindowDragRegion = forwardRef<View, WindowDragRegionProps>(function WindowDragRegion(
   { titleBarDoubleClick = true, onRegionDoubleClick, clickable, onRegionClick, ...rest },
   ref,
 ) {

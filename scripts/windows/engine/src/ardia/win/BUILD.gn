@@ -6,6 +6,8 @@ source_set("win") {
     "ac_calls.h",
     "api.cc",
     "api.h",
+    "external_apps.cc",
+    "external_apps.h",
     "frame_view.cc",
     "frame_view.h",
     "hooks.h",
@@ -13,6 +15,11 @@ source_set("win") {
     "host.h",
     "main.cc",
     "main.h",
+    "page_links.cc",
+    "page_links.h",
+    "page_links_script.h",
+    "private_sessions.cc",
+    "private_sessions.h",
     "profiles.cc",
     "profiles.h",
     "public/EngineApi.h",
@@ -22,6 +29,8 @@ source_set("win") {
     "tab_events.h",
     "tab_state.cc",
     "tab_state.h",
+    "test_gate.cc",
+    "test_gate.h",
   ]
 
   deps = [
@@ -35,6 +44,7 @@ source_set("win") {
     "//chrome/browser/ui:recently_audible_helper",
     "//chrome/browser/profiles:profile",
     "//chrome/common",
+    "//chrome/install_static:install_static_util",
     "//components/blocked_content",
     "//components/content_settings/core/browser",
     "//components/favicon/content",

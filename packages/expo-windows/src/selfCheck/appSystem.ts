@@ -1,11 +1,12 @@
-import type { AppNative, DocumentsNative, SystemNative, SystemSignalsNative } from "@ardia/shell";
-import { TurboModuleRegistry, type TurboModule } from "react-native";
+import type { DocumentsNative, SystemSignalsNative, UpdaterNative } from "@ardia/shell";
+import { TurboModuleRegistry } from "react-native";
 import { requireNativeModule } from "../modules";
+import type { AppModule, SystemModule, WindowsUpdateConstants, WindowsUpdateModule } from "../nativeModuleTypes";
 import { readBuild } from "../updater/manifest";
 import { expectTrue, type Check } from "./check";
 
-const app = () => requireNativeModule<AppNative & { windowsApiVersion?: number }>("ArdiaApp");
-const system = () => requireNativeModule<SystemNative>("ArdiaSystem");
+const app = () => requireNativeModule<AppModule>("ArdiaApp");
+const system = () => requireNativeModule<SystemModule>("ArdiaSystem");
 const signals = () => requireNativeModule<SystemSignalsNative>("ArdiaSystemSignals");
 const documents = () => requireNativeModule<DocumentsNative>("ArdiaDocuments");
 
@@ -24,7 +25,7 @@ async function untilFileExists(path: string, wanted: boolean) {
 const ARCHES = ["x64", "arm64"];
 
 const buildFile = () => {
-  const constants = TurboModuleRegistry.get<TurboModule>("ArdiaWindowsUpdate")?.getConstants?.() as { buildFile?: unknown } | undefined;
+  const constants = TurboModuleRegistry.get<WindowsUpdateModule>("ArdiaWindowsUpdate")?.getConstants?.();
   return typeof constants?.buildFile === "string" ? readBuild(constants.buildFile) : null;
 };
 
@@ -49,6 +50,7 @@ export const checks: Check[] = [
       expectTrue(config.switches !== null && typeof config.switches === "object", "switches is not an object");
       expectTrue(Array.isArray(config.trace), "trace is not an array");
       expectTrue(config.test !== null && typeof config.test === "object", "test is not an object");
+      expectTrue(config.test.pipHover === "last", `a repeated ARDIA_TEST key gives ${JSON.stringify(config.test.pipHover)}, not the last value`);
       dataDirectory();
     },
   },
@@ -126,6 +128,19 @@ export const checks: Check[] = [
     },
   },
   {
+    name: "ArdiaSystem.defaultBrowserState names Ardia's ProgID and agrees with isDefaultBrowser",
+    async run() {
+      const state = system().defaultBrowserState();
+      expectTrue(state.progId === "ArdiaHTM", `progId is ${JSON.stringify(state.progId)}`);
+      expectTrue(typeof state.registeredHere === "boolean" && typeof state.isDefault === "boolean", `registeredHere ${JSON.stringify(state.registeredHere)}, isDefault ${JSON.stringify(state.isDefault)}`);
+      for (const scheme of ["http", "https"] as const) expectTrue(state[scheme] === null || typeof state[scheme] === "string", `${scheme} is ${JSON.stringify(state[scheme])}`);
+      expectTrue(state.command === null || typeof state.command === "string", `command is ${JSON.stringify(state.command)}`);
+      expectTrue(state.page.startsWith("ms-settings:defaultapps"), `page is ${JSON.stringify(state.page)}`);
+      expectTrue(!state.isDefault || state.registeredHere, "isDefault without the ProgID pointing at this Ardia.exe");
+      expectTrue((await system().isDefaultBrowser()) === state.isDefault, "isDefaultBrowser disagrees with defaultBrowserState");
+    },
+  },
+  {
     name: "ArdiaSystem.fileIcon returns a PNG data URL or null",
     async run() {
       const directory = dataDirectory();
@@ -160,14 +175,7 @@ export const checks: Check[] = [
   {
     name: "ArdiaWindowsUpdate knows this build and refuses other addresses",
     async run() {
-      const update = requireNativeModule<{
-        cpu?: unknown;
-        installed?: unknown;
-        buildFile?: unknown;
-        fetchText(url: string): Promise<string>;
-        download(url: string, sha256: string, bytes: number): Promise<string>;
-        install(path: string, sha256: string): Promise<boolean>;
-      }>("ArdiaWindowsUpdate");
+      const update = requireNativeModule<Omit<WindowsUpdateModule, "getConstants"> & WindowsUpdateConstants>("ArdiaWindowsUpdate");
       expectTrue(update.cpu === "x64" || update.cpu === "arm64", `cpu is ${JSON.stringify(update.cpu)}`);
       expectTrue(typeof update.installed === "boolean", `installed is ${JSON.stringify(update.installed)}`);
       expectTrue(typeof update.buildFile === "string", `buildFile is ${JSON.stringify(update.buildFile)}`);
@@ -184,7 +192,7 @@ export const checks: Check[] = [
       await refused("an installer from another site", update.download("https://example.com/Ardia-Setup.exe", "a".repeat(64), 10));
       await refused("an installer with no SHA-256", update.download(`${published}windows-alpha/Ardia-Setup-x64.exe`, "", 10));
       await refused("an installer with no size", update.download(`${published}windows-alpha/Ardia-Setup-x64.exe`, "a".repeat(64), 0));
-      const state = await requireNativeModule<{ updaterState(): Promise<{ available: boolean; configured?: boolean }> }>("ArdiaUpdater").updaterState();
+      const state = await requireNativeModule<Pick<UpdaterNative, "updaterState">>("ArdiaUpdater").updaterState();
       expectTrue(state.available === true, "the updater says it is not built in");
       expectTrue(state.configured === (update.installed === true && typeof update.buildFile === "string" && update.buildFile.length > 0), `configured is ${String(state.configured)}`);
     },

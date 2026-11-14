@@ -229,6 +229,7 @@ function seedMac(mac: Mac) {
   mac.put("app", "set:customSearchUrl", { v: "" });
   mac.put("app", "set:customSearchEngines", { v: [{ id: "c1", name: "Docs", keyword: "docs", url: "https://docs.example/?q=%s" }] });
   mac.put("app", "set:appearance", { v: "dark" });
+  mac.put("app", "set:interfaceStyle", { v: "classic" });
   mac.put("app", "set:shortcuts", { v: { newTab: "cmd+t" } });
   mac.put(s1, `tabs:${MAC}`, { n: "MacBook Pro", tabs: [{ u: "https://news.example/", t: "News" }, { u: "https://mail.example/", t: "Mail" }] });
   mac.put(s1, "pin:t:t1", { g: null, u: "https://calendar.example/", t: null, i: null, ti: "Calendar", pos: "1" });
@@ -682,6 +683,7 @@ test("the view orders pins, bookmarks, profiles and search as the Mac does", asy
   assert.deepEqual(personal.bookmarks.filter((b) => b.root === "other").map(shape), [{ "Loop A": [{ "Loop B": [] }] }, "Orphan"]);
   assert.equal(personal.bookmarks.find((b) => b.title === "Game")!.url, "ardia://game");
   assert.deepEqual(view.search, { engineId: "duckduckgo", customURL: null, customEngines: [{ id: "c1", name: "Docs", keyword: "docs", url: "https://docs.example/?q=%s" }] });
+  assert.deepEqual(view.look, { interfaceStyle: "classic", appearance: "dark" });
   const school = view.profiles.find((p) => p.name === "School")!;
   assert.deepEqual(school.bookmarks, personal.bookmarks);
   assert.deepEqual(school.deviceTabs, []);
@@ -710,6 +712,27 @@ test("bookmarks added on the iPhone land after the last of Other Bookmarks, and 
   assert.deepEqual(["bm:f1", "bm:b0", "bm:b1"].map((k) => mac.store[s1]!.has(k)), [false, false, false]);
   assert.ok(mac.store[s1]!.has("bm:orphan"));
   assert.equal(phone.state().bookmarks.length, 0);
+});
+
+test("pinning a page that already has a bookmark adds nothing, whether a Mac or the iPhone made it", async () => {
+  const { folder, mac, phone } = await joined();
+  await phone.cycle();
+  const urlBookmarks = () => [...mac.store[s1]!.values()].filter((v) => (v as { u?: unknown })?.u === "https://tromso.example/").length;
+  const existing = (result: ReturnType<typeof companionAddBookmark>) => "existing" in result && result.existing;
+  const first = companionAddBookmark({ profile: P1, key: "77777777-7777-4777-8777-777777777777", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  const again = companionAddBookmark({ profile: P1, key: "88888888-8888-4888-8888-888888888888", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  assert.deepEqual([existing(first), existing(again)], [false, true]);
+  await phone.cycle();
+  const afterCycle = companionAddBookmark({ profile: P1, key: "99999999-9999-4999-8999-999999999999", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  assert.equal(existing(afterCycle), true);
+  const shared = companionAddBookmark({ profile: P3, key: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", u: "https://tromso.example/", t: "Tromsø", at: folder.now });
+  assert.equal(existing(shared), true);
+  const fromMac = companionAddBookmark({ profile: P1, key: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", u: "https://wiki.example/", t: "Wiki", at: folder.now });
+  assert.equal(existing(fromMac), true);
+  await phone.cycle();
+  await mac.sync();
+  assert.equal(urlBookmarks(), 1);
+  assert.equal([...mac.store[s1]!.values()].filter((v) => (v as { u?: unknown })?.u === "https://wiki.example/").length, 1);
 });
 
 test("stopping removes the iPhone's device and tabs from the Mac's view", async () => {

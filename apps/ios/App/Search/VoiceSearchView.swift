@@ -13,13 +13,13 @@ struct VoiceSearchView: View {
 
   var body: some View {
     ZStack {
-      LaunchGradient()
+      ProfileBackdrop()
         .ignoresSafeArea()
       VStack(spacing: Spacing.section) {
         Spacer()
-        LittleSmile(openness: reduceMotion ? 0.5 : 0.3 + dictation.level * 0.7)
-          .frame(width: 128)
-          .foregroundStyle(.white)
+        ArdiaLogoMark()
+          .frame(width: 128, height: 128)
+          .scaleEffect(reduceMotion ? 1 : 0.92 + dictation.level * 0.16)
           .shadow(color: .black.opacity(0.15), radius: 12, y: 6)
           .animation(.easeOut(duration: 0.12), value: dictation.level)
         transcript
@@ -36,7 +36,7 @@ struct VoiceSearchView: View {
         .font(.body.weight(.semibold))
         .foregroundStyle(.white)
         .frame(width: 44, height: 44)
-        .glassEffect(.regular.interactive(), in: .circle)
+        .chromeSurface(in: .circle)
         .padding(.trailing, Spacing.page)
         .padding(.top, Spacing.tight)
     }

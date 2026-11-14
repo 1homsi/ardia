@@ -1,8 +1,8 @@
 export {
   ActivitySpinner,
+  ClipView,
   ContextMenuArea,
   DockSelection,
-  FadeLabel,
   FileDropArea,
   MagnifyArea,
   MouseArea,
@@ -10,7 +10,6 @@ export {
   PopoverBubble,
   ReportVideo,
   Surface,
-  Symbol,
   VisualEffect,
   WindowDragRegion,
   WindowProfile,
@@ -18,8 +17,10 @@ export {
   type DropUpdate,
   type MagnifyUpdate,
   type SurfaceProps,
-  type SymbolProps,
 } from "@ardia/shell";
+
+export { FadeLabel } from "./FadeLabel";
+export { Symbol, type SymbolProps } from "./Symbol";
 
 export { SwipeArea, WebView, type SwipeAreaHandle, type SwipeEvent, type WebViewHandle } from "@ardia/ardiacore";
 

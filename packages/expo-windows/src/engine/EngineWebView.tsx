@@ -1,27 +1,19 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
-import { View, type LayoutChangeEvent } from "react-native";
+import { View, type LayoutChangeEvent, type NativeMethods, type NativeSyntheticEvent } from "react-native";
+import type { NativeProps, PageEvent, WebViewHandle } from "@ardia/ardiacore";
+import type { AppWindowsModule } from "../nativeModuleTypes";
 import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
-import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
+import { coversIn, hiddenByFullScreen, holesFor, onCoversChange, pageRadiusIn, setFullScreenPage } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
-type PageEvent = { nativeEvent: { name: string; data: unknown } };
+type PageEventsOnWindows = { onPageEvent?: (event: Pick<NativeSyntheticEvent<PageEvent>, "nativeEvent">) => void };
 
-type Props = {
-  url?: string;
-  profile?: string;
-  adoptId?: string;
-  tabId?: string;
-  visible?: boolean;
-  pageEvents?: string[];
-  onPageEvent?: (event: PageEvent) => void;
-  style?: unknown;
-};
+type Props = Pick<NativeProps, "url" | "profile" | "adoptId" | "tabId" | "visible" | "style"> & Partial<Pick<NativeProps, "temporary">> & Partial<Pick<NativeProps, "pageEvents">> & PageEventsOnWindows;
 
-type Measured = { measureInWindow(callback: (x: number, y: number, width: number, height: number) => void): void };
 
 const ARGUMENTS: Record<string, string[]> = {
   loadUrl: ["url", "userInitiated"],
@@ -64,55 +56,70 @@ const ANSWERS: Record<string, unknown> = {
   takeControlPress: false,
 };
 const SETTLE_MS = [0, 50, 200, 500];
+const PICTURE_DEADLINE_MS = 1000;
 
-type AppWindows = { setPageFullScreen(windowId: string, on: boolean): Promise<unknown> };
+type Picture = Awaited<ReturnType<WebViewHandle["capturePicture"]>>;
+
+const appWindows = () => requireNativeModule<Pick<AppWindowsModule, "setPageFullScreen" | "capturePage">>("ArdiaAppWindows");
+
+type Shown = { visible: boolean; placed: string; shows: number };
+
+function capturePicture(windowId: string, shown: { current: Shown }, scale: number): Promise<Picture> {
+  const { visible, placed, shows } = shown.current;
+  if (!visible || !placed) return Promise.resolve(null);
+  const { x, y, width, height } = JSON.parse(placed) as PageRect;
+  const stillShown = () => shown.current.visible && shown.current.shows === shows;
+  const capture = Promise.resolve(appWindows().capturePage(windowId, x, y, width, height, scale)).then(
+    (data): Picture => (data && stillShown() ? { data, frame: [x, y, width, height] } : null),
+    () => null,
+  );
+  const late = new Promise<Picture>((done) => setTimeout(() => done(null), PICTURE_DEADLINE_MS));
+  return Promise.race([capture, late]);
+}
+
 
 const setWindowFullScreen = (windowId: string, on: boolean) =>
-  Promise.resolve(requireNativeModule<AppWindows>("ArdiaAppWindows").setPageFullScreen(windowId, on)).then(
+  Promise.resolve(appWindows().setPageFullScreen(windowId, on)).then(
     () => {},
     () => {},
   );
 
 let unnamed = 0;
 
-const overlaps = (a: PageRect, b: PageRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-
 export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(props, ref) {
   const windowId = useContext(WindowIdContext);
   const above = useRef(useContext(CoverAncestry));
   above.current = useContext(CoverAncestry);
   const key = useRef(props.tabId || `page-${++unnamed}`).current;
-  const view = useRef<Measured | null>(null);
+  const view = useRef<Pick<NativeMethods, "measureInWindow"> | null>(null);
   const latest = useRef(props);
   latest.current = props;
   const visible = props.visible !== false;
-  const shown = useRef<{ visible: boolean; placed: string }>({ visible: false, placed: "" });
+  const shown = useRef<Shown>({ visible: false, placed: "", shows: 0 });
   const fullScreen = useRef(false);
 
   const place = useCallback(() => {
-    const wanted = latest.current.visible !== false;
+    const wanted = latest.current.visible !== false && !hiddenByFullScreen(windowId, key);
     if (!wanted) {
       if (shown.current.visible) {
-        shown.current = { visible: false, placed: "" };
+        shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
         showPage(key, false, null);
       }
       return;
     }
     view.current?.measureInWindow((x, y, width, height) => {
-      if (latest.current.visible === false || !(width > 0) || !(height > 0)) return;
+      if (latest.current.visible === false || hiddenByFullScreen(windowId, key) || !(width > 0) || !(height > 0)) return;
       const page = { x, y, width, height };
       const shape: PageShape = fullScreen.current
         ? { ...page, radius: 0, holes: [] }
         : {
             ...page,
             radius: pageRadiusIn(windowId),
-            holes: coversIn(windowId, above.current)
-              .filter((cover) => overlaps(cover, page))
-              .map((hole) => [hole.x, hole.y, hole.width, hole.height, hole.radius]),
+            holes: holesFor(page, coversIn(windowId, above.current), latest.current.temporary === true),
           };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return;
-      shown.current = { visible: true, placed };
+      shown.current = { visible: true, placed, shows: shown.current.shows + 1 };
       showPage(key, true, shape);
     });
   }, [key, windowId]);
@@ -129,6 +136,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         const on = !!(data as { fullscreen?: unknown } | null)?.fullscreen;
         if (on !== fullScreen.current) {
           fullScreen.current = on;
+          setFullScreenPage(windowId, key, on && latest.current.visible !== false);
           void setWindowFullScreen(windowId, on).then(() => {
             if (on && fullScreen.current) void callPage(key, "focus");
           });
@@ -140,14 +148,19 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       now.onPageEvent?.({ nativeEvent: { name, data } });
     });
     return () => {
-      shown.current = { visible: false, placed: "" };
+      shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
       if (fullScreen.current) {
         fullScreen.current = false;
+        setFullScreenPage(windowId, key, false);
         void setWindowFullScreen(windowId, false);
       }
       unmount();
     };
   }, [key, windowId, place]);
+
+  useEffect(() => {
+    if (fullScreen.current) setFullScreenPage(windowId, key, visible);
+  }, [windowId, key, visible]);
 
   useEffect(() => {
     const timers = SETTLE_MS.map((delay) => setTimeout(place, delay));
@@ -162,6 +175,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         {
           get(_target, method) {
             if (typeof method !== "string" || method === "then" || method === "$$typeof") return undefined;
+            if (method === "capturePicture") return (scale: number) => capturePicture(windowId, shown, scale);
             const names = ARGUMENTS[method];
             if (names) {
               const unwrap = UNWRAPPED[method];
@@ -177,7 +191,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
           },
         },
       ),
-    [key],
+    [key, windowId],
   );
 
   const onLayout = useCallback((_event: LayoutChangeEvent) => place(), [place]);

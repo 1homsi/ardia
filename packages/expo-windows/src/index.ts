@@ -1,10 +1,13 @@
-import { TurboModuleRegistry, type TurboModule } from "react-native";
+import { TurboModuleRegistry } from "react-native";
+import type { AppWindowsModule, WindowsHostModule } from "./nativeModuleTypes";
 import { installAnimation } from "./animation";
 import { watchRelaunches } from "./engine/relaunch";
+import { openLaunchLinks } from "./launchLinks";
 import { requireNativeModule } from "./modules";
 import { runSelfCheck } from "./selfCheck";
+import { installTextFocusReport } from "./textFocus";
 import { startUpdateChecks } from "./updater";
-import { viewOnWindows } from "./views/registry";
+import { viewNamed } from "./views/registry";
 import { installWindowRoot } from "./windowRoot";
 import type { ComponentType } from "react";
 
@@ -14,24 +17,24 @@ export { missingOnWindows } from "./missing";
 export { requireNativeModule, requireOptionalNativeModule } from "./modules";
 
 export function requireNativeViewManager<Props = object>(name: string): ComponentType<Props> {
-  return viewOnWindows(name) as ComponentType<Props>;
+  return viewNamed<Props>(name);
 }
-
-type WindowsHost = TurboModule & { secureRandomHex(byteCount: number): string };
 
 const SELF_CHECK_AFTER_MS = 4000;
 
 installAnimation();
 installWindowRoot();
+installTextFocusReport();
 watchRelaunches();
+openLaunchLinks();
 startUpdateChecks();
 
-const windowsHost = () => TurboModuleRegistry.getEnforcing<WindowsHost>("ArdiaWindowsHost");
+const windowsHost = () => TurboModuleRegistry.getEnforcing<WindowsHostModule>("ArdiaWindowsHost");
 const secureHex = (byteCount: number) => windowsHost().secureRandomHex(byteCount);
 
-if ((windowsHost().getConstants?.() as { selfCheck?: boolean } | undefined)?.selfCheck) {
+if (windowsHost().getConstants?.()?.selfCheck) {
   setTimeout(() => {
-    void runSelfCheck().finally(() => requireNativeModule<{ quit(): Promise<void> }>("ArdiaAppWindows").quit());
+    void runSelfCheck().finally(() => requireNativeModule<Pick<AppWindowsModule, "quit">>("ArdiaAppWindows").quit());
   }, SELF_CHECK_AFTER_MS);
 }
 

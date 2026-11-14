@@ -1,25 +1,35 @@
 import { engineAvailable } from "../engine/host";
 import { onPagePress } from "../engine/pages";
+import { holdPrivateSession, privateWindowShown } from "../engine/privateWindows";
 import { WindowIdContext } from "../engine/windowId";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from "react";
-import { RootTagContext, TurboModuleRegistry, View, type GestureResponderEvent, type TurboModule, type ViewStyle } from "react-native";
+import { RootTagContext, TurboModuleRegistry, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewProps } from "react-native";
+import type {
+  FileDropHandle,
+  NativeContextMenuAreaProps,
+  NativeFileDropAreaProps,
+  NativeMagnifyAreaProps,
+  NativeMouseAreaProps,
+  OutsidePressAreaProps,
+  WindowProfileProps,
+} from "@ardia/shell";
+import type { Fiber } from "../fiber";
+import type { WindowsHostModule } from "../nativeModuleTypes";
 import { noteMissing } from "../missing";
 import { acceptsOf, useFileDropArea, type DropUpdate } from "./fileDropAreas";
-import { claimOnce, type AnyProps } from "./shared";
+import { claimOnce } from "./shared";
 
 type PointerLike = { nativeEvent?: Record<string, unknown> };
 type KeyLike = { nativeEvent?: { key?: unknown; shiftKey?: unknown } };
-
-const call = (handler: unknown, event: unknown) => {
-  if (typeof handler === "function") (handler as (event: unknown) => void)(event);
-};
 
 const windowsEvents = (handlers: Record<string, (event: never) => void>): object => handlers;
 
 const contextMenuClaims = new WeakSet<object>();
 
-const contextMenuPurpose = (props: Record<string, unknown>): string => {
-  for (const key of ["testID", "nativeID", "accessibilityLabel", "aria-label"]) {
+const PURPOSE_KEYS = ["testID", "nativeID", "accessibilityLabel", "aria-label"] as const;
+
+const contextMenuPurpose = (props: Pick<ViewProps, (typeof PURPOSE_KEYS)[number]>): string => {
+  for (const key of PURPOSE_KEYS) {
     const value = props[key];
     if (typeof value === "string" && value.length > 0) return `"${value}"`;
   }
@@ -36,10 +46,8 @@ const CONTROL_DOWN = 16;
 const ALT_DOWN = 32;
 const FIBER_STEPS = 400;
 
-type PointerHost = TurboModule & { pointerState?(): number };
 type ContextMenuMarker = { open(): void; capture: boolean; purpose: string };
 type MiddleClickMarker = { click(state: number): void };
-type FiberLike = { memoizedProps?: unknown; return?: FiberLike | null };
 type Markers = { ardiaContextMenu?: ContextMenuMarker; ardiaMiddleClick?: MiddleClickMarker };
 type SecondaryPress =
   | { kind: "context"; area: ContextMenuMarker | undefined; trail: string }
@@ -53,7 +61,7 @@ function pointerStateAt(event: PointerLike): number {
   if (known !== undefined) return known;
   let state = 0;
   try {
-    state = TurboModuleRegistry.get<PointerHost>("ArdiaWindowsHost")?.pointerState?.() ?? 0;
+    state = TurboModuleRegistry.get<WindowsHostModule>("ArdiaWindowsHost")?.pointerState?.() ?? 0;
   } catch {
     state = 0;
   }
@@ -70,7 +78,7 @@ const secondaryKindOf = (state: number): SecondaryPress["kind"] | null => {
 
 function markersUnder(event: PointerLike): Markers[] {
   const found: Markers[] = [];
-  let fiber = (event as { _targetInst?: FiberLike | null })._targetInst ?? null;
+  let fiber = (event as { _targetInst?: Fiber | null })._targetInst ?? null;
   for (let step = 0; fiber && step < FIBER_STEPS; step += 1, fiber = fiber.return ?? null) {
     const props = fiber.memoizedProps;
     if (props && typeof props === "object") found.push(props as Markers);
@@ -92,7 +100,7 @@ function nameOf(type: unknown): string {
 
 function trailUnder(event: PointerLike): string {
   const names: string[] = [];
-  let fiber = (event as { _targetInst?: (FiberLike & { type?: unknown }) | null })._targetInst ?? null;
+  let fiber = (event as { _targetInst?: (Fiber & { type?: unknown }) | null })._targetInst ?? null;
   for (let step = 0; fiber && step < FIBER_STEPS && names.length < TRAIL_NAMES; step += 1, fiber = (fiber.return ?? null) as typeof fiber) {
     const name = nameOf(fiber.type);
     if (name && names[names.length - 1] !== name) names.push(name);
@@ -148,34 +156,33 @@ function dropSecondaryPress(press: SecondaryPress, why: string) {
   if (press.kind === "context") noteContextMenu(`right press on ${press.area?.purpose ?? "no context menu area"} ${why}`);
 }
 
-export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuArea({ onContextMenu, captureDescendants, onKeyDown, children, ...rest }, ref) {
+export const ContextMenuArea = forwardRef<View, NativeContextMenuAreaProps>(function ContextMenuArea({ onContextMenu, captureDescendants, children, ...rest }, ref) {
   const purpose = contextMenuPurpose(rest);
   const latest = useRef(onContextMenu);
   latest.current = onContextMenu;
   const hasMenu = typeof onContextMenu === "function";
   const marker = useMemo<ContextMenuMarker | undefined>(
-    () => (hasMenu ? { open: () => call(latest.current, { nativeEvent: {} }), capture: captureDescendants === true, purpose } : undefined),
+    () => (hasMenu ? { open: () => latest.current?.({ nativeEvent: {} }), capture: captureDescendants === true, purpose } : undefined),
     [hasMenu, captureDescendants, purpose],
   );
   const key = useCallback(
     (event: KeyLike) => {
-      call(onKeyDown, event);
       const pressed = event.nativeEvent?.key;
       const menuKey = pressed === "ContextMenu" || (pressed === "F10" && event.nativeEvent?.shiftKey === true);
       if (!menuKey || typeof onContextMenu !== "function" || !claimOnce(contextMenuClaims, event.nativeEvent)) return;
       noteContextMenu(`menu key on ${purpose}, opening its menu`);
-      call(onContextMenu, { nativeEvent: {} });
+      onContextMenu({ nativeEvent: {} });
     },
-    [onKeyDown, onContextMenu, purpose],
+    [onContextMenu, purpose],
   );
   return (
     <View {...rest} ref={ref} {...windowsEvents({ onKeyDown: key })} {...({ ardiaContextMenu: marker } as object)}>
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
 
-export const MouseArea = forwardRef<View, AnyProps>(function MouseArea({ path: _path, onMiddleClick, children, ...rest }, ref) {
+export const MouseArea = forwardRef<View, NativeMouseAreaProps>(function MouseArea({ path: _path, onMiddleClick, children, ...rest }, ref) {
   const latest = useRef(onMiddleClick);
   latest.current = onMiddleClick;
   const hasClick = typeof onMiddleClick === "function";
@@ -184,14 +191,14 @@ export const MouseArea = forwardRef<View, AnyProps>(function MouseArea({ path: _
       hasClick
         ? {
             click: (state: number) =>
-              call(latest.current, { nativeEvent: { shiftKey: (state & SHIFT_DOWN) !== 0, altKey: (state & ALT_DOWN) !== 0, metaKey: (state & CONTROL_DOWN) !== 0 } }),
+              latest.current?.({ nativeEvent: { shiftKey: (state & SHIFT_DOWN) !== 0, altKey: (state & ALT_DOWN) !== 0, metaKey: (state & CONTROL_DOWN) !== 0 } }),
           }
         : undefined,
     [hasClick],
   );
   return (
     <View {...rest} ref={ref} {...({ ardiaMiddleClick: marker } as object)}>
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
@@ -219,9 +226,10 @@ export function OutsidePressRoot({ children }: { children?: ReactNode }) {
       const native = event.nativeEvent as unknown as object | undefined;
       if (!native || registry.pending.has(native)) return;
       const pending: PendingPress = { inside: new Set(), timestamp: pressTimestamp(event) };
+      const openWhenPressed = [...registry.areas];
       registry.pending.set(native, pending);
       void Promise.resolve().then(() => {
-        for (const area of [...registry.areas]) if (!pending.inside.has(area)) area.press(pending.timestamp);
+        for (const area of openWhenPressed) if (!pending.inside.has(area)) area.press(pending.timestamp);
       });
     },
     [registry],
@@ -258,17 +266,17 @@ export function OutsidePressRoot({ children }: { children?: ReactNode }) {
           onTouchCancelCapture: cancel,
         })}
       >
-        {children as ReactNode}
+        {children}
       </View>
     </OutsidePressContext.Provider>
   );
 }
 
-export const OutsidePressArea = forwardRef<View, AnyProps>(function OutsidePressArea({ onOutsidePress, onTouchStartCapture, children, ...rest }, ref) {
+export const OutsidePressArea = forwardRef<View, OutsidePressAreaProps>(function OutsidePressArea({ onOutsidePress, children, ...rest }, ref) {
   const registry = useContext(OutsidePressContext);
   const latest = useRef(onOutsidePress);
   latest.current = onOutsidePress;
-  const area = useMemo<OutsideArea>(() => ({ press: (timestamp) => call(latest.current, { nativeEvent: { timestamp } }) }), []);
+  const area = useMemo<OutsideArea>(() => ({ press: (timestamp) => latest.current?.({ nativeEvent: { timestamp } }) }), []);
   useEffect(() => {
     if (!registry) {
       noteMissing("<ArdiaOutsidePressArea> without OutsidePressRoot");
@@ -279,40 +287,39 @@ export const OutsidePressArea = forwardRef<View, AnyProps>(function OutsidePress
   }, [registry, area]);
   const inside = useCallback(
     (event: GestureResponderEvent) => {
-      call(onTouchStartCapture, event);
       const native = event.nativeEvent as unknown as object | undefined;
       if (registry && native) registry.pending.get(native)?.inside.add(area);
     },
-    [registry, area, onTouchStartCapture],
+    [registry, area],
   );
   return (
     <View {...rest} ref={ref} {...windowsEvents({ onTouchStartCapture: inside })}>
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
 
-export const MagnifyArea = forwardRef<View, AnyProps>(function MagnifyArea({ enabled: _enabled, onMagnify: _onMagnify, children, ...rest }, ref) {
+export const MagnifyArea = forwardRef<View, NativeMagnifyAreaProps>(function MagnifyArea({ enabled: _enabled, onMagnify: _onMagnify, children, ...rest }, ref) {
   useEffect(() => noteMissing("<ArdiaMagnifyArea> gestures"), []);
   return (
     <View {...rest} ref={ref}>
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
 
 const FileDropDepth = createContext(0);
 
-export const FileDrop = forwardRef<{ nativeRef: { current: View | null } }, AnyProps>(function FileDrop({ accepts, enabled, onDropUpdate, onLayout, children, ...rest }, ref) {
+export const FileDrop = forwardRef<FileDropHandle, NativeFileDropAreaProps>(function FileDrop({ accepts, enabled, onDropUpdate, onLayout, children, ...rest }, ref) {
   const depth = useContext(FileDropDepth) + 1;
   const rootTag = useContext(RootTagContext) as unknown as number;
   const nativeRef = useRef<View | null>(null);
   useImperativeHandle(ref, () => ({ nativeRef }), []);
-  const deliver = useCallback((update: DropUpdate) => call(onDropUpdate, { nativeEvent: update }), [onDropUpdate]);
+  const deliver = useCallback((update: DropUpdate) => onDropUpdate?.({ nativeEvent: update }), [onDropUpdate]);
   const measure = useFileDropArea(nativeRef, rootTag, depth, acceptsOf(accepts), enabled !== false, deliver);
   const layout = useCallback(
-    (event: unknown) => {
-      call(onLayout, event);
+    (event: LayoutChangeEvent) => {
+      onLayout?.(event);
       measure();
     },
     [onLayout, measure],
@@ -320,17 +327,27 @@ export const FileDrop = forwardRef<{ nativeRef: { current: View | null } }, AnyP
   return (
     <FileDropDepth.Provider value={depth}>
       <View {...rest} ref={nativeRef} collapsable={false} onLayout={layout}>
-        {children as ReactNode}
+        {children}
       </View>
     </FileDropDepth.Provider>
   );
 });
 
-export const WindowProfile = forwardRef<View, AnyProps>(function WindowProfile({ profile: _profile, selection: _selection, neighbours: _neighbours, style, children, ...rest }, ref) {
+export const WindowProfile = forwardRef<View, WindowProfileProps>(function WindowProfile({ profile, selection: _selection, neighbours: _neighbours, style, children, ...rest }, ref) {
   useEffect(() => noteMissing("<ArdiaWindowProfile> profile swap"), []);
+  const windowId = useContext(WindowIdContext);
+  useEffect(() => {
+    if (typeof profile !== "string") return undefined;
+    const closed = privateWindowShown(profile);
+    const released = holdPrivateSession(profile, windowId);
+    return () => {
+      released();
+      closed();
+    };
+  }, [profile, windowId]);
   return (
-    <View {...rest} ref={ref} pointerEvents="none" style={style as ViewStyle}>
-      {children as ReactNode}
+    <View {...rest} ref={ref} pointerEvents="none" style={style}>
+      {children}
     </View>
   );
 });

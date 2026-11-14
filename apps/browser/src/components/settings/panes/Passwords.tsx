@@ -14,6 +14,7 @@ import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Sym
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
+import { monoFace } from "../../ui/tokens";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { plural } from "../../../state/browser/model";
 import { importPasswordsCsv, revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
@@ -23,10 +24,11 @@ import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "..
 import { settingsLayout } from "../tokens";
 import { passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
 function passwordManagerAppsNote() {
-  const apps = "1Password, Bitwarden, KeePassXC and Proton Pass extensions connect to their Mac apps.";
+  const apps = `1Password, Bitwarden, KeePassXC and Proton Pass extensions connect to their ${PLATFORM_TERMS.computer} apps.`;
   return systemInfo().inApplicationsFolder === false
     ? `${apps} For 1Password, move Ardia to your Applications folder and reopen it (1Password only connects to browsers there), then in the 1Password app open Settings › Browser › Add Browser and choose it.`
     : `${apps} For 1Password, add Ardia once: in the 1Password app, open Settings › Browser › Add Browser and choose Ardia.`;
@@ -66,7 +68,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
 
   const exportCsv = async () => {
     const { status, path } = await exportPasswords(profile).catch(orWarn<{ status: PasswordExportStatus; path?: string }>({ status: "writeFailed" }));
-    const folder = path ? path.split("/").slice(-2, -1)[0] : "";
+    const folder = path ? path.split(/[\\/]/).slice(-2, -1)[0] : "";
     if (status === "succeeded") setExportStatus(`Saved to “${folder}”. Delete the file once you're done with it.`);
     else if (status === "writeFailed") setExportStatus("Couldn't write the file. Try another folder.");
     else if (status === "inProgress") setExportStatus("An export is already running.");
@@ -79,7 +81,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     <View>
       <SectionHeader
         title="Passwords"
-        description="Saved on this Mac, separately for each profile, and encrypted with a key in your Keychain."
+        description={`Saved on this ${PLATFORM_TERMS.computer}, separately for each profile, and encrypted with ${PLATFORM_TERMS.passwordKey}.`}
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
@@ -102,7 +104,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
             Passwords are locked
           </Text>
           <Text size="small" tone="textSecondary">
-            Unlock with Touch ID or your login password to see them.
+            {`Unlock with ${PLATFORM_TERMS.deviceUnlock} to see them.`}
           </Text>
           <Button title="Unlock" kind="primary" onPress={() => void unlockPasswordsFor(profile)} />
         </Box>
@@ -170,7 +172,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
     const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
-    }).catch(orWarn(false));
+    }).catch(orWarn(false, "settings edit"));
     if (changed) onChanged();
     if (!open.current) return;
     setBusy(false);
@@ -186,7 +188,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
       destructive: true,
     });
     if (!confirmed) return setBusy(false);
-    await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false));
+    await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false, "settings delete"));
     onChanged();
     closeSettingsSheet();
   };
@@ -214,7 +216,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
               <TextField value={password ?? ""} onChangeText={setPassword} secure={!revealed} width={220} />
             ) : (
               <Box row gap="xs" style={CENTER}>
-                <Text selectable style={revealed ? MONO : undefined}>
+                <Text selectable style={revealed ? monoFace() : undefined}>
                   {password === null ? "…" : revealed ? password : "•".repeat(Math.min(password.length, 12))}
                 </Text>
                 <Button variant="icon" icon={revealed ? "eye.slash" : "eye"} size="m" onPress={() => setRevealed(!revealed)} tooltip={revealed ? "Hide" : "Show"} />
@@ -258,4 +260,3 @@ const LOCK_ICON = { width: 36, height: 36 } as const;
 const SHEET_BODY = { marginTop: space.xl } as const;
 const ERROR = { marginTop: space.ml } as const;
 const CENTER = { alignItems: "center" } as const;
-const MONO = { fontFamily: "Menlo" } as const;

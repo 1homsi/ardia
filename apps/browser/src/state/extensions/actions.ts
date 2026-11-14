@@ -22,6 +22,7 @@ import { focus, openWindow } from "../browser/actions";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
+import { engineProfiles } from "../profiles/engineProfiles";
 import { shownPageId } from "../peek/peek";
 import { mainWindowFor, originalProfile } from "../windows/small";
 import { goToSettingsPane, openSettings, replaceSettingsPlace, settingsBack, useSettingsNav } from "../settings/settingsWindows";
@@ -29,6 +30,7 @@ import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
 import { notePrivateWindowExtensionOpen } from "../telemetry/usage";
 import { extensionPageUrl, extensionProfile, extensionsProfileId, isPrivate, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
 import { errorText } from "../../lib/errors";
+import { noteUnpackedInstall } from "../telemetry/exportCounts";
 import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export * from "./sidePanels";
@@ -39,6 +41,7 @@ const EMPTY: InstalledExtension[] = [];
 const loading = new Map<string, Promise<InstalledExtension[]>>();
 
 export function refreshExtensions(profile: string): Promise<InstalledExtension[]> {
+  if (!engineProfiles(useBrowser.getState()).includes(profile)) return Promise.resolve(useExtensions.getState().lists[profile] ?? EMPTY);
   const running = loading.get(profile);
   if (running) return running;
   const job = listExtensions(profile)
@@ -118,6 +121,7 @@ export async function confirmInstall() {
   useExtensions.setState({ install: { ...request, status: "installing" } });
   try {
     await installExtension(request.pkg, request.profile);
+    if (request.source === "unpacked") noteUnpackedInstall();
     useExtensions.setState({ install: null });
     await refreshExtensions(request.profile);
   } catch (error) {

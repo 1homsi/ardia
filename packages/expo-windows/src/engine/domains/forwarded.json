@@ -17,6 +17,7 @@
       "cliControlStatus": "ac_cli_control"
     },
     "extensions": {
+      "loadHealth": "ac_extensions_load_health",
       "watchActions": "ac_extensions_watch_actions",
       "syncState": "ac_extensions_sync_state",
       "syncApply": "ac_extensions_sync_apply"
@@ -32,25 +33,19 @@
       "deleteUrls": "ac_history_delete_urls",
       "watch": "ac_history_watch"
     },
+    "search": {
+      "suggest": "ac_search_suggest",
+      "stopSuggest": "ac_search_suggest_stop"
+    },
     "tabs": {
       "lastTabPolicy": "ac_tabs_last_tab_policy"
     }
   },
-  "awaitingEngine": {
-    "extensions": {
-      "loadHealth": "ac_extensions_load_health"
-    },
-    "search": {
-      "suggest": "ac_search_suggest",
-      "stopSuggest": "ac_search_suggest_stop"
-    }
-  },
   "missing": {
     "autofill": ["settings", "setSettings", "showSuggestions"],
-    "bookmarks": ["exportHtml"],
     "contentBlocker": ["state", "setEnabled", "setListEnabled", "isAllowed", "setAllowed", "devFailNextMessage", "devDelayNextLoad"],
-    "engine": ["beginTracing", "endTracing", "isTracing", "systemState", "cliTabTargets"],
-    "extensions": ["inspectUnpacked", "chooseFolder", "resolveInstallPrompt", "actionStates", "sidePanelUrl"],
+    "engine": ["beginTracing", "endTracing", "isTracing", "cliTabTargets", "cliOwnsTab", "cliMoveOffscreen", "cliCloseOffscreenTabs"],
+    "extensions": ["resolveInstallPrompt", "actionStates", "sidePanelUrl"],
     "media": [
       "displayMediaSources",
       "screenRecordingAllowed",
@@ -70,9 +65,9 @@
       "changeCaptureSource",
       "stopCapture"
     ],
-    "passwords": ["export", "autofillEnabled", "setAutofillEnabled"],
-    "permissions": ["resolve", "resolveExternalApp", "externalAppAllowances", "removeExternalAppAllowance", "devExternalLaunches"],
-    "profiles": ["loaded", "release"],
+    "passwords": ["autofillEnabled", "setAutofillEnabled"],
+    "permissions": ["resolve", "devExternalLaunches"],
+    "profiles": ["loaded"],
     "search": ["setEngineName"],
     "tabs": [
       "routeLinkTabs",
@@ -92,9 +87,6 @@
     ],
     "webView": [
       "setDisplayMediaPicker",
-      "setPeekModifier",
-      "setSplitLinkModifier",
-      "setPeekOtherSiteTabs",
       "setSelectionPopover",
       "setCommandScrollZoom",
       "setLittleArdiaOpensNewTabLinks",

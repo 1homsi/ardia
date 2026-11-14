@@ -28,7 +28,7 @@ struct OnboardingPage<Illustration: View, Actions: View>: View {
         .padding(.top, scrolls ? Spacing.large : 0)
       VStack(spacing: Spacing.small) {
         title
-          .font(.system(.largeTitle, design: .rounded, weight: .bold))
+          .font(.title.bold())
           .foregroundStyle(Color.ardiaTitle)
           .multilineTextAlignment(.center)
           .minimumScaleFactor(0.8)
@@ -57,7 +57,7 @@ struct OnboardingBackdrop: View {
   var body: some View {
     ZStack {
       Color(.systemBackground)
-      LaunchGradient(softened: true)
+      ProfileBackdrop(softened: true)
         .mask {
           LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.6), location: 0.45), .init(color: .clear, location: 0.8)], startPoint: .top, endPoint: .bottom)
         }
@@ -83,8 +83,8 @@ struct OnboardingPrimaryButton: View {
         .frame(maxWidth: .infinity, minHeight: 50)
     }
     .buttonStyle(.borderedProminent)
-    .buttonBorderShape(.roundedRectangle(radius: 14))
-    .tint(Palette.indigo)
+    .buttonBorderShape(.capsule)
+    .primaryActionColors()
   }
 }
 

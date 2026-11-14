@@ -13,6 +13,7 @@ struct SearchTray<Drag: Gesture>: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.profileLook) private var look
   @State private var model: SearchSuggestionsModel?
   @State private var text = ""
   @State private var highlightedID: String?
@@ -39,11 +40,12 @@ struct SearchTray<Drag: Gesture>: View {
         .clipped()
     }
     .frame(maxWidth: .infinity)
-    .background(alignment: .top) {
-      panelBackground
-        .padding(.bottom, -BrowseLayout.sheetTopRadius * 12)
-        .ignoresSafeArea(edges: .horizontal)
-    }
+    .background { panelShape.fill(panelTint) }
+    .clipShape(panelShape)
+    .chromeSurface(in: panelShape, interactive: false, tinted: true)
+    .shadow(color: .black.opacity(isIncognito ? 0.3 : 0.1), radius: 18, y: 4)
+    .padding(.horizontal, BrowseLayout.panelInset)
+    .padding(.bottom, BrowseLayout.panelAboveKeyboard)
     .environment(\.colorScheme, isIncognito ? .dark : colorScheme)
     .onAppear(perform: start)
     .onDisappear { model?.cancel() }
@@ -61,26 +63,22 @@ struct SearchTray<Drag: Gesture>: View {
 
   private var header: some View {
     field
-      .padding(.horizontal, BrowseLayout.searchFieldInset)
-      .padding(.top, BrowseLayout.trayFieldTop)
-      .padding(.bottom, Spacing.tight)
+      .padding(.horizontal, BrowseLayout.panelFieldInset)
+      .padding(.top, BrowseLayout.panelFieldInset)
+      .padding(.bottom, Spacing.hairline)
       .frame(maxWidth: .infinity)
       .contentShape(.rect)
       .highPriorityGesture(dismissDrag)
       .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
   }
 
-  private var panelBackground: some View {
-    let shape = UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
-    return shape
-      .fill(isIncognito || reduceTransparency ? AnyShapeStyle(.clear) : AnyShapeStyle(.regularMaterial))
-      .overlay { shape.fill(panelTint) }
-      .shadow(color: .black.opacity(0.14), radius: 24, y: -4)
+  private var panelShape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: BrowseLayout.panelRadius, style: .continuous)
   }
 
   private var panelTint: Color {
-    if isIncognito { return BrowsePalette.incognitoSheet }
-    return reduceTransparency ? BrowsePalette.sheetOpaque : BrowsePalette.sheet
+    if isIncognito { return BrowsePalette.incognitoSheet.opacity(reduceTransparency ? 1 : BrowseLayout.panelIncognitoShare) }
+    return reduceTransparency ? look.surface : look.surface.opacity(BrowseLayout.panelTintShare)
   }
 
   private var field: some View {
@@ -117,10 +115,10 @@ struct SearchTray<Drag: Gesture>: View {
     .frame(minHeight: fieldHeight)
     .background {
       Capsule(style: .continuous)
-        .fill(isIncognito ? BrowsePalette.incognitoField : BrowsePalette.fieldFill)
+        .fill(isIncognito ? BrowsePalette.incognitoField : BrowsePalette.searchField)
         .overlay {
           Capsule(style: .continuous)
-            .strokeBorder(isIncognito ? Color.white.opacity(0.1) : BrowsePalette.fieldStroke, lineWidth: 1)
+            .strokeBorder(isIncognito ? Color.white.opacity(0.1) : BrowsePalette.fieldStroke, lineWidth: 0.5)
         }
     }
   }

@@ -387,13 +387,13 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     runInWorld("window.__ardia && window.__ardia.media(\(Self.jsString(action)), \(seconds.isFinite ? seconds : 0))", frame: nowPlayingSubframe)
   }
 
-  func setPictureInPicture(_ on: Bool, completion: @escaping (Bool) -> Void) {
-    let code = "window.__ardia ? window.__ardia.pictureInPicture(\(on ? "true" : "false")) : false"
+  func setPictureInPicture(_ on: Bool, automatic: Bool = false, completion: @escaping (PictureInPictureAnswer) -> Void) {
+    let code = "window.__ardia ? window.__ardia.pictureInPicture(\(on ? "true" : "false"), \(automatic ? "true" : "false")) : false"
     if !on {
       for frame in mediaFrames.values where !frame.isMainFrame { runInWorld(code, frame: frame) }
     }
     runInWorld(code, frame: on ? nowPlayingSubframe : nil) { value in
-      completion((value as? NSNumber)?.boolValue ?? false)
+      completion(value as? String == "nothingPlaying" ? .nothingPlaying : (value as? NSNumber)?.boolValue == true ? .opened : .failed)
     }
   }
 
@@ -443,6 +443,8 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
       let active = dict?["active"] as? Bool ?? false
       autoPictureInPictureRule.reported(active: active)
       emit("pictureInPicture", ["kind": "video", "active": active])
+    case "mediaFault":
+      if let fault = WebKitMediaFaults.event(dict, from: frameInfo, muted: muted, blockerActive: WebKitContentBlocker.shared.isFiltering && !blocked.exemptLoad) { emit("mediaFault", fault) }
     case "status":
       emit("status", ["text": data as? String ?? ""])
     case "icons":

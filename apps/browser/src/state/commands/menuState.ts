@@ -10,7 +10,7 @@ import type { Bookmarks, BookmarkNode } from "../browser/types";
 import { isInternalTab } from "../pages/urls";
 import { muteState, muteTitle } from "../tabs/mute";
 import { sidebarMenuState } from "../sidebar/commands";
-import { LITTLE_ARDIA_DISABLED_COMMANDS, PAGE_COMMANDS, PAGE_COMMANDS_OFF_INTERNAL_PAGES, settingChecks, WINDOW_COMMANDS } from "../commands/commandCatalog";
+import { LITTLE_ARDIA_DISABLED_COMMANDS, PAGE_COMMANDS, PAGE_COMMANDS_OFF_INTERNAL_PAGES, settingChecks, UNAVAILABLE_COMMANDS, WINDOW_COMMANDS } from "../commands/commandCatalog";
 import { extensionMenu } from "../extensions/actions";
 import { menuBarBindings } from "./commandShortcuts";
 import { focusedWindowOf } from "../windows/ui";
@@ -104,7 +104,7 @@ export function menuState(s: BrowserState): MenuState {
   if (!s.settings.openLinksInLittleArdia) titles.toggleOpenLinksInLittleArdia = "Open Links from Other Apps in Little Ardia";
 
   const sidebar = sidebarMenuState(s, windowId);
-  disabled.push(...sidebar.disabled);
+  disabled.push(...sidebar.disabled, ...UNAVAILABLE_COMMANDS);
   Object.assign(titles, sidebar.titles);
   if (peek) {
     titles.openFile = "Open Peek as Tab";
@@ -115,9 +115,12 @@ export function menuState(s: BrowserState): MenuState {
     titles.openFile = "Open in Ardia";
   }
 
+  const listed = (profileId: string | undefined) => !w || w.kind === "private" || (profileId && s.profiles[profileId] ? profileId : s.settings.defaultProfileId) === w.profileId;
   const closed = [
-    ...s.closedTabs.filter((c) => !c.tab.profileId.startsWith("incognito:")).map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
-    ...s.closedWindows.map((c) => ({ id: c.id, title: c.tabs.length ? (c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`) : "Window (Pinned Tabs)", at: c.closedAt })),
+    ...s.closedTabs
+      .filter((c) => !c.tab.profileId.startsWith("incognito:") && listed(c.tab.profileId))
+      .map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
+    ...s.closedWindows.filter((c) => listed(c.window.profileId)).map((c) => ({ id: c.id, title: c.tabs.length ? (c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`) : "Window (Pinned Tabs)", at: c.closedAt })),
   ]
     .sort((a, b) => b.at - a.at)
     .slice(0, 10)

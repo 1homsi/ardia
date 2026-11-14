@@ -9,18 +9,21 @@ struct WebPageView: UIViewRepresentable {
   var tab: BrowserTab?
   var cover: UIImage?
   var swipeMode: SwipeNavigationMode
+  var topInset: CGFloat = 0
   var bottomInset: CGFloat
   var onTone: (UUID, PageTone) -> Void = { _, _ in }
 
   func makeUIView(context: Context) -> PageContainerView {
     let view = PageContainerView()
-    view.backgroundColor = UIColor(BrowsePalette.pageBackdrop)
+    view.backdrop = context.environment.profileLook.surface
     return view
   }
 
   func updateUIView(_ view: PageContainerView, context: Context) {
+    view.backdrop = context.environment.profileLook.surface
     view.swipeMode = swipeMode
     view.onTone = onTone
+    view.topInset = topInset
     view.bottomInset = bottomInset
     guard let page else {
       view.show(nil, cover: nil, isLoading: false, progress: 0)
@@ -45,11 +48,17 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
 
   var swipeMode: SwipeNavigationMode = .anywhere
   var onTone: ((UUID, PageTone) -> Void)?
+  var topInset: CGFloat = 0 {
+    didSet { if topInset != oldValue { applyInsets() } }
+  }
   var bottomInset: CGFloat = 0 {
     didSet { if bottomInset != oldValue { applyInsets() } }
   }
 
   var placeholderTab: BrowserTab?
+  var backdrop: Color = ProfileLook.plum.surface {
+    didSet { backgroundColor = UIColor(backdrop) }
+  }
   private var placeholderHost: UIHostingController<PageLoadingPlaceholder>?
   private weak var page: WebTab?
   private weak var webView: WKWebView?
@@ -134,7 +143,21 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     updateReveal(isLoading: isLoading, progress: progress)
   }
 
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    wakePageWhenInWindow()
+  }
+
+  private func wakePageWhenInWindow() {
+    guard window != nil, let page, !page.isLive else { return }
+    Task { @MainActor [weak self, weak page] in
+      guard let self, let page, self.window != nil, self.page === page, !page.isLive else { return }
+      page.makeLive()
+    }
+  }
+
   private func showWaiting(for next: WebTab, cover: UIImage?) {
+    defer { wakePageWhenInWindow() }
     guard page !== next || webView != nil else { return }
     cancelSwipe()
     page = next
@@ -317,7 +340,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     guard let tab = placeholderTab else { return }
     placeholderHost?.view.layer.removeAllAnimations()
     placeholderHost?.view.removeFromSuperview()
-    let host = UIHostingController(rootView: PageLoadingPlaceholder(tab: tab, revealDelay: Motion.placeholderDelay))
+    let host = UIHostingController(rootView: PageLoadingPlaceholder(tab: tab, backdrop: backdrop, revealDelay: Motion.placeholderDelay))
     host.view.isUserInteractionEnabled = false
     host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     host.view.frame = bounds
@@ -381,11 +404,22 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     if refreshControl.isRefreshing { refreshControl.endRefreshing() }
   }
 
+  override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    applyInsets()
+  }
+
   private func applyInsets() {
-    guard let scrollView = webView?.scrollView else { return }
-    if scrollView.contentInset.bottom != bottomInset {
-      scrollView.contentInset.bottom = bottomInset
-      scrollView.verticalScrollIndicatorInsets.bottom = bottomInset
+    guard let webView else { return }
+    let clearance = max(topInset, 0)
+    let insets = UIEdgeInsets(top: safeAreaInsets.top + clearance, left: 0, bottom: max(bottomInset, 0), right: 0)
+    if webView.obscuredContentInsets != insets {
+      webView.obscuredContentInsets = insets
+    }
+    let scrollView = webView.scrollView
+    if scrollView.contentInset.top != clearance {
+      scrollView.contentInset.top = clearance
+      scrollView.verticalScrollIndicatorInsets.top = clearance
     }
   }
 
@@ -541,5 +575,11 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     webView?.transform = .identity
     webView?.layer.shadowOpacity = 0
     self.swipe = nil
+  }
+}
+
+enum PageWindows {
+  static var exist: Bool {
+    UIApplication.shared.connectedScenes.contains { ($0 as? UIWindowScene)?.windows.isEmpty == false }
   }
 }

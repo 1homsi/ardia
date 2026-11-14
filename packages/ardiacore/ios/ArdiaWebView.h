@@ -89,7 +89,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ArdiaWebView (Recording)
 - (void)copyRecordingPicture:(void (^)(CGImageRef _Nullable picture))completion NS_SWIFT_NAME(copyRecordingPicture(_:));
-+ (NSString *)recordingKindOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingKind(of:));
+@property (nonatomic, readonly) BOOL recordingShowsPage;
++ (NSArray<NSWindow *> *)recordingPictureInPictureWindowsOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingPictureInPictureWindows(of:));
++ (BOOL)recordingWindowIsPrivate:(NSWindow *)window NS_SWIFT_NAME(recordingWindowIsPrivate(_:));
 + (CGFloat)recordingCornerRadiusOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingCornerRadius(of:));
 + (nullable NSView *)recordingControlsOfWindow:(NSWindow *)window NS_SWIFT_NAME(recordingControls(of:));
 + (void)copyRecordingPictureOfWindow:(NSWindow *)window
@@ -167,6 +169,7 @@ NS_ASSUME_NONNULL_BEGIN
            completion:(void (^)(NSDictionary<NSString *, id> *_Nullable result))completion
     NS_SWIFT_NAME(downloadImage(_:maxPixels:completion:));
 - (void)mediaCommand:(NSString *)action seconds:(double)seconds NS_SWIFT_NAME(mediaCommand(_:seconds:));
+- (void)seekPictureInPictureBy:(double)seconds;
 @end
 
 @interface ArdiaWebView (Site)

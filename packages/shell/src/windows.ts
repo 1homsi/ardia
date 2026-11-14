@@ -2,8 +2,16 @@ import type { EventSubscription } from "expo-modules-core";
 
 export type Rect4 = [number, number, number, number];
 
+export type CaptionRegion = readonly [left: number, top: number, rightInset: number, height: number];
+
+export type WindowControlsNative = {
+  minimizeWindow(windowId: string): Promise<void>;
+  toggleMaximizeWindow(windowId: string): Promise<void>;
+  setCaptionRegions(windowId: string, regions: readonly CaptionRegion[]): Promise<void>;
+};
+
 export type WindowEvent =
-  | { type: "focus"; id: string }
+  | { type: "focus"; id: string; fromPage?: boolean }
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
   | { type: "fullScreen"; id: string; on: boolean }
@@ -46,6 +54,7 @@ export type WindowsNative = {
   dragPreviewEnd(windowId: string | null, frame: Rect4 | null): Promise<void>;
   raiseView(tag: number, levels: number, raised: boolean): Promise<void>;
   windowFrame(id: string): Promise<Rect4 | null>;
+  frameCornerRadius(id: string): Promise<number>;
   setWindowTitle(id: string, title: string): Promise<void>;
   windowIds(): Promise<string[]>;
   replyToTerminate(ok: boolean): Promise<void>;

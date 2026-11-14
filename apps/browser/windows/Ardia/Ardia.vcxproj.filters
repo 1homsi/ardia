@@ -2,12 +2,17 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="AppModule.h" />
+    <ClInclude Include="LaunchConfig.h" />
+    <ClInclude Include="ModalThread.h" />
+    <ClInclude Include="NativeDialogs.h" />
+    <ClInclude Include="TestGate.h" />
     <ClInclude Include="AutolinkedNativeModules.g.h" />
     <ClInclude Include="LaunchLog.h" />
     <ClInclude Include="LoggedErrors.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="ExternalAppsModule.h" />
     <ClInclude Include="WindowsHostModule.h" />
   </ItemGroup>
   <ItemGroup>

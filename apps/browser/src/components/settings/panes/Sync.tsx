@@ -17,13 +17,14 @@ import {
   turnOnSync,
   useSync,
 } from "../../../state/sync/engine";
-import { DATA_TYPES, type SyncStatus } from "../../../state/sync/syncDoc";
+import { DATA_TYPES, SYNCED_KINDS, type SyncStatus } from "../../../state/sync/syncDoc";
 import { deviceSymbol } from "../../../state/sync/devices";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { ago } from "../../../lib/time";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { perLook } from "../../ui/tokens";
 
 export function SyncPane() {
   const enabled = useSync((s) => s.enabled);
@@ -41,8 +42,7 @@ export function SyncPane() {
   return (
     <Box gap="xl">
       <PaneIntro>
-        Sync your profiles, bookmarks, history, open tabs, pinned tabs, groups, passwords, extensions and settings across your Macs. It all goes through a folder
-        you choose, like one in iCloud Drive, and it’s end-to-end encrypted: only your devices can read it.
+        Sync your profiles, {SYNCED_KINDS} across your {PLATFORM_TERMS.syncedComputer}s. It all goes through a folder you choose, like one in {PLATFORM_TERMS.cloudDrive}, and it’s end-to-end encrypted: only your devices can read it.
       </PaneIntro>
       {enabled ? <SyncOn info={info} /> : <SyncOff info={info} />}
     </Box>
@@ -118,10 +118,10 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
         {noICloud ? (
           <Row
             icon={<Symbol name="exclamationmark.icloud" size={14} color={theme.warning} style={{ width: 28, height: 20 }} />}
-            title="iCloud Drive is off on this Mac"
-            description="Turn on iCloud Drive in System Settings, or choose another folder that syncs between your Macs, like one in Dropbox, on a NAS or on a USB drive."
+            title={`${PLATFORM_TERMS.cloudDrive} is off on this ${PLATFORM_TERMS.computer}`}
+            description={`${PLATFORM_TERMS.turnOnCloudDrive}, or choose another folder that syncs between your ${PLATFORM_TERMS.syncedComputer}s, like one in Dropbox, on a NAS or on a USB drive.`}
           >
-            <Button title="Open iCloud Settings" onPress={() => void Linking.openURL("x-apple.systempreferences:com.apple.preferences.AppleIDPrefPane")} />
+            {PLATFORM_TERMS.cloudDriveSettingsUrl ? <Button title="Open iCloud Settings" onPress={() => void Linking.openURL(PLATFORM_TERMS.cloudDriveSettingsUrl)} /> : null}
           </Row>
         ) : null}
       </Group>
@@ -130,9 +130,9 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
           {failure}
         </Text>
       ) : null}
-      <Text size="caption" tone="textTertiary" style={FOOTNOTE}>
-        No server and no account: your Macs meet in the sync folder. Your recovery phrase never leaves your devices, and without it the folder is
-        unreadable, file names included.
+      <Text size="caption" tone="textTertiary" style={FOOTNOTE()}>
+        No server and no account: your {PLATFORM_TERMS.syncedComputer}s meet in the sync folder. Your recovery phrase never leaves your devices, and without it the
+        folder is unreadable, file names included.
       </Text>
     </View>
   );
@@ -141,9 +141,9 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
 const SYNC_ICON = 28;
 const SYNC_GLYPH = { width: SYNC_ICON, height: SYNC_ICON } as const;
 const FAILURE = { marginTop: space.m } as const;
-const FOOTNOTE = { marginTop: space.l, lineHeight: lineHeight.caption } as const;
+const FOOTNOTE = perLook(() => ({ marginTop: space.l, lineHeight: lineHeight.caption }) as const);
 const ERROR_ROW = { marginTop: space.m } as const;
-const ERROR_TEXT = { flex: 1, lineHeight: lineHeight.caption } as const;
+const ERROR_TEXT = perLook(() => ({ flex: 1, lineHeight: lineHeight.caption }) as const);
 
 function statusLine(status: SyncStatus, lastSyncedAt: number | null, pending: number): string {
   const since = lastSyncedAt ? ago(lastSyncedAt) : null;
@@ -218,7 +218,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
       {error && status !== "updated" ? (
         <Box row gap="s" padX="xxs" style={ERROR_ROW}>
           <Symbol name="exclamationmark.circle.fill" size={11} color={theme.destructive} style={{ width: 14, height: 15 }} />
-          <Text size="caption" tone="textSecondary" style={ERROR_TEXT}>
+          <Text size="caption" tone="textSecondary" style={ERROR_TEXT()}>
             {error}
           </Text>
         </Box>
@@ -230,8 +230,8 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
           joining
             ? lookingForProfiles(pending)
             : remoteProfiles.length
-              ? "Choose which profiles sync on this Mac. Each syncs on its own. Profiles on your other devices can be added to this Mac."
-              : "Choose which profiles sync on this Mac. Each syncs on its own."
+              ? `Choose which profiles sync on this ${PLATFORM_TERMS.computer}. Each syncs on its own. Profiles on your other devices can be added to this ${PLATFORM_TERMS.computer}.`
+              : `Choose which profiles sync on this ${PLATFORM_TERMS.computer}. Each syncs on its own.`
         }
         action={remoteProfiles.filter((p) => !p.waiting).length > 1 ? <Button title="Add All" onPress={() => addAllRemoteProfiles(remoteProfiles)} /> : undefined}
       />
@@ -271,12 +271,12 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
             <Row
               key={d.id}
               icon={<Symbol name={deviceSymbol(d.kind, d.name)} size={15} color={theme.icon} style={{ width: 24, height: 20 }} />}
-              title={d.current ? `${d.name} (This Mac)` : d.name}
+              title={d.current ? `${d.name} (This ${PLATFORM_TERMS.computer})` : d.name}
               description={d.current ? statusLine(status, lastSyncedAt, 0) : d.lastSeen ? `last synced ${ago(d.lastSeen)}` : "hasn’t synced yet"}
             />
           ))
         ) : (
-          <Row title="Just this Mac so far" description="Other devices show here once they sync." />
+          <Row title={`Just this ${PLATFORM_TERMS.computer} so far`} description="Other devices show here once they sync." />
         )}
       </Group>
     </View>

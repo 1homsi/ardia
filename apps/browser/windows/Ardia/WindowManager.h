@@ -22,7 +22,9 @@
 #include "AppIcon.h"
 #include "Events.h"
 #include "Host.h"
+#include "ModalThread.h"
 #include "LaunchLog.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 #include "WindowFade.h"
 
@@ -133,7 +135,7 @@ struct WindowManager {
   }
 
   static bool Background() noexcept {
-    static const bool background = Paths::Environment(L"ARDIA_BACKGROUND") == L"1";
+    static const bool background = AppLaunch::Background();
     return background;
   }
 
@@ -258,7 +260,7 @@ struct WindowManager {
     }
     if (Background()) return;
     if (IsIconic(entry->hwnd)) ShowWindow(entry->hwnd, SW_RESTORE);
-    SetForegroundWindow(entry->hwnd);
+    if (!DialogParts::BringModalForward(entry->hwnd)) SetForegroundWindow(entry->hwnd);
   }
 
   void SetTitle(std::string_view id, std::string_view title) noexcept {
@@ -384,7 +386,7 @@ struct WindowManager {
   }
 
   bool DebugAvailable() const noexcept {
-    static const bool available = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
+    static const bool available = Paths::HasSwitch(L"--self-check") && AppLaunch::Shared().testInstance;
     return available;
   }
 
@@ -402,6 +404,11 @@ struct WindowManager {
     report["caption"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Caption);
     report["passthrough"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough);
     return report;
+  }
+
+  bool IsBrowserWindow(std::string_view id) const noexcept {
+    const ManagedWindow *entry = Find(id);
+    return entry && entry->IsBrowser();
   }
 
   void ReplyToTerminate(bool ok) noexcept {
@@ -695,7 +702,13 @@ struct WindowManager {
     }
   }
 
-  void Activated(HWND hwnd) noexcept {
+  static bool OwnPageWindow(HWND hwnd, HWND page) noexcept {
+    if (!page || GetWindow(page, GW_OWNER) != hwnd) return false;
+    wchar_t name[16] = {};
+    return GetClassNameW(page, name, 16) > 0 && std::wstring_view{name}.starts_with(L"Chrome_");
+  }
+
+  void Activated(HWND hwnd, HWND previous) noexcept {
     ManagedWindow *entry = FindByHwnd(hwnd);
     if (!entry) return;
     m_activeId = entry->id;
@@ -707,6 +720,7 @@ struct WindowManager {
     winrt::Microsoft::ReactNative::JSValueObject event;
     event["type"] = "focus";
     event["id"] = entry->id;
+    if (OwnPageWindow(hwnd, previous)) event["fromPage"] = true;
     EmitWindow(std::move(event));
   }
 
@@ -955,7 +969,8 @@ struct WindowManager {
       manager->m_systemMove = false;
       manager->m_captionPressed = nullptr;
     }
-    if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd);
+    if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE && DialogParts::BringModalForward(hwnd)) return 0;
+    if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd, reinterpret_cast<HWND>(lParam));
     if (message == WM_SIZE && wParam != SIZE_MINIMIZED) manager->ArrangeToClient(hwnd, LOWORD(lParam), HIWORD(lParam));
     if (message == WM_ACTIVATEAPP && wParam == FALSE) manager->EmitApp("resignActive");
     return DefSubclassProc(hwnd, message, wParam, lParam);

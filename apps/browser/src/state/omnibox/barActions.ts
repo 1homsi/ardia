@@ -4,8 +4,8 @@ import { isBookmarked } from "../bookmarks/bookmarks";
 import { hidesBookmarkCommand } from "../bookmarks/visibility";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTab, bookmarkProfileId, isPinnedRow, pinnedSectionTitle } from "../browser/model";
-import { canTidyPins } from "../pins/tidyPins";
-import { commandBarTitle, commandSymbol } from "../commands/commandCatalog";
+import { canTidy } from "../pins/tidy";
+import { commandBarTitle, commandSymbol, UNAVAILABLE_COMMANDS } from "../commands/commandCatalog";
 import { menuBarRevision, shortcutHint } from "../commands/commandShortcuts";
 import type { Tab } from "../browser/types";
 import { organizeActions } from "./organizeActions";
@@ -107,8 +107,8 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
     if (d.needs === "page" && !tab?.url) continue;
     if (d.needs === "tab" && !tab) continue;
     if (d.needs === "profiles" && w?.kind === "private") continue;
-    if (d.needs === "pins" && !canTidyPins(s, windowId)) continue;
-    if (hidesBookmarkCommand(s.settings, d.command)) continue;
+    if (d.needs === "pins" && !canTidy(s, windowId)) continue;
+    if (hidesBookmarkCommand(s.settings, d.command) || UNAVAILABLE_COMMANDS.has(d.command)) continue;
     const id = actionId(d);
     const hint = shortcutHint(id, s);
     out.push({

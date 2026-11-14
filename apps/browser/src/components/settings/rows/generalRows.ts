@@ -2,6 +2,8 @@ import { APP, type SettingSection, type SettingsEnv } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 import { keyText } from "../../../state/commands/keyText";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { splitViewAvailable } from "../../../state/splits/splits";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
 
@@ -33,6 +35,12 @@ export const generalRows = {
           description: `For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ${keyText("⌘")}-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.`,
           keywords: ["little ardia", "target blank", "new tab", "links"],
         },
+        littleWindowGestures: {
+          title: "Close and expand Little Ardia and Peeks with trackpad gestures",
+          description: "Pinch in to close, spread to open in the main window, and swipe back on a Little Ardia page with nothing to go back to to close it. Off, pinching zooms the page.",
+          keywords: ["little ardia", "little arc", "peek", "pinch", "swipe", "gesture", "trackpad", "zoom", "close", "expand"],
+          shown: () => PLATFORM_FEATURES.trackpadGestures,
+        },
       },
     },
     {
@@ -40,7 +48,7 @@ export const generalRows = {
       rows: {
         windowsAndTabs: {
           title: "Windows and tabs",
-          description: "What you see the next time you open it. Closed windows stay in History › Recently Closed.",
+          description: `What you see the next time you open it. ${PLATFORM_FEATURES.menuBar ? "Closed windows stay in History › Recently Closed." : `${keyText("⇧⌘T")} reopens closed windows too.`}`,
           keywords: ["restore", "session", "reopen", "preserve tabs", "start fresh"],
         },
       },
@@ -76,10 +84,11 @@ export const generalRows = {
       rows: {
         importBrowser: {
           title: "Import from another browser",
-          description: "Bookmarks, history, passwords, tabs and Arc spaces from Chrome, Arc, Safari, Firefox and more.",
+          description: `Bookmarks, history, passwords, tabs and Arc spaces from Chrome, Arc, ${PLATFORM_FEATURES.hiddenBrowserSources.includes("safari") ? "Edge" : "Safari"}, Firefox and more.`,
           keywords: ["migrate", "switch", "transfer"],
         },
         exportBookmarks: {
+          shown: () => PLATFORM_FEATURES.exportsBookmarksAndPasswords,
           title: "Export bookmarks",
           description: "To an HTML file that Chrome, Safari, Firefox and every other browser can import.",
           keywords: ["backup", "html", "netscape", "bookmarks.html", "save bookmarks", "transfer"],
@@ -122,7 +131,7 @@ export const generalRows = {
     {
       section: "Sync",
       rows: {
-        sync: { title: "Sync", description: "Sync your profiles, bookmarks, history, tabs, passwords, extensions and settings across your Macs.", keywords: ["icloud", "recovery phrase", "devices", "turn on sync", "end to end", "encrypted"] },
+        sync: { title: "Sync", description: `Sync your profiles, bookmarks, history, tabs, ${PLATFORM_FEATURES.syncsPasswords ? "passwords, " : ""}extensions and settings across your ${PLATFORM_TERMS.syncedComputer}s.`, keywords: [PLATFORM_TERMS.cloudDrive.toLowerCase(), "recovery phrase", "devices", "turn on sync", "end to end", "encrypted"] },
         folder: { advanced: true, title: "Sync folder", keywords: ["icloud drive", "dropbox", "folder"] },
       },
     },
@@ -134,7 +143,7 @@ export const generalRows = {
       rows: {
         autoHideTabs: {
           title: "Auto-hide tabs",
-          description: `In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ${keyText("⌘S")} and View › Auto-Hide Tabs flip this same switch.`,
+          description: `In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. Changing it here resets every window; ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs hide or show" : "hides or shows"} the tabs in one window only.`,
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
         },
         sidebarSide: {
@@ -148,12 +157,19 @@ export const generalRows = {
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back. Your tabs stay put: hiding them is Auto-hide tabs.",
           keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll"],
         },
-        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: `The button at the toolbar's leading edge. Auto-hide tabs, ${keyText("⌘S")} and View › Auto-Hide Tabs still hide and show the tabs.`, keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
+        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: `The button at the toolbar's leading edge. Auto-hide tabs${PLATFORM_FEATURES.menuBar ? `, ${keyText("⌘S")} and View › Auto-Hide Tabs` : ` and ${keyText("⌘S")}`} still hide and show the tabs.`, keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
           advanced: true,
           title: "Show Clear button",
-          description: `The ↓ Clear between your pinned tabs and your tabs. ${keyText("⇧⌘K")} and File › Close All Tabs still clear them.`,
+          description: `The ↓ Clear between your pinned tabs and your tabs. ${keyText("⇧⌘K")}${PLATFORM_FEATURES.menuBar ? " and File › Close All Tabs" : ""} still ${PLATFORM_FEATURES.menuBar ? "clear" : "clears"} them.`,
           keywords: ["clear unpinned tabs", "close all tabs", "clear today", "divider", "arc"],
+          shown: inSidebar,
+        },
+        tidyTabs: {
+          advanced: true,
+          title: "Tidy Tabs",
+          description: "As in Arc: once you have more than six tabs, Tidy on the divider sorts them into groups by site. Pinned tabs stay where you put them.",
+          keywords: ["tidy", "broom", "organize tabs", "group by site", "clean up", "arc max"],
           shown: inSidebar,
         },
         balancedTopApps: {
@@ -165,8 +181,13 @@ export const generalRows = {
         },
         showUnreadCounts: {
           title: "Show unread counts on tabs",
-          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, on its tab, pinned tile and Top App. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
+          description: "A notification badge with the unread count or dot a site like Gmail or Slack puts in its title, at the end of its tab. Off by default. Once on, hide it for one site: right-click its tab and choose Hide Unread Count, or use Site Controls.",
           keywords: ["unread", "badge", "badges", "bubble", "bubbles", "count", "notification", "notifications", "notis", "dot", "red", "gmail", "inbox", "messages", "arc"],
+        },
+        showTopAppBadges: {
+          title: "Show tab status on Top Apps",
+          description: "A Top App's tile shows a speaker while its tab plays or is muted, a mark while it is in Picture in Picture, and its unread count when unread counts are on. Off, as in Dia, a tile shows only the site's icon.",
+          keywords: ["pinned tiles", "favorites", "badges", "indicators", "unread count", "speaker", "audio", "muted", "playing", "clean", "dia"],
         },
         fadeUnloadedTabs: {
           advanced: true,
@@ -184,6 +205,12 @@ export const generalRows = {
           description: `With Command Bar, ${keyText("⌘T")} and New Tab open the command bar over the page, as in Arc. The tab appears when you pick a result; Esc leaves everything as it was.`,
           keywords: ["new tab page", "command bar", "cmd t"],
         },
+        reuseEmptyNewTab: {
+          title: "Reuse an empty New Tab page",
+          description: `When the tab you're on is still an empty New Tab page, ${keyText("⌘T")}, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.`,
+          keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
+          shown: (settings) => settings.newTabOpens === "page",
+        },
         newTabPosition: {
           title: "Add new tabs",
           description: `Where ${keyText("⌘T")} and + New Tab put the new tab. Next to the current tab, it joins that tab's group (from a pinned tab, it goes first in the list), and closing it brings you back. Links open next to their page either way.`,
@@ -196,13 +223,18 @@ export const generalRows = {
           keywords: ["new tab button", "plus", "+", "top", "bottom", "sticky", "docked", "position"],
           shown: inSidebar,
         },
+        appLinksFirst: {
+          title: "Put links from other apps first",
+          description: "When links from Slack, Mail or any other app open as tabs, not in Little Ardia, they go above your other tabs, just below the pinned ones, whatever Add new tabs says.",
+          keywords: ["external links", "other apps", "default browser", "top", "first", "left", "position"],
+        },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",
           description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
           keywords: ["arc", "multiple windows", "same tabs", "sync windows", "shared sidebar", "unpinned"],
         },
         warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
-        tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
+        tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"], shown: () => PLATFORM_FEATURES.haptics },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
         sidebarMediaControls: {
           advanced: true,
@@ -221,6 +253,7 @@ export const generalRows = {
           title: "Video upscaling",
           description: "Sharpens low-resolution videos shown larger than they are, on Apple silicon. Only in the tab you're watching, never in the background, in Low Power Mode or when the Mac runs hot.",
           keywords: ["super resolution", "sharpen", "video quality"],
+          shown: () => PLATFORM_FEATURES.videoUpscaling,
         },
       },
     },
@@ -244,6 +277,7 @@ export const generalRows = {
           keywords: ["peek", "preview", "shift click", "option click", "arc"],
         },
         splitLinkModifier: {
+          shown: () => splitViewAvailable,
           advanced: true,
           title: "Open a link in split view with",
           description: `Opens the link in a pane beside the page. ${keyText("⌥⌘")}-click splits too, and so does ${keyText("⌥⇧")}-click when ${keyText("⌥")}-click is chosen. A link that downloads still downloads.`,
@@ -283,6 +317,11 @@ export const generalRows = {
           title: "Clean up tabs I haven't used in",
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
           keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
+        },
+        suggestCleanUp: {
+          title: "Suggest cleaning up when tabs pile up",
+          description: "Shows a card in the sidebar once 10 or more tabs haven't been used in a while.",
+          keywords: ["upsell", "tidy", "suggestion", "don't show again", "card", "inactive tabs"],
         },
       },
     },

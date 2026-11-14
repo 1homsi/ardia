@@ -23,6 +23,11 @@ int g_step = 0;
 int g_step_ms = 4000;
 std::string g_first_url = "https://example.com/";
 std::string g_second_url = "https://www.wikipedia.org/";
+std::string g_download_url;
+std::string g_cookie_url;
+std::string g_slow_download_url;
+std::string g_files_dir;
+bool g_exports = false;
 
 void Log(const char* what, const char* detail) {
   if (!g_log) {
@@ -61,6 +66,33 @@ void EngineCall(const char* label, const char* name, const char* args) {
   g_engine->engineCall(name, "", args, &LogReply, const_cast<char*>(label));
 }
 
+std::string Quoted(const std::string& text) {
+  std::string quoted = "\"";
+  for (char c : text) {
+    if (c == '\\' || c == '"') {
+      quoted += '\\';
+    }
+    quoted += c;
+  }
+  return quoted + "\"";
+}
+
+std::string PathArgs(const std::string& path) {
+  return "{\"path\":" + Quoted(path) + "}";
+}
+
+void EngineCallWithPath(const char* label,
+                        const char* name,
+                        const std::string& path) {
+  EngineCall(label, name, PathArgs(path).c_str());
+}
+
+std::string LoadArgs(const char* key, const std::string& url) {
+  return std::string("{\"key\":\"") + key +
+         "\",\"method\":\"loadUrl\",\"url\":" + Quoted(url) +
+         ",\"userInitiated\":true}";
+}
+
 std::string ShowArgs(const char* key) {
   RECT client = {};
   ::GetClientRect(g_window, &client);
@@ -79,16 +111,114 @@ std::string CreateArgs(const char* key, const std::string& url) {
          url + "\"}";
 }
 
-void Step() {
-  ++g_step;
-  char label[32];
-  snprintf(label, sizeof(label), "%d", g_step);
-  Log("step", label);
+std::string CreateIn(const char* key,
+                     const char* profile,
+                     const std::string& url) {
+  return std::string("{\"key\":\"") + key + "\",\"profile\":\"" + profile +
+         "\",\"url\":" + Quoted(url) + "}";
+}
+
+std::string KeyArgs(const char* key) {
+  return std::string("{\"key\":\"") + key + "\"}";
+}
+
+std::string ProfileArgs(const char* profile) {
+  return std::string("{\"profile\":\"") + profile + "\"}";
+}
+
+void ClosePrivate(const char* key, const char* profile) {
+  Call("reply close private", "tab.close", KeyArgs(key));
+  Call("reply release private", "profile.release", ProfileArgs(profile));
+}
+
+std::string BookmarkOps() {
+  std::string ops = "{\"ops\":[";
+  const char* urls[] = {"https://example.com/", "https://www.wikipedia.org/",
+                        "https://github.com/", "https://news.ycombinator.com/",
+                        "https://www.bbc.com/"};
+  for (int i = 0; i < 5; ++i) {
+    if (i) {
+      ops += ",";
+    }
+    ops += "{\"op\":\"add\",\"id\":\"00000000-0000-4000-8000-00000000000" +
+           std::to_string(i) + "\",\"parent\":\"bar\",\"t\":\"probe " +
+           std::to_string(i) + "\",\"u\":\"" + urls[i] + "\"}";
+  }
+  return ops + "]}";
+}
+
+void ExportStep() {
   switch (g_step) {
     case 1:
       Call("reply info", "host.info", "{}");
       Call("reply create one", "tab.create", CreateArgs("one", g_first_url));
       Call("reply show one", "tab.show", ShowArgs("one"));
+      break;
+    case 2:
+      EngineCall("reply apply bookmarks", "ac_bookmarks_apply",
+                 BookmarkOps().c_str());
+      EngineCall("reply add password", "ac_passwords_add",
+                 "{\"origin\":\"https://example.com\",\"username\":"
+                 "\"probe\",\"password\":\"probe-only-secret\"}");
+      break;
+    case 3:
+      EngineCall("reply bookmarks", "ac_bookmarks_tree", "{}");
+      EngineCall("reply history", "ac_history_query",
+                 "{\"maxUrls\":5,\"maxVisits\":1}");
+      EngineCall("reply favicon", "ac_favicons_get",
+                 "{\"pages\":[\"https://example.com/\"]}");
+      EngineCall("reply password list", "ac_passwords_list", "{}");
+      EngineCallWithPath("reply export bookmarks", "ac_bookmarks_export_html",
+                         g_files_dir + "\\probe-bookmarks.html");
+      break;
+    case 4:
+      EngineCallWithPath("reply export bookmarks again",
+                         "ac_bookmarks_export_html",
+                         g_files_dir + "\\probe-bookmarks-2.html");
+      break;
+    case 6:
+      EngineCallWithPath("reply export passwords", "ac_passwords_export",
+                         g_files_dir + "\\probe-passwords.csv");
+      break;
+    case 8:
+      EngineCall("reply history after", "ac_history_query",
+                 "{\"maxUrls\":1,\"maxVisits\":1}");
+      Call("reply list after", "tabs.list", "{}");
+      break;
+    default:
+      if (g_step < 25) {
+        Log("waiting", "");
+        break;
+      }
+      ::KillTimer(g_window, kStepTimer);
+      Call("reply quit", "app.quit", "{}");
+      break;
+  }
+}
+
+void Step() {
+  ++g_step;
+  char label[32];
+  snprintf(label, sizeof(label), "%d", g_step);
+  Log("step", label);
+  if (g_exports) {
+    ExportStep();
+    return;
+  }
+  switch (g_step) {
+    case 1:
+      Call("reply info", "host.info", "{}");
+      Call("reply create one", "tab.create", CreateArgs("one", g_first_url));
+      Call("reply show one", "tab.show", ShowArgs("one"));
+      Call("reply create blank", "tab.create", CreateArgs("blank", ""));
+      if (!g_download_url.empty()) {
+        Call("reply create download", "tab.create",
+             CreateArgs("download", ""));
+        Call("reply create asked", "tab.create",
+             CreateArgs("asked", "about:blank"));
+        Call("reply create blank asked", "tab.create",
+             CreateArgs("blank-asked", ""));
+      }
       break;
     case 2:
       Call("reply list", "tabs.list", "{}");
@@ -101,22 +231,146 @@ void Step() {
       Call("reply load", "tab.call",
            "{\"key\":\"one\",\"method\":\"loadUrl\",\"url\":"
            "\"https://example.org/\",\"userInitiated\":true}");
+      Call("reply load blank", "tab.call", LoadArgs("blank", g_first_url));
+      if (!g_download_url.empty()) {
+        Call("reply load download", "tab.call",
+             LoadArgs("download", g_download_url));
+        Call("reply load blank asked", "tab.call",
+             LoadArgs("blank-asked", "about:blank"));
+      }
       break;
     case 4:
       Call("reply back", "tab.call", "{\"key\":\"one\",\"method\":\"goBack\"}");
       Call("reply close two", "tab.close", "{\"key\":\"two\"}");
+      Call("reply back blank", "tab.call",
+           "{\"key\":\"blank\",\"method\":\"goBack\"}");
+      if (!g_download_url.empty()) {
+        Call("reply load download in asked", "tab.call",
+             LoadArgs("asked", g_download_url));
+        Call("reply load download in blank asked", "tab.call",
+             LoadArgs("blank-asked", g_download_url));
+      }
       break;
     case 5:
+      if (!g_download_url.empty()) {
+        Call("reply load download in one", "tab.call",
+             LoadArgs("one", g_download_url));
+      }
       EngineCall("reply history", "ac_history_query",
                  "{\"maxUrls\":10,\"maxVisits\":3}");
       EngineCall("reply bookmarks", "ac_bookmarks_tree", "{}");
       EngineCall("reply downloads", "ac_downloads_settings", "{}");
       EngineCall("reply unknown", "ac_no_such_call", "{}");
+      EngineCallWithPath("reply export bookmarks", "ac_bookmarks_export_html",
+                         g_files_dir + "\\probe-bookmarks.html");
+      EngineCallWithPath("reply export bookmarks relative",
+                         "ac_bookmarks_export_html", "probe-bookmarks.html");
+      EngineCallWithPath("reply install unpacked", "ac_extensions_install",
+                         g_files_dir + "\\no-such-extension");
+      EngineCallWithPath("reply install crx", "ac_extensions_install_crx",
+                         g_files_dir + "\\no-such-extension.crx");
+      EngineCallWithPath("reply install crx unc", "ac_extensions_install_crx",
+                         "\\\\localhost\\c$\\no-such-extension.crx");
+      EngineCallWithPath("reply export passwords relative",
+                         "ac_passwords_export", "probe-passwords.csv");
+      EngineCall("reply load health", "ac_extensions_load_health", "{}");
+      EngineCall("reply suggest", "ac_search_suggest",
+                 ("{\"id\":1,\"url\":" + Quoted(g_first_url) + "}").c_str());
+      EngineCall("reply suggest stop", "ac_search_suggest_stop", "{\"id\":2}");
       Call("reply list", "tabs.list", "{}");
       Call("reply hide one", "tab.show", "{\"key\":\"one\",\"visible\":false}");
       break;
     case 6:
       Call("reply show one last", "tab.show", ShowArgs("one"));
+      break;
+    case 7:
+      if (!g_cookie_url.empty()) {
+        Call("reply create normal cookie", "tab.create",
+             CreateIn("normal-cookie", "", g_cookie_url + "?set"));
+        Call("reply create private a", "tab.create",
+             CreateIn("private-a", "incognito:probe-a@", g_cookie_url + "?set"));
+      }
+      break;
+    case 8:
+      if (!g_cookie_url.empty()) {
+        Call("reply create private b", "tab.create",
+             CreateIn("private-b", "incognito:probe-b@", g_cookie_url));
+      }
+      break;
+    case 9:
+      if (!g_cookie_url.empty()) {
+        Call("reply sessions with a and b", "tabs.list", "{}");
+        ClosePrivate("private-a", "incognito:probe-a@");
+        ClosePrivate("private-b", "incognito:probe-b@");
+        Call("reply info after release", "host.info", "{}");
+      }
+      break;
+    case 10:
+      if (!g_cookie_url.empty()) {
+        Call("reply create private c", "tab.create",
+             CreateIn("private-c", "incognito:probe-c@", g_cookie_url));
+        Call("reply create normal read", "tab.create",
+             CreateIn("normal-read", "", g_cookie_url));
+        Call("reply reopen released a", "tab.create",
+             CreateIn("private-a-again", "incognito:probe-a@", g_cookie_url));
+      }
+      break;
+    case 11:
+      if (!g_cookie_url.empty()) {
+        Call("reply sessions with c", "tabs.list", "{}");
+        Call("reply info with c", "host.info", "{}");
+        ClosePrivate("private-c", "incognito:probe-c@");
+      }
+      if (!g_slow_download_url.empty()) {
+        Call("reply create private d", "tab.create",
+             CreateIn("private-d", "incognito:probe-d@", ""));
+      }
+      break;
+    case 12:
+      if (!g_slow_download_url.empty()) {
+        Call("reply load slow download", "tab.call",
+             LoadArgs("private-d", g_slow_download_url));
+      }
+      break;
+    case 13:
+      if (!g_slow_download_url.empty()) {
+        Call("reply info while downloading", "host.info", "{}");
+        ClosePrivate("private-d", "incognito:probe-d@");
+      }
+      break;
+    case 14:
+      if (!g_cookie_url.empty()) {
+        Call("reply create private e", "tab.create",
+             CreateIn("private-e", "incognito:probe-e@", g_cookie_url));
+      }
+      break;
+    case 15:
+      Call("reply sessions at the end", "tabs.list", "{}");
+      Call("reply info at the end", "host.info", "{}");
+      if (!g_cookie_url.empty()) {
+        ClosePrivate("private-e", "incognito:probe-e@");
+        Call("reply create rapid 1", "tab.create",
+             CreateIn("rapid-1", "incognito:rapid-1@", g_cookie_url + "?set"));
+      }
+      break;
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+      if (!g_cookie_url.empty()) {
+        const std::string before = "rapid-" + std::to_string(g_step - 15);
+        const std::string next = "rapid-" + std::to_string(g_step - 14);
+        const std::string before_profile = "incognito:" + before + "@";
+        const std::string next_profile = "incognito:" + next + "@";
+        Call("reply rapid sessions", "tabs.list", "{}");
+        ClosePrivate(before.c_str(), before_profile.c_str());
+        Call("reply create rapid next", "tab.create",
+             CreateIn(next.c_str(), next_profile.c_str(), g_cookie_url + "?set"));
+      }
+      break;
+    case 20:
+      Call("reply sessions after rapid", "tabs.list", "{}");
+      Call("reply info after rapid", "host.info", "{}");
       break;
     default:
       if (Environment("ARDIA_PROBE_STAY", "").empty()) {
@@ -182,6 +436,11 @@ extern "C" __declspec(dllexport) int ArdiaAppStart(const ArdiaEngineApi* engine)
   g_engine = engine;
   g_first_url = Environment("ARDIA_PROBE_URL", g_first_url);
   g_second_url = Environment("ARDIA_PROBE_URL_2", g_second_url);
+  g_download_url = Environment("ARDIA_PROBE_DOWNLOAD_URL", "");
+  g_cookie_url = Environment("ARDIA_PROBE_COOKIE_URL", "");
+  g_slow_download_url = Environment("ARDIA_PROBE_SLOW_DOWNLOAD_URL", "");
+  g_files_dir = Environment("ARDIA_PROBE_DIR", Environment("TEMP", "C:"));
+  g_exports = !Environment("ARDIA_PROBE_EXPORTS", "").empty();
   g_step_ms = atoi(Environment("ARDIA_PROBE_STEP_MS", "4000").c_str());
   HINSTANCE instance = ::GetModuleHandleW(nullptr);
   WNDCLASSEXW window_class = {};

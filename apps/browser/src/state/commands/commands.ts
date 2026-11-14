@@ -23,6 +23,7 @@ import {
 import { bookmarkAllTabs, bookmarkTab } from "../bookmarks/actions";
 import { exportBookmarksFromWindow } from "../bookmarks/exportHtml";
 import { requestClearData } from "../profiles/clearDataRequest";
+import { showHistory } from "../history/showHistory";
 import { openInternalPage } from "../pages/urls";
 import { isUtilityWindowId, openImport, openSettings, SETTINGS_WINDOW_ID } from "../settings/settingsWindows";
 import { focusSettingsSearch } from "../settings/searchState";
@@ -36,8 +37,9 @@ import { withLivePage } from "../tabs/livePage";
 import { webviews } from "../../platform/webviews";
 import { togglePageEngine } from "../engines/actions";
 import { goBack, goForward } from "../tabs/navigation";
-import { openSplitPane } from "../splits/actions";
-import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, variantArg } from "./commandCatalog";
+import { awaitsFirstPage } from "../tabs/pendingAddress";
+import { focusSplitPane, openSplitPane } from "../splits/actions";
+import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, UNAVAILABLE_COMMANDS, variantArg } from "./commandCatalog";
 import { APP_COMMAND_HANDLERS } from "./appCommands";
 import { runSidebarCommand } from "../sidebar/commands";
 import { numberedTabs } from "../sidebar/entries";
@@ -50,6 +52,7 @@ import { shareTab } from "../site/share";
 import { groupOf } from "../pins/tabGrouping";
 import { selectedTabIds } from "../pins/organize";
 import { noteSelectionClosedByKey } from "../telemetry/usage";
+import { noteUrlCopied } from "../telemetry/urlCopies";
 import { isSmall, mainWindowFor, newWindowProfile, originalProfile } from "../windows/small";
 import {
   closeLittleArdia,
@@ -64,6 +67,7 @@ import { peekTabId } from "../peek/peek";
 import { expectFocus, findFocus } from "../focus/focusClaims";
 import { isWebPageUrl } from "../../lib/url";
 import { findStep, openFind } from "../find/actions";
+import { noteDownloadsPanelToggle } from "../telemetry/downloadsPanelCounts";
 
 const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
@@ -203,7 +207,9 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "copyUrl":
       return page ? void copyPageUrl(page.id) : undefined;
     case "copyUrlAsMarkdown":
-      return page ? copyText(markdownLink(page.customTitle || page.title, page.url)) : undefined;
+      if (!page) return;
+      noteUrlCopied(awaitsFirstPage(page.id));
+      return copyText(markdownLink(page.customTitle || page.title, page.url));
     case "findInPage":
       if (page) expectFocus(windowId, findFocus(page.id));
       return page ? openFind(page.id, { replace: false }) : undefined;
@@ -228,9 +234,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "openSplitPane":
       return void openSplitPane(windowId);
     case "focusNextPane":
-      return s.focusPane(windowId, 1);
     case "focusPreviousPane":
-      return s.focusPane(windowId, -1);
+      return focusSplitPane(windowId, command === "focusNextPane" ? 1 : -1);
     case "toggleSidebar":
       return s.toggleSidebar(windowId);
     case "zoomIn":
@@ -240,7 +245,6 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "zoomReset":
       return page ? void web?.zoomStep(0) : undefined;
     case "devTools":
-      return void web?.showDevTools();
     case "toggleDevTools":
       return void web?.showDevTools("toggle");
     case "inspectElements":
@@ -299,17 +303,19 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "toggleMute":
       return page ? (arg === "site" ? toggleSiteMute(page.id) : toggleMute(page.id)) : undefined;
     case "downloads":
+      noteDownloadsPanelToggle(!ui?.downloadsOpen, "command");
       return s.setDownloadsOpen(windowId, !ui?.downloadsOpen);
     case "cast":
       return void toggleCastPicker(windowId, tabId);
     case "showHistory":
-      return openInternalPage("history", windowId);
+      return showHistory(windowId);
     case "clearBrowsingData":
       openInternalPage("history", windowId);
       return requestClearData(windowId);
     case "manageBookmarks":
       return openInternalPage("bookmarks", windowId);
     case "exportBookmarks":
+      if (UNAVAILABLE_COMMANDS.has(command)) return;
       return void exportBookmarksFromWindow(windowId);
     case "bookmarkAllTabs":
       return bookmarkAllTabs(windowId);

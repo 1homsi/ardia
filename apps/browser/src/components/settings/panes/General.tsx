@@ -18,6 +18,9 @@ import { redoSetupFromSettings } from "../../../state/onboarding/redo";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
 import { SetupCodeRow } from "./SetupCodeRow";
 import { UI_LOCALE } from "../../../lib/uiLocale";
+import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { onWindowEvent } from "../../../state/windows/nativeWindow";
 import { keyText } from "../../../state/commands/keyText";
 
 const APP = "Ardia";
@@ -36,9 +39,10 @@ export function GeneralPane() {
       <Group>
         <Row
           anchor="general.openAtLogin"
-          description={loginStatus === "requiresApproval" ? "Allow it in System Settings › General › Login Items." : undefined}
+          description={loginStatus === "requiresApproval" ? `Allow it in ${PLATFORM_TERMS.loginItemsSettings}.` : undefined}
         >
           <Toggle
+            accessibilityLabel={`Open ${APP} at login`}
             value={loginStatus === "enabled" || loginStatus === "requiresApproval"}
             onChange={(on) => void setLaunchAtLogin(on).catch(() => {}).finally(refreshLogin)}
           />
@@ -54,6 +58,7 @@ export function GeneralPane() {
           }
         />
         <SettingToggle anchor="general.littleArdiaOpensNewTabLinks" />
+        <SettingToggle anchor="general.littleWindowGestures" />
       </Group>
 
       <SectionHeader title={`When quitting ${APP}:`} />
@@ -210,7 +215,11 @@ function DefaultBrowserBanner() {
   const [isDefault, reload] = useResource(defaultBrowser);
   useEffect(() => {
     const sub = AppState.addEventListener("change", () => void reload());
-    return () => sub.remove();
+    const focus = onWindowEvent((e) => e.type === "focus" && void reload());
+    return () => {
+      sub.remove();
+      focus.remove();
+    };
   }, []);
   return (
     <Anchor id="general.defaultBrowser" shape="card" style={BANNER}>
@@ -219,7 +228,7 @@ function DefaultBrowserBanner() {
           icon={<Symbol name={isDefault ? "checkmark.seal.fill" : "safari"} size={20} color={isDefault ? theme.success : theme.icon} style={BANNER_ICON} />}
           title={isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
         >
-          {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
+          {!isDefault && <Button title={PLATFORM_FEATURES.setsDefaultBrowser ? `Set ${APP} as Default` : `Choose in ${PLATFORM_TERMS.os} Settings…`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
         </Row>
         <Row anchor="general.redoSetup" icon={<Symbol name="sparkles" size={18} color={theme.icon} style={BANNER_ICON} />} description="Walk through import, look and layout again">
           <Button title="Redo Setup…" onPress={redoSetupFromSettings} />
