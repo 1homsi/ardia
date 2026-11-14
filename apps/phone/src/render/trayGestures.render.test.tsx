@@ -3,6 +3,7 @@ import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-han
 import { act } from "react-test-renderer";
 import { SearchTray } from "../components/search/SearchTray";
 import * as browse from "../state/browse/store";
+import * as search from "../state/search/store";
 import { presentSearch, useSearch } from "../state/search/store";
 import type { TrayRow } from "../state/search/omnibox";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
@@ -58,12 +59,36 @@ describe("the tray's touches", () => {
     jest.useRealTimers();
   });
 
-  test("a tap on a row opens that row", () => {
+  function rowButton(root: ReturnType<typeof openTray>, index: number) {
+    const row = root.root.findAll((node) => node.props.testID === `trayRow:${index}`)[0]!;
+    return row.findAll((node) => typeof node.props.onPress === "function" && typeof node.props.onLongPress === "function")[0]!;
+  }
+
+  test("a plain tap on a row opens that row through its own button, with no gesture recogniser involved", () => {
     const root = openTray();
-    const at = rowCentre(1);
-    gesture("trayRowsTap", [{ state: State.BEGAN, ...at }, { state: State.ACTIVE, ...at }, { state: State.END, ...at }]);
+    act(() => rowButton(root, 1).props.onPress({}));
     expect(activate).toHaveBeenCalledTimes(1);
     expect(activate.mock.calls[0][0]).toBe(rows[1]);
+    unmount(root);
+  });
+
+  test("a tap on a row's refine arrow fills the field with that search instead of opening it", () => {
+    const refine = jest.spyOn(search, "setSearchText").mockImplementation(() => undefined);
+    const root = openTray();
+    const arrow = root.root.findAll((node) => node.props.accessibilityLabel === "Refine otter facts" && typeof node.props.onPress === "function")[0]!;
+    act(() => arrow.props.onPress({}));
+    expect(refine).toHaveBeenCalledWith("otter facts ");
+    expect(activate).not.toHaveBeenCalled();
+    refine.mockRestore();
+    unmount(root);
+  });
+
+  test("holding a row opens its menu and doesn't open the row", () => {
+    const root = openTray();
+    act(() => rowButton(root, 0).props.onLongPress({ nativeEvent: { pageY: 600 } }));
+    const menus = root.root.findAll((node) => Array.isArray(node.props.items) && typeof node.props.onDismiss === "function");
+    expect(menus.flatMap((menu) => menu.props.items.map((item: { label: string }) => item.label))).toContain("Search in Incognito Tab");
+    expect(activate).not.toHaveBeenCalled();
     unmount(root);
   });
 

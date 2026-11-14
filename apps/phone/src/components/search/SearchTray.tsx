@@ -11,7 +11,7 @@ import { initialPresence, presenceSettled, presenceShown, presenceTarget } from 
 import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayDragDismisses, trayDragOffset, trayDragReleasesKeyboard, trayMaxHeight, trayOffset } from "../../lib/trayMotion";
 import { useOnboarding } from "../../state/onboarding/store";
 import { useVoice } from "../../state/voice/store";
-import { idleScrub, releaseRefines, SCRUB, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
+import { idleScrub, SCRUB, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
 import { wholeRowsHeight } from "../../lib/trayRows";
 import { haptics } from "../../state/app/haptics";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
@@ -136,6 +136,18 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     voiceWasUp.current = voice;
   }, [voice, closing]);
 
+  const heightNow = useSharedValue(trayHeight);
+  const bottomNow = useSharedValue(safeBottom);
+  const reducedNow = useSharedValue(reduceMotion);
+  useEffect(() => {
+    heightNow.value = trayHeight;
+    bottomNow.value = safeBottom;
+    reducedNow.value = reduceMotion;
+  }, [trayHeight, safeBottom, reduceMotion]);
+  const settleRef = useRef(settleAfterDrag);
+  settleRef.current = settleAfterDrag;
+  const settleLatest = useCallback(() => settleRef.current(), []);
+
   const dismissDrag = useMemo(
     () =>
       Gesture.Pan()
@@ -151,21 +163,21 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
         .onUpdate((event) => {
           if (!released.value && trayDragReleasesKeyboard(event.translationY)) {
             released.value = true;
-            if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
+            if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, bottomNow.value, hasLanded.value, isClosing.value);
             runOnJS(letKeyboardGo)();
           }
           drag.value = trayDragOffset(event.translationY);
         })
         .onEnd((event) => {
           dragging.value = false;
-          if (trayDragDismisses(event.translationY, event.velocityY, trayHeight)) {
+          if (trayDragDismisses(event.translationY, event.velocityY, heightNow.value)) {
             runOnJS(cancelSearch)();
             return;
           }
-          drag.value = reduceMotion ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(0, trayMotion.settle);
-          runOnJS(settleAfterDrag)();
+          drag.value = reducedNow.value ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(0, trayMotion.settle);
+          runOnJS(settleLatest)();
         }),
-    [closing, trayHeight, safeBottom, reduceMotion],
+    [closing],
   );
 
   useAnimatedReaction(
@@ -466,14 +478,12 @@ type ScrubbedProps = {
 
 function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: ScrubbedProps) {
   const theme = useTrayTheme();
-  const list = useRef<View>(null);
-  const latest = useRef({ rows, onRefine, onMenu });
-  latest.current = { rows, onRefine, onMenu };
+  const latest = useRef({ rows });
+  latest.current = { rows };
+  const measured = useRef<(RowFrame | null)[]>([]);
   const frames = useSharedValue<(RowFrame | null)[]>([]);
-  const refinable = useSharedValue<boolean[]>([]);
   const visible = useSharedValue(budget);
   const scrub = useSharedValue<ScrubState>(idleScrub);
-  const press = useSharedValue(0);
   const menuTaken = useSharedValue(false);
   const drawn = useSharedValue(-1);
   const alpha = useSharedValue(0);
@@ -481,69 +491,49 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
     visible.value = budget;
   }, [budget]);
   useEffect(() => {
-    frames.value = frames.value.slice(0, rows.length);
-    refinable.value = rows.map((row) => row.kind === "query");
+    measured.current = measured.current.slice(0, rows.length);
+    frames.value = [...measured.current];
   }, [rows]);
 
-  const armLongPress = (touch: number) => {
-    setTimeout(() => {
-      const state = scrub.value;
-      if (press.value !== touch || state.scrubbing || state.highlighted < 0) return;
-      const index = state.highlighted;
-      menuTaken.value = true;
-      scrub.value = idleScrub;
-      const row = latest.current.rows[index];
-      const frame = frames.value[index];
-      if (!row || !frame) return;
-      list.current?.measureInWindow((_x, y) => latest.current.onMenu(row, y + frame.bottom));
-    }, tabsMotion.longPress);
-  };
-  const release = (index: number, wasScrubbing: boolean, refine: boolean) => {
+  const release = (index: number) => {
     const row = latest.current.rows[index];
     if (!row) return;
-    if (wasScrubbing) haptics.confirm();
-    if (refine) latest.current.onRefine(row);
-    else activateRow(row);
+    haptics.confirm();
+    activateRow(row);
   };
   const tick = () => haptics.selection();
+  const openMenu = (row: TrayRow, y: number) => {
+    menuTaken.value = true;
+    scrub.value = idleScrub;
+    onMenu(row, y);
+  };
 
-  const gesture = useMemo(() => {
-    const scrubbing = Gesture.Pan()
-      .withTestId("trayRowsScrub")
-      .maxPointers(1)
-      .minDistance(SCRUB.distance)
-      .onBegin((event) => {
-        scrub.value = scrubBegin(frames.value, event.x, event.y, visible.value);
-        menuTaken.value = false;
-        press.value += 1;
-        runOnJS(armLongPress)(press.value);
-      })
-      .onUpdate((event) => {
-        if (menuTaken.value) return;
-        const moved = scrubMove(scrub.value, frames.value, event.x, event.y, visible.value);
-        scrub.value = moved.state;
-        if (moved.ticks) runOnJS(tick)();
-      })
-      .onEnd((event) => {
-        if (menuTaken.value) return;
-        const ended = scrubEnd({ ...scrub.value, scrubbing: true }, frames.value, event.x, event.y, visible.value);
-        if (ended.kind === "activate") runOnJS(release)(ended.index, true, false);
-      })
-      .onFinalize(() => {
-        press.value += 1;
-        scrub.value = idleScrub;
-      });
-    const tapping = Gesture.Tap()
-      .withTestId("trayRowsTap")
-      .maxDistance(SCRUB.distance)
-      .onEnd((event, success) => {
-        if (!success || menuTaken.value) return;
-        const ended = scrubEnd(idleScrub, frames.value, event.x, event.y, visible.value);
-        if (ended.kind !== "activate") return;
-        runOnJS(release)(ended.index, false, releaseRefines(ended, frames.value, event.x, refinable.value[ended.index] ?? false));
-      });
-    return Gesture.Race(scrubbing, tapping);
-  }, []);
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .withTestId("trayRowsScrub")
+        .maxPointers(1)
+        .minDistance(SCRUB.distance)
+        .onBegin((event) => {
+          scrub.value = scrubBegin(frames.value, event.x, event.y, visible.value);
+          menuTaken.value = false;
+        })
+        .onUpdate((event) => {
+          if (menuTaken.value) return;
+          const moved = scrubMove(scrub.value, frames.value, event.x, event.y, visible.value);
+          scrub.value = moved.state;
+          if (moved.ticks) runOnJS(tick)();
+        })
+        .onEnd((event) => {
+          if (menuTaken.value) return;
+          const ended = scrubEnd({ ...scrub.value, scrubbing: true }, frames.value, event.x, event.y, visible.value);
+          if (ended.kind === "activate") runOnJS(release)(ended.index);
+        })
+        .onFinalize(() => {
+          scrub.value = idleScrub;
+        }),
+    [],
+  );
 
   useAnimatedReaction(
     () => scrub.value.highlighted,
@@ -568,7 +558,7 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
 
   return (
     <GestureDetector gesture={gesture}>
-      <View ref={list} testID="trayRowList" style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]} collapsable={false}>
+      <View testID="trayRowList" style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]} collapsable={false}>
         <Animated.View pointerEvents="none" style={[styles.highlight, { backgroundColor: theme.rowHighlight }, highlightStyle]} />
         {rows.map((row, index) => (
           <View
@@ -576,18 +566,18 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
             testID={`trayRow:${index}`}
             onLayout={(event) => {
               const { x, y, width, height } = event.nativeEvent.layout;
-              frames.value = Object.assign([...frames.value], { [index]: { left: x, top: y, right: x + width, bottom: y + height } });
+              measured.current[index] = { left: x, top: y, right: x + width, bottom: y + height };
+              frames.value = [...measured.current];
               onMeasure(index, event.nativeEvent.layout);
             }}
           >
-            <SuggestionRow row={row} typed={typed} roles={theme} interactive={false} menu={trayRowActions(row)} onActivate={activateRow} onRefine={onRefine} onMenu={onMenu} />
+            <SuggestionRow row={row} typed={typed} roles={theme} highlightsPress={false} menu={trayRowActions(row)} onActivate={activateRow} onRefine={onRefine} onMenu={openMenu} />
           </View>
         ))}
       </View>
     </GestureDetector>
   );
 }
-
 
 const styles = StyleSheet.create({
   sheet: {

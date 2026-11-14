@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
-import { browseLayout, Favicon, font, radius, space, Symbol, type ColorRoles, type SymbolName } from "../ui";
+import { browseLayout, Favicon, font, radius, space, Symbol, tabsMotion, type ColorRoles, type SymbolName } from "../ui";
 
 const FAVICON_SIZE = 20;
 
@@ -12,13 +12,14 @@ type Props = {
   typed: string;
   roles: ColorRoles;
   interactive?: boolean;
+  highlightsPress?: boolean;
   menu?: readonly { label: string; run: () => void }[];
   onActivate: (row: TrayRow) => void;
   onRefine: (row: TrayRow) => void;
   onMenu: (row: TrayRow, y: number) => void;
 };
 
-export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, interactive = true, menu = [], onActivate, onRefine, onMenu }: Props) {
+export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, interactive = true, highlightsPress = true, menu = [], onActivate, onRefine, onMenu }: Props) {
   const content = <RowContent row={row} typed={typed} roles={roles} interactive={interactive} onRefine={onRefine} />;
   const menuActions = menu.map((item, index) => ({ name: `${MENU_ACTION}${index}`, label: item.label }));
   const runMenuAction = (name: string) => menu[Number(name.slice(MENU_ACTION.length))]?.run();
@@ -46,9 +47,10 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, in
       accessibilityRole="button"
       onPress={() => onActivate(row)}
       onLongPress={(event) => onMenu(row, event.nativeEvent.pageY)}
+      delayLongPress={tabsMotion.longPress}
       accessibilityActions={menuActions}
       onAccessibilityAction={(event) => runMenuAction(event.nativeEvent.actionName)}
-      style={({ pressed }) => [styles.row, { backgroundColor: pressed ? roles.rowHighlight : undefined }]}
+      style={({ pressed }) => [styles.row, { backgroundColor: pressed && highlightsPress ? roles.rowHighlight : undefined }]}
     >
       {content}
     </Pressable>
