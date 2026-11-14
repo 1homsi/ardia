@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
 import { useSearchFieldVersion, useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
+import { initialPresence, presenceSettled, presenceShown, presenceTarget } from "../../lib/sheetPresence";
+import { keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayMaxHeight, trayOffset } from "../../lib/trayMotion";
 import { wholeRowsHeight } from "../../lib/trayRows";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, trayMotion, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
 
 const LARGE_FONT_SCALE = 1.5;
-import { useBottomLift } from "./useKeyboardHeight";
+import { useTrayKeyboard } from "./useTrayKeyboard";
 
 const SHEET_ABOVE_KEYBOARD = 274;
+
 
 function useTrayTheme() {
   const base = useTheme();
@@ -27,14 +30,47 @@ function useTrayTheme() {
 
 export function SearchTray() {
   const open = useSearchOpen();
-  const origin = useSearchOrigin();
   const session = useSearchSession();
+  const target = open ? session : null;
+  const presence = useRef(initialPresence<number>(target));
+  const [presentation, setPresentation] = useState(0);
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const wasClosing = presence.current.target === null && presence.current.mounted !== null;
+    const step = presenceTarget(presence.current, target);
+    presence.current = step.presence;
+    if (step.motion === "in" && (step.fromHidden || wasClosing)) setPresentation((count) => count + 1);
+  }, [target]);
+  const shown = target ?? presenceShown(presence.current);
+  if (shown === null) return null;
+  const generation = presence.current.generation;
+  const closed = (finished: number) => {
+    const next = presenceSettled(presence.current, finished, true);
+    if (next === presence.current) return;
+    presence.current = next;
+    redraw((count) => count + 1);
+  };
+  return <TrayLayer key={presentation} session={shown} closing={target === null} generation={generation} onClosed={closed} />;
+}
+
+type LayerProps = { session: number; closing: boolean; generation: number; onClosed: (generation: number) => void };
+
+function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
+  const origin = useSearchOrigin();
   const theme = useTrayTheme();
   const incognito = useIncognito();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
-  const { lift } = useBottomLift();
-  const rise = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
+  const keyboard = useTrayKeyboard();
+  const landing = useSharedValue(0);
+  const hasLanded = useSharedValue(false);
+  const isClosing = useSharedValue(closing);
+  const dim = useSharedValue(0);
+  const safeBottom = insets.bottom;
+  const preferred = SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
+  const trayHeight = trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s);
+  const extend = window.height;
   const closeOnTouch = useMemo(
     () =>
       Gesture.Manual().onTouchesDown((_event, manager) => {
@@ -45,46 +81,106 @@ export function SearchTray() {
   );
 
   useEffect(() => {
-    rise.setValue(0);
-    if (open) Animated.spring(rise, { toValue: 1, ...springs.searchRise, useNativeDriver: true }).start();
-  }, [open, rise, session]);
+    if (closing) return;
+    isClosing.value = false;
+    const progress = keyboardProgress(keyboard.height.value, keyboard.full.value, 0);
+    const landed = keyboardIsUp(keyboard.height.value) && progress >= TRAY_LIFT.landedProgress;
+    hasLanded.value = landed;
+    landing.value = landed ? 1 : 0;
+    const land = setTimeout(() => {
+      if (isClosing.value || hasLanded.value) return;
+      hasLanded.value = true;
+      landing.value = reduceMotion ? withTiming(1, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(1, springs.searchRise);
+    }, TRAY_LIFT.landingDelayMs);
+    return () => clearTimeout(land);
+  }, [session, closing]);
 
-  if (!open) return null;
-  const height = Math.max(Math.min(SHEET_ABOVE_KEYBOARD, window.height - lift - space.s - insets.top), 0);
-  const travel = height + radius.sheet + lift;
+  useEffect(() => {
+    if (!closing) return;
+    isClosing.value = true;
+    Keyboard.dismiss();
+    const followsKeyboard = keyboardIsUp(keyboard.height.value);
+    landing.value = followsKeyboard
+      ? 0
+      : reduceMotion
+        ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeInOut })
+        : withSpring(0, trayMotion.dismiss);
+    let live = true;
+    void (async () => {
+      for (let polls = 0; polls < TRAY_LIFT.closePolls && keyboardIsUp(keyboard.height.value); polls++) await wait(TRAY_LIFT.closePollMs);
+      await wait(TRAY_LIFT.removalDelayMs);
+      if (live) onClosed(generation);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [closing]);
+
+  useAnimatedReaction(
+    () => keyboardProgress(keyboard.height.value, keyboard.full.value, 0),
+    (progress) => {
+      if (isClosing.value || hasLanded.value || progress < TRAY_LIFT.landedProgress) return;
+      hasLanded.value = true;
+      landing.value = 1;
+    },
+  );
+
+  useAnimatedReaction(
+    () => keyboardIsUp(keyboard.height.value) || (!isClosing.value && hasLanded.value),
+    (up, was) => {
+      if (up === was) return;
+      dim.value = withTiming(up ? 1 : 0, { duration: reduceMotion ? trayMotion.reduced : trayMotion.dim, easing: reduceMotion ? tabsCurve.easeOut : tabsCurve.easeInOut });
+    },
+  );
+
+  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
+  const trayStyle = useAnimatedStyle(() => {
+    const lift = liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
+    const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
+    return {
+      opacity: reduceMotion ? dim.value : 1,
+      transform: [{ translateY: trayOffset(lift, 0, rise, trayHeight, radius.sheet) }],
+    };
+  }, [trayHeight, safeBottom, reduceMotion]);
+
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <GestureDetector gesture={closeOnTouch}>
-        <Pressable
-          accessibilityLabel="Close Search"
-          accessibilityRole="button"
-          onPress={cancelSearch}
-          style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
-        />
-      </GestureDetector>
+    <View style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"}>
+      <Animated.View style={[StyleSheet.absoluteFill, dimStyle]}>
+        <GestureDetector gesture={closeOnTouch}>
+          <Pressable
+            accessibilityLabel="Close Search"
+            accessibilityRole="button"
+            onPress={cancelSearch}
+            style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
+          />
+        </GestureDetector>
+      </Animated.View>
       <Animated.View
         style={[
           styles.sheet,
           {
-            bottom: 0,
-            height: height + lift,
-            paddingBottom: lift,
+            bottom: -extend,
+            height: trayHeight + extend,
             backgroundColor: incognito ? theme.surface : ink.clear,
             shadowColor: theme.trayShadow,
             shadowOpacity: trayShadow.opacity,
             shadowRadius: trayShadow.radius,
             shadowOffset: { width: 0, height: trayShadow.offsetY },
-            transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [travel, 0] }) }],
           },
+          trayStyle,
         ]}
       >
-        {incognito ? null : <LookFrost source={SURFACES_FROST} variant="sheet" cornerRadius={radius.sheet} fill={theme.surface} style={styles.frost} />}
-        <TrayField key={session} />
-        <TrayRows />
+        {incognito ? null : <LookFrost source={SURFACES_FROST} variant="sheet" cornerRadius={radius.sheet} fill={theme.surface} style={StyleSheet.absoluteFill} />}
+        <View style={{ height: trayHeight }}>
+          <TrayField key={session} />
+          <TrayRows />
+        </View>
       </Animated.View>
     </View>
   );
 }
+
+const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 function TrayField() {
   const version = useSearchFieldVersion();
@@ -246,7 +342,6 @@ const styles = StyleSheet.create({
     elevation: trayShadow.elevation,
     overflow: "hidden",
   },
-  frost: { position: "absolute", top: 0, left: 0, right: 0, bottom: -radius.sheet },
   fieldArea: { paddingHorizontal: browseLayout.searchFieldInset, paddingTop: browseLayout.trayFieldTop, paddingBottom: space.s },
   field: {
     minHeight: browseLayout.searchFieldHeight,

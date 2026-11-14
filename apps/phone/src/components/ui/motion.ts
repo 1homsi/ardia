@@ -36,6 +36,14 @@ export const tabsMotion = {
   barCollapseReduced: 200,
 } as const;
 
+export const trayMotion = {
+  settle: spring(0.34, 0.86),
+  dismiss: spring(0.32, 1),
+  press: spring(0.2, 0.7),
+  dim: 300,
+  reduced: 200,
+} as const;
+
 export const tabsCurve = { easeOut: WorkletEasing.bezier(0, 0, 0.58, 1), easeInOut: WorkletEasing.bezier(0.42, 0, 0.58, 1) } as const;
 
 export const springs = {
