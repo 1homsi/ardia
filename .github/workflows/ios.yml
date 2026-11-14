@@ -77,7 +77,7 @@ jobs:
           COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$SCRATCH/cas" -quiet build
       - name: Size of the compile cache
         run: du -sh "$SCRATCH/cas"
-      - if: steps.cas.outputs.cache-hit != 'true'
+      - if: github.event_name == 'push' && steps.cas.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .ci/cas
