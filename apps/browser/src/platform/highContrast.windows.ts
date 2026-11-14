@@ -1,8 +1,8 @@
-import { requireNativeModule } from "expo-modules-core";
+import { requireNativeModule, type EventSubscription } from "expo-modules-core";
 
 type HighContrastShell = {
   isHighContrast?: () => Promise<boolean>;
-  addListener?: (eventName: "onAppEvent", listener: (event: { type?: string; on?: unknown } | null) => void) => { remove(): void };
+  addListener?: (eventName: "onAppEvent", listener: (event: { type?: string; on?: unknown } | null) => void) => EventSubscription;
 };
 
 const shell = () => requireNativeModule<HighContrastShell>("ArdiaShell");
