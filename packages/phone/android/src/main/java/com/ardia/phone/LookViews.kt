@@ -442,6 +442,11 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
         recorder = null
     }
 
+    internal fun release() {
+        stopRecording()
+        invalidate()
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
 
@@ -791,5 +796,27 @@ internal object LookMemory {
         DeckBackdrops.all().filter { !it.isShown }.forEach { it.forgetPaint() }
         LookPaint.forgetCaches()
         return "look trimmed: dropped ${hidden.size} hidden frost layer(s) and the look's paint caches"
+    }
+
+    fun releaseAll(): String {
+        val before = counts()
+        FrostSources.frosts().forEach {
+            it.forgetLayer()
+            it.invalidate()
+        }
+        FrostSources.allSources().forEach { it.release() }
+        DeckBackdrops.all().forEach {
+            it.forgetPaint()
+            it.invalidate()
+        }
+        LookPaint.forgetCaches()
+        return "look released for the hidden app: ${before.holdingLayers} frost layer(s) (about ${"%.1f".format(before.layerBytes / MB)} MB), " +
+            "${before.recording} source recording(s), the deck paint and caches; all are rebuilt when the app is seen again"
+    }
+
+    fun release(level: Int): String = when {
+        level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> releaseAll()
+        ImageMemory.clearsOn(level) -> trim()
+        else -> "look kept"
     }
 }

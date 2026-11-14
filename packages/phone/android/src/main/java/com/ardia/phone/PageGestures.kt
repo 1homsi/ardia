@@ -384,11 +384,14 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         current.reload()
         animate(pull, PullToRefreshRules.HOLD_DP, PULL_MILLIS, ::showPull) {
             settle = scope.launch {
-                withTimeoutOrNull(PullToRefreshRules.TIMEOUT_MILLIS) {
-                    current.state.first { it.isLoading }
-                    current.state.first { !it.isLoading }
+                try {
+                    withTimeoutOrNull(PullToRefreshRules.TIMEOUT_MILLIS) {
+                        current.state.first { it.isLoading }
+                        current.state.first { !it.isLoading }
+                    }
+                } finally {
+                    indicator.refreshing = false
                 }
-                indicator.refreshing = false
                 animate(pull, 0f, PULL_MILLIS, ::showPull) { reset() }
             }
         }
@@ -482,6 +485,13 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         init {
             visibility = INVISIBLE
             contentDescription = context.getString(com.ardia.browser.R.string.phone_reloading)
+        }
+
+        internal val isSpinning: Boolean get() = spin?.isRunning == true
+
+        override fun onVisibilityChanged(changedView: View, visibility: Int) {
+            super.onVisibilityChanged(changedView, visibility)
+            if (refreshing && !isShown) spin?.pause() else if (refreshing) spin?.resume()
         }
 
         override fun onDraw(canvas: Canvas) {

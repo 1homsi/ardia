@@ -51,10 +51,12 @@ object ImageMemory {
         watching = true
         context.applicationContext.registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
-                if (!clearsOn(level)) return
-                clear()
-                val trimmed = LookMemory.trim()
-                if (PhoneLab.isOn) Log.i("PAGELAB", "PAGELAB memory trim level $level: image cache cleared; $trimmed")
+                val cleared = clearsOn(level)
+                if (cleared) clear()
+                val look = LookMemory.release(level)
+                if (PhoneLab.isOn) {
+                    Log.i("PAGELAB", "PAGELAB memory trim received: level $level (${levelName(level)}); ${if (cleared) "image cache cleared" else "image cache kept"}; $look")
+                }
             }
 
             override fun onConfigurationChanged(newConfig: Configuration) = Unit
@@ -62,6 +64,17 @@ object ImageMemory {
             @Deprecated("Deprecated in Android")
             override fun onLowMemory() = clear()
         })
+    }
+
+    fun levelName(level: Int): String = when (level) {
+        ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE -> "RUNNING_MODERATE"
+        ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> "RUNNING_LOW"
+        ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> "RUNNING_CRITICAL"
+        ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> "UI_HIDDEN"
+        ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> "BACKGROUND"
+        ComponentCallbacks2.TRIM_MEMORY_MODERATE -> "MODERATE"
+        ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> "COMPLETE"
+        else -> "unknown"
     }
 
     fun line(context: Context, livePages: Int): String {

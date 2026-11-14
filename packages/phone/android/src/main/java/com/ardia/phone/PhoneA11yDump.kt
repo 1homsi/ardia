@@ -16,6 +16,7 @@ object PhoneA11yDump {
     const val ACTION = "com.ardia.phone.A11Y_DUMP"
     const val MEMORY_ACTION = "com.ardia.phone.MEMORY"
     const val TRIM_ACTION = "com.ardia.phone.TRIM"
+    const val FRAMES_ACTION = "com.ardia.phone.FRAMES"
     private const val TAG = "PAGELAB"
     private const val PREFIX = "PAGELAB a11y "
 
@@ -51,6 +52,16 @@ object PhoneA11yDump {
                         Log.i(TAG, "PAGELAB memory: image cache cleared as on a trim")
                         ImageMemory.log(context, PhonePages.livePageIds().size)
                     }
+                    FRAMES_ACTION -> {
+                        val seconds = intent.getIntExtra("seconds", 5).coerceIn(1, 30)
+                        val shown = activity()
+                        if (shown == null) {
+                            Log.i(TAG, "PAGELAB idle frames: no activity in front")
+                        } else {
+                            Log.i(TAG, "PAGELAB idle frames: tracing $seconds s; leave the phone alone")
+                            FrameTrace.trace(shown, seconds * 1000L) { result -> Log.i(TAG, FrameTrace.line(result)) }
+                        }
+                    }
                     else -> dump(activity())
                 }
             }
@@ -58,6 +69,7 @@ object PhoneA11yDump {
         val filter = IntentFilter(ACTION).apply {
             addAction(MEMORY_ACTION)
             addAction(TRIM_ACTION)
+            addAction(FRAMES_ACTION)
         }
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
         registered = context to receiver

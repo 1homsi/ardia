@@ -436,6 +436,21 @@ off in the lab`.
     are fills, and the Memory line says 0 recording, 0 layers, 0 animating. On the F4 the same, expecting
     `within`. Then in the lab: Budget: force degraded, force-stop, reopen (still and solid), Budget: measured,
     Budget: reset. Turn on Remove animations and check the deck stands still whatever the lab's verdict says.
+52. **An idle app draws nothing** (sync11's look-off deck drew 1825 frames in 30 s with nothing changing). With the
+    deck open and untouched, run `adb shell am broadcast -a com.ardia.phone.FRAMES -p com.ardia.browser.android
+    --ei seconds 5` and keep hands off for 5 s. Logcat (`-s PAGELAB`) has `PAGELAB idle frames: N frame(s) drawn in
+    5.0 s, … draw pass(es), … layout pass(es), … with no view redrawn; redrawn: <view> xN, …`, naming the deepest
+    views that were redrawn and how often. Do it with the look off (expected: 0 frames, nothing redrawn), with the
+    look on (expected: the deck backdrop at its paced rate, about 25 a second, and nothing else), and on a page
+    left still. Report every line; any view other than the deck backdrop, or any layout passes, is the leak to
+    chase.
+53. **The look lets go when the app is hidden.** Look on, nine tabs, tap Memory (step 37) and note the look part
+    (`… frost(s) holding a blur layer, about X MB …`). Press Home, then
+    `adb shell am send-trim-memory com.ardia.browser.android HIDDEN` (this Android's name for UI_HIDDEN). Logcat
+    has `PAGELAB memory trim received: level 20 (UI_HIDDEN); …; look released for the hidden app: N frost
+    layer(s) …`; every trim the app receives now logs one such line, whatever its level, so a missing line means
+    the app never got it. Come back and tap Memory: graphics should be near the look-off figure until the deck is
+    shown again. Report the graphics figure after Home with the look on and off.
 
 ## Upgrade from the Compose app on Android
 
