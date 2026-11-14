@@ -38,7 +38,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | First launch after the installer | Works: onboarding, no release notes | #1517 |
 | First launch with a link | Works: the link opens in a Little Ardia window in front, onboarding waits in the main window behind it | |
 | Onboarding (main's walk-through, #1762) | Works (72901e27a): eight steps (source, layout, tabs, look, search and privacy, pins, default browser, outro), Edge found on this PC, Windows wording, Ctrl+T, Ctrl+L and Ctrl+S key caps, no Dock card or trial, no app icon row; Skip on every step; Get Started and Take the Tour. Gaps: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812); the default-browser hand-off to Windows Settings wasn't seen (the VM's default is already Ardia) | #1812 |
-| Intro animation and music | Differs: the Mac's meadow page is built to run as an engine page in a private session of the original profile, drawing the icon, wordmark, tagline, Skip and Mute itself from the app's values (#1737). In the VM (#1737's build 72901e27a, engine `windows-engine-20261113-21`) WebGL is unavailable (`ardia://gpu`: software compositing only, and the engine is built without SwiftShader), so every one of 14 launches fell back to the dawn poster within about 0.4 s and the intro and onboarding went on; at night the fallback is the plain dark background. The page left nothing in the data folder, and quitting during the intro didn't crash. The animated scene is unproven on Windows until a machine with a GPU runs it; music not checked (the VM has no audio out) | #1547, #1546, #1249 |
+| Intro animation and music | Differs: the dawn poster stands in for the animated meadow, then hands over to onboarding; at night it is the plain dark background. Seen on #1737's build 72901e27a, where the meadow page is built but WebGL is unavailable in the VM (`ardia://gpu`: software compositing only, and the engine has no SwiftShader), so all 14 launches fell back to the poster within about 0.4 s; the animated scene hasn't drawn on any Windows machine yet. Music not checked (the VM has no audio out) | #1547, #1546, #1737, #1249 |
 | Tour | Works (d83398e1f): Take the Tour shows five stops (search, tabs in the sidebar, room to focus, two pages side by side, all set) with Back, Next and Skip Tour; Done ends it | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
 | Check for updates | Differs: Check Now says "No Windows update published yet" and names the build (0.2.47-nightly.1, Windows alpha 290) | #1517 |
@@ -965,8 +965,8 @@ App side, an agent can do these now:
 5. The app's own page, link and image menus instead of Chromium's (#1518). M.
 6. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
    needs). M each once the engine reports them.
-7. The intro's animated meadow is built (#1737) but unproven on Windows: the VM has no GPU and falls back to the
-   poster. S, a run on a machine with a GPU.
+7. The intro's animated meadow (#1737) hasn't drawn on any Windows machine: the VM has no GPU and the engine no
+   SwiftShader, so it falls back to the poster. S once a software or real GPU path is proven.
 8. Quitting with a file picker open waits 2 s and leaves the dialog's thread running (#1747). S.
 9. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 
