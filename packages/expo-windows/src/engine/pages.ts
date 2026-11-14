@@ -327,10 +327,10 @@ function closePage(page: Page) {
   closings.set(page.key, closing);
 }
 
-export function showPage(key: string, visible: boolean, shape: PageShape | null) {
+export function showPage(key: string, visible: boolean, shape: PageShape | null): boolean {
   const page = pages.get(key);
-  if (!page || page.closed) return noteShowStep(key, page ? "showPage: closed" : "showPage: no page");
-  askShow(page, visible && shape ? { key, visible: true, ...shape } : { key, visible: false });
+  if (!page || page.closed) return (noteShowStep(key, page ? "showPage: closed" : "showPage: no page"), false);
+  return (askShow(page, visible && shape ? { key, visible: true, ...shape } : { key, visible: false }), true);
 }
 
 const REOPENING_METHODS = new Set(["loadUrl", "reload", "forceReload"]);

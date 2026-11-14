@@ -122,9 +122,9 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
           };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return noteShowStep(key, "place: deduped");
+      if (!showPage(key, true, shape)) return noteShowStep(key, `place: not taken ${width}x${height}`);
       noteShowStep(key, `place: show ${width}x${height}`);
       shown.current = { visible: true, placed, shows: shown.current.shows + 1 };
-      showPage(key, true, shape);
     });
   }, [key, windowId]);
 
