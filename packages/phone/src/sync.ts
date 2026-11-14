@@ -34,6 +34,8 @@ export type ConnectResult =
   | { result: "busy" }
   | { result: "cancelled" };
 
+export type SyncFolderPick = { folder: string; name: string };
+
 export type SyncedDevice = { id: string; name: string; kind: "mac" | "phone" | string; lastSeen: number | null; isCurrent: boolean; canReceiveTabs: boolean };
 
 export type RemoteTab = { url: string; title: string };
@@ -98,6 +100,9 @@ type SyncNative = {
   incoming(): Promise<ReceivedTab[]>;
   check(phrase: string): PhraseCheck;
   connect(phrase: string): Promise<ConnectResult>;
+  pickFolder?(): Promise<SyncFolderPick | null>;
+  connectWithFolder?(phrase: string, folder: string): Promise<ConnectResult>;
+  forgetFolder?(folder: string): Promise<void>;
   changeFolder(): Promise<ConnectResult>;
   stopSyncing(): Promise<void>;
   acknowledgeReset(): Promise<void>;
@@ -121,7 +126,13 @@ export const sync = {
   view: () => native().view(),
   incoming: () => native().incoming(),
   check: (phrase: string) => native().check(phrase),
-  connect: (phrase: string) => native().connect(phrase),
+  canPickFolderFirst: (): boolean => typeof native().pickFolder === "function" && typeof native().connectWithFolder === "function",
+  pickFolder: async (): Promise<SyncFolderPick | null> => (native().pickFolder ? native().pickFolder!() : null),
+  connect: (phrase: string, folder?: SyncFolderPick | null): Promise<ConnectResult> =>
+    folder && native().connectWithFolder ? native().connectWithFolder!(phrase, folder.folder) : native().connect(phrase),
+  forgetFolder: async (folder: SyncFolderPick): Promise<void> => {
+    await native().forgetFolder?.(folder.folder);
+  },
   changeFolder: () => native().changeFolder(),
   stopSyncing: () => native().stopSyncing(),
   acknowledgeReset: () => native().acknowledgeReset(),

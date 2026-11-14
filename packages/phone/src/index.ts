@@ -16,10 +16,13 @@ export {
   type LegacyVisitPage,
 } from "./legacy";
 export { closePage, PageView } from "./PageView";
-export { pages } from "./pages";
+export { pages, type LaunchArgumentValue, type LaunchOptions } from "./pages";
+export { keyboard, type KeyboardDidChange, type KeyboardWillChange } from "./keyboard";
+export { CompletingField, completingFieldIsNative, type CompletingFieldHandle, type CompletingFieldProps, type CompletionOffer } from "./completingField";
+export { ScrollActions, type ScrollActionDirection, type ScrollActionsProps } from "./accessibility";
 export { sync } from "./sync";
 export { syncLab, type SyncRuntimeCheck } from "./syncLab";
-export { system, systemLab, type SystemLink, type SystemLinkSource } from "./system";
+export { restorableState, system, systemLab, type SystemLink, type SystemLinkSource } from "./system";
 export { scanLab, scanner, ScanView, type ScanError, type ScanPermission, type ScanViewProps } from "./scan";
 export { clipboard, type ClipboardOffer } from "./clipboard";
 export {
@@ -57,6 +60,7 @@ export type {
   RemoteTab,
   SyncAttention,
   SyncedDevice,
+  SyncFolderPick,
   SyncedHistoryItem,
   SyncedProfile,
   SyncedSearch,

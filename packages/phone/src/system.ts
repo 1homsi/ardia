@@ -20,6 +20,8 @@ type SystemNative = {
   initialLink(): Promise<NativeLink | null>;
   setHidesFromRecents?(hidden: boolean): Promise<boolean>;
   processStartedAt?(): number;
+  restoredValue?(key: string): string | null;
+  setRestorableValue?(key: string, value: string | null): void;
   labMemory?(): string | null;
   labTrim?(): string | null;
 };
@@ -37,6 +39,17 @@ export const system = {
   setHidesFromRecents: async (hidden: boolean): Promise<boolean> => (native?.setHidesFromRecents ? native.setHidesFromRecents(hidden) : false),
   addLinkListener: (listener: (link: SystemLink) => void): Subscription =>
     native ? native.addListener("onSystemLink", (link) => listener(normalize(link))) : { remove() {} },
+};
+
+const remembered = new Map<string, string>();
+
+export const restorableState = {
+  get: (key: string): string | null => native?.restoredValue?.(key) ?? remembered.get(key) ?? null,
+  set: (key: string, value: string | null) => {
+    if (value === null) remembered.delete(key);
+    else remembered.set(key, value);
+    native?.setRestorableValue?.(key, value);
+  },
 };
 
 export const systemLab = {
