@@ -6,8 +6,11 @@ export type MenuSite = { host: string | null; nightShade: NightShadeMode; blocke
 
 export type Press = { tabId: string; target: PressTarget; x: number; y: number };
 
+export type MenuPage = "main" | "siteSettings";
+
 type PageUi = {
   menuOpen: boolean;
+  menuPage: MenuPage;
   menuSite: MenuSite | null;
   titleFeedback: string | null;
   findOpen: boolean;
@@ -19,6 +22,7 @@ type PageUi = {
 
 export const usePageUi = create<PageUi>()(() => ({
   menuOpen: false,
+  menuPage: "main",
   menuSite: null,
   titleFeedback: null,
   findOpen: false,

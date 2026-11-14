@@ -17,7 +17,7 @@ import { findTab } from "../tabs/tabsState";
 import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from "./pageMenu";
 import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressPlan, type PressAction, type Request } from "./pagePrompts";
 import { onboardingBack } from "../onboarding/store";
-import { openSettings, popSettings } from "../settings/nav";
+import { openSettings, popSettings, type SettingsRoute } from "../settings/nav";
 import { pinToMac, sendTab } from "../sync/actions";
 import type { SyncedDevice } from "../../platform/sync";
 import { pageUi, usePageUi, type Press } from "./store";
@@ -47,7 +47,7 @@ const hostOf = (url: string | null) => (url ? display(url).host || null : null);
 export async function openPageMenu() {
   const tab = selectedTab();
   if (!tab) return;
-  usePageUi.setState({ menuOpen: true, titleFeedback: null, menuSite: null });
+  usePageUi.setState({ menuOpen: true, menuPage: "main", titleFeedback: null, menuSite: null });
   const url = usePages.getState().navigation[tab.id]?.url ?? tab.url;
   const host = hostOf(url);
   const [shade, blockers, capabilities] = await Promise.all([
@@ -84,9 +84,13 @@ export function sendCurrentTab(device: SyncedDevice) {
   if (tab) void sendTab(tab, device);
 }
 
-export function openSiteSettings() {
+export const openSiteSettings = () => usePageUi.setState({ menuPage: "siteSettings" });
+
+export const closeMenuSubpage = () => usePageUi.setState({ menuPage: "main" });
+
+export function openSiteSettingsRoute(route: SettingsRoute) {
   closePageMenu();
-  openSettings({ page: "siteSettings" });
+  openSettings(route);
 }
 
 const withPage = (run: (id: string) => Promise<unknown>) => {
@@ -356,6 +360,7 @@ export function handleSystemBack(): boolean {
     hasPressMenu: ui.press !== null,
     isReading: ui.readerTabId !== null,
     isMenuOpen: ui.menuOpen,
+    isOnMenuSubpage: ui.menuPage !== "main",
     isFinding: ui.findOpen,
     canGoBack: surface === "browsing" && Boolean(id && usePages.getState().navigation[id]?.canGoBack),
     hasTab: surface === "browsing" && id !== null,
@@ -377,6 +382,9 @@ export function handleSystemBack(): boolean {
       return true;
     case "reader":
       closeReader();
+      return true;
+    case "menuSubpage":
+      closeMenuSubpage();
       return true;
     case "menu":
       closePageMenu();

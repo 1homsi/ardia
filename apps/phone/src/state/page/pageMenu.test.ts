@@ -157,6 +157,7 @@ const back = (extra: Partial<BackState>): BackState => ({
   hasPressMenu: false,
   isReading: false,
   isMenuOpen: false,
+  isOnMenuSubpage: false,
   isFinding: false,
   canGoBack: false,
   hasTab: true,
@@ -167,6 +168,8 @@ test("system back closes the topmost layer first", () => {
   assert.equal(backLayer(back({ isSearching: true, isFinding: true, canGoBack: true })), "tray");
   assert.equal(backLayer(back({ isReading: true, isMenuOpen: true })), "reader");
   assert.equal(backLayer(back({ isMenuOpen: true, isFinding: true })), "menu");
+  assert.equal(backLayer(back({ isMenuOpen: true, isOnMenuSubpage: true })), "menuSubpage");
+  assert.equal(backLayer(back({ isMenuOpen: false, isOnMenuSubpage: true, canGoBack: true })), "pageHistory");
   assert.equal(backLayer(back({ isFinding: true, canGoBack: true })), "find");
   assert.equal(backLayer(back({ canGoBack: true })), "pageHistory");
   assert.equal(backLayer(back({})), "deck");

@@ -147,7 +147,7 @@ export const PRESS_TITLES: Record<PressAction, string> = {
   saveImage: "Save Image",
 };
 
-export type BackLayer = "fullscreen" | "request" | "tray" | "pressMenu" | "reader" | "menu" | "find" | "pageHistory" | "deck";
+export type BackLayer = "fullscreen" | "request" | "tray" | "pressMenu" | "reader" | "menuSubpage" | "menu" | "find" | "pageHistory" | "deck";
 
 export type BackState = {
   isFullscreen: boolean;
@@ -156,6 +156,7 @@ export type BackState = {
   hasPressMenu: boolean;
   isReading: boolean;
   isMenuOpen: boolean;
+  isOnMenuSubpage: boolean;
   isFinding: boolean;
   canGoBack: boolean;
   hasTab: boolean;
@@ -167,6 +168,7 @@ export function backLayer(state: BackState): BackLayer | null {
   if (state.isSearching) return "tray";
   if (state.hasPressMenu) return "pressMenu";
   if (state.isReading) return "reader";
+  if (state.isMenuOpen && state.isOnMenuSubpage) return "menuSubpage";
   if (state.isMenuOpen) return "menu";
   if (state.isFinding) return "find";
   if (state.canGoBack) return "pageHistory";

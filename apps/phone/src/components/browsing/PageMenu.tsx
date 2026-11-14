@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, LayoutAnimationConfig } from "react-native-reanimated";
 import { copy } from "../../lib/platformCopy";
 import {
+  closeMenuSubpage,
   closePageMenu,
   copyCurrentLink,
   editPageQuery,
@@ -15,6 +16,7 @@ import {
   pinCurrentToMac,
   sendCurrentTab,
   openSiteSettings,
+  openSiteSettingsRoute,
   setBlockersOn,
   setDesktopSite,
   setNightShadeOn,
@@ -25,7 +27,9 @@ import {
   zoomIn,
   zoomOut,
 } from "../../state/page/actions";
-import { useMenuModel, useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
+import type { MenuModel } from "../../state/page/pageMenu";
+import { useMenuModel, useMenuPage, useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
+import { SiteSettingsGroups } from "../settings/SitePages";
 import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
 import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, tabsMotion, Toggle, useTheme, type SymbolName } from "../ui";
@@ -33,6 +37,7 @@ import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, She
 export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boolean; onHidden: () => void }) {
   const model = useMenuModel(tabId);
   const [confirmsTranslation, setConfirmsTranslation] = useState(false);
+  const page = useMenuPage();
   return (
     <Sheet open={open} onDismiss={closePageMenu} onHidden={onHidden}>
       {confirmsTranslation ? (
@@ -41,49 +46,75 @@ export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boole
           onClose={() => setConfirmsTranslation(false)}
         />
       ) : null}
-      <ScrollView contentContainerStyle={styles.column} bounces={false}>
-        <NavigationCapsule tabId={tabId} />
-        <View style={styles.tiles}>
-          <Tile icon="docPlaintext" title="Reader" enabled={model.tiles} onPress={showReader} />
-          <Tile icon="link" title="Copy Link" enabled={model.tiles} onPress={copyCurrentLink} />
-          <Tile icon="squareAndArrowUp" title="Share" enabled={model.tiles} onPress={shareCurrentPage} />
-        </View>
-        <Group>
-          <Row icon="textMagnifyingglass" title="Find on Page" enabled={model.find} divider={model.pageRows} onPress={showFind} />
-          {model.pageRows ? <SendRow tabId={tabId} enabled={model.isWebPage} /> : null}
-          {model.pageRows ? <Row icon="translate" title="Translate" enabled={model.translate} divider={false} onPress={() => setConfirmsTranslation(true)} /> : null}
-        </Group>
-        {model.pageRows ? (
-          <>
-            <Group>
-              <ToggleRow
-                icon={model.nightShadeOn ? "moonFill" : "moon"}
-                title="Night Shade"
-                value={model.nightShadeOn}
-                enabled={model.isWebPage}
-                onChange={setNightShadeOn}
-              />
-              <ZoomRow percent={model.zoomPercent} canZoomOut={model.zoomOut} canZoomIn={model.zoomIn} enabled={model.isWebPage} />
-              <ToggleRow icon="desktop" title="Desktop Site" value={model.desktopSite} enabled={model.isWebPage} divider={false} onChange={setDesktopSite} />
-            </Group>
-            <Group>
-              <ToggleRow
-                icon={model.blockersEnabled ? "handRaised" : "handRaisedSlash"}
-                title="Block Ads and Trackers"
-                value={model.blockersEnabled}
-                enabled={model.isWebPage}
-                detail={model.blockedCount}
-                onChange={setBlockersOn}
-              />
-              <Row icon="gearshape" title="Site Settings" enabled divider={model.offersDefaultBrowser} onPress={openSiteSettings} />
-              {model.offersDefaultBrowser ? (
-                <Row icon="safariFill" title="Open in Default Browser" enabled={model.isWebPage} divider={false} onPress={openInDefaultBrowser} />
-              ) : null}
-            </Group>
-          </>
-        ) : null}
-      </ScrollView>
+      <LayoutAnimationConfig skipEntering>
+        <Animated.View key={page} entering={FadeIn.duration(tabsMotion.surfaceFade)} exiting={FadeOut.duration(tabsMotion.surfaceFade)}>
+          {page === "siteSettings" ? <MenuSiteSettings /> : <MenuMain tabId={tabId} model={model} onTranslate={() => setConfirmsTranslation(true)} />}
+        </Animated.View>
+      </LayoutAnimationConfig>
     </Sheet>
+  );
+}
+
+function MenuMain({ tabId, model, onTranslate }: { tabId: string; model: MenuModel; onTranslate: () => void }) {
+  return (
+    <ScrollView contentContainerStyle={styles.column} bounces={false}>
+      <NavigationCapsule tabId={tabId} />
+      <View style={styles.tiles}>
+        <Tile icon="docPlaintext" title="Reader" enabled={model.tiles} onPress={showReader} />
+        <Tile icon="link" title="Copy Link" enabled={model.tiles} onPress={copyCurrentLink} />
+        <Tile icon="squareAndArrowUp" title="Share" enabled={model.tiles} onPress={shareCurrentPage} />
+      </View>
+      <Group>
+        <Row icon="textMagnifyingglass" title="Find on Page" enabled={model.find} divider={model.pageRows} onPress={showFind} />
+        {model.pageRows ? <SendRow tabId={tabId} enabled={model.isWebPage} /> : null}
+        {model.pageRows ? <Row icon="translate" title="Translate" enabled={model.translate} divider={false} onPress={onTranslate} /> : null}
+      </Group>
+      {model.pageRows ? (
+        <>
+          <Group>
+            <ToggleRow
+              icon={model.nightShadeOn ? "moonFill" : "moon"}
+              title="Night Shade"
+              value={model.nightShadeOn}
+              enabled={model.isWebPage}
+              onChange={setNightShadeOn}
+            />
+            <ZoomRow percent={model.zoomPercent} canZoomOut={model.zoomOut} canZoomIn={model.zoomIn} enabled={model.isWebPage} />
+            <ToggleRow icon="desktop" title="Desktop Site" value={model.desktopSite} enabled={model.isWebPage} divider={false} onChange={setDesktopSite} />
+          </Group>
+          <Group>
+            <ToggleRow
+              icon={model.blockersEnabled ? "handRaised" : "handRaisedSlash"}
+              title="Block Ads and Trackers"
+              value={model.blockersEnabled}
+              enabled={model.isWebPage}
+              detail={model.blockedCount}
+              onChange={setBlockersOn}
+            />
+            <Row icon="gearshape" title="Site Settings" enabled divider={model.offersDefaultBrowser} onPress={openSiteSettings} />
+            {model.offersDefaultBrowser ? (
+              <Row icon="safariFill" title="Open in Default Browser" enabled={model.isWebPage} divider={false} onPress={openInDefaultBrowser} />
+            ) : null}
+          </Group>
+        </>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+function MenuSiteSettings() {
+  const theme = useTheme();
+  return (
+    <ScrollView contentContainerStyle={styles.subpage} bounces={false}>
+      <View style={styles.subpageBar}>
+        <CapsuleButton icon="chevronLeft" label="Back" enabled onPress={closeMenuSubpage} />
+        <Text accessibilityRole="header" style={[font.body, styles.subpageTitle, { color: theme.label }]} numberOfLines={1}>
+          Site Settings
+        </Text>
+        <View style={styles.subpageBalance} />
+      </View>
+      <SiteSettingsGroups openRoute={openSiteSettingsRoute} />
+    </ScrollView>
   );
 }
 
@@ -288,6 +319,10 @@ const TITLE_OUT = FadeOut.duration(tabsMotion.fade);
 
 const styles = StyleSheet.create({
   column: { padding: menuLayout.inset, gap: menuLayout.inset },
+  subpage: { paddingVertical: menuLayout.inset, gap: space.l },
+  subpageBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: space.tight },
+  subpageTitle: { flex: 1, textAlign: "center", fontWeight: "600" },
+  subpageBalance: { width: 44 },
   capsule: {
     flexDirection: "row",
     alignItems: "center",

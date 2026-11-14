@@ -631,7 +631,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Page menu: Site Settings closes the menu and jumps to Settings; Compose opens it inside the menu sheet with a back button, and Back returns to the menu (SwiftUI has no such row). `PageMenu.kt`, `BrowsingView.kt`. Small.
 - Downloads: progress and cancel are not shown anywhere in the app (only the lab uses `downloads.progress`/`cancel`). `SystemDownloads.kt`, `DownloadManager.swift`. Small to a day.
 - Haptics in Settings, sync and onboarding: none on clearing data, filter-list update/add/apply, Sync Now done or failed, Stop Syncing, a scanned or valid phrase, connected or failed, each onboarding step and the finish; needs a warning/error helper beside `tapHaptic`. `GeneralPages.kt`, `SyncPages.kt`, `BlockingPages.kt`, `OnboardingView.kt`, `SyncCodeScanner.kt`; `ClearBrowsingDataPage.swift`, `FilterListsPage.swift`, `SyncSettingsPage.swift`, `SyncConnectPage.swift`, `RecoveryPhraseEntryPage.swift`, `OnboardingView.swift`. Under 2 hours.
 - Sync page: no pull to run a sync cycle (Compose). `SyncPages.kt`. Small.

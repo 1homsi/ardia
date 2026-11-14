@@ -9,6 +9,8 @@ import { useDefaultBrowser } from "../settings/defaultBrowser";
 import type { Request } from "./pagePrompts";
 
 export const useMenuOpen = () => usePageUi((s) => s.menuOpen);
+
+export const useMenuPage = () => usePageUi((s) => s.menuPage);
 export const useTitleFeedback = () => usePageUi((s) => s.titleFeedback);
 export const useFindOpen = () => usePageUi((s) => s.findOpen);
 export const useFindQuery = () => usePageUi((s) => s.findQuery);
