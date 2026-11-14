@@ -7,11 +7,13 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "ardia/core/ac_launch_switches.h"
+#include "ardia/linux/ac_linux_appearance.h"
 #include "ardia/linux/ac_linux_desktop_core.h"
 #include "ardia/linux/ac_linux_hardware.h"
 #include "ardia/linux/ac_linux_launch_config.h"
@@ -200,6 +202,20 @@ void ReplyHardware(Done done, std::string chip) {
   std::move(done).Run(true, base::Value(hardware::Reply(info)));
 }
 
+namespace appearance = ardia::linux_appearance;
+
+std::optional<ui::NativeTheme::PreferredColorScheme> ColorSchemeOverride(appearance::Appearance mode) {
+  switch (mode) {
+    case appearance::Appearance::kDark:
+      return ui::NativeTheme::PreferredColorScheme::kDark;
+    case appearance::Appearance::kLight:
+      return ui::NativeTheme::PreferredColorScheme::kLight;
+    case appearance::Appearance::kAuto:
+      return std::nullopt;
+  }
+  return std::nullopt;
+}
+
 }
 
 bool LinuxSystemInvokes(std::string_view method) {
@@ -221,6 +237,12 @@ void LinuxSystemInvoke(std::string_view method, const base::ListValue& args, Don
       return Fail(std::move(done), "ERR_SYSTEM_REQUEST", "The scroll bar style takes one boolean");
     }
     ui::NativeTheme::SetArdiaLinuxThinScrollBars(args[0].GetBool());
+    return std::move(done).Run(true, base::Value());
+  }
+  if (method == appearance::kSetAppearanceCall) {
+    const auto mode = args.size() == 1 && args[0].is_string() ? appearance::ParseAppearance(args[0].GetString()) : std::nullopt;
+    if (!mode) return Fail(std::move(done), "ERR_SYSTEM_REQUEST", "The appearance is auto, light or dark");
+    ui::NativeTheme::SetPreferredColorSchemeOverride(ColorSchemeOverride(*mode));
     return std::move(done).Run(true, base::Value());
   }
   const bool changing = method == "ArdiaSystem.setAsDefaultBrowser";

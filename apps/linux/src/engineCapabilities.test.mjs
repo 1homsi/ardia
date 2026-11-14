@@ -71,7 +71,7 @@ test("the engine advertises the names the shell gates on, spelled the same", () 
   assert.deepEqual(ENGINE.openUrls, ["ArdiaShell.onOpenURLs", "ArdiaShell.listenForOpenURLs"]);
   assert.deepEqual(ENGINE.windowCommands, ["ArdiaShell.toggleFullScreen", "tab.edit", "ArdiaShell.readText"]);
   assert.deepEqual(ENGINE.notifications, ["ArdiaApp.notificationPermission", "ArdiaApp.requestNotificationPermission", "ArdiaApp.postNotification", "ArdiaApp.removeNotifications"]);
-  assert.deepEqual(ENGINE.hardware, ["ArdiaApp.hardwareInfo", "ArdiaSystem.setThinScrollBars"]);
+  assert.deepEqual(ENGINE.hardware, ["ArdiaApp.hardwareInfo", "ArdiaSystem.setThinScrollBars", "ArdiaShell.setAppearance"]);
   assert.deepEqual(ENGINE.linkTabs, ["webView.setPeekOtherSiteTabs", "webView.setLittleArdiaOpensNewTabLinks"]);
   assert.deepEqual(ENGINE.pageCommits, ["tabs.reportCommits"]);
   assert.deepEqual(ENGINE.pageKeys, ["tab.unhandledEscape"]);

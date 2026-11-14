@@ -1296,6 +1296,14 @@ Both are ports of the Mac's native code (`ArdiaWebView+Peek.mm`, `ArdiaWebView+T
   `NativeTheme::CalculateUseOverlayScrollbar` prefer overlay scroll bars whatever GTK says, and the change runs the
   path an OS setting change takes, so open pages switch without a reload and new ones start that way. The shell
   sends the setting at every launch.
+- **`ArdiaShell.setAppearance(mode)`** (Settings › Appearance, View › Appearance). The Linux counterpart of the
+  Mac's `NSApp.appearance`: Dark and Light set Chromium's app-wide
+  `ui::NativeTheme::SetPreferredColorSchemeOverride`, Auto clears it so the GTK or portal color scheme applies
+  (`ac_linux_appearance.h`, `ac_linux_system.cc`). Both native themes recompute and notify, so browser windows,
+  their pages, the shell and Incognito pages all get `prefers-color-scheme` from it without a reload. The shell's
+  `isDarkAppearance` asks the engine (`ArdiaShell.isDarkAppearance`), and while the engine applies the mode the
+  shell's own `prefers-color-scheme` query is the effective appearance (`apps/linux/src/hostAppearance.ts`).
+  A profile whose Chrome `browser.theme.color_scheme2` pref is not System still wins over it for its regular pages.
 - **`ArdiaApp.hardwareInfo`** answers the Mac's `{chip, gpu?, memoryGB, displays, maxScale, hardwareDecode}`
   (`ac_linux_hardware.h`): the chip from `base::SysInfo::CPUModelName`, read off the UI thread; memory from
   `AmountOfTotalPhysicalMemory`, rounded to gigabytes; the GPU's device name, else its GL renderer, from Chromium's

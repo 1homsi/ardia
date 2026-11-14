@@ -91,7 +91,8 @@ class HardwareTests(unittest.TestCase):
         host = (LINUX / 'ac_linux_host.cc').read_text()
         self.assertIn('for (const char* capability : ardia::linux_hardware::kHardwareCapabilities) capabilities.Append(capability);', host)
         core = (LINUX / 'ac_linux_hardware.h').read_text()
-        self.assertIn('kHardwareCapabilities[] = {"ArdiaApp.hardwareInfo", "ArdiaSystem.setThinScrollBars"};', core)
+        self.assertIn('kHardwareCapabilities[] = {"ArdiaApp.hardwareInfo", "ArdiaSystem.setThinScrollBars",\n'
+                      '                                                         "ArdiaShell.setAppearance"};', core)
         glue = (LINUX / 'ac_linux_system.cc').read_text()
         invokes = glue[glue.index('bool LinuxSystemInvokes('):glue.index('void LinuxSystemInvoke(')]
         self.assertIn('hardware::kHardwareCapabilities', invokes)

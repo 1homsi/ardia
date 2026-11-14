@@ -16,7 +16,8 @@ namespace ardia::linux_hardware {
 
 inline constexpr char kHardwareInfoCall[] = "ArdiaApp.hardwareInfo";
 inline constexpr char kThinScrollBarsCall[] = "ArdiaSystem.setThinScrollBars";
-inline constexpr const char* kHardwareCapabilities[] = {"ArdiaApp.hardwareInfo", "ArdiaSystem.setThinScrollBars"};
+inline constexpr const char* kHardwareCapabilities[] = {"ArdiaApp.hardwareInfo", "ArdiaSystem.setThinScrollBars",
+                                                         "ArdiaShell.setAppearance"};
 inline constexpr size_t kNameMax = 256;
 inline constexpr double kScaleMax = 16;
 

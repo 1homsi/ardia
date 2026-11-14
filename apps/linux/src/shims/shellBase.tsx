@@ -8,6 +8,7 @@ import { hostLaunchConfig } from "../hostLaunchConfig";
 import { createFolderPicker } from "../hostFolders";
 import { linuxHostDialogs } from "../hostDialogs";
 import { createHostDocuments } from "../hostDocuments";
+import { createAppearance, type AppearanceMode } from "../hostAppearance";
 import { createHostWindowOpener, dropRefusedWindow } from "../hostWindowProfiles";
 import { createLinuxWindowIds } from "../windowSweep";
 import { useBrowser } from "../../../browser/src/state/browser/store";
@@ -73,14 +74,9 @@ export const prompt = async (options: PromptOptions) =>
   ardiaHost ? hostModuleMethod("ArdiaShell", "prompt")(options) as Promise<string | null> : window.prompt(options.message ? `${options.title}\n\n${options.message}` : options.title, options.value ?? "");
 
 const darkQuery = typeof window === "undefined" ? null : window.matchMedia("(prefers-color-scheme: dark)");
-export const isDarkAppearance = async () => appearance === "auto" ? !!darkQuery?.matches : appearance === "dark";
-let appearance: "auto" | "light" | "dark" = "auto";
-export const setAppearance = async (mode: "auto" | "light" | "dark") => {
-  if (mode === appearance) return;
-  appearance = mode;
-  emitAppEvent({ type: "appearance", dark: mode === "auto" ? !!darkQuery?.matches : mode === "dark" });
-};
-darkQuery?.addEventListener("change", (e) => appearance === "auto" && emitAppEvent({ type: "appearance", dark: e.matches }));
+const appearance = createAppearance(ardiaHost, darkQuery, (dark) => emitAppEvent({ type: "appearance", dark }));
+export const isDarkAppearance = appearance.isDarkAppearance;
+export const setAppearance = (mode: AppearanceMode) => appearance.setAppearance(mode).catch(reportHostError);
 
 export const windowIds = ardiaHost ? createLinuxWindowIds(ardiaHost, () => useBrowser.getState()) : async () => [] as string[];
 export const windowFrame = async (id: string): Promise<[number, number, number, number] | null> => ardiaHost ? hostModuleMethod("ArdiaShell", "windowFrame")(id) as Promise<[number, number, number, number] | null> : null;
