@@ -10,7 +10,7 @@ import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
-type PageEventsOnWindows = { onPageEvent?: (event: Pick<NativeSyntheticEvent<PageEvent>, "nativeEvent">) => void };
+type PageEventsOnWindows = { onPageEvent?: (event: Pick<NativeSyntheticEvent<PageEvent>, "nativeEvent">) => void; onTop?: boolean };
 
 type Props = Pick<NativeProps, "url" | "profile" | "adoptId" | "tabId" | "visible" | "style"> & Partial<Pick<NativeProps, "temporary">> & Partial<Pick<NativeProps, "pageEvents">> & PageEventsOnWindows;
 
@@ -115,7 +115,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         : {
             ...page,
             radius: pageRadiusIn(windowId),
-            holes: holesFor(page, coversIn(windowId, above.current), latest.current.temporary === true),
+            holes: holesFor(page, coversIn(windowId, above.current), latest.current.temporary === true, latest.current.onTop === true),
           };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return;

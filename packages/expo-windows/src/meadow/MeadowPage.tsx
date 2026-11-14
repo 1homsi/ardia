@@ -111,6 +111,7 @@ export function MeadowPage({ intro, night, onIntro, onTone, style }: MeadowProps
           profile={profile}
           tabId={key}
           visible={shown}
+          onTop
           pageEvents={PAGE_EVENTS}
           style={StyleSheet.absoluteFill}
           onPageEvent={({ nativeEvent }) => {
