@@ -25,6 +25,7 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onStep,
           label="Tabs"
           value={`${count} ${count === 1 ? "tab" : "tabs"}`}
           hint="Touch and hold for recent tabs."
+          longPressLabel="Recent Tabs"
           actions={[
             { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
             { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
