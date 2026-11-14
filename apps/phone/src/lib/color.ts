@@ -48,3 +48,8 @@ export function luminance(color: string): number {
 }
 
 export const isDarkColor = (color: string) => luminance(color) < 0.18;
+
+export function withAlpha(color: string, alpha: number): string {
+  const [r, g, b] = parseColor(color);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}

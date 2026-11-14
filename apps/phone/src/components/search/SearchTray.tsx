@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import type { GestureType } from "react-native-gesture-handler";
@@ -19,6 +19,7 @@ import { searchState, setSearchText, typeSearch } from "../../state/search/store
 import { useIncognito } from "../../state/tabs/hooks";
 import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
+import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
 
 const LARGE_FONT_SCALE = 1.5;
@@ -289,7 +290,7 @@ const modeToggleOut = () => {
   };
 };
 
-let trayInput: TextInput | null = null;
+let trayInput: TrayInputHandle | null = null;
 
 const focusTray = () => trayInput?.focus();
 
@@ -305,10 +306,7 @@ function FieldInput({ first }: { first: boolean }) {
   const initialText = useSearchInitialText();
   const [start] = useState(() => searchState().text);
   const [hasText, setHasText] = useState(start.length > 0);
-  const input = useRef<TextInput>(null);
-  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(
-    first ? (initialText ? { start: 0, end: initialText.length } : undefined) : { start: start.length, end: start.length },
-  );
+  const input = useRef<TrayInputHandle | null>(null);
 
   useEffect(() => {
     const focus = setTimeout(() => input.current?.focus(), 0);
@@ -318,32 +316,22 @@ function FieldInput({ first }: { first: boolean }) {
   return (
     <View style={styles.fieldArea}>
       <View style={[styles.field, { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
-        <TextInput
+        <TrayInput
           ref={(field) => {
             input.current = field;
             trayInput = field;
           }}
-          style={[font.title3, styles.input, { color: theme.foregroundPrimary }]}
-          defaultValue={start}
-          selection={selection}
-          onSelectionChange={() => {
-            if (selection) setSelection(undefined);
-          }}
-          onChangeText={(text) => {
+          style={styles.input}
+          start={start}
+          selectsStart={first && Boolean(initialText)}
+          color={theme.foregroundPrimary}
+          placeholderColor={theme.foregroundTertiary}
+          accent={theme.formAccent}
+          onTyped={(text) => {
             if (text.length > 0 !== hasText) setHasText(text.length > 0);
             typeSearch(text);
           }}
-          onSubmitEditing={(event) => submitSearch(event.nativeEvent.text)}
-          placeholder="Search…"
-          accessibilityLabel="Search or Enter Address"
-          placeholderTextColor={theme.foregroundTertiary}
-          selectionColor={theme.formAccent}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="web-search"
-          returnKeyType="go"
-          submitBehavior="submit"
-          disableFullscreenUI
+          onSubmit={submitSearch}
         />
         {hasText ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => setSearchText("")}>

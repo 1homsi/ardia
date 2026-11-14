@@ -315,7 +315,7 @@ and again only when that status changes.
     `… --ez ArdiaOnboarding true`. Each does what it does in the Compose app, and with `ArdiaDemo` the sync view
     shows the demo Macs, not the real ones. Lab builds log `PAGELAB launch arguments {…}` once per launch
     with what the app was given. A store build ignores every one of them.
-42. **Inline completion** (lab, Completion; later the tray once it uses `CompletingField`):
+42. **Inline completion** (the tray on Android, and the lab's Completion panel):
     - Type `goo`: `gle.com` appears after the caret, highlighted, and the caret stays after `goo`.
     - Type `g`: the highlight shrinks to `le.com` with no flicker. Type `x`: the highlight goes and `googx` stays.
     - Backspace with a highlight showing removes only the highlight, then typing brings offers back.
@@ -512,10 +512,9 @@ what each tap does, what is remembered, animations and their timing. Every item 
 lives in the native app, and its size (small: an hour or two; a day; more). Anything not yet seen working on a
 phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 608a701c5.
 
-Largest first: inline completion in the search
-field (native on both phones), the tray's motion and gestures (keyboard-driven rise, drag to close, scrubbing,
-animated close), and iPhone voice search. Then folder-before-phrase sync connect, and
-the demo-mode launch arguments both apps' capture scripts use.
+Largest first: inline completion on iPhone (its native field), iPhone voice search, and the deck-to-page handover
+(the page mounting as the open spring starts, and the page cover). Inline completion on Android, the tray's motion
+and gestures, folder-before-phrase sync connect and the launch arguments are in and wait on a phone.
 
 ### Needs only JavaScript
 
@@ -554,7 +553,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 
 ### Needs native code on Android
 
-- Search field: no inline completion (the suggested address's rest highlighted after the caret, so Enter on "goo" opens google.com); React Native's field can't overlay a suffix or see the IME's composing text, so it needs a native field. `CompletingFieldState.kt`, `OmniboxTextField.kt`. More.
+- Search field: inline completion is in the tray on Android (`CompletingField` through `TrayInput`, tester step 42), unverified on a phone; the tray's rise, drag, scrub, Paste and Go, the incognito toggle and the mic around it need a phone check with it.
 - Search tray: no predictive back (the tray follows the back gesture down 72 dp); React Native's back handler gives no progress. `SearchTrayHost.kt` `PredictiveBackHandler`. A day.
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
 - Widgets: the Color setting doesn't tint them. `system/WidgetColors.kt`, `SystemSnapshotExport.kt`. Small.

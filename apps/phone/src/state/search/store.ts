@@ -19,6 +19,8 @@ type SearchState = {
   initialText: string;
   text: string;
   rows: TrayRow[];
+  completion: string;
+  completedFor: string;
   session: number;
   fieldVersion: number;
   incognitoOnCancel: boolean | null;
@@ -30,6 +32,8 @@ export const useSearch = create<SearchState>()(() => ({
   initialText: "",
   text: "",
   rows: [],
+  completion: "",
+  completedFor: "",
   session: 0,
   fieldVersion: 0,
   incognitoOnCancel: null,
@@ -48,6 +52,11 @@ export function feedSources() {
   const profile = selectedProfile();
   const local = history().summary();
   setSources(buildSources(currentTabs().open, profile ? mergeSyncedHistory(local, profile.history) : local, profile ? syncedBookmarks(profile) : []));
+}
+
+function suggestionsFor(text: string, remoteValues: readonly string[]): { rows: TrayRow[]; completion: string } {
+  if (!text.trim()) return { rows: rowsFor(text, remoteValues), completion: "" };
+  return suggest(text, remoteValues, context, macTabIndex(selectedProfile(), syncData().view.devices));
 }
 
 function rowsFor(text: string, remoteValues: readonly string[]): TrayRow[] {
@@ -87,6 +96,8 @@ export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel
     initialText: text,
     text,
     rows: rowsFor(text, []),
+    completion: "",
+    completedFor: "",
     session: state.session + 1,
     fieldVersion: 0,
     incognitoOnCancel,
@@ -107,7 +118,8 @@ let remoteTimer: ReturnType<typeof setTimeout> | null = null;
 
 function showRows(text: string) {
   const carried = remote.text && text.startsWith(remote.text) ? remote.values : [];
-  useSearch.setState({ text, rows: rowsFor(text, carried) });
+  const suggested = suggestionsFor(text, carried);
+  useSearch.setState({ text, rows: suggested.rows, completion: suggested.completion, completedFor: text });
   inFlight?.abort();
   if (remoteTimer) clearTimeout(remoteTimer);
   if (!text.trim() || !currentPreferences().searchSuggestions) return;

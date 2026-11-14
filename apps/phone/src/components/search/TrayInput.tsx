@@ -1,0 +1,89 @@
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { TextInput, type StyleProp, type TextStyle } from "react-native";
+import { withAlpha } from "../../lib/color";
+import { inlineOffer } from "../../lib/inlineOffer";
+import { CompletingField, completingFieldIsNative, type CompletingFieldHandle } from "../../platform/completingField";
+import { useSearchCompletedFor, useSearchCompletion } from "../../state/search/hooks";
+import { font } from "../ui";
+
+export type TrayInputHandle = { focus(): void; blur(): void };
+
+type Props = {
+  start: string;
+  selectsStart: boolean;
+  color: string;
+  placeholderColor: string;
+  accent: string;
+  onTyped: (text: string) => void;
+  onSubmit: (text: string) => void;
+  style: StyleProp<TextStyle>;
+};
+
+const SHARED = {
+  placeholder: "Search…",
+  accessibilityLabel: "Search or Enter Address",
+  autoCapitalize: "none",
+  autoCorrect: false,
+  keyboardType: "web-search",
+  returnKeyType: "go",
+} as const;
+
+export const TrayInput = forwardRef<TrayInputHandle, Props>(function TrayInput(props, ref) {
+  return completingFieldIsNative() ? <CompletingInput {...props} ref={ref} /> : <PlainInput {...props} ref={ref} />;
+});
+
+const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingInput({ start, selectsStart, color, placeholderColor, accent, onTyped, onSubmit, style }, ref) {
+  const field = useRef<CompletingFieldHandle>(null);
+  const [typed, setTyped] = useState(start);
+  const completion = useSearchCompletion();
+  const completedFor = useSearchCompletedFor();
+  useImperativeHandle(ref, () => ({ focus: () => field.current?.focus(), blur: () => field.current?.blur() }), []);
+  useEffect(() => {
+    if (selectsStart && start) field.current?.setText(start, true);
+  }, []);
+  return (
+    <CompletingField
+      ref={field}
+      {...SHARED}
+      style={style}
+      text={typed}
+      offer={inlineOffer(typed, completion, completedFor)}
+      highlightColor={withAlpha(accent, 0.3)}
+      color={color}
+      placeholderTextColor={placeholderColor}
+      fontSize={font.title3.fontSize}
+      fontWeight="regular"
+      onTypedChange={(next) => {
+        setTyped(next);
+        onTyped(next);
+      }}
+      onSubmit={onSubmit}
+    />
+  );
+});
+
+const PlainInput = forwardRef<TrayInputHandle, Props>(function PlainInput({ start, selectsStart, color, placeholderColor, accent, onTyped, onSubmit, style }, ref) {
+  const input = useRef<TextInput>(null);
+  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(
+    selectsStart && start ? { start: 0, end: start.length } : { start: start.length, end: start.length },
+  );
+  useImperativeHandle(ref, () => ({ focus: () => input.current?.focus(), blur: () => input.current?.blur() }), []);
+  return (
+    <TextInput
+      ref={input}
+      {...SHARED}
+      style={[font.title3, style, { color }]}
+      defaultValue={start}
+      selection={selection}
+      onSelectionChange={() => {
+        if (selection) setSelection(undefined);
+      }}
+      onChangeText={onTyped}
+      onSubmitEditing={(event) => onSubmit(event.nativeEvent.text)}
+      placeholderTextColor={placeholderColor}
+      selectionColor={accent}
+      submitBehavior="submit"
+      disableFullscreenUI
+    />
+  );
+});

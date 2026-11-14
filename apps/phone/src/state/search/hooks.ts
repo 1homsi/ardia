@@ -7,3 +7,5 @@ export const useSearchInitialText = () => useSearch((s) => s.initialText);
 export const useSearchText = () => useSearch((s) => s.text);
 export const useSearchRows = () => useSearch((s) => s.rows);
 export const useSearchFieldVersion = () => useSearch((s) => s.fieldVersion);
+export const useSearchCompletion = () => useSearch((s) => s.completion);
+export const useSearchCompletedFor = () => useSearch((s) => s.completedFor);
