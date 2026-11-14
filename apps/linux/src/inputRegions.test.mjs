@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createInputRegions, REVEAL_DEADLINE_MS, subtract } from "./inputRegions.ts";
-import { holeClipPath, localHoles } from "./pageHoles.ts";
+import { holeClipPath, localHoles, pagesAbove, paintersBeneath, separateHoles } from "./pageHoles.ts";
 
 function node(rect, { children = [], pointer = true } = {}) {
   const element = { rect, children, pointer, isConnected: true, parent: null };
@@ -331,4 +331,53 @@ test("an overlay already on screen whose hit boxes start taking the pointer over
   h.replies.shift().resolve();
   await h.nextFrame();
   assert.equal(h.concealed.size, 0);
+});
+
+function peekTree() {
+  const order = ["window", "card", "sourceSlot", "peek", "scrim", "peekCard", "panel", "peekBar", "peekBody", "peekSlot", "peekPopovers"];
+  const parent = { card: "window", sourceSlot: "card", peek: "card", scrim: "peek", peekCard: "peek", panel: "peekCard", peekBar: "peekCard", peekBody: "peekCard", peekSlot: "peekBody", peekPopovers: "peekBody" };
+  const rects = {
+    window: [0, 0, 1440, 900], card: [190, 9, 1241, 882], sourceSlot: [190, 50, 1241, 841], peek: [190, 9, 1241, 882], scrim: [190, 9, 1241, 882],
+    peekCard: [258, 58, 1105, 784], panel: [258, 58, 1105, 784], peekBar: [258, 58, 1105, 38], peekBody: [267, 96, 1087, 737], peekSlot: [267, 96, 1087, 737], peekPopovers: [267, 96, 1087, 737],
+  };
+  const painting = new Set(["window", "card", "scrim", "panel", "peekBody", "peekPopovers"]);
+  const contains = (outer, inner) => {
+    for (let node = inner; node; node = parent[node]) if (node === outer) return true;
+    return false;
+  };
+  const overlaps = (a, b) => {
+    const [ax, ay, aw, ah] = rects[a];
+    const [bx, by, bw, bh] = rects[b];
+    return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
+  };
+  const stackOf = (node) => (contains("peek", node) ? "peek" : null);
+  return { order, stack: { stackOf, contains }, painter: { contains, overlaps, precedes: (a, b) => order.indexOf(a) < order.indexOf(b), paints: (node) => painting.has(node) } };
+}
+
+test("inside Peek, the scrim and the card's panel are cut where the peek page shows; popovers after the page and the page's ancestors are not", () => {
+  const tree = peekTree();
+  const inPeek = tree.order.filter((node) => tree.stack.contains("peek", node) && node !== "peek");
+  assert.deepEqual(paintersBeneath("peekSlot", inPeek, tree.painter), ["scrim", "panel"]);
+});
+
+test("a page below Peek doesn't cut Peek's own surfaces, and Peek's page still cuts what lies under the whole stack", () => {
+  const tree = peekTree();
+  const pages = [{ slot: "sourceSlot" }, { slot: "peekSlot" }];
+  assert.deepEqual(pagesAbove("panel", pages, tree.stack), [{ slot: "peekSlot" }]);
+  assert.deepEqual(pagesAbove("scrim", pages, tree.stack), [{ slot: "peekSlot" }]);
+  assert.deepEqual(pagesAbove("card", pages, tree.stack), pages);
+  assert.deepEqual(pagesAbove("window", [{ slot: "sourceSlot" }], tree.stack), [{ slot: "sourceSlot" }]);
+});
+
+test("a page inside another page's hole adds no hole of its own, so the even-odd rule can't paint the shell back over it", () => {
+  const source = { x: 190, y: 50, width: 1241, height: 841 };
+  const peek = { x: 267, y: 96, width: 1087, height: 737 };
+  assert.deepEqual(separateHoles([source, peek]), { holes: [source], pieces: [] });
+  const side = { x: 900, y: 50, width: 531, height: 841 };
+  const left = { x: 190, y: 50, width: 700, height: 841 };
+  assert.deepEqual(separateHoles([left, side]), { holes: [left, side], pieces: [] });
+  const pane = { x: 190, y: 50, width: 600, height: 841 };
+  const split = separateHoles([pane, peek]);
+  assert.deepEqual(split.holes, [pane]);
+  assert.deepEqual(split.pieces, [{ rect: { x: 790, y: 96, width: 564, height: 737 }, radii: [0, 12, 12, 0] }]);
 });

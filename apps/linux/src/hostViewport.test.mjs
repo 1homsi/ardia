@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { tabViewport, watchTabViewport } from "./hostViewport.ts";
+import { STACKED_PAGE, tabViewport, watchTabViewport } from "./hostViewport.ts";
 
 const GLOBALS = ["window", "document", "getComputedStyle", "ResizeObserver", "requestAnimationFrame", "cancelAnimationFrame", "MutationObserver"];
 const box = (x, y, width, height) => ({ x, y, width, height, left: x, top: y, right: x + width, bottom: y + height });
@@ -93,6 +93,35 @@ test("a registered overlay over a page keeps it shown; anything else covering it
     globalThis.getComputedStyle = () => ({ display: "block", visibility: "hidden", opacity: "1" });
     s.mutate();
     assert.equal(updates.at(-1).visible, false);
+    stop();
+  } finally {
+    s.restore();
+  }
+});
+
+test("a page partly under a page stacked above it stays shown, as the source under Peek's card does; one wholly under it is hidden", () => {
+  const page = { isConnected: true, parentElement: null, getBoundingClientRect: () => box(190, 50, 1241, 841), contains: (node) => node === page };
+  const peekPage = { closest: (selector) => (selector === STACKED_PAGE ? peekPage : null) };
+  const sheet = { closest: () => null };
+  const scrim = { element: {}, rect: { x: 190, y: 9, width: 1241, height: 882 } };
+  let hit = () => peekPage;
+  const s = stage({ width: 1440, height: 900, elementFromPoint: (x, y) => hit(x, y) });
+  try {
+    const overlays = [scrim];
+    const updates = [];
+    const coverage = { overlayAt: (x, y) => x < 267 || x >= 1354 || y < 96 || y >= 833 ? cover(overlays).overlayAt(x, y) : false, overlayElements: () => overlays.map(({ element }) => element) };
+    const stop = watchTabViewport(page, () => true, (update) => updates.push(update), coverage);
+    assert.equal(updates.at(-1).visible, true, "corners under the scrim and the middle under the peek page keep the source live");
+    overlays.length = 0;
+    s.mutate();
+    assert.equal(updates.at(-1).visible, false, "with every point under another page, the page is hidden");
+    hit = (x) => (x > 600 && x < 1000 ? peekPage : sheet);
+    overlays.push(scrim);
+    s.mutate();
+    assert.equal(updates.at(-1).visible, true);
+    overlays.length = 0;
+    s.mutate();
+    assert.equal(updates.at(-1).visible, false, "a plain shell element over a corner still hides it");
     stop();
   } finally {
     s.restore();

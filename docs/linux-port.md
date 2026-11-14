@@ -111,6 +111,12 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   acknowledged, so a press on its first frame can't reach the page. When a page takes the pointer from the shell, the
   host sends the shell a mouse leave (`LinuxPageChannel::ReleaseShellPointer`), so a sidebar hover card closes when the
   pointer moves straight from the sidebar into the page.
+- **Peek.** The Peek card is a page overlay that hosts its own page (`PeekOverlay.tsx`, marked
+  `data-ardia-page-stack`). The source page stays live and dimmed under the scrim: points of a page that fall on a
+  page in a stack above it don't hide it, but one wholly under that page is hidden (full-screen Peek). Inside the
+  stack, the shell elements painted before the peek page and under it (the scrim, the card's panel) are cut where the
+  peek page shows, and a page below the stack doesn't cut the card's own surfaces. A page hole that overlaps an
+  earlier one adds only the part outside it, so the even-odd clip never paints the shell back over the peek page.
 - **Glass panels.** Menus, hover cards, the command panel, popovers and the extension popup's panel can be
   translucent over the live page. Every other panel, and every control, keeps the opaque fallback, and
   `isLiquidGlass` stays off. The sidebar peek's panel opts in too, but the peek covers it with the window's opaque

@@ -1,10 +1,12 @@
 import type { TabViewport } from "./hostTab";
+import { PAGE_STACK_ATTRIBUTE } from "./pageHoles.ts";
 
 export type { TabViewport };
 
 type Bounds = TabViewport["rect"];
 
 const EXTENSION_POPUP_DISMISS = '[data-testid="ardia-extension-popup-dismiss"]';
+export const STACKED_PAGE = `[${PAGE_STACK_ATTRIBUTE}] [data-ardia-native-tab]`;
 const MOTION_EVENTS = ["transitionrun", "transitionend", "transitioncancel", "animationstart", "animationend", "animationcancel"] as const;
 
 const viewportWatchers = new Set<() => void>();
@@ -32,12 +34,14 @@ function plainViewport(element: HTMLElement, rect: DOMRect, viewport: TabViewpor
   const bottom = Math.min(window.innerHeight, rect.bottom) - insetY;
   const dismiss = document.querySelector<HTMLElement>(EXTENSION_POPUP_DISMISS);
   const points = [[left, top], [right, top], [left, bottom], [right, bottom], [(left + right) / 2, (top + bottom) / 2]] as const;
-  const shown = points.every(([x, y]) => {
-    if (cover.overlayAt(x, y)) return true;
+  const seen = points.map(([x, y]): "shown" | "page" | "covered" => {
+    if (cover.overlayAt(x, y)) return "shown";
     const hit = document.elementFromPoint(x, y);
-    return !!hit && (hit === element || element.contains(hit) || !!dismiss?.contains(hit));
+    if (!hit) return "covered";
+    if (hit === element || element.contains(hit) || !!dismiss?.contains(hit)) return "shown";
+    return hit.closest?.(STACKED_PAGE) ? "page" : "covered";
   });
-  return shown ? viewport : { ...viewport, visible: false };
+  return seen.includes("shown") && !seen.includes("covered") ? viewport : { ...viewport, visible: false };
 }
 
 export type OverlayCover = { overlayAt: (x: number, y: number) => boolean; overlayElements: () => readonly Element[] };
