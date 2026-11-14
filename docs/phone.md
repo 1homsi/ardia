@@ -388,7 +388,10 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
   - Start Without Them calls `legacyImport.startFresh()`. On Android (248b3f68a) it writes the marker with outcome
     `startedFresh` and no receipt, opens the gate, delivers held links and starts sync once, and touches no Compose
     file; `source()` then answers `done` with `outcome: "startedFresh"` (an import gives `outcome: "imported"`). A
-    later `markImported` still imports over it.
+    later `markImported` still imports over it. The iPhone (52379113c) does the same: a version 2 marker in
+    `Application Support/PhoneSync/legacy-imported.json` with outcome `startedFresh`, the sync hold released and one
+    sync requested, the SwiftUI app's store untouched. The blocking, filter and browsing settings it copied into
+    the page module's suite at launch stay.
   - Per-site settings (1b33e2c47): hosts with blockers off join Trusted Sites, and a host's Desktop Site applies
     when a page enters that host. The Compose app never writes either flag to disk (Desktop Site lives only in the
     page), so a real upgrader has none to bring; the code handles them if they are there.
@@ -505,8 +508,7 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 
 
 Largest first: inline completion in the search
 field (native on both phones), the tray's motion and gestures (keyboard-driven rise, drag to close, scrubbing,
-animated close), the iPhone page view's Swipe to Navigate and pull to refresh, and iPhone voice search. Then the
-iPhone import dropping blocking and site settings (small, but data loss), folder-before-phrase sync connect, and
+animated close), and iPhone voice search. Then folder-before-phrase sync connect, and
 the demo-mode launch arguments both apps' capture scripts use.
 
 ### Needs only JavaScript
@@ -568,14 +570,11 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Handoff: the current page isn't offered to other devices (incoming works). `SystemIntegrations.swift`, `AppModel+System.swift`. Small.
 - Deck bar: SwiftUI's buttons are interactive Liquid Glass (`.glassEffect(.regular.interactive())`); the look module's Frost needs a glass variant that samples the deck. `TabDeckBar.swift`. A day.
 - Context menus: SwiftUI uses system context menus (lift preview and blur) on cards, the plus button and archive rows, with ShareLink; the app draws its own. Also Spaces rows and folder tiles. Needs a native context-menu view. `TabSwitcherView.swift`, `TabDeckBar.swift`, `ArchiveView.swift`, `SyncedSpacesView.swift`. A day.
-- Swipe to Navigate: the page view has no `swipeNavigation`, so the setting does nothing and only WebKit's edge swipe runs; SwiftUI swipes from anywhere with snapshot parallax, a shade and a haptic at the commit point. `WebPageView.swift` `swipePan`/`handleSwipe`. A day.
-- Pull to refresh: no `pullToRefresh` on the page view; SwiftUI uses a refresh control tinted with the loading colour. `WebPageView.swift`. Small.
 - Open in Background opens in front: the module drops `inBackground` from the link callback, and the app selects every popup. `WebTab.swift`, `PhonePages.linkOpened`. Small (plus a JS line).
 - Offline pages never retry by themselves: failures carry no reason and there is no network module, so no online-again signal and no Wi-Fi-off icon. `WebTab.swift` `PageLoadFailure.network`. Small, plus an hour or two for an `NWPathMonitor` module.
 - Per-site Open App Links In: `siteOpensLinksInApps`, `appLinksDefault` and `setAppLinksDefault` are missing, and clearing a site's choice (null) can't decode. `BrowsingPreferences.swift`. Small.
 - Long-press on links and images uses WebKit's context menu (as SwiftUI does), so the app's drawn menu, Save Image and the Copied URL toast are Android-only; matching Android needs native long-press events. `WebTab.swift`. A day.
 - Clear Browsing Data: cache and cookies are cleared for all time whatever range is picked; SwiftUI passes the range's start. Needs `since` on `clearWebsiteData`. `ClearBrowsingDataPage.swift`, `BrowsingPreferences.swift`. Small.
-- **Upgrade import drops blocking and site settings (data loss).** `blocking.*` (Trusted Sites), `browsing.sites` and `filters.*` (My Filters) land in `unmapped`, because the page module reads them from the `ardia.phone.pages` suite and the import never copies them there; blocking resets to its defaults. Copy them in `PhoneLegacy.swift` before `markImported`. `BlockingSettings.swift`, `FilterLists.swift`, `BrowsingPreferences.swift`. Small.
 - Default Browser: `Linking.openSettings()` never calls `DefaultBrowserStatus.willOpenSystemSettings()`, so the status isn't re-checked on return and the page keeps its instructions. `DefaultBrowserPage.swift`, `PhoneSystem.swift`. Small.
 - Sync connect: folder before phrase, as on Android. `SyncConnectPage.swift` `SyncConnectFlow`, `SyncModule.swift`. Shared with Android.
 - Enter Words: Paste reads the clipboard and triggers iOS's Allow Paste prompt; SwiftUI uses the system `PasteButton`. `RecoveryPhraseEntryPage.swift`. Small to a day.
