@@ -1,11 +1,11 @@
-import { DeckBackdrop, FilmGrain, Frost, FrostSource, INCOGNITO_LOOK, lookIsNative, lookLab, PageView, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
+import { DeckBackdrop, FilmGrain, Frost, FrostSource, INCOGNITO_LOOK, labLog, lookIsNative, lookLab, PageView, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 const LOOKS = [
   { label: "plum", color: "plum", themeColors: [] as string[] },
   { label: "green", color: "green", themeColors: [] as string[] },
-  { label: "green + blue theme", color: "green", themeColors: ["#4F7CFF", "#9B6BFF"] },
+  { label: "green, blue-violet theme", color: "green", themeColors: ["#4F7CFF", "#9B6BFF"] },
   { label: "orange", color: "orange", themeColors: [] as string[] },
   { label: "incognito", color: INCOGNITO_LOOK, themeColors: [] as string[] },
 ];
@@ -13,6 +13,8 @@ const LOOKS = [
 const PAGE_URL = "https://en.wikipedia.org/wiki/Hippopotamus";
 
 const VARIANTS: FrostVariant[] = ["bar", "sheet", "glass", "thin"];
+
+const BLOB_RATES = [0, 30, 20];
 
 function Button({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -30,6 +32,7 @@ export function LookLab() {
   const [pageFrost, setPageFrost] = useState<"live" | "solid">("live");
   const [faded, setFaded] = useState(false);
   const [lookOff, setLookOff] = useState(() => lookLab.lookIsOff());
+  const [blobRate, setBlobRate] = useState(() => lookLab.blobFramesPerSecond());
   const look = LOOKS[lookIndex]!;
   const alwaysDark = look.color === INCOGNITO_LOOK;
   const drawsDark = dark || alwaysDark;
@@ -43,7 +46,7 @@ export function LookLab() {
           label={alwaysDark ? `Dark (incognito; asked ${dark ? "dark" : "light"})` : dark ? "Dark" : "Light"}
           onPress={() => {
             const next = !dark;
-            console.log(`PAGELAB look lab asked ${next ? "dark" : "light"}, ${next || alwaysDark ? "dark" : "light"} will be drawn (look ${look.color})`);
+            labLog(`PAGELAB look lab asked ${next ? "dark" : "light"}, ${next || alwaysDark ? "dark" : "light"} will be drawn (look ${look.color})`);
             setDark(next);
           }}
         />
@@ -57,6 +60,10 @@ export function LookLab() {
         }} />
         <Button label="Probe frost" onPress={() => lookLab.probeFrosts()} />
         <Button label={lookOff ? "Look off" : "Look on"} onPress={() => setLookOff(lookLab.setLookOff(!lookOff) ?? lookOff)} />
+        <Button
+          label={blobRate === 0 ? "Blobs every frame" : `Blobs ${blobRate} fps`}
+          onPress={() => setBlobRate(lookLab.setBlobFramesPerSecond(BLOB_RATES[(BLOB_RATES.indexOf(blobRate) + 1) % BLOB_RATES.length]!) ?? blobRate)}
+        />
       </View>
       <View style={styles.stage}>
         <FrostSource name="lab" style={StyleSheet.absoluteFill}>

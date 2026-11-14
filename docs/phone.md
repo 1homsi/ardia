@@ -142,7 +142,7 @@ The Expo app has the Compose app's entry points (`docs/android.md`), from its ow
 
 `P=com.ardia.browser.android/.MainActivity`. Open the lab
 (`adb shell am start -n $P --ez com.ardia.phone.PAGE_LAB true`), tap System, and watch
-`adb logcat -s ReactNativeJS:I | grep "PAGELAB system"`. Each command should print one `PAGELAB system link`
+`adb logcat -s PAGELAB | grep "PAGELAB system"`. Each command should print one `PAGELAB system link`
 line with the kind and source shown. The lab also prints `PAGELAB system default browser` once when it opens
 and again only when that status changes.
 
@@ -262,6 +262,11 @@ off in the lab`.
     appeared and what it said.
     With TalkBack on, each widget reads its name from the moment it is placed, before its first update: "Ardia
     Search" and "Ardia, Your Mac’s Tabs", never "Ardianull".
+    The launcher's own frame around a widget can still read "Ardianull": the APK carries both receivers' labels
+    ("Search", "Your Mac’s Tabs") and both providers' descriptions, so that name is the launcher's. To tell, run
+    `adb shell dumpsys appwidget | grep -B2 -A8 com.ardia.browser.android` and report the provider lines, and,
+    when the Compose app is installed (before an upgrade run), add its Search widget and report what the frame
+    reads there: the Compose app declares the same labels.
 32. **Deck backdrop:** in the app's deck, three slow blobs in lighter shades of the profile colour drift over the base
     (two screenshots 10 s apart differ). In the lab, Look: the stage above the frosted bar shows the mesh and blobs
     in every look, its caption sits at the bottom of the stage, and the frosted bar's label is centred. Tap Probe
@@ -301,6 +306,13 @@ off in the lab`.
     `adb shell am send-trim-memory com.ardia.browser.android RUNNING_CRITICAL` (Android's own signal, which
     also trims the system's GPU caches; the lab's Trim only clears the image cache) and tap Memory again. Report
     all the lines, graphics included.
+    - Each Memory line now ends with `look on|off: N of M frost(s) blurring, about X MB of blur layers (largest …),
+      D of E deck backdrop(s) shown`, and a trim logs `PAGELAB memory trim level L: image cache cleared; look
+      trimmed: …`. Do the one-tab and nine-tab stages twice, look on and look off (step 38's switch, force-stop
+      between), so the look's share of graphics shows.
+    - Android only releases GPU caches, the WebViews' tiles included, at "UI hidden" or deeper, not at
+      `RUNNING_CRITICAL` with the app in front. So also press Home, run
+      `adb shell am send-trim-memory com.ardia.browser.android UI_HIDDEN`, come back and tap Memory.
 38. **Frames with and without the look:** measure twice, look on and look off, doing the same thing each time.
     - In the lab's Look, set the toggle (Look on or Look off; it logs `PAGELAB look views off|on` and lasts across
       launches), then `adb shell am force-stop $P` and open the app normally.
@@ -308,6 +320,15 @@ off in the lab`.
       it, open a tab and go back. Then `adb shell dumpsys gfxinfo $P | grep -E "Janky|percentile"`.
     - With the look off, the deck and backdrops are flat colours and the frosts solid. Report both sets of lines,
       then switch the look back on.
+    - Then twice more with the look on and the lab's Blobs button at `Blobs 30 fps` and `Blobs 20 fps` (it logs
+      `PAGELAB look blobs at N fps` and lasts across launches; set it back to `Blobs every frame` afterwards).
+      The Compose app draws its blobs every frame and blurs each bar frost every frame too, so "every frame" is
+      parity; the capped runs tell whether a cap is worth its look. Also, from the look-on run, the idle deck:
+      `adb shell dumpsys gfxinfo $P reset`, leave the deck untouched for 10 s, then the same grep.
+    - When the Compose app is installed (before an upgrade run), do the look-on run on its deck too, the same
+      30 s, and the idle 10 s, and take a light-mode deck screenshot in the same profile colour: both apps' blobs
+      come from the same `ProfileLook.deckBlobs` and `DeckBackdropStyle` numbers (light blobs at 0.86 to 0.9
+      lightness, 0.85 opacity), so the two screenshots should match.
 39. **Keyboard target:** right after a fresh launch (`adb shell am force-stop $P` first), open the tray. Logcat has
     `PAGELAB keyboard will change 0.0 -> N dp in M ms` as the keyboard starts to rise, then
     `PAGELAB keyboard did change to N dp` with the same N, and the tray rises with the keyboard on that first open
@@ -334,8 +355,10 @@ off in the lab`.
     - Type `g`: the highlight shrinks to `le.com` with no flicker. Type `x`: the highlight goes and `googx` stays.
     - Backspace with a highlight showing removes only the highlight, then typing brings offers back.
     - Tap inside the text or select a word: the highlighted part becomes ordinary text.
-    - Go submits the whole `google.com` (`PAGELAB completion submit "google.com"`). Leaving the field drops the
-      highlight.
+    - Go submits the whole `google.com` (`PAGELAB completion submit "google.com" via keyboard action 2`, in the
+      tray as in the lab). Leaving the field drops the highlight. A hardware Enter logs `via enter key`; if the
+      keyboard also turns it into its Go action, the second one logs `submit ignored … the same press already
+      submitted` and only one tab opens.
     - With a Chinese or Japanese keyboard, no highlight shows while composing.
     - Speed: tap Focus, `adb shell dumpsys gfxinfo $P reset`, then
       `adb shell input text googleandsomemoretextthatgoesonandonforsixtyfivecharactersintotal12` (65 keys) and
@@ -466,7 +489,8 @@ with `input text`.
 #### Upgrade tester script
 
 Use the Compose APK and the Expo upgrade APK built for this run (same key), named here `$COMPOSE_APK` and
-`$EXPO_APK`. Watch `adb logcat -s ReactNativeJS:I ArdiaJS PAGELAB` throughout, and `adb logcat -b crash` for crashes.
+`$EXPO_APK`. Watch `adb logcat -s ReactNativeJS:I ArdiaJS PAGELAB` throughout (the lab's own lines are all under
+`PAGELAB`), and `adb logcat -b crash` for crashes.
 `P=com.ardia.browser.android`. The lab is `adb shell am start -n $P/.MainActivity --ez com.ardia.phone.PAGE_LAB true`,
 then Upgrade; opening the lab never runs the import, and while the import waits its page area stays blank ("no
 state"). A launch intent reaches a process that is already running, so to get from the app to the lab (or back)

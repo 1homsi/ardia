@@ -1,4 +1,4 @@
-import { speech, type SpeechAccess } from "@ardia/phone-native";
+import { labLog, speech, type SpeechAccess } from "@ardia/phone-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -19,7 +19,7 @@ export function VoiceLab({ note }: { note: (line: string) => void }) {
 
   const report = useCallback(
     (line: string) => {
-      console.log(`PAGELAB voice ${line}`);
+      labLog(`PAGELAB voice ${line}`);
       note(`voice ${line}`);
     },
     [note],

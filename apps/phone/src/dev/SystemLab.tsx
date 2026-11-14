@@ -1,4 +1,4 @@
-import { defaultBrowser, favicons, network, system, systemLab, type DefaultBrowserStatus, type SystemLink } from "@ardia/phone-native";
+import { labLog, defaultBrowser, favicons, network, system, systemLab, type DefaultBrowserStatus, type SystemLink } from "@ardia/phone-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -26,7 +26,7 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
         const line = JSON.stringify(next);
         if (line === lastStatus.current) return;
         lastStatus.current = line;
-        console.log(`PAGELAB system default browser ${line}`);
+        labLog(`PAGELAB system default browser ${line}`);
       },
       (error: { message?: string }) => note(`default browser status ✗ ${error.message ?? ""}`),
     );
@@ -36,18 +36,18 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
     system.initialLink().then(
       (link) => {
         setInitial(linkLine(link));
-        console.log(`PAGELAB system initial ${linkLine(link)}`);
+        labLog(`PAGELAB system initial ${linkLine(link)}`);
       },
       (error: { message?: string }) => setInitial(`✗ ${error.message ?? ""}`),
     );
     const subscription = system.addLinkListener((link) => {
       const line = linkLine(link);
-      console.log(`PAGELAB system link ${line}`);
+      labLog(`PAGELAB system link ${line}`);
       note(`system link ${line}`);
       setLinks((all) => [line, ...all].slice(0, 6));
     });
     const online = network.addListener((event) => {
-      console.log(`PAGELAB system network ${event.online ? "online again" : "lost"}`);
+      labLog(`PAGELAB system network ${event.online ? "online again" : "lost"}`);
       note(`network ${event.online ? "online again" : "lost"}`);
     });
     const foreground = AppState.addEventListener("change", (state) => {
@@ -73,7 +73,7 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
         <Button label="Request role" onPress={() => defaultBrowser.requestRole().then(
           (granted) => {
             note(`requestRole → ${granted}`);
-            console.log(`PAGELAB system requestRole ${granted}`);
+            labLog(`PAGELAB system requestRole ${granted}`);
             refresh();
           },
           (error: { message?: string }) => note(`requestRole ✗ ${error.message ?? ""}`),
@@ -86,7 +86,7 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
           for (const icon of icons) {
             Promise.all([favicons.look(icon, true), favicons.look(icon, false)]).then(([dark, light]) => {
               const line = `favicon ${icon.split("/")[2]}: ${dark?.tone ?? "unreadable"}, backing dark ${dark?.backing ?? "none"}, light ${light?.backing ?? "none"}`;
-              console.log(`PAGELAB system ${line}`);
+              labLog(`PAGELAB system ${line}`);
               note(line);
             });
           }

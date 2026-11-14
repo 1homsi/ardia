@@ -1,4 +1,4 @@
-import { sync, syncLab, type PhoneInbox, type ReceivedTab, type SyncedView, type SyncStatus } from "@ardia/phone-native";
+import { labLog, sync, syncLab, type PhoneInbox, type ReceivedTab, type SyncedView, type SyncStatus } from "@ardia/phone-native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -112,7 +112,7 @@ export function SyncLab({ note }: { note: (line: string) => void }) {
           const result = await syncLab.damageInbox();
           const after = await sync.status();
           setStatus(after);
-          console.log(`PAGELAB sync inbox damaged: status inboxProblem ${after.inboxProblem ?? "none"}`);
+          labLog(`PAGELAB sync inbox damaged: status inboxProblem ${after.inboxProblem ?? "none"}`);
           return { inboxProblem: after.inboxProblem };
         })} />
         <Button label="Runtime checks" onPress={() => {
@@ -121,7 +121,7 @@ export function SyncLab({ note }: { note: (line: string) => void }) {
             (checks) => {
               for (const check of checks) {
                 const line = `PAGELAB ${check.pass ? "PASS" : "FAIL"} sync runtime ${check.name}${check.pass ? "" : `: device ${check.actual} · node ${check.expected}`}`;
-                console.log(line);
+                labLog(line);
                 note(line.replace("PAGELAB ", "").slice(0, 400));
               }
               note(`runtime checks: ${checks.filter((check) => check.pass).length} of ${checks.length} pass`);

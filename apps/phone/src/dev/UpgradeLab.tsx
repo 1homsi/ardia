@@ -1,4 +1,4 @@
-import { legacyImport, legacyLab } from "@ardia/phone-native";
+import { labLog, legacyImport, legacyLab } from "@ardia/phone-native";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -22,7 +22,7 @@ export function UpgradeLab({ note }: { note: (line: string) => void }) {
 
   const say = useCallback(
     (line: string) => {
-      console.log(`PAGELAB upgrade ${line}`);
+      labLog(`PAGELAB upgrade ${line}`);
       note(`upgrade ${line}`);
       setLines((all) => [...all, line].slice(-12));
     },

@@ -122,7 +122,16 @@ export type ReadableContent = {
   isArticle: boolean;
 };
 
-export type PageSnapshot = { path: string; uri: string; width: number; height: number; route?: "draw" | "windowCopy"; bytes?: number; kept?: boolean };
+export type PageSnapshot = {
+  path: string;
+  uri: string;
+  width: number;
+  height: number;
+  route?: "draw" | "windowCopy";
+  bytes?: number;
+  kept?: boolean;
+  frame?: { x: number; y: number; width: number; height: number } | null;
+};
 
 export type PageScrollPosition = { y: number; viewportWidth?: number; viewportHeight: number; contentHeight: number };
 

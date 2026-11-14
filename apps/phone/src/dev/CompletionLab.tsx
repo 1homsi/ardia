@@ -1,4 +1,4 @@
-import { CompletingField, completingFieldIsNative, type CompletingFieldHandle, type CompletionOffer } from "@ardia/phone-native";
+import { labLog, CompletingField, completingFieldIsNative, type CompletingFieldHandle, type CompletionOffer } from "@ardia/phone-native";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -26,7 +26,7 @@ export function CompletionLab({ note }: { note: (line: string) => void }) {
   const [offer, setOffer] = useState<CompletionOffer | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
   const say = (line: string) => {
-    console.log(`PAGELAB completion ${line}`);
+    labLog(`PAGELAB completion ${line}`);
     note(`completion ${line}`);
   };
   return (

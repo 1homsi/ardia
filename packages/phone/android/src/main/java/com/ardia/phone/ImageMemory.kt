@@ -51,7 +51,10 @@ object ImageMemory {
         watching = true
         context.applicationContext.registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
-                if (clearsOn(level)) clear()
+                if (!clearsOn(level)) return
+                clear()
+                val trimmed = LookMemory.trim()
+                if (PhoneLab.isOn) Log.i("PAGELAB", "PAGELAB memory trim level $level: image cache cleared; $trimmed")
             }
 
             override fun onConfigurationChanged(newConfig: Configuration) = Unit
@@ -70,7 +73,7 @@ object ImageMemory {
         val total = info.totalPss / 1024
         val images = cache()?.let(::describe) ?: "unknown"
         val lowMemory = ActivityManager.MemoryInfo().also { (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it) }.lowMemory
-        return "PAGELAB memory: total PSS $total MB, Java heap $javaUsed MB, native heap $native MB, graphics $graphics MB, image cache $images, live pages $livePages, low memory $lowMemory"
+        return "PAGELAB memory: total PSS $total MB, Java heap $javaUsed MB, native heap $native MB, graphics $graphics MB, image cache $images, live pages $livePages, low memory $lowMemory; ${LookMemory.line(context)}"
     }
 
     fun log(context: Context, livePages: Int) {

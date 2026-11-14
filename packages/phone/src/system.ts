@@ -16,6 +16,7 @@ export type SystemLink = (
 type NativeLink = Omit<SystemLink, "query"> & { query?: string };
 
 type SystemNative = {
+  labLog?: (line: string) => void;
   addListener(eventName: "onSystemLink", listener: (link: NativeLink) => void): Subscription;
   initialLink(): Promise<NativeLink | null>;
   setHidesFromRecents?(hidden: boolean): Promise<boolean>;
@@ -51,6 +52,11 @@ export const restorableState = {
     native?.setRestorableValue?.(key, value);
   },
 };
+
+export function labLog(line: string) {
+  if (native?.labLog) native.labLog(line);
+  else console.log(line);
+}
 
 export const systemLab = {
   memory: (): string | null => native?.labMemory?.() ?? null,

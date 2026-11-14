@@ -197,8 +197,19 @@ object PhonePages {
         val web = page.view.value
         val insets = covered ?: views[pageId]?.get()?.toneInsets
         val picture = if (route == CaptureRoute.WindowCopy && web != null && web.width > 0 && insets != null) withoutCovered(drawn, web.width, web.resources.displayMetrics.density, insets) else drawn
+        val frame = kotlinx.coroutines.withContext(Dispatchers.Main.immediate) { views[pageId]?.get()?.let(::frameInWindow) }
         val written = snapshots.write(pageId, picture, page.isPrivate, quality) ?: return null
-        return written + ("route" to if (route == CaptureRoute.WindowCopy) "windowCopy" else "draw")
+        if (PhoneLab.isOn) {
+            android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${picture.width}x${picture.height} by ${if (route == CaptureRoute.WindowCopy) "window copy" else "view draw"}, page view in window ${frame ?: "unknown"} (dp), top inset cropped ${insets?.first ?: 0.0} dp")
+        }
+        return written + ("route" to if (route == CaptureRoute.WindowCopy) "windowCopy" else "draw") + ("frame" to frame)
+    }
+
+    private fun frameInWindow(view: android.view.View): Map<String, Double> {
+        val at = IntArray(2)
+        view.getLocationInWindow(at)
+        val density = view.resources.displayMetrics.density.toDouble()
+        return mapOf("x" to at[0] / density, "y" to at[1] / density, "width" to view.width / density, "height" to view.height / density)
     }
 
     private fun withoutCovered(bitmap: Bitmap, viewWidth: Int, density: Float, insets: Pair<Double, Double>): Bitmap {

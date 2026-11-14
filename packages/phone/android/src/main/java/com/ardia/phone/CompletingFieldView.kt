@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.os.SystemClock
 import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
@@ -32,6 +33,7 @@ class CompletingFieldView(context: Context, appContext: AppContext) : ExpoView(c
     private var eventCount = 0
     private var pendingText: String? = null
     private var pendingTextCount = 0
+    private var lastSubmit: SubmitOnce.Submit? = null
 
     var highlightColor: Int = DEFAULT_HIGHLIGHT
         set(value) {
@@ -68,7 +70,16 @@ class CompletingFieldView(context: Context, appContext: AppContext) : ExpoView(c
             setOnEditorActionListener { _, action, event ->
                 val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
                 if (action == EditorInfo.IME_NULL && !enter) return@setOnEditorActionListener false
-                onSubmit(mapOf("displayed" to input.displayed))
+                val displayed = input.displayed
+                val via = if (action == EditorInfo.IME_NULL) "enter key" else "keyboard action $action"
+                val now = SystemClock.uptimeMillis()
+                if (SubmitOnce.isRepeat(lastSubmit, displayed, now)) {
+                    if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB completion submit ignored via $via: the same press already submitted \"$displayed\"")
+                    return@setOnEditorActionListener true
+                }
+                lastSubmit = SubmitOnce.Submit(displayed, now)
+                if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB completion submit \"$displayed\" via $via")
+                onSubmit(mapOf("displayed" to displayed))
                 true
             }
         }
@@ -289,4 +300,13 @@ class SuffixEditText(context: Context, private val suffix: () -> String, private
         canvas.drawText(shown, left, baseline, textPaint)
         canvas.restore()
     }
+}
+
+internal object SubmitOnce {
+    const val WINDOW_MILLIS = 400L
+
+    data class Submit(val displayed: String, val at: Long)
+
+    fun isRepeat(last: Submit?, displayed: String, now: Long): Boolean =
+        last != null && last.displayed == displayed && now - last.at in 0 until WINDOW_MILLIS
 }

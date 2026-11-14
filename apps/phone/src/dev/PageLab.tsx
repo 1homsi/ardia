@@ -1,6 +1,7 @@
 import {
   blocking,
   downloads,
+  labLog,
   pages,
   PageView,
   type BlockingState,
@@ -115,11 +116,11 @@ function Lab() {
   const [results, setResults] = useState<TestLine[]>([]);
   const [summary, setSummary] = useState<string | null>(null);
   const announce = useCallback((line: string) => {
-    console.log(line);
+    labLog(line);
     setSummary(line);
   }, []);
   const report = useCallback((line: TestLine) => {
-    console.log(`PAGELAB ${line.ok ? "PASS" : "FAIL"} ${line.step}: ${line.detail}`);
+    labLog(`PAGELAB ${line.ok ? "PASS" : "FAIL"} ${line.step}: ${line.detail}`);
     setResults((all) => [...all, line]);
   }, []);
 
@@ -153,7 +154,7 @@ function Lab() {
           note(`popup from ${event.pageId} ${event.url} gesture=${event.isUserGesture}`);
           return;
         case "page.desktop":
-          console.log(event.line);
+          labLog(event.line);
           note(event.line.replace("PAGELAB desktop ", "desktop "));
           return;
         case "pages.privateSessionEnded":

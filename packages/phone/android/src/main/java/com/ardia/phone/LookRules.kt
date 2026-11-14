@@ -24,6 +24,18 @@ object LookRules {
 
     private const val MIN_BLOB_RADIUS = 1f
 
+    fun blobCenterInto(index: Int, angle: Float, width: Float, height: Float, out: FloatArray) {
+        val side = blobSide(width, height)
+        val dx = (0.5f - TabsBackdropMotion.anchors[index * 2]) * side
+        val dy = (0.5f - TabsBackdropMotion.anchors[index * 2 + 1]) * side
+        val pivotX = width * TabsBackdropMotion.placements[index * 2]
+        val pivotY = height * TabsBackdropMotion.placements[index * 2 + 1]
+        val cosine = cos(angle)
+        val sine = sin(angle)
+        out[0] = pivotX + dx * cosine - dy * sine
+        out[1] = pivotY + dx * sine + dy * cosine
+    }
+
     fun blobCenter(index: Int, angle: Float, width: Float, height: Float): Pair<Float, Float> {
         val side = blobSide(width, height)
         val dx = (0.5f - TabsBackdropMotion.anchors[index * 2]) * side

@@ -48,12 +48,25 @@ internal object LookPaint {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<ProfileLook, Boolean>, Bitmap>?): Boolean = size > 12
     }
 
-    fun grain(density: Float, opacity: Float): Paint = Paint().apply {
-        shader = BitmapShader(grainBitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).apply {
-            setLocalMatrix(Matrix().apply { setScale(density / 2f, density / 2f) })
+    private val grains = HashMap<Long, Paint>()
+
+    fun grain(density: Float, opacity: Float): Paint {
+        val alpha = (opacity.coerceIn(0f, 1f) * 255f).toInt()
+        val key = (density.toRawBits().toLong() shl 32) or alpha.toLong()
+        return grains.getOrPut(key) {
+            Paint().apply {
+                shader = BitmapShader(grainBitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).apply {
+                    setLocalMatrix(Matrix().apply { setScale(density / 2f, density / 2f) })
+                }
+                blendMode = BlendMode.OVERLAY
+                this.alpha = alpha
+            }
         }
-        blendMode = BlendMode.OVERLAY
-        alpha = (opacity.coerceIn(0f, 1f) * 255f).toInt()
+    }
+
+    fun forgetCaches() {
+        synchronized(meshes) { meshes.clear() }
+        grains.clear()
     }
 
     fun mesh(look: ProfileLook, dark: Boolean): Bitmap = synchronized(meshes) {
@@ -63,18 +76,37 @@ internal object LookPaint {
 
 abstract class LookView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
     var color: String? = null
+        set(value) {
+            if (field != value) resolved = null
+            field = value
+        }
     var themeColors: List<String>? = null
+        set(value) {
+            if (field != value) resolved = null
+            field = value
+        }
     var darkThemeColors: List<String>? = null
+        set(value) {
+            if (field != value) resolved = null
+            field = value
+        }
     var dark: Boolean? = null
+
+    private class Resolved(val look: ProfileLook, val lookOrNull: ProfileLook?)
+
+    private var resolved: Resolved? = null
+
+    private fun resolve(): Resolved =
+        resolved ?: Resolved(LookRules.look(color, themeColors, darkThemeColors), LookRules.lookOrNull(color, themeColors, darkThemeColors)).also { resolved = it }
 
     protected val density: Float get() = resources.displayMetrics.density
 
     protected val isDark: Boolean
         get() = LookRules.dark(dark, resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES, lookOrNull)
 
-    protected val look: ProfileLook get() = LookRules.look(color, themeColors, darkThemeColors)
+    protected val look: ProfileLook get() = resolve().look
 
-    protected val lookOrNull: ProfileLook? get() = LookRules.lookOrNull(color, themeColors, darkThemeColors)
+    protected val lookOrNull: ProfileLook? get() = resolve().lookOrNull
 
     protected val lookIsOff: Boolean get() = LookSwitch.isOff(context)
 
@@ -132,6 +164,31 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     private val blobPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val source = Rect()
     private val target = Rect()
+    private val centre = FloatArray(2)
+
+    private var paintedLook: ProfileLook? = null
+    private var paintedDark = false
+    private var paintedRadius = -1f
+    private var mesh: Bitmap? = null
+    private var blobShaders: Array<Shader> = emptyArray()
+
+    private fun prepare(look: ProfileLook, dark: Boolean, radius: Float) {
+        if (look === paintedLook && dark == paintedDark && radius == paintedRadius && mesh != null) return
+        paintedLook = look
+        paintedDark = dark
+        paintedRadius = radius
+        mesh = LookPaint.mesh(look, dark)
+        blobShaders = look.deckBlobs(dark).map { blob ->
+            val argb = blob.toArgb()
+            RadialGradient(0f, 0f, radius, intArrayOf(argb, argb and 0x00FFFFFF), null, Shader.TileMode.CLAMP)
+        }.toTypedArray()
+    }
+
+    internal fun forgetPaint() {
+        paintedLook = null
+        mesh = null
+        blobShaders = emptyArray()
+    }
 
     internal var frames = 0L
         private set
@@ -195,26 +252,32 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             canvas.drawColor(LookSwitch.flatDeck(look, dark).toArgb())
             return
         }
-        val mesh = LookPaint.mesh(look, dark)
-        source.set(0, 0, mesh.width, mesh.height)
-        target.set(0, 0, width + 1, height + 1)
-        canvas.drawBitmap(mesh, source, target, meshPaint)
-        if (reduceTransparency) return
         val w = width.toFloat()
         val h = height.toFloat()
         val radius = LookRules.blobRadius(w, h)
+        prepare(look, dark, radius)
+        val meshBitmap = mesh ?: return
+        source.set(0, 0, meshBitmap.width, meshBitmap.height)
+        target.set(0, 0, width + 1, height + 1)
+        canvas.drawBitmap(meshBitmap, source, target, meshPaint)
+        if (reduceTransparency) return
         val animated = !reduceMotion
         val now = SystemClock.uptimeMillis()
-        look.deckBlobs(dark).forEachIndexed { index, blob ->
+        blobPaint.alpha = (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt()
+        for (index in blobShaders.indices) {
             val angle = if (animated) angle(index, now) else 0f
-            val (x, y) = LookRules.blobCenter(index, angle, w, h)
-            val argb = blob.toArgb()
-            blobPaint.shader = RadialGradient(x, y, radius, intArrayOf(argb, argb and 0x00FFFFFF), null, Shader.TileMode.CLAMP)
-            blobPaint.alpha = (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt()
-            canvas.drawCircle(x, y, radius, blobPaint)
+            LookRules.blobCenterInto(index, angle, w, h, centre)
+            blobPaint.shader = blobShaders[index]
+            val saved = canvas.save()
+            canvas.translate(centre[0], centre[1])
+            canvas.drawCircle(0f, 0f, radius, blobPaint)
+            canvas.restoreToCount(saved)
         }
         canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
-        if (animated && isShown) postInvalidateOnAnimation()
+        if (animated && isShown) {
+            val rate = LookSwitch.blobFramesPerSecond(context)
+            if (rate <= 0) postInvalidateOnAnimation() else postInvalidateDelayed(1000L / rate)
+        }
     }
 
     override fun fallbackColor(): Int = runCatching { LookSwitch.flatDeck(look, isDark).toArgb() }.getOrDefault(super.fallbackColor())
@@ -350,6 +413,7 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
     override fun onDetachedFromWindow() {
         viewTreeObserver.removeOnGlobalLayoutListener(laidOut)
         sourceId?.let { FrostSources.unregister(it, this) }
+        node?.discardDisplayList()
         super.onDetachedFromWindow()
     }
 
@@ -479,7 +543,19 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         viewTreeObserver.removeOnPreDrawListener(moved)
         viewTreeObserver.removeOnScrollChangedListener(scrolled)
         removeCallbacks(refresh)
+        forgetLayer()
         super.onDetachedFromWindow()
+    }
+
+    internal var layerWidth = 0
+        private set
+    internal var layerHeight = 0
+        private set
+
+    internal fun forgetLayer() {
+        blurNode.discardDisplayList()
+        layerWidth = 0
+        layerHeight = 0
     }
 
     private fun report(choice: FrostPage.Choice) {
@@ -519,7 +595,9 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             lastOffset = offset
             val dx = (offset shr 32).toInt()
             val dy = offset.toInt()
-            blurNode.setPosition(0, 0, ceil(width + margin * 2).toInt(), ceil(height + margin * 2).toInt())
+            layerWidth = ceil(width + margin * 2).toInt()
+            layerHeight = ceil(height + margin * 2).toInt()
+            blurNode.setPosition(0, 0, layerWidth, layerHeight)
             val recording = blurNode.beginRecording()
             try {
                 recording.translate(dx + margin, dy + margin)
@@ -536,6 +614,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             paint.color = style.tint.resolve(dark).toArgb()
             canvas.drawPath(clip, paint)
         } else {
+            if (layerWidth != 0) forgetLayer()
             paint.style = Paint.Style.FILL
             paint.color = style.fallback.resolve(dark).toArgb()
             canvas.drawPath(clip, paint)
@@ -588,5 +667,28 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             current = current.parent
         }
         return false
+    }
+}
+
+internal object LookMemory {
+    private const val MB = 1024.0 * 1024.0
+
+    fun line(context: Context): String {
+        val frosts = FrostSources.frosts()
+        val live = frosts.filter { it.isShown && it.layerWidth > 0 }
+        val bytes = live.sumOf { it.layerWidth.toLong() * it.layerHeight * 4 }
+        val largest = live.maxByOrNull { it.layerWidth.toLong() * it.layerHeight }
+        val decks = DeckBackdrops.all()
+        return "look ${if (LookSwitch.isOff(context)) "off" else "on"}: ${live.size} of ${frosts.size} frost(s) blurring, about ${"%.1f".format(bytes / MB)} MB of blur layers" +
+            (largest?.let { " (largest ${it.logLabel} ${it.layerWidth}x${it.layerHeight})" } ?: "") +
+            ", ${decks.count { it.isShown }} of ${decks.size} deck backdrop(s) shown"
+    }
+
+    fun trim(): String {
+        val hidden = FrostSources.frosts().filter { !it.isShown && it.layerWidth > 0 }
+        hidden.forEach { it.forgetLayer() }
+        DeckBackdrops.all().filter { !it.isShown }.forEach { it.forgetPaint() }
+        LookPaint.forgetCaches()
+        return "look trimmed: dropped ${hidden.size} hidden frost layer(s) and the look's paint caches"
     }
 }

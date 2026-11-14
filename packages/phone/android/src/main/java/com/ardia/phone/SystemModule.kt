@@ -12,6 +12,10 @@ class SystemModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhoneSystem")
 
+        Function("labLog") { line: String ->
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", line)
+        }
+
         Events("onSystemLink")
 
         OnStartObserving("onSystemLink") {

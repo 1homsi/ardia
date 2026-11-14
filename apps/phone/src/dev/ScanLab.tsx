@@ -1,4 +1,4 @@
-import { scanLab, scanner, ScanView, sync, type ScanPermission } from "@ardia/phone-native";
+import { labLog, scanLab, scanner, ScanView, sync, type ScanPermission } from "@ardia/phone-native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -17,7 +17,7 @@ export function ScanLab({ note }: { note: (line: string) => void }) {
 
   const report = useCallback(
     (line: string) => {
-      console.log(`PAGELAB scan ${line}`);
+      labLog(`PAGELAB scan ${line}`);
       note(`scan ${line}`);
     },
     [note],

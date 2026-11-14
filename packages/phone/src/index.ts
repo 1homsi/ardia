@@ -22,7 +22,7 @@ export { CompletingField, completingFieldIsNative, type CompletingFieldHandle, t
 export { ScrollActions, type ScrollActionDirection, type ScrollActionsProps } from "./accessibility";
 export { sync } from "./sync";
 export { syncLab, type SyncRuntimeCheck } from "./syncLab";
-export { restorableState, system, systemLab, type SystemLink, type SystemLinkSource } from "./system";
+export { labLog, restorableState, system, systemLab, type SystemLink, type SystemLinkSource } from "./system";
 export { scanLab, scanner, ScanView, type ScanError, type ScanPermission, type ScanViewProps } from "./scan";
 export { clipboard, type ClipboardOffer } from "./clipboard";
 export {
