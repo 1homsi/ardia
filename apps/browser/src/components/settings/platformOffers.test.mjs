@@ -42,6 +42,7 @@ console.log(JSON.stringify({
   panes: PANES.map((p) => p.id).filter((id) => ["sync", "calendar", "engines"].includes(id)),
   hidden: watched.filter((id) => unshown.has(id)),
   engineCommand: UNAVAILABLE_COMMANDS.has("togglePageEngine"),
+  hidingCommands: ["hideElement", "showHiddenElements"].map((id) => UNAVAILABLE_COMMANDS.has(id)),
   switchesEngine: canSwitchEngine("https://example.com/"),
   pageEngines: pageEngines(),
   calendarLink,
@@ -64,6 +65,7 @@ test("Windows offers Sync without passwords but no Calendar or WebKit pane, no b
     panes: ["sync"],
     hidden: ["calendar.access", "engines.defaultEngine", "privacy.blockAds", "privacy.filterLists", "general.littleWindowGestures", "tabs.videoUpscaling", "tabs.tabReorderHaptics", "appearance.pageScrollBars"],
     engineCommand: true,
+    hidingCommands: [true, true],
     switchesEngine: false,
     pageEngines: ["chromium", "chromium", "chromium", "chromium", "chromium"],
     calendarLink: "general",
@@ -79,6 +81,7 @@ test("the Mac keeps every pane, row and the engine switch", () => {
   assert.deepEqual(mac.panes, ["sync", "engines", "calendar"]);
   assert.deepEqual(mac.hidden, []);
   assert.equal(mac.engineCommand, false);
+  assert.deepEqual(mac.hidingCommands, [false, false]);
   assert.equal(mac.switchesEngine, true);
   assert.deepEqual(mac.pageEngines, ["webkit", "webkit", "webkit", "webkit", "webkit"]);
   assert.equal(mac.calendarLink, "calendar");
@@ -88,7 +91,7 @@ test("the Mac keeps every pane, row and the engine switch", () => {
 });
 
 const PANES_DIR = new URL("./panes/", import.meta.url);
-const HIDDEN_ON_WINDOWS = new Set(["Calendar.tsx", "Engines.tsx"]);
+const HIDDEN_ON_WINDOWS = new Set(["Calendar.tsx", "Engines.tsx", "HiddenElementsSection.tsx"]);
 const MAC_ONLY_STATES = [["General.tsx", "requiresApproval"]];
 const MAC_WORDS = /macOS|Touch ID|Keychain|this Mac|their Mac|View ›|Apple silicon|System Settings/;
 
@@ -106,4 +109,10 @@ test("the Settings panes Windows shows write no Mac word outside PLATFORM_TERMS 
       });
   }
   assert.deepEqual(found, []);
+});
+
+test("Hide anything's Settings section is mounted only where the content blocker keeps its rules", () => {
+  const privacy = readFileSync(new URL("Privacy.tsx", PANES_DIR), "utf8");
+  const mounts = privacy.split("\n").filter((line) => line.includes("<HiddenElementsSection"));
+  assert.deepEqual(mounts.map((line) => line.trim()), ["{PLATFORM_FEATURES.contentBlocker && <HiddenElementsSection />}"]);
 });

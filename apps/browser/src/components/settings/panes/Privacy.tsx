@@ -140,7 +140,7 @@ export function PrivacyPane({ profileId, site }: { profileId: string | null; sit
         </>
       )}
 
-      <HiddenElementsSection />
+      {PLATFORM_FEATURES.contentBlocker && <HiddenElementsSection />}
       <SitePermissions shownProfileId={profileId} site={site} />
       <AppLinks />
       <SectionHeader anchor="privacy.commandScrollZoom" description={null} />
