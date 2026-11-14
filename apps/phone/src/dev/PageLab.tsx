@@ -21,6 +21,7 @@ import { SyncLab } from "./SyncLab";
 import { LookLab } from "./LookLab";
 import { ScanLab } from "./ScanLab";
 import { SystemLab } from "./SystemLab";
+import { UpgradeLab } from "./UpgradeLab";
 import { VoiceLab } from "./VoiceLab";
 
 const labPage = `<!doctype html><meta name="viewport" content="width=device-width"><title>Page Lab</title>
@@ -93,6 +94,7 @@ function Lab() {
   const [pullToRefresh, setPullToRefresh] = useState(true);
   const [showVoice, setShowVoice] = useState(false);
   const [showLook, setShowLook] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [url, setUrl] = useState(LAB_URL);
   const [query, setQuery] = useState("browser");
   const [states, setStates] = useState<Record<string, PageState>>({});
@@ -285,6 +287,7 @@ function Lab() {
         {showScan && <ScanLab note={note} />}
         {showVoice && <VoiceLab note={note} />}
         {showLook && <LookLab />}
+        {showUpgrade && <UpgradeLab note={note} />}
         <Text style={styles.status} numberOfLines={2}>
           {pageId} {isPrivate ? "(private) " : ""}
           {state ? `${state.isLoading ? `loading ${Math.round(state.progress * 100)}% ` : ""}${state.title || "untitled"}` : "no state"}
@@ -332,6 +335,7 @@ function Lab() {
           <Button label={showScan ? "Hide scanner" : "Scanner"} active={showScan} onPress={() => setShowScan((shown) => !shown)} />
           <Button label={showVoice ? "Hide voice" : "Voice"} active={showVoice} onPress={() => setShowVoice((shown) => !shown)} />
           <Button label={showLook ? "Hide look" : "Look"} active={showLook} onPress={() => setShowLook((shown) => !shown)} />
+          <Button label={showUpgrade ? "Hide upgrade" : "Upgrade"} active={showUpgrade} onPress={() => setShowUpgrade((shown) => !shown)} />
           <Button label="Discard others" onPress={() => run("discard background", async () => {
             await pages.discardBackgroundPages(pageId);
             return pages.livePageIds();

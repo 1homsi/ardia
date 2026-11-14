@@ -249,6 +249,88 @@ and again only when that status changes.
     within 20 s: each switch updates the whole widget (panel, pill, text, icons) together within a few seconds,
     and the Search pill shows its icon and label in both modes.
 
+## Upgrade from the Compose app on Android
+
+Both apps are `com.ardia.browser.android`, so the Expo app installs over the Compose app and finds its files.
+Nothing in the Compose app's data is changed or deleted, so installing the Compose app back still works.
+
+- **The gate** (`UpgradeGate.kt`, 9cc21830b). An import is pending while any Compose source (`databases/browser.db`,
+  `shared_prefs/ardia.browser.xml`, `ardia.blocking.xml`, `ardia.reader.xml`) exists and
+  `no_backup/PhoneSync/legacy-import.json` doesn't hold a valid, versioned receipt. While it is pending:
+  - no sync controller is made (`ERR_IMPORT_PENDING`);
+  - the browsing source refuses every read with `LocalBrowsingNotReady`, never an empty list;
+  - `SyncWorker` retries instead of succeeding;
+  - the page module makes no blocking or site settings;
+  - links are queued, then delivered once, in order, when the gate opens.
+- **The reader** (`PhoneLegacy.kt`, `ArdiaPhoneLegacy`, d0c0b4a79).
+  - It copies `browser.db` and its WAL to `no_backup/PhoneSync/LegacySnapshot` and opens only the copy, so
+    committed rows still in the WAL are read.
+  - It runs `quick_check`, needs `user_version` 1 and every Compose column, and reports anything else as
+    `unusable` (`schema`, `corrupt`, `locked`, `io`), never as empty.
+  - `readLegacy` returns every tab and Archive entry with its saved state, the most recently active tab as
+    selected, and the 14 JS-owned preference keys. `readVisits(afterId, limit)` pages history by id.
+  - `applyNativeSettings` copies `ardia.blocking` into `ardia-blocking` (the same keys), splits `browsing.sites`
+    into the zoom, Night Shade and app-links maps and their defaults, and copies the thumbnails of regular tabs
+    into `files/PageSnapshots`. The thumbnail must sit inside `cache/TabSnapshots` and be a real image.
+  - `markImportedWith(receipt)` applies those settings, writes the marker last, opens the gate and starts one
+    sync. Every step can run again after a kill.
+- **Signing.** Android installs an update only when both apps have the same signing key and the new versionCode is
+  not lower. The Compose debug build is signed with the building machine's `~/.android/debug.keystore`. The Expo
+  app signs with `apps/phone/android/app/debug.keystore`, so for an upgrade it is re-signed with the Compose key
+  (`apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android`). The Expo app is versionCode 2, the
+  Compose app 1.
+
+#### Upgrade tester script
+
+Use the Compose APK and the Expo upgrade APK built for this run (same key). Watch
+`adb logcat -s ArdiaJS PAGELAB` throughout, and `adb logcat -b crash` for crashes. `P=com.ardia.browser.android`.
+
+1. **Start clean.** `adb uninstall $P`. An earlier Expo build has a different key and can't be updated in place.
+2. **Set up the Compose app as a tester has it.** `adb install ardia-compose-upgrade9.apk`, finish onboarding,
+   then:
+   - Open at least eight tabs. Give one back history three pages deep and scroll it halfway down a long page.
+     Open the deck so each tab gets a thumbnail.
+   - Archive two tabs, one of them with back history.
+   - Visit about 30 pages so History has more than one screen.
+   - Change these settings: Night Shade (Automatic), search engine (DuckDuckGo), search suggestions (off), swipe
+     navigation, the auto-archive interval, collapse bottom bar, the color, Open App Links In (App).
+   - Change the Reader settings: size, serif, theme.
+   - Change site settings: zoom on one site, Night Shade on another, open-in-app on a third.
+   - Change blocking: turn off cookie banners, add a trusted site, add a line to My Filters, turn one filter list off.
+   - Connect sync to the Mac and send one tab each way.
+3. **Write down the state.** Do this before anything else:
+   - Screenshot the deck, the Archive, History, every settings page you changed, and the Mac's device list.
+   - Run `adb shell am force-stop $P`.
+   - Run `adb shell run-as $P sh -c 'sha256sum databases/* shared_prefs/ardia.*.xml cache/TabSnapshots/*'`
+     and save the output.
+4. **Install the Expo app over it.** `adb install -r ardia-phone-upgrade9.apk`.
+   - **Reader check, before the app itself runs.** Open the lab
+     (`adb shell am start -n $P/.MainActivity --ez com.ardia.phone.PAGE_LAB true`), tap Upgrade, then Read source
+     and Read everything (`adb logcat -s ReactNativeJS:I | grep "PAGELAB upgrade"`).
+   - The source is `pending`, with the tab, Archive and visit counts from step 2.
+   - `read` shows every tab and both Archive entries, `states` at least the deep tab and the archived one,
+     `thumbnails` one per card that had a picture, and `selected` the tab that was open.
+   - `preferences` lists the keys you changed, and `visits` matches the source's visit count.
+   - The lab only reads: the page part of the lab reports `ERR_IMPORT_PENDING` while the import waits. Force-stop.
+   - Then send the app a link before it opens:
+     `adb shell am start -a android.intent.action.VIEW -d https://example.com/upgrade -n $P/.MainActivity`.
+5. **Check every item** against step 3:
+   - The deck has every tab in the same order, the same tab is selected, and each card shows its thumbnail.
+   - The deep tab goes Back through its three pages and opens at its scroll position.
+   - The Archive has both entries, and restoring the one with history keeps it.
+   - History has all the visits and search finds old ones.
+   - Every setting you changed holds, including the site and blocking settings, My Filters, the trusted site and
+     the list you turned off.
+   - Onboarding doesn't show.
+   - `example.com/upgrade` opens once, after the deck appears, and not again.
+6. **The device the Mac sees.** On the Mac, the phone appears once, under the same name and device id as before.
+   It is not a second, new device. A tab sent from the Mac arrives, and one sent from the phone reaches the Mac.
+7. **Relaunch with no second import.** `adb shell am force-stop $P`, then open the app twice. Each time, the deck
+   and the Archive have the same counts as step 5 (nothing doubled), and logcat shows no import running again.
+8. **Install the Compose app back.** `adb install -r -d ardia-compose-upgrade9.apk`. It opens with the tabs,
+   Archive, History and settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3
+   again: every line matches.
+
 ## Telemetry
 
 Off until the user chooses, in Settings (Share anonymous usage stats, with What's Sent) or on onboarding's last step. The consent model is the Mac's: nothing is sent, queued or counted while sharing is off, turning it off drops the queue, the day's counts and any request in flight at once, and an install ID is made only the first time sharing is turned on. Unlike the Mac, the phone sends no `daily_active` ping while sharing is off.
@@ -328,7 +410,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
 - Widgets: the Color setting doesn't tint them. `system/WidgetColors.kt`, `SystemSnapshotExport.kt`. Small.
 - Page permission order: Compose asks Android for camera, mic or location first and shows the site's Allow dialog only once Android grants it (a refusal ends quietly); the app shows the site dialog first. Needs a check-or-request call before the dialog. `PageRequests.kt` `PermissionRequest`. Small.
-- **Upgrade import from the Compose app (data loss).** Both apps are `com.ardia.browser.android`, so the Expo app installs over Compose, but there is no Android legacy module: Compose's `databases/browser.db` and SharedPreferences are never read, and upgraders lose tabs, Archive, history, settings and the finished onboarding. 51a85181c kept the schema so it can be a copy; the copy was never written. `BrowserDatabase.kt`, `BrowsingPreferences.kt`. A day.
+- **Upgrade import from the Compose app (data loss).** The native half is done: the gate (9cc21830b) and the read-only reader (d0c0b4a79), in "Upgrade from the Compose app on Android". The JavaScript importer (`state/legacy/importer.ts`) still calls the old `legacy.available()` and `legacy.read()`. On Android `read()` returns null, so nothing is imported, and the gate stays closed: no sync and no pages for an upgrader. It has to move to `legacyImport` (`source`, `read`, `readVisits`, `markImported(receipt)`). Then the release must be signed with the key the testers' Compose app has. Small.
 - Sync connect: both apps pick the folder first, show its name and reuse it after a mismatch; the module's `connect(phrase)` opens the picker inside the call, so a retry asks again. Needs `pickFolder()` and `connect(phrase, folder)`. `SyncConnectSession.kt`, `SyncModule.kt`. A day (shared with iPhone).
 - Pull to refresh settles on a 250 ms animator instead of Compose's snappy spring, in a fixed #007AFF instead of the accent; the swipe-to-navigate target falls back to black or white instead of the profile's surface. `PageGestures.kt` vs `PageLayer.kt` `animatePull`. Small.
 - Tab pager corner radius is a fixed 55; Compose reads the display's real corner on Android 12+. `TabPager.kt` `rememberDisplayCornerRadius`. Small.
