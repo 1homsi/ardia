@@ -36,6 +36,7 @@ import { frontSheet } from "./state/settings/settingsRules";
 import { inkLayer, lightStatusIcons } from "./lib/statusInk";
 import { reportLaunch, startTelemetry } from "./state/telemetry/telemetry";
 import { useIncognito, useSelectedTab } from "./state/tabs/hooks";
+import { setRootSize } from "./state/app/rootSize";
 
 export default function App() {
   useState(() =>
@@ -72,7 +73,7 @@ export default function App() {
     };
   }, []);
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView style={styles.root} onLayout={(event) => setRootSize(event.nativeEvent.layout.width, event.nativeEvent.layout.height)}>
       <SafeAreaProvider>
         <ProfileLookContext.Provider value={look}>
           <OverlayHost>{ready ? <Surfaces /> : importFailed ? <ImportFailedView /> : null}</OverlayHost>

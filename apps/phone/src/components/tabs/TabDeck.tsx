@@ -10,6 +10,7 @@ import { POOF } from "../../lib/poof";
 import { PoofBurst, type PoofSpec } from "./PoofBurst";
 import { haptics } from "../../state/app/haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { measuredOr, useRootSize } from "../../state/app/rootSize";
 import {
   deckCardAt,
   deckGeometry,
@@ -73,7 +74,9 @@ export function TabDeck() {
   countRender("TabDeck");
   const measuresInteractions = interactionPerfEnabled();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const window = useWindowDimensions();
+  const root = useRootSize();
+  const { width, height } = measuredOr(root, window);
   const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS), [width, height, insets.top, insets.bottom]);
   const [deckHeight, setDeckHeight] = useState<number | null>(null);
   const live = useDeckOrder();
