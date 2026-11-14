@@ -32,7 +32,11 @@ export const CONTEXT_FIELDS = {
 
 export const EVENT_FIELDS = {
   sharing_turned_on: { source: { kind: "enum", values: ["settings", "onboarding"] } },
-  app_launched: { legacy_import: { kind: "enum", values: ["imported", "started_fresh", "none"] }, legacy_import_failures: { kind: "count" } },
+  app_launched: {
+    legacy_import: { kind: "enum", values: ["imported", "started_fresh", "none"] },
+    legacy_import_failures: { kind: "count" },
+    look_mode: { kind: "enum", values: ["full", "no_blur", "no_motion", "neither"] },
+  },
   perf_launch: { launch_ms: { kind: "ms" }, js_ms: { kind: "ms" } },
   usage_counts: {
     tabs_opened: { kind: "count" },

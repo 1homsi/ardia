@@ -1,4 +1,5 @@
 import { AppState } from "react-native";
+import { lookBudget, systemLook } from "../../platform/look";
 import { create } from "zustand";
 import { createGate, type SharingSource } from "../../lib/telemetryGate";
 import { launchProps, legacyImportOutcome, type Counted } from "../../lib/telemetrySchema";
@@ -53,7 +54,8 @@ export async function reportLaunch(firstScreenAt: number) {
   if (reported || !gate.isSharing()) return;
   reported = true;
   const boot = useBoot.getState();
-  gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures });
+  const look = lookBudget.mode(await systemLook());
+  gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures, look_mode: look });
   const timings = launchProps(await processStartedAt(), JS_STARTED_AT, firstScreenAt);
   if (timings) gate.capture("perf_launch", timings);
 }

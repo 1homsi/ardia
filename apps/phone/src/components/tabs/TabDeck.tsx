@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DeckLookProbe } from "./DeckLookProbe";
+import { useSheet, useSurface } from "../../state/browse/hooks";
+import { useSearchOpen } from "../../state/search/hooks";
 import { beginInteraction, countRender, INTERACTION_WINDOW_MS, interactionPerfEnabled } from "../../state/app/interactionPerf";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -85,6 +88,11 @@ export function TabDeck() {
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
   const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number } | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const deckSurface = useSurface();
+  const deckSheet = useSheet();
+  const trayOpen = useSearchOpen();
+  const probeTouch = useRef<(touching: boolean) => void>(() => undefined);
+  const touchChanged = useCallback((on: boolean) => probeTouch.current(on), []);
   const archiveCard = useArchiveCardShowing();
   const offered = useRef(false);
   useEffect(() => {
@@ -256,6 +264,7 @@ export function TabDeck() {
       startScroll.value = scroll.value;
       scrollFrom.value = e.absoluteX;
       touching.value = true;
+      runOnJS(touchChanged)(true);
       runOnJS(hideArchiveCard)();
       if (deckDragKind(card, e.absoluteX - down.absoluteX, e.absoluteY - down.absoluteY) === "lift") {
         vertical.value = true;
@@ -280,9 +289,11 @@ export function TabDeck() {
         if (deckShouldClose(e.absoluteY - touchDown.value.absoluteY, e.velocityY, g.cardHeight)) {
           runOnJS(flickTick)();
           runOnJS(close)(card, dragLift.value);
+          runOnJS(touchChanged)(false);
         } else {
           dragLift.value = withSpring(0, tabsMotion.release, (finished) => {
             if (finished) dragIndex.value = -1;
+            runOnJS(touchChanged)(false);
           });
         }
         return;
@@ -292,6 +303,7 @@ export function TabDeck() {
         "worklet";
         touching.value = false;
         runOnJS(setAnchor)(target);
+        runOnJS(touchChanged)(false);
       };
       scroll.value = reduceMotion
         ? withTiming(target, { duration: tabsMotion.fade, easing: tabsCurve.easeOut }, settled)
@@ -470,6 +482,10 @@ export function TabDeck() {
           <PoofBurst key={spec.id} spec={spec} />
         ))}
       </Shade>
+      <DeckLookProbe
+        busy={phase.kind !== "settled" || menu !== null || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck"}
+        touch={probeTouch}
+      />
       {menu === "plus" ? (
         <Menu
           items={plusItems}

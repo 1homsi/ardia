@@ -731,9 +731,9 @@ it once and turns the look down if it can't; the system settings always come fir
 - **A second chance.** A passing phone is measured again after an app update; a degraded one after an update or
   30 days, by showing it the full look for the next builds until two samples agree again.
 - **Telemetry.** One enum, `look_mode` (`full`, `no_blur`, `no_motion`, `neither`, from `lookBudget.mode()`), on
-  `app_launched`: the look this launch shows, system settings included. No frame time leaves the phone. Still to
-  add, by the screens agent with the deck's call to `useLookBudgetProbe`: the field in the schema, What's Sent
-  and the tables under Telemetry.
+  `app_launched`: the look this launch shows, system settings included. No frame time leaves the phone. The deck
+  calls `useLookBudgetProbe` through `DeckLookProbe`, idle while the deck is settled and untouched with no sheet, menu,
+  confirmation or tray, and passes the system's Reduce Motion and Reduce Transparency.
 - **The lab.** Look shows the verdict, the next build's look and the last sample (frames, median against
   deadline, share missed) and can force full, force degraded, go back to measured, or reset. Lab builds log
   `PAGELAB look budget over|within|inconclusive: …` for each sample.
@@ -764,7 +764,7 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 | Event | Fields | When |
 | --- | --- | --- |
 | `sharing_turned_on` | `source` (settings, onboarding) | turning sharing on |
-| `app_launched` | `legacy_import` (imported, started_fresh, none), `legacy_import_failures` (failed tries before the app opened) | each launch with sharing on |
+| `app_launched` | `legacy_import` (imported, started_fresh, none), `legacy_import_failures` (failed tries before the app opened), `look_mode` (full, no_blur, no_motion, neither: the look this launch shows, after the look's budget and the system's Reduce Motion and Reduce Transparency) | each launch with sharing on |
 | `perf_launch` | `launch_ms`, `js_ms` | each launch, once the module gives the process start (`ArdiaPhoneSystem.processStartedAt()`, epoch ms) |
 | `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `spaces_swiped` (a swipe in Spaces that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
 
@@ -781,6 +781,7 @@ Every count and timing the phone can send, for the owner to read as one set and 
 | `page_processes_gone` | c6ebf08a8 | How often the page engine dies under people; a rise after a release is a regression |
 | `launch_ms`, `js_ms` (`perf_launch`) | c6ebf08a8 | Cold launch time, process start to first screen, and the JavaScript share of it |
 | `legacy_import_failures` (`app_launched`) | 12a33bf03 | Whether the upgrade import fails in the field, and how many tries it takes |
+| `look_mode` (`app_launched`) | this commit | How many phones the look's budget turns down, and to what; a share that grows after a release means the look got dearer |
 | `links_given_up` | 16509434e | Whether a link's handling still hangs past 8 s; anything above zero is a bug to chase |
 | `pages_reloaded_online` | b59e43a94 | Whether the reload on reconnect fires; near the line, worth striking once it is seen working |
 | `spaces_swiped` | b9bb6e53e | Whether people find the swipe in Spaces or only use the switcher |
