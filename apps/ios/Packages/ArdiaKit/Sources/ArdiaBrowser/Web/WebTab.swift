@@ -16,6 +16,38 @@ public enum PageLoadFailure: Sendable, Equatable {
   case network(title: String, message: String)
 }
 
+public enum PageNetworkReason: String, Sendable, Equatable {
+  case offline
+  case hostNotFound
+  case timedOut
+  case connectionLost
+  case notPrivate
+  case other
+
+  public init(_ error: NSError) {
+    guard error.domain == NSURLErrorDomain else {
+      self = .other
+      return
+    }
+    switch error.code {
+    case NSURLErrorNotConnectedToInternet, NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff, NSURLErrorCallIsActive:
+      self = .offline
+    case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed:
+      self = .hostNotFound
+    case NSURLErrorTimedOut:
+      self = .timedOut
+    case NSURLErrorNetworkConnectionLost, NSURLErrorCannotConnectToHost:
+      self = .connectionLost
+    case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateUntrusted,
+         NSURLErrorServerCertificateHasUnknownRoot, NSURLErrorServerCertificateNotYetValid, NSURLErrorClientCertificateRejected,
+         NSURLErrorClientCertificateRequired:
+      self = .notPrivate
+    default:
+      self = .other
+    }
+  }
+}
+
 @MainActor
 @Observable
 public final class WebTab: DiscardablePage, Identifiable {
@@ -34,7 +66,10 @@ public final class WebTab: DiscardablePage, Identifiable {
   public private(set) var security: PageSecurity = .none
   public private(set) var scrollDirection: ScrollDirection = .up
   public private(set) var isScrolledToTop = true
-  public private(set) var failure: PageLoadFailure?
+  public private(set) var failure: PageLoadFailure? {
+    didSet { if failure == nil { failureReason = nil } }
+  }
+  public private(set) var failureReason: PageNetworkReason?
   public private(set) var pageZoom = 1.0
   public private(set) var isFindingInPage = false
   public var request: PageRequest?
@@ -457,6 +492,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     if error.domain == "WebKitErrorDomain" && (error.code == 102 || error.code == 204) { return }
     guard provisional else { return }
     failure = .network(title: String(localized: "This Webpage Couldn’t Load"), message: Self.message(for: error))
+    failureReason = PageNetworkReason(error)
   }
 
   fileprivate func processTerminated() {

@@ -32,7 +32,7 @@ enum PagePayloads {
     if let faviconURL { state["faviconUrl"] = faviconURL }
     if let theme = ToneColor(page.themeColor) { state["themeColor"] = theme.hex }
     if let background = ToneColor(page.underPageBackgroundColor) { state["backgroundColor"] = background.hex }
-    if let failure = page.failure { state["failure"] = Self.failure(failure) }
+    if let failure = page.failure { state["failure"] = Self.failure(failure, reason: page.failureReason) }
     return state
   }
 
@@ -45,12 +45,12 @@ enum PagePayloads {
     }
   }
 
-  static func failure(_ failure: PageLoadFailure) -> [String: Any?] {
+  static func failure(_ failure: PageLoadFailure, reason: PageNetworkReason? = nil) -> [String: Any?] {
     switch failure {
     case .crashed:
       ["kind": "crashed", "reason": nil, "title": String(localized: "This Webpage Stopped Working"), "message": String(localized: "Reload the page to try again.")]
     case .network(let title, let message):
-      ["kind": "network", "reason": nil, "title": title, "message": message]
+      ["kind": "network", "reason": (reason ?? .other).rawValue, "title": title, "message": message]
     }
   }
 
