@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ardia/core/ac_launch_switches.h"
+#include "ardia/win/context_menu.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/main.h"
 #include "ardia/win/page_links.h"
@@ -58,6 +59,7 @@
 #include "ui/events/types/event_type.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect.h"
+#include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
 #include "url/gurl.h"
 
 namespace ardia_win {
@@ -248,6 +250,15 @@ HWND PromptWindow() {
   return Host::Get()->VisibleParent();
 }
 
+bool OpenPopupAsTab(BrowserWindowInterface* browser,
+                    const blink::mojom::WindowFeatures& features) {
+  return Host::Get()->PopupAsTab(browser, features);
+}
+
+void NotePopupInserted() {
+  Host::Get()->PopupInserted();
+}
+
 }
 
 void Host::Start() {
@@ -256,6 +267,9 @@ void Host::Start() {
   }
   started_ = true;
   g_ardia_win_prompt_window = &PromptWindow;
+  g_ardia_win_popup_as_tab = &OpenPopupAsTab;
+  g_ardia_win_popup_inserted = &NotePopupInserted;
+  InstallHostedPageMenus();
   browsers_observation_.Observe(GlobalBrowserCollection::GetInstance());
 }
 
@@ -735,6 +749,7 @@ base::DictValue Host::Info() {
                                   .value()));
   result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
   result.Set("pageWindows", static_cast<int>(hosted_.size()));
+  result.Set("popupBrowsers", static_cast<int>(popup_browsers_.size()));
   result.Set("testInstance", ardiacore::TestInstance());
   result.Set("keyboardPage", KeyboardPage());
   result.Set("keyboardMayMove", KeyboardMayMove());
@@ -1135,6 +1150,34 @@ void Host::FocusFor(ui::Event* event) {
   }
 }
 
+bool Host::PopupAsTab(BrowserWindowInterface* browser,
+                      const blink::mojom::WindowFeatures& features) {
+  Browser* opener = static_cast<Browser*>(browser);
+  if (!opener || (!hosted_.contains(opener) && !foreign_.contains(opener))) {
+    return false;
+  }
+  popup_opening_in_ = opener;
+  popup_bounds_ = base::DictValue();
+  if (features.has_x) {
+    popup_bounds_.Set("x", features.bounds.x());
+  }
+  if (features.has_y) {
+    popup_bounds_.Set("y", features.bounds.y());
+  }
+  if (features.has_width) {
+    popup_bounds_.Set("width", features.bounds.width());
+  }
+  if (features.has_height) {
+    popup_bounds_.Set("height", features.bounds.height());
+  }
+  return true;
+}
+
+void Host::PopupInserted() {
+  popup_opening_in_ = nullptr;
+  popup_bounds_ = base::DictValue();
+}
+
 void Host::NoteOpened(Browser* browser,
                       TabStripModel* model,
                       content::WebContents* contents,
@@ -1145,7 +1188,12 @@ void Host::NoteOpened(Browser* browser,
   payload.Set("url", contents->GetVisibleURL().spec());
   payload.Set("foreground", foreground);
   bool foreign = foreign_.contains(browser);
-  payload.Set("window", foreign);
+  const bool popup = popup_opening_in_ == browser;
+  if (popup) {
+    payload.Set("popup", popup_bounds_.Clone());
+    popup_opening_in_ = nullptr;
+  }
+  payload.Set("window", foreign || popup);
   payload.Set("profile", NameOf(browser->GetProfile()));
   std::string opener_key;
   content::WebContents* opener = nullptr;
@@ -1168,7 +1216,7 @@ void Host::NoteOpened(Browser* browser,
   }
   payload.Set("parent", base::NumberToString(reinterpret_cast<uintptr_t>(parent)));
   payload.Set("fromClick", false);
-  if (!foreground || foreign || opener_key.empty() ||
+  if (popup || !foreground || foreign || opener_key.empty() ||
       !OpenRequest::FromWebContents(contents)) {
     Emit("tab.opened", std::move(payload));
     return;
@@ -1271,6 +1319,9 @@ void Host::OnTabStripModelChanged(TabStripModel* tab_strip_model,
 }
 
 void Host::OnBrowserCreated(BrowserWindowInterface* browser) {
+  if (browser->GetType() == BrowserWindowInterface::TYPE_POPUP) {
+    popup_browsers_.insert(static_cast<Browser*>(browser));
+  }
   if (creating_browser_ ||
       browser->GetType() != BrowserWindowInterface::TYPE_NORMAL) {
     return;
@@ -1291,6 +1342,7 @@ void Host::OnBrowserClosed(BrowserWindowInterface* browser) {
   Browser* closed = static_cast<Browser*>(browser);
   hosted_.erase(closed);
   foreign_.erase(closed);
+  popup_browsers_.erase(closed);
 }
 
 void Host::OnMouseEvent(ui::MouseEvent* event) {

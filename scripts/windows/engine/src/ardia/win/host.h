@@ -23,6 +23,10 @@
 
 class Browser;
 class BrowserWindowInterface;
+
+namespace blink::mojom {
+class WindowFeatures;
+}
 class Profile;
 
 namespace content {
@@ -58,6 +62,9 @@ class Host : public TabStripModelObserver,
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);
   void ParentActivated(HWND parent);
+  bool PopupAsTab(BrowserWindowInterface* browser,
+                  const blink::mojom::WindowFeatures& features);
+  void PopupInserted();
 
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
@@ -135,6 +142,9 @@ class Host : public TabStripModelObserver,
   std::string NameOf(Profile* profile) const;
 
   std::map<Browser*, Hosted> hosted_;
+  std::set<Browser*> popup_browsers_;
+  raw_ptr<Browser> popup_opening_in_ = nullptr;
+  base::DictValue popup_bounds_;
   std::set<Browser*> foreign_;
   std::map<std::string, raw_ptr<content::WebContents>> tabs_;
   std::map<Profile*, std::string> profile_names_;

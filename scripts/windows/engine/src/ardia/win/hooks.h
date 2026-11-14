@@ -12,14 +12,22 @@ class FilePath;
 }
 
 class BrowserFrameView;
+class BrowserWindowInterface;
+class RenderViewContextMenuBase;
 class GURL;
 class BrowserView;
 class BrowserWidget;
 class ChromeBrowserMainParts;
 
+namespace blink::mojom {
+class WindowFeatures;
+}
+
 namespace content {
+class RenderFrameHost;
 class WeakDocumentPtr;
 class WebContents;
+struct ContextMenuParams;
 }
 
 namespace url {
@@ -42,6 +50,18 @@ extern bool (*g_ardia_win_external_protocol_dialog)(
     bool has_user_gesture,
     const std::optional<url::Origin>& initiating_origin,
     content::WeakDocumentPtr initiator_document);
+
+extern bool (*g_ardia_win_popup_as_tab)(
+    BrowserWindowInterface* browser,
+    const blink::mojom::WindowFeatures& features);
+
+extern void (*g_ardia_win_popup_inserted)();
+
+extern std::unique_ptr<RenderViewContextMenuBase> (*g_ardia_win_context_menu)(
+    content::RenderFrameHost& render_frame_host,
+    const content::ContextMenuParams& params,
+    bool is_paste_enabled,
+    bool is_paste_and_match_style_enabled);
 
 extern bool (*g_ardia_win_relaunched)(const base::CommandLine& command_line,
                                       const base::FilePath& cur_dir);
