@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
-import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
+import Animated, { SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSystemBars } from "../../state/app/systemBars";
 import { closeReader, readableContent, setReaderSerif, setReaderStep, setReaderTheme, type ReadableContent } from "../../state/page/actions";
@@ -43,6 +43,10 @@ export function ReaderView({ tabId }: { tabId: string }) {
     };
   }, [tabId]);
   const size = readerBodySize(settings.step);
+  const shownSize = useSharedValue(size);
+  useEffect(() => {
+    shownSize.value = withSpring(size, SIZE_SPRING);
+  }, [size]);
   const family = settings.serif ? copy().readerSerif.family : copy().readerSans.family;
   const items: MenuItem[] = [
     { label: "Smaller Text", onPress: () => setReaderStep(clampReaderStep(settings.step - 1)) },
@@ -87,11 +91,7 @@ export function ReaderView({ tabId }: { tabId: string }) {
           keyExtractor={(_, index) => String(index)}
           contentContainerStyle={{ paddingBottom: insets.bottom + space.huge }}
           ListHeaderComponent={<Header content={load.content} family={family} size={size} ink={ink} />}
-          renderItem={({ item }) => (
-            <Text style={[styles.paragraph, { fontFamily: family, fontSize: size, lineHeight: size * readerLayout.lineHeight, marginBottom: size * readerLayout.paragraphGap, color: ink.ink }]}>
-              {item}
-            </Text>
-          )}
+          renderItem={({ item }) => <Paragraph text={item} family={family} size={shownSize} color={ink.ink} />}
         />
       )}
       <View style={[styles.navigationBand, { height: insets.bottom, backgroundColor: ink.background }]} pointerEvents="none" />
@@ -112,14 +112,27 @@ function Header({ content, family, size, ink }: { content: ReadableContent; fami
           {source}
         </Text>
       ) : null}
-      <Text accessibilityRole="header" style={{ fontFamily: family, fontWeight: "700", fontSize: title, lineHeight: title * readerLayout.titleLine, color: ink.ink }}>
+      <Text selectable accessibilityRole="header" style={{ fontFamily: family, fontWeight: "700", fontSize: title, lineHeight: title * readerLayout.titleLine, color: ink.ink }}>
         {content.title}
       </Text>
       <Text style={[font.subheadline, { color: ink.secondary }]}>{`${readingMinutes(content.wordCount)} min read`}</Text>
-      {content.leadImage ? <LeadImage uri={content.leadImage} /> : null}
+      {content.leadImage && WEB_IMAGE.test(content.leadImage) ? <LeadImage uri={content.leadImage} /> : null}
     </View>
   );
 }
+
+function Paragraph({ text, family, size, color }: { text: string; family: string; size: SharedValue<number>; color: string }) {
+  const sized = useAnimatedStyle(() => ({ fontSize: size.value, lineHeight: size.value * readerLayout.lineHeight, marginBottom: size.value * readerLayout.paragraphGap }));
+  return (
+    <Animated.Text selectable style={[styles.paragraph, { fontFamily: family, color }, sized]}>
+      {text}
+    </Animated.Text>
+  );
+}
+
+const WEB_IMAGE = /^https?:\/\//i;
+const SIZE_STIFFNESS = 1500;
+const SIZE_SPRING = { stiffness: SIZE_STIFFNESS, damping: 2 * Math.sqrt(SIZE_STIFFNESS), mass: 1 };
 
 function LeadImage({ uri }: { uri: string }) {
   const [aspect, setAspect] = useState<number | null>(null);
