@@ -343,7 +343,7 @@ const withEngine: Check[] = [
       expectEqual({ dropped: await alive(dropped), newest: await alive(newest), newestAgain: await alive(newest) }, { dropped: false, newest: true, newestAgain: false }, "an ask the app dropped, and the newest ask answered once");
     },
   },
-  pagePopupCheck(PAGE_KEY),
+  pagePopupCheck(PAGE_KEY, firstWindow),
   pagePopupShowLoop(PAGE_KEY),
   {
     name: "engine: a key closed while its page still runs its unload handlers can be used again at once",

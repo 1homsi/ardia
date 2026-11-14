@@ -2,9 +2,11 @@ import { hostCall, onEngineTopic } from "../engine/host";
 import { showStepsOf, traceShowsOf } from "../engine/showTrace";
 import { expectEqual, type Check } from "./check";
 
-export const pagePopupCheck = (pageKey: string): Check => ({
-  name: "engine: a pop-up a page opens with a click stays a tab of its window, sent to the app as a pop-up with the size it asked for and its opener, and no Chromium pop-up window opens",
+export const pagePopupCheck = (pageKey: string, firstWindow: () => Promise<string>): Check => ({
+  name: "engine: a pop-up a page opens with a click waits in the background of its window, sent to the app as a pop-up with the size it asked for and its opener, the opener stays the shown tab, and no Chromium pop-up window opens",
   async run() {
+    const windowId = await firstWindow();
+    await hostCall("tab.show", { key: pageKey, visible: true, unit: "px", x: 40, y: 60, width: 300, height: 240 }, windowId);
     const popupName = "ardia-self-check-popup";
     const opened = new Promise<Record<string, unknown>>((resolve, reject) => {
       const watching = onEngineTopic("tab.opened", (event: Record<string, unknown>) => {
@@ -23,7 +25,9 @@ export const pagePopupCheck = (pageKey: string): Check => ({
       return typeof reply.result === "string" ? (JSON.parse(reply.result) as unknown) : null;
     };
     try {
-      const asked = await evaluate(`post("result", JSON.stringify(!!window.open("about:blank", "${popupName}", "width=420,height=360,left=200,top=150")));`, true);
+      const before = await evaluate(`window.ardiaHiddenSeen = false; document.addEventListener("visibilitychange", () => { if (document.visibilityState !== "visible") window.ardiaHiddenSeen = true; }); post("result", JSON.stringify(document.visibilityState));`);
+      expectEqual(before, "visible", "the opener page before its pop-up opens");
+      const asked = await evaluate(`post("result", JSON.stringify(!!window.open("about:blank", "${popupName}", "width=420,height=360,left=600,top=400")));`, true);
       expectEqual(asked, true, "window.open with a click returns a window");
       const event = await opened;
       const popup = (event.popup ?? null) as Record<string, unknown> | null;
@@ -45,9 +49,15 @@ export const pagePopupCheck = (pageKey: string): Check => ({
       const linked = await evaluate(
         `const w = window.open("", "${popupName}"); const linked = !!w && w.opener === window; if (w) w.close(); setTimeout(() => post("result", JSON.stringify({ linked, closed: !!w && w.closed })), 1500);`,
       );
+      expectEqual(
+        await evaluate(`post("result", JSON.stringify({ hiddenSeen: window.ardiaHiddenSeen === true, now: document.visibilityState }));`),
+        { hiddenSeen: false, now: "visible" },
+        "the opener page stays the visible tab of its window while its pop-up waits for the app and after",
+      );
       expectEqual(linked, { linked: true, closed: true }, "the pop-up's opener, and window.close() from its opener");
     } finally {
       await evaluate(`const w = window.open("", "${popupName}"); if (w) w.close(); post("result", "null");`).catch(() => null);
+      await hostCall("tab.show", { key: pageKey, visible: false }, windowId).catch(() => null);
     }
   },
 });
