@@ -12,11 +12,13 @@ import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, t
 import { useOnboarding } from "../../state/onboarding/store";
 import { useVoice } from "../../state/voice/store";
 import { idleScrub, SCRUB, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
-import { wholeRowsHeight } from "../../lib/trayRows";
+import { rowFade, rowsOverflow, wholeRowsHeight } from "../../lib/trayRows";
 import { haptics } from "../../state/app/haptics";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
+import { useTabs } from "../../state/tabs/store";
+import { countUsage } from "../../state/telemetry/telemetry";
 import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
@@ -443,7 +445,7 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   if (window.fontScale <= LARGE_FONT_SCALE) {
     return (
       <Animated.View key="rows" testID="trayRows" entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
-        <ScrubbedRows rows={rows} typed={typed} budget={shown ?? room} onMeasure={measure} onRefine={refine} onMenu={showMenu} />
+        <ScrubbedRows rows={rows} typed={typed} budget={room} onMeasure={measure} onRefine={refine} onMenu={showMenu} />
         {menuView}
       </Animated.View>
     );
@@ -478,18 +480,14 @@ type ScrubbedProps = {
 
 function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: ScrubbedProps) {
   const theme = useTrayTheme();
-  const latest = useRef({ rows });
-  latest.current = { rows };
+  const latest = useRef({ rows, budget });
+  latest.current = { rows, budget };
   const measured = useRef<(RowFrame | null)[]>([]);
   const frames = useSharedValue<(RowFrame | null)[]>([]);
-  const visible = useSharedValue(budget);
   const scrub = useSharedValue<ScrubState>(idleScrub);
   const menuTaken = useSharedValue(false);
   const drawn = useSharedValue(-1);
   const alpha = useSharedValue(0);
-  useEffect(() => {
-    visible.value = budget;
-  }, [budget]);
   useEffect(() => {
     measured.current = measured.current.slice(0, rows.length);
     frames.value = [...measured.current];
@@ -498,6 +496,8 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
   const release = (index: number) => {
     const row = latest.current.rows[index];
     if (!row) return;
+    const frame = measured.current[index];
+    if (frame && rowsOverflow(frame.bottom, latest.current.budget) && !useTabs.getState().incognito) countUsage("tray_hidden_rows_opened");
     haptics.confirm();
     activateRow(row);
   };
@@ -515,18 +515,18 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
         .maxPointers(1)
         .minDistance(SCRUB.distance)
         .onBegin((event) => {
-          scrub.value = scrubBegin(frames.value, event.x, event.y, visible.value);
+          scrub.value = scrubBegin(frames.value, event.x, event.y);
           menuTaken.value = false;
         })
         .onUpdate((event) => {
           if (menuTaken.value) return;
-          const moved = scrubMove(scrub.value, frames.value, event.x, event.y, visible.value);
+          const moved = scrubMove(scrub.value, frames.value, event.x, event.y);
           scrub.value = moved.state;
           if (moved.ticks) runOnJS(tick)();
         })
         .onEnd((event) => {
           if (menuTaken.value) return;
-          const ended = scrubEnd({ ...scrub.value, scrubbing: true }, frames.value, event.x, event.y, visible.value);
+          const ended = scrubEnd({ ...scrub.value, scrubbing: true }, frames.value, event.x, event.y);
           if (ended.kind === "activate") runOnJS(release)(ended.index);
         })
         .onFinalize(() => {
@@ -556,6 +556,8 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
     return { opacity: alpha.value, top: frame.top, left: frame.left, width: frame.right - frame.left, height: frame.bottom - frame.top };
   });
 
+  const lastFrame = measured.current[rows.length - 1];
+  const overflows = rowsOverflow(lastFrame?.bottom ?? 0, budget);
   return (
     <GestureDetector gesture={gesture}>
       <View testID="trayRowList" style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]} collapsable={false}>
@@ -564,6 +566,7 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
           <View
             key={index}
             testID={`trayRow:${index}`}
+            style={overflows && measured.current[index] ? { opacity: rowFade(measured.current[index]!.top, measured.current[index]!.bottom, budget, true) } : null}
             onLayout={(event) => {
               const { x, y, width, height } = event.nativeEvent.layout;
               measured.current[index] = { left: x, top: y, right: x + width, bottom: y + height };

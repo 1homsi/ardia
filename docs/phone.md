@@ -564,7 +564,7 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 | `sharing_turned_on` | `source` (settings, onboarding) | turning sharing on |
 | `app_launched` | `legacy_import` (imported, started_fresh, none), `legacy_import_failures` (failed tries before the app opened) | each launch with sharing on |
 | `perf_launch` | `launch_ms`, `js_ms` | each launch, once the module gives the process start (`ArdiaPhoneSystem.processStartedAt()`, epoch ms) |
-| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `spaces_swiped` (a swipe in Spaces that changed the profile) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
+| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `spaces_swiped` (a swipe in Spaces that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
 
 On the dashboard they are kept out of every Mac section by source and lib (`PHONE_APP_SOURCE` in `apps/dashboard/src/server/sql.ts`).
 
@@ -652,6 +652,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 - Deck gestures: a 400 ms hold opens the card menu without scrolling, a slow vertical drag lifts, a tap right after a settle opens the right card.
 - Incognito chip: compare its tap with Compose's `IncognitoChip` (SwiftUI shows a one-item menu, as the app does).
 - Voice from the tray: the keyboard goes down over the voice screen and comes back on the tray after Cancel.
+- Tray rows that don't fit above the keyboard: the row after the last whole one peeks at the keyboard's edge, faded (each row takes SwiftUI's mask at the middle of its visible part, since the app has no mask view), and a scrub from the first row down into the keyboard opens the row laid out under the finger, with a tick per row on the way.
 - Refine arrow with TalkBack and VoiceOver: reachable, read as "Refine <title>".
 - iPhone Lock Screen widgets and Control Center controls open the right link (the app target has its own intent copies).
 - iPhone search widget follows the profile colour and Match My Mac (`WidgetExporter.swift`).
