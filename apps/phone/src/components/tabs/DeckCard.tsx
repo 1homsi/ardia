@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     top: 0,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    ...Platform.select({ android: { elevation: CARD_ELEVATION }, default: { boxShadow: `-2px 4px ${CARD_SHADOW_BLUR}px ${tabsInk.cardShadow}` } }),
+    ...Platform.select({ android: { elevation: CARD_ELEVATION, shadowColor: tabsInk.cardShadow }, default: { boxShadow: `-2px 4px ${CARD_SHADOW_BLUR}px ${tabsInk.cardShadow}` } }),
   },
   badge: {
     position: "absolute",

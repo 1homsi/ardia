@@ -86,3 +86,17 @@ test("each card works out its position once per frame: one derived value per car
   expect(derivedPoses).toHaveLength(mounted);
   unmount(root);
 });
+
+test("each card casts one shadow, on the one view that moves and clips it, tinted as Compose's card layer (14 dp, black at 18%)", () => {
+  const { Platform, StyleSheet } = require("react-native") as typeof import("react-native");
+  const root = loadedDeck();
+  const shadowed = (style: Record<string, unknown>) => Boolean(style.elevation || style.boxShadow || style.shadowOpacity);
+  for (const card of cards(root)) {
+    const own = StyleSheet.flatten(card.props.style) as Record<string, unknown>;
+    expect(shadowed(own)).toBe(true);
+    expect(own.overflow).toBe("hidden");
+    if (Platform.OS === "android") expect(own).toMatchObject({ elevation: 14, shadowColor: "rgba(0,0,0,0.18)" });
+    expect(hostsUnder(card).filter((node) => shadowed((StyleSheet.flatten(node.props.style) ?? {}) as Record<string, unknown>))).toHaveLength(0);
+  }
+  unmount(root);
+});
