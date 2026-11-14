@@ -410,6 +410,16 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
   (`apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android`). The Expo app is versionCode 2, the
   Compose app 1.
 
+#### A Mac for a phone without one
+
+`apps/phone/scripts/phone-sync-mac.mjs` (its `--help` has the build and Metro steps) runs a hidden Ardia for Mac
+instance on a folder on this Mac and mirrors that folder over adb, both ways, to `/sdcard/Documents/Ardia Sync` on
+the phone. It writes the recovery phrase to `<work>/phrase.txt` and prints the device list the Mac sees whenever it
+changes. To give an upgrade a connected phone: run it with the phone attached, connect the Compose app's sync to
+Documents › Ardia Sync with that phrase, note the phone's id in the printed list, then upgrade. After the import
+the list still has that id and no new one. The Mac half was checked on this Mac (sync on, phrase, device list,
+files written); the adb mirror has not yet run against a phone.
+
 #### Upgrade tester script
 
 Use the Compose APK and the Expo upgrade APK built for this run (same key), named here `$COMPOSE_APK` and
