@@ -104,5 +104,11 @@ object PhoneSync {
 
     private fun connectedOnDisk(app: Context): Boolean = SyncFiles(File(app.noBackupFilesDir, "Sync")).loadMeta().enabled
 
+    fun ownDeviceId(context: Context): String? {
+        if (isDemo) return null
+        val meta = SyncFiles(File((context.applicationContext ?: context).noBackupFilesDir, "Sync")).loadMeta()
+        return meta.deviceId?.takeIf { meta.enabled }
+    }
+
     private fun database(app: Context) = File(File(app.filesDir, "SQLite"), "browser.db")
 }

@@ -99,6 +99,7 @@ type SyncNative = {
   view(): Promise<SyncedView>;
   incoming(): Promise<ReceivedTab[]>;
   check(phrase: string): PhraseCheck;
+  deviceId?(): string | null;
   connect(phrase: string): Promise<ConnectResult>;
   pickFolder?(): Promise<SyncFolderPick | null>;
   connectWithFolder?(phrase: string, folder: string): Promise<ConnectResult>;
@@ -126,6 +127,7 @@ export const sync = {
   view: () => native().view(),
   incoming: () => native().incoming(),
   check: (phrase: string) => native().check(phrase),
+  deviceId: (): string | null => native().deviceId?.() ?? null,
   canPickFolderFirst: (): boolean => typeof native().pickFolder === "function" && typeof native().connectWithFolder === "function",
   pickFolder: async (): Promise<SyncFolderPick | null> => (native().pickFolder ? native().pickFolder!() : null),
   connect: (phrase: string, folder?: SyncFolderPick | null): Promise<ConnectResult> =>

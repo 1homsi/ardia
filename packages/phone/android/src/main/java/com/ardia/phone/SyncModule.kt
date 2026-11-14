@@ -113,6 +113,8 @@ class SyncModule : Module() {
 
         Function("check") { phrase: String -> SyncPayloads.check(com.ardia.sync.SyncJoin.check(phrase)) }
 
+        Function("deviceId") { -> PhoneSync.ownDeviceId(context) }
+
         AsyncFunction("connect") { phrase: String, promise: Promise ->
             pickFolder(promise) { tree ->
                 SyncPayloads.connect(tree?.let { controller.connect(phrase, SyncFolderPick.Tree(it)) })
