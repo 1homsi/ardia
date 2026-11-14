@@ -23,6 +23,8 @@ const ICON = require("../../../assets/app-icon.png");
 
 type SystemState = { isDefault: boolean; inDock: boolean; loginEnabled: boolean };
 
+const alreadySet = (probe: Promise<boolean>) => probe.catch(() => true);
+
 const LINK_CHOICES: ChoiceOption<boolean>[] = [
   { value: true, preview: "links-little", title: "Little Ardia", subtitle: "A small window that's gone when you're done" },
   { value: false, preview: "links-tab", title: "A new tab", subtitle: "Right in your main window" },
@@ -45,7 +47,7 @@ function DefaultBrowserQuestion() {
   const setExtras = setOnboardingExtras;
 
   useEffect(() => {
-    void Promise.all([isDefaultBrowser(), isInDock(), launchAtLoginStatus()]).then(([isDefault, inDock, login]) =>
+    void Promise.all([alreadySet(isDefaultBrowser()), alreadySet(isInDock()), launchAtLoginStatus()]).then(([isDefault, inDock, login]) =>
       setSystem({ isDefault, inDock, loginEnabled: login === "enabled" }),
     );
   }, []);
