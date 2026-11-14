@@ -11,6 +11,7 @@ import { presentSearch, searchState } from "../search/store";
 import { setPreference } from "../settings/store";
 import { listenToPages, openPageInBackground, pageHandle, pageIsFullscreen, pageRequest, settled, storeFind, storeFullscreen, storeRequest, usePages } from "../pages/store";
 import { closeTabById, currentTabs, openNewTab, useTabs } from "../tabs/store";
+import { sendDeckCommand } from "../browse/deckCommands";
 import { isSyncableUrl } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
 import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from "./pageMenu";
@@ -332,7 +333,9 @@ export function handleSystemBack(): boolean {
     return true;
   }
   if (surface === "deck") {
-    if (!hideArchiveCard()) leaveDeck();
+    if (hideArchiveCard()) return true;
+    if (currentTabs().open.length || currentTabs().privates.length) sendDeckCommand({ kind: "openSelected" });
+    else leaveDeck();
     return true;
   }
   const layer = backLayer({

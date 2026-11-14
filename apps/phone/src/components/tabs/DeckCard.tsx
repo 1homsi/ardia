@@ -30,6 +30,7 @@ type Props = {
   shift: { by: number; generation: number };
   onOpen: (index: number) => void;
   onClose: (index: number) => void;
+  onCloseNow: (index: number) => void;
 };
 
 type Pose = { x: number; y: number; scale: number; corner: number; opacity: number; header: number; visible: number; lift: number };
@@ -68,7 +69,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
   return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift };
 }
 
-export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift, onOpen, onClose }: Props) {
+export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const slot = useSharedValue(0);
@@ -138,7 +139,7 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
         accessibilityValue={{ text: tab.isPrivate ? `Incognito, ${host}` : host }}
         accessibilityHint="Opens the tab."
         accessibilityActions={[{ name: "activate" }, { name: "close", label: "Close Tab" }]}
-        onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onClose(index) : onOpen(index))}
+        onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onCloseNow(index) : onOpen(index))}
         pointerEvents="none"
         style={[styles.reach, { zIndex: z + 1 }, reachStyle]}
       />

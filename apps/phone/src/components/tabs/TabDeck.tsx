@@ -38,6 +38,8 @@ import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivat
 import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, FrostSource, Menu, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
+import { pinToMac, sendTab, sendTargetsFor } from "../../state/sync/actions";
+import { currentTabs } from "../../state/tabs/store";
 import { DeckBar } from "./DeckBar";
 import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
@@ -140,6 +142,11 @@ export function TabDeck() {
     if (command.kind === "scroll") scroll.value = withSpring(Math.min(Math.max(command.index, 0), Math.max(order.length - 1, 0)), tabsMotion.settle);
     else if (command.kind === "closeFocused") close(focused, 0);
     else if (command.kind === "openFocused") open(focused);
+    else if (command.kind === "openSelected") {
+      const selected = currentTabs().selectedId;
+      const at = selected ? order.indexOf(selected) : -1;
+      open(at >= 0 ? at : focused);
+    }
     else if (command.kind === "lift") {
       dragIndex.value = focused;
       dragLift.value = command.offset;
@@ -148,7 +155,7 @@ export function TabDeck() {
 
   const open = (index: number) => {
     const id = order[index];
-    if (!id || phase.kind !== "settled") return;
+    if (!id || phase.kind !== "settled" || dragIndex.value === index || flyIndex.value === index) return;
     setMenu(null);
     setPhase({ kind: "closing", id });
     scaleProgress.value = withSpring(0, tabsMotion.expand);
@@ -176,6 +183,13 @@ export function TabDeck() {
   };
 
   const count = order.length;
+  const [near, setNear] = useState(() => focusedIndex(scroll.value, order.length));
+  useAnimatedReaction(
+    () => Math.round(scroll.value),
+    (index, previous) => {
+      if (index !== previous) runOnJS(setNear)(index);
+    },
+  );
   const touching = useSharedValue(false);
   useAnimatedReaction(
     () => (touching.value ? focusedIndex(scroll.value, count) : -1),
@@ -268,9 +282,17 @@ export function TabDeck() {
     const tab = tabs.get(order[index] ?? "");
     const closing: MenuItem = { label: "Close Tab", icon: "xmark", destructive: true, onPress: () => close(index, 0) };
     if (!tab || !canShareTab(tab)) return [closing];
+    const sends: MenuItem[] = sendTargetsFor(tab).map((device) => ({
+      label: `Send to ${device.name}`,
+      icon: device.kind === "phone" ? "iphone" : "laptop",
+      onPress: () => void sendTab(tab, device),
+    }));
+    const pin: MenuItem[] = !tab.isPrivate && syncEnabled ? [{ label: "Pin to Mac", icon: "star", onPress: () => void pinToMac(tab, () => openSettings({ page: "sync" })) }] : [];
     return [
       { label: "Copy Link", icon: "link", onPress: () => copyTabLink(tab) },
       { label: "Share", icon: "squareAndArrowUp", onPress: () => shareTab(tab) },
+      ...sends,
+      ...pin,
       "divider",
       closing,
     ];
@@ -325,7 +347,7 @@ export function TabDeck() {
           <View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }]} collapsable={false}>
             {order.map((id, index) => {
               const tab = tabs.get(id);
-              if (!tab || hidden.current.has(id)) return null;
+              if (!tab || hidden.current.has(id) || Math.abs(index - near) > DECK_RENDER_REACH) return null;
               return (
                 <DeckCard
                   key={id}
@@ -338,6 +360,10 @@ export function TabDeck() {
                   shift={shift}
                   onOpen={open}
                   onClose={(at) => close(at, 0)}
+                  onCloseNow={(at) => {
+                    const closing = order[at];
+                    if (closing) remove(closing);
+                  }}
                 />
               );
             })}
@@ -395,6 +421,8 @@ const focusTick = () => haptics.tick();
 const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
+
+const DECK_RENDER_REACH = 6;
 
 const styles = StyleSheet.create({
   touch: { position: "absolute", left: 0, right: 0, top: 0 },
