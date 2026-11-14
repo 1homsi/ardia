@@ -9,10 +9,11 @@ test("launch timings are measured from the process start, and dropped when it is
   assert.equal(launchProps(0, 1, 700_001), null);
 });
 
-test("the old app's import reads as imported, skipped or none from the importer's marker", () => {
-  assert.equal(legacyImportOutcome("1", "1", "skipped-existing"), "imported");
-  assert.equal(legacyImportOutcome("skipped-existing", "1", "skipped-existing"), "skipped");
-  assert.equal(legacyImportOutcome(null, "1", "skipped-existing"), "none");
+test("the old app's import reads as imported, started fresh or none from how the launch got past it", () => {
+  assert.equal(legacyImportOutcome("imported"), "imported");
+  assert.equal(legacyImportOutcome("startedFresh"), "started_fresh");
+  assert.equal(legacyImportOutcome("none"), "none");
+  assert.equal(legacyImportOutcome(null), "none");
 });
 
 test("versions keep only their numbers", () => {

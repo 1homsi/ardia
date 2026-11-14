@@ -1,13 +1,16 @@
-import { legacy as native } from "@ardia/phone-native";
-export type { LegacyData } from "@ardia/phone-native";
+import { legacyImport as native } from "@ardia/phone-native";
+import type { LegacyApi } from "../state/legacy/importer";
 
-type MaybeMarks = { markImported?: () => Promise<void> };
+type MaybeStartsFresh = { startFresh?: () => Promise<void> };
 
-export const legacy = {
-  available: () => native.available(),
+export const legacyImport: LegacyApi = {
+  source: () => native.source(),
   read: () => native.read(),
-  markImported: async () => {
-    const mark = (native as MaybeMarks).markImported;
-    if (mark) await mark();
+  readVisits: (afterId, limit) => native.readVisits(afterId, limit),
+  applyNativeSettings: () => native.applyNativeSettings(),
+  markImported: (receipt) => native.markImported(receipt),
+  startFresh: async () => {
+    const open = (native as MaybeStartsFresh).startFresh;
+    if (open) await open();
   },
 };

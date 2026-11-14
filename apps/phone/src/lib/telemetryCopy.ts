@@ -30,8 +30,8 @@ export const PHONE_WHATS_SENT: { title: string; items: SentItem[] }[] = [
     items: [
       { text: "When you turn sharing on: whether you did it in Settings or during setup", fields: ["sharing_turned_on", "source"] },
       {
-        text: "Each launch, and whether Ardia brought over the old iPhone app’s tabs and history, found it already had its own, or had nothing to bring over. Never what it brought",
-        fields: ["app_launched", "legacy_import"],
+        text: "Each launch, and whether Ardia has brought over the previous version’s tabs and history, started without them after it couldn’t, or had nothing to bring over, and how many tries failed before it opened. Never what it brought or why",
+        fields: ["app_launched", "legacy_import", "legacy_import_failures"],
       },
       {
         text: "How long Ardia took to open, from when the system started it to its first screen, and how much of that passed before its code began to run",

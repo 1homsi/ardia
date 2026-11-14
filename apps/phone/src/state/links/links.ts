@@ -97,12 +97,25 @@ async function run(link: IncomingLink) {
 
 const take = (link: SystemLink) => void run(link);
 
+let waiting: SystemLink[] | null = null;
+let listening = false;
+
+export function listenForLinks() {
+  if (listening) return;
+  listening = true;
+  waiting = [];
+  addLinkListener((link) => (waiting ? waiting.push(link) : take(link)));
+}
+
 export function startLinks() {
   if (started) return;
   started = true;
-  addLinkListener(take);
+  listenForLinks();
   void settled(() => initialLink(), null).then((link) => {
     if (link) take(link);
+    const queued = waiting ?? [];
+    waiting = null;
+    for (const later of queued) take(later);
   });
   useOnboarding.subscribe((state) => {
     if (state.showing || !heldLinks().length) return;

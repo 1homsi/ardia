@@ -1,19 +1,45 @@
-import { create } from "zustand";
 import "../../platform/copy";
-import { importLegacyStore } from "../legacy/importer";
+import type { ImportOutcome } from "../legacy/importer";
+import { importOldApp, startWithoutOldApp } from "../legacy/upgrade";
+import { listenForLinks } from "../links/links";
+import { useBoot } from "./bootState";
 import { launchArguments } from "./launchFlags";
 
-export const useBoot = create<{ ready: boolean }>()(() => ({ ready: false }));
+export { useBoot };
 
-let booting = false;
+let begin: (() => void) | null = null;
 
 export function bootApp(start: () => void) {
-  if (booting) return;
-  booting = true;
-  void (launchArguments().isDemo ? Promise.resolve() : importLegacyStore())
-    .catch(() => console.log("ardia-legacy import failed before writing"))
-    .finally(() => {
-      start();
-      useBoot.setState({ ready: true });
-    });
+  if (begin) return;
+  begin = start;
+  listenForLinks();
+  if (launchArguments().isDemo) finish("none");
+  else void attempt();
+}
+
+async function attempt() {
+  useBoot.setState({ busy: true });
+  const result = await importOldApp();
+  if (result.kind === "ready") finish(result.outcome);
+  else useBoot.setState((state) => ({ failures: state.failures + 1, busy: false }));
+}
+
+function finish(outcome: ImportOutcome) {
+  if (useBoot.getState().ready || !begin) return;
+  begin();
+  useBoot.setState({ ready: true, busy: false, outcome });
+}
+
+export function retryImport() {
+  const state = useBoot.getState();
+  if (state.ready || state.busy || !begin) return;
+  void attempt();
+}
+
+export async function startWithoutImporting() {
+  const state = useBoot.getState();
+  if (state.ready || state.busy || !begin) return;
+  useBoot.setState({ busy: true });
+  await startWithoutOldApp();
+  finish("startedFresh");
 }

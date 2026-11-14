@@ -9,6 +9,12 @@ import { DATABASE_FILE, migrate } from "./schema";
 const DEMO_MARKER = "demo.seeded";
 
 let opened: SqlDatabase | null = null;
+let durable = false;
+
+export const browserDatabaseIsDurable = () => {
+  browserDatabase();
+  return durable;
+};
 
 export function browserDatabase(): SqlDatabase {
   if (opened) return opened;
@@ -26,6 +32,7 @@ export function browserDatabase(): SqlDatabase {
     opened = memory;
   } else {
     opened = file;
+    durable = true;
   }
   return opened;
 }

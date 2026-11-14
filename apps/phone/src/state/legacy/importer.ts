@@ -1,42 +1,237 @@
-import { legacy } from "../../platform/legacy";
-import { settled } from "../pages/store";
-import { hasBrowserData, readPreferences, writeImport, writeMarker } from "../store/browserDatabase";
-import { browserDatabase } from "../store/database";
-import { importPlan, importStep, LEGACY_IMPORT_KEY, LEGACY_IMPORT_VERSION, LEGACY_SKIPPED } from "./importRules";
+import type { SqlDatabase } from "../../lib/sqlDatabase.ts";
+import {
+  asyncTransaction,
+  countArchivedTabs,
+  countTabStates,
+  countVisits,
+  existingTabIds,
+  insertNewTab,
+  insertVisit,
+  maxVisitId,
+  readOpenTabs,
+  readPreferences,
+  writePreference,
+  writeTabState,
+} from "../store/browserDatabase.ts";
+import {
+  countReason,
+  exclusionCounts,
+  importPreferences,
+  isLegacyCounts,
+  isLegacyRead,
+  isVisitPage,
+  LEGACY_FRESH_KEY,
+  LEGACY_FRESH_VERSION,
+  LEGACY_RECEIPT_KEY,
+  OLD_IMPORT_KEY,
+  OLD_IMPORTED,
+  planTabs,
+  planVisit,
+  readReceipt,
+  RECEIPT_VERSION,
+  samePreference,
+  unusableReason,
+  type ImportPlatform,
+  type LegacyCounts,
+  type LegacyReceipt,
+  type LegacySourceInput,
+  type LegacyUnusableReason,
+  type Tally,
+} from "./importRules.ts";
 
-const markImported = () => settled(() => legacy.markImported(), undefined);
+export const VISIT_PAGE = 5_000;
 
-export async function importLegacyStore(): Promise<void> {
-  const db = browserDatabase();
-  const marker = readPreferences(db)[LEGACY_IMPORT_KEY] ?? null;
-  const available = await settled(() => legacy.available(), false);
-  const step = importStep({ available, marker, hasData: hasBrowserData(db) });
-  if (step === "none") return;
-  if (step === "done") {
-    await markImported();
-    return;
+export type LegacyApi = {
+  source(): Promise<LegacySourceInput>;
+  read(): Promise<unknown>;
+  readVisits(afterId: number, limit: number): Promise<unknown>;
+  applyNativeSettings(): Promise<void>;
+  markImported(receipt: LegacyReceipt): Promise<void>;
+  startFresh?(): Promise<void>;
+};
+
+export type ImportFailure =
+  | "source"
+  | `unusable_${LegacyUnusableReason}`
+  | "memory"
+  | "read"
+  | "shape"
+  | "readVisits"
+  | "mismatch"
+  | "write"
+  | "applyNativeSettings"
+  | "markImported";
+
+export type ImportOutcome = "none" | "imported" | "startedFresh";
+
+export type ImportResult = { kind: "ready"; outcome: ImportOutcome } | { kind: "failed"; reason: ImportFailure };
+
+export type ImportDeps = { legacy: LegacyApi; db: SqlDatabase; durable: boolean; platform: ImportPlatform; log: (line: string) => void };
+
+class Stop extends Error {
+  readonly reason: ImportFailure;
+  constructor(reason: ImportFailure) {
+    super(reason);
+    this.reason = reason;
   }
-  if (step === "markExisting") {
-    writeMarker(db, LEGACY_IMPORT_KEY, LEGACY_SKIPPED);
-    console.log("ardia-legacy skipped: this app already has tabs or history");
-    await markImported();
-    return;
-  }
-  const data = await settled(() => legacy.read(), null);
-  if (!data) {
-    console.log("ardia-legacy read failed: nothing imported, retried next launch");
-    return;
-  }
-  const plan = importPlan(data);
+}
+
+async function step<T>(reason: ImportFailure, work: () => Promise<T>): Promise<T> {
   try {
-    writeImport(db, plan, LEGACY_IMPORT_KEY, LEGACY_IMPORT_VERSION);
+    return await work();
   } catch (error) {
-    console.log(`ardia-legacy import rolled back: ${error instanceof Error ? error.name : "error"} tabs=${plan.tabs.length} visits=${plan.visits.length}`);
-    return;
+    throw error instanceof Stop ? error : new Stop(reason);
   }
-  const archived = plan.tabs.filter((tab) => tab.archivedAt !== null).length;
-  console.log(
-    `ardia-legacy imported tabs=${plan.tabs.length - archived} archive=${archived} states=${plan.states.length} visits=${plan.visits.length} preferences=${Object.keys(plan.preferences).length} unmapped=${plan.unmapped.length}`,
+}
+
+export async function runLegacyImport(deps: ImportDeps): Promise<ImportResult> {
+  try {
+    return { kind: "ready", outcome: await importSteps(deps) };
+  } catch (error) {
+    const reason: ImportFailure = error instanceof Stop ? error.reason : "write";
+    deps.log(`ardia-legacy failed reason=${reason}`);
+    return { kind: "failed", reason };
+  }
+}
+
+async function importSteps(deps: ImportDeps): Promise<ImportOutcome> {
+  const source = await step("source", () => deps.legacy.source());
+  switch (source?.kind) {
+    case "none":
+      return "none";
+    case "done":
+      return "imported";
+    case "unusable":
+      throw new Stop(`unusable_${unusableReason(source.reason)}`);
+    case "pending":
+      break;
+    default:
+      throw new Stop("shape");
+  }
+  if (!isLegacyCounts(source.counts)) throw new Stop("shape");
+  if (!deps.durable) throw new Stop("memory");
+  const stored = readPreferences(deps.db);
+  const receipt = readReceipt(stored[LEGACY_RECEIPT_KEY]) ?? oldImporterReceipt(deps.db, stored);
+  if (receipt) {
+    await finishNative(deps, receipt);
+    return "imported";
+  }
+  if (stored[LEGACY_FRESH_KEY] === LEGACY_FRESH_VERSION) {
+    await openWithoutImport(deps);
+    return "startedFresh";
+  }
+  await finishNative(deps, await importInto(deps, source.counts));
+  return "imported";
+}
+
+function oldImporterReceipt(db: SqlDatabase, stored: Record<string, string>): LegacyReceipt | null {
+  if (stored[OLD_IMPORT_KEY] !== OLD_IMPORTED) return null;
+  return { version: RECEIPT_VERSION, tabs: readOpenTabs(db).length, archive: countArchivedTabs(db), visits: countVisits(db), preferences: 0 };
+}
+
+async function finishNative(deps: ImportDeps, receipt: LegacyReceipt) {
+  await step("applyNativeSettings", () => deps.legacy.applyNativeSettings());
+  await step("markImported", () => deps.legacy.markImported(receipt));
+}
+
+async function openWithoutImport(deps: ImportDeps) {
+  try {
+    await deps.legacy.startFresh?.();
+  } catch {
+    deps.log("ardia-legacy start-fresh native call failed");
+  }
+}
+
+async function importInto(deps: ImportDeps, counts: LegacyCounts): Promise<LegacyReceipt> {
+  const { db } = deps;
+  const read = await step("read", () => deps.legacy.read());
+  if (!isLegacyRead(read)) throw new Stop("shape");
+  if (read.tabs.length !== counts.tabs || read.archive.length !== counts.archive) throw new Stop("mismatch");
+  const plan = planTabs(read, deps.platform);
+  const preferences = importPreferences(read.preferences);
+  const excluded: Record<string, Tally> = { tabs: plan.excluded.tabs, archive: plan.excluded.archive, visits: {}, preferences: preferences.excluded };
+  let receipt: LegacyReceipt | null = null;
+  let states = 0;
+  await step("write", () =>
+    asyncTransaction(db, async () => {
+      const present = existingTabIds(db, plan.tabs.map((tab) => tab.id));
+      const added = plan.tabs.filter((tab) => {
+        if (!present.has(tab.id)) return true;
+        countReason(tab.archivedAt === null ? excluded.tabs! : excluded.archive!, "present");
+        return false;
+      });
+      for (const tab of added) insertNewTab(db, tab);
+      const withState = added.filter((tab) => plan.states.has(tab.id));
+      for (const tab of withState) writeTabState(db, tab.id, plan.states.get(tab.id)!);
+      states = withState.length;
+
+      const before = readPreferences(db);
+      const written = Object.entries(preferences.values).filter(([key]) => {
+        if (before[key] === undefined) return true;
+        countReason(excluded.preferences!, "present");
+        return false;
+      });
+      for (const [key, value] of written) writePreference(db, key, value);
+
+      const visitsBefore = countVisits(db);
+      let nextId = maxVisitId(db);
+      let after = 0;
+      let seen = 0;
+      let visitsAdded = 0;
+      for (;;) {
+        const page = await step("readVisits", () => deps.legacy.readVisits(after, VISIT_PAGE));
+        if (!isVisitPage(page) || page.visits.length > VISIT_PAGE) throw new Stop("shape");
+        for (const raw of page.visits) {
+          seen += 1;
+          const visit = planVisit(raw);
+          if (typeof visit === "string") {
+            countReason(excluded.visits!, visit);
+            continue;
+          }
+          nextId += 1;
+          insertVisit(db, { id: nextId, ...visit });
+          visitsAdded += 1;
+        }
+        if (page.next === null || page.next === undefined) break;
+        if (!(page.next > after) || page.visits.length === 0) throw new Stop("shape");
+        after = page.next;
+      }
+      if (seen !== counts.visits) throw new Stop("mismatch");
+
+      const addedIds = added.map((tab) => tab.id);
+      const landed = readPreferences(db);
+      if (
+        existingTabIds(db, addedIds).size !== added.length ||
+        countTabStates(db, withState.map((tab) => tab.id)) !== withState.length ||
+        countVisits(db) !== visitsBefore + visitsAdded ||
+        !written.every(([key, value]) => samePreference(key, landed[key], value))
+      ) {
+        throw new Stop("mismatch");
+      }
+      const open = added.filter((tab) => tab.archivedAt === null).length;
+      receipt = { version: RECEIPT_VERSION, tabs: open, archive: added.length - open, visits: visitsAdded, preferences: written.length };
+      writePreference(db, LEGACY_RECEIPT_KEY, JSON.stringify(receipt));
+    }),
   );
-  await markImported();
+  const done = receipt as LegacyReceipt | null;
+  if (!done) throw new Stop("write");
+  deps.log(
+    `ardia-legacy imported tabs=${done.tabs} archive=${done.archive} states=${states} visits=${done.visits} preferences=${done.preferences} ${exclusionCounts(excluded)}`.trim(),
+  );
+  return done;
+}
+
+export async function startWithoutImport(deps: ImportDeps): Promise<boolean> {
+  let recorded = false;
+  if (deps.durable) {
+    try {
+      writePreference(deps.db, LEGACY_FRESH_KEY, LEGACY_FRESH_VERSION);
+      recorded = true;
+    } catch {
+      deps.log("ardia-legacy start-fresh record failed");
+    }
+  }
+  await openWithoutImport(deps);
+  deps.log(`ardia-legacy started fresh recorded=${recorded}`);
+  return recorded;
 }

@@ -24,3 +24,10 @@ test("the table follows the platform it is chosen for, and anything but iOS read
   assert.equal(copy().thisDevice, "This Phone");
   selectCopy("android");
 });
+
+test("the import failure screen says the old tabs and settings are still on the device, in each platform's word for it", () => {
+  assert.match(copyTable("android").importFailed.body, /previous version\. They’re still on this phone\.$/);
+  assert.match(copyTable("ios").importFailed.body, /previous version\. They’re still on this iPhone\.$/);
+  assert.match(copyTable("ios").importFailed.startWithoutNote, /this iPhone, so a later version can still bring them over/);
+  assert.equal(copyTable("android").importFailed.startWithout, "Start Without Them");
+});

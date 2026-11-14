@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createGate, type SharingSource } from "../../lib/telemetryGate";
 import { launchProps, legacyImportOutcome, type Counted } from "../../lib/telemetrySchema";
 import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt } from "../../platform/telemetry";
-import { LEGACY_IMPORT_KEY, LEGACY_IMPORT_VERSION, LEGACY_SKIPPED } from "../legacy/importRules";
+import { useBoot } from "../app/bootState";
 import { readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
 
@@ -52,8 +52,8 @@ let reported = false;
 export async function reportLaunch(firstScreenAt: number) {
   if (reported || !gate.isSharing()) return;
   reported = true;
-  const marker = readPreferences(browserDatabase())[LEGACY_IMPORT_KEY] ?? null;
-  gate.capture("app_launched", { legacy_import: legacyImportOutcome(marker, LEGACY_IMPORT_VERSION, LEGACY_SKIPPED) });
+  const boot = useBoot.getState();
+  gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures });
   const timings = launchProps(await processStartedAt(), JS_STARTED_AT, firstScreenAt);
   if (timings) gate.capture("perf_launch", timings);
 }

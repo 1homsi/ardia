@@ -135,9 +135,6 @@ export function deleteVisitsFor(db: SqlDatabase, urls: readonly string[], profil
   else db.run(`DELETE FROM visits WHERE url IN (${marks}) AND profileSyncId = ?`, [...urls, profileSyncId]);
 }
 
-export const hasBrowserData = (db: SqlDatabase) =>
-  (db.first<{ n: number }>("SELECT (SELECT count(*) FROM tabs) + (SELECT count(*) FROM visits) AS n")?.n ?? 0) > 0;
-
 export type ImportRows = {
   tabs: readonly BrowserTab[];
   states: readonly { id: string; data: string }[];
@@ -167,7 +164,40 @@ export function writeImport(db: SqlDatabase, rows: ImportRows, markerKey: string
   });
 }
 
-export const writeMarker = (db: SqlDatabase, key: string, value: string) => db.run("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)", [key, value]);
+export async function asyncTransaction(db: SqlDatabase, work: () => Promise<void>) {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    await work();
+    db.exec("COMMIT");
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+}
+
+export function existingTabIds(db: SqlDatabase, ids: readonly string[]): Set<string> {
+  const found = new Set<string>();
+  for (let start = 0; start < ids.length; start += 500) {
+    const chunk = ids.slice(start, start + 500);
+    const marks = chunk.map(() => "?").join(",");
+    for (const row of db.all<{ id: string }>(`SELECT id FROM tabs WHERE id IN (${marks})`, chunk)) found.add(row.id);
+  }
+  return found;
+}
+
+export const insertNewTab = (db: SqlDatabase, tab: BrowserTab) =>
+  db.run(`INSERT INTO tabs (${TAB_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tabValues(tab));
+
+export const countTabStates = (db: SqlDatabase, ids: readonly string[]) => {
+  let n = 0;
+  for (let start = 0; start < ids.length; start += 500) {
+    const chunk = ids.slice(start, start + 500);
+    n += db.first<{ n: number }>(`SELECT count(*) AS n FROM tab_state WHERE id IN (${chunk.map(() => "?").join(",")})`, chunk)?.n ?? 0;
+  }
+  return n;
+};
 
 export const countVisits = (db: SqlDatabase) => db.first<{ n: number }>("SELECT count(*) AS n FROM visits")?.n ?? 0;
 

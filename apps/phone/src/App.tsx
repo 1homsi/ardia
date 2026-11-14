@@ -8,6 +8,7 @@ import { StartScreen } from "./components/search/StartScreen";
 import { ArchiveView } from "./components/tabs/ArchiveView";
 import { TabDeck } from "./components/tabs/TabDeck";
 import { OnboardingView } from "./components/onboarding/OnboardingView";
+import { ImportFailedView } from "./components/upgrade/ImportFailedView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
@@ -47,6 +48,7 @@ export default function App() {
     }),
   );
   const ready = useBoot((s) => s.ready);
+  const importFailed = useBoot((s) => s.failures > 0);
   useEffect(() => {
     if (!ready) return;
     const frame = requestAnimationFrame(() => void reportLaunch(Date.now()));
@@ -67,7 +69,7 @@ export default function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <ProfileLookContext.Provider value={look}>
-          <OverlayHost>{ready ? <Surfaces /> : null}</OverlayHost>
+          <OverlayHost>{ready ? <Surfaces /> : importFailed ? <ImportFailedView /> : null}</OverlayHost>
         </ProfileLookContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

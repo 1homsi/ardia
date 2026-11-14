@@ -300,6 +300,28 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
     into `files/PageSnapshots`. The thumbnail must sit inside `cache/TabSnapshots` and be a real image.
   - `markImportedWith(receipt)` applies those settings, writes the marker last, opens the gate and starts one
     sync. Every step can run again after a kill.
+- **The importer** (JavaScript, `state/legacy/importer.ts`, shared with iPhone). The app starts only when the import
+  is done or there is nothing to import; until then nothing runs: no tabs, pages, sync or links.
+  - No source: nothing to do. A source with a valid receipt (`legacy.receipt` in the preferences table, version 1):
+    only `applyNativeSettings()` and `markImported(receipt)` run, so a kill between the SQL commit and the native
+    marker finishes on the next launch. A source without one: import. The old `legacy.importVersion` marker no
+    longer skips anything; `skipped-existing` is ignored and `1` (the old iPhone importer) counts as a receipt.
+  - The import merges: a tab whose id is already in the store, or a setting already set, is kept as it is; the
+    rest is inserted. Tabs, saved states (Archive included), thumbnails (Archive included), settings, history and
+    the receipt commit in one SQL transaction. History arrives through `readVisits` in pages of 5,000 inside it.
+  - Android ids are kept exactly, because thumbnails are named after them; iPhone ids are lowercased with their
+    states and the selected tab. The old app's selected tab is selected after the import.
+  - Every record is imported or counted under a reason (`notWeb`, `duplicate`, `malformed`, `present`, and for
+    settings `unknownKey`, `badValue`, `empty`). The source's counts must match what it reads, and the store's
+    rows and setting values must match what was written, or the transaction rolls back. The log line
+    (`ardia-legacy imported …` or `ardia-legacy failed reason=…`) holds counts and reason codes only.
+  - It refuses the in-memory store (a store from a newer version): `failed reason=memory`, nothing marked.
+  - Any failure shows a screen in place of the app: Ardia couldn't bring over the tabs and settings, they are still
+    on the phone, Try Again. After a second failure it also offers Start Without Them, which records
+    `legacy.startedFresh` (not a receipt), leaves the old data alone so a later version can still bring it over,
+    and starts the app. Links that arrive while the screen is up run once, after the app starts.
+  - Start Without Them calls `legacyImport.startFresh()` when the native module has it. Neither phone has it yet,
+    so on Android the gate stays closed after that choice (no sync, no blocking or site settings, links held).
 - **Signing.** Android installs an update only when both apps have the same signing key and the new versionCode is
   not lower. The Compose debug build is signed with the building machine's `~/.android/debug.keystore`. The Expo
   app signs with `apps/phone/android/app/debug.keystore`, so for an upgrade it is re-signed with the Compose key
@@ -340,6 +362,12 @@ Use the Compose APK and the Expo upgrade APK built for this run (same key). Watc
    - The lab only reads: the page part of the lab reports `ERR_IMPORT_PENDING` while the import waits. Force-stop.
    - Then send the app a link before it opens:
      `adb shell am start -a android.intent.action.VIEW -d https://example.com/upgrade -n $P/.MainActivity`.
+   - **Failure screen.** Before the app first opens, make the source unreadable:
+     `adb shell run-as $P chmod 000 shared_prefs/ardia.browser.xml`. Open the app: the "Couldn’t Bring Over Your
+     Tabs" screen shows in place of the deck, and logcat has `ardia-legacy failed reason=unusable_io`. Tap Try
+     Again: the same screen, now with Start Without Them and its note under it. Don't tap it. Run
+     `adb shell run-as $P chmod 660 shared_prefs/ardia.browser.xml` and tap Try Again: the deck appears with the
+     import, and `example.com/upgrade` opens once.
 5. **Check every item** against step 3:
    - The deck has every tab in the same order, the same tab is selected, and each card shows its thumbnail.
    - The deep tab goes Back through its three pages and opens at its scroll position.
@@ -347,7 +375,7 @@ Use the Compose APK and the Expo upgrade APK built for this run (same key). Watc
    - History has all the visits and search finds old ones.
    - Every setting you changed holds, including the site and blocking settings, My Filters, the trusted site and
      the list you turned off.
-   - Onboarding doesn't show.
+   - Onboarding doesn't show (it does when the Compose app's onboarding wasn't finished).
    - `example.com/upgrade` opens once, after the deck appears, and not again.
 6. **The device the Mac sees.** On the Mac, the phone appears once, under the same name and device id as before.
    It is not a second, new device. A tab sent from the Mac arrives, and one sent from the phone reaches the Mac.
@@ -368,7 +396,7 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 | Event | Fields | When |
 | --- | --- | --- |
 | `sharing_turned_on` | `source` (settings, onboarding) | turning sharing on |
-| `app_launched` | `legacy_import` (imported, skipped, none) | each launch with sharing on |
+| `app_launched` | `legacy_import` (imported, started_fresh, none), `legacy_import_failures` (failed tries before the app opened) | each launch with sharing on |
 | `perf_launch` | `launch_ms`, `js_ms` | each launch, once the module gives the process start (`ArdiaPhoneSystem.processStartedAt()`, epoch ms) |
 | `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone` | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
 
@@ -381,7 +409,7 @@ what each tap does, what is remembered, animations and their timing. Every item 
 lives in the native app, and its size (small: an hour or two; a day; more). Anything not yet seen working on a
 phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 608a701c5.
 
-Largest first: the Android upgrade import from the Compose app (data loss, native), inline completion in the search
+Largest first: inline completion in the search
 field (native on both phones), the tray's motion and gestures (keyboard-driven rise, drag to close, scrubbing,
 animated close), the iPhone page view's Swipe to Navigate and pull to refresh, and iPhone voice search. Then the
 iPhone import dropping blocking and site settings (small, but data loss), folder-before-phrase sync connect, and
@@ -429,7 +457,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
 - Widgets: the Color setting doesn't tint them. `system/WidgetColors.kt`, `SystemSnapshotExport.kt`. Small.
 - Page permission order: Compose asks Android for camera, mic or location first and shows the site's Allow dialog only once Android grants it (a refusal ends quietly); the app shows the site dialog first. Needs a check-or-request call before the dialog. `PageRequests.kt` `PermissionRequest`. Small.
-- **Upgrade import from the Compose app (data loss).** The native half is done: the gate (9cc21830b) and the read-only reader (d0c0b4a79), in "Upgrade from the Compose app on Android". The JavaScript importer (`state/legacy/importer.ts`) still calls the old `legacy.available()` and `legacy.read()`. On Android `read()` returns null, so nothing is imported, and the gate stays closed: no sync and no pages for an upgrader. It has to move to `legacyImport` (`source`, `read`, `readVisits`, `markImported(receipt)`). Then the release must be signed with the key the testers' Compose app has. Small.
+- **Upgrade import, Start Without Them on the native side.** The JavaScript importer is in ("The importer" in "Upgrade from the Compose app on Android"). Start Without Them needs `legacyImport.startFresh()` on both phones: open the gate (sync, page settings, held links) without writing the import receipt, so `source()` still reports `pending` and a later version can import. Per-site desktop-site and blockers-off from Compose (`desktopSite.sites`, `blockersOff.sites`) need no screen: the page module should apply the desktop default when it loads that host and report it in `isDesktopSite` (the page menu reads that), and blockers-off should join the exempt hosts in `ardia-blocking`, which Trusted Sites lists. `PhoneLegacy.kt`, `PhonePages.kt`, `PhoneBlocking.kt`. Small.
 - Sync connect: both apps pick the folder first, show its name and reuse it after a mismatch; the module's `connect(phrase)` opens the picker inside the call, so a retry asks again. Needs `pickFolder()` and `connect(phrase, folder)`. `SyncConnectSession.kt`, `SyncModule.kt`. A day (shared with iPhone).
 - Pull to refresh settles on a 250 ms animator instead of Compose's snappy spring, in a fixed #007AFF instead of the accent; the swipe-to-navigate target falls back to black or white instead of the profile's surface. `PageGestures.kt` vs `PageLayer.kt` `animatePull`. Small.
 - Tab pager corner radius is a fixed 55; Compose reads the display's real corner on Android 12+. `TabPager.kt` `rememberDisplayCornerRadius`. Small.

@@ -32,7 +32,7 @@ export const CONTEXT_FIELDS = {
 
 export const EVENT_FIELDS = {
   sharing_turned_on: { source: { kind: "enum", values: ["settings", "onboarding"] } },
-  app_launched: { legacy_import: { kind: "enum", values: ["imported", "skipped", "none"] } },
+  app_launched: { legacy_import: { kind: "enum", values: ["imported", "started_fresh", "none"] }, legacy_import_failures: { kind: "count" } },
   perf_launch: { launch_ms: { kind: "ms" }, js_ms: { kind: "ms" } },
   usage_counts: {
     tabs_opened: { kind: "count" },
@@ -184,8 +184,8 @@ export function launchProps(processStart: number | null, jsStart: number, firstF
   return { launch_ms: launch, js_ms: js };
 }
 
-export const legacyImportOutcome = (marker: string | null, importedVersion: string, skipped: string): EventProps<"app_launched">["legacy_import"] =>
-  marker === importedVersion ? "imported" : marker === skipped ? "skipped" : "none";
+export const legacyImportOutcome = (outcome: "imported" | "startedFresh" | "none" | null): EventProps<"app_launched">["legacy_import"] =>
+  outcome === "imported" ? "imported" : outcome === "startedFresh" ? "started_fresh" : "none";
 
 export function osVersionOf(raw: string | number): string {
   const text = String(raw).trim();
