@@ -33,7 +33,7 @@ export const appearanceRows = {
         },
         sidebarTextContrast: {
           title: "Higher contrast text",
-          description: "Full-strength tab titles, and darker or brighter labels, icons and New Tab in the sidebar. On by default when macOS Increase Contrast is on.",
+          description: `Full-strength tab titles, and darker or brighter labels, icons and New Tab in the sidebar. On by default when ${PLATFORM_TERMS.systemContrast} is on.`,
           keywords: ["contrast", "high contrast", "increase contrast", "grey text", "gray text", "light text", "faint", "readability", "readable", "low vision", "accessibility", "a11y", "wcag", "bold"],
         },
       },
