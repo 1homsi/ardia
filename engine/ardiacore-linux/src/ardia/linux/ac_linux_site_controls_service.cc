@@ -194,7 +194,7 @@ class LinuxContentBlocker : public ProfileObserver, public content::WebContentsO
     All().emplace(profile, std::move(blocker));
     raw->leader_ = !follows;
     if (follows) raw->follows_ = follows->weak_factory_.GetWeakPtr();
-    if (controls::ShouldHoldNavigations(raw->leader_, profile->IsNewProfile())) {
+    if (controls::ShouldHoldNavigations(raw->leader_)) {
       raw->holding_ = true;
       raw->hold_until_copy_ = controls::HoldUntilFirstCopy(raw->leader_, profile->IsNewProfile());
       HoldLinuxNavigations(profile);

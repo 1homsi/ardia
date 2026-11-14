@@ -63,11 +63,11 @@ struct BlockerRequest {
   BlockerSettings settings;
 };
 
-inline constexpr int64_t kHoldDeadlineMs = 10000;
+inline constexpr int64_t kHoldDeadlineMs = 2000;
 inline constexpr int kInheritAttempts = 6;
 
 bool HoldsNavigationTo(std::string_view scheme);
-bool ShouldHoldNavigations(bool leader, bool new_profile);
+bool ShouldHoldNavigations(bool leader);
 bool HoldUntilFirstCopy(bool leader, bool new_profile);
 int64_t InheritRetryDelayMs(int attempt);
 

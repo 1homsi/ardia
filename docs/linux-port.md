@@ -814,9 +814,10 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   `BasicStartupComplete`, so uBlock can't script `chrome://` pages, the shell, the Web Store or other extensions.
 - **Isolated profiles.** These load their own copy. It follows the app profile's lists, exceptions and auto-update,
   copied on first load and after each change. Plain list ids only, at most 512 lists and 10,000 directives of 2 KiB.
-- **Navigation hold.** Until a profile's blocker is ready, `chromium-linux-navigation-hold-hook.patch` holds its page
-  navigations for at most 10 s. This applies to a fresh app profile and to each isolated profile on its first load in a
-  run. Internal schemes aren't held.
+- **Navigation hold.** Until an isolated profile's blocker is ready on its first load in a run,
+  `chromium-linux-navigation-hold-hook.patch` holds its page navigations for at most 2 s. Internal schemes aren't held.
+  The app profile is never held, as on macOS: on a fresh profile uBlock Origin restarts itself once and compiles its
+  lists, about 12 s on a loaded Xvfb box, so the first pages of a new install load unfiltered rather than wait.
 
 ### Memory Saver
 

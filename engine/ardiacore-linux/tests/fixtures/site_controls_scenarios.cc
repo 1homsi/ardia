@@ -410,14 +410,12 @@ void FollowDefault() {
 void NavigationHoldPolicy() {
   for (const char* scheme : {"http", "https", "ws", "wss", "file", "data", "blob", "ftp"}) assert(HoldsNavigationTo(scheme));
   for (const char* scheme : {"chrome-extension", "chrome", "chrome-untrusted", "devtools", "about"}) assert(!HoldsNavigationTo(scheme));
-  assert(ShouldHoldNavigations(false, false));
-  assert(ShouldHoldNavigations(false, true));
-  assert(ShouldHoldNavigations(true, true));
-  assert(!ShouldHoldNavigations(true, false));
+  assert(ShouldHoldNavigations(false));
+  assert(!ShouldHoldNavigations(true));
   assert(HoldUntilFirstCopy(false, true));
   assert(!HoldUntilFirstCopy(false, false));
   assert(!HoldUntilFirstCopy(true, true) && !HoldUntilFirstCopy(true, false));
-  assert(kHoldDeadlineMs == 10000);
+  assert(kHoldDeadlineMs <= 2000);
   assert(kInheritAttempts == 6);
   int64_t total = 0;
   for (int attempt = 0; attempt + 1 < kInheritAttempts; ++attempt) {

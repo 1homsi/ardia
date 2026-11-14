@@ -432,8 +432,8 @@ bool HoldsNavigationTo(std::string_view scheme) {
   return true;
 }
 
-bool ShouldHoldNavigations(bool leader, bool new_profile) {
-  return !leader || new_profile;
+bool ShouldHoldNavigations(bool leader) {
+  return !leader;
 }
 
 bool HoldUntilFirstCopy(bool leader, bool new_profile) {
