@@ -283,6 +283,7 @@ export function createSessionWriter(host: ArdiaHost, initial: HydrateData = {}, 
   let pending: SessionPair | undefined;
   let latest: SessionPair | undefined;
   let issued: SessionPair | undefined;
+  let inFlight: SessionPair | undefined;
   let issuedFailed = false;
   let failedWrite: Promise<void> | undefined;
   let dirty = false;
@@ -311,28 +312,35 @@ export function createSessionWriter(host: ArdiaHost, initial: HydrateData = {}, 
       issuedFailed = false;
       failedWrite = undefined;
       const observed = observation;
+      inFlight = pair;
       try {
         const reply = await host.invoke("session.write", pair);
         if (finalized) return;
+        const reconciled = generation;
         if (observed === observation && sessionObject(reply)) {
           const shaped = linuxSessionShape(reply);
           acceptCanonical(shaped);
           onCanonical?.(pair.session, shaped);
         } else if (sessionObject(reply)) {
           canonical = mergeSession(pair.base, pair.session, canonical);
-          if (pending) {
-            const rebased = { base: cloneSessionValue(canonical), session: pending.session };
-            if (latest === pending) latest = rebased;
-            pending = rebased;
-          }
+        }
+        const stale = sessionObject(reply) && generation === reconciled && dirty && latest !== pair ? latest : undefined;
+        const requeue = !!stale && !pending;
+        if (stale) {
+          if (requeue) generation++;
+          latest = { base: cloneSessionValue(canonical), session: stale.session };
+          pending = latest;
         }
         if (latest === pair) dirty = false;
+        if (requeue) void flush().catch(() => {});
       } catch (error) {
         if (issued === pair) {
           issuedFailed = true;
           failedWrite = write;
         }
         throw error;
+      } finally {
+        if (inFlight === pair) inFlight = undefined;
       }
     });
     writes = write;
@@ -360,9 +368,10 @@ export function createSessionWriter(host: ArdiaHost, initial: HydrateData = {}, 
     generation++;
     pending = undefined;
     if (!dirty || !latest || latest === issued && !issuedFailed) return finalWrite;
+    const final = inFlight ? { base: mergeSession(inFlight.base, inFlight.session, latest.base), session: latest.session } : latest;
     issued = latest;
     try {
-      finalWrite = Promise.resolve(host.invoke("session.write", latest)).then(() => {});
+      finalWrite = Promise.resolve(host.invoke("session.write", final)).then(() => {});
     } catch (error) {
       finalWrite = Promise.reject(error);
     }
