@@ -327,6 +327,10 @@ and again only when that status changes.
 43. **Deck with TalkBack** (once the deck wraps itself in `ScrollActions`): with TalkBack on and eight tabs open, put
     the focus on a card and use TalkBack's scroll actions (the actions menu, or a two-finger swipe). The deck moves a
     page each way, and at either end the action that can't move is not offered.
+44. **Onboarding survives a recreated activity** (once onboarding stores its step with `restorableState`): turn on
+    Developer options › Don't keep activities, start onboarding on a fresh install, go to its third step, press
+    Home, then come back from Recents. Onboarding reopens on the third step, not the first. Turn the option off
+    afterwards.
 
 ## Upgrade from the Compose app on Android
 

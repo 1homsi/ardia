@@ -37,6 +37,10 @@ class SystemModule : Module() {
 
         Function("processStartedAt") { ProcessStart.epochMillis() }
 
+        Function("restoredValue") { key: String -> RestorableState.get(key) }
+
+        Function("setRestorableValue") { key: String, value: String? -> RestorableState.set(key, value) }
+
         Function("labMemory") {
             check(PhoneLab.isOn) { "the memory readout is a lab tool" }
             val context = appContext.reactContext ?: return@Function null

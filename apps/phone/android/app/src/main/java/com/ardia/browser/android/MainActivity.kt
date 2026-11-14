@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import com.ardia.phone.PhoneSystemLinks
+import com.ardia.phone.RestorableState
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -12,8 +13,14 @@ import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        RestorableState.restore(savedInstanceState)
         super.onCreate(null)
         PhoneSystemLinks.activityStarted(intent, restored = savedInstanceState != null)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RestorableState.save(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
