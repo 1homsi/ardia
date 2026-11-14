@@ -19,6 +19,7 @@ export function nodeDatabase(path = ":memory:"): SqlDatabase & { close(): void }
         throw error;
       }
     },
+    inTransaction: () => db.isTransaction,
     close: () => db.close(),
   };
 }

@@ -1,6 +1,7 @@
 import type { SqlDatabase } from "../../lib/sqlDatabase.ts";
 import {
   asyncTransaction,
+  bringOpenTabToFront,
   countArchivedTabs,
   countTabStates,
   countVisits,
@@ -60,7 +61,8 @@ export type ImportFailure =
   | "mismatch"
   | "write"
   | "applyNativeSettings"
-  | "markImported";
+  | "markImported"
+  | "startFresh";
 
 export type ImportOutcome = "none" | "imported" | "startedFresh";
 
@@ -95,31 +97,41 @@ export async function runLegacyImport(deps: ImportDeps): Promise<ImportResult> {
 }
 
 async function importSteps(deps: ImportDeps): Promise<ImportOutcome> {
-  const source = await step("source", () => deps.legacy.source());
-  switch (source?.kind) {
-    case "none":
-      return "none";
-    case "done":
-      return "imported";
-    case "unusable":
-      throw new Stop(`unusable_${unusableReason(source.reason)}`);
-    case "pending":
-      break;
-    default:
-      throw new Stop("shape");
-  }
-  if (!isLegacyCounts(source.counts)) throw new Stop("shape");
-  if (!deps.durable) throw new Stop("memory");
-  const stored = readPreferences(deps.db);
-  const receipt = readReceipt(stored[LEGACY_RECEIPT_KEY]) ?? oldImporterReceipt(deps.db, stored);
-  if (receipt) {
-    await finishNative(deps, receipt);
-    return "imported";
-  }
-  if (stored[LEGACY_FRESH_KEY] === LEGACY_FRESH_VERSION) {
+  const stored = deps.durable ? readPreferences(deps.db) : {};
+  const choseFresh = stored[LEGACY_FRESH_KEY] === LEGACY_FRESH_VERSION;
+  const freshOr = async (error: unknown): Promise<ImportOutcome> => {
+    if (!choseFresh) throw error;
     await openWithoutImport(deps);
     return "startedFresh";
+  };
+  let source: LegacySourceInput;
+  try {
+    source = await step("source", () => deps.legacy.source());
+  } catch (error) {
+    return freshOr(error);
   }
+  if (source?.kind === "none") return "none";
+  const nativeChoseFresh = source?.kind === "done" && source.outcome === "startedFresh";
+  if (source?.kind === "done" && !nativeChoseFresh) return "imported";
+  if (source?.kind !== "pending" && source?.kind !== "unusable" && !nativeChoseFresh) throw new Stop("shape");
+  if (!deps.durable) {
+    if (nativeChoseFresh) return "startedFresh";
+    throw new Stop("memory");
+  }
+  const receipt = readReceipt(stored[LEGACY_RECEIPT_KEY]) ?? oldImporterReceipt(deps.db, stored);
+  if (receipt) {
+    try {
+      await finishNative(deps, receipt);
+      return "imported";
+    } catch (error) {
+      if (nativeChoseFresh) return "startedFresh";
+      return freshOr(error);
+    }
+  }
+  if (nativeChoseFresh) return "startedFresh";
+  if (choseFresh) return freshOr(null);
+  if (source.kind === "unusable") throw new Stop(`unusable_${unusableReason(source.reason)}`);
+  if (source.kind !== "pending" || !isLegacyCounts(source.counts)) throw new Stop("shape");
   await finishNative(deps, await importInto(deps, source.counts));
   return "imported";
 }
@@ -135,11 +147,9 @@ async function finishNative(deps: ImportDeps, receipt: LegacyReceipt) {
 }
 
 async function openWithoutImport(deps: ImportDeps) {
-  try {
-    await deps.legacy.startFresh?.();
-  } catch {
-    deps.log("ardia-legacy start-fresh native call failed");
-  }
+  const open = deps.legacy.startFresh;
+  if (!open) throw new Stop("startFresh");
+  await step("startFresh", () => open());
 }
 
 async function importInto(deps: ImportDeps, counts: LegacyCounts): Promise<LegacyReceipt> {
@@ -161,6 +171,7 @@ async function importInto(deps: ImportDeps, counts: LegacyCounts): Promise<Legac
         return false;
       });
       for (const tab of added) insertNewTab(db, tab);
+      if (plan.selectedId) bringOpenTabToFront(db, plan.selectedId);
       const withState = added.filter((tab) => plan.states.has(tab.id));
       for (const tab of withState) writeTabState(db, tab.id, plan.states.get(tab.id)!);
       states = withState.length;
@@ -180,6 +191,7 @@ async function importInto(deps: ImportDeps, counts: LegacyCounts): Promise<Legac
       let visitsAdded = 0;
       for (;;) {
         const page = await step("readVisits", () => deps.legacy.readVisits(after, VISIT_PAGE));
+        if (!db.inTransaction()) throw new Stop("write");
         if (!isVisitPage(page) || page.visits.length > VISIT_PAGE) throw new Stop("shape");
         for (const raw of page.visits) {
           seen += 1;
@@ -222,16 +234,14 @@ async function importInto(deps: ImportDeps, counts: LegacyCounts): Promise<Legac
 }
 
 export async function startWithoutImport(deps: ImportDeps): Promise<boolean> {
-  let recorded = false;
-  if (deps.durable) {
-    try {
-      writePreference(deps.db, LEGACY_FRESH_KEY, LEGACY_FRESH_VERSION);
-      recorded = true;
-    } catch {
-      deps.log("ardia-legacy start-fresh record failed");
-    }
+  if (!deps.durable || !deps.legacy.startFresh) return false;
+  try {
+    await deps.legacy.startFresh();
+    writePreference(deps.db, LEGACY_FRESH_KEY, LEGACY_FRESH_VERSION);
+  } catch {
+    deps.log("ardia-legacy start-fresh failed");
+    return false;
   }
-  await openWithoutImport(deps);
-  deps.log(`ardia-legacy started fresh recorded=${recorded}`);
-  return recorded;
+  deps.log("ardia-legacy started fresh");
+  return true;
 }

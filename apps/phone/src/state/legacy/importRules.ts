@@ -43,7 +43,7 @@ export type LegacyCounts = { tabs: number; archive: number; visits: number };
 export type LegacySourceInput =
   | { kind: "none" }
   | { kind: "pending"; counts: LegacyCounts }
-  | { kind: "done" }
+  | { kind: "done"; outcome?: "imported" | "startedFresh" }
   | { kind: "unusable"; reason: LegacyUnusableReason };
 
 export type LegacyReceipt = { version: 1; tabs: number; archive: number; visits: number; preferences: number };
@@ -134,6 +134,7 @@ export function importTab(tab: LegacyTabInput, archived: boolean, id: string): B
 
 export type TabPlan = {
   tabs: BrowserTab[];
+  selectedId: string | null;
   states: Map<string, string>;
   excluded: { tabs: Tally; archive: Tally };
 };
@@ -156,13 +157,9 @@ export function planTabs(read: LegacyReadInput, platform: ImportPlatform): TabPl
   };
   for (const tab of read.tabs) take(tab, false);
   for (const tab of read.archive) take(tab, true);
-  const selected = read.selectedTabId ? tabs.find((tab) => tab.archivedAt === null && tab.id === idOf(read.selectedTabId!)) : undefined;
-  if (selected) {
-    const others = tabs.filter((tab) => tab.archivedAt === null && tab !== selected);
-    const latest = Math.max(...others.map((tab) => tab.lastActive));
-    if (others.length && latest >= selected.lastActive) selected.lastActive = latest + 1;
-  }
-  return { tabs, states, excluded };
+  const wanted = read.selectedTabId ? idOf(read.selectedTabId) : null;
+  const selectedId = tabs.some((tab) => tab.archivedAt === null && tab.id === wanted) ? wanted : null;
+  return { tabs, selectedId, states, excluded };
 }
 
 export function planVisit(raw: unknown): ImportVisit | "malformed" | "notWeb" {
@@ -208,7 +205,7 @@ export function readReceipt(raw: string | undefined): LegacyReceipt | null {
   return { version: RECEIPT_VERSION, tabs: tabs as number, archive: archive as number, visits: visits as number, preferences: preferences as number };
 }
 
-export const importChoices = (failures: number) => ({ tryAgain: true, startWithout: failures >= 2 });
+export const importChoices = (failures: number, canStartWithout: boolean) => ({ tryAgain: true, startWithout: canStartWithout && failures >= 2 });
 
 export function exclusionCounts(groups: Record<string, Tally>): string {
   return Object.entries(groups)

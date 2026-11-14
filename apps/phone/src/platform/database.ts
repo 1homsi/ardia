@@ -9,6 +9,7 @@ function bind(native: SQLiteDatabase): SqlDatabase {
     all: <T>(sql: string, values?: readonly SqlValue[]) => native.getAllSync<T>(sql, params(values)),
     first: <T>(sql: string, values?: readonly SqlValue[]) => native.getFirstSync<T>(sql, params(values)),
     transaction: (work) => native.withTransactionSync(work),
+    inTransaction: () => native.isInTransactionSync(),
   };
 }
 

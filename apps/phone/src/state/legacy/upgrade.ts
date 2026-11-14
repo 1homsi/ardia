@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { legacyImport } from "../../platform/legacy";
+import { canStartWithoutImport, legacyImport } from "../../platform/legacy";
 import { browserDatabase, browserDatabaseIsDurable } from "../store/database";
 import { runLegacyImport, startWithoutImport, type ImportDeps, type ImportResult } from "./importer";
 
@@ -29,10 +29,13 @@ export function importOldApp(): Promise<ImportResult> {
   return running;
 }
 
-export async function startWithoutOldApp(): Promise<void> {
+export const offersStartWithout = canStartWithoutImport;
+
+export async function startWithoutOldApp(): Promise<boolean> {
   try {
-    await startWithoutImport(deps());
+    return await startWithoutImport(deps());
   } catch {
     console.log("ardia-legacy start-fresh failed");
+    return false;
   }
 }

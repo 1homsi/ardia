@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { copy } from "../../lib/platformCopy";
 import { retryImport, startWithoutImporting, useBoot } from "../../state/app/boot";
 import { importChoices } from "../../state/legacy/importRules";
+import { offersStartWithout } from "../../state/legacy/upgrade";
 import { capsule, failureLayout, font, space, Symbol, useTheme } from "../ui";
 
 export function ImportFailedView() {
@@ -11,7 +12,7 @@ export function ImportFailedView() {
   const failures = useBoot((s) => s.failures);
   const busy = useBoot((s) => s.busy);
   const words = copy().importFailed;
-  const choices = importChoices(failures);
+  const choices = importChoices(failures, offersStartWithout());
   return (
     <View style={[StyleSheet.absoluteFill, styles.column, { backgroundColor: theme.surface, paddingTop: insets.top, paddingBottom: insets.bottom + space.l }]}>
       <View style={styles.icon}>

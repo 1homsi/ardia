@@ -8,7 +8,7 @@ import { migrate } from "../store/schema.ts";
 import { launchTabs } from "../tabs/tabsState.ts";
 import type { BrowserTab } from "../tabs/tabModels.ts";
 import { runLegacyImport, startWithoutImport, VISIT_PAGE, type ImportDeps, type LegacyApi } from "./importer.ts";
-import { importChoices, LEGACY_FRESH_KEY, LEGACY_RECEIPT_KEY, readReceipt, type LegacyReadInput, type LegacyReceipt, type LegacyVisitInput } from "./importRules.ts";
+import { importChoices, LEGACY_FRESH_KEY, LEGACY_FRESH_VERSION, LEGACY_RECEIPT_KEY, readReceipt, type LegacyReadInput, type LegacyReceipt, type LegacyVisitInput } from "./importRules.ts";
 
 type Step = "source" | "read" | "readVisits" | "applyNativeSettings" | "markImported";
 
@@ -35,7 +35,8 @@ function fakeLegacy(options: { read?: LegacyReadInput; visits?: (LegacyVisitInpu
     source: async () => {
       thrown("source");
       if (options.unusable) return { kind: "unusable", reason: options.unusable };
-      if (marked) return { kind: "done" };
+      if (marked) return { kind: "done", outcome: "imported" };
+      if (fresh) return { kind: "done", outcome: "startedFresh" };
       return { kind: "pending", counts: options.counts ?? { tabs: read.tabs.length, archive: read.archive.length, visits: visits.length } };
     },
     read: async () => {
@@ -266,8 +267,9 @@ test("history comes in pages of at most 5,000, each asked for after the last id,
 });
 
 test("after two failures the choice to start without the old data is offered, recorded apart from an import, and leaves the source alone", async () => {
-  assert.deepEqual(importChoices(1), { tryAgain: true, startWithout: false });
-  assert.deepEqual(importChoices(2), { tryAgain: true, startWithout: true });
+  assert.deepEqual(importChoices(1, true), { tryAgain: true, startWithout: false });
+  assert.deepEqual(importChoices(2, true), { tryAgain: true, startWithout: true });
+  assert.deepEqual(importChoices(2, false), { tryAgain: true, startWithout: false });
   const fake = fakeLegacy();
   const run = deps(fake);
   fake.fail.add("read");
@@ -280,7 +282,7 @@ test("after two failures the choice to start without the old data is offered, re
   fake.fail.clear();
   fake.calls.length = 0;
   assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "startedFresh" });
-  assert.deepEqual(fake.calls, ["source", "startFresh"]);
+  assert.deepEqual(fake.calls, ["source"]);
   assert.equal(fake.marked(), null);
   assert.equal(readOpenTabs(run.db).length, 0);
 });
@@ -302,4 +304,112 @@ test("a source already marked done starts without reading anything", async () =>
   fake.calls.length = 0;
   assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "imported" });
   assert.deepEqual(fake.calls, ["source"]);
+});
+
+test("Start Without Them never starts when the native side can't open without importing, and records nothing", async () => {
+  const fake = fakeLegacy();
+  const { startFresh: _unused, ...withoutFresh } = fake.api;
+  const run = deps(fake);
+  run.legacy = withoutFresh;
+  assert.equal(await startWithoutImport(run), false);
+  assert.equal(readPreferences(run.db)[LEGACY_FRESH_KEY], undefined);
+  const failing = deps(fake);
+  failing.legacy = { ...fake.api, startFresh: async () => Promise.reject(new Error("gate")) };
+  assert.equal(await startWithoutImport(failing), false);
+  assert.equal(readPreferences(failing.db)[LEGACY_FRESH_KEY], undefined);
+});
+
+test("a committed receipt finishes the native steps even when the source has since become unusable", async () => {
+  const fake = fakeLegacy({ unusable: "corrupt" });
+  const run = deps(fake);
+  writePreference(run.db, LEGACY_RECEIPT_KEY, JSON.stringify({ version: 1, tabs: 2, archive: 1, visits: 4, preferences: 9 }));
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "imported" });
+  assert.deepEqual(fake.calls, ["source", "applyNativeSettings", "markImported"]);
+});
+
+test("a recorded Start Without Them holds even when the source is unusable or can't be asked", async () => {
+  const fake = fakeLegacy({ unusable: "corrupt" });
+  const run = deps(fake);
+  writePreference(run.db, LEGACY_FRESH_KEY, LEGACY_FRESH_VERSION);
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "startedFresh" });
+  fake.fail.add("source");
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "startedFresh" });
+});
+
+test("a receipt whose native steps keep failing starts anyway once the person chose to start without them", async () => {
+  const fake = fakeLegacy();
+  const run = deps(fake);
+  fake.fail.add("markImported");
+  await runLegacyImport(run);
+  assert.deepEqual(await runLegacyImport(run), { kind: "failed", reason: "markImported" });
+  assert.equal(await startWithoutImport(run), true);
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "startedFresh" });
+  fake.fail.clear();
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "imported" });
+});
+
+test("the old app's selected tab stays selected over a newer tab the store already had", async () => {
+  const run = deps(fakeLegacy());
+  writeTabs(run.db, [tab("mine-1", "https://mine.example/", T + 90_000)], []);
+  await runLegacyImport(run);
+  assert.equal(launchTabs(readOpenTabs(run.db), 1).selectedId, OTTER);
+  const kept = deps(fakeLegacy());
+  writeTabs(kept.db, [{ ...tab(OTTER, "https://mine.example/", T), title: "Kept" }, tab("mine-2", "https://two.example/", T + 90_000)], []);
+  await runLegacyImport(kept);
+  const open = readOpenTabs(kept.db);
+  assert.equal(launchTabs(open, 1).selectedId, OTTER);
+  assert.equal(open.find((t) => t.id === OTTER)!.title, "Kept");
+});
+
+test("a write from elsewhere that rolls back the import's transaction is caught, and none of the import stays behind", async () => {
+  const inner = store();
+  const expoLike = {
+    ...inner,
+    transaction: (work: () => void) => {
+      try {
+        inner.exec("BEGIN");
+        work();
+        inner.exec("COMMIT");
+      } catch (error) {
+        inner.exec("ROLLBACK");
+        throw error;
+      }
+    },
+  };
+  const fake = fakeLegacy();
+  const run = deps(fake, expoLike);
+  const pages = fake.api.readVisits;
+  let interfered = false;
+  run.legacy = {
+    ...fake.api,
+    readVisits: async (afterId, limit) => {
+      if (!interfered) {
+        interfered = true;
+        try {
+          writeTabs(expoLike, [tab("other", "https://other.example/", T)], []);
+        } catch {}
+      }
+      return pages(afterId, limit);
+    },
+  };
+  assert.equal((await runLegacyImport(run)).kind, "failed");
+  assert.equal(countVisits(inner), 0);
+  assert.equal(readOpenTabs(inner).length, 0);
+  run.legacy = fake.api;
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "imported" });
+  assert.equal(countVisits(inner), 4);
+});
+
+test("a source the native side marked started fresh starts without importing, and a receipt still finishes over it", async () => {
+  const fake = fakeLegacy();
+  const run = deps(fake);
+  await fake.api.startFresh!();
+  fake.calls.length = 0;
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "startedFresh" });
+  assert.deepEqual(fake.calls, ["source"]);
+  assert.equal(readOpenTabs(run.db).length, 0);
+  assert.deepEqual(await runLegacyImport({ ...run, durable: false }), { kind: "ready", outcome: "startedFresh" });
+  writePreference(run.db, LEGACY_RECEIPT_KEY, JSON.stringify({ version: 1, tabs: 2, archive: 1, visits: 4, preferences: 9 }));
+  assert.deepEqual(await runLegacyImport(run), { kind: "ready", outcome: "imported" });
+  assert.deepEqual(fake.marked(), { version: 1, tabs: 2, archive: 1, visits: 4, preferences: 9 });
 });

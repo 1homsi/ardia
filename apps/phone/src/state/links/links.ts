@@ -13,6 +13,7 @@ import { syncData } from "../sync/store";
 import { canSearchByVoice, closeVoiceSearch, presentVoiceSearch } from "../voice/store";
 import { currentTabs, setIncognito, useTabs } from "../tabs/store";
 import { findTab } from "../tabs/tabsState";
+import { serialQueue } from "../../lib/serialQueue";
 import { heldLinks, holdLink, takeHeldLinks } from "./heldLinks";
 import { ALL_COVERS, coversToClose, heldAfterOnboarding, linkAction, type Cover, type IncomingLink } from "./linkRules";
 
@@ -95,7 +96,9 @@ async function run(link: IncomingLink) {
   }
 }
 
-const take = (link: SystemLink) => void run(link);
+const inOrder = serialQueue();
+
+const take = (link: SystemLink) => void inOrder(() => run(link));
 
 let waiting: SystemLink[] | null = null;
 let listening = false;
@@ -119,6 +122,6 @@ export function startLinks() {
   });
   useOnboarding.subscribe((state) => {
     if (state.showing || !heldLinks().length) return;
-    for (const link of heldAfterOnboarding(takeHeldLinks())) void run(link);
+    for (const link of heldAfterOnboarding(takeHeldLinks())) void inOrder(() => run(link));
   });
 }

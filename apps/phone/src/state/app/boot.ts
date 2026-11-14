@@ -40,6 +40,6 @@ export async function startWithoutImporting() {
   const state = useBoot.getState();
   if (state.ready || state.busy || !begin) return;
   useBoot.setState({ busy: true });
-  await startWithoutOldApp();
-  finish("startedFresh");
+  if (await startWithoutOldApp()) finish("startedFresh");
+  else useBoot.setState((s) => ({ failures: s.failures + 1, busy: false }));
 }

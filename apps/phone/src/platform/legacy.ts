@@ -1,7 +1,8 @@
 import { legacyImport as native } from "@ardia/phone-native";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import type { LegacyApi } from "../state/legacy/importer";
 
-type MaybeStartsFresh = { startFresh?: () => Promise<void> };
+const opensWithoutImport = typeof requireOptionalNativeModule<{ startFresh?: unknown }>("ArdiaPhoneLegacy")?.startFresh === "function";
 
 export const legacyImport: LegacyApi = {
   source: () => native.source(),
@@ -9,8 +10,7 @@ export const legacyImport: LegacyApi = {
   readVisits: (afterId, limit) => native.readVisits(afterId, limit),
   applyNativeSettings: () => native.applyNativeSettings(),
   markImported: (receipt) => native.markImported(receipt),
-  startFresh: async () => {
-    const open = (native as MaybeStartsFresh).startFresh;
-    if (open) await open();
-  },
+  ...(opensWithoutImport ? { startFresh: () => native.startFresh() } : {}),
 };
+
+export const canStartWithoutImport = () => opensWithoutImport;

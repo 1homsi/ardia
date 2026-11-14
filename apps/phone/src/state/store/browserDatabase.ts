@@ -164,10 +164,13 @@ export function writeImport(db: SqlDatabase, rows: ImportRows, markerKey: string
   });
 }
 
+export class TransactionLost extends Error {}
+
 export async function asyncTransaction(db: SqlDatabase, work: () => Promise<void>) {
   db.exec("BEGIN IMMEDIATE");
   try {
     await work();
+    if (!db.inTransaction()) throw new TransactionLost();
     db.exec("COMMIT");
   } catch (error) {
     try {
@@ -185,6 +188,11 @@ export function existingTabIds(db: SqlDatabase, ids: readonly string[]): Set<str
     for (const row of db.all<{ id: string }>(`SELECT id FROM tabs WHERE id IN (${marks})`, chunk)) found.add(row.id);
   }
   return found;
+}
+
+export function bringOpenTabToFront(db: SqlDatabase, id: string) {
+  const newest = db.first<{ n: number | null }>("SELECT max(lastActive) AS n FROM tabs WHERE archivedAt IS NULL AND id != ?", [id])?.n ?? null;
+  if (newest !== null) db.run("UPDATE tabs SET lastActive = ? WHERE id = ? AND archivedAt IS NULL AND lastActive <= ?", [newest + 1, id, newest]);
 }
 
 export const insertNewTab = (db: SqlDatabase, tab: BrowserTab) =>

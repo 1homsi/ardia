@@ -58,8 +58,12 @@ export default function App() {
   const look = useLook(PROFILE_PRESETS, DEFAULT_PROFILE_COLOR);
   useBaseSystemBars(dark);
   useEffect(() => {
-    const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
-    const state = AppState.addEventListener("change", (next) => (next === "active" ? appBecameActive() : appWillResignActive()));
+    const back = BackHandler.addEventListener("hardwareBackPress", () => useBoot.getState().ready && handleSystemBack());
+    const state = AppState.addEventListener("change", (next) => {
+      if (!useBoot.getState().ready) return;
+      if (next === "active") appBecameActive();
+      else appWillResignActive();
+    });
     return () => {
       back.remove();
       state.remove();

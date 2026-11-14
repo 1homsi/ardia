@@ -6,4 +6,5 @@ export type SqlDatabase = {
   all<T>(sql: string, params?: readonly SqlValue[]): T[];
   first<T>(sql: string, params?: readonly SqlValue[]): T | null;
   transaction(work: () => void): void;
+  inTransaction(): boolean;
 };

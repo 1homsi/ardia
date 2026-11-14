@@ -309,24 +309,32 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
     sync. Every step can run again after a kill.
 - **The importer** (JavaScript, `state/legacy/importer.ts`, shared with iPhone). The app starts only when the import
   is done or there is nothing to import; until then nothing runs: no tabs, pages, sync or links.
-  - No source: nothing to do. A source with a valid receipt (`legacy.receipt` in the preferences table, version 1):
-    only `applyNativeSettings()` and `markImported(receipt)` run, so a kill between the SQL commit and the native
+  - No source: nothing to do. A source done as an import: start. Otherwise the store's own decisions come first,
+    even when the source is unusable or can't be asked: a valid receipt (`legacy.receipt` in the preferences
+    table, version 1) means only `applyNativeSettings()` and `markImported(receipt)` run, so a kill between the SQL commit and the native
     marker finishes on the next launch. A source without one: import. The old `legacy.importVersion` marker no
     longer skips anything; `skipped-existing` is ignored and `1` (the old iPhone importer) counts as a receipt.
   - The import merges: a tab whose id is already in the store, or a setting already set, is kept as it is; the
     rest is inserted. Tabs, saved states (Archive included), thumbnails (Archive included), settings, history and
     the receipt commit in one SQL transaction. History arrives through `readVisits` in pages of 5,000 inside it.
   - Android ids are kept exactly, because thumbnails are named after them; iPhone ids are lowercased with their
-    states and the selected tab. The old app's selected tab is selected after the import.
+    states and the selected tab. The old app's selected tab is selected after the import, over any newer tab the
+    store already had.
+  - The transaction stays open across `readVisits`; nothing else may write meanwhile, so the app's lifecycle
+    and back handlers wait for boot, and the importer stops (`failed reason=write`) if it finds the transaction
+    gone after a page.
   - Every record is imported or counted under a reason (`notWeb`, `duplicate`, `malformed`, `present`, and for
     settings `unknownKey`, `badValue`, `empty`). The source's counts must match what it reads, and the store's
     rows and setting values must match what was written, or the transaction rolls back. The log line
     (`ardia-legacy imported …` or `ardia-legacy failed reason=…`) holds counts and reason codes only.
   - It refuses the in-memory store (a store from a newer version): `failed reason=memory`, nothing marked.
   - Any failure shows a screen in place of the app: Ardia couldn't bring over the tabs and settings, they are still
-    on the phone, Try Again. After a second failure it also offers Start Without Them, which records
-    `legacy.startedFresh` (not a receipt), leaves the old data alone so a later version can still bring it over,
-    and starts the app. Links that arrive while the screen is up run once, after the app starts.
+    on the phone, Try Again. After a second failure, and only where the native module has `startFresh()`, it
+    also offers Start Without Them: native opens the gate first, then `legacy.startedFresh` is recorded (not a
+    receipt), and the app starts; if either fails the screen stays. The old data is left alone so a later
+    version can still bring it over. A source `done` with outcome `startedFresh` starts the same way, and a
+    receipt still finishes its native steps over it. Links that arrive while the screen is up run once, in
+    order, after the app starts; each link's action finishes before the next starts.
   - Start Without Them calls `legacyImport.startFresh()`. On Android (248b3f68a) it writes the marker with outcome
     `startedFresh` and no receipt, opens the gate, delivers held links and starts sync once, and touches no Compose
     file; `source()` then answers `done` with `outcome: "startedFresh"` (an import gives `outcome: "imported"`). A
