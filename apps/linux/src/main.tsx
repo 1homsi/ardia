@@ -14,6 +14,7 @@ import { useToolbarAutoHide } from "../../browser/src/state/windows/toolbarAutoH
 import { copyLinkToSelection, jumpToSelection, replaceInField, usePageSelection } from "../../browser/src/state/site/selection";
 import { webviews } from "../../browser/src/platform/webviews";
 import { startMemoryTrim } from "../../browser/src/state/tabs/memoryTrim";
+import { startProfileUnloading } from "../../browser/src/state/profiles/profileUnloading";
 import { setNewTabPrewarm } from "../../browser/src/state/tabs/prewarm";
 import { setStoreBatching, useBrowser, type HydrateData } from "../../browser/src/state/browser/store";
 import { usePages } from "../../browser/src/state/tabs/pageState";
@@ -136,6 +137,7 @@ async function start() {
     watchUnclaimedTabs(ardiaHost, useBrowser);
     startLinuxTabPolicies({
       target: window, provide: provideNativeModuleProvider, startLifecycle: startTabLifecycle, startTrim: startMemoryTrim,
+      startProfileUnloading: capabilities.unloadIdleProfiles ? startProfileUnloading : undefined,
       windowId, locks: navigator.locks, channel: new BroadcastChannel(TAB_POLICY_CHANNEL), privateWindow: !!ardiaHost.bootstrap.privateWindow,
       activity: (listener) => watchHostInputActivity(requireNativeModule("ArdiaEngine"), listener),
     });

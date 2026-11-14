@@ -303,7 +303,9 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   loaded through the `profiles.loaded` call, and a later load through the event of the same name, to every window. An
   engine without the call answers `ERR_UNKNOWN_CALL`, and every profile loads at launch.
 - **Unloading idle profiles.** Settings › Advanced › Performance › Unload inactive profiles works as on macOS: the
-  shared `state/profiles/profileUnloading.ts` calls `profiles.unloadIdle` for a profile no window shows. The host
+  shared `state/profiles/profileUnloading.ts` calls `profiles.unloadIdle` for a profile no window shows. Only the
+  window holding the tab-policy lock runs it (`startLinuxTabPolicies` in `hostPolicies.ts`), and only when the host
+  answers the call, so one renderer checks every minute instead of each window racing the others. The host
   (`ac_linux_idle_profiles.cc`, Chrome glue in `ac_linux_idle_profile_engine.cc`) answers `busy` with `heldBy` when a
   tab of that profile has no binding (`tab`) or is visible, in its own window, capturing, in picture in picture or has
   DevTools open; when the profile is the app profile, has a private profile or a download (`profile`, `private`,

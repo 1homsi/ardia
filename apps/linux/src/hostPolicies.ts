@@ -35,6 +35,7 @@ export type LinuxPolicyDeps = {
   provide: (provider: ModuleProvider) => () => void;
   startLifecycle: () => void;
   startTrim: () => void;
+  startProfileUnloading?: () => void;
   now?: () => number;
   windowId?: string;
   activity?: (listener: () => void) => () => void;
@@ -76,6 +77,7 @@ export function startLinuxTabPolicies(deps: LinuxPolicyDeps): () => void {
     if (stopped || owner) return;
     owner = true;
     deps.startTrim();
+    deps.startProfileUnloading?.();
   };
   const takeLock = () => {
     if (!deps.locks) return becomeOwner();

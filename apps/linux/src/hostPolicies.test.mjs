@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import {
   TAB_POLICY_LOCK, isTabPolicyOwner, policyToastTarget, resetLinuxTabPoliciesForTests, sharedBatterySaver, startLinuxTabPolicies, watchHostInputActivity,
 } from "./hostPolicies.ts";
@@ -58,7 +59,7 @@ function broadcast() {
 
 function deps(overrides = {}) {
   let clock = 1_000_000;
-  const counts = { lifecycles: 0, trims: 0 };
+  const counts = { lifecycles: 0, trims: 0, unloads: 0 };
   const providers = [];
   const engine = engineEvents();
   return {
@@ -66,7 +67,7 @@ function deps(overrides = {}) {
     value: {
       target: inputTarget(), now: () => clock,
       provide: (provider) => { providers.push(provider); return () => providers.splice(providers.indexOf(provider), 1); },
-      startLifecycle: () => ++counts.lifecycles, startTrim: () => ++counts.trims,
+      startLifecycle: () => ++counts.lifecycles, startTrim: () => ++counts.trims, startProfileUnloading: () => ++counts.unloads,
       activity: (listener) => watchHostInputActivity(engine, listener),
       ...overrides,
     },
@@ -111,6 +112,25 @@ test("only the window holding the tab-policy lock runs the app-wide memory trim"
     assert.equal(isTabPolicyOwner(), true, "without Web Locks the window runs everything itself");
     assert.equal(unavailable.counts.trims, 1);
   });
+});
+
+test("only the window holding the tab-policy lock unloads idle profiles, and main starts it when the host can", async () => {
+  resetLinuxTabPoliciesForTests();
+  const locks = pendingLock();
+  const setup = deps({ locks });
+  startLinuxTabPolicies(setup.value);
+  assert.equal(setup.counts.unloads, 0);
+  locks.grant();
+  assert.equal(setup.counts.unloads, 1);
+
+  resetLinuxTabPoliciesForTests();
+  const privateWindow = deps({ locks: pendingLock(), privateWindow: true });
+  startLinuxTabPolicies(privateWindow.value);
+  assert.equal(privateWindow.counts.unloads, 0);
+
+  const main = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
+  assert.match(main, /startProfileUnloading: capabilities\.unloadIdleProfiles \? startProfileUnloading : undefined/);
+  assert.match(main, /import \{ startProfileUnloading \} from "\.\.\/\.\.\/browser\/src\/state\/profiles\/profileUnloading";/);
 });
 
 test("battery saver toasts appear only in the renderer that owns the focused window", () => {
