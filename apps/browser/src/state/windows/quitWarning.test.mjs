@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 const { useBrowser } = await import("../browser/store.ts");
 const { QUIT_WARNING, askBeforeQuitting, asksBeforeQuit, quitWarningMayAsk, windowsStayingOpen } = await import("./quitWarning.ts");
 const { shellNativeModules } = await import("../../test-native/shell.ts");
@@ -87,4 +89,38 @@ test("a pop-up's close request goes through the quit question, then closes its w
   requestWindowClose("popup:a2");
   for (let turn = 0; turn < 5; turn++) await new Promise((resolve) => setTimeout(resolve, 0));
   assert.ok(windows.closed.includes("popup:a2"), "a pop-up isn't one of the browser's windows, but its close is still carried out");
+});
+
+const ON_WINDOWS = `import { registerHooks } from "node:module";
+registerHooks({ resolve(specifier, context, next) {
+  const resolved = next(specifier, context);
+  return resolved.url.endsWith("/lib/platformFeatures.ts") ? { ...resolved, url: resolved.url.replace(/platformFeatures\\.ts$/, "platformFeatures.windows.ts") } : resolved;
+} });`;
+
+const LAST_POPUP_CLOSED_BY_THE_USER = `
+const { useBrowser } = await import("./src/state/browser/store.ts");
+const { requestWindowClose } = await import("./src/state/windows/windowClose.ts");
+const { shellNativeModules, windows } = await import("./src/test-native/shell.ts");
+const settle = async () => { for (let turn = 0; turn < 8; turn++) await new Promise((resolve) => setTimeout(resolve, 0)); };
+useBrowser.getState().hydrate({});
+useBrowser.getState().updateSettings({ warnBeforeQuitting: true });
+let asked = 0;
+let answer = false;
+shellNativeModules.ArdiaDialogs.confirm = () => { asked += 1; return Promise.resolve({ confirmed: answer, suppressed: false }); };
+windows.open.set("popup:last", {});
+requestWindowClose("popup:last");
+await settle();
+const cancelled = { asked, closed: windows.closed.includes("popup:last") };
+answer = true;
+requestWindowClose("popup:last");
+await settle();
+console.log(JSON.stringify({ cancelled, quit: { asked, closed: windows.closed.includes("popup:last") } }));
+`;
+
+test("on Windows, the user closing the last pop-up asks with the setting on: Cancel keeps it, Quit closes it", () => {
+  const run = spawnSync(process.execPath, ["--no-warnings", "--import", "./src/test-loader.mjs", "--import", `data:text/javascript,${encodeURIComponent(ON_WINDOWS)}`, "--input-type=module", "-e", LAST_POPUP_CLOSED_BY_THE_USER], { cwd: fileURLToPath(new URL("../../../", import.meta.url)), encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  const seen = JSON.parse(run.stdout.trim().split("\n").at(-1));
+  assert.deepEqual(seen.cancelled, { asked: 1, closed: false }, "Cancel keeps the pop-up open");
+  assert.deepEqual(seen.quit, { asked: 2, closed: true }, "Quit closes it, and the app quits with its last window");
 });

@@ -3,6 +3,7 @@ import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { addNativeListener, type EventSubscription } from "../events";
 import type { AppWindowsModule } from "../nativeModuleTypes";
 import { popupFrame, popupSize, popupTitle, type PopupFeatures } from "./popupPlacement";
+import { onEngineTopic } from "./host";
 import { privatePopupShown } from "./privateWindows";
 import { isPopupWindowId, POPUP_WINDOW_PREFIX } from "@ardia/shell/src/windows.ts";
 
@@ -47,6 +48,7 @@ const popups = new Map<string, PopupWindowInfo>();
 const privateHolds = new Map<string, () => void>();
 const closedListeners = new Set<(popup: PopupWindowInfo) => void>();
 let closes: EventSubscription | null = null;
+let pageCloses: { remove(): void } | null = null;
 let made = 0;
 
 
@@ -74,6 +76,13 @@ function popupClosed(windowId: string) {
   for (const listener of [...closedListeners]) listener(popup);
 }
 
+function listenForPageCloses() {
+  pageCloses ??= onEngineTopic("tab", (event) => {
+    if (event.name !== "windowClose" || typeof event.key !== "string") return;
+    for (const popup of [...popups.values()]) if (popup.pageKey === event.key) closePopupWindow(popup.windowId);
+  });
+}
+
 function listenForCloses() {
   closes ??= addNativeListener(WINDOWS_MODULE, "onWindowEvent", (payload) => {
     const event = payload as WindowEvent | null;
@@ -93,6 +102,7 @@ const openerFrame = (windowId: string) =>
 
 export async function openPopupWindow(ask: PopupWindowAsk): Promise<PopupWindowOutcome> {
   listenForCloses();
+  listenForPageCloses();
   made += 1;
   const windowId = `${POPUP_WINDOW_PREFIX}${Date.now().toString(36)}-${made}`;
   const popup: PopupWindowInfo = { windowId, pageKey: `${windowId}:page`, adopt: ask.adopt, url: ask.url, profile: ask.profile, openerKey: ask.openerKey, focused: false };

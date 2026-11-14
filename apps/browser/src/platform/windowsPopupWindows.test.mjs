@@ -5,6 +5,7 @@ import { DeviceEventEmitter, turboModules } from "../test-native/reactNative.ts"
 const calls = [];
 const opened = [];
 const closed = [];
+const closeRequests = [];
 const openIds = new Set();
 let refuseWindows = false;
 let closeWhileOpening = false;
@@ -36,6 +37,7 @@ turboModules.ArdiaAppWindows = {
   },
   windowFrame: async (id) => (id === "main" ? [100, 50, 1200, 800] : null),
   windowIds: async () => [...openIds],
+  requestClose: async (id) => void closeRequests.push(id),
   setWindowTitle: async () => {},
 };
 
@@ -247,5 +249,23 @@ test("a pop-up window closed while it was opening is not opened again as a tab",
   closeWhileOpening = false;
   assert.equal(events.filter(([name]) => name === "openWindow").length, 0, "the closed pop-up does not come back as a tab");
   assert.ok(calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:22"), "its offered tab is given back");
+  unmount();
+});
+
+test("a pop-up whose page closed itself closes its window at once, without the close request the user can cancel", async () => {
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, () => {});
+  await settle();
+  popupOpened("ardiacore:50", {});
+  await settle();
+  const made = opened.at(-1);
+  const info = popupWindowInfo(made.id);
+  const shown = mountPage(info.pageKey, { url: "", profile: info.profile, adopt: info.adopt, windowId: made.id }, () => {});
+  await settle();
+  const requestsBefore = closeRequests.length;
+  emitTopic("tab", { key: info.pageKey, name: "windowClose", data: {} });
+  await settle();
+  assert.ok(closed.includes(made.id), "the window whose page is gone closes");
+  assert.equal(closeRequests.length, requestsBefore, "no request that a Cancel could keep open");
+  shown();
   unmount();
 });

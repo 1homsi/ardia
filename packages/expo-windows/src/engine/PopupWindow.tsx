@@ -23,7 +23,7 @@ const TITLE_INSET = 12;
 const STRIP = { inset: 10, glyph: 16, symbol: 11, gap: 5, text: 12 } as const;
 const CLOSE = { hover: "#C42B1C", pressed: "#B3271A", ink: "#FFFFFF" } as const;
 const CERTIFICATE_ERROR_TINT = "#FF5F57";
-const PAGE_EVENTS = ["ready", "navigation", "security", "windowClose"];
+const PAGE_EVENTS = ["ready", "navigation", "security"];
 
 const PALETTE = {
   dark: {
@@ -214,7 +214,6 @@ function PopupContent({ popup }: { popup: PopupWindowInfo }) {
         });
         return void (popup.focused ? callPage(pageKey, "focus", { follow: true }) : undefined);
       }
-      if (name === "windowClose") return requestPopupClose(windowId);
       if (name === "security") return setLevel(typeof fields.level === "string" ? fields.level : null);
       if (name !== "navigation") return;
       setPage((shown) => ({
