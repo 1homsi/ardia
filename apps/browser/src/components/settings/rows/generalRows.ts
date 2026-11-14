@@ -4,6 +4,7 @@ import { keyText } from "../../../state/commands/keyText";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { splitViewAvailable } from "../../../state/splits/splits";
+import { newTabOpensOf } from "../../../state/settings/settings";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
 
@@ -209,7 +210,7 @@ export const generalRows = {
           title: "Reuse an empty New Tab page",
           description: `When the tab you're on is still an empty New Tab page, ${keyText("⌘T")}, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.`,
           keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
-          shown: (settings) => settings.newTabOpens === "page",
+          shown: (settings) => newTabOpensOf(settings) === "page",
         },
         newTabPosition: {
           title: "Add new tabs",

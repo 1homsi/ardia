@@ -37,6 +37,7 @@ import { addFolderToSidebar, restoreArcFolders } from "../bookmarks/bookmarkGrou
 import { withLivePage } from "../tabs/livePage";
 import { webviews } from "../../platform/webviews";
 import { togglePageEngine } from "../engines/actions";
+import { runReaderCommand } from "../reader/reader";
 import { goBack, goForward } from "../tabs/navigation";
 import { awaitsFirstPage } from "../tabs/pendingAddress";
 import { focusSplitPane, openSplitPane } from "../splits/actions";
@@ -69,6 +70,7 @@ import { expectFocus, findFocus } from "../focus/focusClaims";
 import { isWebPageUrl } from "../../lib/url";
 import { findStep, openFind } from "../find/actions";
 import { noteDownloadsPanelToggle } from "../telemetry/downloadsPanelCounts";
+import { runHidingCommand } from "../site/hiddenElements";
 
 const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
@@ -152,6 +154,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
   const page = tab?.url ? tab : undefined;
   const web = tabId ? webviews.get(tabId) : undefined;
   const ui = s.windowUi[windowId];
+  if (page && (runHidingCommand(command, page.id) || runReaderCommand(command, page.id))) return;
   if (!targeted && runSidebarCommand(command, arg, windowId)) return;
 
   switch (command) {
