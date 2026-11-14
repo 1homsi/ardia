@@ -60,14 +60,22 @@ function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow
       </View>
       <View style={styles.label}>
         {row.kind === "query" ? (
-          <QueryTitle title={row.title} typed={typed} roles={roles} />
+          <>
+            <QueryTitle title={row.title} typed={typed} roles={roles} />
+            {row.detail ? (
+              <Text style={[font.subheadline, { color: roles.foregroundSecondary }]} numberOfLines={1}>
+                {row.detail}
+              </Text>
+            ) : null}
+          </>
         ) : (
           <>
             <Text style={[font.body, { color: roles.foregroundPrimary }]} numberOfLines={1}>
               {row.title}
             </Text>
             <View style={styles.detail}>
-              {row.kind === "page" && row.switchesTab ? <Symbol name="arrowRight" size={13} color={roles.foregroundSecondary} /> : null}
+              {row.kind === "page" && row.switchesTab ? <Symbol name="arrowRightCircle" size={13} color={roles.foregroundSecondary} /> : null}
+              {row.kind === "page" && row.fromMac ? <Symbol name="laptop" size={13} color={roles.foregroundSecondary} /> : null}
               <Text style={[font.subheadline, styles.detailText, { color: roles.foregroundSecondary }]} numberOfLines={1}>
                 {row.detail}
               </Text>

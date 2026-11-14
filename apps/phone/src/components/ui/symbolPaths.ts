@@ -167,6 +167,7 @@ export const SYMBOLS = {
   code: [{ d: polyline(7.5, 7, 2.5, 12, 7.5, 17) + polyline(16.5, 7, 21.5, 12, 16.5, 17) + line(14, 4.5, 10, 19.5), stroke: STROKE }],
   handWave: [{ d: HAND + "M18.5 4.5c1.2.6 2 1.6 2.3 2.8M20 2.5c1.6.8 2.7 2.2 3 3.8", stroke: STROKE }],
   arrowRight: [{ d: line(4, 12, 19.5, 12) + polyline(13.5, 6, 19.5, 12, 13.5, 18), stroke: STROKE }],
+  arrowRightCircle: [{ d: circle(12, 12, 9.5) + line(7.5, 12, 16, 12) + polyline(12.5, 8.5, 16, 12, 12.5, 15.5), stroke: STROKE }],
   chevronLeft: [{ d: polyline(15.5, 5, 8.5, 12, 15.5, 19), stroke: BOLD }],
   chevronRight: [{ d: polyline(8.5, 5, 15.5, 12, 8.5, 19), stroke: BOLD }],
   arrowClockwise: [{ d: "M19.5 12.5A7.5 7.5 0 1 1 15.6 5.9" + polyline(13.96, 2.25, 15.6, 5.9, 11.64, 6.45), stroke: STROKE }],

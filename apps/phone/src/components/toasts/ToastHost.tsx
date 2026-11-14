@@ -18,6 +18,7 @@ const ICONS: Record<ToastIcon, SymbolName> = {
   laptop: "laptop",
   star: "starFill",
   sent: "paperplane",
+  calculation: "equalCircleFill",
 };
 
 export function ToastHost() {

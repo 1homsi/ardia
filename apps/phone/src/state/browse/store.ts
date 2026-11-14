@@ -40,7 +40,8 @@ import {
 } from "../tabs/store";
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
-import { pasteText } from "../../platform/system";
+import { copyText, pasteText } from "../../platform/system";
+import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
 import { countUsage } from "../telemetry/telemetry";
 import { coverIsCapturable, isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
@@ -132,7 +133,10 @@ export function searchFor(query: string) {
 }
 
 export function activateRow(row: TrayRow) {
-  if (row.kind === "calc") return;
+  if (row.kind === "calc") {
+    copyCalculation(row.value);
+    return;
+  }
   if (row.kind === "paste") {
     void settled(() => pasteText(), "").then((text) => {
       if (text.trim()) submitSearch(text.trim());
@@ -145,6 +149,11 @@ export function activateRow(row: TrayRow) {
   }
   const target = rowTarget(row);
   if (target) openPage(target.url, target.origin);
+}
+
+function copyCalculation(value: string) {
+  void settled(() => copyText(value), undefined);
+  showToast(`Copied ${value}`, "calculation");
 }
 
 export function openTab(id: string) {

@@ -12,9 +12,9 @@ import { dedupeByLanding, displayHost, landingKey } from "../../lib/url.ts";
 import type { PasteOffer } from "./pasteRow.ts";
 
 export type TrayRow =
-  | { key: string; kind: "query"; title: string; url: string; query: string }
-  | { key: string; kind: "page"; title: string; detail: string; url: string; favicon: string | null; tabId: string | null; switchesTab: boolean }
-  | { key: string; kind: "calc"; title: string; detail: string; url: string }
+  | { key: string; kind: "query"; title: string; url: string; query: string; detail?: string | null }
+  | { key: string; kind: "page"; title: string; detail: string; url: string; favicon: string | null; tabId: string | null; switchesTab: boolean; fromMac?: string | null }
+  | { key: string; kind: "calc"; title: string; detail: string; url: string; value: string }
   | { key: string; kind: "paste"; title: string; detail: string; url: string; offer: PasteOffer };
 
 export type { PasteOffer };
@@ -24,6 +24,8 @@ export const SWITCH_TO_TAB = "Switch to Tab";
 
 export const IDLE_ROW_LIMIT = 5;
 
+export const ROW_LIMIT = 9;
+
 export type Suggested = { rows: TrayRow[]; completion: string };
 
 export type SuggestContext = { currentUrl: string | null; currentTabId: string | null };
@@ -32,29 +34,42 @@ export type OmniboxSources = Parameters<typeof mobileSetSources>[0];
 
 export function suggest(text: string, remote: readonly string[], context: SuggestContext, macTabs: ReadonlyMap<string, string> = new Map()): Suggested {
   if (!text.trim()) return { rows: [], completion: "" };
-  const result = mobileSuggest(text, { remote: [...remote], preference: "website", limit: 8, now: Date.now(), ...context });
+  const result = mobileSuggest(text, { remote: [...remote], preference: "website", limit: ROW_LIMIT, now: Date.now(), ...context });
   const rows: TrayRow[] = [];
   for (const item of result.items) {
     const typedAddress = item.kind === "search" ? mobileResolve(item.query) : null;
     if (item.kind === "search" && typedAddress?.kind === "url") rows.push(addressRow(typedAddress.url));
-    else if (item.kind === "search") rows.push({ key: `q:${item.query}`, kind: "query", title: item.query, url: item.url, query: item.query });
+    else if (item.kind === "search") rows.push({ key: `q:${item.query}`, kind: "query", title: item.query, url: item.url, query: item.query, detail: item.bang ? `Search ${item.engine}` : null });
     else if (item.kind === "page") {
       const shown = mobileDisplay(item.url, item.title);
       const host = displayHost(shown.host, item.url);
+      const mac = item.tabId ? null : (macTabs.get(landingKey(item.url)) ?? null);
       rows.push({
         key: `p:${item.tabId ?? ""}:${item.url}`,
         kind: "page",
         title: item.title || host,
-        detail: item.tabId ? SWITCH_TO_TAB : (macTabs.get(landingKey(item.url)) ?? host),
+        detail: item.tabId ? SWITCH_TO_TAB : host,
         url: item.url,
         favicon: item.favicon ?? null,
         tabId: item.tabId ?? null,
         switchesTab: Boolean(item.tabId),
+        fromMac: mac,
       });
-    } else if (item.kind === "calc") rows.push({ key: `c:${item.expression}`, kind: "calc", title: item.value, detail: item.expression, url: item.url });
+    } else if (item.kind === "calc") rows.push({ key: `c:${item.expression}`, kind: "calc", title: `= ${item.value}`, detail: item.expression, url: item.url, value: item.value });
   }
   const unique = dedupeByLanding(rows.map((row) => ({ row, url: row.kind === "page" ? row.url : row.key, opensTab: row.kind === "page" && row.switchesTab })));
-  return { rows: unique.map((item) => item.row), completion: result.completion };
+  return { rows: withTypedQuery(unique.map((item) => item.row), text), completion: result.completion };
+}
+
+export function withTypedQuery(rows: TrayRow[], text: string): TrayRow[] {
+  const typed = text.trim();
+  const lower = typed.toLowerCase();
+  if (rows.some((row) => row.kind === "query" && row.title.toLowerCase() === lower)) return rows.slice(0, ROW_LIMIT);
+  const resolution = mobileResolve(typed);
+  if (!resolution || resolution.kind === "url") return rows.slice(0, ROW_LIMIT);
+  const row: TrayRow = { key: `q:${typed}`, kind: "query", title: typed, url: resolution.url, query: typed, detail: resolution.kind === "bang" ? `Search ${resolution.engine}` : null };
+  const kept = rows.filter((existing) => existing.key !== row.key);
+  return [...kept.slice(0, Math.min(1, kept.length)), row, ...kept.slice(Math.min(1, kept.length))].slice(0, ROW_LIMIT);
 }
 
 function addressRow(url: string): TrayRow {
@@ -62,11 +77,11 @@ function addressRow(url: string): TrayRow {
   return { key: `p::${url}`, kind: "page", title: host, detail: host, url, favicon: null, tabId: null, switchesTab: false };
 }
 
-export type RowTarget = { url: string; origin: "search" | "typed" };
+export type RowTarget = { url: string; origin: "search" | "typed" | "sync" };
 
 export function rowTarget(row: TrayRow): RowTarget | null {
   if (row.kind === "calc" || row.kind === "paste") return null;
-  if (row.kind === "page") return { url: row.url, origin: "typed" };
+  if (row.kind === "page") return { url: row.url, origin: row.fromMac ? "sync" : "typed" };
   const typed = mobileResolve(row.query);
   return typed?.kind === "url" ? { url: typed.url, origin: "typed" } : { url: row.url, origin: "search" };
 }
@@ -82,7 +97,10 @@ export function idleRows(queries: readonly string[], macTabs: readonly { url: st
     const url = mobileResolve(`?${query}`)?.url;
     if (url) rows.push({ key: `q:${query}`, kind: "query", title: query, url, query });
   }
-  for (const tab of macTabs) rows.push({ key: `r:${tab.url}`, kind: "page", title: tab.title, detail: tab.deviceName, url: tab.url, favicon: tab.favicon ?? null, tabId: null, switchesTab: false });
+  for (const tab of macTabs) {
+    const host = displayHost(mobileDisplay(tab.url, tab.title).host, tab.url);
+    rows.push({ key: `r:${tab.url}`, kind: "page", title: tab.title || tab.url, detail: host, url: tab.url, favicon: tab.favicon ?? null, tabId: null, switchesTab: false, fromMac: tab.deviceName });
+  }
   return rows.slice(0, IDLE_ROW_LIMIT);
 }
 
