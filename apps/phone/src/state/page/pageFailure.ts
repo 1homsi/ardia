@@ -9,7 +9,7 @@ export function failureIcon(failure: PageFailure): FailureIcon {
   return failure.reason === "offline" ? "offline" : "network";
 }
 
-export const retriesWhenOnline = (failure: PageFailure) => failure.kind === "network" && failure.reason === "offline";
+export const retriesWhenOnline = (failure: PageFailure) => failure.kind === "network" && failure.reason !== "notPrivate";
 
 export type FailureHold = { shown: PageFailure | null; sawLoad: boolean };
 

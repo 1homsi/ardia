@@ -8,9 +8,11 @@ test("a crashed page shows a warning, an offline one the no-wifi mark, any other
   assert.equal(failureIcon({ kind: "network", reason: "timedOut", title: "This Webpage Couldn’t Load", message: "" }), "network");
 });
 
-test("only an offline page reloads by itself once the phone is back online", () => {
-  assert.equal(retriesWhenOnline({ kind: "network", reason: "offline", title: "", message: "" }), true);
-  assert.equal(retriesWhenOnline({ kind: "network", reason: "hostNotFound", title: "", message: "" }), false);
+test("a page that failed on the network reloads by itself once the phone comes back online, however the drop was reported", () => {
+  for (const reason of ["offline", "connectionLost", "timedOut", "hostNotFound", "other"] as const) {
+    assert.equal(retriesWhenOnline({ kind: "network", reason, title: "", message: "" }), true, reason);
+  }
+  assert.equal(retriesWhenOnline({ kind: "network", reason: "notPrivate", title: "", message: "" }), false);
   assert.equal(retriesWhenOnline({ kind: "crashed", reason: null, title: "", message: "" }), false);
 });
 

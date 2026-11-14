@@ -23,6 +23,7 @@ import type { SyncedDevice } from "../../platform/sync";
 import { pageUi, usePageUi, type Press } from "./store";
 import { closeVoiceSearch, useVoice } from "../voice/store";
 import { addOnlineAgainListener } from "../../platform/network";
+import { countUsage } from "../telemetry/telemetry";
 import { hideArchiveCard } from "../browse/archiveCard";
 import { copy } from "../../lib/platformCopy";
 import { COPIED_LINK } from "../browse/tabMenus";
@@ -111,7 +112,10 @@ export const menuReload = () => {
 export const retryPage = (tabId: string) => void pageHandle(tabId)?.reload();
 
 export function retryWhenOnline(tabId: string): () => void {
-  const subscription = addOnlineAgainListener(() => retryPage(tabId));
+  const subscription = addOnlineAgainListener(() => {
+    if (!findTab(currentTabs(), tabId)?.isPrivate) countUsage("pages_reloaded_online");
+    retryPage(tabId);
+  });
   return () => subscription.remove();
 }
 
