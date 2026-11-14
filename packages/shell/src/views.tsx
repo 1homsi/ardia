@@ -38,6 +38,7 @@ export type FadeLabelProps = ViewProps & {
   fontFamily?: string;
   color?: string;
   fadeWidth?: number;
+  strikethrough?: boolean;
 };
 
 export const FadeLabel = requireNativeViewManager<FadeLabelProps>("ArdiaFadeLabel");
