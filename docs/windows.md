@@ -199,6 +199,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     which path each drag took, and `maximized|restored <id>`.
   - A hidden sidebar slides back in when the pointer reaches the window's edge, as on the Mac: `watchSidebarEdge`
     polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
+  - React Native for Windows hit-tests by layout and ignores `transform`, and the app runs every animation that
+    doesn't repeat from JS on Windows, so a running animation keeps writing its values to a view until it ends. So a
+    style never swaps an Animated value for a constant while an animation may still write to it: the view keeps the
+    same node, and `useGated` (`components/ui/motion.ts`) pins that node to its resting value while its state is off.
+    A sidebar docked while its peek was closing drew its rows off where they click before this (#1852); the self-check
+    `sidebar peek layer rests at identity after docking mid-close` docks the first window six times as its peek
+    closes and logs `self-check note: sidebar peek, <n> cycles, <m> docked mid-close, ...`. And no view that takes
+    clicks rests under a non-zero transform (#1868).
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
   - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance

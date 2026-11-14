@@ -13,6 +13,7 @@ import { watchDialogsWith, windowsDialogPages } from "./engine/dialogPages";
 import { windowsExternalAppCounts } from "./engine/domains/externalApps";
 import { windowsLaunchLinks } from "./launchLinks";
 import { noteMissing } from "./missing";
+import { windowsSelfChecks } from "./selfCheck/registered";
 import { stampedSystemInfo, windowsUpdater } from "./updater";
 import { windowsSwipe } from "./pager";
 import { windowsSync } from "./sync";
@@ -47,7 +48,7 @@ const syncOnWindows = windowsSync();
 
 watchDialogsWith(() => (TurboModuleRegistry.get<TurboModule & Pick<DialogsModule, "openCount">>("ArdiaDialogs")?.openCount() ?? 0) > 0);
 
-const writtenInJs: Record<string, Record<string, unknown>> = { ...(syncOnWindows ? { ArdiaSync: syncOnWindows } : {}), ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaExternalAppCounts: windowsExternalAppCounts, ArdiaDialogPages: windowsDialogPages, ArdiaImport: windowsImport(), ArdiaInlineCompletion: windowsInlineCompletion(() => TurboModuleRegistry.get<TurboModule & WindowsHostModule>("ArdiaWindowsHost")), ArdiaApp: windowsIntroMusic };
+const writtenInJs: Record<string, Record<string, unknown>> = { ...(syncOnWindows ? { ArdiaSync: syncOnWindows } : {}), ArdiaUpdater: windowsUpdater, ArdiaSwipe: windowsSwipe, ArdiaMotion: windowsMotion, ArdiaLaunchLinks: windowsLaunchLinks, ArdiaExternalAppCounts: windowsExternalAppCounts, ArdiaDialogPages: windowsDialogPages, ArdiaImport: windowsImport(), ArdiaInlineCompletion: windowsInlineCompletion(() => TurboModuleRegistry.get<TurboModule & WindowsHostModule>("ArdiaWindowsHost")), ArdiaApp: windowsIntroMusic, ArdiaSelfCheck: windowsSelfChecks };
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);

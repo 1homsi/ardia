@@ -168,6 +168,10 @@ function animate(value: AnimatedValue | AnimatedValueXY, toValue: number | { x: 
   return animateOne(value, toValue as number);
 }
 
+type Readable = number | { __getValue(): number };
+const read = (node: Readable) => (typeof node === "number" ? node : node.__getValue());
+const combined = (get: () => number) => ({ __getValue: get });
+
 export const Animated = {
   createAnimatedComponent: <Component>(component: Component) => component,
   Value: AnimatedValue,
@@ -175,6 +179,9 @@ export const Animated = {
   spring: (value: AnimatedValue | AnimatedValueXY, config: { toValue: number | { x: number; y: number } }) => animate(value, config.toValue),
   timing: (value: AnimatedValue | AnimatedValueXY, config: { toValue: number | { x: number; y: number } }) => animate(value, config.toValue),
   parallel: (list: Animation[]): Animation => ({ start: (done) => together(list, done), stop: () => list.forEach((a) => a.stop()) }),
+  add: (a: Readable, b: Readable) => combined(() => read(a) + read(b)),
+  subtract: (a: Readable, b: Readable) => combined(() => read(a) - read(b)),
+  multiply: (a: Readable, b: Readable) => combined(() => read(a) * read(b)),
 };
 
 export const findNodeHandle = () => null;
