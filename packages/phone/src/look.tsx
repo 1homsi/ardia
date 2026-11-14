@@ -19,7 +19,12 @@ export type FrostVariant = "bar" | "sheet" | "glass" | "thin";
 export type FrostProps = ViewProps &
   LookColors & { source: string; name?: string; variant?: FrostVariant; cornerRadius?: number; dark?: boolean; reduceTransparency?: boolean; children?: ReactNode };
 
+export type GlassShape = "capsule" | "circle" | "rounded";
+
+export type GlassProps = FrostProps & { shape?: GlassShape; tint?: string; interactive?: boolean };
+
 type LookNative = {
+  hasGlass?: () => boolean;
   setPageFrost?: (mode: "live" | "solid") => string;
   probeFrosts?: () => void;
   setLookOff?: (off: boolean) => boolean;
@@ -60,6 +65,10 @@ function look<P extends ViewProps>(name: string) {
 
 export const lookIsNative = () => hasNativeLook;
 
+const hasNativeGlass = hasNativeLook && lookNative?.hasGlass?.() === true;
+
+export const glassIsNative = () => hasNativeGlass;
+
 export const DeckBackdrop = look<DeckBackdropProps>("DeckBackdrop");
 
 export const ProfileBackdrop = look<ProfileBackdropProps>("ProfileBackdrop");
@@ -69,3 +78,12 @@ export const FilmGrain = look<FilmGrainProps>("FilmGrain");
 export const FrostSource = look<FrostSourceProps>("FrostSource");
 
 export const Frost = look<FrostProps>("Frost");
+
+const NativeGlass = look<GlassProps>("Glass");
+
+export function Glass(props: GlassProps) {
+  if (hasNativeGlass) return createElement(NativeGlass, props);
+  const { shape, tint, interactive, ...frost } = props;
+  const cornerRadius = frost.cornerRadius ?? (shape === "rounded" ? 0 : 999);
+  return createElement(Frost, { ...frost, variant: frost.variant ?? "glass", cornerRadius });
+}

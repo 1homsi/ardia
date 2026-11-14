@@ -7,6 +7,8 @@ public final class LookModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaPhoneLook")
 
+    Function("hasGlass") { () -> Bool in true }
+
     Function("setPageFrost") { (mode: String) throws -> String in
       guard PhoneTestBuild.isOn else { throw LookLabOnly() }
       let solid = mode == "solid"
@@ -56,6 +58,17 @@ public final class LookModule: Module {
     View(FrostSourceView.self) {
       ViewName("FrostSource")
       Prop("name") { (_: FrostSourceView, _: String?) in }
+    }
+
+    View(GlassView.self) {
+      ViewName("Glass")
+      Prop("shape") { (view: GlassView, value: String?) in view.shape = GlassView.Shape(rawValue: value ?? "") ?? .capsule }
+      Prop("cornerRadius") { (view: GlassView, value: Double?) in view.cornerRadius = CGFloat(value ?? 0) }
+      Prop("tint") { (view: GlassView, value: UIColor?) in view.tint = value }
+      Prop("interactive") { (view: GlassView, value: Bool?) in view.interactive = value ?? true }
+      Prop("dark") { (view: GlassView, value: Bool?) in view.dark = value }
+      Prop("reduceTransparency") { (view: GlassView, value: Bool?) in view.reduceTransparency = value == true }
+      OnViewDidUpdateProps { (view: GlassView) in view.render() }
     }
 
     View(FrostView.self) {
@@ -192,6 +205,85 @@ final class FilmGrainView: LookHostView {
 }
 
 final class FrostSourceView: ExpoView {}
+
+final class GlassView: ExpoView {
+  enum Shape: String {
+    case capsule
+    case circle
+    case rounded
+  }
+
+  var shape: Shape = .capsule
+  var cornerRadius: CGFloat = 0
+  var tint: UIColor?
+  var interactive = true
+  var dark: Bool?
+  var reduceTransparency = false
+
+  private let effectView = UIVisualEffectView()
+  private var applied: (tint: UIColor?, interactive: Bool, solid: Bool)?
+
+  required init(appContext: AppContext? = nil) {
+    super.init(appContext: appContext)
+    backgroundColor = .clear
+    effectView.isAccessibilityElement = false
+    super.insertSubview(effectView, at: 0)
+    NotificationCenter.default.addObserver(self, selector: #selector(transparencyChanged), name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
+  }
+
+  override func insertSubview(_ view: UIView, at index: Int) {
+    if view === effectView || effectView.superview !== self {
+      super.insertSubview(view, at: index)
+    } else {
+      super.insertSubview(view, at: index + 1)
+    }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    effectView.frame = bounds
+    sendSubviewToBack(effectView)
+    applyShape()
+  }
+
+  @objc private func transparencyChanged() {
+    render()
+  }
+
+  var isSolid: Bool { reduceTransparency || UIAccessibility.isReduceTransparencyEnabled }
+
+  func render() {
+    overrideUserInterfaceStyle = dark.map { $0 ? .dark : .light } ?? .unspecified
+    let solid = isSolid
+    if let applied, applied.tint == tint, applied.interactive == interactive, applied.solid == solid {
+      applyShape()
+      return
+    }
+    applied = (tint, interactive, solid)
+    if solid {
+      effectView.effect = nil
+      effectView.backgroundColor = (tint ?? .secondarySystemBackground).withAlphaComponent(1)
+    } else {
+      let glass = UIGlassEffect(style: .regular)
+      glass.isInteractive = interactive
+      glass.tintColor = tint
+      effectView.backgroundColor = .clear
+      effectView.effect = glass
+    }
+    applyShape()
+  }
+
+  private func applyShape() {
+    switch shape {
+    case .capsule, .circle:
+      effectView.cornerConfiguration = .capsule()
+    case .rounded:
+      effectView.cornerConfiguration = .uniformCorners(radius: .fixed(Double(cornerRadius)))
+    }
+    effectView.clipsToBounds = isSolid
+    effectView.layer.cornerRadius = isSolid ? (shape == .rounded ? cornerRadius : min(bounds.width, bounds.height) / 2) : 0
+  }
+}
 
 final class FrostView: LookHostView {
   var variant: LookFrost.Variant = .bar

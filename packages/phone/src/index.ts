@@ -32,6 +32,8 @@ export {
   FilmGrain,
   Frost,
   FrostSource,
+  Glass,
+  glassIsNative,
   INCOGNITO_LOOK,
   lookIsNative,
   lookLab,
@@ -41,6 +43,8 @@ export {
   type FrostProps,
   type FrostSourceProps,
   type FrostVariant,
+  type GlassProps,
+  type GlassShape,
   type LookColors,
   type ProfileBackdropProps,
 } from "./look";
