@@ -110,8 +110,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
     const { pose: p, top, place } = header.value;
     return {
       opacity: p.header * deckHeaderIconReveal(place.available, tabsLayout.faviconSize),
-      width: place.available,
-      transform: [{ translateX: place.left }, { translateY: top }],
+      transform: [{ translateX: place.left + place.available - g.cardWidth }, { translateY: top }],
     };
   });
   const reachStyle = useAnimatedStyle(() => {
@@ -119,17 +118,20 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
     const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
     const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
     return {
-      width: Math.max(1, p.visible * p.scale),
-      height: g.cardHeight * p.scale,
-      transform: [{ translateX: p.x - (g.cardWidth * p.scale) / 2 }, { translateY: p.y - (g.cardHeight * p.scale) / 2 }],
+      transform: [
+        { translateX: p.x - (g.cardWidth * p.scale) / 2 },
+        { translateY: p.y - (g.cardHeight * p.scale) / 2 },
+        { scaleX: Math.max(1, p.visible * p.scale) / g.cardWidth },
+        { scaleY: p.scale },
+      ],
     };
   }, [g, role, index, isLast]);
   const rowStyle = useAnimatedStyle(() => {
     const available = header.value.place.available;
-    return { transform: [{ translateX: deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
+    return { transform: [{ translateX: g.cardWidth - available + deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
   });
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(header.value.place.available) }));
-  const stripStyle = useAnimatedStyle(() => ({ height: role === "expanded" ? deckStatusStrip(g, scaleProgress.value) : 0 }), [g, role]);
+  const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: role === "expanded" ? deckStatusStrip(g, scaleProgress.value) : 0 }] }), [g, role]);
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
@@ -142,14 +144,13 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
         importantForAccessibility="no-hide-descendants"
         style={[
           styles.card,
-          { width: g.cardWidth, height: g.cardHeight, zIndex: z, borderColor: theme.cardEdge },
+          { width: g.cardWidth, height: g.cardHeight, zIndex: z, borderColor: theme.cardEdge, backgroundColor: tone?.top ?? theme.surface },
           cardStyle,
         ]}
       >
-        <Animated.View testID="deckCardStatusStrip" style={[{ backgroundColor: tone?.top ?? theme.surface }, stripStyle]} />
-        <View style={styles.face}>
+        <Animated.View testID="deckCardFace" style={[StyleSheet.absoluteFill, faceStyle]}>
           <TabFace tab={tab} title={title} host={host} tone={tone?.top ?? null} roles={theme} />
-        </View>
+        </Animated.View>
         {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
       </Animated.View>
       <Animated.View
@@ -161,9 +162,9 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
         accessibilityActions={[{ name: "activate" }, { name: "close", label: "Close Tab" }]}
         onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onCloseNow(index) : onOpen(index))}
         pointerEvents="none"
-        style={[styles.reach, { zIndex: z + 1 }, reachStyle]}
+        style={[styles.reach, { width: g.cardWidth, height: g.cardHeight, zIndex: z + 1 }, reachStyle]}
       />
-      <Animated.View style={[styles.header, { zIndex: z + 1 }, headerStyle]} pointerEvents="none">
+      <Animated.View style={[styles.header, { width: g.cardWidth, zIndex: z + 1 }, headerStyle]} pointerEvents="none">
         <Animated.View style={[styles.headerRow, rowStyle]}>
           {tab.isPrivate ? (
             <View style={[styles.privateIcon, { backgroundColor: tabsInk.incognitoCardRaised }]}>
@@ -205,7 +206,6 @@ function ReceivedBadge() {
 }
 
 const styles = StyleSheet.create({
-  face: { flex: 1 },
   card: {
     position: "absolute",
     left: 0,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   badgeText: { fontSize: 11, lineHeight: 13, fontWeight: "600" },
-  reach: { position: "absolute", left: 0, top: 0 },
+  reach: { position: "absolute", left: 0, top: 0, transformOrigin: "left top" },
   header: { position: "absolute", left: 0, top: 0, height: tabsLayout.headerHeight, overflow: "hidden" },
   headerRow: { position: "absolute", left: 0, top: 0, width: HEADER_ROW_ROOM, flexDirection: "row", alignItems: "center", gap: tabsLayout.headerSpacing, height: tabsLayout.headerHeight },
   title: { fontWeight: "500" },

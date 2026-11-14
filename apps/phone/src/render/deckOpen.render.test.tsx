@@ -45,13 +45,14 @@ test("an opening card grows a status-bar strip in the page's tone above its pict
   withTabs(3);
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<Surfaces />);
-  const strips = () => root.root.findAll((node) => node.props.testID === "deckCardStatusStrip" && typeof node.type === "string");
-  expect(strips().every((strip) => (getAnimatedStyle(strip).height ?? 0) === 0)).toBe(true);
+  const strips = () => root.root.findAll((node) => node.props.testID === "deckCardFace" && typeof node.type === "string");
+  const drop = (face: ReturnType<typeof strips>[number]) => ((getAnimatedStyle(face).transform as { translateY?: number }[] | undefined) ?? []).reduce((sum, step) => sum + (step.translateY ?? 0), 0);
+  expect(strips().every((strip) => drop(strip) === 0)).toBe(true);
   act(() => sendDeckCommand({ kind: "openFocused" }));
   let grown = 0;
   for (let frame = 0; frame < 120 && useBrowse.getState().surface === "deck"; frame++) {
     act(() => jest.advanceTimersByTime(16));
-    for (const strip of strips()) grown = Math.max(grown, (getAnimatedStyle(strip).height as number) ?? 0);
+    for (const strip of strips()) grown = Math.max(grown, drop(strip));
   }
   const g = deckGeometry(393, 873, 40, 24);
   expect(grown * (g.width / g.cardWidth)).toBeGreaterThan(36);

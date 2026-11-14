@@ -1,5 +1,7 @@
 import type { ReactTestInstance } from "react-test-renderer";
+import * as Reanimated from "react-native-reanimated";
 import { act } from "react-test-renderer";
+import { sendDeckCommand } from "../state/browse/deckCommands";
 import { TabDeck } from "../components/tabs/TabDeck";
 import { useBrowse } from "../state/browse/store";
 import { useTabs } from "../state/tabs/store";
@@ -37,5 +39,25 @@ test("once a card's picture has faded in, the placeholder face under it is gone:
     expect(inside.filter((node) => node.type === "Image")).toHaveLength(1);
     expect(inside.filter((node) => node.type === "Text")).toHaveLength(0);
   }
+  unmount(root);
+});
+
+const LAYOUT_KEYS = ["width", "height", "top", "left", "right", "bottom", "minWidth", "maxWidth", "minHeight", "maxHeight", "margin", "marginTop", "marginLeft", "padding", "paddingTop", "flex", "flexBasis", "aspectRatio"];
+
+test("a deck scroll animates only transforms and opacity, so no animated style asks for a layout pass while nine cards move", () => {
+  const animatedKeys = new Set<string>();
+  const original = Reanimated.useAnimatedStyle;
+  const recording = jest.spyOn(Reanimated, "useAnimatedStyle").mockImplementation(((updater: (() => Record<string, unknown>) & { __closure?: Record<string, unknown> }, deps?: unknown[]) =>
+    (original as (...args: unknown[]) => unknown)(() => {
+      const out = updater();
+      for (const key of Object.keys(out ?? {})) animatedKeys.add(key);
+      return out;
+    }, deps ?? Object.values(updater.__closure ?? {}))) as never);
+  const root = loadedDeck();
+  act(() => sendDeckCommand({ kind: "scroll", index: 2 }));
+  for (let frame = 0; frame < 30; frame++) act(() => jest.advanceTimersByTime(16));
+  recording.mockRestore();
+  expect(animatedKeys.has("transform")).toBe(true);
+  expect([...animatedKeys].filter((key) => LAYOUT_KEYS.includes(key))).toEqual([]);
   unmount(root);
 });
