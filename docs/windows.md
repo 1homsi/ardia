@@ -25,7 +25,7 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 73 rows, 49 work, 8 work with a difference, 1 is broken, 4 do nothing, 7 are not offered
+who and on which build. Of the 74 rows, 50 work, 8 work with a difference, 1 is broken, 4 do nothing, 7 are not offered
 and 4 were not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
@@ -79,6 +79,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Command bar (history, open tabs, suggestions) | Works | |
 | Inline completion in the command bar | Works (top match completes inline) | #1520 |
 | Find in page | Works: the app's find bar, from a page or the app's UI (Ctrl+F); count, Enter, Shift+Enter, F3 and Shift+F3 step; Escape gives the page the keyboard back; private windows too | #1758 |
+| Page loading in the address field | Works (#1865's build 0bcabc63e, run 43642845254, 125%): while a slow page loads the glow fills the toolbar field, a Split View pane's field, a Peek's bar and Little Ardia's field, sweeps across when the load ends and fades; a load under 150 ms shows nothing; the tab's spinner and the stop button as before | #1820 |
 | Reading mode (Ctrl+Alt+R, F9) | Not walked: it draws the article inside the page through `evaluate`, which Windows forwards; nobody has seen it in the VM yet | #1831 |
 | Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
 | Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
@@ -383,6 +384,11 @@ is plain Chromium.
   a hole there, with the surface's corners. A surface inside a `ClipView` (the sidebar's and the tab strip's profile
   pages, which sit side by side and clip to one) reports only the part its clips show, so the next profile's rows,
   parked beside the sidebar, cut nothing in the page (#1673). A translucent surface shows the card behind it in the hole, not the page.
+  A `Surface` that only draws a gradient (`GradientFill`, the address field's load glow) reports no rectangle: it always
+  sits inside a toolbar, sidebar or Little Ardia plate that does, and `windowsGradientFill.test.mjs` pins its callers.
+  Gradients draw through `ArdiaMaterialGradient` (`GradientView.h`): `fillColors` at `fillStops` top to bottom, masked
+  left to right by `fade` at `fadeStops` through a `CompositionMaskBrush`, as `Surface.swift` masks its plate. When
+  composition gradients fail, `Surface` draws rows at the stops inside columns that carry the fade.
   The page window has no system backdrop: Chromium asks for Mica on its top-level windows, and Windows paints that
   into the holes. While a modal the app shows is open (a confirm, a prompt, a file or folder picker), the page windows its
   window owns are disabled and enabled again when it closes, so a click on the page cannot raise it over the dialog. A press in the page counts
@@ -986,16 +992,14 @@ App side, an agent can do these now:
 1. A new tab opened with an address (Ctrl+T, the address, Enter) gets no keyboard (#1689). S, with the engine
    thread.
 2. Onboarding: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812). S.
-3. The address field shows no load: the glow that replaced the progress line is a gradient the Windows `Surface`
-   doesn't draw (#1820). S.
-4. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
-5. The app's own page, link and image menus instead of Chromium's (#1518). M.
-6. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
+3. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
+4. The app's own page, link and image menus instead of Chromium's (#1518). M.
+5. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
    needs). M each once the engine reports them.
-7. The intro's animated meadow (#1737) hasn't drawn on any Windows machine: the VM has no GPU and the engine no
+6. The intro's animated meadow (#1737) hasn't drawn on any Windows machine: the VM has no GPU and the engine no
    SwiftShader, so it falls back to the poster. S once a software or real GPU path is proven.
-8. Quitting with a file picker open waits 2 s and leaves the dialog's thread running (#1747). S.
-9. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
+7. Quitting with a file picker open waits 2 s and leaves the dialog's thread running (#1747). S.
+8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - `ac_passwords_logins` answering on Windows, where Chromium's `kSkipUndecryptablePasswords` is on by default (password
