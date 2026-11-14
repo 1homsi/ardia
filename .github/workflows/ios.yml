@@ -69,11 +69,6 @@ jobs:
           path: .ci/cas
           key: ${{ steps.cas-key.outputs.prefix }}${{ github.sha }}
           restore-keys: ${{ steps.cas-key.outputs.prefix }}
-      - name: TEMPORARY, damage the restored compile cache to prove the fallback
-        run: |
-          find .ci/cas -type f | wc -l
-          find .ci/cas -type f -exec sh -c 'head -c 64 /dev/urandom > "$1"' _ {} \;
-          du -sh .ci/cas
       - name: Build the app for the simulator
         env:
           RESTORED: ${{ steps.cas.outputs.cache-matched-key }}
