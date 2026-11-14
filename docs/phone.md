@@ -389,8 +389,9 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
     `startedFresh` and no receipt, opens the gate, delivers held links and starts sync once, and touches no Compose
     file; `source()` then answers `done` with `outcome: "startedFresh"` (an import gives `outcome: "imported"`). A
     later `markImported` still imports over it.
-  - Per-site settings (1b33e2c47): a host's Desktop Site applies when a page enters that host, and hosts with
-    blockers off join Trusted Sites.
+  - Per-site settings (1b33e2c47): hosts with blockers off join Trusted Sites, and a host's Desktop Site applies
+    when a page enters that host. The Compose app never writes either flag to disk (Desktop Site lives only in the
+    page), so a real upgrader has none to bring; the code handles them if they are there.
 - **Signing.** Android installs an update only when both apps have the same signing key and the new versionCode is
   not lower. The Compose debug build is signed with the building machine's `~/.android/debug.keystore`. The Expo
   app signs with `apps/phone/android/app/debug.keystore`, so for an upgrade it is re-signed with the Compose key
@@ -404,22 +405,25 @@ Use the Compose APK and the Expo upgrade APK built for this run (same key). Watc
 `P=com.ardia.browser.android`. The lab is `adb shell am start -n $P/.MainActivity --ez com.ardia.phone.PAGE_LAB true`,
 then Upgrade; opening the lab never runs the import.
 
-1. **Start clean.** `adb uninstall $P`. An earlier Expo build has a different key and can't be updated in place.
-2. **Set up the Compose app as a tester has it.** `adb install ardia-compose-upgrade10.apk`, finish onboarding,
-   then:
-   - Open at least eight tabs. Give one back history three pages deep and scroll it halfway down a long page.
-     Open the deck so each tab gets a thumbnail.
-   - Archive two tabs, one of them with back history.
-   - Visit about 30 pages so History has more than one screen.
-   - Change these settings: Night Shade (Automatic), search engine (DuckDuckGo), search suggestions (off), swipe
-     navigation, the auto-archive interval, collapse bottom bar, the color, Open App Links In (App).
-   - Change the Reader settings: size, serif, theme.
-   - Change site settings: zoom on one site, Night Shade on another, open-in-app on a third.
-   - Change blocking: turn off cookie banners, add a trusted site, add a line to My Filters, turn one filter list off.
-   - Connect sync to the Mac and send one tab each way.
+1. **Start from the Compose app.** MIUI refuses a fresh `adb install` (`INSTALL_FAILED_USER_RESTRICTED`), so
+   install the Compose APK through the phone's own installer. If an Expo build is on the phone, remove it in the
+   phone's settings first, because it has another key. `adb install -r` works over adb for every later update.
+2. **Set up the Compose app as a tester has it.** Finish onboarding, then:
+   - Open at least eight tabs and open the deck so each gets a thumbnail.
+   - Archive two tabs (closing a tab archives it), one of them after going three pages deep. The Compose app keeps
+     back history and scroll position only for archived tabs, not for open ones.
+   - Visit about 30 pages. The Compose app has no History screen; history shows in search results.
+   - In Settings: the color, search engine, search suggestions (off), auto-open keyboard (off), the auto-archive
+     interval and Open App Links In (App).
+   - In Site Settings: Night Shade (Automatic), swipe navigation, collapse bottom bar; zoom on one site and Night
+     Shade on another; blocking: cookie banners off, a trusted site, a line in My Filters, one list off.
+   - The Reader's size, serif and theme.
+   - Connect sync to the Mac and send one tab each way, if a Mac is reachable.
+   - Not carried, because the Compose app doesn't store it: per-site Desktop Site (shown in the page menu but never
+     written to disk) and open-in-app per site (there is no such control).
 3. **Write down the state.** Do this before anything else:
-   - Screenshot the deck, the Archive, History, every settings page you changed, and the Mac's device list
-     (Settings › Sync on the Mac, with the phone's device id in its detail).
+   - Screenshot the deck, the Archive, search results for an old visit, every settings page you changed, and the
+     Mac's device list (Settings › Sync on the Mac, with the phone's device id in its detail).
    - Run `adb shell am force-stop $P`.
    - Run `adb shell run-as $P sh -c 'sha256sum databases/* shared_prefs/ardia.*.xml cache/TabSnapshots/*'`
      and save the output. (`run-as` works only on the Compose debug build; the Expo build can't be inspected so.)
@@ -450,12 +454,12 @@ then Upgrade; opening the lab never runs the import.
 8. **The import.** Open the app normally. The deck appears with the import (`ardia-legacy imported …`), and
    `example.com/upgrade` opens once, after the deck. Then check every item against step 3:
    - The deck has every tab in the same order, the same tab is selected, and each card shows its thumbnail.
-   - The deep tab goes Back through its three pages and opens at its scroll position.
-   - The Archive has both entries with their thumbnails, and restoring the one with history keeps it.
-   - History has all the visits and search finds old ones, with no visit twice.
-   - Every setting you changed holds: Night Shade, search engine and suggestions, swipe, auto-archive, bottom bar,
-     the color, Open App Links In, the Reader's size, serif and theme, each site's zoom, Night Shade and app
-     links, cookie banners, the trusted site, My Filters and the list you turned off.
+   - The Archive has both entries with their thumbnails, and restoring the one that went three pages deep goes Back
+     through them.
+   - All the visits are there (History in the app, and search finds old ones), with no visit twice.
+   - Every setting you changed holds: the color, search engine and suggestions, auto-open keyboard, auto-archive,
+     Open App Links In, Night Shade, swipe, bottom bar, the Reader's size, serif and theme, each site's zoom and
+     Night Shade, cookie banners, the trusted site, My Filters and the list you turned off.
    - Onboarding doesn't show (it does when the Compose app's onboarding wasn't finished).
    - In the lab, Read source gives `done` with `outcome imported`.
 9. **The device the Mac sees.** On the Mac, the phone appears once, under the same name and device id as in step 3.
@@ -464,10 +468,11 @@ then Upgrade; opening the lab never runs the import.
     the Archive and History have the same counts as step 8 (nothing doubled), and logcat shows no
     `ardia-legacy imported` line.
 11. **Install the Compose app back.** `adb install -r -d ardia-compose-upgrade10.apk`. It opens with the tabs,
-    Archive, History and settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3
+    Archive, visits and settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3
     again: every line matches.
-12. **Start Without Them** (a second, short pass). `adb uninstall $P`, install the Compose APK, open two tabs and
-    turn search suggestions off, force-stop, install the Expo APK. In the lab, Make source unusable; force-stop;
+12. **Start Without Them** (a second, short pass). Remove Ardia in the phone's settings, install the Compose APK
+    through the phone's installer, open two tabs and turn search suggestions off, force-stop, then
+    `adb install -r` the Expo APK. In the lab, Make source unusable; force-stop;
     open the app, Try Again, then tap Start Without Them.
     - The app starts with no imported tabs, and logcat has the started-fresh line. Sync's page in Settings shows
       the Mac (sync runs), and a link sent now opens.
