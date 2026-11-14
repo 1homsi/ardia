@@ -5,6 +5,7 @@ import {
   stopIntroMusic,
   type IntroMusicCues,
   introMusicMuted,
+  introStartDelayMs,
   saveIntroMusicMuted,
 } from "../../state/onboarding/onboarding";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
@@ -42,7 +43,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const [tone, setTone] = useState(() => OPENING_TONE[dark ? "night" : "day"]);
   const [live, setLive] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const startedAt = useRef(Date.now()).current;
+  const startedAt = useRef(Date.now() + introStartDelayMs()).current;
   const scene = useRef<{ shown: IntroScene | null; firstFrameMs: number | null }>({ shown: null, firstFrameMs: null });
   const pageOpen = useRef<(() => void) | null>(null);
   const pageGone = useRef<Promise<void>>(Promise.resolve());
