@@ -25,6 +25,7 @@
 #include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
+#include "third_party/blink/public/common/input/web_gesture_event.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "ui/aura/client/drag_drop_client.h"
@@ -525,6 +526,56 @@ void LinuxPageChannel::OnInputEvent(const content::RenderWidgetHost& widget, con
   if (main && main->GetRenderWidgetHost() == &widget)
     point = LinuxLinkPoint{mouse.PositionInWidget().x(), mouse.PositionInWidget().y()};
   Gate().NoteRelease(surface_, LinkFlags(mouse.GetModifiers()), Now(), point, DragInProgress(GetWebContents()));
+}
+
+void LinuxPageChannel::OnInputEventAck(const content::RenderWidgetHost& widget,
+                                       blink::mojom::InputEventResultSource,
+                                       blink::mojom::InputEventResultState state,
+                                       const blink::WebInputEvent& event) {
+  if (shell_ || !hooks_ || !hooks_->swipe || !blink::WebInputEvent::IsGestureEventType(event.GetType())) return;
+  content::RenderFrameHost* main = GetWebContents().GetPrimaryMainFrame();
+  if (!main || main->GetRenderWidgetHost() != &widget) return;
+  const auto& gesture = static_cast<const blink::WebGestureEvent&>(event);
+  if (gesture.SourceDevice() != blink::mojom::GestureDevice::kTouchpad) return;
+  using Type = blink::WebInputEvent::Type;
+  std::optional<ardia::linux_swipe::Step> step;
+  switch (event.GetType()) {
+    case Type::kGestureScrollBegin:
+      swipe_.Begin(gesture.data.scroll_begin.delta_hint_units == ui::ScrollGranularity::kScrollByPrecisePixel);
+      return;
+    case Type::kGestureScrollUpdate:
+      step = swipe_.Update(gesture.data.scroll_update.delta_x, gesture.data.scroll_update.delta_y,
+                           state == blink::mojom::InputEventResultState::kConsumed,
+                           gesture.data.scroll_update.inertial_phase == blink::mojom::InertialPhaseState::kMomentum);
+      break;
+    case Type::kGestureScrollEnd:
+    case Type::kGestureFlingStart:
+      step = swipe_.End(false);
+      break;
+    case Type::kGestureFlingCancel:
+      step = swipe_.End(true);
+      break;
+    default:
+      return;
+  }
+  if (step) ForwardSwipe(*step, gesture.PositionInWidget());
+}
+
+void LinuxPageChannel::ForwardSwipe(const ardia::linux_swipe::Step& step, std::optional<gfx::PointF> page_point) {
+  if (!hooks_ || !hooks_->swipe) return;
+  base::DictValue swipe;
+  swipe.Set("phase", std::string(ardia::linux_swipe::PhaseName(step.phase)));
+  swipe.Set("dx", step.dx).Set("dy", step.dy);
+  if (step.phase == ardia::linux_swipe::Phase::kBegan) {
+    std::optional<gfx::PointF> point =
+        page_point && hooks_->shell_point ? hooks_->shell_point.Run(*page_point) : std::nullopt;
+    if (!point) {
+      swipe_.End(true);
+      return;
+    }
+    swipe.Set("x", point->x()).Set("y", point->y());
+  }
+  hooks_->swipe.Run(std::move(swipe));
 }
 
 void LinuxPageChannel::ReleaseShellPointer() {

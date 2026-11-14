@@ -57,6 +57,7 @@
 #include "ardia/linux/ac_linux_import_service.h"
 #include "ardia/linux/ac_linux_launch_config.h"
 #include "ardia/linux/ac_linux_page_channel.h"
+#include "ardia/linux/ac_linux_page_swipe.h"
 #include "ardia/linux/ac_linux_page_commands.h"
 #include "ardia/linux/ac_linux_memory_saver.h"
 #include "ardia/linux/ac_linux_page_media.h"
@@ -206,6 +207,7 @@
 #include "third_party/blink/public/mojom/favicon/favicon_url.mojom.h"
 #include "ui/aura/client/focus_client.h"
 #include "ui/aura/env.h"
+#include "ui/aura/window_tree_host.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_targeter.h"
 #include "ui/compositor/compositor.h"
@@ -218,6 +220,7 @@
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/data_transfer_policy/data_transfer_endpoint.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/ime/text_input_type.h"
 #include "ui/base/ime/text_input_client.h"
@@ -414,6 +417,34 @@ uint64_t& FullScreenRestoreEpoch() {
 base::OneShotTimer& FullScreenRestoreTimer() {
   static base::NoDestructor<base::OneShotTimer> timer;
   return *timer;
+}
+
+ardia::linux_commands::AppActivation& AppActivationLedger() {
+  static base::NoDestructor<ardia::linux_commands::AppActivation> activation;
+  return *activation;
+}
+
+base::OneShotTimer& AppActivationTimer() {
+  static base::NoDestructor<base::OneShotTimer> timer;
+  return *timer;
+}
+
+class PageEscapeTarget : public ui::AcceleratorTarget {
+ public:
+  explicit PageEscapeTarget(base::RepeatingClosure pressed) : pressed_(std::move(pressed)) {}
+  bool AcceleratorPressed(const ui::Accelerator&) override {
+    pressed_.Run();
+    return false;
+  }
+  bool CanHandleAccelerators() const override { return true; }
+
+ private:
+  base::RepeatingClosure pressed_;
+};
+
+const ui::Accelerator& PageEscapeAccelerator() {
+  static const base::NoDestructor<ui::Accelerator> escape(ui::VKEY_ESCAPE, ui::EF_NONE);
+  return *escape;
 }
 
 bool GlobalScreenCoordinates() {
@@ -921,6 +952,7 @@ class TabBinding : public content::WebContentsObserver {
   void AttachPageChannel();
   std::optional<gfx::PointF> ShellPoint(gfx::PointF page_point) const;
   bool PeeksOtherSites() const;
+  void ReportSwipe(base::DictValue swipe);
   void RetirePage();
   std::unique_ptr<ardiacore::LinuxPageState> TakePage();
   std::vector<int> replaced_ids;
@@ -1487,6 +1519,8 @@ class ShellHostView : public views::View,
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
   bool CanHandleAccelerators() const override;
   void UnregisterAccelerators();
+  void PageEscapePressed();
+  static void SettleAppActivation();
   void FocusShell();
   void FocusShellOnActivation();
   void OnKeyEvent(ui::KeyEvent* event) override;
@@ -1642,6 +1676,7 @@ class ShellHostView : public views::View,
   std::string sidebar_edge_id_;
   base::OneShotTimer sidebar_edge_settle_;
   std::map<ui::Accelerator, base::DictValue> shortcuts_;
+  std::unique_ptr<PageEscapeTarget> page_escape_;
   bool shortcut_recording_ = false;
   bool switcher_capture_ = false;
   base::WeakPtr<content::WebContents> switcher_source_;
@@ -2399,6 +2434,12 @@ void ShellHostView::Initialize() {
   ArmWindowClose();
   focus_manager_ = GetFocusManager();
   if (focus_manager_) pane_focus_observation_.Observe(focus_manager_);
+  if (focus_manager_ && !is_utility() && !page_escape_) {
+    page_escape_ = std::make_unique<PageEscapeTarget>(
+        base::BindRepeating(&ShellHostView::PageEscapePressed, GetWeakPtr()));
+    focus_manager_->RegisterAccelerator(PageEscapeAccelerator(), ui::AcceleratorManager::kNormalPriority,
+                                        page_escape_.get());
+  }
   aura::Window* input_window = GetWidget()->GetNativeWindow()->GetRootWindow();
   input_observation_.Observe(input_window);
   input_handler_ = std::make_unique<WindowKeyboardHandler>(
@@ -2952,10 +2993,46 @@ void ShellHostView::UnregisterAccelerators() {
   extension_keybindings_.reset();
   if (focus_manager_) {
     if (shortcut_recording_) focus_manager_->set_shortcut_handling_suspended(false);
+    if (page_escape_) focus_manager_->UnregisterAccelerator(PageEscapeAccelerator(), page_escape_.get());
   }
+  page_escape_.reset();
   shortcut_recording_ = false;
   shortcuts_.clear();
   focus_manager_ = nullptr;
+}
+
+void ShellHostView::PageEscapePressed() {
+  for (const auto& [id, tab] : bindings_) {
+    views::WebView* view = tab->viewport();
+    const ardia::linux_commands::PageEscape press{
+        .escape = true,
+        .page_focused = view && view->HasFocus(),
+        .page_visible = view && view->GetVisible() && tab->contents() && tab->page(),
+    };
+    if (!ardia::linux_commands::SendsPageEscape(press)) continue;
+    tab->page()->EmitDocument("command", base::Value(base::DictValue().Set("command", "escape").Set("text", "")));
+    return;
+  }
+}
+
+void ShellHostView::SettleAppActivation() {
+  bool any_active = false;
+  bool modal = false;
+  for (aura::WindowTreeHost* tree : aura::Env::GetInstance()->window_tree_hosts()) {
+    views::Widget* widget = tree ? views::Widget::GetWidgetForNativeWindow(tree->window()) : nullptr;
+    if (widget && widget->IsVisible() && widget->IsActive()) any_active = true;
+  }
+  for (const auto& [id, host] : Hosts()) {
+    views::Widget* widget = host->GetWidget();
+    if (widget && wm::GetModalTransient(widget->GetNativeWindow())) modal = true;
+  }
+  if (!AppActivationLedger().Settle(any_active, modal)) return;
+  std::vector<base::WeakPtr<ShellHostView>> hosts;
+  for (const auto& [id, host] : Hosts()) hosts.push_back(host->GetWeakPtr());
+  for (const auto& host : hosts) {
+    if (host) host->Event("ArdiaShell", "onAppEvent",
+                          base::Value(base::DictValue().Set("type", ardia::linux_commands::kResignActiveEvent)));
+  }
 }
 
 void ShellHostView::FocusShell() {
@@ -3938,6 +4015,8 @@ void ShellHostView::OnWidgetActivationChanged(views::Widget*, bool active) {
   }
   if (active) activation_ = ++ActivationClock();
   if (active) FocusShellOnActivation();
+  AppActivationTimer().Start(FROM_HERE, base::Milliseconds(ardia::linux_commands::kAppActivationSettleMs),
+                             base::BindOnce(&ShellHostView::SettleAppActivation));
   const bool changed = WindowFocus().Observe(id_, active);
   if (active) ReturnUnrequestedActivation(id_);
   if (!changed || is_utility() || window_id_.empty()) return;
@@ -6678,6 +6757,17 @@ void ShellHostView::Invoke(
         ui::NativeTheme::GetInstanceForNativeUi()->preferred_color_scheme() ==
         ui::NativeTheme::PreferredColorScheme::kDark));
   }
+  if (method == ardia::linux_commands::kReadTextCall) {
+    if (values.size() != 0) return std::move(done).Run(false, base::Value(method + " takes no arguments"));
+    ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
+    if (!clipboard) return std::move(done).Run(true, base::Value(""));
+    ui::DataTransferEndpoint reader(ui::EndpointType::kDefault, {.notify_if_restricted = false});
+    clipboard->ReadText(ui::ClipboardBuffer::kCopyPaste, reader,
+                        base::BindOnce([](base::OnceCallback<void(bool, base::Value)> done, std::u16string text) {
+                          std::move(done).Run(true, base::Value(base::UTF16ToUTF8(text)));
+                        }, std::move(done)));
+    return;
+  }
   if (method == "ArdiaShell.copyText") {
     ui::ScopedClipboardWriter writer(ui::ClipboardBuffer::kCopyPaste);
     writer.WriteText(base::UTF8ToUTF16(ArgumentString(values, 0)));
@@ -6762,7 +6852,11 @@ void TabBinding::AttachPageChannel() {
       base::BindRepeating([](base::WeakPtr<TabBinding> binding) {
         return binding && binding->PeeksOtherSites();
       }, weak),
+      base::BindRepeating([](base::WeakPtr<TabBinding> binding, base::DictValue swipe) {
+        if (binding) binding->ReportSwipe(std::move(swipe));
+      }, weak),
   });
+  contents_->SetOverscrollNavigationEnabled(false);
   page_->SetMessageSnapshot(base::BindRepeating([](base::WeakPtr<content::WebContents> contents) {
     auto* channel = contents ? ardiacore::LinuxPageChannel::FromWebContents(contents.get()) : nullptr;
     return channel ? channel->SnapshotEvents() : base::ListValue();
@@ -6771,6 +6865,11 @@ void TabBinding::AttachPageChannel() {
 
 std::optional<gfx::PointF> TabBinding::ShellPoint(gfx::PointF page_point) const {
   return owner_ ? owner_->ShellPoint(*this, page_point) : std::nullopt;
+}
+
+void TabBinding::ReportSwipe(base::DictValue swipe) {
+  if (!owner_ || !presented || !pane_visible) return;
+  owner_->Event("ArdiaShell", ardia::linux_swipe::kPageSwipeEvent, base::Value(std::move(swipe.Set("tabId", key_))));
 }
 
 bool TabBinding::PeeksOtherSites() const {

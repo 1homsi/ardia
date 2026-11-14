@@ -1,5 +1,6 @@
 import type { SwipeEvent, SwipeStep } from "@ardia-real/ardiacore";
 import type { Pager, PagerArea, PagerInput } from "./pager";
+import { ardiaHost, type ArdiaHost } from "../../../host";
 
 const START_DISTANCE = 4;
 const START_DOMINANCE = 1.5;
@@ -341,11 +342,48 @@ function onWheel(e: WheelEvent) {
   if (handled) e.preventDefault();
 }
 
+type PageSwipe = { phase: "began" | "changed" | "ended" | "cancelled"; dx: number; dy: number; x?: number; y?: number };
+
+const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+function pageSwipe(value: unknown): PageSwipe | null {
+  if (!value || typeof value !== "object") return null;
+  const swipe = value as Record<string, unknown>;
+  if (swipe.phase !== "began" && swipe.phase !== "changed" && swipe.phase !== "ended" && swipe.phase !== "cancelled") return null;
+  if (!finite(swipe.dx) || !finite(swipe.dy)) return null;
+  if (swipe.phase === "began" && (!finite(swipe.x) || !finite(swipe.y))) return null;
+  return swipe as PageSwipe;
+}
+
+export function onPageSwipe(value: unknown, timestamp = performance.now() / 1000) {
+  const swipe = pageSwipe(value);
+  if (!swipe) return;
+  if (swipe.phase === "began") {
+    if (gesture.state === "pending" || gesture.state === "tracking") end(true, timestamp);
+    const hit = typeof document === "undefined" ? null : document.elementFromPoint(swipe.x!, swipe.y!);
+    prepare(swipe.x!, swipe.y!, hit, timestamp);
+    begin(swipe.x!, swipe.y!, hit, timestamp);
+    update(swipe.dx, swipe.dy, timestamp);
+  } else if (swipe.phase === "changed") {
+    update(swipe.dx, swipe.dy, timestamp);
+  } else {
+    if (swipe.dx || swipe.dy) update(swipe.dx, swipe.dy, timestamp);
+    end(swipe.phase === "cancelled", timestamp);
+  }
+}
+
+export function listenForPageSwipes(host: ArdiaHost | undefined = ardiaHost) {
+  return host?.onEvent((module, event, payload) => {
+    if (module === "ArdiaShell" && event === "onPageSwipe") onPageSwipe(payload);
+  });
+}
+
 let installed = false;
 function install() {
   if (installed || typeof window === "undefined") return;
   installed = true;
   window.addEventListener("wheel", onWheel, { capture: true, passive: false });
+  listenForPageSwipes();
 }
 
 export async function simulate(target: SwipeTarget, steps: SwipeStep[], point?: { x?: number; y?: number }) {

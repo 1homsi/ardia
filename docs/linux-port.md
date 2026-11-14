@@ -538,6 +538,19 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     Copy off without a selection; otherwise the window's page gets `tab.command` `edit`, which needs the host's
     `tab.edit`. With neither a field nor an editable page the entries are left out. Their shortcuts are Chromium's
     own and aren't registered or remappable.
+  - **Paste and Go** and the address bar's paste read the clipboard through the host's `ArdiaShell.readText`
+    (`ui::Clipboard`, plain text from the copy and paste buffer, as the Mac reads `NSPasteboard`). An older engine
+    without it leaves the shell's `navigator.clipboard.readText()`, which answers empty in `chrome://ardia`.
+  - **Escape in a page.** An Escape the page leaves unhandled reaches the focused tab as its `command` event
+    `{command: "escape", text: ""}`, as on the Mac, so Peek and Little Ardia close from a focused page. The host
+    registers a plain Escape with the window's focus manager below Chromium's page dispatch, so it fires only after
+    the page declines it, and it answers unhandled, so Chromium's Escape (stop loading) still runs.
+  - **Back and forward swipes over a page.** A two-finger horizontal touchpad scroll the page doesn't consume
+    (`ac_linux_page_swipe.h`, from the page channel's gesture acks) is sent to the shell as
+    `ArdiaShell`/`onPageSwipe` and drives the same swipe overlay as a swipe over the shell
+    (`shims/web/motion/swipe.ts`). Chromium's own overscroll navigation is off in every bound tab. A swipe the page
+    starts by scrolling stays with the page, and the momentum after the fingers lift ends the swipe. Untested on
+    real touchpad hardware.
 - **Report a Problem.** Help › Report a Problem… (and the New Tab check-in, the command bar and automation) opens a
   new GitHub issue in a tab, its body a short template and Copy Diagnostics' report (`reportProblem.ts`, swapped in
   for the shared report actions under `appCommands.ts`). The shared report sheet posts to ardia.dev and uploads files
@@ -1370,7 +1383,6 @@ These were open at the time of the PR.
     modification date), and the downloads list keeps the entry;
   - the `extensions.installFailed` event. The Mac sends it when a `.crx` dropped on the window fails to install
     (`ArdiaHostEngineDelegate.mm`); Linux has no dropped-`.crx` install to fail, so it needs that install path first;
-  - Paste and Go (the clipboard read answers empty);
   - performance recording (`engine.beginTracing`, `endTracing`, `isTracing`). It isn't a shared service: the Mac's is
     Objective-C in its own layer (`engine/ardiacore/src/ardia/core/ardiacore_engine_tracing.mm`, about 150 lines over
     `content::TracingController`, which Linux has too). Its only caller is the problem report sheet's slow-page
@@ -1436,12 +1448,11 @@ These were open at the time of the PR.
   (a shell that failed to load) wait until one does.
 - **Little Ardia.** The native window has no minimum size of its own (the Mac's is 420 by 300; the shell only
   opens it at least that large). Escape closes the window from its blank command bar and when nothing in the shell
-  has focus (the shell sends itself the Mac's `unclaimedEscape`), but not while the page has focus: the host doesn't
-  yet send the page's `command` event `{command: "escape", text: ""}` for an Escape the page left unhandled, which
-  Peek's Escape needs too. Pinch and swipe to close have no Linux gesture.
-- **Meeting notifications.** Calendar › Show alerts › Always posts only while Ardia isn't active, and the host
-  never says so: it sends no `ArdiaShell`/`onAppEvent` `{type: "resignActive"}` when the last active Ardia window
-  loses activation. Until it does, the row shows with a notifying host but only the in-window alert appears.
+  has focus (the shell sends itself the Mac's `unclaimedEscape`). Pinch and swipe to close have no Linux gesture.
+- **Meeting notifications.** Calendar › Show alerts › Always posts only while Ardia isn't active. The host sends
+  `ArdiaShell`/`onAppEvent` `{type: "resignActive"}` once no Ardia toplevel (browser window, PiP, dialog) is active
+  once an activation change settles (`kAppActivationSettleMs`), and not while a window shows a modal dialog, as the Mac skips it during a sheet.
+  Coming back is the window `focus` event, as on the Mac. Neither has run on a real desktop yet.
 - **Ardia's notifications.** A desktop without a notification service falls back to Chromium's own popups, as sites'
   notifications do. A click activates the window through the same Wayland activation path as above.
 - **Launch at login** starts Ardia as any launch does; it doesn't start hidden. A system-wide
