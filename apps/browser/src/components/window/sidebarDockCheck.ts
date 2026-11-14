@@ -10,7 +10,7 @@ type SidebarDockProbe = { peek: ReturnType<typeof usePeek>; open: boolean; movin
 type DockMoment = { label: string; ready(closingMs: number, slide: number): boolean };
 
 const DOCK_MOMENTS: DockMoment[] = [
-  ...[150, 200, 250, 300].map((ms) => ({ label: `${ms} ms into the close`, ready: (closingMs: number) => closingMs >= ms })),
+  ...[0, 40, 80, 120].map((ms) => ({ label: `${ms} ms into the closing slide`, ready: (closingMs: number) => closingMs >= ms })),
   ...[0.7, 0.3].map((at) => ({ label: `at slide ${at}`, ready: (_closingMs: number, slide: number) => slide <= at })),
 ];
 const POLL_MS = 16;
@@ -77,6 +77,7 @@ async function dockMidClose(windowId: string, moment: DockMoment) {
   await until("the peek to slide out", () => probe().peek.live && currentValue(probe().peek.slide) === 1 && !animating(probe().peek.slide));
   probe().peek.hide();
   await until("the peek to start closing", () => probe().peek.leaving);
+  await until("the closing slide to start", () => currentValue(probe().peek.slide) < 1);
   const closing = Date.now();
   await until(`the moment to dock ${moment.label}`, () => moment.ready(Date.now() - closing, currentValue(probe().peek.slide)));
   const slideAtDock = currentValue(probe().peek.slide);
@@ -116,6 +117,7 @@ async function checkSidebarPeek() {
   }
   const midClose = slides.filter((slide) => slide > 0 && slide < 1).length;
   console.info(`[ardia windows] self-check note: sidebar peek, ${slides.length} cycles, ${midClose} docked mid-close, slide at dock ${slides.map((slide) => slide.toFixed(2)).join(" ")}`);
+  if (midClose === 0) throw new Error(`no cycle docked while the peek was still closing (slide at dock ${slides.join(" ")})`);
   if (numericLayers > 0) throw new Error(`the peek layer took a plain number instead of its gated value in ${numericLayers} renders`);
 }
 
