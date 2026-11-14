@@ -15,6 +15,8 @@ type SharedInputProps = Pick<
   TextInputProps,
   | "placeholder"
   | "placeholderTextColor"
+  | "cursorColor"
+  | "selectionColor"
   | "keyboardType"
   | "returnKeyType"
   | "autoCapitalize"
@@ -42,7 +44,12 @@ export type CompletingFieldProps = ViewProps &
 
 type NativeColor = ColorValue | number;
 
-type NativeProps = Omit<CompletingFieldProps, "onTypedChange" | "onSubmit" | "onFocusChange" | "onSuffixChange" | "accessibilityLabel" | "highlightColor" | "color" | "placeholderTextColor"> & {
+type NativeProps = Omit<
+  CompletingFieldProps,
+  "onTypedChange" | "onSubmit" | "onFocusChange" | "onSuffixChange" | "accessibilityLabel" | "highlightColor" | "color" | "placeholderTextColor" | "cursorColor" | "selectionColor"
+> & {
+  cursorColor?: NativeColor;
+  selectionColor?: NativeColor;
   ref?: Ref<CompletingFieldHandle>;
   highlightColor?: NativeColor;
   color?: NativeColor;
@@ -94,6 +101,8 @@ export const CompletingField = forwardRef<CompletingFieldHandle, CompletingField
     return createElement(view(), {
       ...rest,
       placeholderTextColor: nativeFieldColor(rest.placeholderTextColor),
+      cursorColor: nativeFieldColor(rest.cursorColor ?? undefined),
+      selectionColor: nativeFieldColor(rest.selectionColor),
       ref: native,
       style,
       text,

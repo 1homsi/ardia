@@ -35,6 +35,7 @@ class CompletingFieldPropsTest {
     private val highlight = 0x4D0A84FF
     private val ink = 0xFF1C1C1E.toInt()
     private val placeholderInk = 0x993C3C43.toInt()
+    private val cursor = 0xFF0A84FF.toInt()
 
     private val sentByReactNative: Map<String, Any?> = mapOf(
         "text" to "goo",
@@ -45,6 +46,8 @@ class CompletingFieldPropsTest {
         "placeholder" to "Search or Enter Address",
         "placeholderTextColor" to placeholderInk.toDouble(),
         "color" to ink.toDouble(),
+        "cursorColor" to cursor.toDouble(),
+        "selectionColor" to highlight.toDouble(),
         "fontSize" to 20.0,
         "fontWeight" to "regular",
         "keyboardType" to "web-search",
@@ -69,6 +72,8 @@ class CompletingFieldPropsTest {
         assertEquals(highlight, view.highlightColor)
         assertEquals(ink, view.shownTextColor)
         assertEquals(placeholderInk, view.shownPlaceholderColor)
+        assertEquals(cursor, view.shownCursorColor)
+        assertEquals(highlight, view.shownSelectionColor)
     }
 
     @Test

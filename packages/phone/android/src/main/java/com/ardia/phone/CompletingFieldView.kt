@@ -182,6 +182,24 @@ class CompletingFieldView(context: Context, appContext: AppContext) : ExpoView(c
         editor.hint = text
     }
 
+    internal var shownCursorColor: Int? = null
+        private set
+
+    internal val shownSelectionColor: Int get() = editor.highlightColor
+
+    fun setCursorColor(color: Int?) {
+        shownCursorColor = color
+        if (color == null || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) return
+        editor.textCursorDrawable = android.graphics.drawable.GradientDrawable().apply {
+            setColor(color)
+            setSize((2 * resources.displayMetrics.density).toInt().coerceAtLeast(1), 0)
+        }
+    }
+
+    fun setSelectionColor(color: Int?) {
+        if (color != null) editor.highlightColor = color
+    }
+
     internal val shownTextColor: Int get() = editor.currentTextColor
 
     internal val shownPlaceholderColor: Int get() = editor.currentHintTextColor

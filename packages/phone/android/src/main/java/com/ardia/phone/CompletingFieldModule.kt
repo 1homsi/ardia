@@ -21,6 +21,8 @@ class CompletingFieldModule : Module() {
             Prop("placeholder") { view: CompletingFieldView, text: String? -> view.setPlaceholder(text) }
             Prop("placeholderTextColor") { view: CompletingFieldView, color: Int? -> view.setPlaceholderColor(color) }
             Prop("color") { view: CompletingFieldView, color: Int? -> view.setTextColor(color) }
+            Prop("cursorColor") { view: CompletingFieldView, color: Int? -> view.setCursorColor(color) }
+            Prop("selectionColor") { view: CompletingFieldView, color: Int? -> view.setSelectionColor(color) }
             Prop("fontSize") { view: CompletingFieldView, size: Float? -> view.setFontSize(size) }
             Prop("fontWeight") { view: CompletingFieldView, weight: String? -> view.setFontWeight(weight) }
             Prop("keyboardType") { view: CompletingFieldView, value: String? -> view.keyboardType = value }
