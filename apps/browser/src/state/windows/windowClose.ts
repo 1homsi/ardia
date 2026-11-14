@@ -8,6 +8,7 @@ import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
 import { isEmptyCardTab } from "../omnibox/newTabBarPolicy";
 import { askBeforeQuitting } from "./quitWarning";
+import { startClosingWindow, stopClosingWindow } from "./closingWindows";
 
 const MIN_TABS = 2;
 
@@ -25,9 +26,20 @@ export function startWindowCloseGuard() {
   });
 }
 
-async function closeWindowWithoutTabs(windowId: string) {
-  if ((await askBeforeQuitting(windowId)) === "cancelled") return;
-  await closeNativeWindow(windowId);
+let windowsWithoutTabsClosing: Promise<void> = Promise.resolve();
+
+function closeWindowWithoutTabs(windowId: string) {
+  const closing = windowsWithoutTabsClosing.then(async () => {
+    if ((await askBeforeQuitting(windowId)) === "cancelled") return;
+    startClosingWindow(windowId);
+    try {
+      await closeNativeWindow(windowId);
+    } finally {
+      stopClosingWindow(windowId);
+    }
+  });
+  windowsWithoutTabsClosing = closing.catch(() => undefined);
+  return closing;
 }
 
 async function requestClose(windowId: string) {

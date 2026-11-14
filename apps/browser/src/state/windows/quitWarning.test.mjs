@@ -22,6 +22,11 @@ test("a window already closing, or gone from the UI while its native window fade
   assert.deepEqual(staying(["w1", "w2"]), [], "w2 is in its close animation");
   closing.clear();
   assert.deepEqual(staying(["w1", "w2"], ["w1"]), [], "w2 left the UI's windows but native still lists it until it's destroyed");
+  closing.add("import");
+  assert.deepEqual(staying(["settings", "import"].map((id) => id).concat("w1"), ["w1"]).filter((id) => id !== "settings"), [], "an Import window already closing doesn't keep the app open");
+  assert.deepEqual(windowsStayingOpen(["settings", "import"], "settings", new Set(), (id) => closing.has(id)), [], "closing Settings while Import closes is the last close");
+  closing.clear();
+  assert.deepEqual(windowsStayingOpen(["settings", "import"], "settings", new Set(), () => false), ["import"]);
 });
 
 test("the warning asks only on Windows, with the setting on, and never on a hidden test instance", () => {

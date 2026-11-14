@@ -299,9 +299,21 @@ test("Settings and Import close through the same request as browser windows, fro
   assert.equal(windows.open.has("settings"), false, "a close request for Settings closes it");
   const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   assert.match(source("./windowClose.ts"), /if \(!w\) return closeWindowWithoutTabs\(windowId\);/);
-  assert.match(source("./windowClose.ts"), /async function closeWindowWithoutTabs\(windowId: string\) \{\n\s+if \(\(await askBeforeQuitting\(windowId\)\) === "cancelled"\) return;\n\s+await closeNativeWindow\(windowId\);/);
   assert.match(source("./controls.ts"), /export const closeFromWindowControls = \(windowId: string\) => requestWindowClose\(windowId\);/);
   assert.match(source("../commands/commands.ts"), /if \(command === "closeTab"\) return requestWindowClose\(requested!\);/);
   assert.match(source("../import/flow.ts"), /export const closeImport = \(\) => requestWindowClose\(IMPORT_WINDOW_ID\);/);
   assert.match(source("../../../windows/Ardia/WindowManager.h"), /if \(!found \|\| !m_context \|\| m_quitting\) return;\n\s+try \{\n\s+args\.Cancel\(true\);/);
+  assert.match(source("../../platform/nativeApi.ts"), /windows\.addListener\?\.\("onWindowEvent", \(event\) => \{\n\s+if \(event\.type === "closeRequest" && typeof event\.id === "string"\) void windows\.closeWindow\(event\.id\);/);
+});
+
+test("Settings and Import closes are decided one at a time, so two at once can't both miss the quit question", async () => {
+  windows.open.set("settings", { kind: "settings", title: "Settings" });
+  windows.open.set("import", { kind: "import", title: "Import" });
+  windows.emit({ type: "closeRequest", id: "settings" });
+  windows.emit({ type: "closeRequest", id: "import" });
+  for (let i = 0; i < 6; i++) await tick();
+  assert.equal(windows.open.has("settings"), false);
+  assert.equal(windows.open.has("import"), false);
+  const close = readFileSync(new URL("./windowClose.ts", import.meta.url), "utf8");
+  assert.match(close, /const closing = windowsWithoutTabsClosing\.then\(async \(\) => \{\n\s+if \(\(await askBeforeQuitting\(windowId\)\) === "cancelled"\) return;\n\s+startClosingWindow\(windowId\);/);
 });
