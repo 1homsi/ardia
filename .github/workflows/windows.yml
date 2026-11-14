@@ -15,7 +15,7 @@ on:
       - "pnpm-lock.yaml"
       - ".github/workflows/windows.yml"
   push:
-    branches: [main]
+    branches: [main, t3/windows-linux-release-priority]
     paths:
       - "apps/browser/windows/**"
       - "apps/browser/NuGet.config"
@@ -108,7 +108,7 @@ jobs:
         id: native
         shell: bash
         env:
-          TREE: ${{ hashFiles('apps/browser/windows/**', 'apps/browser/NuGet.config', 'apps/browser/package.json', 'apps/browser/app.json', 'apps/browser/react-native.config.js', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'patches/**', 'scripts/windows/rebundle.ps1', '.github/workflows/windows.yml') }}
+          TREE: ${{ hashFiles('apps/browser/windows/**', 'apps/browser/NuGet.config', 'apps/browser/package.json', 'apps/browser/app.json', 'apps/browser/react-native.config.js', 'packages/*/package.json', 'packages/*/react-native.config.js', 'packages/*/windows/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'patches/**', 'scripts/windows/rebundle.ps1', '.github/workflows/windows.yml') }}
         run: echo "key=windows-app-${{ env.SLUG }}-$TREE" >> "$GITHUB_OUTPUT"
       - name: Look for an app built from this native code
         id: built
