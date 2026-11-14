@@ -11,7 +11,7 @@ import { initialPresence, presenceSettled, presenceShown, presenceTarget } from 
 import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayDragDismisses, trayDragOffset, trayDragReleasesKeyboard, trayMaxHeight, trayOffset } from "../../lib/trayMotion";
 import { useOnboarding } from "../../state/onboarding/store";
 import { useVoice } from "../../state/voice/store";
-import { idleScrub, releaseRefines, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
+import { idleScrub, releaseRefines, SCRUB, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
 import { wholeRowsHeight } from "../../lib/trayRows";
 import { haptics } from "../../state/app/haptics";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
@@ -81,14 +81,12 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const preferred = SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
   const trayHeight = trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s);
   const extend = window.height;
-  const closeOnTouch = useMemo(
-    () =>
-      Gesture.Manual().onTouchesDown((_event, manager) => {
-        runOnJS(cancelSearch)();
-        manager.fail();
-      }),
-    [],
-  );
+  const closedByTouch = useRef(false);
+  const closeOnce = () => {
+    if (closedByTouch.current) return;
+    closedByTouch.current = true;
+    cancelSearch();
+  };
 
   useEffect(() => {
     if (closing) return;
@@ -140,6 +138,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const dismissDrag = useMemo(
     () =>
       Gesture.Pan()
+        .withTestId("trayDismissDrag")
         .enabled(!closing)
         .activeOffsetY([-10, 10])
         .failOffsetX([-24, 24])
@@ -230,14 +229,13 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"}>
       <Animated.View style={[StyleSheet.absoluteFill, dimStyle]}>
-        <GestureDetector gesture={closeOnTouch}>
-          <Pressable
-            accessibilityLabel="Close Search"
-            accessibilityRole="button"
-            onPress={cancelSearch}
-            style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
-          />
-        </GestureDetector>
+        <Pressable
+          accessibilityLabel="Close Search"
+          accessibilityRole="button"
+          onPressIn={closeOnce}
+          onPress={closeOnce}
+          style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
+        />
       </Animated.View>
       <Animated.View
         style={[
@@ -444,7 +442,7 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   };
   if (window.fontScale <= LARGE_FONT_SCALE) {
     return (
-      <Animated.View key="rows" entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
+      <Animated.View key="rows" testID="trayRows" entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
         <ScrubbedRows rows={rows} typed={typed} budget={shown ?? room} onMeasure={measure} onRefine={refine} onMenu={showMenu} />
         {menuView}
       </Animated.View>
@@ -521,46 +519,43 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
   };
   const tick = () => haptics.selection();
 
-  const gesture = useMemo(
-    () =>
-      Gesture.Manual()
-        .onTouchesDown((event, manager) => {
-          const touch = event.allTouches[0];
-          if (!touch || event.numberOfTouches > 1) {
-            manager.fail();
-            return;
-          }
-          scrub.value = scrubBegin(frames.value, touch.x, touch.y, visible.value);
-          menuTaken.value = false;
-          press.value += 1;
-          manager.activate();
-          runOnJS(armLongPress)(press.value);
-        })
-        .onTouchesMove((event) => {
-          const touch = event.allTouches[0];
-          if (!touch || menuTaken.value) return;
-          const moved = scrubMove(scrub.value, frames.value, touch.x, touch.y, visible.value);
-          scrub.value = moved.state;
-          if (moved.ticks) runOnJS(tick)();
-        })
-        .onTouchesUp((event, manager) => {
-          const touch = event.changedTouches[0];
-          press.value += 1;
-          const state = scrub.value;
-          scrub.value = idleScrub;
-          manager.end();
-          if (!touch || menuTaken.value) return;
-          const ended = scrubEnd(state, frames.value, touch.x, touch.y, visible.value);
-          if (ended.kind !== "activate") return;
-          runOnJS(release)(ended.index, ended.wasScrubbing, releaseRefines(ended, frames.value, touch.x, refinable.value[ended.index] ?? false));
-        })
-        .onTouchesCancelled((_event, manager) => {
-          press.value += 1;
-          scrub.value = idleScrub;
-          manager.fail();
-        }),
-    [],
-  );
+  const gesture = useMemo(() => {
+    const scrubbing = Gesture.Pan()
+      .withTestId("trayRowsScrub")
+      .maxPointers(1)
+      .minDistance(SCRUB.distance)
+      .onBegin((event) => {
+        scrub.value = scrubBegin(frames.value, event.x, event.y, visible.value);
+        menuTaken.value = false;
+        press.value += 1;
+        runOnJS(armLongPress)(press.value);
+      })
+      .onUpdate((event) => {
+        if (menuTaken.value) return;
+        const moved = scrubMove(scrub.value, frames.value, event.x, event.y, visible.value);
+        scrub.value = moved.state;
+        if (moved.ticks) runOnJS(tick)();
+      })
+      .onEnd((event) => {
+        if (menuTaken.value) return;
+        const ended = scrubEnd({ ...scrub.value, scrubbing: true }, frames.value, event.x, event.y, visible.value);
+        if (ended.kind === "activate") runOnJS(release)(ended.index, true, false);
+      })
+      .onFinalize(() => {
+        press.value += 1;
+        scrub.value = idleScrub;
+      });
+    const tapping = Gesture.Tap()
+      .withTestId("trayRowsTap")
+      .maxDistance(SCRUB.distance)
+      .onEnd((event, success) => {
+        if (!success || menuTaken.value) return;
+        const ended = scrubEnd(idleScrub, frames.value, event.x, event.y, visible.value);
+        if (ended.kind !== "activate") return;
+        runOnJS(release)(ended.index, false, releaseRefines(ended, frames.value, event.x, refinable.value[ended.index] ?? false));
+      });
+    return Gesture.Race(scrubbing, tapping);
+  }, []);
 
   useAnimatedReaction(
     () => scrub.value.highlighted,
@@ -585,11 +580,12 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
 
   return (
     <GestureDetector gesture={gesture}>
-      <View ref={list} style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]} collapsable={false}>
+      <View ref={list} testID="trayRowList" style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]} collapsable={false}>
         <Animated.View pointerEvents="none" style={[styles.highlight, { backgroundColor: theme.rowHighlight }, highlightStyle]} />
         {rows.map((row, index) => (
           <View
             key={index}
+            testID={`trayRow:${index}`}
             onLayout={(event) => {
               const { x, y, width, height } = event.nativeEvent.layout;
               frames.value = Object.assign([...frames.value], { [index]: { left: x, top: y, right: x + width, bottom: y + height } });
