@@ -910,14 +910,19 @@ does run in a test instance. A scratch folder with the marker must get both powe
   which launches it three times and uploads each launch's log: a first launch (onboarding) and a launch with
   onboarding done (the browser window), each with a screenshot when the runner allows a capture, then a hidden
   self-check launch.
-- A pull request gets the fast run. The `gate` job waits for a vouch, like the iPhone build. Then each CPU looks in
-  the Actions cache for an app built from the same native code (`windows-app-<cpu>-<hash>`; the hash covers
-  `apps/browser/windows`, each package's `package.json` and `windows` folder, the lockfile, the patches and the
-  workflow). When one is there nothing is compiled:
-  `scripts/windows/rebundle.ps1` bundles the change's JavaScript, compiles it with the Hermes compiler saved beside
-  that app and replaces its `Bundle` folder. When none is there the app is compiled and saved for the next push.
-  Both CPUs compile on x64 runners; the ARM runner downloads the ARM64 app and only launches it. The fast run
-  launches the app once, with the engine inside.
+- A pull request gets the fast run. The `gate` job waits for a vouch, like the iPhone build. Then three things start
+  together. A Linux job (`javascript`) bundles the app's JavaScript with Metro, once for both CPUs. Each CPU's build
+  job (`app`, `arm64-app`, both on x64 runners) looks in the Actions cache for an app built from the same native code
+  (`windows-app-<cpu>-<hash>`; the hash covers `apps/browser/windows`, each package's `package.json` and `windows`
+  folder, the lockfile, the patches and the workflow) and compiles only when none is there, then saves it.
+- Each CPU then has two jobs side by side on its own kind of runner: `x64` and `arm64` run the launch check's
+  launches, input and self-check (`launch-smoke.ps1 -Part launch`), `x64-gate` and `arm64-gate` its test-gate checks
+  (`-Part gate`). Each takes the built app, from the cache or from the build job, and when the app was reused
+  `scripts/windows/rebundle.ps1` compiles the Linux bundle with the Hermes compiler saved beside that app and
+  replaces the app's `Bundle` folder; a reused app carries no source maps. When the app was compiled in this run,
+  the same script checks instead that the Linux bundle, compiled here, matches the build's own `Bundle` file for
+  file, so the reuse path is known to test the bundle a build would make. A run that compiled launches the app as
+  built too, with its own launcher; a run that reused launches only the assembled app with the engine inside.
 - A push to `main` or to the Windows branch gets the full run, and so does a pull request with the `full-ci` label
   (add the label, then push or re-run the run). A pull request can read its base branch's caches and no other pull
   request's, which is why the Windows branch builds on every push: without that, each pull request into it would

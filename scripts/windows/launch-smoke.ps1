@@ -3,7 +3,8 @@ param(
   [Parameter(Mandatory = $true)][string]$Out,
   [int]$Seconds = 25,
   [int]$SelfCheckSeconds = 120,
-  [switch]$NoInput
+  [switch]$NoInput,
+  [ValidateSet("all", "launch", "gate")][string]$Part = "all"
 )
 
 $ErrorActionPreference = "Stop"
@@ -409,6 +410,7 @@ function New-DataDirectory([string]$Name) {
   return $directory
 }
 
+if ($Part -ne "gate") {
 $env:ARDIA_DATA_DIR = New-DataDirectory "launch-data"
 $env:ARDIA_BACKGROUND = ""
 $process = Start-Process -FilePath $App -ArgumentList "--log-file=`"$log`"" -PassThru
@@ -521,6 +523,7 @@ if (Test-Path $checkLog) {
   if (Select-String -Path $checkLog -Pattern "^(js-error|fatal|error) " -Quiet) { $failures += "the self-check log has errors" }
 } else {
   $failures += "the self-check wrote no log"
+}
 }
 
 $gateApp = (Resolve-Path -LiteralPath $App).Path
@@ -652,6 +655,7 @@ function Test-ATestInstance([string]$DataDirectory, [string]$Case) {
   } finally { Stop-GateLaunch $run }
 }
 
+if ($Part -ne "launch") {
 $gateData = New-DataDirectory "gate-scratch"
 $marker = Join-Path (Split-Path -Parent $gateApp) "Ardia.test-build"
 Remove-Item -Force -LiteralPath $marker
@@ -679,6 +683,7 @@ if ($withEngine -and $env:GITHUB_ACTIONS -eq "true") {
   Test-ExtensionRunsInATestInstance $extension 9341
 }
 if ($withEngine) { Test-ATestInstance (New-DataDirectory "gate-test-instance") "a scratch folder with the marker" }
+}
 $env:ARDIA_DATA_DIR = ""
 $env:ARDIA_BACKGROUND = ""
 
@@ -686,4 +691,5 @@ if ($failures.Count) {
   $failures | ForEach-Object { Write-Host "::error::$_" }
   exit 1
 }
-Write-Host "The app launched, rendered its first window, stayed up for $Seconds s, and passed its self-check."
+if ($Part -ne "gate") { Write-Host "The app launched, rendered its first window, stayed up for $Seconds s, and passed its self-check." }
+if ($Part -ne "launch") { Write-Host "The test gate refused what it must and let a test instance through." }

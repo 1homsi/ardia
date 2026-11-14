@@ -560,9 +560,13 @@ test("the run-ci label waits for a run that is still deciding, then starts its s
 test("a Windows build waiting at the gate starts with the iPhone one", async () => {
   const windowsWaiting = [
     { name: "gate", conclusion: "success" },
+    { name: "javascript", conclusion: "skipped" },
     { name: "app", conclusion: "skipped" },
     { name: "arm64-app", conclusion: "skipped" },
+    { name: "x64", conclusion: "skipped" },
+    { name: "x64-gate", conclusion: "skipped" },
     { name: "arm64", conclusion: "skipped" },
+    { name: "arm64-gate", conclusion: "skipped" },
   ];
   const github = fakeGithub({
     runs: { s9: [runOf(9, 900)] },

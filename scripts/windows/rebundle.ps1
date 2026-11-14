@@ -1,6 +1,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$App,
-  [Parameter(Mandatory = $true)][string]$Hermes
+  [Parameter(Mandatory = $true)][string]$Hermes,
+  [Parameter(Mandatory = $true)][string]$Javascript,
+  [switch]$Verify
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,10 +10,11 @@ $ErrorActionPreference = "Stop"
 $library = "ArdiaApp.dll"
 $bundleName = "index.windows.bundle"
 $hermesMagic = [byte[]](0xC6, 0x1F, 0xBC, 0x03, 0xC1, 0x03, 0x19, 0x1F)
-$browser = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "apps\browser"
 
 if (-not (Test-Path -LiteralPath (Join-Path $App $library) -PathType Leaf)) { throw "the built app '$App' has no $library" }
 if (-not (Test-Path -LiteralPath $Hermes -PathType Leaf)) { throw "no Hermes compiler at '$Hermes'" }
+$bundled = Join-Path $Javascript "Bundle"
+if (-not (Test-Path -LiteralPath (Join-Path $bundled $bundleName) -PathType Leaf)) { throw "'$Javascript' holds no Bundle\$bundleName from Metro" }
 $appRoot = (Resolve-Path -LiteralPath $App).Path
 $compiler = (Resolve-Path -LiteralPath $Hermes).Path
 $shipped = Join-Path $appRoot "Bundle"
@@ -28,43 +31,53 @@ function Test-HermesBytecode([string]$path) {
   }
 }
 
+function Get-Digests([string]$folder) {
+  $root = (Resolve-Path -LiteralPath $folder).Path
+  $digests = @{}
+  foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File) {
+    $digests[$file.FullName.Substring($root.Length + 1)] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  }
+  return $digests
+}
+
 $scratch = Join-Path (Split-Path -Parent $appRoot) ("rebundle-" + [guid]::NewGuid().ToString("N"))
 $fresh = Join-Path $scratch "Bundle"
-$freshMaps = Join-Path $scratch "maps"
-New-Item -ItemType Directory -Path $fresh, $freshMaps -Force | Out-Null
+New-Item -ItemType Directory -Path $scratch | Out-Null
 try {
+  Copy-Item -LiteralPath $bundled -Destination $fresh -Recurse
   $javascript = Join-Path $fresh $bundleName
   $bytecode = "$javascript.hbc"
-  $packagerMap = Join-Path $freshMaps "$bundleName.packager.map"
-  $compilerMap = Join-Path $freshMaps "$bundleName.compiler.map"
-  $composedMap = Join-Path $freshMaps "$bundleName.map"
-  Push-Location $browser
-  try {
-    $entry = if (Test-Path -LiteralPath (Join-Path $browser "index.windows.js") -PathType Leaf) { "index.windows.js" } else { "index.js" }
-    & npx @react-native-community/cli bundle --platform windows --entry-file $entry --bundle-output $javascript --assets-dest $fresh --dev false --reset-cache --sourcemap-output $packagerMap --minify false
-    if ($LASTEXITCODE -ne 0) { throw "Metro did not bundle the app for Windows" }
-    & $compiler -emit-binary -out $bytecode $javascript -O -output-source-map
-    if ($LASTEXITCODE -ne 0) { throw "Hermes did not compile $bundleName" }
-    $composer = & node -p "require('node:path').join(require('node:path').dirname(require.resolve('react-native/package.json', { paths: [require.resolve('react-native-windows/package.json')] })), 'scripts', 'compose-source-maps.js')"
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $composer -PathType Leaf)) { throw "no compose-source-maps.js beside react-native-windows' react-native" }
-    Move-Item -LiteralPath "$bytecode.map" -Destination $compilerMap
-    & node $composer $packagerMap $compilerMap -o $composedMap
-    if ($LASTEXITCODE -ne 0) { throw "the source maps of $bundleName did not compose" }
-  } finally {
-    Pop-Location
-  }
+  & $compiler -emit-binary -out $bytecode $javascript -O -output-source-map
+  if ($LASTEXITCODE -ne 0) { throw "Hermes did not compile $bundleName" }
   if (-not (Test-HermesBytecode $bytecode)) { throw "$bytecode is not Hermes bytecode" }
+  Remove-Item -LiteralPath "$bytecode.map" -Force
   Move-Item -LiteralPath $bytecode -Destination $javascript -Force
+  $made = Get-Digests $fresh
+  $megabytes = [math]::Round((Get-Item -LiteralPath $javascript).Length / 1MB, 1)
+  $summary = "$bundleName ($megabytes MB of Hermes bytecode, SHA-256 $($made[$bundleName])) and $($made.Count - 1) assets"
+
+  if ($Verify) {
+    $built = Get-Digests $shipped
+    $names = @(@($built.Keys) + @($made.Keys) | Sort-Object -Unique)
+    $differences = @()
+    foreach ($name in $names) {
+      if (-not $made.ContainsKey($name)) { $differences += "$name is in the build's bundle and not in the one bundled on Linux" }
+      elseif (-not $built.ContainsKey($name)) { $differences += "$name is in the bundle from Linux and not in the build's" }
+      elseif ($built[$name] -ne $made[$name]) { $differences += "$name differs: the build has $($built[$name]), Linux gives $($made[$name])" }
+    }
+    if ($differences.Count) {
+      $differences | ForEach-Object { Write-Host $_ }
+      throw "the JavaScript bundled on Linux is not what the build bundled: $($differences.Count) of $($names.Count) files differ"
+    }
+    Write-Host "rebundle: bundled on Linux and compiled here, $summary match the build's file for file"
+    return
+  }
+
   foreach ($stale in @($shipped, $shippedMaps)) {
     if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale -Recurse -Force }
   }
-  New-Item -ItemType Directory -Path (Split-Path -Parent $shippedMaps) -Force | Out-Null
   Move-Item -LiteralPath $fresh -Destination $shipped
-  Move-Item -LiteralPath $freshMaps -Destination $shippedMaps
-  $files = @(Get-ChildItem -LiteralPath $shipped -Recurse -File)
-  $megabytes = [math]::Round((Get-Item -LiteralPath (Join-Path $shipped $bundleName)).Length / 1MB, 1)
-  $digest = (Get-FileHash -LiteralPath (Join-Path $shipped $bundleName) -Algorithm SHA256).Hash.ToLowerInvariant()
-  Write-Host "rebundle: $bundleName ($megabytes MB of Hermes bytecode, SHA-256 $digest) and $($files.Count - 1) assets are in $shipped"
+  Write-Host "rebundle: $summary are in $shipped"
 } finally {
   Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue
 }
