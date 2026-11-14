@@ -53,3 +53,29 @@ export function withAlpha(color: string, alpha: number): string {
   const [r, g, b] = parseColor(color);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+const LIGHT_SURFACE = [0.949, 0.949, 0.969] as const;
+const DARK_SURFACE = [0.11, 0.11, 0.118] as const;
+
+const linearChannel = (value: number) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+const relativeLuminance = (rgb: readonly number[]) => 0.2126 * linearChannel(rgb[0]!) + 0.7152 * linearChannel(rgb[1]!) + 0.0722 * linearChannel(rgb[2]!);
+
+function contrastRatio(a: readonly number[], b: readonly number[]): number {
+  const first = relativeLuminance(a);
+  const second = relativeLuminance(b);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+export function legibleInk(tint: string, dark: boolean, increasedContrast = false): string {
+  const target = increasedContrast ? 7 : 4.5;
+  const surface = dark ? DARK_SURFACE : LIGHT_SURFACE;
+  const destination = dark ? 1 : 0;
+  const origin = parseColor(tint).slice(0, 3).map((channel) => channel / 255);
+  let candidate = origin;
+  let amount = 0;
+  while (contrastRatio(candidate, surface) < target && amount < 1) {
+    amount = Math.min(1, amount + 0.03);
+    candidate = origin.map((channel) => channel + (destination - channel) * amount);
+  }
+  return toHex(candidate.map((channel) => channel * 255));
+}

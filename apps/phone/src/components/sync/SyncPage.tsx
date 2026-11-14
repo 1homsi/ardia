@@ -6,7 +6,7 @@ import { haptics } from "../../state/app/haptics";
 import { useSync } from "../../state/sync/store";
 import { syncNowFeedback, connectMessage, deviceIcon, inboxNotice, shownProfile, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
 import { popSettings, pushSettings } from "../../state/settings/nav";
-import { capsule, ConfirmDialog, font, PasteButton, pasteButtonIsNative, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
+import { capsule, ConfirmDialog, font, PasteButton, useWarningInk, pasteButtonIsNative, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { copy } from "../../lib/platformCopy";
 import { ButtonRow, Divider, Group, IconTile, NavRow, SettingsPage, ValueRow } from "../settings/SettingsKit";
 
@@ -15,13 +15,14 @@ const DEVICE_ICONS: Record<ReturnType<typeof deviceIcon>, SymbolName> = { phone:
 
 export function SyncHero({ title, subtitle, warning, children }: { title: string; subtitle: string; warning?: boolean; children?: React.ReactNode }) {
   const theme = useTheme();
+  const warningInk = useWarningInk();
   return (
     <View style={styles.hero}>
       <IconTile icon="macAndPhone" tint={settingsTint.sync} side={settingsLayout.heroTile} />
       <Text accessibilityRole="header" style={[font.title2, styles.bold, { color: theme.label }]}>
         {title}
       </Text>
-      <Text style={[font.subheadline, styles.centered, { color: warning ? theme.destructive : theme.secondaryLabel }]}>{subtitle}</Text>
+      <Text style={[font.subheadline, styles.centered, { color: warning ? warningInk : theme.secondaryLabel }]}>{subtitle}</Text>
       {children}
     </View>
   );

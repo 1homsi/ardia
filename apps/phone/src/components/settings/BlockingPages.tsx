@@ -31,7 +31,7 @@ import {
   filterListAddress,
   FILTER_LIST_ADDRESS,
 } from "../../state/settings/settingsRules";
-import { ConfirmDialog, duration, font, ink, screenReaderActions, Sheet, usePresence, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
+import { ConfirmDialog, duration, font, ink, screenReaderActions, Sheet, usePresence, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation, useWarningInk } from "../ui";
 import { copy } from "../../lib/platformCopy";
 
 const FILTER_SYNTAX_URL = "https://github.com/gorhill/uBlock/wiki/Static-filter-syntax";
@@ -106,6 +106,7 @@ export function FilterListsPage() {
 
 function ListRow({ list, now, divider }: { list: FilterListInfo; now: number; divider: boolean }) {
   const theme = useTheme();
+  const warningInk = useWarningInk();
   const facts = listFacts(list, now);
   return (
     <View>
@@ -114,7 +115,7 @@ function ListRow({ list, now, divider }: { list: FilterListInfo; now: number; di
           <Text style={[font.body, { color: theme.label }]} numberOfLines={2}>
             {list.title}
           </Text>
-          <CrossfadeText testID="listFacts" text={facts.text} style={[font.footnote, { color: facts.isWarning ? theme.destructive : theme.secondaryLabel }]} />
+          <CrossfadeText testID="listFacts" text={facts.text} style={[font.footnote, { color: facts.isWarning ? warningInk : theme.secondaryLabel }]} />
         </Pressable>
         {listIsBusy(list) ? <ActivityIndicator testID="listBusy" size="small" color={theme.secondaryLabel} /> : null}
         <Toggle label={list.title} value={list.isEnabled} onChange={(on) => setListEnabled(list.id, on)} />

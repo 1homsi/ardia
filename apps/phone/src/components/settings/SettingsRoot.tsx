@@ -12,7 +12,7 @@ import { appVersion, exportOpenTabs, setAppLinks, setArchiveInterval, setAutoOpe
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { capsule, duration, settingsMotion, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
+import { capsule, duration, settingsMotion, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor, useWarningInk } from "../ui";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
@@ -120,6 +120,7 @@ const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
 
 function SyncCard({ stacks }: { stacks: boolean }) {
   const theme = useTheme();
+  const warningInk = useWarningInk();
   const status = useSyncStatus();
   const line = syncRowSubtitle(status);
   return (
@@ -140,7 +141,7 @@ function SyncCard({ stacks }: { stacks: boolean }) {
               testID="syncStatusLine"
               entering={FadeIn.duration(duration.crossfade)}
               exiting={FadeOut.duration(duration.crossfade)}
-              style={[font.subheadline, { color: line.isWarning ? theme.destructive : theme.secondaryLabel }]}
+              style={[font.subheadline, { color: line.isWarning ? warningInk : theme.secondaryLabel }]}
               numberOfLines={stacks ? undefined : 2}
             >
               {line.text}
