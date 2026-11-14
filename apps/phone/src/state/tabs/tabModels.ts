@@ -76,18 +76,22 @@ export function recencyOrder(tabs: readonly BrowserTab[], selectedId: string | n
   });
 }
 
-export type PageLook = { url: string | null; title: string; faviconUrl: string | null; themeColor: string | null };
+export type PageLook = { url: string | null; title: string; faviconUrl: string | null; themeColor: string | null; failure?: object | null };
 
 export function pageStatePatch(tab: BrowserTab, page: PageLook, keepsAddress: boolean): TabPatch | null {
   const patch: TabPatch = {};
   const url = keepsAddress && page.url && isSyncableUrl(page.url) ? page.url : null;
   const title = page.title.trim() ? page.title : null;
   if (url && url !== tab.url) patch.url = url;
+  if (page.failure) return Object.keys(patch).length ? patch : null;
   if (title && title !== tab.title) patch.title = title;
   if (!tab.isPrivate && page.faviconUrl && /^https?:\/\//i.test(page.faviconUrl) && page.faviconUrl !== tab.faviconUrl) patch.faviconUrl = page.faviconUrl;
   if (page.themeColor && page.themeColor !== tab.themeColorHex) patch.themeColorHex = page.themeColor;
   return Object.keys(patch).length ? patch : null;
 }
+
+export const titleAfterFailedLoad = (beforeLoad: string | undefined, current: string): string | null =>
+  beforeLoad !== undefined && beforeLoad !== current ? beforeLoad : null;
 
 export const coverIsCapturable = (finishedLoading: boolean | undefined, covered: boolean) => finishedLoading === true && !covered;
 

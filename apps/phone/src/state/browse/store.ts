@@ -2,8 +2,10 @@ import { create } from "zustand";
 import { history } from "../history/store";
 import { HISTORY_RETENTION_MS } from "../history/historySummary";
 import {
+  clearTone,
   livePageIds,
   listenToPages,
+  pageNavigation,
   settled,
   snapshotPage,
   storeNavigation,
@@ -46,7 +48,7 @@ import { copyText, pasteText } from "../../platform/system";
 import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
 import { countUsage } from "../telemetry/telemetry";
-import { coverIsCapturable, isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
+import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
@@ -298,9 +300,10 @@ function saveFrontTabSoon(id: string) {
   }, STATE_SAVE_DELAY_MS);
 }
 
-function pageVisited(id: string, url: string, title: string, kind: VisitKind) {
+function pageVisited(id: string, url: string, reported: string, kind: VisitKind) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
+  const title = pageNavigation(id)?.failure ? "" : reported;
   if (kind !== "restored") saveFrontTabSoon(id);
   if (isSyncableUrl(url)) updateTabById(id, { url, title: title.trim() ? title : undefined });
   const transition = transitions[kind];
@@ -357,6 +360,7 @@ function backgroundPageState(id: string, state: PageState) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
   noteCrash(tab, state);
+  keepTitleThroughFailure(tab, state);
   const patch = pageStatePatch(tab, state, false);
   if (patch) updateTabById(id, patch);
   const wasLoading = loading.get(id);
@@ -365,6 +369,16 @@ function backgroundPageState(id: string, state: PageState) {
 }
 
 const crashedPages = new Set<string>();
+
+const titlesBeforeLoad = new Map<string, string>();
+
+function keepTitleThroughFailure(tab: BrowserTab, state: PageState) {
+  if (state.isLoading && !loading.get(tab.id) && !state.failure) titlesBeforeLoad.set(tab.id, tab.title);
+  if (!state.failure) return;
+  clearTone(tab.id);
+  const title = titleAfterFailedLoad(titlesBeforeLoad.get(tab.id), tab.title);
+  if (title !== null) updateTabById(tab.id, { title });
+}
 
 function noteCrash(tab: BrowserTab, state: PageState) {
   if (state.failure?.kind !== "crashed") {
@@ -381,7 +395,8 @@ export function pageStateChanged(id: string, state: PageState) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
   noteCrash(tab, state);
-  const title = state.title.trim() ? state.title : null;
+  keepTitleThroughFailure(tab, state);
+  const title = state.failure ? null : state.title.trim() ? state.title : null;
   const patch = pageStatePatch(tab, state, true);
   if (patch) updateTabById(id, patch);
   const visit = lastVisits.get(id);
@@ -391,7 +406,9 @@ export function pageStateChanged(id: string, state: PageState) {
   if (wasLoading && !state.isLoading) scheduleSnapshot(id);
 }
 
-export const pageToneChanged = (id: string, tone: PageTone) => storeTone(id, tone);
+export function pageToneChanged(id: string, tone: PageTone) {
+  if (!pageNavigation(id)?.failure) storeTone(id, tone);
+}
 
 export async function savePageStates() {
   const live = new Set(await livePageIds());

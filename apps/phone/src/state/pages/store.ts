@@ -43,6 +43,15 @@ export const storeNavigation = (id: string, navigation: PageState) =>
 
 export const storeTone = (id: string, tone: PageTone) => usePages.setState((s) => ({ tones: { ...s.tones, [id]: tone } }));
 
+export function clearTone(id: string) {
+  if (!usePages.getState().tones[id]) return;
+  usePages.setState((s) => {
+    const tones = { ...s.tones };
+    delete tones[id];
+    return { tones };
+  });
+}
+
 export const storeFind = (id: string, result: FindResult | null) => usePages.setState((s) => ({ finds: { ...s.finds, [id]: result } }));
 
 export const storeRequest = (id: string, request: PageRequest | null) => usePages.setState((s) => ({ requests: { ...s.requests, [id]: request } }));

@@ -76,8 +76,10 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
     onGrab: captureCurrentCover,
   });
   useDemoMotion(pager, width);
-  const top = tone?.top ?? theme.surface;
-  const bottom = tone?.bottom ?? theme.surface;
+  const failed = useNavigation(tab.id, (n) => n?.failure != null);
+  const pageTone = failed ? null : tone;
+  const top = pageTone?.top ?? theme.surface;
+  const bottom = pageTone?.bottom ?? theme.surface;
   const barDark = isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding);

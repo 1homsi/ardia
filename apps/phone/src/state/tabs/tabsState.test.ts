@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AUTO_ARCHIVE_INTERVALS, coverIsCapturable, offersArchiveCard, isAutoArchiveDue, pageStatePatch, POSITION_STEP } from "./tabModels.ts";
+import { AUTO_ARCHIVE_INTERVALS, coverIsCapturable, offersArchiveCard, isAutoArchiveDue, pageStatePatch, POSITION_STEP, titleAfterFailedLoad } from "./tabModels.ts";
 import {
   isPrivateOnScreen,
   archiveTabs,
@@ -229,6 +229,20 @@ test("a tab keeps its page's site icon and theme colour, never a private tab's i
   assert.deepEqual(pageStatePatch(a, page, false), { title: "Next", faviconUrl: "https://a.example/favicon.ico", themeColorHex: "#112233" });
   assert.equal(pageStatePatch({ ...a, isPrivate: true }, { ...page, themeColor: null, title: a.title, url: a.url }, true), null);
   assert.equal(pageStatePatch(a, { ...page, faviconUrl: "data:image/png;base64,AA", themeColor: null, title: "", url: null }, true), null);
+});
+
+test("a failed load keeps the tab's address but never takes the error page's title, colour or icon", () => {
+  const { a } = threeTabs();
+  const errorPage = { url: "https://a.example/next", title: "Web page not available", faviconUrl: "https://a.example/favicon.ico", themeColor: "#FFFFFF", failure: { kind: "network" } };
+  assert.deepEqual(pageStatePatch(a, errorPage, true), { url: "https://a.example/next" });
+  assert.equal(pageStatePatch(a, errorPage, false), null);
+});
+
+test("when a load fails, the title from before it comes back, or none so the face shows the host", () => {
+  assert.equal(titleAfterFailedLoad("Otters", "Web page not available"), "Otters");
+  assert.equal(titleAfterFailedLoad("", "Web page not available"), "");
+  assert.equal(titleAfterFailedLoad("Otters", "Otters"), null);
+  assert.equal(titleAfterFailedLoad(undefined, "Web page not available"), null);
 });
 
 test("the app hides from Recents while Incognito is on or any private tab is open", () => {
