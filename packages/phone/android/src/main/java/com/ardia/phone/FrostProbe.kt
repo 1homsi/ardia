@@ -8,6 +8,10 @@ import android.os.Looper
 import android.util.Log
 import android.view.PixelCopy
 
+internal object LookProbeText {
+    fun hex(pixel: Int): String = "#%06x".format(pixel and 0xFFFFFF)
+}
+
 object FrostProbe {
     data class Reading(val meanLuma: Int, val nearBlackShare: Int)
 
@@ -24,6 +28,7 @@ object FrostProbe {
     }
 
     fun probe(activity: Activity) {
+        probeDecks(activity)
         val frosts = FrostSources.frosts().filter { it.isShown && it.width > 0 && it.height > 0 }
         Log.i("PAGELAB", "PAGELAB look frost probe: ${frosts.size} frost(s) on screen, page mode ${FrostSources.pageMode.raw}")
         for (frost in frosts) {
@@ -44,6 +49,31 @@ object FrostProbe {
                     bitmap.recycle()
                 }, Handler(Looper.getMainLooper()))
             }.onFailure { Log.i("PAGELAB", "PAGELAB look frost probe: copy refused (${it.javaClass.simpleName})") }
+        }
+    }
+
+    private fun probeDecks(activity: Activity) {
+        val decks = DeckBackdrops.all()
+        Log.i("PAGELAB", "PAGELAB look deck probe: ${decks.size} deck backdrop(s) attached, ${decks.count { it.isShown }} shown")
+        for (deck in decks) {
+            Log.i("PAGELAB", "PAGELAB look deck probe: ${deck.describe()}")
+            if (!deck.isShown || deck.width <= 0 || deck.height <= 0) continue
+            val location = IntArray(2).also(deck::getLocationInWindow)
+            val (blobX, blobY) = deck.firstBlobCentre()
+            val points = listOf("centre" to (deck.width / 2 to deck.height / 2), "blob 1" to (blobX.toInt() to blobY.toInt()), "corner" to (2 to 2))
+                .filter { (_, point) -> point.first in 0 until deck.width && point.second in 0 until deck.height }
+            for ((name, point) in points) {
+                val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                val x = location[0] + point.first
+                val y = location[1] + point.second
+                runCatching {
+                    PixelCopy.request(activity.window, Rect(x, y, x + 1, y + 1), bitmap, { result ->
+                        val shown = if (result == PixelCopy.SUCCESS) LookProbeText.hex(bitmap.getPixel(0, 0)) else "copy failed ($result)"
+                        Log.i("PAGELAB", "PAGELAB look deck probe pixel $name at ${point.first},${point.second}: $shown")
+                        bitmap.recycle()
+                    }, Handler(Looper.getMainLooper()))
+                }.onFailure { Log.i("PAGELAB", "PAGELAB look deck probe: copy refused (${it.javaClass.simpleName})") }
+            }
         }
     }
 }

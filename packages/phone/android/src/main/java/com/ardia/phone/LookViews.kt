@@ -81,7 +81,22 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
+
     open fun update() = invalidate()
+}
+
+internal object DeckBackdrops {
+    private val shown = java.util.WeakHashMap<DeckBackdropView, Unit>()
+
+    fun attach(view: DeckBackdropView) = synchronized(shown) { shown[view] = Unit }
+
+    fun detach(view: DeckBackdropView) = synchronized(shown) { shown.remove(view) }
+
+    fun all(): List<DeckBackdropView> = synchronized(shown) { shown.keys.toList() }
 }
 
 class DeckBackdropView(context: Context, appContext: AppContext) : LookView(context, appContext) {
@@ -93,9 +108,53 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     private val source = Rect()
     private val target = Rect()
 
+    internal var frames = 0L
+        private set
+    private var firstFrameAt = 0L
+
+    internal val framesPerSecond: Int
+        get() {
+            val elapsed = SystemClock.uptimeMillis() - firstFrameAt
+            return if (frames < 2 || elapsed <= 0) 0 else ((frames - 1) * 1000 / elapsed).toInt()
+        }
+
+    internal fun meshCentre(): Int {
+        val mesh = LookPaint.mesh(look, isDark)
+        return mesh.getPixel(mesh.width / 2, mesh.height / 2)
+    }
+
+    internal fun firstBlobCentre(): Pair<Float, Float> {
+        val angle = if (reduceMotion) 0f else angle(0, SystemClock.uptimeMillis())
+        return LookRules.blobCenter(0, angle, width.toFloat(), height.toFloat())
+    }
+
+    internal fun describe(): String =
+        "${width}x$height, ${frames} frames, ${framesPerSecond} fps, ${if (reduceMotion) "still" else "moving"}, ${if (isDark) "dark" else "light"}, " +
+            "transparency ${if (reduceTransparency) "reduced" else "on"}, mesh centre ${LookProbeText.hex(meshCentre())}"
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        DeckBackdrops.attach(this)
+    }
+
+    override fun onDetachedFromWindow() {
+        DeckBackdrops.detach(this)
+        super.onDetachedFromWindow()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck size ${oldw}x$oldh -> ${w}x$h")
+    }
+
     override fun onDraw(canvas: Canvas) {
         val dark = isDark
         val look = look
+        if (frames == 0L) {
+            firstFrameAt = SystemClock.uptimeMillis()
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck first frame ${width}x$height ${if (dark) "dark" else "light"} ${if (reduceMotion) "still" else "moving"}")
+        }
+        frames += 1
         val mesh = LookPaint.mesh(look, dark)
         source.set(0, 0, mesh.width, mesh.height)
         target.set(0, 0, width + 1, height + 1)
@@ -227,6 +286,11 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
         private set
 
     private val laidOut = ViewTreeObserver.OnGlobalLayoutListener { holdsPage = FrostPage.holdsPage(this) }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()

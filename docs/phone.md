@@ -248,6 +248,13 @@ and again only when that status changes.
 31. **Widgets in both modes, quickly:** with both widgets on the home screen, switch dark, light and dark again
     within 20 s: each switch updates the whole widget (panel, pill, text, icons) together within a few seconds,
     and the Search pill shows its icon and label in both modes.
+32. **Deck backdrop:** in the app's deck, three slow blobs in lighter shades of the profile colour drift over the base
+    (two screenshots 10 s apart differ). In the lab, Look: the stage above the frosted bar shows the mesh and blobs
+    in every look, its caption sits at the bottom of the stage, and the frosted bar's label is centred. Tap Probe
+    frost: `PAGELAB look deck probe:` gives each deck's size (never `0x0`), frames and fps (about the panel's rate
+    while moving, 0 more frames while still), and three `probe pixel` lines. The centre pixel is close to the
+    `mesh centre` colour, and the blob 1 pixel is lighter than it in light mode. `PAGELAB look deck size` and
+    `first frame` lines appear once per deck.
 
 ## Upgrade from the Compose app on Android
 
