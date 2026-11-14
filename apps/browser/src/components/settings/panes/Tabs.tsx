@@ -90,6 +90,7 @@ const DURATION_UNITS: Option<DurationUnit>[] = [
 
 export function TabsPane() {
   const newTabOpens = useSettings((s) => s.newTabOpens);
+  const minimal = useSettings((s) => s.minimalismMode);
   const newTabPosition = useSettings((s) => s.newTabPosition);
   const newTabButtonPosition = useSettings((s) => s.newTabButtonPosition);
   const cleanUpMinutes = useSettings((s) => s.cleanUpInactiveTabsAfterMinutes);
@@ -109,6 +110,10 @@ export function TabsPane() {
             anchor="tabs.autoHideTabs"
             description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. Changing it here resets every window; ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs hide or show" : "hides or shows"} the tabs in one window only.`}
           />
+          <SettingToggle
+            anchor="tabs.revealTabsOnHover"
+            description={`With Auto-hide tabs on, the tabs slide back over the page while the pointer is at the window's ${top ? "top edge" : "edge"}. Off, they come back only with ${keyText("⌘S")}${PLATFORM_FEATURES.menuBar ? " or View › Auto-Hide Tabs" : ""}.`}
+          />
         <Row anchor="tabs.sidebarSide">
           <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />
         </Row>
@@ -119,15 +124,18 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.balancedTopApps" />
         <SettingToggle anchor="tabs.showUnreadCounts" />
         <SettingToggle anchor="tabs.showTopAppBadges" />
+        <SettingToggle anchor="tabs.showTabHoverMenu" />
+        <SettingToggle anchor="tabs.closedTopAppTiles" />
         <SettingToggle anchor="tabs.fadeUnloadedTabs" />
         </Group>
       </Box>
 
       <SectionHeader title="General" />
       <Group>
-        <Row anchor="tabs.newTabOpens">
+        <Row anchor="tabs.newTabOpens" description={minimal ? "Minimalism mode opens the command bar. Your choice here comes back when you turn it off." : undefined}>
           <PopUp
-            value={newTabOpens}
+            value={minimal ? "commandBar" : newTabOpens}
+            disabled={minimal}
             options={[
               { value: "page", title: "New Tab Page" },
               { value: "commandBar", title: "Command Bar" },

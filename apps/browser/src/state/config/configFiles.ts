@@ -2,8 +2,10 @@ import { configDirectory } from "../../platform/launchConfig";
 import { onConfigChange, readConfigFile, watchConfigFiles, writeConfigSchemas, type ConfigFileRead } from "../../platform/configFolder";
 import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { mergedPalettes, parseThemeFile, type RolePalettes, type ThemeRoles } from "../../lib/themeFile";
-import { DEFAULT_LOOK, resolveLook, type LookBlocks } from "../../lib/themeLook";
+import { DEFAULT_LOOK, resolveLook, withSidebarText, type LookBlocks, type SidebarTextSize } from "../../lib/themeLook";
 import { setActiveLook } from "../../lib/activeLook";
+import { withoutOutlines } from "./elementOutlines";
+import { minimalismLookOf } from "../../lib/minimalismLook";
 import { useBrowser } from "../browser/store";
 import { hideKeyedToast, showToast, useToasts } from "../app/toasts";
 import { focusedWindowOf } from "../windows/ui";
@@ -31,7 +33,12 @@ const NO_THEME: ThemeParts = { roles: null, look: null };
 
 let defaults: RolePalettes | null = null;
 let theme: Theme = { name: null, ...NO_THEME };
+let appliedSidebarText: SidebarTextSize = "default";
+let stopWatchingSidebarText: (() => void) | null = null;
 let revision = 0;
+let outlines = true;
+let minimalism = false;
+let stopWatchingMinimalism: (() => void) | undefined;
 let windowsUp = false;
 let reported = new Set<string>();
 let pendingProblems = false;
@@ -69,16 +76,26 @@ function applySidebarWidth(before: number | null, after: number | null) {
   if (useBrowser.getState().settings.sidebarWidth !== width) useBrowser.getState().updateSettings({ sidebarWidth: width });
 }
 
+const sidebarTextSize = () => useBrowser.getState().settings.sidebarTextSize;
+
 function applyTheme(next: Theme) {
   if (!defaults) return;
-  if (next.name === theme.name && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
+  const size = sidebarTextSize();
+  const minimal = useBrowser.getState().settings.minimalismMode;
+  const outlined = useBrowser.getState().settings.elementOutlines;
+  if (next.name === theme.name && size === appliedSidebarText && minimal === minimalism && outlined === outlines && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
   const before = useBasePalette.getState().look;
-  const look = resolveLook(next.look);
+  const resolved = resolveLook(next.look);
+  const look = withSidebarText(minimal ? minimalismLookOf(resolved) : resolved, size);
   theme = next;
+  appliedSidebarText = size;
+  minimalism = minimal;
+  outlines = outlined;
   revision += 1;
   setActiveLook(look);
-  const themed = next.roles || look !== DEFAULT_LOOK;
-  useBasePalette.setState({ palette: themed ? mergedPalettes(defaults, next.roles, revision) : null, theme: next.name, look, blocks: next.look });
+  const roles = outlined ? next.roles : withoutOutlines(next.roles);
+  const themed = roles || look !== DEFAULT_LOOK;
+  useBasePalette.setState({ palette: themed ? mergedPalettes(defaults, roles, revision) : null, theme: next.name, look, blocks: next.look });
   applySidebarWidth(before.sidebarWidth, look.sidebarWidth);
 }
 
@@ -213,6 +230,13 @@ export function startConfigFiles(roles: RolePalettes) {
   if (defaults) return;
   defaults = roles;
   reconcileConfig();
+  stopWatchingSidebarText = useBrowser.subscribe((s, prev) => {
+    if (s.settings.sidebarTextSize !== prev.settings.sidebarTextSize) applyTheme(theme);
+  });
+  unsubscribers.push(useBrowser.subscribe((s, prev) => s.settings.elementOutlines !== prev.settings.elementOutlines && applyTheme(theme)));
+  stopWatchingMinimalism = useBrowser.subscribe((s, prev) => {
+    if (s.settings.minimalismMode !== prev.settings.minimalismMode) applyTheme(theme);
+  });
   afterFirstWindow(() => {
     windowsUp = true;
     onConfigChange(changed);
@@ -225,9 +249,16 @@ export function startConfigFiles(roles: RolePalettes) {
 
 export function resetConfigFilesForTests() {
   clearTimeout(timer);
+  stopWatchingMinimalism?.();
+  stopWatchingMinimalism = undefined;
+  minimalism = false;
+  outlines = true;
   timer = undefined;
   defaults = null;
   theme = { name: null, ...NO_THEME };
+  appliedSidebarText = "default";
+  stopWatchingSidebarText?.();
+  stopWatchingSidebarText = null;
   windowsUp = false;
   reported = new Set();
   pendingProblems = false;
