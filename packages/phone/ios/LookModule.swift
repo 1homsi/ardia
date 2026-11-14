@@ -228,7 +228,6 @@ final class GlassView: ExpoView {
     backgroundColor = .clear
     effectView.isAccessibilityElement = false
     super.insertSubview(effectView, at: 0)
-    NotificationCenter.default.addObserver(self, selector: #selector(transparencyChanged), name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
   }
 
   override func insertSubview(_ view: UIView, at index: Int) {
@@ -246,11 +245,7 @@ final class GlassView: ExpoView {
     applyShape()
   }
 
-  @objc private func transparencyChanged() {
-    render()
-  }
-
-  var isSolid: Bool { reduceTransparency || UIAccessibility.isReduceTransparencyEnabled }
+  var isSolid: Bool { reduceTransparency }
 
   func render() {
     overrideUserInterfaceStyle = dark.map { $0 ? .dark : .light } ?? .unspecified
