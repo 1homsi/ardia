@@ -220,7 +220,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   );
 
   useAnimatedReaction(
-    () => keyboardIsUp(keyboard.height.value) || (!isClosing.value && hasLanded.value),
+    () => !isClosing.value && (keyboardIsUp(keyboard.height.value) || hasLanded.value),
     (up, was) => {
       if (up === was) return;
       dim.value = withTiming(up ? 1 : 0, { duration: reduceMotion ? trayMotion.reduced : trayMotion.dim, easing: reduceMotion ? tabsCurve.easeOut : tabsCurve.easeInOut });
@@ -243,7 +243,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"}>
-      <Animated.View style={[StyleSheet.absoluteFill, dimStyle]}>
+      <Animated.View testID="trayDim" style={[StyleSheet.absoluteFill, dimStyle]}>
         <Pressable
           accessibilityLabel="Close Search"
           accessibilityRole="button"
