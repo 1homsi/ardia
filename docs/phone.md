@@ -312,6 +312,18 @@ and again only when that status changes.
     `… --ez ArdiaOnboarding true`. Each does what it does in the Compose app, and with `ArdiaDemo` the sync view
     shows the demo Macs, not the real ones. Lab builds log `PAGELAB launch arguments {…}` once per launch
     with what the app was given. A store build ignores every one of them.
+42. **Inline completion** (lab, Completion; later the tray once it uses `CompletingField`):
+    - Type `goo`: `gle.com` appears after the caret, highlighted, and the caret stays after `goo`.
+    - Type `g`: the highlight shrinks to `le.com` with no flicker. Type `x`: the highlight goes and `googx` stays.
+    - Backspace with a highlight showing removes only the highlight, then typing brings offers back.
+    - Tap inside the text or select a word: the highlighted part becomes ordinary text.
+    - Go submits the whole `google.com` (`PAGELAB completion submit "google.com"`). Leaving the field drops the
+      highlight.
+    - With a Chinese or Japanese keyboard, no highlight shows while composing.
+    - Speed: tap Focus, `adb shell dumpsys gfxinfo $P reset`, then
+      `adb shell input text googleandsomemoretextthatgoesonandonforsixtyfivecharactersintotal12` (65 keys) and
+      `adb shell dumpsys gfxinfo $P | grep -E "Janky|50th|90th"`. The 50th percentile stays at or under the earlier
+      runs' 13 ms on the same phone; report the three lines.
 
 ## Upgrade from the Compose app on Android
 

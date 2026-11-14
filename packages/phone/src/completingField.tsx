@@ -39,9 +39,11 @@ export type CompletingFieldProps = ViewProps &
     onSuffixChange?: (suffix: string) => void;
   };
 
-type NativeProps = Omit<CompletingFieldProps, "onTypedChange" | "onSubmit" | "onFocusChange" | "onSuffixChange"> & {
+type NativeProps = Omit<CompletingFieldProps, "onTypedChange" | "onSubmit" | "onFocusChange" | "onSuffixChange" | "accessibilityLabel"> & {
   ref?: Ref<CompletingFieldHandle>;
-  onTypedChange?: (event: NativeSyntheticEvent<{ typed: string }>) => void;
+  textEventCount: number;
+  fieldLabel?: string;
+  onTypedChange?: (event: NativeSyntheticEvent<{ typed: string; eventCount: number }>) => void;
   onSubmit?: (event: NativeSyntheticEvent<{ displayed: string }>) => void;
   onFocusChange?: (event: NativeSyntheticEvent<{ focused: boolean }>) => void;
   onSuffixChange?: (event: NativeSyntheticEvent<{ suffix: string }>) => void;
@@ -57,8 +59,9 @@ export const completingFieldIsNative = () => hasNative;
 const fallbackWeights = { regular: "400", medium: "500", semibold: "600", bold: "700" } as const;
 
 export const CompletingField = forwardRef<CompletingFieldHandle, CompletingFieldProps>(function CompletingField(props, ref) {
-  const { onTypedChange, onSubmit, onFocusChange, onSuffixChange, text, offer, highlightColor, selectsAllOnFocus, color, fontSize, fontWeight, style, ...rest } = props;
+  const { onTypedChange, onSubmit, onFocusChange, onSuffixChange, text, offer, highlightColor, selectsAllOnFocus, color, fontSize, fontWeight, style, accessibilityLabel, ...rest } = props;
   const native = useRef<CompletingFieldHandle>(null);
+  const eventCount = useRef(0);
   const input = useRef<TextInput>(null);
   useImperativeHandle(
     ref,
@@ -81,13 +84,18 @@ export const CompletingField = forwardRef<CompletingFieldHandle, CompletingField
       ref: native,
       style,
       text,
+      textEventCount: eventCount.current,
+      fieldLabel: accessibilityLabel,
       offer: offer ?? null,
       highlightColor,
       selectsAllOnFocus,
       color,
       fontSize,
       fontWeight,
-      onTypedChange: (event) => onTypedChange?.(event.nativeEvent.typed),
+      onTypedChange: (event) => {
+        eventCount.current = event.nativeEvent.eventCount;
+        onTypedChange?.(event.nativeEvent.typed);
+      },
       onSubmit: (event) => onSubmit?.(event.nativeEvent.displayed),
       onFocusChange: (event) => onFocusChange?.(event.nativeEvent.focused),
       onSuffixChange: (event) => onSuffixChange?.(event.nativeEvent.suffix),
@@ -95,6 +103,7 @@ export const CompletingField = forwardRef<CompletingFieldHandle, CompletingField
   }
   return createElement(TextInput, {
     ...rest,
+    accessibilityLabel,
     ref: input,
     value: text,
     selectTextOnFocus: selectsAllOnFocus,

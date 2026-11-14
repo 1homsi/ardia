@@ -21,9 +21,15 @@ public struct LegacyImportGate: Sendable {
     }
   }
 
+  public enum Outcome: String, Codable, Sendable {
+    case imported
+    case startedFresh
+  }
+
   public struct Marker: Codable, Equatable, Sendable {
     public var version: Int
-    public var importedAt: Double
+    public var outcome: Outcome
+    public var recordedAt: Double
     public var settingsApplied: Bool
     public var receipt: Receipt?
   }
@@ -38,7 +44,7 @@ public struct LegacyImportGate: Sendable {
     public let reason: String
   }
 
-  public static let markerVersion = 1
+  public static let markerVersion = 2
 
   public let legacyStores: [URL]
   public let marker: URL
@@ -74,26 +80,42 @@ public struct LegacyImportGate: Sendable {
       return Self.isMissing(error) ? .absent : .invalid
     }
     guard let decoded = try? JSONDecoder().decode(Marker.self, from: data),
-          decoded.version == Self.markerVersion, decoded.settingsApplied, decoded.importedAt > 0
+          decoded.version == Self.markerVersion, decoded.recordedAt > 0,
+          decoded.outcome == .startedFresh || decoded.settingsApplied
     else { return .invalid }
     return .valid(decoded)
   }
 
-  public var imported: Bool {
-    if case .valid = markerState { return true }
-    return false
+  public var outcome: Outcome? {
+    if case .valid(let marker) = markerState { return marker.outcome }
+    return nil
   }
 
-  public var holdsSync: Bool { hasLegacyData && !imported }
+  public var imported: Bool { outcome == .imported }
+
+  public var released: Bool { outcome != nil }
+
+  public var holdsSync: Bool { hasLegacyData && !released }
 
   public func markImported(receipt: Receipt?, settingsApplied: Bool, at time: Date = .now) throws {
     guard settingsApplied else { throw NotReady(reason: "settings") }
     if imported { return }
-    try FileManager.default.createDirectory(at: marker.deletingLastPathComponent(), withIntermediateDirectories: true)
-    let record = Marker(version: Self.markerVersion, importedAt: (time.timeIntervalSince1970 * 1000).rounded(), settingsApplied: true, receipt: receipt)
-    try JSONEncoder().encode(record).write(to: marker, options: .atomic)
+    try write(Marker(version: Self.markerVersion, outcome: .imported, recordedAt: Self.milliseconds(time), settingsApplied: true, receipt: receipt))
     guard imported else { throw NotReady(reason: "marker") }
   }
+
+  public func startFresh(at time: Date = .now) throws {
+    if released { return }
+    try write(Marker(version: Self.markerVersion, outcome: .startedFresh, recordedAt: Self.milliseconds(time), settingsApplied: false, receipt: nil))
+    guard released else { throw NotReady(reason: "marker") }
+  }
+
+  private func write(_ record: Marker) throws {
+    try FileManager.default.createDirectory(at: marker.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try JSONEncoder().encode(record).write(to: marker, options: .atomic)
+  }
+
+  static func milliseconds(_ time: Date) -> Double { (time.timeIntervalSince1970 * 1000).rounded() }
 
   static func presence(of url: URL) -> Presence {
     do {

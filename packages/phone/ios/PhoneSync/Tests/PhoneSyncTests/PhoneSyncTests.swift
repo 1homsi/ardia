@@ -317,7 +317,7 @@ func received(_ key: String, url: String = "https://sent.example/", sentAt: Date
     try gate.markImported(receipt: receipt, settingsApplied: true, at: Date(timeIntervalSince1970: 1_000))
     let first = try Data(contentsOf: gate.marker)
     try gate.markImported(receipt: nil, settingsApplied: true, at: Date(timeIntervalSince1970: 2_000))
-    #expect(gate.markerState == .valid(LegacyImportGate.Marker(version: 1, importedAt: 1_000_000, settingsApplied: true, receipt: receipt)))
+    #expect(gate.markerState == .valid(LegacyImportGate.Marker(version: 2, outcome: .imported, recordedAt: 1_000_000, settingsApplied: true, receipt: receipt)))
     #expect(try Data(contentsOf: gate.marker) == first)
     #expect(gate.imported && !gate.holdsSync)
     #expect(scratch.names("Group") == ["Browser.store"])
@@ -355,12 +355,41 @@ func received(_ key: String, url: String = "https://sent.example/", sentAt: Date
     try FileManager.default.createDirectory(at: scratch.root.appending(path: "Ardia"), withIntermediateDirectories: true)
     try Data("store".utf8).write(to: scratch.root.appending(path: "Ardia/Browser.store"))
     try FileManager.default.createDirectory(at: gate.marker.deletingLastPathComponent(), withIntermediateDirectories: true)
-    for text in ["", "{}", "not json", #"{"importedAt":1}"#, #"{"version":2,"importedAt":1,"settingsApplied":true}"#, #"{"version":1,"importedAt":1,"settingsApplied":false}"#] {
+    for text in [
+      "", "{}", "not json", #"{"recordedAt":1}"#,
+      #"{"version":1,"importedAt":1,"settingsApplied":true}"#,
+      #"{"version":3,"outcome":"imported","recordedAt":1,"settingsApplied":true}"#,
+      #"{"version":2,"outcome":"imported","recordedAt":1,"settingsApplied":false}"#,
+      #"{"version":2,"outcome":"skipped","recordedAt":1,"settingsApplied":true}"#,
+      #"{"version":2,"outcome":"startedFresh","recordedAt":0,"settingsApplied":false}"#,
+    ] {
       try Data(text.utf8).write(to: gate.marker)
       #expect(gate.markerState == .invalid)
       #expect(gate.holdsSync)
     }
     try gate.markImported(receipt: nil, settingsApplied: true)
     #expect(gate.imported && !gate.holdsSync)
+  }
+
+  @Test func startingFreshReleasesSyncButLeavesTheImportForLater() throws {
+    let scratch = try Scratch()
+    let gate = gate(scratch)
+    try FileManager.default.createDirectory(at: scratch.root.appending(path: "Group"), withIntermediateDirectories: true)
+    try Data("store".utf8).write(to: scratch.root.appending(path: "Group/Browser.store"))
+    let source = try source(scratch, gate)
+    try gate.startFresh(at: Date(timeIntervalSince1970: 1_000))
+    #expect(gate.outcome == .startedFresh)
+    #expect(gate.released && !gate.imported && !gate.holdsSync)
+    #expect(try Data(contentsOf: scratch.root.appending(path: "Group/Browser.store")) == Data("store".utf8))
+    try source.beginRead()
+    source.endRead()
+    let fresh = try Data(contentsOf: gate.marker)
+    try gate.startFresh(at: Date(timeIntervalSince1970: 2_000))
+    #expect(try Data(contentsOf: gate.marker) == fresh)
+    let receipt = LegacyImportGate.Receipt(tabs: 2, archive: 0, visits: 1, preferences: 0)
+    try gate.markImported(receipt: receipt, settingsApplied: true, at: Date(timeIntervalSince1970: 3_000))
+    #expect(gate.markerState == .valid(LegacyImportGate.Marker(version: 2, outcome: .imported, recordedAt: 3_000_000, settingsApplied: true, receipt: receipt)))
+    try gate.startFresh()
+    #expect(gate.imported)
   }
 }

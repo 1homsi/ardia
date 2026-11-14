@@ -20,10 +20,14 @@ def appModel = file("${androidApp}/appmodel/src/main/kotlin")
 def codeScanner = file("${androidApp}/settings/src/main/kotlin")
 def speech = file("${androidApp}/search/src/main/kotlin")
 def faviconPixels = file("${androidApp}/design/src/main/kotlin")
+def completionEditor = file("${androidApp}/store/src/main/kotlin")
+def completingFieldTests = file("${androidApp}/search/src/test/kotlin")
 def composeSourcesInThisModule = [
   (appModel): ['SystemLink.kt', 'SystemActions.kt', 'LaunchArguments.kt'],
   (codeScanner): ['SyncCodeReading.kt', 'SyncCodeCamera.kt'],
-  (speech): ['SpeechRecorder.kt', 'DictationTypes.kt', 'ClipboardOffer.kt'],
+  (speech): ['SpeechRecorder.kt', 'DictationTypes.kt', 'ClipboardOffer.kt', 'CompletingFieldState.kt'],
+  (completionEditor): ['InlineCompletionEditor.kt'],
+  (completingFieldTests): ['CompletingFieldStateTest.kt'],
   (faviconPixels): ['FaviconPixels.kt'],
 ]
 def cameraXVersion = '1.6.0'
@@ -166,13 +170,13 @@ android {
   }
   sourceSets {
     main {
-      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel, codeScanner, speech, faviconPixels]
+      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel, codeScanner, speech, faviconPixels, completionEditor]
       assets.srcDirs += "${pageEngine}/assets"
       res.srcDirs += "${pageEngine}/res"
       resources.srcDirs += "${contentBlocking}/resources"
     }
     test {
-      java.srcDirs += "${syncEngine}/test/kotlin"
+      java.srcDirs += ["${syncEngine}/test/kotlin", completingFieldTests]
     }
   }
   packagingOptions {
@@ -221,6 +225,7 @@ dependencies {
   implementation "androidx.camera:camera-view:${cameraXVersion}"
   implementation "com.google.zxing:core:3.5.4"
   implementation project(":ardia-design")
+  implementation "androidx.compose.ui:ui-text:1.7.8"
   compileOnly "com.google.guava:guava:33.3.1-android"
   testImplementation "junit:junit:4.13.2"
   testImplementation "org.json:json:20240303"

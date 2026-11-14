@@ -23,6 +23,8 @@ enum LegacyPaths {
 
   static var settingsReceipt: URL { syncFolder.appending(path: "legacy-settings.json") }
 
+  static var labUnusableFlag: URL { syncFolder.appending(path: "lab-legacy-unusable") }
+
   static var gate: LegacyImportGate {
     LegacyImportGate(legacyStores: [store], marker: syncFolder.appending(path: "legacy-imported.json"), hasLegacyPreferences: { !legacyPreferences().isEmpty })
   }
@@ -39,6 +41,7 @@ enum LegacyFailure: Error, CustomStringConvertible {
   case io
   case settings
   case receipt
+  case labOnly
 
   var description: String {
     switch self {
@@ -48,6 +51,7 @@ enum LegacyFailure: Error, CustomStringConvertible {
     case .io: "io"
     case .settings: "the old settings could not be applied"
     case .receipt: "the import receipt is not valid"
+    case .labOnly: "making the old app's data unusable is a test-build switch"
     }
   }
 }
@@ -84,7 +88,7 @@ enum LegacySettings {
 
   static func applyAtLaunch() {
     let gate = LegacyPaths.gate
-    guard !gate.imported, gate.hasLegacyData, !applied else { return }
+    guard !gate.released, gate.hasLegacyData, !applied else { return }
     do {
       try apply()
     } catch {
@@ -103,7 +107,8 @@ final class LegacySnapshot: @unchecked Sendable {
   func open() throws -> ModelContainer {
     try lock.withLock {
       if let container { return container }
-      let copy = URL.temporaryDirectory.appending(path: "LegacyBrowserStore-\(UUID().uuidString)", directoryHint: .isDirectory)
+      Self.removeLeftoverCopies()
+      let copy = URL.temporaryDirectory.appending(path: "\(Self.copyPrefix)\(UUID().uuidString)", directoryHint: .isDirectory)
       do {
         try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
         try Self.backup(from: LegacyPaths.store, to: copy.appending(path: "Browser.store"))
@@ -122,6 +127,16 @@ final class LegacySnapshot: @unchecked Sendable {
         try? FileManager.default.removeItem(at: copy)
         throw LegacyFailure.schema
       }
+    }
+  }
+
+  static let copyPrefix = "LegacyBrowserStore-"
+
+  static func removeLeftoverCopies() {
+    let manager = FileManager.default
+    guard let names = try? manager.contentsOfDirectory(atPath: URL.temporaryDirectory.path(percentEncoded: false)) else { return }
+    for name in names where name.hasPrefix(copyPrefix) {
+      try? manager.removeItem(at: URL.temporaryDirectory.appending(path: name, directoryHint: .isDirectory))
     }
   }
 
@@ -173,7 +188,14 @@ final class LegacySnapshot: @unchecked Sendable {
 enum LegacyReader {
   static func source() -> [String: Any] {
     let gate = LegacyPaths.gate
-    if gate.imported { return ["kind": "done"] }
+    switch gate.outcome {
+    case .imported: return ["kind": "done", "outcome": "imported"]
+    case .startedFresh: return ["kind": "done", "outcome": "startedFresh"]
+    case nil: break
+    }
+    if PhoneTestBuild.isOn, FileManager.default.fileExists(atPath: LegacyPaths.labUnusableFlag.path(percentEncoded: false)) {
+      return ["kind": "unusable", "reason": "io"]
+    }
     let store = gate.storePresence
     if store == .unreadable { return ["kind": "unusable", "reason": "io"] }
     if store == .absent {
@@ -209,7 +231,7 @@ enum LegacyReader {
   }
 
   static func visits(after: Int, limit: Int) throws -> [String: Any] {
-    let size = max(1, min(limit, 2_000))
+    let size = max(1, min(limit, 5_000))
     let start = max(0, after)
     guard LegacyPaths.gate.storePresence == .present else { return ["visits": [Any](), "next": NSNull()] }
     let context = ModelContext(try LegacySnapshot.shared.open())
@@ -223,34 +245,6 @@ enum LegacyReader {
       return fields
     }
     return ["visits": kept, "next": page.count > size ? start + size : NSNull()]
-  }
-
-  static func oldRead() throws -> [String: Any]? {
-    let gate = LegacyPaths.gate
-    guard gate.hasLegacyData else { return nil }
-    var result = try read()
-    result["version"] = 1
-    result["preferences"] = LegacyPaths.legacyPreferences().compactMapValues(jsonValue)
-    if case .absent = gate.storePresence {
-      result["visits"] = [Any]()
-      result["selectedTabId"] = nil
-      return result
-    }
-    var visits: [Any] = []
-    var after = 0
-    while true {
-      let page = try self.visits(after: after, limit: 2_000)
-      visits += page["visits"] as? [Any] ?? []
-      guard let next = page["next"] as? Int else { break }
-      after = next
-    }
-    result["visits"] = visits.map { item -> Any in
-      guard var fields = item as? [String: Any] else { return item }
-      fields["id"] = nil
-      return fields
-    }
-    if result["selectedTabId"] is NSNull { result["selectedTabId"] = nil }
-    return result
   }
 
   static func preferenceStrings() -> [String: String] {
@@ -320,19 +314,6 @@ enum LegacyReader {
 
   private static func milliseconds(_ date: Date) -> Double { (date.timeIntervalSince1970 * 1000).rounded() }
 
-  static func jsonValue(_ value: Any) -> Any? {
-    switch value {
-    case let date as Date: return milliseconds(date)
-    case let data as Data:
-      if let decoded = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) { return decoded }
-      return data.base64EncodedString()
-    case let array as [Any]: return array.compactMap(jsonValue)
-    case let dictionary as [String: Any]: return dictionary.compactMapValues(jsonValue)
-    case is String, is NSNumber: return value
-    default: return nil
-    }
-  }
-
   static func receipt(_ value: [String: Any]?) throws -> LegacyImportGate.Receipt? {
     guard let value else { return nil }
     guard (value["version"] as? NSNumber)?.intValue == 1,
@@ -348,13 +329,32 @@ enum LegacyReader {
     try LegacyPaths.gate.markImported(receipt: receipt, settingsApplied: LegacySettings.applied)
     LegacySnapshot.shared.close()
   }
+
+  static func setLabUnusable(_ on: Bool) throws {
+    guard PhoneTestBuild.isOn else { throw LegacyFailure.labOnly }
+    if on {
+      try FileManager.default.createDirectory(at: LegacyPaths.syncFolder, withIntermediateDirectories: true)
+      try Data("io".utf8).write(to: LegacyPaths.labUnusableFlag, options: .atomic)
+    } else if FileManager.default.fileExists(atPath: LegacyPaths.labUnusableFlag.path(percentEncoded: false)) {
+      try FileManager.default.removeItem(at: LegacyPaths.labUnusableFlag)
+    }
+  }
+
+  static func startFresh() throws {
+    try LegacyPaths.gate.startFresh()
+    LegacySnapshot.shared.close()
+  }
 }
 
 public final class LegacyModule: Module {
+  static func releaseSync() {
+    DispatchQueue.main.async { MainActor.assumeIsolated { PhoneSyncHost.shared.legacyImportFinished() } }
+  }
+
   public func definition() -> ModuleDefinition {
     Name("ArdiaPhoneLegacy")
 
-    AsyncFunction("sourceState") { () -> [String: Any] in
+    AsyncFunction("source") { () -> [String: Any] in
       LegacyReader.source()
     }
 
@@ -372,24 +372,16 @@ public final class LegacyModule: Module {
 
     AsyncFunction("markImportedWith") { (receipt: [String: Any]) throws in
       try LegacyReader.markImported(try LegacyReader.receipt(receipt))
-      DispatchQueue.main.async { MainActor.assumeIsolated { PhoneSyncHost.shared.legacyImportFinished() } }
+      Self.releaseSync()
     }
 
-    AsyncFunction("available") { () -> Bool in
-      LegacyPaths.gate.hasLegacyData
+    AsyncFunction("startFresh") { () throws in
+      try LegacyReader.startFresh()
+      Self.releaseSync()
     }
 
-    AsyncFunction("read") { () throws -> [String: Any]? in
-      try LegacyReader.oldRead()
-    }
-
-    AsyncFunction("imported") { () -> Bool in
-      LegacyPaths.gate.imported
-    }
-
-    AsyncFunction("markImported") { () throws in
-      try LegacyReader.markImported(nil)
-      DispatchQueue.main.async { MainActor.assumeIsolated { PhoneSyncHost.shared.legacyImportFinished() } }
+    Function("labSetUnusable") { (on: Bool) throws in
+      try LegacyReader.setLabUnusable(on)
     }
   }
 }
