@@ -143,6 +143,10 @@ void WatchEngineEvents() {
   ac_engine_set_event_sink(&OnEngineEvent, nullptr);
 }
 
+bool EventSinkAttached() {
+  return g_sink != nullptr;
+}
+
 void Emit(std::string_view topic, base::DictValue payload) {
   if (!g_sink) {
     return;

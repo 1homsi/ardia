@@ -485,11 +485,15 @@ is plain Chromium.
   (`ardia/win/context_menu.cc`) leaves out what Windows can't do: Open link in split view, Cast, reading mode, listen
   to this page, the QR code, send to your devices, Lens, and opening a link as another Chromium profile; Save as
   shows no Ctrl+S, which is Ardia's Hide Tabs on Windows. Its search item still names Chromium's default engine.
-- A pop-up a page opens (`window.open` with a size, with or without an opener) never becomes a Chromium pop-up
-  window (a blocked pop-up the user lets through opens as a tab, as before): `Navigate()`
-  (`chromium-win-hosted-popups-and-menus.patch`) asks the host, which keeps it as a foreground tab of the opener's hosted window and sends `tab.opened` with `window: true` and
-  `popup: {x, y, width, height}` (only what the page asked for). `host.info` counts Chromium pop-up windows in
-  `popupBrowsers`, which the self-check expects to stay 0.
+- A tab or pop-up a page opens (`target=_blank`, `window.open`, with a size or not) never becomes a Chromium pop-up
+  window and never shows in its opener's place: `Navigate()` (`chromium-win-hosted-popups-and-menus.patch`) asks the
+  host, which inserts it as a background tab of the opener's hosted window (the opener stays the active, visible tab)
+  and offers it to the app with `tab.opened` (`foreground` as the page asked, and for a pop-up `window: true` and
+  `popup: {x, y, width, height}`, only what the page asked for). A blocked pop-up the user lets through opens as a tab,
+  as before. The host tracks every offer until the app adopts or discards it; offers whose app window closes are
+  closed with it, and an offer made while the app's event sink is detached (its JS reloading), which the app never
+  hears of, is closed after 30 s. An offer the app holds on purpose (a background tab not shown yet) has no deadline.
+  `host.info` counts Chromium pop-up windows in `popupBrowsers`, which the self-check expects to stay 0.
 - CI takes its engine from a GitHub release: `scripts/windows/engine/prebuilt.json` names the release and each
   CPU's zip with its SHA-256, `fetch-engine.ps1` downloads and checks it, and the Windows workflow assembles the app
   with it, launches it with the self-check (which then loads a page through the engine) and runs the tour's pages

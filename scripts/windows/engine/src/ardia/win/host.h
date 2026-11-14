@@ -18,6 +18,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "ui/base/window_open_disposition.h"
 #include "ui/events/event_handler.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -62,9 +63,10 @@ class Host : public TabStripModelObserver,
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);
   void ParentActivated(HWND parent);
-  bool PopupAsTab(BrowserWindowInterface* browser,
-                  const blink::mojom::WindowFeatures& features);
-  void PopupInserted();
+  bool OpenAsOffer(BrowserWindowInterface* browser,
+                   WindowOpenDisposition disposition,
+                   const blink::mojom::WindowFeatures& features);
+  void OfferInserted();
 
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
@@ -126,6 +128,9 @@ class Host : public TabStripModelObserver,
   void ApplyWantedKeyboard(HWND parent);
   std::string KeyboardPage() const;
   void CloseSparePages();
+  void NoteOffer(content::WebContents* contents, HWND parent);
+  void ExpireOffer(int id);
+  void CloseOffered(content::WebContents* contents);
   void Place(HWND window, const Hosted& hosted);
   void WatchParent(HWND parent);
   void FocusFor(ui::Event* event);
@@ -143,8 +148,17 @@ class Host : public TabStripModelObserver,
 
   std::map<Browser*, Hosted> hosted_;
   std::set<Browser*> popup_browsers_;
-  raw_ptr<Browser> popup_opening_in_ = nullptr;
-  base::DictValue popup_bounds_;
+  struct Opening {
+    raw_ptr<Browser> browser = nullptr;
+    bool popup = false;
+    base::DictValue bounds;
+  };
+  struct Offer {
+    base::WeakPtr<content::WebContents> contents;
+    HWND parent = nullptr;
+  };
+  Opening opening_;
+  std::map<int, Offer> offers_;
   std::set<Browser*> foreign_;
   std::map<std::string, raw_ptr<content::WebContents>> tabs_;
   std::map<Profile*, std::string> profile_names_;

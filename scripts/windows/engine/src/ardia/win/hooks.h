@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "base/win/windows_types.h"
+#include "ui/base/window_open_disposition.h"
 
 namespace base {
 class CommandLine;
@@ -51,11 +52,12 @@ extern bool (*g_ardia_win_external_protocol_dialog)(
     const std::optional<url::Origin>& initiating_origin,
     content::WeakDocumentPtr initiator_document);
 
-extern bool (*g_ardia_win_popup_as_tab)(
+extern bool (*g_ardia_win_open_as_offer)(
     BrowserWindowInterface* browser,
+    WindowOpenDisposition disposition,
     const blink::mojom::WindowFeatures& features);
 
-extern void (*g_ardia_win_popup_inserted)();
+extern void (*g_ardia_win_offer_inserted)();
 
 extern std::unique_ptr<RenderViewContextMenuBase> (*g_ardia_win_context_menu)(
     content::RenderFrameHost& render_frame_host,
