@@ -57,8 +57,14 @@ export function answerExternalAppsWith(answers: ExternalAppAnswers) {
   externalAppAnswers = answers;
 }
 
+export function externalAppDropped(key: string, id: string) {
+  const page = pages.get(key);
+  if (!page) return;
+  quietly(page.ready.then((opened) => (opened ? hostCall("tab.call", { key, method: "externalAppForget", id }) : null)));
+}
+
 export function externalAppStillAsked(key: string, id: string): Promise<boolean> {
-  return callPage<unknown>(key, "externalAppAlive", { id }).then((alive) => alive === true);
+  return callPage<{ alive?: unknown }>(key, "externalAppAlive", { id }).then((answer) => answer?.alive === true);
 }
 
 function askExternalApp(page: Page, data: unknown) {
@@ -235,7 +241,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
     page.profile = from.profile ?? "";
     page.show = null;
     const moving = page;
-    page.ready = page.ready.then(() => begin(moving, from));
+    page.ready = page.ready.then((opened) => (moving.closed ? opened : begin(moving, from)));
   }
   const mounted = page;
   mounted.parked = false;
