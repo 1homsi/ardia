@@ -11,7 +11,7 @@ import { ArchiveTile } from "./ArchiveTile";
 
 const INTERVALS = Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[];
 
-export function ArchiveIntervalCard({ bottom }: { bottom: number }) {
+export function ArchiveIntervalCard({ edgeY }: { edgeY: number }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const interval = usePreferences((p) => p.autoArchiveInterval);
@@ -23,7 +23,8 @@ export function ArchiveIntervalCard({ bottom }: { bottom: number }) {
       entering={reduceMotion ? FadeIn.duration(tabsMotion.fade) : cardIn}
       exiting={reduceMotion ? FadeOut.duration(tabsMotion.fade) : cardOut}
       pointerEvents="box-none"
-      style={[styles.place, { bottom }]}
+      testID="archiveCardPlace"
+      style={[styles.place, { height: edgeY }]}
     >
       <View
         accessibilityActions={[{ name: "dismiss", label: "Dismiss" }]}
@@ -78,7 +79,7 @@ const cardOut = () => {
 };
 
 const styles = StyleSheet.create({
-  place: { position: "absolute", left: space.l, right: space.l, alignItems: "center" },
+  place: { position: "absolute", top: 0, left: space.l, right: space.l, alignItems: "center", justifyContent: "flex-end" },
   card: {
     width: "100%",
     maxWidth: archiveCardLayout.maxWidth,

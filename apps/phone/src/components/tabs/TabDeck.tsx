@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   deckCardAt,
   deckGeometry,
-  archiveCardBottom,
+  archiveCardEdgeY,
   deckScrollActionTarget,
   deckLeading,
   deckIsTap,
@@ -69,6 +69,7 @@ export function TabDeck() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom), [width, height, insets.top, insets.bottom]);
+  const [deckHeight, setDeckHeight] = useState<number | null>(null);
   const live = useDeckOrder();
   const incognito = useIncognito();
   const privateCount = usePrivateCount();
@@ -390,7 +391,7 @@ export function TabDeck() {
     });
 
   return (
-    <View style={StyleSheet.absoluteFill}>
+    <View style={StyleSheet.absoluteFill} onLayout={(event) => setDeckHeight(event.nativeEvent.layout.height)}>
       <Animated.View style={[StyleSheet.absoluteFill, backdropStyle]} pointerEvents="none">
         <FrostSource name={DECK_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
           <DeckLookBackdrop />
@@ -433,7 +434,7 @@ export function TabDeck() {
           </GestureDetector>
         </ScrollActions>
         {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} /> : null}
-        {archiveCard && phase.kind === "settled" ? <ArchiveIntervalCard bottom={archiveCardBottom(g, archiveCardLayout.aboveBarCenter)} /> : null}
+        {archiveCard && phase.kind === "settled" ? <ArchiveIntervalCard edgeY={archiveCardEdgeY(g, archiveCardLayout.aboveBarCenter)} /> : null}
         {privateCount > 0 ? (
           <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"}>
             <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} />
@@ -463,7 +464,7 @@ export function TabDeck() {
       {menu === "plus" ? (
         <Menu
           items={plusItems}
-          place={{ bottom: height - g.barCenterY + tabsLayout.barPlus.height, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
+          place={{ bottom: (deckHeight ?? height) - g.barCenterY + tabsLayout.barPlus.height, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
           onDismiss={() => setMenu(null)}
         />
       ) : null}

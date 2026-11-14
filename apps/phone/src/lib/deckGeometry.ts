@@ -202,7 +202,7 @@ export function deckSettleVelocity(g: DeckGeometry, scroll: number, target: numb
   return Math.min(Math.max(-velocityX / g.spacing / distance, -30), 30) * distance;
 }
 
-export const archiveCardBottom = (g: DeckGeometry, aboveBarCenter: number) => g.height - g.barCenterY + aboveBarCenter;
+export const archiveCardEdgeY = (g: DeckGeometry, aboveBarCenter: number) => g.barCenterY - aboveBarCenter;
 
 export function deckScrollActionTarget(focused: number, count: number, direction: "forward" | "backward"): number | null {
   const target = focused + (direction === "forward" ? 1 : -1);

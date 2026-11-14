@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  archiveCardBottom,
+  archiveCardEdgeY,
   deckScrollActionTarget,
   deckBarCenterFromBottom,
   deckCardAt,
@@ -147,11 +147,11 @@ test("each card's accessibility frame is the strip of it that shows, so activati
   assert.notEqual(deckCardAt(phone, 4, 1, covered, y), 0, "the whole card's centre lands on the card over it");
 });
 
-test("the Archive card hangs from a fixed gap above the deck bar, so a card that wraps to two lines grows upward", () => {
+test("the Archive card's bottom edge hangs at a fixed gap above the deck bar, measured from the top as the bar is, so a navigation bar the window leaves out can't push it onto the buttons", () => {
   const g = deckGeometry(393, 873, 40, 24);
-  const bottom = archiveCardBottom(g, 28);
-  assert.equal(g.height - bottom, g.barCenterY - 28);
-  assert.ok(g.height - bottom < g.barCenterY - 40 / 2);
+  const edge = archiveCardEdgeY(g, 28);
+  assert.equal(edge, g.barCenterY - 28);
+  assert.ok(edge < g.barCenterY - 40 / 2);
 });
 
 test("a screen reader's scroll action moves the deck one card, and the end it can't move past offers nothing", () => {
