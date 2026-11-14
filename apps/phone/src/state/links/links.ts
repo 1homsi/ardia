@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { addLinkListener, initialLink, type SystemLink } from "../../platform/links";
 import { openPage, openSpaces, openTab, reopenArchived, searchFor, showDeck, useBrowse } from "../browse/store";
-import { readArchivedTab } from "../store/browserDatabase";
+import { readArchivedTab, readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
 import { useOnboarding } from "../onboarding/store";
 import { closeFind, closePageMenu, closeReader } from "../page/actions";
@@ -16,7 +16,8 @@ import { findTab } from "../tabs/tabsState";
 import { serialQueue } from "../../lib/serialQueue";
 import { countUsage } from "../telemetry/telemetry";
 import { heldLinks, holdLink, takeHeldLinks } from "./heldLinks";
-import { ALL_COVERS, coversToClose, heldAfterOnboarding, linkAction, type Cover, type IncomingLink } from "./linkRules";
+import { useBoot } from "../app/bootState";
+import { ALL_COVERS, coversToClose, heldAfterOnboarding, keptLinks, linkAction, restoredLinks, type Cover, type IncomingLink } from "./linkRules";
 
 let started = false;
 
@@ -101,16 +102,47 @@ const LINK_DEADLINE_MS = 8_000;
 
 const inOrder = serialQueue(LINK_DEADLINE_MS, () => countUsage("links_given_up"));
 
-const take = (link: SystemLink) => void inOrder((expired) => run(link, expired));
+const take = (link: IncomingLink) => void inOrder((expired) => run(link, expired));
 
-let waiting: SystemLink[] | null = null;
+let waiting: IncomingLink[] | null = null;
+
+const KEPT_KEY = "links.kept";
+
+const mayKeep = () => {
+  const boot = useBoot.getState();
+  return !boot.ready && !boot.busy && boot.failures > 0;
+};
+
+function quietlyOnDatabase(work: () => void) {
+  try {
+    work();
+  } catch {
+    console.log("ardia-links kept links unavailable");
+  }
+}
+
+export function keepWaitingLinks() {
+  const held = waiting;
+  if (!held?.length || !mayKeep()) return;
+  quietlyOnDatabase(() => writePreference(browserDatabase(), KEPT_KEY, keptLinks(held)));
+}
 let listening = false;
 
 export function listenForLinks() {
   if (listening) return;
   listening = true;
   waiting = [];
-  addLinkListener((link) => (waiting ? waiting.push(link) : take(link)));
+  quietlyOnDatabase(() => {
+    waiting = [...restoredLinks(readPreferences(browserDatabase())[KEPT_KEY]), ...(waiting ?? [])];
+  });
+  addLinkListener((link: SystemLink) => {
+    if (!waiting) {
+      take(link);
+      return;
+    }
+    waiting.push(link);
+    keepWaitingLinks();
+  });
 }
 
 export function startLinks() {
@@ -121,6 +153,7 @@ export function startLinks() {
     if (link) take(link);
     const queued = waiting ?? [];
     waiting = null;
+    if (queued.length) quietlyOnDatabase(() => writePreference(browserDatabase(), KEPT_KEY, null));
     for (const later of queued) take(later);
   });
   useOnboarding.subscribe((state) => {

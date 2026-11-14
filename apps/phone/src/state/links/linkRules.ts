@@ -81,3 +81,42 @@ export function heldAfterOnboarding(held: readonly IncomingLink[]): IncomingLink
 }
 
 export const opensLaunchTray = (autoOpensKeyboard: boolean, held: readonly IncomingLink[]) => autoOpensKeyboard && heldAfterOnboarding(held).length === 0;
+
+export const KEPT_LINKS_LIMIT = 10;
+
+const isText = (value: unknown): value is string => typeof value === "string";
+
+function keptLink(value: unknown): IncomingLink | null {
+  if (typeof value !== "object" || value === null) return null;
+  const link = value as Record<string, unknown>;
+  const source = isText(link.source) ? { source: link.source } : {};
+  switch (link.kind) {
+    case "open":
+      return isText(link.url) ? { kind: "open", url: link.url, ...source } : null;
+    case "search":
+      return link.query === null || isText(link.query) ? ({ kind: "search", query: link.query, ...source } as IncomingLink) : null;
+    case "tab":
+      return isText(link.id) ? ({ kind: "tab", id: link.id, ...source } as IncomingLink) : null;
+    case "voiceSearch":
+    case "incognito":
+    case "macTabs":
+    case "inbox":
+      return { kind: link.kind, ...source } as IncomingLink;
+    default:
+      return null;
+  }
+}
+
+export const keptLinks = (links: readonly IncomingLink[]) => JSON.stringify(links.slice(-KEPT_LINKS_LIMIT));
+
+export function restoredLinks(raw: string | undefined): IncomingLink[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((value) => keptLink(value) ?? []).slice(-KEPT_LINKS_LIMIT);
+}

@@ -1,7 +1,7 @@
 import "../../platform/copy";
 import type { ImportOutcome } from "../legacy/importer";
 import { importOldApp, startWithoutOldApp } from "../legacy/upgrade";
-import { listenForLinks } from "../links/links";
+import { keepWaitingLinks, listenForLinks } from "../links/links";
 import { useBoot } from "./bootState";
 import { launchArguments } from "./launchFlags";
 
@@ -21,7 +21,10 @@ async function attempt() {
   useBoot.setState({ busy: true });
   const result = await importOldApp();
   if (result.kind === "ready") finish(result.outcome);
-  else useBoot.setState((state) => ({ failures: state.failures + 1, busy: false }));
+  else {
+    useBoot.setState((state) => ({ failures: state.failures + 1, busy: false }));
+    keepWaitingLinks();
+  }
 }
 
 function finish(outcome: ImportOutcome) {

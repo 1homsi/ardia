@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ALL_COVERS, coversToClose, heldAfterOnboarding, linkAction, opensLaunchTray, type LinkState } from "./linkRules.ts";
+import { ALL_COVERS, coversToClose, heldAfterOnboarding, keptLinks, linkAction, opensLaunchTray, restoredLinks, type LinkState } from "./linkRules.ts";
 
 const kinds: Record<string, "open" | "private" | "archived"> = { t1: "open", p1: "private", a1: "archived" };
 const browsing: LinkState = { onboarding: false, syncEnabled: true, canSearchByVoice: false, sharesAsShare: false, tabKind: (id) => kinds[id] ?? null };
@@ -87,4 +87,24 @@ test("a voice link keeps the tray under the voice screen, so Cancel lands on it"
   const covers = coversToClose(linkAction({ kind: "voiceSearch" }, { ...browsing, canSearchByVoice: true }));
   assert.ok(!covers.includes("tray") && !covers.includes("voice"));
   assert.deepEqual(coversToClose({ kind: "searchNow", query: "otters" }), ALL_COVERS);
+});
+
+test("links kept across launches come back as they were, at most ten, newest kept, and anything malformed is dropped", () => {
+  const kept = [
+    { kind: "open", url: "https://example.com/held", source: "web" },
+    { kind: "search", query: "otters", source: "system" },
+    { kind: "tab", id: "t1", source: "system" },
+    { kind: "open", url: 42 },
+    { kind: "launchMissiles" },
+    "nope",
+  ];
+  assert.deepEqual(restoredLinks(JSON.stringify(kept)), [
+    { kind: "open", url: "https://example.com/held", source: "web" },
+    { kind: "search", query: "otters", source: "system" },
+    { kind: "tab", id: "t1", source: "system" },
+  ]);
+  assert.deepEqual(restoredLinks(undefined), []);
+  assert.deepEqual(restoredLinks("{"), []);
+  const many = Array.from({ length: 14 }, (_, i) => ({ kind: "open", url: `https://example.com/${i}`, source: "web" }));
+  assert.deepEqual(restoredLinks(keptLinks(many as never)).map((link) => (link as { url: string }).url), many.slice(4).map((link) => link.url));
 });
