@@ -43,7 +43,7 @@ function announce(opened: BrowserTab[]) {
   }
   const ids = opened.map((tab) => tab.id);
   const sender = receivedSender(opened.map((tab) => tab.receivedFromDevice));
-  showToast(receivedToast(sender, ids.length), "laptop", TOAST_LONG_DURATION_MS, () => {
+  showToast(receivedToast(sender, ids.length), /iphone|android/i.test(sender) ? "iphone" : "laptop", TOAST_LONG_DURATION_MS, () => {
     if (ids.length === 1 && findTab(currentTabs(), ids[0]!)) openTab(ids[0]!);
     else void showDeck();
   });

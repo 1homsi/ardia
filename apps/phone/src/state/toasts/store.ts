@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ToastIcon = "checkmark" | "warning" | "download" | "blocking" | "link" | "laptop" | "star" | "sent" | "calculation";
+export type ToastIcon = "checkmark" | "warning" | "download" | "blocking" | "link" | "laptop" | "star" | "sent" | "calculation" | "iphone";
 
 export type Toast = { id: number; message: string; icon: ToastIcon; durationMs: number; onTap: (() => void) | null };
 
@@ -23,15 +23,40 @@ export function watchDeckBar(measure: (() => void) | null) {
 let next = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
+export const TOAST_RELEASE_MS = 1200;
+
+let held = false;
+
+function scheduleDismissal(id: number, durationMs: number) {
+  if (timer) clearTimeout(timer);
+  timer = null;
+  if (held) return;
+  timer = setTimeout(() => {
+    if (useToasts.getState().toast?.id === id) useToasts.setState({ toast: null });
+  }, durationMs);
+}
+
 export function showToast(message: string, icon: ToastIcon, durationMs = TOAST_DURATION_MS, onTap: (() => void) | null = null) {
+  const showing = useToasts.getState().toast;
+  if (showing && showing.message === message) {
+    scheduleDismissal(showing.id, durationMs);
+    return;
+  }
   next += 1;
   const id = next;
   measureDeckBar?.();
   useToasts.setState({ toast: { id, message, icon, durationMs, onTap } });
-  if (timer) clearTimeout(timer);
-  timer = setTimeout(() => {
-    if (useToasts.getState().toast?.id === id) useToasts.setState({ toast: null });
-  }, durationMs);
+  scheduleDismissal(id, durationMs);
+}
+
+export function holdToast(holding: boolean) {
+  const showing = useToasts.getState().toast;
+  if (!showing) return;
+  held = holding;
+  if (holding) {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  } else scheduleDismissal(showing.id, TOAST_RELEASE_MS);
 }
 
 export function tapToast() {
@@ -40,4 +65,9 @@ export function tapToast() {
   toast?.onTap?.();
 }
 
-export const dismissToast = () => useToasts.setState({ toast: null });
+export const dismissToast = () => {
+  held = false;
+  if (timer) clearTimeout(timer);
+  timer = null;
+  useToasts.setState({ toast: null });
+};
