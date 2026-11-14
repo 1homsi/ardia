@@ -631,7 +631,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Profile colour: the swatch ring doesn't animate to the picked colour. `ColorChoice.kt`. Small.
 - Filter Lists: no pull to refresh; a downloading list's switch is disabled with no spinner; status and facts lines swap without a fade; the top bar repeats the hero title (Compose shows it once the hero scrolls away). `BlockingPages.kt` `FilterListsPage`/`FilterListRow`, `FilterListsPage.swift`. Small.
 - Add a List: a centred dialog with Add always enabled and one generic error; both apps use a bottom sheet whose field takes focus, adds on Done, offers Paste while empty, validates the address with its own message and guards a double add. `BlockingPages.kt` `AddFilterListSheet`, `FilterLists.kt`, `AddFilterListSheet.swift`. Small.
 - Filter list detail: Last Updated is relative (both apps: date and time), a failure is only footer text, Try Again stays enabled while updating, the source can't be tapped, and the list's website opens outside the app (Compose: an Ardia tab). `FilterListDetailPage` in `BlockingPages.kt`, `FilterListDetailPage.swift`. Small.

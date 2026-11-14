@@ -48,6 +48,8 @@ export const trayMotion = {
 
 export const toastMotion = { snappy: spring(0.3, 0.86) } as const;
 
+export const settingsMotion = { swatchRing: spring(0.3, 0.86) } as const;
+
 export const tabsCurve = { easeOut: WorkletEasing.bezier(0, 0, 0.58, 1), easeInOut: WorkletEasing.bezier(0.42, 0, 0.58, 1) } as const;
 
 export const springs = {

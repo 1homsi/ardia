@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut, LayoutAnimationConfig } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
@@ -12,7 +12,7 @@ import { appVersion, exportOpenTabs, setAppLinks, setArchiveInterval, setAutoOpe
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { capsule, duration, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
+import { capsule, duration, settingsMotion, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
@@ -175,26 +175,34 @@ function ColorRow() {
         <Text style={[font.body, { color: theme.label }]}>Color</Text>
       </View>
       <View style={styles.swatches} accessibilityRole="radiogroup">
-        {COLORS.map((color) => {
-          const selected = color === look.preset;
-          const swatch = PROFILE_COLORS[color].swatch;
-          return (
-            <Pressable
-              key={color}
-              accessibilityRole="radio"
-              accessibilityLabel={PROFILE_COLORS[color].name}
-              accessibilityState={{ selected }}
-              onPress={() => setColorChoice(color)}
-              style={styles.swatchHit}
-            >
-              <View style={[styles.ring, { borderColor: selected ? swatch : theme.groupFill }]}>
-                <View style={[styles.swatch, { backgroundColor: swatch }]} />
-              </View>
-            </Pressable>
-          );
-        })}
+        {COLORS.map((color) => (
+          <Swatch key={color} color={color} selected={color === look.preset} />
+        ))}
       </View>
     </View>
+  );
+}
+
+function Swatch({ color, selected }: { color: ProfileColor; selected: boolean }) {
+  const swatch = PROFILE_COLORS[color].swatch;
+  const ring = useSharedValue(selected ? 1 : 0);
+  useEffect(() => {
+    ring.value = withSpring(selected ? 1 : 0, settingsMotion.swatchRing);
+  }, [selected, ring]);
+  const ringStyle = useAnimatedStyle(() => ({ opacity: ring.value }));
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={PROFILE_COLORS[color].name}
+      accessibilityState={{ selected }}
+      onPress={() => setColorChoice(color)}
+      style={styles.swatchHit}
+    >
+      <View style={styles.ringBox}>
+        <Animated.View testID="swatchRing" style={[StyleSheet.absoluteFill, styles.ring, { borderColor: swatch }, ringStyle]} />
+        <View style={[styles.swatch, { backgroundColor: swatch }]} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -217,6 +225,7 @@ const styles = StyleSheet.create({
   colorLabel: { flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap },
   swatches: { flexDirection: "row" },
   swatchHit: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  ring: { width: RING, height: RING, borderRadius: capsule(RING), borderWidth: settingsLayout.swatchRing, alignItems: "center", justifyContent: "center" },
+  ringBox: { width: RING, height: RING, alignItems: "center", justifyContent: "center" },
+  ring: { borderRadius: capsule(RING), borderWidth: settingsLayout.swatchRing },
   swatch: { width: settingsLayout.swatch, height: settingsLayout.swatch, borderRadius: capsule(settingsLayout.swatch) },
 });
