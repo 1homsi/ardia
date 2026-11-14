@@ -57,7 +57,7 @@ final class PhonePages {
       self.send(pageID, "page.closeRequested", [:])
     }
     engine.onPopup = { [weak self] opener, popup in self?.popupOpened(from: opener, popup: popup) }
-    engine.onOpenLink = { [weak self] url, opener, _ in self?.linkOpened(url, from: opener) }
+    engine.onOpenLink = { [weak self] url, opener, inBackground in self?.linkOpened(url, from: opener, inBackground: inBackground) }
     engine.onPrivateBrowsingEnded = { [weak self] in self?.privateBrowsingEnded() }
     engine.downloads.onStart = { [weak self] start, webView in self?.downloadStarted(start, in: webView) }
     engine.downloads.onProgress = { [weak self] list in
@@ -266,12 +266,12 @@ final class PhonePages {
     send(openerID, "page.popup", ["popupId": popupID, "url": popup.url?.absoluteString, "isUserGesture": true, "isPrivate": popup.isPrivate])
   }
 
-  private func linkOpened(_ url: URL, from opener: UUID) {
+  private func linkOpened(_ url: URL, from opener: UUID, inBackground: Bool) {
     guard let openerID = pageIDs[opener] else { return }
     let popupID = UUID().uuidString
     let isPrivate = engine.tabs.isPrivate(opener)
     popups[popupID] = PendingPopup(tabID: nil, url: url, openerID: openerID, isPrivate: isPrivate)
-    send(openerID, "page.popup", ["popupId": popupID, "url": url.absoluteString, "isUserGesture": true, "isPrivate": isPrivate])
+    send(openerID, "page.popup", ["popupId": popupID, "url": url.absoluteString, "isUserGesture": true, "isPrivate": isPrivate, "inBackground": inBackground])
   }
 
   private func downloadStarted(_ start: DownloadStart, in webView: WKWebView?) {
