@@ -76,6 +76,8 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
 
     protected val lookOrNull: ProfileLook? get() = LookRules.lookOrNull(color, themeColors, darkThemeColors)
 
+    protected val lookIsOff: Boolean get() = LookSwitch.isOff(context)
+
     init {
         setWillNotDraw(false)
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -155,6 +157,10 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck first frame ${width}x$height ${if (dark) "dark" else "light"} ${if (reduceMotion) "still" else "moving"}")
         }
         frames += 1
+        if (lookIsOff) {
+            canvas.drawColor(LookSwitch.flatDeck(look, dark).toArgb())
+            return
+        }
         val mesh = LookPaint.mesh(look, dark)
         source.set(0, 0, mesh.width, mesh.height)
         target.set(0, 0, width + 1, height + 1)
@@ -197,6 +203,10 @@ class ProfileBackdropView(context: Context, appContext: AppContext) : LookView(c
         val dark = isDark
         val w = width.toFloat()
         val h = height.toFloat()
+        if (lookIsOff) {
+            canvas.drawColor(LookSwitch.flatBackdrop(look, dark, themed).toArgb())
+            return
+        }
         if (!fadesOut) {
             drawBackdrop(canvas, dark, w, h)
             return
@@ -237,6 +247,7 @@ class FilmGrainView(context: Context, appContext: AppContext) : LookView(context
 
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
+        if (lookIsOff) return
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), LookPaint.grain(density, opacity))
     }
 }
@@ -306,7 +317,7 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
 
     override fun dispatchDraw(canvas: Canvas) {
         val recorder = node
-        if (recorder == null || !canvas.isHardwareAccelerated || width == 0 || height == 0) {
+        if (recorder == null || !canvas.isHardwareAccelerated || width == 0 || height == 0 || LookSwitch.isOff(context)) {
             super.dispatchDraw(canvas)
             return
         }
@@ -344,7 +355,9 @@ internal object FrostPage {
         insideSource: Boolean,
         holdsPage: Boolean,
         pageMode: FrostSources.PageMode,
+        lookOff: Boolean = false,
     ): Choice = when {
+        lookOff -> Choice(Path.Fallback, "look turned off in the lab")
         !blurSupported -> Choice(Path.Fallback, "below Android 12")
         reduceTransparency -> Choice(Path.Fallback, "reduce transparency")
         !hasSource -> Choice(Path.Fallback, "no source")
@@ -420,6 +433,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             insideSource = from != null && isInside(from),
             holdsPage = from?.holdsPage == true,
             pageMode = FrostSources.pageMode,
+            lookOff = lookIsOff,
         )
         report(choice)
         if (choice.path == FrostPage.Path.Live && from != null) {

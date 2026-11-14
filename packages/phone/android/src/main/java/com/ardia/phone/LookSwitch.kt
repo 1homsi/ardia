@@ -1,0 +1,32 @@
+package com.ardia.phone
+
+import android.content.Context
+import androidx.compose.ui.graphics.Color
+import com.ardia.design.ProfileLook
+
+object LookSwitch {
+    private const val PREFERENCES = "ardia-lab"
+    private const val KEY_OFF = "look.off"
+
+    @Volatile
+    private var known: Boolean? = null
+
+    fun isOff(context: Context, lab: Boolean = PhoneLab.isOn): Boolean {
+        if (!lab) return false
+        return known ?: (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getBoolean(KEY_OFF, false).also { known = it }
+    }
+
+    fun set(context: Context, off: Boolean, lab: Boolean = PhoneLab.isOn) {
+        check(lab) { "turning the look off is a lab switch" }
+        (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean(KEY_OFF, off).commit()
+        known = off
+    }
+
+    fun flatDeck(look: ProfileLook, dark: Boolean): Color = look.deckBase(dark).firstOrNull() ?: if (dark) Color.Black else Color.White
+
+    fun flatBackdrop(look: ProfileLook, dark: Boolean, themed: Boolean): Color = look.backdropColors(dark, themed).firstOrNull() ?: if (dark) Color.Black else Color.White
+
+    internal fun forgetForTests() {
+        known = null
+    }
+}

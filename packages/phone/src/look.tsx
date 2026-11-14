@@ -19,7 +19,7 @@ export type FrostVariant = "bar" | "sheet" | "glass" | "thin";
 export type FrostProps = ViewProps &
   LookColors & { source: string; variant?: FrostVariant; cornerRadius?: number; dark?: boolean; reduceTransparency?: boolean; children?: ReactNode };
 
-type LookNative = { setPageFrost?: (mode: "live" | "solid") => string; probeFrosts?: () => void };
+type LookNative = { setPageFrost?: (mode: "live" | "solid") => string; probeFrosts?: () => void; setLookOff?: (off: boolean) => boolean; lookIsOff?: () => boolean };
 
 const lookNative = requireOptionalNativeModule<LookNative>("ArdiaPhoneLook");
 
@@ -28,6 +28,8 @@ const hasNativeLook = lookNative !== null;
 export const lookLab = {
   setPageFrost: (mode: "live" | "solid"): string | null => lookNative?.setPageFrost?.(mode) ?? null,
   probeFrosts: () => lookNative?.probeFrosts?.(),
+  setLookOff: (off: boolean): boolean | null => lookNative?.setLookOff?.(off) ?? null,
+  lookIsOff: (): boolean => lookNative?.lookIsOff?.() ?? false,
 };
 
 const views = new Map<string, ComponentType<object>>();

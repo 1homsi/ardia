@@ -14,6 +14,19 @@ class LookModule : Module() {
             FrostSources.pageMode.raw
         }
 
+        Function("setLookOff") { off: Boolean ->
+            val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
+            LookSwitch.set(context, off)
+            android.util.Log.i("PAGELAB", "PAGELAB look views ${if (off) "off: flat colours, no blur, grain or motion" else "on"} (takes effect for views drawn from now; force-stop to measure a clean launch)")
+            FrostSources.frosts().forEach { it.invalidate() }
+            off
+        }
+
+        Function("lookIsOff") {
+            val context = appContext.reactContext ?: return@Function false
+            LookSwitch.isOff(context)
+        }
+
         Function("probeFrosts") {
             check(PhoneLab.isOn) { "the frost probe is a lab tool" }
             appContext.currentActivity?.let(FrostProbe::probe)

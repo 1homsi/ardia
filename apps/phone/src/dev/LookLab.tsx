@@ -28,6 +28,7 @@ export function LookLab() {
   const [variant, setVariant] = useState(0);
   const [pageFrost, setPageFrost] = useState<"live" | "solid">("live");
   const [faded, setFaded] = useState(false);
+  const [lookOff, setLookOff] = useState(() => lookLab.lookIsOff());
   const look = LOOKS[lookIndex]!;
   const ink = dark || look.color === INCOGNITO_LOOK ? "#fff" : "#1d1a17";
   return (
@@ -45,6 +46,7 @@ export function LookLab() {
           setPageFrost(next);
         }} />
         <Button label="Probe frost" onPress={() => lookLab.probeFrosts()} />
+        <Button label={lookOff ? "Look off" : "Look on"} onPress={() => setLookOff(lookLab.setLookOff(!lookOff) ?? lookOff)} />
       </View>
       <FrostSource name="lab" style={styles.stage}>
         <DeckBackdrop style={StyleSheet.absoluteFill} color={look.color} themeColors={look.themeColors} dark={dark} reduceMotion={still} />
