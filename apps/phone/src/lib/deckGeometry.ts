@@ -208,3 +208,8 @@ export function deckScrollActionTarget(focused: number, count: number, direction
   const target = focused + (direction === "forward" ? 1 : -1);
   return target >= 0 && target < count ? target : null;
 }
+
+export function deckStatusStrip(g: DeckGeometry, scaleProgress: number): number {
+  "worklet";
+  return g.safeTop * (g.cardWidth / Math.max(g.width, 1)) * (1 - Math.min(Math.max(scaleProgress, 0), 1));
+}

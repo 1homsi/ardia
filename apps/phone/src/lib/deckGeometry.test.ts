@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   archiveCardEdgeY,
   deckScrollActionTarget,
+  deckStatusStrip,
   deckBarCenterFromBottom,
   deckCardAt,
   deckHeaderLeading,
@@ -161,4 +162,12 @@ test("a screen reader's scroll action moves the deck one card, and the end it ca
   assert.equal(deckScrollActionTarget(0, 8, "backward"), null);
   assert.equal(deckScrollActionTarget(0, 1, "forward"), null);
   assert.equal(deckScrollActionTarget(0, 0, "backward"), null);
+});
+
+test("an expanding card grows a status-bar strip above its picture, so at full size the picture sits where the live page does, and a card in the deck has none", () => {
+  const g = deckGeometry(393, 873, 40, 24);
+  const scale = g.width / g.cardWidth;
+  assert.ok(Math.abs(deckStatusStrip(g, 0) * scale - 40) < 1e-9);
+  assert.equal(deckStatusStrip(g, 1), 0);
+  assert.ok(Math.abs(deckStatusStrip(g, 0.5) * scale - 20) < 1e-9);
 });

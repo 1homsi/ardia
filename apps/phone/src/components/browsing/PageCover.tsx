@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { PAGE_COVER, pageCoverNeeded } from "../../lib/pageCover";
-import { useNavigation, usePageTone } from "../../state/browse/hooks";
+import { useNavigation, usePageTone, useSurface } from "../../state/browse/hooks";
 import { pageNavigation } from "../../state/pages/store";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -13,6 +13,7 @@ export function PageCover({ tab }: { tab: BrowserTab }) {
   const tone = usePageTone(tab.id);
   const live = useNavigation(tab.id, (n) => n?.isLive ?? false);
   const loading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
+  const shownAlone = useSurface() === "browsing";
   const [needed] = useState(() => pageCoverNeeded(pageNavigation(tab.id), Boolean(tab.snapshotFileName)));
   const [gone, setGone] = useState(!needed);
   const opacity = useSharedValue(needed ? 1 : 0);
@@ -26,23 +27,24 @@ export function PageCover({ tab }: { tab: BrowserTab }) {
     });
   };
   useEffect(() => {
-    if (!needed) return;
+    if (!needed || !shownAlone) return;
     const deadline = setTimeout(fade, PAGE_COVER.deadlineMs);
     return () => clearTimeout(deadline);
-  }, []);
+  }, [shownAlone]);
   useEffect(() => {
     if (!needed || !live) return;
     if (loading) {
       sawLoading.current = true;
       return;
     }
+    if (!shownAlone) return;
     if (sawLoading.current) {
       fade();
       return;
     }
     const settle = setTimeout(fade, PAGE_COVER.settleMs);
     return () => clearTimeout(settle);
-  }, [live, loading]);
+  }, [live, loading, shownAlone]);
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   if (gone) return null;
   const shown = display(tab.url);

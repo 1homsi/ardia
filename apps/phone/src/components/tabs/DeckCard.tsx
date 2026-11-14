@@ -2,7 +2,7 @@ import { memo, useEffect, useRef } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
-import { DECK, DECK_HEADER, deckHeaderIconReveal, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
+import { DECK, DECK_HEADER, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -127,6 +127,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
     return { transform: [{ translateX: deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
   });
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(header.value.place.available) }));
+  const stripStyle = useAnimatedStyle(() => ({ height: role === "expanded" ? deckStatusStrip(g, scaleProgress.value) : 0 }), [g, role]);
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
@@ -142,7 +143,10 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
           cardStyle,
         ]}
       >
-        <TabFace tab={tab} title={title} host={host} tone={tone?.top ?? null} roles={theme} />
+        <Animated.View testID="deckCardStatusStrip" style={[{ backgroundColor: tone?.top ?? theme.surface }, stripStyle]} />
+        <View style={styles.face}>
+          <TabFace tab={tab} title={title} host={host} tone={tone?.top ?? null} roles={theme} />
+        </View>
         {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
       </Animated.View>
       <Animated.View
@@ -198,6 +202,7 @@ function ReceivedBadge() {
 }
 
 const styles = StyleSheet.create({
+  face: { flex: 1 },
   card: {
     position: "absolute",
     left: 0,

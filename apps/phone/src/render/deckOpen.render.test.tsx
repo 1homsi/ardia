@@ -1,4 +1,6 @@
+import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
+import { deckGeometry } from "../lib/deckGeometry";
 import { Surfaces } from "../App";
 import { sendDeckCommand } from "../state/browse/deckCommands";
 import { useBrowse } from "../state/browse/store";
@@ -36,5 +38,23 @@ test("an open interrupted before its spring ends takes the page out from under t
   expect(useBrowse.getState().opening).not.toBeNull();
   act(() => useBrowse.setState({ surface: "deck", opening: null }));
   expect(root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")).toHaveLength(0);
+  unmount(root);
+});
+
+test("an opening card grows a status-bar strip in the page's tone above its picture, so at full size the picture lands where the live page starts", () => {
+  withTabs(3);
+  useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const root = renderSurface(<Surfaces />);
+  const strips = () => root.root.findAll((node) => node.props.testID === "deckCardStatusStrip" && typeof node.type === "string");
+  expect(strips().every((strip) => (getAnimatedStyle(strip).height ?? 0) === 0)).toBe(true);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  let grown = 0;
+  for (let frame = 0; frame < 120 && useBrowse.getState().surface === "deck"; frame++) {
+    act(() => jest.advanceTimersByTime(16));
+    for (const strip of strips()) grown = Math.max(grown, (getAnimatedStyle(strip).height as number) ?? 0);
+  }
+  const g = deckGeometry(393, 873, 40, 24);
+  expect(grown * (g.width / g.cardWidth)).toBeGreaterThan(36);
+  expect(grown * (g.width / g.cardWidth)).toBeLessThanOrEqual(40.001);
   unmount(root);
 });

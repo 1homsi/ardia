@@ -46,3 +46,19 @@ test("a page that is already live and settled with no saved picture shows no cov
   expect(cover(root)).toBe(false);
   unmount(root);
 });
+
+test("while the deck still covers the page, the cover holds; it fades only once the page is shown alone, so the fade is seen", () => {
+  const tab = currentTabs().open[0]!;
+  useBrowse.setState({ surface: "deck" });
+  const root = renderSurface(<BrowsingScreen tab={tab} />, { flushTimers: false });
+  act(() => storeNavigation(tab.id, state(true, true)));
+  act(() => storeNavigation(tab.id, state(true, false)));
+  act(() => jest.advanceTimersByTime(5000));
+  expect(cover(root)).toBe(true);
+  act(() => useBrowse.setState({ surface: "browsing" }));
+  act(() => jest.advanceTimersByTime(100));
+  expect(cover(root)).toBe(true);
+  act(() => jest.advanceTimersByTime(400));
+  expect(cover(root)).toBe(false);
+  unmount(root);
+});

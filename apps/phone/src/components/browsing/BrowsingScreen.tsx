@@ -91,7 +91,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
           <View style={[styles.page, { marginBottom: layout.pageBottom }]}>
             <PageSurface key={tab.id} tab={tab} toneBottom={layout.toneBottom} />
             <PageCover key={`${tab.id}:cover`} tab={tab} />
-            <PageFailureView key={tab.id} tabId={tab.id} />
+            <PageFailureView key={`${tab.id}:failure`} tabId={tab.id} />
           </View>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }, pager.dim]} pointerEvents="none" />
         </Animated.View>
