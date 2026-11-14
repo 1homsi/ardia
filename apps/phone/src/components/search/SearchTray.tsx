@@ -152,7 +152,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
           if (!released.value && trayDragReleasesKeyboard(event.translationY)) {
             released.value = true;
             if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
-            runOnJS(Keyboard.dismiss)();
+            runOnJS(letKeyboardGo)();
           }
           drag.value = trayDragOffset(event.translationY);
         })
@@ -269,6 +269,8 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 }
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+const letKeyboardGo = () => Keyboard.dismiss();
 
 const resultsIn = FadeIn.duration(trayMotion.resultsIn);
 const resultsOut = FadeOut.duration(trayMotion.resultsIn);

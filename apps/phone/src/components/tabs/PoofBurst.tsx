@@ -4,6 +4,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming, type SharedValu
 import { POOF, poofPuff } from "../../lib/poof";
 import { tabsCurve, tabsInk } from "../ui";
 
+const BLURS = Platform.OS === "android";
+
 export type PoofSpec = { id: number; x: number; y: number; size: number };
 
 export function PoofBurst({ spec }: { spec: PoofSpec }) {
@@ -13,7 +15,7 @@ export function PoofBurst({ spec }: { spec: PoofSpec }) {
   }, []);
   const layer = useAnimatedStyle(() => ({
     opacity: (1 - progress.value) * POOF.opacity,
-    ...(Platform.OS === "android" ? { filter: [{ blur: POOF.blurFrom + POOF.blurGrow * progress.value }] } : {}),
+    ...(BLURS ? { filter: [{ blur: POOF.blurFrom + POOF.blurGrow * progress.value }] } : {}),
   }));
   return (
     <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[StyleSheet.absoluteFill, layer]}>

@@ -122,7 +122,10 @@ export function deckCardAt(g: DeckGeometry, count: number, scroll: number, x: nu
   return -1;
 }
 
-export const focusedIndex = (scroll: number, count: number) => Math.min(Math.max(swiftRound(scroll), 0), Math.max(count - 1, 0));
+export function focusedIndex(scroll: number, count: number): number {
+  "worklet";
+  return Math.min(Math.max(swiftRound(scroll), 0), Math.max(count - 1, 0));
+}
 
 export const initialDeckScroll = (count: number) => Math.max(0, count - 2);
 
