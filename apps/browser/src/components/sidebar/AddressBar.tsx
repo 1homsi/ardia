@@ -17,6 +17,8 @@ import { SIDEBAR_FIELD } from "./geometry";
 import { noteEmptyTabSidebarExtensionPress } from "../../state/telemetry/usage";
 import { SidebarFieldFill } from "./SidebarField";
 import { SidebarUrlField, useToolbarTab } from "../toolbar/Toolbar";
+import { sidebarFieldButtons } from "../toolbar/fieldButtons";
+import { useExtensions } from "../../state/extensions/store";
 import { HistoryButton, ReloadButton } from "../toolbar/NavButtons";
 import { GLYPH } from "../toolbar/tokens";
 import { HEADER_TOOLS, headerToggleX, navButtonsFitting, type HeaderButton } from "../window/dockMotion";
@@ -158,6 +160,8 @@ function EmptyField({ windowId, tabId, width }: { windowId: string; tabId: strin
   const theme = useTheme();
   const palette = toolbarPalette(theme, null);
   const { hovered, hoverProps } = useHover();
+  const extensionPopup = useExtensions((e) => e.popup?.windowId === windowId);
+  const shown = sidebarFieldButtons({ mode: useSettings((s) => s.addressBarButtons), hovered, insecure: false, extensionPopup });
   const open = () => openEmptySidebarField(windowId);
   return (
     <View {...hoverProps} style={{ flexDirection: "row", alignItems: "center", height: SIDEBAR_FIELD.height }}>
@@ -165,7 +169,7 @@ function EmptyField({ windowId, tabId, width }: { windowId: string; tabId: strin
       <Pressable onPress={open} style={{ flex: 1, height: SIDEBAR_FIELD.height, justifyContent: "center", paddingLeft: space.l }}>
         <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -space.xxs }} />
       </Pressable>
-      {tabId ? (
+      {tabId && shown.extensions ? (
         <View style={{ paddingRight: space.xs }}>
           <FieldExtensions tabId={tabId} windowId={windowId} width={width} palette={palette} onActivate={noteEmptyTabSidebarExtensionPress} />
         </View>
