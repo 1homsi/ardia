@@ -32,7 +32,7 @@ import {
   filterListAddress,
   FILTER_LIST_ADDRESS,
 } from "../../state/settings/settingsRules";
-import { ConfirmDialog, duration, font, ink, Sheet, usePresence, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
+import { ConfirmDialog, duration, font, ink, screenReaderActions, Sheet, usePresence, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
 import { copy } from "../../lib/platformCopy";
 
 const FILTER_SYNTAX_URL = "https://github.com/gorhill/uBlock/wiki/Static-filter-syntax";
@@ -398,10 +398,7 @@ function TrustedSiteRow({ host, editing, divider }: { host: string; editing: boo
         testID={`trusted:${host}`}
         accessible
         accessibilityLabel={host}
-        accessibilityActions={[{ name: "remove", label: removeLabel }]}
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === "remove") remove();
-        }}
+        {...screenReaderActions([{ name: "remove", label: removeLabel, run: remove }])}
         style={styles.listRow}
       >
         {editing ? (

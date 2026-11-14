@@ -22,6 +22,7 @@ import {
   Favicon,
   FloatingMenu,
   font,
+  screenReaderActions,
   useIncreasedContrast,
   useSheetFrame,
   isSymbolName,
@@ -273,8 +274,7 @@ function Row({ row, profileId, tint, onToggle, onShowAll, onLongPress, onFolder 
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: row.isOpen }}
-          accessibilityActions={[{ name: "activate", label: row.isOpen ? "Collapse" : "Expand" }]}
-          onAccessibilityAction={() => onToggle(row.key)}
+          {...screenReaderActions([{ name: "activate", label: row.isOpen ? "Collapse" : "Expand", run: () => onToggle(row.key) }])}
           onPress={() => onToggle(row.key)}
           style={({ pressed }) => [styles.row, { paddingLeft: space.l + INDENT * row.depth }, pressed ? { backgroundColor: theme.rowHighlight } : null]}
         >

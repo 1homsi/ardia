@@ -7,7 +7,7 @@ import { DECK, DECK_HEADER, deckHeaderIconReveal, deckStatusStrip, deckHeaderLea
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { Favicon, font, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -155,8 +155,10 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
         accessibilityLabel={title}
         accessibilityValue={{ text: tab.isPrivate ? `Incognito, ${host}` : host }}
         accessibilityHint="Opens the tab."
-        accessibilityActions={[{ name: "activate" }, { name: "close", label: "Close Tab" }]}
-        onAccessibilityAction={(event) => (event.nativeEvent.actionName === "close" ? onCloseNow(index) : onOpen(index))}
+        {...screenReaderActions([
+          { name: "activate", run: () => onOpen(index) },
+          { name: "close", label: "Close Tab", run: () => onCloseNow(index) },
+        ])}
         pointerEvents="none"
         style={[styles.reach, { width: g.cardWidth, height: g.cardHeight, zIndex: z + 1 }, reachStyle]}
       />

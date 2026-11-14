@@ -29,7 +29,8 @@ test("Trusted Sites lists hosts in order with a globe, hides removal until Edit,
   const rows = root.root.findAll((node) => typeof node.type === "string" && /^trusted:/.test(node.props.testID ?? ""));
   expect(rows.map((row) => row.props.testID)).toEqual(["trusted:alpha.example", "trusted:zeta.example"]);
   expect(removeButtons(root)).toHaveLength(0);
-  act(() => rows[1]!.props.onAccessibilityAction({ nativeEvent: { actionName: "remove" } }));
+  const removeName = require("react-native").Platform.OS === "ios" ? "Remove zeta.example" : "remove";
+  act(() => rows[1]!.props.onAccessibilityAction({ nativeEvent: { actionName: removeName } }));
   expect(trusting).toHaveBeenCalledWith("zeta.example", false);
   act(() => barButton(root, "Edit")!.props.onPress());
   expect(removeButtons(root).length).toBeGreaterThan(0);

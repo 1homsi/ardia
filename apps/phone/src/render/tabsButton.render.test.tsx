@@ -29,9 +29,17 @@ test("the Tabs button offers its long-press menu, a plain activate and the tab s
     />,
   );
   const tabs = root.root.findAll((node) => node.props.accessibilityLabel === "Tabs" && typeof node.props.onAccessibilityAction === "function")[0]!;
-  expect(tabs.props.accessibilityActions).toEqual([{ name: "activate" }, { name: "longpress", label: "Recent Tabs" }, { name: "previousTab", label: "Previous Tab" }, { name: "nextTab", label: "Next Tab" }]);
+  const ios = require("react-native").Platform.OS === "ios";
+  expect(tabs.props.accessibilityActions).toEqual(
+    ios
+      ? [{ name: "Recent Tabs" }, { name: "Previous Tab" }, { name: "Next Tab" }]
+      : [{ name: "activate" }, { name: "longpress", label: "Recent Tabs" }, { name: "previousTab", label: "Previous Tab" }, { name: "nextTab", label: "Next Tab" }],
+  );
   expect(tabs.props.accessibilityValue).toEqual({ text: "3 tabs" });
-  for (const actionName of ["longpress", "activate", "previousTab", "nextTab"]) act(() => tabs.props.onAccessibilityAction({ nativeEvent: { actionName } }));
+  for (const actionName of ios ? ["Recent Tabs"] : ["longpress"]) act(() => tabs.props.onAccessibilityAction({ nativeEvent: { actionName } }));
+  if (ios) act(() => tabs.props.onAccessibilityTap());
+  else act(() => tabs.props.onAccessibilityAction({ nativeEvent: { actionName: "activate" } }));
+  for (const actionName of ios ? ["Previous Tab", "Next Tab"] : ["previousTab", "nextTab"]) act(() => tabs.props.onAccessibilityAction({ nativeEvent: { actionName } }));
   expect(calls).toEqual(["menu", "tabs", "step -1", "step 1"]);
   unmount(root);
 });

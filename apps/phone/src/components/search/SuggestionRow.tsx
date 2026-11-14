@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
-import { browseLayout, Favicon, font, radius, space, Symbol, tabsMotion, type ColorRoles, type SymbolName } from "../ui";
+import { browseLayout, Favicon, font, radius, screenReaderActions, space, Symbol, tabsMotion, type ColorRoles, type SymbolName } from "../ui";
 
 const FAVICON_SIZE = 20;
 
@@ -21,21 +21,18 @@ type Props = {
 
 export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, interactive = true, highlightsPress = true, menu = [], onActivate, onRefine, onMenu }: Props) {
   const content = <RowContent row={row} typed={typed} roles={roles} interactive={interactive} onRefine={onRefine} />;
-  const menuActions = menu.map((item, index) => ({ name: `${MENU_ACTION}${index}`, label: item.label }));
-  const runMenuAction = (name: string) => menu[Number(name.slice(MENU_ACTION.length))]?.run();
+  const menuActions = menu.map((item, index) => ({ name: `${MENU_ACTION}${index}`, label: item.label, run: item.run }));
   if (!interactive) {
-    const actions = [{ name: "activate" }, ...(row.kind === "query" ? [{ name: "refine", label: `Refine ${row.title}` }] : []), ...menuActions];
+    const actions = [
+      { name: "activate", run: () => onActivate(row) },
+      ...(row.kind === "query" ? [{ name: "refine", label: `Refine ${row.title}`, run: () => onRefine(row) }] : []),
+      ...menuActions,
+    ];
     return (
       <View
         accessible
         accessibilityRole="button"
-        accessibilityActions={actions}
-        onAccessibilityAction={(event) => {
-          const name = event.nativeEvent.actionName;
-          if (name === "refine") onRefine(row);
-          else if (name.startsWith(MENU_ACTION)) runMenuAction(name);
-          else onActivate(row);
-        }}
+        {...screenReaderActions(actions)}
         style={styles.row}
       >
         {content}
@@ -48,8 +45,7 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, in
       onPress={() => onActivate(row)}
       onLongPress={(event) => onMenu(row, event.nativeEvent.pageY)}
       delayLongPress={tabsMotion.longPress}
-      accessibilityActions={menuActions}
-      onAccessibilityAction={(event) => runMenuAction(event.nativeEvent.actionName)}
+      {...screenReaderActions(menuActions)}
       style={({ pressed }) => [styles.row, { backgroundColor: pressed && highlightsPress ? roles.rowHighlight : undefined }]}
     >
       {content}

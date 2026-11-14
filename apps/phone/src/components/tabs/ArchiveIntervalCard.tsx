@@ -5,7 +5,7 @@ import { hideArchiveCard, hideArchiveCardSoon } from "../../state/browse/archive
 import { setArchiveInterval } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { archiveCardLayout, FloatingMenu, font, ink, radius, shadowRadius, space, Symbol, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { archiveCardLayout, FloatingMenu, screenReaderActions, font, ink, radius, shadowRadius, space, Symbol, tabsLayout, tabsMotion, useTheme } from "../ui";
 
 import { ArchiveTile } from "./ArchiveTile";
 
@@ -27,8 +27,7 @@ export function ArchiveIntervalCard({ edgeY }: { edgeY: number }) {
       style={[styles.place, { height: edgeY }]}
     >
       <View
-        accessibilityActions={[{ name: "dismiss", label: "Dismiss" }]}
-        onAccessibilityAction={() => hideArchiveCard()}
+        {...screenReaderActions([{ name: "dismiss", label: "Dismiss", run: () => hideArchiveCard() }])}
         style={[styles.card, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}
       >
         <View style={styles.label}>
