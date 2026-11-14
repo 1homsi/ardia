@@ -41,6 +41,7 @@ std::variant<base::Value, Failure> CompleteServiceCall(std::string_view name,
 bool ValidOrigin(std::string_view origin);
 std::optional<std::string> NormalizeHost(std::string_view host);
 bool ValidListId(std::string_view id);
+bool ValidListUrl(std::string_view url);
 
 enum class BlockerOp {
   kState,
@@ -54,9 +55,12 @@ enum class BlockerOp {
   kHiddenElements,
   kHideElements,
   kRestoreElements,
+  kAddList,
+  kRemoveList,
 };
 
 inline constexpr size_t kMaxFollowedLists = 512;
+inline constexpr size_t kMaxListUrl = 2048;
 inline constexpr size_t kMaxFollowedDirectives = 10000;
 inline constexpr size_t kMaxDirectiveBytes = 2048;
 inline constexpr size_t kMaxHidingFilters = 10000;
@@ -64,6 +68,7 @@ inline constexpr size_t kMaxHidingFilterBytes = 3072;
 
 struct BlockerSettings {
   std::vector<std::string> lists;
+  std::vector<std::string> imported;
   std::vector<std::string> whitelist;
   bool auto_update = true;
 };
@@ -74,6 +79,7 @@ base::DictValue BlockerSettingsValue(const BlockerSettings& settings);
 struct BlockerRequest {
   BlockerOp op = BlockerOp::kState;
   std::string id;
+  std::string url;
   std::string host;
   bool flag = false;
   BlockerSettings settings;

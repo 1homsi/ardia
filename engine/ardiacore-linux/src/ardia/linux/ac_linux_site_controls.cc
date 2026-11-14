@@ -31,7 +31,7 @@ constexpr std::string_view kBlockerCalls[] = {
     "contentBlocker.state", "contentBlocker.setEnabled", "contentBlocker.setListEnabled",
     "contentBlocker.isAllowed", "contentBlocker.setAllowed", "contentBlocker.devFailNextMessage",
     "contentBlocker.devDelayNextLoad", "contentBlocker.hiddenElements", "contentBlocker.hideElements",
-    "contentBlocker.restoreElements",
+    "contentBlocker.restoreElements", "contentBlocker.addList", "contentBlocker.removeList",
 };
 
 constexpr std::string_view kNamedProfileCalls[] = {
@@ -263,11 +263,34 @@ std::optional<std::string> NormalizeHost(std::string_view host) {
 }
 
 bool ValidListId(std::string_view id) {
+  if (ValidListUrl(id)) return true;
   if (id.empty() || id.size() > kMaxListId) return false;
   for (char c : id) {
     const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
                     c == '-' || c == '_' || c == '.';
     if (!ok) return false;
+  }
+  return true;
+}
+
+bool ValidListUrl(std::string_view url) {
+  if (url.size() > kMaxListUrl) return false;
+  const auto lowered_prefix = [url](std::string_view prefix) {
+    if (url.size() < prefix.size()) return false;
+    for (size_t i = 0; i < prefix.size(); ++i) {
+      char c = url[i];
+      if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+      if (c != prefix[i]) return false;
+    }
+    return true;
+  };
+  size_t host = 0;
+  if (lowered_prefix("https://")) host = 8;
+  else if (lowered_prefix("http://")) host = 7;
+  else return false;
+  if (host >= url.size() || url[host] == '/') return false;
+  for (char c : url) {
+    if (c <= ' ' || c >= 0x7f) return false;
   }
   return true;
 }
@@ -431,6 +454,21 @@ std::variant<BlockerRequest, Failure> PrepareBlockerCall(std::string_view name,
     request.flag = *enabled;
     return request;
   }
+  if (name == "contentBlocker.addList") {
+    const std::string* url = String(args, "url");
+    if (!OnlyKeys(args, {"url"}) || !url || !ValidListUrl(*url))
+      return BlockerInvalid("url must be an http or https address of a filter list");
+    request.op = BlockerOp::kAddList;
+    request.url = *url;
+    return request;
+  }
+  if (name == "contentBlocker.removeList") {
+    const std::string* id = String(args, "id");
+    if (!OnlyKeys(args, {"id"}) || !id || !ValidListId(*id)) return BlockerInvalid("a filter list id is required");
+    request.op = BlockerOp::kRemoveList;
+    request.id = *id;
+    return request;
+  }
   if (name == "contentBlocker.isAllowed" || name == "contentBlocker.setAllowed") {
     const bool set = name == "contentBlocker.setAllowed";
     const std::string* host = String(args, "host");
@@ -478,19 +516,22 @@ std::optional<BlockerSettings> ParseBlockerSettings(const base::Value& value) {
   if (!value.is_dict()) return std::nullopt;
   const base::DictValue& dict = value.GetDict();
   std::optional<std::vector<std::string>> lists = StringList(dict, "lists", kMaxFollowedLists);
+  std::optional<std::vector<std::string>> imported = StringList(dict, "imported", kMaxFollowedLists);
   std::optional<std::vector<std::string>> whitelist = StringList(dict, "whitelist", kMaxFollowedDirectives);
   const std::optional<bool> auto_update = Bool(dict, "autoUpdate");
-  if (!lists || !whitelist || !auto_update) return std::nullopt;
+  if (!lists || !imported || !whitelist || !auto_update) return std::nullopt;
   std::erase_if(*lists, [](const std::string& id) { return !ValidListId(id); });
+  std::erase_if(*imported, [](const std::string& url) { return !ValidListUrl(url); });
   for (const std::string& directive : *whitelist) {
     if (!ValidDirective(directive)) return std::nullopt;
   }
-  return BlockerSettings{std::move(*lists), std::move(*whitelist), *auto_update};
+  return BlockerSettings{std::move(*lists), std::move(*imported), std::move(*whitelist), *auto_update};
 }
 
 base::DictValue BlockerSettingsValue(const BlockerSettings& settings) {
   return base::DictValue()
       .Set("lists", StringsValue(settings.lists))
+      .Set("imported", StringsValue(settings.imported))
       .Set("whitelist", StringsValue(settings.whitelist))
       .Set("autoUpdate", base::Value(settings.auto_update));
 }
@@ -515,7 +556,8 @@ int64_t InheritRetryDelayMs(int attempt) {
 }
 
 bool Mutates(BlockerOp op) {
-  return op == BlockerOp::kSetEnabled || op == BlockerOp::kSetList || op == BlockerOp::kSetAllowed;
+  return op == BlockerOp::kSetEnabled || op == BlockerOp::kSetList || op == BlockerOp::kSetAllowed ||
+         op == BlockerOp::kAddList || op == BlockerOp::kRemoveList;
 }
 
 bool AnswersWithoutBlocker(const BlockerRequest& request) {
@@ -545,11 +587,14 @@ std::string_view BridgeOpName(BlockerOp op) {
     case BlockerOp::kHiddenElements: return "hiddenElements";
     case BlockerOp::kHideElements: return "hideElements";
     case BlockerOp::kRestoreElements: return "restoreElements";
+    case BlockerOp::kAddList: return "addList";
+    case BlockerOp::kRemoveList: return "removeList";
   }
   return "state";
 }
 
 std::string Category(std::string_view list_id, std::string_view group) {
+  if (group == "custom") return "custom";
   if (group == "regions") return "regional";
   if (list_id.find("cookie") != std::string_view::npos) return "cookies";
   if (group == "privacy" || list_id == "ublock-privacy") return "trackers";
@@ -587,7 +632,8 @@ base::DictValue BlockerState(const base::DictValue& read, std::string_view versi
         .Set("category", Category(*id, group ? std::string_view(*group) : std::string_view()))
         .Set("enabled", base::Value(Bool(list, "enabled").value_or(false)))
         .Set("defaultOn", base::Value(Bool(list, "defaultOn").value_or(false)))
-        .Set("filters", base::Value(Count(list.Find("filters"))))));
+        .Set("filters", base::Value(Count(list.Find("filters"))))
+        .Set("failed", base::Value(Bool(list, "failed").value_or(false)))));
   }
   base::ListValue hosts;
   std::set<std::string> seen;
@@ -628,6 +674,23 @@ std::variant<base::Value, Failure> CompleteBlockerCall(const BlockerRequest& req
   if (request.op == BlockerOp::kIsAllowed) {
     if (!value || !value->is_bool()) return BadReply("The content blocker gave no answer");
     return base::Value(value->GetBool());
+  }
+  if (request.op == BlockerOp::kAddList) {
+    const base::DictValue* added = value && value->is_dict() ? &value->GetDict() : nullptr;
+    const std::string* id = added ? String(*added, "id") : nullptr;
+    const std::optional<bool> custom = added ? Bool(*added, "custom") : std::nullopt;
+    const std::optional<bool> existed = added ? Bool(*added, "existed") : std::nullopt;
+    const std::optional<bool> failed = added ? Bool(*added, "failed") : std::nullopt;
+    const base::Value* filters = added ? added->Find("filters") : nullptr;
+    if (!id || !ValidListId(*id) || !custom || !existed || !failed || !filters ||
+        !(filters->is_int() || filters->is_double()))
+      return BadReply("The content blocker didn't say which list it added");
+    return base::Value(base::DictValue()
+                           .Set("id", *id)
+                           .Set("custom", base::Value(*custom))
+                           .Set("existed", base::Value(*existed))
+                           .Set("filters", base::Value(Count(filters)))
+                           .Set("failed", base::Value(*failed)));
   }
   if (request.op == BlockerOp::kHiddenElements) {
     if (!value || !value->is_list()) return BadReply("The content blocker gave no hidden elements");
@@ -687,6 +750,8 @@ base::DictValue BridgeRequest(const PendingCall& call, int64_t now_ms) {
       args.Set("allowed", base::Value(call.request.flag));
       break;
     case BlockerOp::kFollow: args = BlockerSettingsValue(call.request.settings); break;
+    case BlockerOp::kAddList: args.Set("url", call.request.url); break;
+    case BlockerOp::kRemoveList: args.Set("id", call.request.id); break;
     case BlockerOp::kHideElements:
     case BlockerOp::kRestoreElements: args.Set("filters", StringsValue(call.request.filters)); break;
     case BlockerOp::kHiddenElements:

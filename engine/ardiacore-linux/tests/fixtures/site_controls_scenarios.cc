@@ -142,7 +142,7 @@ void HandlesAndProfiles() {
                            "contentBlocker.setListEnabled", "contentBlocker.isAllowed", "contentBlocker.setAllowed",
                            "contentBlocker.devFailNextMessage", "contentBlocker.devDelayNextLoad",
                            "contentBlocker.hiddenElements", "contentBlocker.hideElements",
-                           "contentBlocker.restoreElements"}) {
+                           "contentBlocker.restoreElements", "contentBlocker.addList", "contentBlocker.removeList"}) {
     assert(Handles(name));
   }
   for (const char* name : {"sites.zoomLevels", "sites.setZoom", "profiles.deleteData", "profiles.release",
@@ -151,7 +151,7 @@ void HandlesAndProfiles() {
   }
   assert(IsContentBlockerCall("contentBlocker.state") && !IsContentBlockerCall("sites.settings"));
   const auto capabilities = Capabilities();
-  assert(capabilities.size() == 15);
+  assert(capabilities.size() == 17);
   for (const auto name : capabilities) assert(Handles(name) && name != "contentBlocker.devDelayNextLoad");
   auto route = [](std::string_view name, std::string_view requested) { return RouteProfile(name, requested, false); };
   auto from_private = [](std::string_view name, std::string_view requested) { return RouteProfile(name, requested, true); };
@@ -387,6 +387,120 @@ void HiddenElementRequests() {
   assert(std::get<base::Value>(CompleteBlockerCall(std::get<BlockerRequest>(restore), &none, nullptr, "1.75.0")).is_none());
 }
 
+base::DictValue Added(std::string_view id) {
+  return base::DictValue()
+      .Set("id", id)
+      .Set("custom", base::Value(true))
+      .Set("existed", base::Value(false))
+      .Set("filters", base::Value(42))
+      .Set("failed", base::Value(false));
+}
+
+void CustomFilterLists() {
+  const std::string max_url = "https://a.test/" + std::string(kMaxListUrl - 15, 'x');
+  for (const std::string& url : {std::string("https://lists.example/mine.txt"), std::string("http://a.test/x"),
+                                 std::string("HTTPS://A.test/x?y=1#z"), std::string("https://a.test"), max_url}) {
+    auto added = PrepareBlockerCall("contentBlocker.addList", base::DictValue().Set("url", url));
+    assert(std::get<BlockerRequest>(added).op == BlockerOp::kAddList && std::get<BlockerRequest>(added).url == url);
+    assert(ValidListUrl(url) && ValidListId(url));
+  }
+  for (const std::string& url : {std::string(""), std::string("ftp://a.test/x"), std::string("https://"), std::string("https:///x"),
+                                 std::string("https://a.test/a b"), std::string("https://a.test/\tx"), std::string("https://a.test/x\n"),
+                                 std::string("https://a.test/\x01"), std::string("https://a.test/\x7f"), std::string("https://a.test/\xc2\xa0"),
+                                 std::string("https://a.test/x") + '\0', max_url + "x", std::string("javascript:alert(1)"),
+                                 std::string("//a.test/x"), std::string("https:/a.test/x"), std::string("a.test/x"), std::string("httpss://a.test")}) {
+    assert(AsFailure(PrepareBlockerCall("contentBlocker.addList", base::DictValue().Set("url", url)))->code == "ERR_CONTENT_BLOCKER_REQUEST");
+    assert(!ValidListUrl(url));
+  }
+  assert(AsFailure(PrepareBlockerCall("contentBlocker.addList", base::DictValue())));
+  assert(AsFailure(PrepareBlockerCall("contentBlocker.addList", base::DictValue().Set("url", base::Value(3)))));
+  assert(AsFailure(PrepareBlockerCall("contentBlocker.addList", base::DictValue().Set("url", "https://a.test/x").Set("id", "easylist"))));
+  for (const char* id : {"easylist", "https://lists.example/mine.txt"}) {
+    auto removed = PrepareBlockerCall("contentBlocker.removeList", base::DictValue().Set("id", id));
+    assert(std::get<BlockerRequest>(removed).op == BlockerOp::kRemoveList && std::get<BlockerRequest>(removed).id == id);
+    auto toggled = PrepareBlockerCall("contentBlocker.setListEnabled", base::DictValue().Set("id", id).Set("enabled", base::Value(false)));
+    assert(std::get<BlockerRequest>(toggled).id == id);
+  }
+  for (const char* id : {"", "../x", "a b", "https://a.test/a b", "ftp://a.test/x", "https://", "javascript:alert(1)"}) {
+    assert(AsFailure(PrepareBlockerCall("contentBlocker.removeList", base::DictValue().Set("id", id))));
+    assert(AsFailure(PrepareBlockerCall("contentBlocker.setListEnabled", base::DictValue().Set("id", id).Set("enabled", base::Value(true)))));
+    assert(!ValidListId(id));
+  }
+  assert(AsFailure(PrepareBlockerCall("contentBlocker.removeList", base::DictValue().Set("id", "easylist").Set("url", "https://a.test/x"))));
+  assert(AsFailure(PrepareBlockerCall("contentBlocker.removeList", base::DictValue())));
+  assert(Mutates(BlockerOp::kAddList) && Mutates(BlockerOp::kRemoveList));
+  for (const char* name : {"contentBlocker.addList", "contentBlocker.removeList"}) {
+    assert(IsContentBlockerCall(name) && !ServesNamedProfile(name));
+    assert(std::get<ProfileRoute>(RouteProfile(name, "default", false)) == ProfileRoute::kApp);
+  }
+  const auto url_args = base::DictValue().Set("url", "https://lists.example/mine.txt");
+  const auto id_args = base::DictValue().Set("id", "https://lists.example/mine.txt");
+  assert(PrivateBlockerRefusal("contentBlocker.addList", url_args, true)->code == "ERR_PROFILE_PRIVATE");
+  assert(PrivateBlockerRefusal("contentBlocker.removeList", id_args, true)->code == "ERR_PROFILE_PRIVATE");
+  assert(!PrivateBlockerRefusal("contentBlocker.addList", url_args, false));
+  assert(!PrivateBlockerRefusal("contentBlocker.removeList", id_args, false));
+  assert(BridgeOpName(BlockerOp::kAddList) == "addList");
+  assert(BridgeOpName(BlockerOp::kRemoveList) == "removeList");
+
+  const BlockerRequest add = std::get<BlockerRequest>(PrepareBlockerCall("contentBlocker.addList", url_args));
+  PendingCall call{.ticket = 9, .request = add, .deadline_ms = 20000};
+  const base::DictValue add_request = BridgeRequest(call, 0);
+  assert(Text(add_request, "op") == "addList");
+  assert(add_request.FindDict("args")->size() == 1 && Text(*add_request.FindDict("args"), "url") == "https://lists.example/mine.txt");
+  call.request = std::get<BlockerRequest>(PrepareBlockerCall("contentBlocker.removeList", id_args));
+  const base::DictValue remove_request = BridgeRequest(call, 0);
+  assert(Text(remove_request, "op") == "removeList");
+  assert(remove_request.FindDict("args")->size() == 1 && Text(*remove_request.FindDict("args"), "id") == "https://lists.example/mine.txt");
+
+  base::Value good(Added("https://lists.example/mine.txt").Set("extra", "dropped"));
+  const base::Value answered = std::get<base::Value>(CompleteBlockerCall(add, &good, nullptr, "1.75.0"));
+  assert(answered.is_dict() && answered.GetDict().size() == 5 && !answered.GetDict().Find("extra"));
+  assert(Text(answered.GetDict(), "id") == "https://lists.example/mine.txt" && BoolOf(answered.GetDict(), "custom"));
+  assert(!BoolOf(answered.GetDict(), "existed") && !BoolOf(answered.GetDict(), "failed") && NumberOf(answered.GetDict(), "filters") == 42);
+  base::Value stock(Added("fanboy-cookiemonster").Set("custom", base::Value(false)).Set("filters", base::Value(-3.5)));
+  const base::Value stock_answer = std::get<base::Value>(CompleteBlockerCall(add, &stock, nullptr, "1.75.0"));
+  assert(Text(stock_answer.GetDict(), "id") == "fanboy-cookiemonster" && NumberOf(stock_answer.GetDict(), "filters") == 0);
+  std::vector<base::Value> bad;
+  bad.emplace_back(Added("a b"));
+  bad.emplace_back(Added("https://a.test/a b"));
+  bad.emplace_back(Added("x").Set("id", base::Value(3)));
+  bad.emplace_back(Added("x").Set("custom", "yes"));
+  bad.emplace_back(Added("x").Set("existed", base::Value(1)));
+  bad.emplace_back(Added("x").Set("failed", base::Value()));
+  bad.emplace_back(Added("x").Set("filters", "42"));
+  for (const char* key : {"id", "custom", "existed", "filters", "failed"}) {
+    base::DictValue missing = Added("x");
+    missing.Remove(key);
+    bad.emplace_back(std::move(missing));
+  }
+  bad.emplace_back(base::Value());
+  bad.emplace_back(base::Value(Strings({"https://a.test/x"})));
+  for (const base::Value& reply : bad) assert(AsFailure(CompleteBlockerCall(add, &reply, nullptr, "1.75.0"))->code == "ERR_BAD_REPLY");
+  assert(AsFailure(CompleteBlockerCall(add, nullptr, nullptr, "1.75.0"))->code == "ERR_BAD_REPLY");
+  const std::string refused = "uBlock Origin turned the list down";
+  const auto turned_down = CompleteBlockerCall(add, nullptr, &refused, "1.75.0");
+  assert(AsFailure(turned_down)->code == kUnavailableCode && AsFailure(turned_down)->message == refused);
+  base::Value none;
+  assert(std::get<base::Value>(CompleteBlockerCall(call.request, &none, nullptr, "1.75.0")).is_none());
+
+  base::ListValue lists;
+  lists.Append(base::Value(base::DictValue().Set("id", "https://lists.example/mine.txt").Set("title", "").Set("group", "custom")
+      .Set("enabled", base::Value(true)).Set("defaultOn", base::Value(false)).Set("filters", base::Value(42)).Set("failed", base::Value(true))));
+  lists.Append(base::Value(base::DictValue().Set("id", "easylist").Set("title", "EasyList").Set("group", "ads")
+      .Set("enabled", base::Value(true)).Set("defaultOn", base::Value(true)).Set("filters", base::Value(1))));
+  lists.Append(base::Value(base::DictValue().Set("id", "https://a.test/a b").Set("group", "custom")));
+  lists.Append(base::Value(base::DictValue().Set("id", "fanboy-social").Set("group", "social").Set("failed", "yes")));
+  base::DictValue read;
+  read.Set("lists", base::Value(std::move(lists)));
+  const base::DictValue state = BlockerState(read, "1.75.0");
+  const base::ListValue& out = state.Find("lists")->GetList();
+  assert(out.size() == 3);
+  assert(Text(out[0].GetDict(), "category") == "custom" && Text(out[0].GetDict(), "title") == "https://lists.example/mine.txt");
+  assert(BoolOf(out[0].GetDict(), "failed") && !BoolOf(out[0].GetDict(), "defaultOn"));
+  assert(!BoolOf(out[1].GetDict(), "failed") && Text(out[1].GetDict(), "category") == "ads");
+  assert(!BoolOf(out[2].GetDict(), "failed"));
+}
+
 void BlockerStates() {
   assert(Category("easylist", "ads") == "ads");
   assert(Category("ublock-privacy", "") == "trackers");
@@ -396,6 +510,7 @@ void BlockerStates() {
   assert(Category("urlhaus-1", "malware") == "security");
   assert(Category("DEU-0", "regions") == "regional");
   assert(Category("fanboy-social", "social") == "annoyances");
+  assert(Category("https://lists.example/cookie.txt", "custom") == "custom");
 
   base::ListValue lists;
   lists.Append(base::Value(base::DictValue().Set("id", "easylist").Set("title", "EasyList").Set("group", "ads")
@@ -463,6 +578,7 @@ void FollowDefault() {
   const std::string off = "/^(?:ardia-blocking-off|)/";
   base::Value read(base::DictValue()
                        .Set("lists", TextList({"easylist", "easyprivacy"}))
+                       .Set("imported", TextList({"https://lists.example/mine.txt"}))
                        .Set("whitelist", TextList({"chrome-extension-scheme", "news.example", off}))
                        .Set("autoUpdate", base::Value(false)));
   std::optional<BlockerSettings> settings = ParseBlockerSettings(read);
@@ -470,6 +586,7 @@ void FollowDefault() {
   assert((settings->lists == std::vector<std::string>{"easylist", "easyprivacy"}));
   assert((settings->whitelist == std::vector<std::string>{"chrome-extension-scheme", "news.example", off}));
   assert(!settings->auto_update);
+  assert((settings->imported == std::vector<std::string>{"https://lists.example/mine.txt"}));
 
   BlockerRequest follow;
   follow.op = BlockerOp::kFollow;
@@ -480,6 +597,7 @@ void FollowDefault() {
   const base::DictValue* args = request.FindDict("args");
   assert(args && args->Find("lists") && args->Find("lists")->GetList().size() == 2);
   assert(args->Find("whitelist")->GetList().size() == 3 && !BoolOf(*args, "autoUpdate"));
+  assert(args->Find("imported")->GetList().size() == 1 && args->Find("imported")->GetList()[0].GetString() == "https://lists.example/mine.txt");
   BlockerRequest read_request;
   read_request.op = BlockerOp::kSettings;
   assert(BridgeOpName(BlockerOp::kSettings) == "settings");
@@ -489,11 +607,13 @@ void FollowDefault() {
   assert(!AsFailure(completed));
   assert(ParseBlockerSettings(std::get<base::Value>(completed)));
   base::Value imported(base::DictValue()
-                           .Set("lists", TextList({"easylist", "https://example.com/filters.txt", "../x"}))
+                           .Set("lists", TextList({"easylist", "https://example.com/filters.txt", "../x", "ftp://example.com/x.txt"}))
+                           .Set("imported", TextList({"https://example.com/filters.txt", "easylist", "https://a.test/a b", "HTTP://B.test/x"}))
                            .Set("whitelist", TextList({"news.example"}))
                            .Set("autoUpdate", base::Value(true)));
   std::optional<BlockerSettings> kept = ParseBlockerSettings(imported);
-  assert(kept && kept->lists == std::vector<std::string>{"easylist"});
+  assert(kept && (kept->lists == std::vector<std::string>{"easylist", "https://example.com/filters.txt"}));
+  assert((kept->imported == std::vector<std::string>{"https://example.com/filters.txt", "HTTP://B.test/x"}));
   assert((kept->whitelist == std::vector<std::string>{"news.example"}));
   assert(!AsFailure(CompleteBlockerCall(read_request, &imported, nullptr, "1.75.0")));
   base::Value not_lists(base::DictValue().Set("lists", base::Value(3)).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)));
@@ -503,18 +623,28 @@ void FollowDefault() {
   assert(!AsFailure(CompleteBlockerCall(follow, nullptr, nullptr, "1.75.0")));
 
   for (const std::string& directive : {std::string("a\nb"), std::string("a\rb"), std::string(1, '\0'), std::string(), std::string(2049, 'a')}) {
-    base::Value with(base::DictValue().Set("lists", TextList({})).Set("whitelist", TextList({directive})).Set("autoUpdate", base::Value(true)));
+    base::Value with(base::DictValue().Set("lists", TextList({})).Set("imported", TextList({})).Set("whitelist", TextList({directive})).Set("autoUpdate", base::Value(true)));
     assert(!ParseBlockerSettings(with));
   }
-  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("whitelist", TextList({})))));
-  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", base::Value(3)).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)))));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("imported", TextList({})).Set("whitelist", TextList({})))));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", base::Value(3)).Set("imported", TextList({})).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)))));
+  assert(ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("imported", TextList({})).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)))));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)))));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("imported", base::Value("https://a.test/x")).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)))));
+  base::ListValue mixed_imports;
+  mixed_imports.Append(base::Value("https://a.test/x"));
+  mixed_imports.Append(base::Value(4));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("imported", base::Value(std::move(mixed_imports))).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)))));
+  base::ListValue many_imports;
+  for (size_t i = 0; i <= kMaxFollowedLists; ++i) many_imports.Append(base::Value("https://a.test/" + std::to_string(i)));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("imported", base::Value(std::move(many_imports))).Set("whitelist", TextList({})).Set("autoUpdate", base::Value(true)))));
   base::ListValue many;
   for (size_t i = 0; i <= kMaxFollowedDirectives; ++i) many.Append(base::Value("h" + std::to_string(i) + ".test"));
-  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("whitelist", base::Value(std::move(many))).Set("autoUpdate", base::Value(true)))));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("imported", TextList({})).Set("whitelist", base::Value(std::move(many))).Set("autoUpdate", base::Value(true)))));
   base::ListValue mixed_list;
   mixed_list.Append(base::Value("ok.test"));
   mixed_list.Append(base::Value(4));
-  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("whitelist", base::Value(std::move(mixed_list))).Set("autoUpdate", base::Value(true)))));
+  assert(!ParseBlockerSettings(base::Value(base::DictValue().Set("lists", TextList({})).Set("imported", TextList({})).Set("whitelist", base::Value(std::move(mixed_list))).Set("autoUpdate", base::Value(true)))));
 }
 
 void NavigationHoldPolicy() {
@@ -675,6 +805,7 @@ int main() {
   BrowsingDataScope();
   BlockerRequests();
   HiddenElementRequests();
+  CustomFilterLists();
   BlockerStates();
   BridgeScripts();
   Queue();

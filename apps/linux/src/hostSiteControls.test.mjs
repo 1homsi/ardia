@@ -133,6 +133,20 @@ test("hidden element calls carry the named profile on the transport and only the
   replies.delete("contentBlocker.hiddenElements");
 });
 
+test("adding and removing a filter list by address send only the address or id, and the added list comes back as the engine says", async () => {
+  const added = { id: "https://lists.example/mine.txt", custom: true, existed: false, filters: 42, failed: false };
+  replies.set("contentBlocker.addList", { value: added });
+  assert.deepEqual(await blocker.addFilterList("https://lists.example/mine.txt"), added);
+  assert.deepEqual(last(), { name: "contentBlocker.addList", profile: "default", args: { url: "https://lists.example/mine.txt" } });
+  assert.equal(await blocker.removeFilterList("https://lists.example/mine.txt"), null);
+  assert.deepEqual(last(), { name: "contentBlocker.removeList", profile: "default", args: { id: "https://lists.example/mine.txt" } });
+  replies.set("contentBlocker.addList", { fail: { code: "ERR_PROFILE_PRIVATE", message: "Private windows can't change the content blocker" } });
+  await assert.rejects(blocker.addFilterList("https://lists.example/mine.txt"), (error) => error.name === "ArdiaError" && error.code === "ERR_PROFILE_PRIVATE");
+  replies.set("contentBlocker.addList", { fail: { code: "ERR_CONTENT_BLOCKER_UNAVAILABLE", message: "uBlock Origin turned the list down" } });
+  await assert.rejects(blocker.addFilterList("https://lists.example/mine.txt"), (error) => error.code === "ERR_CONTENT_BLOCKER_UNAVAILABLE");
+  replies.delete("contentBlocker.addList");
+});
+
 test("contentBlocker.changed events from the host reach shared listeners and stop after removal", async () => {
   const seen = [];
   const subscription = blocker.onContentBlockerChange((stats) => seen.push(stats));

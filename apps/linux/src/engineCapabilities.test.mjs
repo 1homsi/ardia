@@ -28,6 +28,7 @@ const ENGINE = {
   smallWindows: listed("ac_linux_window_lifecycle.h", "kSmallWindowCapabilities"),
   report: listed("ac_linux_report_core.h", "kReportCapabilities"),
   hiddenElements: listed("ac_linux_site_controls.cc", "kBlockerCalls").filter((name) => /^contentBlocker\.(hiddenElements|hideElements|restoreElements)$/.test(name)),
+  customFilterLists: listed("ac_linux_site_controls.cc", "kBlockerCalls").filter((name) => /^contentBlocker\.(addList|removeList)$/.test(name)),
   appendedByName: [appended("profiles.deleteData"), appended("ArdiaShell.fetchBangList")],
   wheelZoom: listed("ac_linux_page_messages.h", "kLinuxPageMessageRoutes").filter((route) => route === "webView.setCommandScrollZoom"),
   blockAutoplay: listed("ac_linux_page_messages.h", "kLinuxPageMessageRoutes").filter((route) => route === "webView.setBlockAutoplayEverywhere"),
@@ -81,6 +82,7 @@ test("the engine advertises the names the shell gates on, spelled the same", () 
   assert.deepEqual(ENGINE.smallWindows, ["ArdiaShell.smallWindows"]);
   assert.deepEqual(ENGINE.report, ["report.files", "report.send"]);
   assert.deepEqual(ENGINE.hiddenElements, ["contentBlocker.hiddenElements", "contentBlocker.hideElements", "contentBlocker.restoreElements"]);
+  assert.deepEqual(ENGINE.customFilterLists, ["contentBlocker.addList", "contentBlocker.removeList"]);
   assert.deepEqual(ENGINE.wheelZoom, ["webView.setCommandScrollZoom"]);
   assert.deepEqual(ENGINE.blockAutoplay, ["webView.setBlockAutoplayEverywhere"]);
 });

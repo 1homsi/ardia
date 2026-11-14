@@ -8,17 +8,18 @@ const page = readFileSync(new URL("../content-blocker/ardia-linux-bridge.html", 
 const EXTENSION = "fajbdaomknpkicfjcpipdmcpoamdmilh";
 const OFF = "/^(?:ardia-blocking-off|)/";
 
-function fakeUblock({ ready = true, invalidated = false, stalled = false, silent = [] } = {}) {
+function fakeUblock({ ready = true, invalidated = false, stalled = false, silent = [], remote = {}, refused = [] } = {}) {
   const state = {
     whitelist: ["chrome-extension-scheme", "moz-extension-scheme"],
     whitelistDefault: ["chrome-extension-scheme", "moz-extension-scheme"],
     available: {
       "ublock-filters": { content: "filters", group: "default", title: "uBlock filters", entryCount: 100 },
-      easylist: { content: "filters", group: "ads", title: "EasyList", entryCount: 50000 },
-      "fanboy-cookiemonster": { content: "filters", group: "annoyances", title: "Cookie notices", off: true, entryCount: 9000 },
+      easylist: { content: "filters", group: "ads", title: "EasyList", entryCount: 50000, contentURL: ["https://ublockorigin.github.io/uAssets/thirdparties/easylist.txt", "https://easylist.to/easylist/easylist.txt"] },
+      "fanboy-cookiemonster": { content: "filters", group: "annoyances", title: "Cookie notices", off: true, entryCount: 9000, contentURL: "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt" },
       "DEU-0": { content: "filters", group: "regions", title: "DEU", off: true, lang: "de", entryCount: 10 },
       "user-filters": { content: "filters", group: "user", title: "My filters" },
     },
+    cache: { easylist: { writeTime: 1 } },
     autoUpdate: true,
     reloads: 0,
     messages: [],
@@ -26,6 +27,7 @@ function fakeUblock({ ready = true, invalidated = false, stalled = false, silent
     userFiltersError: null,
     listLoads: 0,
     core: [],
+    selections: [],
   };
   const core = {
     userFiltersPath: "user-filters",
@@ -68,7 +70,7 @@ function fakeUblock({ ready = true, invalidated = false, stalled = false, silent
         case "getWhitelist":
           return Promise.resolve({ whitelist: [...state.whitelist], whitelistDefault: state.whitelistDefault });
         case "getLists":
-          return Promise.resolve({ available: structuredClone(state.available), netFilterCount: 1234, cosmeticFilterCount: 56, autoUpdate: state.autoUpdate });
+          return Promise.resolve({ available: structuredClone(state.available), cache: structuredClone(state.cache), netFilterCount: 1234, cosmeticFilterCount: 56, autoUpdate: state.autoUpdate });
         case "setWhitelist":
           state.whitelist = message.whitelist.split("\n").filter(Boolean);
           return Promise.resolve(null);
@@ -76,13 +78,37 @@ function fakeUblock({ ready = true, invalidated = false, stalled = false, silent
           state[message.name] = message.value;
           return Promise.resolve(null);
         case "applyFilterListSelection":
-          for (const [id, list] of Object.entries(state.available)) {
-            if (list.group === "user") continue;
-            list.off = !message.toSelect.includes(id);
+          state.selections.push(structuredClone(message));
+          if (Array.isArray(message.toSelect)) {
+            for (const [id, list] of Object.entries(state.available)) {
+              if (list.group === "user") continue;
+              list.off = !message.toSelect.includes(id);
+            }
+          }
+          for (const id of Array.isArray(message.toRemove) ? message.toRemove : []) {
+            if (state.available[id] && state.available[id].group === "custom") {
+              delete state.available[id];
+              delete state.cache[id];
+            }
+          }
+          for (const url of typeof message.toImport === "string" ? message.toImport.split("\n").filter(Boolean) : []) {
+            if (refused.includes(url)) continue;
+            const needle = url.replace(/^https?:/i, "");
+            const stock = Object.keys(state.available).find((k) => [].concat(state.available[k].contentURL || []).some((u) => u.endsWith(needle)));
+            if (stock) state.available[stock].off = false;
+            else state.available[url] = { content: "filters", group: "custom", title: "", contentURL: url, entryCount: 0 };
           }
           return Promise.resolve(null);
         case "reloadAllFilters":
           state.reloads++;
+          for (const [id, list] of Object.entries(state.available)) {
+            if (list.group !== "custom" || list.off === true) continue;
+            if (remote[id] === undefined) state.cache[id] = { error: "network error" };
+            else {
+              list.entryCount = remote[id];
+              state.cache[id] = { writeTime: 2 };
+            }
+          }
           return Promise.resolve(null);
         default:
           return Promise.resolve(undefined);
@@ -234,6 +260,8 @@ test("state reports filter lists, defaults, counts and user exceptions", async (
   assert.equal(byId["fanboy-cookiemonster"].defaultOn, false);
   assert.equal(byId["DEU-0"].defaultOn, true);
   assert.equal(byId.easylist.filters, 50000);
+  assert.equal(byId.easylist.failed, false);
+  assert.equal(byId["DEU-0"].failed, false);
 });
 
 test("site exceptions cover subdomains and revoking removes every covering directive", async () => {
@@ -309,6 +337,7 @@ test("settings reads the selected lists, every whitelist directive and auto-upda
   const { value } = await call("settings");
   assert.deepEqual(value, {
     lists: ["easylist", "ublock-filters", "user-filters"],
+    imported: [],
     whitelist: [OFF, "chrome-extension-scheme", "moz-extension-scheme", "news.example"].sort(),
     autoUpdate: false,
   });
@@ -378,4 +407,88 @@ test("restoring drops every trimmed line that matches, then saves and reloads; n
   assert.match((await call("restoreElements", { filters: "example.com##.ad" })).error, /no filters to restore/);
   assert.match((await call("restoreElements", { filters: [4] })).error, /no filters to restore/);
   assert.equal(ublock.state.listLoads, 1);
+});
+
+const MINE = "https://lists.example/mine.txt";
+
+test("adding a list by address imports it, waits for the reload and answers its id, count and whether it downloaded", async () => {
+  const { call, ublock } = load({ ublock: fakeUblock({ remote: { [MINE]: 42 } }) });
+  assert.deepEqual(await call("addList", { url: MINE }), { ticket: 1, value: { id: MINE, custom: true, existed: false, filters: 42, failed: false } });
+  assert.deepEqual(ublock.state.selections, [{ what: "applyFilterListSelection", toImport: MINE }]);
+  assert.equal(ublock.state.reloads, 1);
+  assert.equal(ublock.storage.ardiaReloadPending, undefined);
+  const mine = (await call("state")).value.lists.find((l) => l.id === MINE);
+  assert.deepEqual(mine, { id: MINE, title: MINE, group: "custom", enabled: true, defaultOn: false, filters: 42, failed: false });
+  assert.deepEqual((await call("addList", { url: MINE })).value, { id: MINE, custom: true, existed: true, filters: 42, failed: false });
+  const broken = "http://lists.example/gone.txt";
+  assert.deepEqual((await call("addList", { url: broken })).value, { id: broken, custom: true, existed: false, filters: 0, failed: true });
+  assert.equal((await call("state")).value.lists.find((l) => l.id === broken).failed, true);
+});
+
+test("adding the address of a stock list turns that list on and says whether it already was", async () => {
+  const { call, ublock } = load();
+  assert.deepEqual((await call("addList", { url: "http://secure.fanboy.co.nz/fanboy-cookiemonster.txt" })).value,
+    { id: "fanboy-cookiemonster", custom: false, existed: false, filters: 9000, failed: false });
+  assert.equal(ublock.state.available["fanboy-cookiemonster"].off, false);
+  assert.deepEqual((await call("addList", { url: "https://easylist.to/easylist/easylist.txt" })).value,
+    { id: "easylist", custom: false, existed: true, filters: 50000, failed: false });
+});
+
+test("adding refuses anything but an http or https address and writes nothing; a list uBlock turns down is an error", async () => {
+  const { call, ublock } = load({ ublock: fakeUblock({ refused: [MINE] }) });
+  for (const url of ["ftp://lists.example/a.txt", "https://", "https:///a.txt", "https://a.test/a b", "javascript:alert(1)", "//a.test/x", `https://a.test/${"x".repeat(2048)}`, 3, null, undefined]) {
+    assert.match((await call("addList", { url })).error, /not a list address/, JSON.stringify(url));
+  }
+  assert.deepEqual(ublock.state.selections, []);
+  assert.equal(ublock.state.reloads, 0);
+  assert.equal((await call("addList", { url: MINE })).error, "uBlock Origin turned the list down");
+});
+
+test("adding answers before the call's deadline even while uBlock is still reloading", async () => {
+  const { call } = load({ ublock: fakeUblock({ silent: ["reloadAllFilters"] }) });
+  const started = Date.now();
+  const reply = await call("addList", { url: MINE }, { deadlineMs: 1500 });
+  assert.deepEqual(reply.value, { id: MINE, custom: true, existed: false, filters: 0, failed: false });
+  assert.ok(Date.now() - started < 1500);
+});
+
+test("removing drops only a list added by address", async () => {
+  const { call, ublock } = load({ ublock: fakeUblock({ remote: { [MINE]: 42 } }) });
+  await call("addList", { url: MINE });
+  ublock.state.selections.length = 0;
+  assert.deepEqual(await call("removeList", { id: MINE }), { ticket: 2, value: null });
+  assert.deepEqual(ublock.state.selections, [{ what: "applyFilterListSelection", toRemove: [MINE] }]);
+  assert.equal(ublock.state.available[MINE], undefined);
+  assert.equal(ublock.state.reloads, 2);
+  for (const id of ["easylist", "user-filters", "nope", MINE, "__proto__", "constructor", 7]) {
+    assert.equal((await call("removeList", { id })).error, `no added list ${id}`);
+  }
+  assert.equal(ublock.state.selections.length, 1);
+});
+
+test("settings name the lists added by address, and follow imports and removes them to match", async () => {
+  const OTHER = "https://lists.example/other.txt";
+  const remote = { [MINE]: 42, [OTHER]: 7 };
+  const leader = load({ ublock: fakeUblock({ remote }) });
+  await leader.call("addList", { url: OTHER });
+  await leader.call("addList", { url: MINE });
+  const { value: settings } = await leader.call("settings");
+  assert.deepEqual(settings.imported, [MINE, OTHER]);
+  assert.ok(settings.lists.includes(MINE) && settings.lists.includes(OTHER));
+  const follower = load({ ublock: fakeUblock({ remote }) });
+  assert.deepEqual((await follower.call("follow", settings)).value, null);
+  assert.deepEqual((await follower.call("settings")).value, settings);
+  assert.deepEqual(follower.ublock.state.selections[0], { what: "applyFilterListSelection", toImport: `${MINE}\n${OTHER}`, toRemove: [] });
+  await leader.call("removeList", { id: OTHER });
+  const { value: fewer } = await leader.call("settings");
+  assert.deepEqual(fewer.imported, [MINE]);
+  await follower.call("follow", fewer);
+  assert.deepEqual((await follower.call("settings")).value, fewer);
+  assert.equal(follower.ublock.state.available[OTHER], undefined);
+  const before = follower.ublock.state.selections.length;
+  await follower.call("follow", fewer);
+  assert.equal(follower.ublock.state.selections.length, before);
+  for (const bad of [{ ...fewer, imported: "x" }, { ...fewer, imported: [3] }]) {
+    assert.match((await follower.call("follow", bad)).error, /no settings to copy/);
+  }
 });

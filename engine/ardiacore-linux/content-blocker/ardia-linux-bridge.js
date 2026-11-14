@@ -88,6 +88,10 @@
       });
 
     const selected = (l) => Object.keys(l.available).filter((k) => l.available[k] && l.available[k].off !== true);
+    const imported = (l) => Object.keys(l.available).filter((k) => l.available[k] && l.available[k].group === "custom").sort();
+    const owns = (l, id) => Object.prototype.hasOwnProperty.call(l.available, id) && !!l.available[id];
+    const failedToLoad = (l, id) =>
+      !!(l.cache && Object.prototype.hasOwnProperty.call(l.cache, id) && l.cache[id] && l.cache[id].error !== undefined);
     const covers = (directive, host) => !directive.includes("/") && (host === directive || host.endsWith("." + directive));
 
     const storageCall = (name, arg) =>
@@ -104,11 +108,10 @@
       remove: (key) => storageCall("remove", key),
     };
     const reloadLists = () => send({ what: "reloadAllFilters" }).then(() => local.remove("ardiaReloadPending"));
-    const applyLists = (toSelect) =>
-      local
-        .set({ ardiaReloadPending: true })
-        .then(() => send({ what: "applyFilterListSelection", toSelect }))
-        .then(reloadLists);
+    const reloadWait = () => new Promise((resolve) => setTimeout(resolve, Math.max(0, left() - 1000)));
+    const applySelection = (details) =>
+      local.set({ ardiaReloadPending: true }).then(() => send({ what: "applyFilterListSelection", ...details }));
+    const applyLists = (toSelect) => applySelection({ toSelect }).then(reloadLists);
     const settlePending = () => local.get("ardiaReloadPending").then((b) => (b.ardiaReloadPending ? reloadLists() : null));
 
     const state = () =>
@@ -120,14 +123,15 @@
         const onByDefault = (id) => !!assets[id] && (assets[id].off !== true || forLanguages(assets[id].lang));
         return {
           lists: Object.entries(l.available)
-            .filter(([, list]) => list && list.content === "filters" && list.group !== "user" && list.group !== "custom")
+            .filter(([, list]) => list && list.content === "filters" && list.group !== "user")
             .map(([id, list]) => ({
               id,
               title: list.title || id,
               group: list.group || "",
               enabled: list.off !== true,
-              defaultOn: onByDefault(id),
+              defaultOn: list.group !== "custom" && onByDefault(id),
               filters: list.entryCount || 0,
+              failed: failedToLoad(l, id),
             })),
           networkFilters: l.netFilterCount || 0,
           cosmeticFilters: l.cosmeticFilterCount || 0,
@@ -149,9 +153,51 @@
 
     const setList = ({ id, enabled }) =>
       lists().then((l) => {
-        if (!Object.prototype.hasOwnProperty.call(l.available, id) || !l.available[id]) throw new Error(`no list ${id}`);
+        if (!owns(l, id)) throw new Error(`no list ${id}`);
         const keep = selected(l).filter((x) => x !== id);
         return applyLists(enabled ? keep.concat([id]) : keep).then(() => null);
+      });
+
+    const listAddress = /^https?:\/\/[^\s\/]+\S*$/i;
+
+    const addList = ({ url }) =>
+      Promise.resolve()
+        .then(() => {
+          if (typeof url !== "string" || url.length > 2048 || !listAddress.test(url)) throw new Error("not a list address");
+          return lists();
+        })
+        .then((before) => {
+          const needle = url.replace(/^https?:/i, "");
+          const findId = (l) =>
+            owns(l, url)
+              ? url
+              : Object.keys(l.available).find((k) =>
+                  [].concat((l.available[k] && l.available[k].contentURL) || []).some((u) => typeof u === "string" && u.endsWith(needle)),
+                );
+          const had = findId(before);
+          return applySelection({ toImport: url })
+            .then(() => Promise.race([reloadLists(), reloadWait()]))
+            .then(lists)
+            .then((l) => {
+              const id = findId(l);
+              if (!id) throw new Error("uBlock Origin turned the list down");
+              const entry = l.available[id];
+              return {
+                id,
+                custom: entry.group === "custom",
+                existed: !!had && before.available[had].off !== true,
+                filters: entry.entryCount || 0,
+                failed: failedToLoad(l, id),
+              };
+            });
+        });
+
+    const removeList = ({ id }) =>
+      lists().then((l) => {
+        if (typeof id !== "string" || !owns(l, id) || l.available[id].group !== "custom") throw new Error(`no added list ${id}`);
+        return applySelection({ toRemove: [id] })
+          .then(reloadLists)
+          .then(() => null);
       });
 
     const isAllowed = ({ host }) => trusted().then((t) => t.whitelist.some((d) => covers(d, host)));
@@ -168,6 +214,7 @@
     const settings = () =>
       Promise.all([lists(), trusted()]).then(([l, t]) => ({
         lists: selected(l).sort(),
+        imported: imported(l),
         whitelist: [...t.whitelist].sort(),
         autoUpdate: l.autoUpdate !== false,
       }));
@@ -176,8 +223,16 @@
       Promise.all([lists(), trusted()]).then(([l, t]) => {
         if (!strings(want.lists) || !strings(want.whitelist) || typeof want.autoUpdate !== "boolean")
           throw new Error("no settings to copy");
+        if (want.imported !== undefined && !strings(want.imported)) throw new Error("no settings to copy");
+        const mine = imported(l);
+        const wanted = want.imported === undefined ? mine : want.imported;
+        const toImport = wanted.filter((u) => !mine.includes(u));
+        const toRemove = mine.filter((u) => !wanted.includes(u));
+        const importsDiffer = toImport.length > 0 || toRemove.length > 0;
         let written = Promise.resolve(null);
-        if (!sameSet(selected(l), want.lists)) written = written.then(() => applyLists(want.lists));
+        if (importsDiffer)
+          written = written.then(() => send({ what: "applyFilterListSelection", toImport: toImport.join("\n"), toRemove }));
+        if (importsDiffer || !sameSet(selected(l), want.lists)) written = written.then(() => applyLists(want.lists));
         if (!sameSet(t.whitelist, want.whitelist))
           written = written.then(() => send({ what: "setWhitelist", whitelist: want.whitelist.join("\n") }));
         if ((l.autoUpdate !== false) !== want.autoUpdate)
@@ -245,6 +300,8 @@
       setAllowed,
       settings,
       follow,
+      addList,
+      removeList,
       hiddenElements,
       hideElements,
       restoreElements,

@@ -854,6 +854,8 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   | `contentBlocker.state` | `{}` |
   | `contentBlocker.setEnabled` | `{enabled}` |
   | `contentBlocker.setListEnabled` | `{id, enabled}` |
+  | `contentBlocker.addList` | `{url}`; answers `{id, custom, existed, filters, failed}` |
+  | `contentBlocker.removeList` | `{id}` of a list added by address |
   | `contentBlocker.isAllowed` | `{host}` |
   | `contentBlocker.setAllowed` | `{host, allowed}` |
   | `contentBlocker.hiddenElements` | `{}` on the named profile; answers its hiding rules |
@@ -867,6 +869,10 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   Restoring drops the matching lines and reloads the lists. A private id reads and restores its original profile's rules,
   and hiding from a private window fails with `ERR_PROFILE_PRIVATE` (the shared UI keeps those rules in memory for the
   session). An empty `filters` answers `null` without reaching the blocker.
+- **Your lists.** Lists added by address work as on macOS: the C++ side accepts an `http` or `https` address of at most
+  2,048 printable ASCII bytes, and the bridge page checks it again and imports it through uBlock Origin, which keys the
+  list by its address (so a list id is a plain id or such an address). Added lists show under `custom`, every list
+  carries `failed`, and a private window can't add or remove one.
 - **The blocker.** It is the same uBlock Origin component macOS loads, with the same id. Each regular profile loads
   it from `lib/ardia/extensions/ublock` (or `--ardia-content-blocker-dir`) through `ComponentLoader::AddOrReplace`
   once its extension system is ready.
@@ -879,7 +885,8 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
 - **Restricted scripting.** `g_ardia_restricted_component_extension` is set in every process from
   `BasicStartupComplete`, so uBlock can't script `chrome://` pages, the shell, the Web Store or other extensions.
 - **Isolated profiles.** These load their own copy. It follows the app profile's lists, exceptions and auto-update,
-  copied on first load and after each change. Plain list ids only, at most 512 lists and 10,000 directives of 2 KiB.
+  copied on first load and after each change, along with the lists added by address (imported or removed to match).
+  At most 512 lists and 10,000 directives of 2 KiB.
 - **Navigation hold.** Until an isolated profile's blocker is ready on its first load in a run,
   `chromium-linux-navigation-hold-hook.patch` holds its page navigations for at most 2 s. Internal schemes aren't held.
   The app profile is never held, as on macOS: on a fresh profile uBlock Origin restarts itself once and compiles its
