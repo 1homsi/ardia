@@ -9,6 +9,7 @@ on:
       - "scripts/**"
       - "docs/**"
       - "infra/**"
+      - "engine/**"
       - ".claude/**"
       - ".github/vouch/**"
       - "package.json"
@@ -61,6 +62,9 @@ jobs:
       - name: Tests that need no Mac, the browser's aside
         if: ${{ !cancelled() && matrix.part == 'rest' }}
         run: pnpm run test:portable:packages --filter=!@ardia/browser
+      - name: The tests of the Mac packages that need no Mac
+        if: ${{ !cancelled() && matrix.part == 'rest' }}
+        run: pnpm run test:portable:mac
       - name: Repository tests
         if: ${{ !cancelled() && matrix.part == 'rest' }}
         run: pnpm run test:root
