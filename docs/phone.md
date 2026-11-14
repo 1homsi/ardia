@@ -839,8 +839,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 Nothing native is left on iPhone that hasn't a decision against it. What remains is wiring in JavaScript, and checks that need a real iPhone (next section).
 
-- JavaScript only, still to wire: link popups not selected when `inBackground` is true (d10c053d1).
-- Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (f0fbeebcf); Enter Words and Add a List on `PasteButton` where `pasteButtonIsNative()`, 104 × 34 points, tinted with the form accent (this commit).
+- Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (f0fbeebcf); Enter Words and Add a List on `PasteButton` where `pasteButtonIsNative()`, 104 × 34 points, tinted with the form accent (2a3ba11d5); a link the page opens with Open in Background (`inBackground` on `page.popup`, d10c053d1) becomes a tab beside its opener without being selected (this commit).
 - For the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes.
 
 ### Check on your iPhone

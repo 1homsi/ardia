@@ -267,11 +267,11 @@ export function pressAction(press: Press, action: PressAction) {
   }
 }
 
-async function openPopup(openerId: string, popupId: string, url: string | null, isPrivate: boolean) {
+async function openPopup(openerId: string, popupId: string, url: string | null, isPrivate: boolean, inBackground: boolean) {
   const tab = openNewTab({ url: url ?? "about:blank", origin: "link", after: openerId, selecting: false, isPrivate });
   const opened = await settled(() => pages.openPopup(tab.id, popupId), false);
-  if (opened) openTab(tab.id);
-  else closeTabById(tab.id);
+  if (!opened) closeTabById(tab.id);
+  else if (!inBackground) openTab(tab.id);
 }
 
 function downloadEvent(event: DownloadEvent) {
@@ -296,7 +296,7 @@ function pageEvent(event: PageEngineEvent) {
       storeFullscreen(event.pageId, event.isFullscreen);
       return;
     case "page.popup":
-      void openPopup(event.pageId, event.popupId, event.url, event.isPrivate);
+      void openPopup(event.pageId, event.popupId, event.url, event.isPrivate, event.inBackground === true);
       return;
     case "page.download":
       showToast(downloadingToast(event.fileName), "download");

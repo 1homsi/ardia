@@ -157,7 +157,7 @@ export type PageEngineEvent =
   | { name: "page.request"; pageId: string; request: PageRequest | null }
   | { name: "page.fullscreen"; pageId: string; isFullscreen: boolean }
   | { name: "page.visited"; pageId: string; url: string; title: string; kind: VisitKind }
-  | { name: "page.popup"; pageId: string; popupId: string; url: string | null; isUserGesture: boolean; isPrivate: boolean }
+  | { name: "page.popup"; pageId: string; popupId: string; url: string | null; isUserGesture: boolean; isPrivate: boolean; inBackground?: boolean }
   | {
       name: "page.download";
       pageId: string;
