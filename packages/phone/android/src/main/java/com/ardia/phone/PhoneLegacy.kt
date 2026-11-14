@@ -99,7 +99,7 @@ class PhoneLegacy(
         val archive = rows.filter { it.archivedAt != null }
         mapOf(
             "tabs" to regular.map { payload(it, planThumbnail(it)) },
-            "archive" to archive.map { payload(it, null) },
+            "archive" to archive.map { payload(it, planThumbnail(it)) },
             "selectedTabId" to regular.maxByOrNull { it.lastActive }?.id,
             "preferences" to storePreferences(),
         )
@@ -131,7 +131,7 @@ class PhoneLegacy(
         applySites()
         reached("sites")
         if (sourceDatabase.exists()) {
-            withDatabase(::tabRows).filter { it.archivedAt == null }.forEach { tab ->
+            withDatabase(::tabRows).forEach { tab ->
                 planThumbnail(tab)?.let {
                     copyThumbnail(it)
                     reached("thumbnail")
@@ -239,7 +239,6 @@ class PhoneLegacy(
     }
 
     private fun planThumbnail(tab: TabRow): Thumbnail? {
-        if (tab.archivedAt != null) return null
         val name = tab.snapshotFileName?.takeIf { it.isNotBlank() } ?: return null
         val folder = runCatching { oldThumbnails.canonicalFile }.getOrNull() ?: return null
         val source = runCatching { File(folder, name).canonicalFile }.getOrNull() ?: return null

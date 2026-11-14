@@ -42,7 +42,7 @@ export function UpgradeLab({ note }: { note: (line: string) => void }) {
     try {
       const read = await legacyImport.read();
       const withState = [...read.tabs, ...read.archive].filter((tab) => tab.savedState).length;
-      const thumbnails = read.tabs.filter((tab) => tab.snapshotPath).length;
+      const thumbnails = [...read.tabs, ...read.archive].filter((tab) => tab.snapshotPath).length;
       const selected = read.tabs.findIndex((tab) => tab.id === read.selectedTabId);
       say(
         `read tabs ${read.tabs.length} archive ${read.archive.length} states ${withState} thumbnails ${thumbnails} selected #${selected} in ${Date.now() - started} ms`,

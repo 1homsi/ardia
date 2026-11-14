@@ -317,7 +317,7 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
   - `readLegacy` returns every tab and Archive entry with its saved state, the most recently active tab as
     selected, and the 14 JS-owned preference keys. `readVisits(afterId, limit)` pages history by id.
   - `applyNativeSettings` copies `ardia.blocking` into `ardia-blocking` (the same keys), splits `browsing.sites`
-    into the zoom, Night Shade and app-links maps and their defaults, and copies the thumbnails of regular tabs
+    into the zoom, Night Shade and app-links maps and their defaults, and copies the thumbnails of regular tabs and Archive entries
     into `files/PageSnapshots`. The thumbnail must sit inside `cache/TabSnapshots` and be a real image.
   - `markImportedWith(receipt)` applies those settings, writes the marker last, opens the gate and starts one
     sync. Every step can run again after a kill.
@@ -391,7 +391,7 @@ then Upgrade; opening the lab never runs the import.
 5. **Reader check.** In the lab, tap Read source and Read everything (`grep "PAGELAB upgrade"`):
    - The source is `pending`, with the tab, Archive and visit counts from step 2.
    - `read` shows every tab and both Archive entries, `states` at least the deep tab and the archived one,
-     `thumbnails` one per card that had a picture, and `selected` the tab that was open.
+     `thumbnails` one per card that had a picture (Archive entries included), and `selected` the tab that was open.
    - `preferences` lists the keys you changed, and `visits` matches the source's visit count.
    - The page part of the lab reports `ERR_IMPORT_PENDING` while the import waits.
 6. **Failure screen.** In the lab, tap Make source unusable (`source reports unusable (io)`; no Compose file is
@@ -408,7 +408,7 @@ then Upgrade; opening the lab never runs the import.
    `example.com/upgrade` opens once, after the deck. Then check every item against step 3:
    - The deck has every tab in the same order, the same tab is selected, and each card shows its thumbnail.
    - The deep tab goes Back through its three pages and opens at its scroll position.
-   - The Archive has both entries, and restoring the one with history keeps it.
+   - The Archive has both entries with their thumbnails, and restoring the one with history keeps it.
    - History has all the visits and search finds old ones, with no visit twice.
    - Every setting you changed holds: Night Shade, search engine and suggestions, swipe, auto-archive, bottom bar,
      the color, Open App Links In, the Reader's size, serif and theme, each site's zoom, Night Shade and app

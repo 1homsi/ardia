@@ -249,7 +249,10 @@ class PhoneLegacyTest {
         assertEquals(listOf(archivedId), archive.map { it["id"] })
         assertEquals(archivedState.toList(), Base64.getDecoder().decode(archive[0]["savedState"] as String).toList())
         assertEquals(900.0, archive[0]["archivedAt"])
-        assertNull(archive[0]["snapshotPath"])
+        val archivedSnapshot = File(archive[0]["snapshotPath"] as String)
+        assertEquals(File(app.filesDir, "PageSnapshots"), archivedSnapshot.parentFile)
+        assertTrue(archivedSnapshot.name.startsWith(PageSnapshots.fileStem(archivedId) + "-"))
+        assertFalse("reading copies nothing", archivedSnapshot.exists())
         assertEquals(
             mapOf(
                 "tabs.autoArchiveInterval" to "week",
@@ -340,12 +343,15 @@ class PhoneLegacyTest {
         assertFalse(raw.contains("blockersOff.sites"))
 
         val copied = File(app.filesDir, "PageSnapshots").listFiles()!!.toList()
-        assertEquals(1, copied.size)
-        assertTrue(copied[0].name.startsWith(PageSnapshots.fileStem(selectedId) + "-"))
-        assertEquals(File(app.cacheDir, "TabSnapshots/$selectedId.jpg").readBytes().toList(), copied[0].readBytes().toList())
-        @Suppress("UNCHECKED_CAST")
-        val reported = (legacy().read()["tabs"] as List<Map<String, Any?>>).first { it["id"] == selectedId }["snapshotPath"]
-        assertEquals(copied[0].absolutePath, reported)
+        assertEquals("the selected tab's and the archived tab's, not the fake image or the path outside", 2, copied.size)
+        val read = legacy().read()
+        for ((id, list) in listOf(selectedId to "tabs", archivedId to "archive")) {
+            val file = copied.single { it.name.startsWith(PageSnapshots.fileStem(id) + "-") }
+            assertEquals(File(app.cacheDir, "TabSnapshots/$id.jpg").readBytes().toList(), file.readBytes().toList())
+            @Suppress("UNCHECKED_CAST")
+            val reported = (read[list] as List<Map<String, Any?>>).first { it["id"] == id }["snapshotPath"]
+            assertEquals(file.absolutePath, reported)
+        }
     }
 
     @Test
