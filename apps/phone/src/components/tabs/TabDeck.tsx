@@ -125,6 +125,7 @@ export function TabDeck() {
       return;
     }
     scroll.value = openingDeckScroll(index, order.length);
+    setAnchor(Math.round(scroll.value));
     beginInteraction("deck open", INTERACTION_WINDOW_MS.deckOpen);
     setPhase({ kind: "opening", id: entrance });
     scaleProgress.value = 0;
@@ -153,6 +154,7 @@ export function TabDeck() {
     flyVanish.value = 0;
     flyLift.value = 0;
     scroll.value = after;
+    setAnchor(Math.round(after));
     setShift((s) => ({ by: after - before, generation: s.generation + 1 }));
     setOrder(next);
   }, [live]);
@@ -164,7 +166,11 @@ export function TabDeck() {
     if (!command || phase.kind !== "settled") return;
     takeDeckCommand(command.id);
     const focused = focusedIndex(scroll.value, order.length);
-    if (command.kind === "scroll") scroll.value = withSpring(Math.min(Math.max(command.index, 0), Math.max(order.length - 1, 0)), tabsMotion.settle);
+    if (command.kind === "scroll") {
+      const target = Math.min(Math.max(command.index, 0), Math.max(order.length - 1, 0));
+      setAnchor(target);
+      scroll.value = withSpring(target, tabsMotion.settle);
+    }
     else if (command.kind === "closeFocused") close(focused, 0);
     else if (command.kind === "openFocused") open(focused);
     else if (command.kind === "openSelected") {
@@ -223,13 +229,7 @@ export function TabDeck() {
   };
 
   const count = order.length;
-  const [near, setNear] = useState(() => focusedIndex(scroll.value, order.length));
-  useAnimatedReaction(
-    () => Math.round(scroll.value),
-    (index, previous) => {
-      if (index !== previous) runOnJS(setNear)(index);
-    },
-  );
+  const [anchor, setAnchor] = useState(() => focusedIndex(scroll.value, order.length));
   const touching = useSharedValue(false);
   useAnimatedReaction(
     () => (touching.value ? focusedIndex(scroll.value, count) : -1),
@@ -243,6 +243,7 @@ export function TabDeck() {
   const touchDown = useSharedValue({ x: 0, y: 0, absoluteX: 0, absoluteY: 0 });
   const scrollFrom = useSharedValue(0);
   const pan = Gesture.Pan()
+    .withTestId("deckPan")
     .minDistance(10)
     .onBegin((e) => {
       touchDown.value = { x: e.x, y: e.y, absoluteX: e.absoluteX, absoluteY: e.absoluteY };
@@ -290,6 +291,7 @@ export function TabDeck() {
       const settled = () => {
         "worklet";
         touching.value = false;
+        runOnJS(setAnchor)(target);
       };
       scroll.value = reduceMotion
         ? withTiming(target, { duration: tabsMotion.fade, easing: tabsCurve.easeOut }, settled)
@@ -407,11 +409,12 @@ export function TabDeck() {
         <ScrollActions
           style={StyleSheet.absoluteFill}
           pointerEvents="box-none"
-          canScrollForward={deckScrollActionTarget(near, count, "forward") !== null}
-          canScrollBackward={deckScrollActionTarget(near, count, "backward") !== null}
+          canScrollForward={deckScrollActionTarget(anchor, count, "forward") !== null}
+          canScrollBackward={deckScrollActionTarget(anchor, count, "backward") !== null}
           onScrollAction={(direction) => {
-            const target = deckScrollActionTarget(near, count, direction);
+            const target = deckScrollActionTarget(anchor, count, direction);
             if (target === null) return;
+            setAnchor(target);
             scroll.value = reduceMotion ? withTiming(target, { duration: tabsMotion.fade }) : withSpring(target, tabsMotion.settle);
           }}
         >
@@ -419,7 +422,7 @@ export function TabDeck() {
             <Animated.View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }, cardsStyle]} collapsable={false}>
               {order.map((id, index) => {
                 const tab = tabs.get(id);
-                if (!tab || hidden.current.has(id) || Math.abs(index - near) > DECK_RENDER_REACH) return null;
+                if (!tab || hidden.current.has(id) || !deckCardMounted(index, anchor)) return null;
                 return (
                   <DeckCard
                     key={id}
@@ -503,6 +506,9 @@ const flickTick = () => haptics.tap();
 const DECK_FROST = "deck";
 
 const DECK_RENDER_REACH = 6;
+const DECK_GESTURE_REACH = 3;
+
+const deckCardMounted = (index: number, anchor: number) => Math.abs(index - anchor) <= DECK_RENDER_REACH + DECK_GESTURE_REACH;
 const BACKDROP_LEAD = 1.4;
 const CHROME_FROM = 0.6;
 const POOF_LINGER_MS = 50;

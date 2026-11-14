@@ -100,3 +100,36 @@ test("each card casts one shadow, on the one view that moves and clips it, tinte
   }
   unmount(root);
 });
+
+test("dragging the deck two cards renders nothing and mounts no card mid-gesture; the mounting window moves only once the deck has settled", () => {
+  const { State } = require("react-native-gesture-handler") as typeof import("react-native-gesture-handler");
+  const { fireGestureHandler, getByGestureTestId } = require("react-native-gesture-handler/jest-utils") as typeof import("react-native-gesture-handler/jest-utils");
+  const perf = require("../state/app/interactionPerf") as typeof import("../state/app/interactionPerf");
+  withTabs(20);
+  const lines: string[] = [];
+  const root = renderSurface(<TabDeck />);
+  const mountedBefore = cards(root).length;
+  perf.enableInteractionPerf(true, (line) => lines.push(line));
+  act(() => perf.beginInteraction("drag", 5000));
+  act(() =>
+    fireGestureHandler(getByGestureTestId("deckPan"), [
+      { state: State.BEGAN, x: 200, y: 400, absoluteX: 200, absoluteY: 400, translationX: 0, translationY: 0, velocityX: 0 },
+      { state: State.ACTIVE, x: 200, y: 400, absoluteX: 200, absoluteY: 400, translationX: 0, translationY: 0, velocityX: 0 },
+      { state: State.ACTIVE, x: 320, y: 400, absoluteX: 320, absoluteY: 400, translationX: 120, translationY: 0, velocityX: 300 },
+      { state: State.ACTIVE, x: 480, y: 400, absoluteX: 480, absoluteY: 400, translationX: 280, translationY: 0, velocityX: 300 },
+    ]),
+  );
+  act(() => perf.finishInteraction());
+  perf.enableInteractionPerf(false, () => undefined);
+  expect(lines[0]).toMatch(/renders 0$/);
+  expect(cards(root).length).toBe(mountedBefore);
+  act(() =>
+    fireGestureHandler(getByGestureTestId("deckPan"), [
+      { state: State.ACTIVE, x: 480, y: 400, absoluteX: 480, absoluteY: 400, translationX: 280, translationY: 0, velocityX: 300 },
+      { state: State.END, x: 480, y: 400, absoluteX: 480, absoluteY: 400, translationX: 280, translationY: 0, velocityX: 300 },
+    ]),
+  );
+  act(() => jest.advanceTimersByTime(2000));
+  expect(cards(root).length).toBeGreaterThan(mountedBefore);
+  unmount(root);
+});
