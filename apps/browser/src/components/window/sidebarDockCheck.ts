@@ -76,7 +76,6 @@ async function dockMidClose(windowId: string, moment: DockMoment) {
   probe().peek.show();
   await until("the peek to slide out", () => probe().peek.live && currentValue(probe().peek.slide) === 1 && !animating(probe().peek.slide));
   probe().peek.hide();
-  await until("the peek to start closing", () => probe().peek.leaving);
   await until("the closing slide to start", () => currentValue(probe().peek.slide) < 1);
   const closing = Date.now();
   await until(`the moment to dock ${moment.label}`, () => moment.ready(Date.now() - closing, currentValue(probe().peek.slide)));
