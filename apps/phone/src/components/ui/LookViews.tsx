@@ -169,7 +169,6 @@ export function LookGlass({
 }: FrostProps & { shape: GlassShape }) {
   const look = useProfileLook();
   const theme = useTheme();
-  const reduceTransparency = useReduceTransparency();
   if (!glassIsNative()) return <LookFrost {...frost} />;
   return (
     <Glass
@@ -178,7 +177,6 @@ export function LookGlass({
       shape={shape}
       {...lookColors(look, frost.incognito ?? false)}
       dark={frost.incognito || (frost.dark ?? theme.dark)}
-      reduceTransparency={reduceTransparency}
       style={frost.style}
     >
       {frost.children}

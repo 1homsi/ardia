@@ -18,7 +18,9 @@ type Props = {
 export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSettings }: Props) {
   const theme = useTheme();
   const plus = tabsLayout.barPlus;
-  const icons = usesGlass() ? GLASS_ICONS : FROST_ICONS;
+  const glass = usesGlass();
+  const sideSize = (name: SymbolName) => (glass ? (GLASS_GLYPHS[name] ?? GLASS_GLYPHS.gearshape) : FROST_ICONS.side);
+  const edge = glass ? null : [styles.edge, { borderColor: theme.controlEdge }];
   const row = useRef<View>(null);
   const measure = () => row.current?.measureInWindow((_x, y, _width, height) => noteDeckBarTop(height > 0 ? y : null));
   useEffect(() => {
@@ -30,9 +32,9 @@ export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSetti
       <View style={styles.side}>
         {leading ? (
           <PressScale label={leading.label} onPress={leading.onPress} style={styles.hit}>
-            <LookGlass {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, { borderColor: theme.controlEdge }]}>
+            <LookGlass {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, edge]}>
               <View pointerEvents="none">
-                <Symbol name={leading.icon} size={icons.side} color={theme.secondaryLabel} />
+                <Symbol name={leading.icon} size={sideSize(leading.icon)} color={theme.secondaryLabel} />
               </View>
             </LookGlass>
           </PressScale>
@@ -45,17 +47,17 @@ export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSetti
         onLongPress={onPlusMenu}
         style={{ width: plus.width, height: plus.height }}
       >
-        <LookGlass {...frost} shape="capsule" cornerRadius={capsule(plus.height)} fill={theme.deckControl} style={[styles.plus, { borderColor: theme.controlEdge }]}>
+        <LookGlass {...frost} shape="capsule" cornerRadius={capsule(plus.height)} fill={theme.deckControl} style={[styles.plus, edge]}>
           <View pointerEvents="none">
-            <Symbol name="plus" size={icons.plus} color={theme.label} />
+            <Symbol name="plus" size={glass ? GLASS_GLYPHS.plus : FROST_ICONS.plus} color={theme.label} />
           </View>
         </LookGlass>
       </PressScale>
       <View style={[styles.side, styles.end]}>
         <PressScale label="Settings" onPress={onSettings} style={styles.hit}>
-          <LookGlass {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, { borderColor: theme.controlEdge }]}>
+          <LookGlass {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, edge]}>
             <View pointerEvents="none">
-              <Symbol name="gearshape" size={icons.side} color={theme.secondaryLabel} />
+              <Symbol name="gearshape" size={sideSize("gearshape")} color={theme.secondaryLabel} />
             </View>
           </LookGlass>
         </PressScale>
@@ -66,7 +68,7 @@ export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSetti
 
 const circleRadius = capsule(tabsLayout.barCircle);
 const FROST_ICONS = { side: 17, plus: 22 } as const;
-const GLASS_ICONS = { side: 15, plus: 20 } as const;
+const GLASS_GLYPHS: Partial<Record<SymbolName, number>> & { gearshape: number; plus: number } = { laptop: 24.6, gearshape: 18, plus: 24.5 };
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", height: browseLayout.hitTarget },
@@ -76,9 +78,9 @@ const styles = StyleSheet.create({
   circle: {
     width: tabsLayout.barCircle,
     height: tabsLayout.barCircle,
-    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
   },
-  plus: { flex: 1, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth },
+  plus: { flex: 1, alignItems: "center", justifyContent: "center" },
+  edge: { borderWidth: StyleSheet.hairlineWidth },
 });
