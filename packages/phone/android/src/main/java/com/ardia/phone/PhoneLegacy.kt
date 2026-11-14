@@ -159,6 +159,7 @@ class PhoneLegacy(
 
     fun startFresh(startSync: () -> Unit) = synchronized(LOCK) {
         if (UpgradeGate.completion(app) == null) {
+            keepSettingsIfReadable()
             UpgradeGate.writeStartedFresh(app)
             reached("marker")
         }
@@ -166,6 +167,16 @@ class PhoneLegacy(
         if (UpgradeGate.pending(app)) throw IOException("the start-fresh marker was written but the gate is still closed")
         snapshotFolder.deleteRecursively()
         startSync()
+    }
+
+    private fun keepSettingsIfReadable() {
+        for ((name, apply) in listOf("blocking" to ::applyBlocking, "site" to ::applySites)) {
+            try {
+                apply()
+            } catch (unreadable: Exception) {
+                if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB upgrade start fresh: the old $name settings could not be read, defaults kept (${unreadable.javaClass.simpleName})")
+            }
+        }
     }
 
     private data class TabRow(

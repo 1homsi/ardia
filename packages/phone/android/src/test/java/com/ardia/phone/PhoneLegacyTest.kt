@@ -414,7 +414,13 @@ class PhoneLegacyTest {
         assertNull("starting fresh is not an import", UpgradeGate.marker(app))
         assertEquals(mapOf("kind" to "done", "outcome" to "startedFresh"), legacy().source())
         assertEquals(before, sourceFingerprint())
-        assertEquals(emptyMap<String, Any?>(), app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE).all)
+        val blocking = app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE)
+        assertEquals("the old blocking settings are kept", false, blocking.getBoolean("blocking.ads", true))
+        assertEquals("||tracker.example^", blocking.getString("filters.myFilters", null))
+        assertEquals("[\"ads.example\",\"bank.example\"]", blocking.getString("blocking.exemptHosts", null))
+        val sites = PhoneSitePreferences(app.getSharedPreferences("ardia-site-preferences", Context.MODE_PRIVATE))
+        assertEquals(1.25, sites.pageZoom("news.example", false)!!, 0.0)
+        assertEquals("no thumbnails without an import", null, File(app.filesDir, "PageSnapshots").list()?.takeIf { it.isNotEmpty() })
         UpgradeGate.forgetForTests()
         assertFalse("a relaunch stays open", UpgradeGate.pending(app))
         legacy().startFresh { syncs += 1 }
@@ -426,6 +432,22 @@ class PhoneLegacyTest {
         assertEquals(false, app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE).getBoolean("blocking.ads", true))
         legacy().startFresh { syncs += 1 }
         assertEquals("starting fresh never undoes an import", UpgradeGate.Completion.Imported(receipt), UpgradeGate.completion(app))
+    }
+
+    @Test
+    fun startingFreshWithUnreadableSettingsCarriesOnWithDefaultsForThatFileOnly() {
+        composeApp()
+        File(data, "shared_prefs/ardia.blocking.xml").writeText("not xml at all")
+        var syncs = 0
+        legacy().startFresh { syncs += 1 }
+        assertEquals(1, syncs)
+        assertEquals(UpgradeGate.Completion.StartedFresh, UpgradeGate.completion(app))
+        assertFalse(UpgradeGate.pending(app))
+        val blocking = app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE).all
+        assertEquals("only the per-site file's blockers-off host, nothing from the unreadable file", mapOf("blocking.exemptHosts" to "[\"ads.example\"]"), blocking)
+        val sites = PhoneSitePreferences(app.getSharedPreferences("ardia-site-preferences", Context.MODE_PRIVATE))
+        assertEquals("the readable file still comes over", 1.25, sites.pageZoom("news.example", false)!!, 0.0)
+        assertEquals("not xml at all", File(data, "shared_prefs/ardia.blocking.xml").readText())
     }
 
     @Test

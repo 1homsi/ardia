@@ -387,8 +387,9 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
     version can still bring it over. A source `done` with outcome `startedFresh` starts the same way, and a
     receipt still finishes its native steps over it. Links that arrive while the screen is up run once, in
     order, after the app starts; each link's action finishes before the next starts.
-  - Start Without Them calls `legacyImport.startFresh()`. On Android (248b3f68a) it writes the marker with outcome
-    `startedFresh` and no receipt, opens the gate, delivers held links and starts sync once, and touches no Compose
+  - Start Without Them calls `legacyImport.startFresh()`. On Android (248b3f68a) it first copies the blocking,
+    filter and per-site settings when their files can be read (each file on its own, defaults when not; no
+    thumbnails, no rows, as the iPhone does), then writes the marker with outcome `startedFresh` and no receipt, opens the gate, delivers held links and starts sync once, and touches no Compose
     file; `source()` then answers `done` with `outcome: "startedFresh"` (an import gives `outcome: "imported"`). A
     later `markImported` still imports over it. The iPhone (52379113c) does the same: a version 2 marker in
     `Application Support/PhoneSync/legacy-imported.json` with outcome `startedFresh`, the sync hold released and one
@@ -476,10 +477,12 @@ then Upgrade; opening the lab never runs the import.
     Archive, visits and settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3
     again: every line matches.
 12. **Start Without Them** (a second, short pass). Remove Ardia in the phone's settings, install the Compose APK
-    through the phone's installer, open two tabs and turn search suggestions off, force-stop, then
-    `adb install -r` the Expo APK. In the lab, Make source unusable; force-stop;
+    through the phone's installer, open two tabs, turn search suggestions off, and in Site Settings add a trusted
+    site and a line to My Filters. Force-stop, then `adb install -r` the Expo APK. In the lab, Make source unusable; force-stop;
     open the app, Try Again, then tap Start Without Them.
-    - The app starts with no imported tabs, and logcat has the started-fresh line. Sync's page in Settings shows
+    - The app starts with no imported tabs, and logcat has the started-fresh line. The trusted site and the My
+      Filters line are there (blocking, filter and per-site settings are kept when they can be read); search
+      suggestions are back to their default, because app settings come only with an import. Sync's page in Settings shows
       the Mac (sync runs), and a link sent now opens.
     - In the lab, Read source gives `done` with `outcome startedFresh`. Make source usable, force-stop and open
       the app twice: it stays started fresh, with no failure screen and no import.
