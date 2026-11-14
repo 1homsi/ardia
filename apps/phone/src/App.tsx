@@ -22,7 +22,7 @@ import { bootApp, useBoot } from "./state/app/boot";
 import { startLinks } from "./state/links/links";
 import { useBaseSystemBars, useSystemBars } from "./state/app/systemBars";
 import { useSearchOpen } from "./state/search/hooks";
-import { useSheet, useSurface } from "./state/browse/hooks";
+import { useOpeningTab, useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { VoiceSearchView } from "./components/search/VoiceSearchView";
@@ -84,6 +84,8 @@ export function Surfaces() {
   const surface = useSurface();
   const sheet = useSheet();
   const tab = useSelectedTab();
+  const opening = useOpeningTab();
+  const pageUnderDeck = surface === "deck" && tab !== null && tab.id === opening;
   const settingsOpen = useSettingsNav((s) => s.open);
   const onboarding = useOnboarding((s) => s.showing);
   const searching = useSearchOpen();
@@ -101,7 +103,7 @@ export function Surfaces() {
         <Layer covered={onboarding || voice} muted={front !== null}>
           <Shade shaded={searching}>
             <FrostSource name={SURFACES_FROST} style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
-              {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+              {(surface === "browsing" || pageUnderDeck) && tab ? <BrowsingScreen tab={tab} /> : null}
               {surface === "deck" ? <TabDeck /> : null}
               {surface === "start" ? <StartScreen /> : null}
             </FrostSource>

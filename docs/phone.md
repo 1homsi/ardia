@@ -555,7 +555,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Deck: the page mounts only when the open spring ends; both apps select the tab and make its view when the spring starts, so the page is ready under the card. `DeckState.open`, `AppModel+Tabs.swift` `prepareToOpen`/`beginOpening`. Half a day.
 - Deck: card headers lack the trailing fade, the icon reveal, the leading placement and the 1.35 text-size cap. `TabCard.kt` `DeckCardHeaderItem`, `DeckHeaderLayout.swift`. Half a day.
 - Deck: no page-left/page-right accessibility scroll actions (the unanimated Close Tab action shipped in 98bd12f97); React Native has no scroll actions on a view that isn't a scroll view, so this needs a custom action or a native hook. `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
 - Page menu: Site Settings closes the menu and jumps to Settings; Compose opens it inside the menu sheet with a back button, and Back returns to the menu (SwiftUI has no such row). `PageMenu.kt`, `BrowsingView.kt`. Small.

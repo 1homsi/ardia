@@ -53,9 +53,9 @@ import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad,
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
 
-type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null };
+type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null; opening: string | null };
 
-export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null }));
+export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null, opening: null }));
 
 const lastVisits = new Map<string, Visit>();
 
@@ -170,12 +170,22 @@ function copyCalculation(value: string) {
   showToast(`Copied ${value}`, "calculation");
 }
 
+export function beginOpeningTab(id: string) {
+  setIncognito(isPrivateTab(currentTabs(), id));
+  selectTabById(id);
+  useBrowse.setState({ opening: id });
+}
+
+export function stopOpeningTab(id: string) {
+  if (useBrowse.getState().opening === id) useBrowse.setState({ opening: null });
+}
+
 export function openTab(id: string) {
   hideArchiveCard();
   dismissSearch();
   setIncognito(isPrivateTab(currentTabs(), id));
   selectTabById(id);
-  useBrowse.setState({ surface: "browsing", sheet: null });
+  useBrowse.setState({ surface: "browsing", sheet: null, opening: null });
   const tab = findTab(currentTabs(), id);
   if (tab && !tab.snapshotFileName && loading.get(id) === false) scheduleSnapshot(id);
 }
@@ -226,7 +236,7 @@ export async function showDeck() {
   if (surface === "browsing" && selected && coverIsCapturable(loading.get(selected) === false, covered)) {
     await Promise.race([captureSnapshot(selected), new Promise((done) => setTimeout(done, DECK_SNAPSHOT_WAIT_MS))]);
   }
-  useBrowse.setState({ surface: "deck", deckEntrance: surface === "browsing" ? selected : null, frozenOrder: null });
+  useBrowse.setState({ surface: "deck", deckEntrance: surface === "browsing" ? selected : null, frozenOrder: null, opening: null });
 }
 
 export const consumeDeckEntrance = () => {

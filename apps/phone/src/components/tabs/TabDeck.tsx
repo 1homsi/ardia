@@ -26,6 +26,7 @@ import {
   scrollAfterRemoving,
 } from "../../lib/deckGeometry";
 import {
+  beginOpeningTab,
   closeAllFromDeck,
   closeTabFromDeck,
   consumeDeckEntrance,
@@ -37,6 +38,7 @@ import {
   openSpaces,
   openTab,
   reopenLastClosed,
+  stopOpeningTab,
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
@@ -180,9 +182,11 @@ export function TabDeck() {
     }
     setMenu(null);
     setPhase({ kind: "closing", id });
+    beginOpeningTab(id);
     scaleProgress.value = withSpring(0, tabsMotion.expand);
     positionProgress.value = withSpring(0, tabsMotion.expand, (finished) => {
       if (finished) runOnJS(settledOpen)(id);
+      else runOnJS(stopOpeningTab)(id);
     });
   };
 
