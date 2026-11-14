@@ -112,6 +112,8 @@ test("the deck's buttons keep Compose's place over a gesture bar and clear a 3-b
   assert.equal(deckBarCenterFromBottom(24), 30);
   assert.equal(deckBarCenterFromBottom(0), 26);
   assert.equal(deckBarCenterFromBottom(48), 76);
+  assert.equal(deckBarCenterFromBottom(34, "ios"), 40, "an iPhone's home indicator is not a navigation bar: SwiftUI centres the bar at max(safeBottom, 20) + 6");
+  assert.equal(deckBarCenterFromBottom(34, "android"), 62);
   assert.ok(deckBarCenterFromBottom(48) - 22 >= 48, "a 44 point control ends above the navigation bar");
   const buttons = deckGeometry(392, 872, 40, 48);
   assert.equal(buttons.barCenterY, 872 - 76);

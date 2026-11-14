@@ -31,8 +31,8 @@ export const BUTTON_NAVIGATION_INSET = 32;
 const BAR_HALF_HEIGHT = 22;
 const BAR_GAP = 6;
 
-export function deckBarCenterFromBottom(navigationInset: number): number {
-  if (navigationInset > BUTTON_NAVIGATION_INSET) return navigationInset + BAR_HALF_HEIGHT + BAR_GAP;
+export function deckBarCenterFromBottom(navigationInset: number, os: string = "android"): number {
+  if (os === "android" && navigationInset > BUTTON_NAVIGATION_INSET) return navigationInset + BAR_HALF_HEIGHT + BAR_GAP;
   return Math.max(navigationInset, 20) + BAR_GAP;
 }
 
@@ -43,11 +43,11 @@ function reach(peek: number, spacing: number): number {
   return value;
 }
 
-export function deckGeometry(width: number, height: number, safeTop: number, safeBottom: number, safeSide = 0): DeckGeometry {
+export function deckGeometry(width: number, height: number, safeTop: number, safeBottom: number, safeSide = 0, os: string = "android"): DeckGeometry {
   const w = Math.max(width, 1);
   const h = Math.max(height, 1);
   const bandTop = safeTop + DECK.topReserve + DECK.headerHeight;
-  const barCenter = deckBarCenterFromBottom(safeBottom);
+  const barCenter = deckBarCenterFromBottom(safeBottom, os);
   const bandBottom = h - barCenter + BAR_GAP - DECK.barReserve + 24;
   const band = Math.max(bandBottom - bandTop, 120);
   const aspect = h / w;

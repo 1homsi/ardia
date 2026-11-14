@@ -26,5 +26,5 @@ export { FullSheet, SheetBackground, useSheetFrame } from "./FullSheet";
 export { SwipeToDelete } from "./SwipeToDelete";
 export { useIncreasedContrast, useReduceTransparency } from "./contrast";
 export { FadingBackdrop } from "./FadingBackdrop";
-export { DeckLookBackdrop, LookBackdrop, LookFrost, SURFACES_FROST } from "./LookViews";
+export { DeckLookBackdrop, LookBackdrop, LookFrost, LookGlass, SURFACES_FROST, usesGlass } from "./LookViews";
 export { FrostSource, ScrollActions } from "@ardia/phone-native";

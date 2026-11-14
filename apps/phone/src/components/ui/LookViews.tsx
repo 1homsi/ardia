@@ -1,4 +1,4 @@
-import { DeckBackdrop, Frost, INCOGNITO_LOOK, lookIsNative, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
+import { DeckBackdrop, Frost, Glass, glassIsNative, INCOGNITO_LOOK, lookIsNative, ProfileBackdrop, type FrostVariant, type GlassShape } from "@ardia/phone-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
@@ -84,5 +84,27 @@ export function LookFrost({ source, variant, cornerRadius, fill, dark, incognito
     >
       {children}
     </Frost>
+  );
+}
+
+export const usesGlass = () => glassIsNative();
+
+export function LookGlass({ shape, ...frost }: FrostProps & { shape: GlassShape }) {
+  const look = useProfileLook();
+  const theme = useTheme();
+  const reduceTransparency = useReduceTransparency();
+  if (!glassIsNative()) return <LookFrost {...frost} />;
+  return (
+    <Glass
+      testID="deckGlass"
+      source={frost.source}
+      shape={shape}
+      {...lookColors(look, frost.incognito ?? false)}
+      dark={frost.incognito || (frost.dark ?? theme.dark)}
+      reduceTransparency={reduceTransparency}
+      style={frost.style}
+    >
+      {frost.children}
+    </Glass>
   );
 }

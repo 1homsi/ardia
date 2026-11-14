@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { deckBarCenterFromBottom } from "../../lib/deckGeometry";
 import { browseLayout } from "./tokens";
 
@@ -7,4 +8,4 @@ export const barCenterFromBottom = (navigationInset: number) =>
 export const barHeight = (navigationInset: number) =>
   browseLayout.barHeight + (barCenterFromBottom(navigationInset) - browseLayout.barCenterFromBottom);
 
-export const deckCenterFromBottom = (navigationInset: number) => deckBarCenterFromBottom(navigationInset);
+export const deckCenterFromBottom = (navigationInset: number) => deckBarCenterFromBottom(navigationInset, Platform.OS);

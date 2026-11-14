@@ -3,7 +3,7 @@ import { DeckLookProbe } from "./DeckLookProbe";
 import { useSheet, useSurface } from "../../state/browse/hooks";
 import { useSearchOpen } from "../../state/search/hooks";
 import { beginInteraction, countRender, INTERACTION_WINDOW_MS, interactionPerfEnabled } from "../../state/app/interactionPerf";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { POOF } from "../../lib/poof";
@@ -74,7 +74,7 @@ export function TabDeck() {
   const measuresInteractions = interactionPerfEnabled();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom), [width, height, insets.top, insets.bottom]);
+  const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS), [width, height, insets.top, insets.bottom]);
   const [deckHeight, setDeckHeight] = useState<number | null>(null);
   const live = useDeckOrder();
   const incognito = useIncognito();
