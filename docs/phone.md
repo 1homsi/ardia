@@ -364,7 +364,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Page menu: in toggle rows only the switch is tappable (Compose: the whole row, one Switch for TalkBack); at 1.3× text size Compose turns tiles into a list and stacks the zoom row; Open in Default Browser is disabled off web pages (Compose always enables it). `PageMenu.kt`. Small.
 - Downloads toasts: a download refused at the start still says Downloading, ending incognito gives one toast per file instead of "Stopped N Private Downloads", and several icons differ. `AppModel.kt` `startDownload`/`announceDownload`, `Toasts.kt`. Small.
 - Bottom bar: the recent-tabs menu shows "New Tab" for a tab without title or host (Compose: the address); the tab thumbnail reads only the saved file, so it lags about 700 ms (Compose uses the in-memory cover first). `BrowsingRules.kt`, `BottomBar.kt` `TabThumbnail`. Small.
-- Demo mode: only sync has a demo; tabs, Archive and history use the tester's real store, and none of the capture or motion-capture launch arguments work (BrowseOpen … StepGap, ArdiaDeck, Onboarding, OpenSheet, OpenSettings, RestingStart, Color, Toast, TrustedSites, BrowsePagerFreeze/Script, BrowseLoadFreeze). `LaunchArguments.kt`, `DemoScenario.kt`, `DemoSeed.swift`, `MotionDemo.swift`, `AppModel.swift`. A day or more, plus the native pass-through below.
+- Loading placeholder under `BrowseLoadFreeze` (Compose's `PageLoadingPlaceholder`): comes with the page cover above. `PageLayer.kt`. With the page cover.
 
 ### Needs native code on Android
 
@@ -377,7 +377,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Sync connect: both apps pick the folder first, show its name and reuse it after a mismatch; the module's `connect(phrase)` opens the picker inside the call, so a retry asks again. Needs `pickFolder()` and `connect(phrase, folder)`. `SyncConnectSession.kt`, `SyncModule.kt`. A day (shared with iPhone).
 - Pull to refresh settles on a 250 ms animator instead of Compose's snappy spring, in a fixed #007AFF instead of the accent; the swipe-to-navigate target falls back to black or white instead of the profile's surface. `PageGestures.kt` vs `PageLayer.kt` `animatePull`. Small.
 - Tab pager corner radius is a fixed 55; Compose reads the display's real corner on Android 12+. `TabPager.kt` `rememberDisplayCornerRadius`. Small.
-- Launch arguments: `pages.launchOptions()` passes only `pageLab` and `syncDemo`; the demo and capture extras need passing through. `PageViewModule.kt`, `LaunchArguments.kt`. Small.
+- Launch arguments: `launchOptions()` must return an `arguments` map holding every intent extra whose name starts with `Ardia` or `Browse` (booleans as booleans, the rest as strings), in lab and test builds only, and `ArdiaDemo` must also switch the module's sync demo on (today only `com.ardia.phone.SYNC_DEMO` does). The app reads, applies and demos everything else (6bf8a7201, d806a4f18, 24a6723c5, 6ad98f6e0). `PageViewModule.kt`, `LaunchArguments.kt`. Small.
 - Keyboard target at the start of its animation: React Native reports the keyboard's height only once it has stopped, so the first keyboard of a process can't drive the tray's rise (it lands on the 450 ms spring) and a keyboard that changes height drives it from its last height. Needs the IME animation's target height as it starts (`WindowInsetsAnimationCompat.Callback.onStart`'s upper bound), e.g. an `onKeyboardWillChange { target, durationMs }` event on the system module. `TrayPresentation.kt` `KeyboardReader` (`imeAnimationTarget`). Small.
 
 ### Needs native code on iPhone
@@ -401,7 +401,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Sync connect: folder before phrase, as on Android. `SyncConnectPage.swift` `SyncConnectFlow`, `SyncModule.swift`. Shared with Android.
 - Enter Words: Paste reads the clipboard and triggers iOS's Allow Paste prompt; SwiftUI uses the system `PasteButton`. `RecoveryPhraseEntryPage.swift`. Small to a day.
 - Scanner: plain AVFoundation; SwiftUI uses VisionKit's `DataScannerViewController` with pinch to zoom and a highlight on the found code. `SyncCodeScanner.swift`, `ScanModule.swift`. A day.
-- Launch arguments: `PageViewModule.swift` returns only `lab`, `pageLab` and `syncDemo`. Small.
+- Launch arguments: `launchOptions()` must return an `arguments` map holding every launch argument whose name starts with `Ardia` or `Browse` (from the argument domain, `-ArdiaDemo YES` as a boolean), in test builds only, and `ArdiaDemo` must also switch the sync demo on (today only `ArdiaSyncDemo` does). `PageViewModule.swift`, `AppModel.swift`. Small.
 
 ### Unverified on a phone
 
@@ -445,6 +445,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Tray rise (796b78f6f): on both phones the tray comes up with the keyboard and sits on its top edge frame by frame (no gap, no overlap, including Android's navigation bar); with a hardware keyboard it lands after 450 ms; closing lets the keyboard go and follows it down; the dim fades in 300 ms; Reduce Motion fades instead of moving.
 - Tray drag (9ecac6d12): a drag down on the field, the incognito caption or the empty area moves the tray and lightens the dim; past 8 points the keyboard goes down while the tray holds still; a short slow drag springs back and the keyboard returns; a long drag or a flick closes it.
 - Tray scrub (7287c72fd): a finger on a row lights it at once; sliding along the rows ticks on each and opens the last on release (with a confirm); a tap on a query row's arrow refines; a 400 ms hold opens the row's menu; past 1.5x text size the list scrolls instead.
+- Launch arguments, once both modules pass them: `ArdiaDemo` opens on the eight demo tabs (Sintra selected) with nothing written to the real store and the demo Macs in Spaces; each `Browse…` and `Ardia…` argument in `docs/android.md` and `docs/ios.md` does what it does in the native apps, at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
 
 ### Deliberately different
 
