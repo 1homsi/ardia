@@ -16,7 +16,7 @@ import type { AdoptId } from "../browser/types";
 import { linkGate, type LinkGateResult, type LinkRouteChoice, type LinkSourceInfo } from "./linkGate";
 import { externalLinkOpen, type ExternalLinkOpen } from "./externalLinkOpen";
 import { noteExternalLink } from "../telemetry/usage";
-import { noteLittleArdiaEscapeClose, type EscapePressedIn } from "../telemetry/littleArdiaEscapes";
+import { noteLittleArdiaAppHandoff, noteLittleArdiaEscapeClose, type EscapePressedIn } from "../telemetry/littleArdiaEscapes";
 
 const store = () => useBrowser.getState();
 
@@ -177,6 +177,12 @@ export async function openLittleArdiaProfileMenu(windowId: string) {
 
 export function closeLittleArdia(windowId: string) {
   if (isSmall(store(), windowId)) closeWindowAnimated(windowId);
+}
+
+export function closeLittleArdiaForAppLink(windowId: string | null) {
+  if (!windowId || !isSmall(store(), windowId) || isWindowClosing(windowId)) return;
+  noteLittleArdiaAppHandoff("appLinkClose");
+  closeLittleArdia(windowId);
 }
 
 export function closeLittleArdiaOnEscape(tabId: string, pressedIn: EscapePressedIn = "page") {

@@ -131,6 +131,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     behind: String? = nil
   ) {
     let window = entry.window, id = entry.id
+    if small { LittleArdiaHandoff.shared.opened(id) }
     if let lights = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(lights.center, trailing: lights.trailing, in: window) }
     window.title = title
     Self.identify(window, id: id, kind: entry.kind)
@@ -334,6 +335,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     flushFrameReport(entry.window)
     if entry.exit != nil { return entry.exit!.append(done) }
     let window = entry.window
+    LittleArdiaHandoff.shared.closing(id, replacedBy: replacement, keyWindow: window.isKeyWindow)
     guard entry.kind.isBrowser, window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen), !entry.isWaitingToReveal
     else { return done() }
     entry.exit = [done]
@@ -383,6 +385,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private func forget(_ entry: ManagedWindow) {
+    LittleArdiaHandoff.shared.forget(entry.id)
     entry.stopWatchingContent()
     lightsCenters[entry.id] = nil
     entry.takeReveal()?.then.forEach { $0() }
