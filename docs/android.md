@@ -246,7 +246,8 @@ first build downloads Gradle, Hermes, `react-android` (for `libjsi.so`) and `her
 - **CI** (`.github/workflows/android.yml`, on pull requests and pushes to `main` that touch `apps/android`, the
   bundles, `packages/sync`, `packages/core` or the workflow, behind the vouch gate) has two depths. A pull request
   gets the fast run: build the app and every test, and run the unit tests. A push to `main`, or a pull request with
-  the `full-ci` label, gets the full run: the release build too, and every module's instrumented tests on API 35
+  the `full-ci` label (add the label, then push or re-run the run's jobs: the label alone starts nothing), gets the
+  full run: the release build too, and every module's instrumented tests on API 35
   emulators, split over three jobs (the app's tests in two halves, the other modules in the third). It keeps the test
   reports and the screen tour as artifacts.
 
