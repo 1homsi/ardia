@@ -22,6 +22,41 @@ function fakeUblock({ ready = true, invalidated = false, stalled = false, silent
     autoUpdate: true,
     reloads: 0,
     messages: [],
+    userFilters: "! my own notes\nexample.com##.ad\n  news.example##div.banner  \n||tracker.example^\nexample.com##+js(nowebrtc)\n",
+    userFiltersError: null,
+    listLoads: 0,
+    core: [],
+  };
+  const core = {
+    userFiltersPath: "user-filters",
+    get selectedFilterLists() {
+      return Object.keys(state.available).filter((id) => state.available[id].off !== true);
+    },
+    applyFilterListSelection({ toSelect, merge }) {
+      state.core.push("applyFilterListSelection");
+      assert.equal(merge, true);
+      for (const id of toSelect) state.available[id].off = false;
+    },
+    loadUserFilters() {
+      state.core.push("loadUserFilters");
+      return Promise.resolve(state.userFiltersError ? { error: state.userFiltersError } : { content: state.userFilters });
+    },
+    appendUserFilters(text, options) {
+      state.core.push("appendUserFilters");
+      assert.equal(JSON.stringify(options), "{}");
+      state.userFilters = `${state.userFilters.replace(/\n?$/, "\n")}${text}\n`;
+      return Promise.resolve({});
+    },
+    saveUserFilters(text) {
+      state.core.push("saveUserFilters");
+      state.userFilters = text;
+      return Promise.resolve({});
+    },
+    loadFilterLists() {
+      state.core.push("loadFilterLists");
+      state.listLoads++;
+      return Promise.resolve();
+    },
   };
   const storage = {};
   const messaging = {
@@ -54,7 +89,7 @@ function fakeUblock({ ready = true, invalidated = false, stalled = false, silent
       }
     },
   };
-  return { state, storage, messaging, ready, invalidated, stalled };
+  return { state, storage, messaging, core, ready, invalidated, stalled };
 }
 
 function load({ origin = `chrome-extension://${EXTENSION}`, ublock = fakeUblock() } = {}) {
@@ -71,11 +106,22 @@ function load({ origin = `chrome-extension://${EXTENSION}`, ublock = fakeUblock(
       for (const o of observers) if (o.filter.includes(name)) queueMicrotask(() => o.callback());
     },
   };
-  const background = ublock.ready ? { "µBlock": { isReadyPromise: ublock.stalled ? new Promise(() => {}) : Promise.resolve() } } : {};
+  const background = ublock.ready
+    ? { "µBlock": Object.assign(ublock.core, { isReadyPromise: ublock.stalled ? new Promise(() => {}) : Promise.resolve() }) }
+    : {};
   let looks = 0;
   const locks = [];
   const context = {
-    document: { documentElement: root },
+    document: {
+      documentElement: root,
+      createDocumentFragment: () => ({
+        querySelector(selector) {
+          const count = (c) => selector.split(c).length - 1;
+          if (count("[") !== count("]") || count("(") !== count(")")) throw new SyntaxError(`'${selector}' is not a valid selector`);
+          return null;
+        },
+      }),
+    },
     location: { origin, href: `${origin}/ardia-linux-bridge.html` },
     navigator: {
       languages: ["en-US", "de"],
@@ -287,4 +333,49 @@ test("follow copies the default profile's lists, exceptions and auto-update, and
   for (const bad of [{}, { lists: "easylist", whitelist: [] }, { lists: [], whitelist: [3] }, { lists: [1], whitelist: [] }]) {
     assert.match((await follower.call("follow", bad)).error, /no settings to copy/);
   }
+});
+
+test("hidden elements are the hiding rules among the profile's own filters, trimmed, and an unreadable file is an error", async () => {
+  const { call, ublock } = load();
+  assert.deepEqual(await call("hiddenElements"), { ticket: 1, value: ["example.com##.ad", "news.example##div.banner"] });
+  ublock.state.userFiltersError = "storage gone";
+  assert.equal((await call("hiddenElements")).error, "user filters: storage gone");
+  assert.deepEqual(ublock.state.core.filter((c) => c !== "loadUserFilters"), []);
+});
+
+test("hiding appends only new valid rules once, turning the user's own list on first", async () => {
+  const { call, ublock } = load();
+  ublock.state.available["user-filters"].off = true;
+  assert.deepEqual(await call("hideElements", { filters: ["a.test##div.x > p", "example.com##.ad", "a.test##div.x > p"] }), { ticket: 1, value: null });
+  assert.equal(ublock.state.available["user-filters"].off, false);
+  assert.equal(ublock.state.userFilters.split("\n").filter((l) => l === "a.test##div.x > p").length, 1);
+  assert.equal(ublock.state.userFilters.split("\n").filter((l) => l.trim() === "example.com##.ad").length, 1);
+  assert.deepEqual(ublock.state.core, ["loadUserFilters", "applyFilterListSelection", "appendUserFilters"]);
+  ublock.state.core.length = 0;
+  assert.deepEqual((await call("hideElements", { filters: ["news.example##div.banner"] })).value, null);
+  assert.deepEqual(ublock.state.core, ["loadUserFilters"]);
+});
+
+test("hiding refuses anything that isn't a plain hiding rule and writes nothing", async () => {
+  const { call, ublock } = load();
+  const before = ublock.state.userFilters;
+  for (const filters of [["a.test##+js(alert)"], ["a.test##^script"], ["a.test## div"], ["A.test##.x"], ["a.test#.x"], ["a.test##.x{color:red}"], [`a.test##.${"x".repeat(1020)}`], [3], "a.test##.x", null]) {
+    assert.match((await call("hideElements", { filters })).error, /not a hiding rule/, JSON.stringify(filters));
+  }
+  assert.match((await call("hideElements", { filters: ["a.test##.fine", "a.test##div[[x"] })).error, /not a valid selector/);
+  assert.equal(ublock.state.userFilters, before);
+  assert.deepEqual(ublock.state.core, []);
+});
+
+test("restoring drops every trimmed line that matches, then saves and reloads; nothing to drop writes nothing", async () => {
+  const { call, ublock } = load();
+  assert.deepEqual(await call("restoreElements", { filters: ["news.example##div.banner", "gone.example##.x"] }), { ticket: 1, value: null });
+  assert.equal(ublock.state.userFilters, "! my own notes\nexample.com##.ad\n||tracker.example^\nexample.com##+js(nowebrtc)\n");
+  assert.equal(ublock.state.listLoads, 1);
+  ublock.state.core.length = 0;
+  assert.deepEqual((await call("restoreElements", { filters: ["gone.example##.x"] })).value, null);
+  assert.deepEqual(ublock.state.core, ["loadUserFilters"]);
+  assert.match((await call("restoreElements", { filters: "example.com##.ad" })).error, /no filters to restore/);
+  assert.match((await call("restoreElements", { filters: [4] })).error, /no filters to restore/);
+  assert.equal(ublock.state.listLoads, 1);
 });

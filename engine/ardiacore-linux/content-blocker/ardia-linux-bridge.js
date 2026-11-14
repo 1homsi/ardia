@@ -185,7 +185,70 @@
         return written.then(() => null);
       });
 
-    const operations = { state, setEnabled, setList, isAllowed, setAllowed, settings, follow };
+    const hidingRule = /^[a-z0-9.-]+##[^+^\s][^\n{}]*$/;
+    const lines = (content) => content.split("\n").map((l) => l.trim());
+    const core = () => {
+      const background = chrome.extension.getBackgroundPage && chrome.extension.getBackgroundPage();
+      const ublock = background && background["µBlock"];
+      if (!ublock) throw new Error("uBlock Origin never started");
+      return ublock;
+    };
+    const userFilters = () =>
+      Promise.resolve()
+        .then(() => core().loadUserFilters())
+        .then((d) => {
+          if (!d || d.error || typeof d.content !== "string") throw new Error(`user filters: ${(d && d.error) || "unreadable"}`);
+          return d.content;
+        });
+
+    const hiddenElements = () => userFilters().then((content) => lines(content).filter((l) => hidingRule.test(l)));
+
+    const hideElements = ({ filters }) =>
+      Promise.resolve()
+        .then(() => {
+          if (!strings(filters)) throw new Error("not a hiding rule");
+          for (const f of filters) {
+            if (f.length > 1024 || !hidingRule.test(f)) throw new Error("not a hiding rule");
+            document.createDocumentFragment().querySelector(f.slice(f.indexOf("##") + 2));
+          }
+          return userFilters();
+        })
+        .then((content) => {
+          const have = new Set(lines(content));
+          const fresh = [...new Set(filters)].filter((f) => !have.has(f));
+          const ublock = core();
+          if (!ublock.selectedFilterLists.includes(ublock.userFiltersPath))
+            ublock.applyFilterListSelection({ toSelect: [ublock.userFiltersPath], merge: true });
+          return fresh.length ? ublock.appendUserFilters(fresh.join("\n"), {}) : null;
+        })
+        .then(() => null);
+
+    const restoreElements = ({ filters }) => {
+      if (!strings(filters)) return Promise.reject(new Error("no filters to restore"));
+      const drop = new Set(filters);
+      return userFilters()
+        .then((content) => {
+          const all = content.split("\n");
+          const kept = all.filter((l) => !drop.has(l.trim()));
+          if (kept.length === all.length) return null;
+          const ublock = core();
+          return ublock.saveUserFilters(kept.join("\n")).then(() => ublock.loadFilterLists());
+        })
+        .then(() => null);
+    };
+
+    const operations = {
+      state,
+      setEnabled,
+      setList,
+      isAllowed,
+      setAllowed,
+      settings,
+      follow,
+      hiddenElements,
+      hideElements,
+      restoreElements,
+    };
     return { ready, settlePending, operations, left };
   };
 

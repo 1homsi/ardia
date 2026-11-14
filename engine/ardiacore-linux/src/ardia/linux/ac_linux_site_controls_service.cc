@@ -110,7 +110,7 @@ void SiteControlsProfile(Profile* app_profile, Profile* page_profile, std::strin
     }
     return std::move(chosen).Run(page_profile, std::nullopt);
   }
-  ardiacore::ResolveLinuxProfile(requested, base::BindOnce(
+  ardiacore::ResolveLinuxProfile(controls::TargetProfileId(name, requested), base::BindOnce(
       [](ProfileChosen chosen, Profile* profile, ardiacore::linux_profiles::ProfileError error) {
         using ardiacore::linux_profiles::ProfileError;
         if (profile && profile->IsOffTheRecord()) error = ProfileError::kPrivateService;
@@ -619,6 +619,15 @@ void RunSiteControlsCall(const std::string& name, base::DictValue input, bool pa
     if (auto* invalid = std::get_if<controls::Failure>(&request))
       return Fail(std::move(done), invalid->code, invalid->message);
     auto& blocker_request = std::get<controls::BlockerRequest>(request);
+    if (controls::AnswersWithoutBlocker(blocker_request)) return std::move(done).Run(true, base::Value());
+    if (controls::ServesNamedProfile(name)) {
+      LinuxContentBlocker* named = LinuxContentBlocker::Find(profile);
+      if (!named) {
+        return Fail(std::move(done), controls::kUnavailableCode,
+                    "the content blocker isn't available in this profile yet");
+      }
+      return named->Call(std::move(blocker_request), std::move(done));
+    }
     LinuxContentBlocker* blocker = LinuxContentBlocker::For(profile);
     if (!page_filtered && blocker_request.op != controls::BlockerOp::kFailNext) {
       return blocker->Unavailable(std::move(blocker_request), std::move(done),

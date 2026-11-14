@@ -22,9 +22,11 @@ enum class ProfileRoute { kApp, kRegistry, kPrivate };
 
 bool Handles(std::string_view name);
 bool IsContentBlockerCall(std::string_view name);
+bool ServesNamedProfile(std::string_view name);
 std::vector<std::string_view> Capabilities();
 
 std::variant<ProfileRoute, Failure> RouteProfile(std::string_view name, std::string_view requested, bool private_page);
+std::string TargetProfileId(std::string_view name, std::string_view requested);
 
 struct ServiceRequest {
   std::string service;
@@ -40,11 +42,25 @@ bool ValidOrigin(std::string_view origin);
 std::optional<std::string> NormalizeHost(std::string_view host);
 bool ValidListId(std::string_view id);
 
-enum class BlockerOp { kState, kSetEnabled, kSetList, kIsAllowed, kSetAllowed, kFailNext, kSettings, kFollow };
+enum class BlockerOp {
+  kState,
+  kSetEnabled,
+  kSetList,
+  kIsAllowed,
+  kSetAllowed,
+  kFailNext,
+  kSettings,
+  kFollow,
+  kHiddenElements,
+  kHideElements,
+  kRestoreElements,
+};
 
 inline constexpr size_t kMaxFollowedLists = 512;
 inline constexpr size_t kMaxFollowedDirectives = 10000;
 inline constexpr size_t kMaxDirectiveBytes = 2048;
+inline constexpr size_t kMaxHidingFilters = 10000;
+inline constexpr size_t kMaxHidingFilterBytes = 3072;
 
 struct BlockerSettings {
   std::vector<std::string> lists;
@@ -61,6 +77,7 @@ struct BlockerRequest {
   std::string host;
   bool flag = false;
   BlockerSettings settings;
+  std::vector<std::string> filters;
 };
 
 inline constexpr int64_t kHoldDeadlineMs = 2000;
@@ -75,6 +92,7 @@ std::variant<BlockerRequest, Failure> PrepareBlockerCall(std::string_view name,
                                                          const base::DictValue& args);
 
 bool Mutates(BlockerOp op);
+bool AnswersWithoutBlocker(const BlockerRequest& request);
 std::optional<Failure> PrivateBlockerRefusal(std::string_view name, const base::DictValue& args,
                                              bool private_window);
 std::string_view BridgeOpName(BlockerOp op);

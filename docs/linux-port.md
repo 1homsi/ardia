@@ -840,12 +840,21 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   | `contentBlocker.setListEnabled` | `{id, enabled}` |
   | `contentBlocker.isAllowed` | `{host}` |
   | `contentBlocker.setAllowed` | `{host, allowed}` |
+  | `contentBlocker.hiddenElements` | `{}` on the named profile; answers its hiding rules |
+  | `contentBlocker.hideElements`, `contentBlocker.restoreElements` | `{filters}` on the named profile; at most 10,000 filters of 3 KiB |
 
   The event is `contentBlocker.changed`.
+- **Hidden elements.** Hide Element, Hidden Elements on This Site and Settings' Hidden elements read and write the named
+  profile's own uBlock Origin "My filters", as on macOS, so each isolated profile keeps its own; nothing copies them
+  between profiles. Only `host##selector` rules are hidden or listed: the C++ side checks the rule's shape and the bridge
+  page checks it again, along with the selector, before appending the new ones and turning the My filters list on.
+  Restoring drops the matching lines and reloads the lists. A private id reads and restores its original profile's rules,
+  and hiding from a private window fails with `ERR_PROFILE_PRIVATE` (the shared UI keeps those rules in memory for the
+  session). An empty `filters` answers `null` without reaching the blocker.
 - **The blocker.** It is the same uBlock Origin component macOS loads, with the same id. Each regular profile loads
   it from `lib/ardia/extensions/ublock` (or `--ardia-content-blocker-dir`) through `ComponentLoader::AddOrReplace`
   once its extension system is ready.
-- **The bridge page.** Calls run in a hidden `ardia-linux-bridge.html` page with seven fixed operations; nothing is
+- **The bridge page.** Calls run in a hidden `ardia-linux-bridge.html` page with a fixed set of operations; nothing is
   evaluated from a request.
   - Chromium refuses main-world script on extension pages, so the browser writes a DOM attribute from an isolated
     world and polls for the reply every 25 ms.

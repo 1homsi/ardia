@@ -30,8 +30,16 @@ constexpr std::string_view kServiceCalls[] = {
 constexpr std::string_view kBlockerCalls[] = {
     "contentBlocker.state", "contentBlocker.setEnabled", "contentBlocker.setListEnabled",
     "contentBlocker.isAllowed", "contentBlocker.setAllowed", "contentBlocker.devFailNextMessage",
-    "contentBlocker.devDelayNextLoad",
+    "contentBlocker.devDelayNextLoad", "contentBlocker.hiddenElements", "contentBlocker.hideElements",
+    "contentBlocker.restoreElements",
 };
+
+constexpr std::string_view kNamedProfileCalls[] = {
+    "contentBlocker.hiddenElements", "contentBlocker.hideElements", "contentBlocker.restoreElements",
+};
+
+constexpr std::string_view kPrivateIdPrefix = "incognito:";
+constexpr std::string_view kPrivateHiding = "a private window keeps its hidden elements for the session";
 
 constexpr size_t kMaxOrigin = 2048;
 constexpr size_t kMaxHost = 253;
@@ -132,6 +140,41 @@ int Count(const base::Value* value) {
   return number >= 2147483647.0 ? 2147483647 : static_cast<int>(number);
 }
 
+bool HostChar(char c) {
+  return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-';
+}
+
+bool FilterText(std::string_view filter) {
+  return !filter.empty() && filter.size() <= kMaxHidingFilterBytes &&
+         filter.find_first_of(std::string_view("\n\r\0", 3)) == std::string_view::npos;
+}
+
+bool HidingRule(std::string_view filter) {
+  if (!FilterText(filter)) return false;
+  const size_t marker = filter.find("##");
+  if (marker == std::string_view::npos || marker == 0) return false;
+  for (char c : filter.substr(0, marker)) {
+    if (!HostChar(c)) return false;
+  }
+  const std::string_view selector = filter.substr(marker + 2);
+  if (selector.empty() || std::string_view("+^ \t\f\v").find(selector.front()) != std::string_view::npos) return false;
+  return selector.find_first_of("{}") == std::string_view::npos;
+}
+
+std::optional<std::vector<std::string>> HidingFilters(const base::DictValue& args, bool rules_only) {
+  if (!OnlyKeys(args, {"filters"})) return std::nullopt;
+  const base::Value* value = args.Find("filters");
+  if (!value || !value->is_list() || value->GetList().size() > kMaxHidingFilters) return std::nullopt;
+  std::vector<std::string> filters;
+  for (const base::Value& item : value->GetList()) {
+    if (!item.is_string()) return std::nullopt;
+    const std::string& filter = item.GetString();
+    if (rules_only ? !HidingRule(filter) : !FilterText(filter)) return std::nullopt;
+    filters.push_back(filter);
+  }
+  return filters;
+}
+
 base::DictValue Stats(bool ready, bool enabled) {
   return base::DictValue()
       .Set("ready", base::Value(ready))
@@ -150,6 +193,8 @@ bool Handles(std::string_view name) {
 
 bool IsContentBlockerCall(std::string_view name) { return Contains(kBlockerCalls, name); }
 
+bool ServesNamedProfile(std::string_view name) { return Contains(kNamedProfileCalls, name); }
+
 std::vector<std::string_view> Capabilities() {
   std::vector<std::string_view> names(std::begin(kServiceCalls), std::end(kServiceCalls));
   for (const std::string_view name : kBlockerCalls) {
@@ -159,12 +204,24 @@ std::vector<std::string_view> Capabilities() {
 }
 
 std::variant<ProfileRoute, Failure> RouteProfile(std::string_view name, std::string_view requested, bool private_page) {
+  if (ServesNamedProfile(name)) {
+    const bool private_id = private_page || requested.starts_with(kPrivateIdPrefix);
+    if (name == "contentBlocker.hideElements" && private_id)
+      return Failure{"ERR_PROFILE_PRIVATE", std::string(kPrivateHiding)};
+    return ProfileRoute::kRegistry;
+  }
   if (IsContentBlockerCall(name)) return ProfileRoute::kApp;
   if (private_page || requested.starts_with("incognito:")) {
     if (ardiacore::linux_private_services::ServesPrivateSession(name)) return ProfileRoute::kPrivate;
     return Failure{"ERR_PROFILE_PRIVATE", "Private sessions keep no site settings or browsing data"};
   }
   return ProfileRoute::kRegistry;
+}
+
+std::string TargetProfileId(std::string_view name, std::string_view requested) {
+  if (!ServesNamedProfile(name) || !requested.starts_with(kPrivateIdPrefix)) return std::string(requested);
+  const size_t at = requested.find('@');
+  return std::string(at == std::string_view::npos ? requested : requested.substr(at + 1));
 }
 
 bool ValidOrigin(std::string_view origin) {
@@ -336,6 +393,19 @@ std::variant<BlockerRequest, Failure> PrepareBlockerCall(std::string_view name,
     request.op = BlockerOp::kState;
     return request;
   }
+  if (name == "contentBlocker.hiddenElements") {
+    if (args.size() != 0) return BlockerInvalid("contentBlocker.hiddenElements takes no arguments");
+    request.op = BlockerOp::kHiddenElements;
+    return request;
+  }
+  if (name == "contentBlocker.hideElements" || name == "contentBlocker.restoreElements") {
+    const bool hide = name == "contentBlocker.hideElements";
+    std::optional<std::vector<std::string>> filters = HidingFilters(args, hide);
+    if (!filters) return BlockerInvalid(hide ? "filters must be a list of hiding rules" : "filters must be a list of filters");
+    request.op = hide ? BlockerOp::kHideElements : BlockerOp::kRestoreElements;
+    request.filters = std::move(*filters);
+    return request;
+  }
   if (name == "contentBlocker.devFailNextMessage") {
     if (args.size() != 0) return BlockerInvalid("contentBlocker.devFailNextMessage takes no arguments");
     request.op = BlockerOp::kFailNext;
@@ -448,6 +518,11 @@ bool Mutates(BlockerOp op) {
   return op == BlockerOp::kSetEnabled || op == BlockerOp::kSetList || op == BlockerOp::kSetAllowed;
 }
 
+bool AnswersWithoutBlocker(const BlockerRequest& request) {
+  return (request.op == BlockerOp::kHideElements || request.op == BlockerOp::kRestoreElements) &&
+         request.filters.empty();
+}
+
 std::optional<Failure> PrivateBlockerRefusal(std::string_view name, const base::DictValue& args,
                                              bool private_window) {
   if (!private_window || !IsContentBlockerCall(name)) return std::nullopt;
@@ -467,6 +542,9 @@ std::string_view BridgeOpName(BlockerOp op) {
     case BlockerOp::kFailNext: return "failNext";
     case BlockerOp::kSettings: return "settings";
     case BlockerOp::kFollow: return "follow";
+    case BlockerOp::kHiddenElements: return "hiddenElements";
+    case BlockerOp::kHideElements: return "hideElements";
+    case BlockerOp::kRestoreElements: return "restoreElements";
   }
   return "state";
 }
@@ -551,6 +629,14 @@ std::variant<base::Value, Failure> CompleteBlockerCall(const BlockerRequest& req
     if (!value || !value->is_bool()) return BadReply("The content blocker gave no answer");
     return base::Value(value->GetBool());
   }
+  if (request.op == BlockerOp::kHiddenElements) {
+    if (!value || !value->is_list()) return BadReply("The content blocker gave no hidden elements");
+    base::ListValue filters;
+    for (const base::Value& filter : value->GetList()) {
+      if (filter.is_string() && HidingRule(filter.GetString())) filters.Append(base::Value(filter.GetString()));
+    }
+    return base::Value(std::move(filters));
+  }
   return base::Value();
 }
 
@@ -601,6 +687,9 @@ base::DictValue BridgeRequest(const PendingCall& call, int64_t now_ms) {
       args.Set("allowed", base::Value(call.request.flag));
       break;
     case BlockerOp::kFollow: args = BlockerSettingsValue(call.request.settings); break;
+    case BlockerOp::kHideElements:
+    case BlockerOp::kRestoreElements: args.Set("filters", StringsValue(call.request.filters)); break;
+    case BlockerOp::kHiddenElements:
     case BlockerOp::kState:
     case BlockerOp::kFailNext:
     case BlockerOp::kSettings: break;

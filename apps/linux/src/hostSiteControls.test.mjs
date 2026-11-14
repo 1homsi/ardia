@@ -119,6 +119,20 @@ test("content blocker calls use the app-level contentBlocker domain and surface 
   await assert.rejects(blocker.setContentBlockerEnabled(true), (error) => error.name === "ArdiaError" && error.code === "ERR_CONTENT_BLOCKER_UNAVAILABLE");
 });
 
+test("hidden element calls carry the named profile on the transport and only the filters in their arguments", async () => {
+  replies.set("contentBlocker.hiddenElements", { value: ["example.com##.ad"] });
+  assert.deepEqual(await blocker.getHiddenElements("work"), ["example.com##.ad"]);
+  assert.deepEqual(last(), { name: "contentBlocker.hiddenElements", profile: "work", args: {} });
+  await blocker.hideElements("work", ["a.test##.x"]);
+  assert.deepEqual(last(), { name: "contentBlocker.hideElements", profile: "work", args: { filters: ["a.test##.x"] } });
+  await blocker.restoreElements("incognito:w1@work", ["a.test##.x"]);
+  assert.deepEqual(last(), { name: "contentBlocker.restoreElements", profile: "incognito:w1@work", args: { filters: ["a.test##.x"] } });
+  replies.set("contentBlocker.hideElements", { fail: { code: "ERR_PROFILE_PRIVATE", message: "a private window keeps its hidden elements for the session" } });
+  await assert.rejects(blocker.hideElements("incognito:w1@work", ["a.test##.x"]), (error) => error.code === "ERR_PROFILE_PRIVATE");
+  replies.delete("contentBlocker.hideElements");
+  replies.delete("contentBlocker.hiddenElements");
+});
+
 test("contentBlocker.changed events from the host reach shared listeners and stop after removal", async () => {
   const seen = [];
   const subscription = blocker.onContentBlockerChange((stats) => seen.push(stats));

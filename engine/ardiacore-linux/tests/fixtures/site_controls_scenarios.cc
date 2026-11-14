@@ -47,6 +47,8 @@ base::ListValue Strings(std::initializer_list<const char*> values) {
   return list;
 }
 
+base::Value Filters(std::initializer_list<const char*> values) { return base::Value(Strings(values)); }
+
 class FakeSiteEngine {
  public:
   base::Value Run(const ServiceRequest& request) {
@@ -98,11 +100,49 @@ base::Value RoundTrip(FakeSiteEngine& engine, std::string_view name, base::DictV
   return std::move(std::get<base::Value>(completed));
 }
 
+void HiddenElementProfiles() {
+  auto route = [](std::string_view name, std::string_view requested, bool private_page) {
+    return RouteProfile(name, requested, private_page);
+  };
+  for (const char* read : {"contentBlocker.hiddenElements", "contentBlocker.restoreElements"}) {
+    for (const char* requested : {"", "default", "work", "incognito:w@default", "incognito:w@work"}) {
+      assert(std::get<ProfileRoute>(route(read, requested, false)) == ProfileRoute::kRegistry);
+      assert(std::get<ProfileRoute>(route(read, requested, true)) == ProfileRoute::kRegistry);
+    }
+  }
+  for (const char* requested : {"", "default", "work"}) {
+    assert(std::get<ProfileRoute>(route("contentBlocker.hideElements", requested, false)) == ProfileRoute::kRegistry);
+    const Failure refused = std::get<Failure>(route("contentBlocker.hideElements", requested, true));
+    assert(refused.code == "ERR_PROFILE_PRIVATE");
+    assert(refused.message == "a private window keeps its hidden elements for the session");
+  }
+  assert(std::get<Failure>(route("contentBlocker.hideElements", "incognito:w@work", false)).message ==
+         "a private window keeps its hidden elements for the session");
+  assert(TargetProfileId("contentBlocker.hiddenElements", "incognito:w@work") == "work");
+  assert(TargetProfileId("contentBlocker.restoreElements", "incognito:w@") == "");
+  assert(TargetProfileId("contentBlocker.restoreElements", "incognito:w") == "incognito:w");
+  assert(TargetProfileId("contentBlocker.hiddenElements", "work") == "work");
+  assert(TargetProfileId("contentBlocker.hideElements", "default") == "default");
+  assert(TargetProfileId("sites.settings", "incognito:w@work") == "incognito:w@work");
+  assert(TargetProfileId("contentBlocker.state", "incognito:w@work") == "incognito:w@work");
+  for (const char* name : {"contentBlocker.hiddenElements", "contentBlocker.hideElements", "contentBlocker.restoreElements"}) {
+    assert(IsContentBlockerCall(name) && ServesNamedProfile(name));
+  }
+  for (const char* name : {"contentBlocker.state", "contentBlocker.setAllowed", "sites.settings"}) assert(!ServesNamedProfile(name));
+  const auto filters = base::DictValue().Set("filters", Filters({"a.test##.x"}));
+  for (const char* name : {"contentBlocker.hideElements", "contentBlocker.restoreElements"}) {
+    assert(!PrivateBlockerRefusal(name, filters, true));
+  }
+  assert(!PrivateBlockerRefusal("contentBlocker.hiddenElements", base::DictValue(), true));
+}
+
 void HandlesAndProfiles() {
   for (const char* name : {"sites.settings", "sites.setSetting", "sites.origins", "sites.reset", "sites.clearData",
                            "profiles.clearBrowsingData", "contentBlocker.state", "contentBlocker.setEnabled",
                            "contentBlocker.setListEnabled", "contentBlocker.isAllowed", "contentBlocker.setAllowed",
-                           "contentBlocker.devFailNextMessage", "contentBlocker.devDelayNextLoad"}) {
+                           "contentBlocker.devFailNextMessage", "contentBlocker.devDelayNextLoad",
+                           "contentBlocker.hiddenElements", "contentBlocker.hideElements",
+                           "contentBlocker.restoreElements"}) {
     assert(Handles(name));
   }
   for (const char* name : {"sites.zoomLevels", "sites.setZoom", "profiles.deleteData", "profiles.release",
@@ -111,7 +151,7 @@ void HandlesAndProfiles() {
   }
   assert(IsContentBlockerCall("contentBlocker.state") && !IsContentBlockerCall("sites.settings"));
   const auto capabilities = Capabilities();
-  assert(capabilities.size() == 12);
+  assert(capabilities.size() == 15);
   for (const auto name : capabilities) assert(Handles(name) && name != "contentBlocker.devDelayNextLoad");
   auto route = [](std::string_view name, std::string_view requested) { return RouteProfile(name, requested, false); };
   auto from_private = [](std::string_view name, std::string_view requested) { return RouteProfile(name, requested, true); };
@@ -138,6 +178,7 @@ void HandlesAndProfiles() {
   assert(!PrivateBlockerRefusal("contentBlocker.isAllowed", base::DictValue().Set("host", "a.test"), true));
   assert(!PrivateBlockerRefusal("contentBlocker.state", base::DictValue(), true));
   assert(!PrivateBlockerRefusal("sites.setSetting", allow, true));
+  HiddenElementProfiles();
 }
 
 void Origins() {
@@ -275,6 +316,75 @@ void BlockerRequests() {
   assert(AsFailure(PrepareBlockerCall("contentBlocker.devDelayNextLoad", base::DictValue().Set("ms", base::Value(5))))->code == kUnavailableCode);
   assert(Mutates(BlockerOp::kSetAllowed) && Mutates(BlockerOp::kSetList) && Mutates(BlockerOp::kSetEnabled));
   assert(!Mutates(BlockerOp::kState) && !Mutates(BlockerOp::kIsAllowed) && !Mutates(BlockerOp::kFailNext));
+}
+
+void HiddenElementRequests() {
+  auto read = PrepareBlockerCall("contentBlocker.hiddenElements", base::DictValue());
+  assert(std::get<BlockerRequest>(read).op == BlockerOp::kHiddenElements);
+  assert(AsFailure(PrepareBlockerCall("contentBlocker.hiddenElements", base::DictValue().Set("filters", Filters({}))))->code == "ERR_CONTENT_BLOCKER_REQUEST");
+  auto hide = PrepareBlockerCall("contentBlocker.hideElements", base::DictValue().Set("filters", Filters({"a.test##div.x > p", "news.example##.banner"})));
+  assert(std::get<BlockerRequest>(hide).op == BlockerOp::kHideElements);
+  assert((std::get<BlockerRequest>(hide).filters == std::vector<std::string>{"a.test##div.x > p", "news.example##.banner"}));
+  auto restore = PrepareBlockerCall("contentBlocker.restoreElements", base::DictValue().Set("filters", Filters({"a.test##.x", "not a rule at all"})));
+  assert(std::get<BlockerRequest>(restore).op == BlockerOp::kRestoreElements);
+  assert(std::get<BlockerRequest>(restore).filters.size() == 2);
+  for (const char* name : {"contentBlocker.hideElements", "contentBlocker.restoreElements"}) {
+    auto none = PrepareBlockerCall(name, base::DictValue().Set("filters", Filters({})));
+    assert(!AsFailure(none) && AnswersWithoutBlocker(std::get<BlockerRequest>(none)));
+    assert(!AnswersWithoutBlocker(std::get<BlockerRequest>(PrepareBlockerCall(name, base::DictValue().Set("filters", Filters({"a.test##.x"}))))));
+    assert(AsFailure(PrepareBlockerCall(name, base::DictValue()))->code == "ERR_CONTENT_BLOCKER_REQUEST");
+    assert(AsFailure(PrepareBlockerCall(name, base::DictValue().Set("filters", "a.test##.x"))));
+    assert(AsFailure(PrepareBlockerCall(name, base::DictValue().Set("filters", Filters({"a.test##.x"})).Set("profile", "work"))));
+    base::ListValue mixed;
+    mixed.Append(base::Value("a.test##.x"));
+    mixed.Append(base::Value(3));
+    assert(AsFailure(PrepareBlockerCall(name, base::DictValue().Set("filters", base::Value(std::move(mixed))))));
+    base::ListValue many;
+    for (size_t i = 0; i <= kMaxHidingFilters; ++i) many.Append(base::Value("a.test##.x" + std::to_string(i)));
+    assert(AsFailure(PrepareBlockerCall(name, base::DictValue().Set("filters", base::Value(std::move(many))))));
+    for (const std::string& bad : {std::string("a.test##.x\nb.test##.y"), std::string("a.test##.x\r"), std::string("a.test##.x") + '\0',
+                                   std::string(""), "a.test##." + std::string(kMaxHidingFilterBytes, 'x')}) {
+      base::ListValue one;
+      one.Append(base::Value(bad));
+      assert(AsFailure(PrepareBlockerCall(name, base::DictValue().Set("filters", base::Value(std::move(one))))));
+    }
+  }
+  assert(!AnswersWithoutBlocker(std::get<BlockerRequest>(read)));
+  for (const char* bad : {"a.test#.x", "A.test##.x", "a.test##+js(alert)", "a.test##^script", "a.test## div", "a.test##\tdiv",
+                          "a.test##.x{color:red}", "a.test##.x}", "##.x", "a_b.test##.x", "a.test##"}) {
+    assert(AsFailure(PrepareBlockerCall("contentBlocker.hideElements", base::DictValue().Set("filters", Filters({bad})))));
+  }
+  assert(!AsFailure(PrepareBlockerCall("contentBlocker.hideElements", base::DictValue().Set("filters", Filters({"a-b.c0.test##div:nth-of-type(2) > a[href^=\"/x\"]"})))));
+  assert(!AsFailure(PrepareBlockerCall("contentBlocker.hideElements", base::DictValue().Set("filters", Filters({"a.test##.x"})))));
+  for (BlockerOp op : {BlockerOp::kHiddenElements, BlockerOp::kHideElements, BlockerOp::kRestoreElements}) assert(!Mutates(op));
+  assert(BridgeOpName(BlockerOp::kHiddenElements) == "hiddenElements");
+  assert(BridgeOpName(BlockerOp::kHideElements) == "hideElements");
+  assert(BridgeOpName(BlockerOp::kRestoreElements) == "restoreElements");
+
+  PendingCall call{.ticket = 4, .request = std::get<BlockerRequest>(hide), .deadline_ms = 20000};
+  base::DictValue request = BridgeRequest(call, 0);
+  assert(Text(request, "op") == "hideElements");
+  const base::Value* sent = request.FindDict("args")->Find("filters");
+  assert(sent && sent->is_list() && sent->GetList().size() == 2 && sent->GetList()[0].GetString() == "a.test##div.x > p");
+  call.request = std::get<BlockerRequest>(read);
+  assert(BridgeRequest(call, 0).FindDict("args")->size() == 0);
+
+  base::ListValue answered;
+  answered.Append(base::Value("a.test##.x"));
+  answered.Append(base::Value(7));
+  answered.Append(base::Value("news.example##.banner"));
+  base::Value answer(std::move(answered));
+  auto listed = CompleteBlockerCall(std::get<BlockerRequest>(read), &answer, nullptr, "1.75.0");
+  const base::Value& kept = std::get<base::Value>(listed);
+  assert(kept.is_list() && kept.GetList().size() == 2 && kept.GetList()[1].GetString() == "news.example##.banner");
+  base::Value not_a_list{base::DictValue()};
+  assert(AsFailure(CompleteBlockerCall(std::get<BlockerRequest>(read), &not_a_list, nullptr, "1.75.0"))->code == "ERR_BAD_REPLY");
+  assert(AsFailure(CompleteBlockerCall(std::get<BlockerRequest>(read), nullptr, nullptr, "1.75.0"))->code == "ERR_BAD_REPLY");
+  const std::string failed = "not a hiding rule";
+  assert(AsFailure(CompleteBlockerCall(std::get<BlockerRequest>(hide), nullptr, &failed, "1.75.0"))->code == kUnavailableCode);
+  base::Value none;
+  assert(std::get<base::Value>(CompleteBlockerCall(std::get<BlockerRequest>(hide), &none, nullptr, "1.75.0")).is_none());
+  assert(std::get<base::Value>(CompleteBlockerCall(std::get<BlockerRequest>(restore), &none, nullptr, "1.75.0")).is_none());
 }
 
 void BlockerStates() {
@@ -564,6 +674,7 @@ int main() {
   ServiceValidation();
   BrowsingDataScope();
   BlockerRequests();
+  HiddenElementRequests();
   BlockerStates();
   BridgeScripts();
   Queue();
