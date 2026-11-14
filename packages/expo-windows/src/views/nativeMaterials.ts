@@ -35,7 +35,16 @@ export type NativeMaterialBlurProps = ViewProps & {
 
 export type GradientSpan = "unit" | "base" | "corner";
 
-export type NativeMaterialGradientProps = ViewProps & { colors: number[]; angle: number; span: GradientSpan; reach: number };
+export type NativeMaterialGradientProps = ViewProps & {
+  colors: number[];
+  angle: number;
+  span: GradientSpan;
+  reach: number;
+  stops?: number[];
+  fade?: number[];
+  fadeStops?: number[];
+  fadeAngle?: number;
+};
 
 const colorAttribute = { process: processColor as (value: never) => unknown };
 
@@ -51,7 +60,7 @@ export const NativeMaterialBlur = NativeComponentRegistry.get<NativeMaterialBlur
 
 export const NativeMaterialGradient = NativeComponentRegistry.get<NativeMaterialGradientProps>("ArdiaMaterialGradient", () => ({
   uiViewClassName: "ArdiaMaterialGradient",
-  validAttributes: { colors: true, angle: true, span: true, reach: true },
+  validAttributes: { colors: true, angle: true, span: true, reach: true, stops: true, fade: true, fadeStops: true, fadeAngle: true },
 }));
 
 let capabilities: MaterialCapabilities | null | undefined;
