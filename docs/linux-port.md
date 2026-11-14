@@ -732,6 +732,22 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   reach only tabs of the caller's own kind of session, regular or private. With an older engine the shell refuses
   them as before (`hostCast.ts`). Neither has run against a real capture on Linux yet.
 
+### ardia browse off-screen tabs
+
+- **The automation window.** `engine.cliMoveOffscreen` moves a tab the ardia command opened, and that was never shown,
+  into a hidden Browser per regular profile (`ac_linux_automation_window.cc`). The host treats it as a companion:
+  it is never shown or mapped, never restored by the session, and doesn't count as a window when closing. Chromium's
+  `IsAutomationWindow` and `InAutomationWindow` answer true for it and its tabs, so `ardia browse set viewport` and
+  emulation are allowed there. The tab's binding is dropped before it leaves its strip, and the shell's release of
+  it then succeeds. Private tabs are refused.
+- `engine.cliOwnsTab` answers from Chromium's own ownership record and shown-slot note, and
+  `engine.cliCloseOffscreenTabs` closes every off-screen tab; they also close when the last browser window closes,
+  so they never keep Ardia running.
+- `engine.cliTabTargets` answers each regular tab's DevTools target id (`DevToolsAgentHost::GetOrCreateFor`) and a
+  page generation that rises when the id changes, as the Mac does; a tab without a committed page answers null.
+- **Unverified.** None of it has run in a built engine. Whether a page in a never-mapped window paints for
+  screenshots is unknown.
+
 ### Page prompts
 
 - **What reaches Ardia's UI.** Permission requests, password save and update offers, save-address,
@@ -1502,8 +1518,6 @@ These were open at the time of the PR.
     `content::TracingController`, which Linux has too). Its only caller is the problem report sheet's slow-page
     recording, which Linux never opens (see Report a Problem), so a port would advertise a call nothing uses. Port it
     with the report sheet.
-  - `ardia browse`'s off-screen tabs (`engine.cliMoveOffscreen`, `cliCloseOffscreenTabs`, `cliOwnsTab`): Linux has no
-    off-screen automation window, so `ardia browse set viewport` is refused over the token connection.
 - **Profiles.** Deleting the data of an engine profile that was loaded in this run waits for the next launch
   (Profiles and private windows › Deleting a profile's data). In a window that shows several engine profiles:
   - a page's own fullscreen in a companion's tab makes only its viewport fullscreen, not the window;
@@ -1613,7 +1627,6 @@ These were open at the time of the PR.
   - crash reports;
   - sending problem reports from the sheet with an engine older than `report.files` and `report.send` (see Problem
     reports), where `ArdiaTelemetryLocal.exportForReport` answers null;
-  - `engine.cliTabTargets`, so `windows` from the control socket has no DevTools target ids;
   - notification icons, and a notification settings page to open (`openNotificationSettings`);
   - the share sheet;
   - Handoff;

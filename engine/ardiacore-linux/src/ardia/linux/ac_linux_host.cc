@@ -26,6 +26,7 @@
 #include "ardia/linux/ac_linux_sidebar_edge.h"
 #include "ardia/linux/ac_linux_status_geometry.h"
 #include "ardia/linux/ac_linux_auto_pip_service.h"
+#include "ardia/linux/ac_linux_automation_window.h"
 #include "ardia/linux/ac_linux_capture.h"
 #include "ardia/linux/ac_linux_autoplay.h"
 #include "ardia/linux/ac_linux_web_store.h"
@@ -133,6 +134,7 @@
 #include "base/uuid.h"
 #include "base/unguessable_token.h"
 #include "base/values.h"
+#include "chrome/browser/ardia/ac_cli_owned_tabs.h"
 #include "chrome/browser/ardia/ac_cli_visible_tabs.h"
 #include "chrome/browser/ardia/public/ac_engine.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
@@ -295,6 +297,7 @@ extern base::FilePath (*g_ardia_native_messaging_manifest)(const std::string& ho
 extern BrowserWindowInterface* (*g_ardia_linux_companion_owner)(const BrowserWindowInterface*);
 extern bool (*g_ardia_linux_present_companion)(BrowserWindowInterface*, bool activate);
 extern bool (*g_ardia_linux_is_companion)(const BrowserWindowInterface*);
+extern bool (*g_ardia_linux_automation_window)(const BrowserWindowInterface*);
 extern int (*g_ardia_linux_window_tab_count)(const BrowserWindowInterface*);
 extern bool (*g_ardia_linux_shell_passes_point)(gfx::NativeView child, const gfx::Point& location);
 
@@ -500,7 +503,13 @@ std::map<int, int>& CompanionOwners() {
 }
 
 bool IsCompanion(const BrowserWindowInterface* browser) {
-  return browser && CompanionOwners().contains(browser->GetSessionID().id());
+  return browser && (CompanionOwners().contains(browser->GetSessionID().id()) ||
+                     ardiacore::IsLinuxAutomationWindow(browser));
+}
+
+ardiacore::linux_automation_window::TargetGenerations& CliTargetGenerations() {
+  static base::NoDestructor<ardiacore::linux_automation_window::TargetGenerations> generations;
+  return *generations;
 }
 
 Profile* ProfileOf(content::BrowserContext* context) {
@@ -1478,6 +1487,7 @@ class ShellHostView : public views::View,
   bool HandsTabsToShell() const;
   TabBinding* Binding(int id);
   TabBinding* ClaimedBinding(const base::DictValue& args);
+  std::optional<std::string> MoveTabOffscreen(TabBinding* binding);
   struct PageCommandAuthority {
     base::WeakPtr<ShellHostView> host;
     base::WeakPtr<HostMessageHandler> handler;
@@ -1710,6 +1720,7 @@ class ShellHostView : public views::View,
   uint64_t pip_attached_generation_ = 0;
   uint64_t player_view_owner_ = 0;
   bool app_operation_ = false;
+  std::set<int> offscreen_released_;
   bool requested_ = false;
   linux_window::GeometryLedger geometry_{GlobalScreenCoordinates()};
   base::OneShotTimer frame_timer_;
@@ -2072,6 +2083,60 @@ class HostMessageHandler : public content::WebUIMessageHandler,
           return Fail(id, "ERR_ENGINE", "autofill.showSuggestions requires {tabId, passwords} for a tab of this window");
         return Resolve(id, base::Value(ardiacore::ShowLinuxAutofillSuggestions(binding->contents(), *passwords)));
       }
+      if (name == ardiacore::linux_automation_window::kOwnsTabCall ||
+          name == ardiacore::linux_automation_window::kMoveOffscreenCall) {
+        const std::string* key = input.FindString("tabId");
+        if (!key || input.size() != 1) return Fail(id, "ERR_ENGINE", name + " requires {tabId}");
+        if (private_page) return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kPrivateService);
+        ShellHostView* owner = nullptr;
+        TabBinding* binding = nullptr;
+        for (const auto& [window, other] : Hosts()) {
+          if (TabBinding* found = other->BindingForKey(*key)) {
+            owner = other;
+            binding = found;
+            break;
+          }
+        }
+        content::WebContents* contents = binding ? binding->contents() : nullptr;
+        if (name == ardiacore::linux_automation_window::kOwnsTabCall) {
+          return Resolve(id, base::Value(base::DictValue()
+              .Set("owned", contents && ardia::IsCliOwnedTab(contents))
+              .Set("shown", contents && ardiacore::TabWasInShownSlot(contents))));
+        }
+        const std::optional<std::string> refused = owner ? owner->MoveTabOffscreen(binding)
+                                                         : std::optional<std::string>("That tab has no page loaded.");
+        if (refused) return Resolve(id, base::Value(base::DictValue().Set("ok", false).Set("reason", *refused)));
+        return Resolve(id, base::Value(base::DictValue().Set("ok", true)));
+      }
+      if (name == ardiacore::linux_automation_window::kCloseOffscreenTabsCall) {
+        if (private_page) return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kPrivateService);
+        ardiacore::CloseLinuxOffscreenTabs();
+        return Resolve(id, base::Value());
+      }
+      if (name == ardiacore::linux_automation_window::kTabTargetsCall) {
+        const base::ListValue* keys = input.FindList("tabIds");
+        if (!keys || input.size() != 1 || !ardiacore::linux_automation_window::TabIdCountAllowed(keys->size()))
+          return Fail(id, "ERR_ENGINE", name + " requires {tabIds}");
+        if (private_page) return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kPrivateService);
+        base::DictValue targets;
+        for (const base::Value& key : *keys) {
+          if (!key.is_string()) return Fail(id, "ERR_ENGINE", name + " requires {tabIds} as a list of tab ids");
+          content::WebContents* contents = nullptr;
+          for (const auto& [window, other] : Hosts()) {
+            TabBinding* binding = other->BindingForKey(key.GetString());
+            if (binding && binding->contents() && !binding->contents()->GetBrowserContext()->IsOffTheRecord()) {
+              contents = binding->contents();
+              break;
+            }
+          }
+          const std::optional<std::string> target = ardiacore::LinuxDevToolsTargetId(contents);
+          const int generation = CliTargetGenerations().Record(key.GetString(), target);
+          targets.Set(key.GetString(), base::DictValue()
+              .Set("targetId", target ? base::Value(*target) : base::Value())
+              .Set("pageGeneration", generation));
+        }
+        return Resolve(id, base::Value(std::move(targets)));
+      }
       if (name == ardiacore::linux_capture::kChangeCaptureSourceCall ||
           name == ardiacore::linux_capture::kStopCaptureCall) {
         const auto request = ardiacore::linux_capture::ParseCaptureRequest(
@@ -2424,6 +2489,7 @@ void CloseUtilitiesWithoutBrowserWindows() {
       if (!host->is_utility()) return;
       utilities.push_back(id);
     }
+    ardiacore::CloseLinuxOffscreenTabs();
     for (int id : utilities) {
       auto found = Hosts().find(id);
       if (found == Hosts().end() || !found->second->browser()) continue;
@@ -2926,6 +2992,7 @@ base::DictValue ShellHostView::Bootstrap() const {
   }
   for (const char* capability : ardia::linux_commands::kWindowCommandCapabilities) capabilities.Append(capability);
   for (const char* capability : ardiacore::linux_capture::kCaptureCapabilities) capabilities.Append(capability);
+  for (const char* capability : ardiacore::linux_automation_window::kCapabilities) capabilities.Append(capability);
   if (!is_utility()) {
     for (const char* capability : ardia::linux_keys::kPageKeyCapabilities) capabilities.Append(capability);
   }
@@ -3049,6 +3116,41 @@ void ShellHostView::UnregisterAccelerators() {
   shortcut_recording_ = false;
   shortcuts_.clear();
   focus_manager_ = nullptr;
+}
+
+std::optional<std::string> ShellHostView::MoveTabOffscreen(TabBinding* binding) {
+  content::WebContents* contents = binding ? binding->contents() : nullptr;
+  BrowserWindowInterface* owner = contents ? OwnerOf(contents) : nullptr;
+  TabStripModel* model = owner ? owner->GetTabStripModel() : nullptr;
+  const int index = model ? model->GetIndexOfWebContents(contents) : TabStripModel::kNoTab;
+  const ardiacore::linux_automation_window::OffscreenTab tab{
+      .found = contents != nullptr,
+      .discarded = contents && (contents->WasDiscarded() || contents->IsCrashed()),
+      .private_session = contents && contents->GetBrowserContext()->IsOffTheRecord(),
+      .presented = binding && binding->presented,
+      .shown_before = contents && ardiacore::TabWasInShownSlot(contents),
+      .in_strip = index != TabStripModel::kNoTab,
+  };
+  if (const auto refused = ardiacore::linux_automation_window::OffscreenRefusal(tab)) return std::string(*refused);
+  BrowserWindowInterface* window = ardiacore::LinuxAutomationWindowFor(ProfileOf(contents->GetBrowserContext()));
+  if (!window) return std::string("Ardia couldn't take that tab off-screen.");
+  const int id = TabId(contents);
+  auto weak = GetWeakPtr();
+  app_operation_ = true;
+  auto owned = std::move(bindings_[id]);
+  bindings_.erase(id);
+  devtools_had_focus_.erase(id);
+  owned.reset();
+  CheckPlayerSource();
+  offscreen_released_.insert(id);
+  std::unique_ptr<content::WebContents> detached = model->DetachWebContentsAtForInsertion(index);
+  if (!weak) return std::string("Ardia couldn't take that tab off-screen, and closed it.");
+  app_operation_ = false;
+  if (!ardiacore::InsertIntoLinuxAutomationWindow(window, std::move(detached))) {
+    return std::string("Ardia couldn't take that tab off-screen, and closed it.");
+  }
+  QueueTransaction(std::nullopt);
+  return std::nullopt;
 }
 
 void ShellHostView::FocusShell() {
@@ -6413,6 +6515,9 @@ void ShellHostView::Invoke(
   }
   if (method == "tab.release") {
     TabBinding* binding = ClaimedBinding(args);
+    if (!binding && offscreen_released_.erase(args.FindInt("id").value_or(0))) {
+      return std::move(done).Run(true, base::Value());
+    }
     if (!binding) return std::move(done).Run(false, base::Value("No owned live tab"));
     binding->ResetPageCommands();
     if (binding->temporary) {
@@ -7705,6 +7810,7 @@ void StartLinuxHost() {
     return host ? host->browser() : nullptr;
   };
   g_ardia_linux_is_companion = [](const BrowserWindowInterface* browser) { return IsCompanion(browser); };
+  g_ardia_linux_automation_window = &ardiacore::IsLinuxAutomationWindow;
   g_ardia_linux_shell_passes_point = [](gfx::NativeView child, const gfx::Point& location) {
     return std::ranges::any_of(Hosts(), [&](const auto& entry) { return entry.second->PassesShellPoint(child, location); });
   };

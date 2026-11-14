@@ -2,8 +2,11 @@
 
 #include "ardia/core/ac_host_visibility.h"
 
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
+
+bool (*g_ardia_linux_automation_window)(const BrowserWindowInterface*) = nullptr;
 
 namespace ardiacore {
 
@@ -32,11 +35,13 @@ bool TabWasInShownSlot(content::WebContents* contents) {
 }
 
 bool IsAutomationWindow(const BrowserWindowInterface* browser) {
-  return false;
+  return g_ardia_linux_automation_window && g_ardia_linux_automation_window(browser);
 }
 
 bool InAutomationWindow(content::WebContents* contents) {
-  return false;
+  BrowserWindowInterface* browser =
+      contents ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents) : nullptr;
+  return browser && IsAutomationWindow(browser);
 }
 
 }
