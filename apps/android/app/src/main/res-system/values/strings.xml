@@ -13,6 +13,8 @@
     <string name="process_text_search">Search in Ardia</string>
 
     <string name="widget_search">Search</string>
+    <string name="widget_search_label">Ardia Search</string>
+    <string name="widget_mac_tabs_label">Ardia, Your Mac’s Tabs</string>
     <string name="widget_search_or_enter_address">Search or Enter Address</string>
     <string name="widget_voice_search">Voice Search</string>
     <string name="widget_search_description">Quickly start searching.</string>

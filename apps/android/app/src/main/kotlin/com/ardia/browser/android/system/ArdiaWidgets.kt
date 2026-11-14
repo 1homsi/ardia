@@ -80,13 +80,20 @@ object ArdiaWidgets {
         Log.i(LOG_TAG, "widget $widget update on API $sdk: $path; the app sees ${if (isDark(context)) "night" else "day"}; look $look")
     }
 
+    enum class Kind(val labelRes: Int) {
+        Search(R.string.widget_search_label),
+        MacTabs(R.string.widget_mac_tabs_label),
+    }
+
+    fun label(context: Context, kind: Kind): String = context.getString(kind.labelRes)
+
     const val LOG_TAG = "ArdiaWidget"
 }
 
 @Composable
-private fun WidgetPanel(colors: WidgetColors.DayNight, modifier: GlanceModifier = GlanceModifier, content: @Composable () -> Unit) {
+private fun WidgetPanel(colors: WidgetColors.DayNight, label: String, modifier: GlanceModifier = GlanceModifier, content: @Composable () -> Unit) {
     val fill = GlanceModifier.fillMaxSize()
-    Box(fill.background(ArdiaWidgets.both(colors) { it.panelTop }).cornerRadius(26.dp)) {
+    Box(fill.background(ArdiaWidgets.both(colors) { it.panelTop }).cornerRadius(26.dp).semantics { contentDescription = label }) {
         Image(
             ImageProvider(R.drawable.widget_fade_down),
             contentDescription = null,
@@ -127,7 +134,7 @@ private fun SearchWidgetContent() {
     val colors = WidgetColors.dayNight(look, themed = true)
     val inkProvider = ArdiaWidgets.both(colors) { it.ink }
     val capsule = ArdiaWidgets.both(colors) { it.capsule }
-    WidgetPanel(colors) {
+    WidgetPanel(colors, ArdiaWidgets.label(context, ArdiaWidgets.Kind.Search)) {
         Column(GlanceModifier.fillMaxSize().padding(16.dp)) {
             Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Image(ImageProvider(R.drawable.ardia_logo), contentDescription = null, modifier = GlanceModifier.size(46.dp, 37.dp))
@@ -233,7 +240,7 @@ private fun MacTabsWidgetContent() {
     ArdiaWidgets.logUpdate(context, "macTabs", snapshot.look)
     val colors = WidgetColors.dayNight(snapshot.look, themed = false, softened = true)
     val large = LocalSize.current.height >= MacTabsWidget.LARGE.height
-    WidgetPanel(colors, GlanceModifier.padding(16.dp)) {
+    WidgetPanel(colors, ArdiaWidgets.label(context, ArdiaWidgets.Kind.MacTabs), GlanceModifier.padding(16.dp)) {
         when {
             !snapshot.isSyncEnabled -> MacTabsEmpty(R.string.widget_mac_tabs_sync_title, R.string.widget_mac_tabs_sync_message, R.drawable.ic_shortcut_mac_tabs, large, colors)
             !snapshot.hasMacTabs -> MacTabsEmpty(R.string.widget_mac_tabs_empty_title, R.string.widget_mac_tabs_empty_message, R.drawable.ic_shortcut_mac_tabs, large, colors)

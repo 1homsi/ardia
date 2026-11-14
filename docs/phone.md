@@ -255,6 +255,8 @@ and again only when that status changes.
     `widget search|macTabs update on API N: the launcher picks day or night …; the app sees day|night`. A switch
     with the app closed needs no update line at all. If a widget doesn't follow, report whether any line
     appeared and what it said.
+    With TalkBack on, each widget reads its name from the moment it is placed, before its first update: "Ardia
+    Search" and "Ardia, Your Mac’s Tabs", never "Ardianull".
 32. **Deck backdrop:** in the app's deck, three slow blobs in lighter shades of the profile colour drift over the base
     (two screenshots 10 s apart differ). In the lab, Look: the stage above the frosted bar shows the mesh and blobs
     in every look, its caption sits at the bottom of the stage, and the frosted bar's label is centred. Tap Probe
