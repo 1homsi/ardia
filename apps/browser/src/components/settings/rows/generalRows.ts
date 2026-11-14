@@ -149,7 +149,7 @@ export const generalRows = {
         },
         revealTabsOnHover: {
           title: "Reveal hidden tabs on hover",
-          description: "With Auto-hide tabs on, the tabs slide back over the page while the pointer is at the window's edge. Off, they come back only with ⌘S or View › Auto-Hide Tabs.",
+          description: `With Auto-hide tabs on, the tabs slide back over the page while the pointer is at the window's edge. Off, they come back only with ${keyText("⌘S")}${PLATFORM_FEATURES.menuBar ? " or View › Auto-Hide Tabs" : ""}.`,
           keywords: ["hover", "peek", "edge", "reveal", "pop out", "floating sidebar", "compact mode", "shortcut only", "accidental", "zen"],
         },
         sidebarSide: {
