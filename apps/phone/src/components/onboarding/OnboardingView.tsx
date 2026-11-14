@@ -4,7 +4,7 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useShare
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { ArdiaLogo, capsule, LookBackdrop, onboardingArt, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
+import { AppIcon, appIconLayout, capsule, LookBackdrop, onboardingArt, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
 import { ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
@@ -169,8 +169,8 @@ function Welcome() {
   return (
     <View style={styles.column}>
       <View style={styles.fill} />
-      <Animated.View style={[styles.logo, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }, logo]}>
-        <ArdiaLogo width={settingsLayout.onboardingIcon} />
+      <Animated.View testID="welcomeIcon" style={[styles.logo, logo]}>
+        <AppIcon side={appIconLayout.welcome} scalesWithText={false} />
       </Animated.View>
       <Animated.View style={[styles.words, words]}>
         <Text accessibilityRole="header" style={[font.hero, styles.heavy, { color: theme.label }]}>
@@ -277,7 +277,13 @@ const styles = StyleSheet.create({
   sharingCard: { borderRadius: radius.card, overflow: "hidden" },
   column: { flex: 1, alignItems: "stretch", gap: space.xxl },
   fill: { flex: 1 },
-  logo: { alignSelf: "center", padding: space.l, borderRadius: settingsLayout.onboardingIcon * 0.3, elevation: 12, shadowOpacity: 1, shadowRadius: shadowRadius.lifted },
+  logo: {
+    alignSelf: "center",
+    padding: appIconLayout.welcomeFrame,
+    borderRadius: appIconLayout.welcome * appIconLayout.corner + appIconLayout.welcomeFrame,
+    backgroundColor: appIconLayout.fill,
+    boxShadow: appIconLayout.welcomeShadow,
+  },
   words: { paddingHorizontal: space.huge, gap: space.s, alignItems: "center" },
   heavy: { fontWeight: "700", textAlign: "center" },
   centered: { textAlign: "center" },

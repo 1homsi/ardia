@@ -1,11 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 import { tileGradient } from "../../lib/favicon";
 import { linearGradientCss } from "../../lib/gradient";
-import { ArdiaLogo, font, ink, onboardingArt, PROFILE_COLORS, space, Symbol, useTheme } from "../ui";
+import { AppIcon, font, onboardingArt, PROFILE_COLORS, space, Symbol, useTheme } from "../ui";
 
 export function LinkBubble() {
   const theme = useTheme();
-  const icon = onboardingArt.appIcon;
   return (
     <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={[styles.card, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
@@ -20,8 +19,8 @@ export function LinkBubble() {
       <View style={styles.arrow}>
         <Symbol name="arrowRight" size={22} color={theme.formAccent} />
       </View>
-      <View style={[styles.icon, { width: icon, height: icon, borderRadius: icon * 0.225, backgroundColor: ink.white, borderColor: theme.separator, shadowColor: theme.trayShadow }]}>
-        <ArdiaLogo width={icon * 0.72} />
+      <View testID="linkBubbleIcon" style={styles.icon}>
+        <AppIcon side={onboardingArt.appIcon} shadow scalesWithText={false} />
       </View>
     </View>
   );
@@ -41,5 +40,5 @@ const styles = StyleSheet.create({
   words: { paddingHorizontal: space.m, paddingVertical: space.s + 2, gap: space.tight },
   bold: { fontWeight: "700" },
   arrow: { paddingBottom: onboardingArt.arrowLift },
-  icon: { alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, marginBottom: space.s, elevation: 6, shadowOpacity: 0.12, shadowRadius: onboardingArt.shadowRadius },
+  icon: { marginBottom: space.s },
 });

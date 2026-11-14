@@ -147,7 +147,6 @@ export const settingsLayout = {
   swatchRing: 2,
   swatchGap: 3,
   primaryButton: 54,
-  onboardingIcon: 104,
   stepShift: 60,
   titleWidth: 240,
 } as const;
@@ -290,7 +289,18 @@ export const radius = { row: 14, field: 16, card: 20, sheet: 40 } as const;
 
 export const capsule = (height: number) => height / 2;
 
-export const appIconLayout = { maxScale: 1.4, corner: 0.225, fill: "#FFFFFF", edge: 0.5, edgeAlpha: 0.08, shadow: "0px 4px 20px rgba(0, 0, 0, 0.12)", about: 72, welcome: 104 } as const;
+export const appIconLayout = {
+  maxScale: 1.4,
+  corner: 0.225,
+  fill: "#FFFFFF",
+  edge: 0.5,
+  edgeAlpha: 0.08,
+  shadow: "0px 4px 20px rgba(0, 0, 0, 0.12)",
+  about: 72,
+  welcome: 104,
+  welcomeFrame: 5,
+  welcomeShadow: "0px 12px 48px rgba(0, 0, 0, 0.18)",
+} as const;
 
 export const font = {
   hero: { fontSize: 40, lineHeight: 46 },
