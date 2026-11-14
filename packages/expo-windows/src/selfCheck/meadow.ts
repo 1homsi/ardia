@@ -2,14 +2,14 @@ import type { MeadowIntro, MeadowIntroEvent, MeadowTone } from "@ardia/shaders";
 import type { AppNative, WindowsNative } from "@ardia/shell";
 import { engineAvailable, hostCall } from "../engine/host";
 import { meadowPageUrl } from "../meadow/pageUrl";
-import { MEADOW_READY_LIMIT_MS, startMeadowSession } from "../meadow/session";
+import { startMeadowSession } from "../meadow/session";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 const PROBE_KEY = "self-check-webgl-probe";
 const PROBE_URL = "data:text/html,<title>webgl probe</title>";
 const VISIBILITY_CODE = `let frames = 0; const tick = () => { frames += 1; requestAnimationFrame(tick); }; requestAnimationFrame(tick); setTimeout(() => post("result", JSON.stringify({ hidden: document.hidden, state: document.visibilityState, frames })), 500);`;
-const STRETCH = 8;
+const WARP_READY_LIMIT_MS = 20000;
 const PROBE_CODE = `const canvas = document.createElement("canvas"); const gl = canvas.getContext("webgl2"); let renderer = ""; if (gl) { const info = gl.getExtension("WEBGL_debug_renderer_info"); renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } post("result", JSON.stringify({ webgl2: !!gl, renderer }));`;
 const PROBE_TRIES = 40;
 const PROBE_WAIT_MS = 250;
@@ -113,7 +113,7 @@ export const checks: Check[] = [
       const session = startMeadowSession(intro, false, url, {
         now: () => Date.now(),
         later(ms, run) {
-          const timer = setTimeout(run, ms === MEADOW_READY_LIMIT_MS ? ms * STRETCH : ms);
+          const timer = setTimeout(run, ms);
           return () => clearTimeout(timer);
         },
         every(ms, run) {
@@ -130,7 +130,7 @@ export const checks: Check[] = [
         tell: (event) => told.push(event),
         tone: (tone) => tones.push(tone),
         log: (line) => console.info(line),
-      });
+      }, WARP_READY_LIMIT_MS);
       try {
         await until("the page drew its first frame or fell back", LIVE_MS, () => told.some((event) => event.kind === "live" || event.kind === "fallback"));
         const live = told.find((event) => event.kind === "live");

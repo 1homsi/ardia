@@ -355,3 +355,12 @@ test("a Skip that arrives in the same poll as the first frame keeps its quick cl
   await page.advance(intro.motion.holds.skip + 2);
   assert.equal(page.closed, 1, "the page closes after the skip's hold, not at the exit cue");
 });
+
+test("a session given its own first-frame limit waits that long before falling back", async () => {
+  const { page, deps } = fakePage();
+  startMeadowSession(startedNow, false, URL_OF_PAGE, deps, MEADOW_READY_LIMIT_MS * 4);
+  await page.advance(MEADOW_READY_LIMIT_MS * 2);
+  assert.ok(!page.told.some((event) => event.kind === "fallback"), "it fell back at the app's own limit");
+  await page.advance(MEADOW_READY_LIMIT_MS * 2 + 1);
+  assert.deepEqual(page.told.at(-1), { kind: "fallback", reason: "no first frame" });
+});

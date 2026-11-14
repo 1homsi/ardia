@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import type { MeadowIntroEvent, MeadowProps } from "@ardia/shaders";
+import type { AppNative } from "@ardia/shell";
 import { takeKeyboardFor } from "../appKeyboard";
 import { EngineWebView } from "../engine/EngineWebView";
 import { engineAvailable } from "../engine/host";
@@ -17,6 +18,11 @@ const KEYBOARD_BACK_MS = 150;
 const PAGE_CLOSE_MS = 400;
 
 let opened = 0;
+
+const testReadyLimit = () => {
+  const asked = Number(requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().test.meadowReadyMs);
+  return Number.isFinite(asked) && asked > 0 ? asked : undefined;
+};
 
 const focusModule = () => requireNativeModule<Pick<FocusOnWindows, "takeKeyboardFromPage">>("ArdiaFocus");
 
@@ -75,7 +81,7 @@ export function MeadowPage({ intro, night, onIntro, onTone, style }: MeadowProps
       tell,
       tone: (tone) => latest.current.onTone?.(tone),
       log: (line) => console.info(line),
-    });
+    }, testReadyLimit());
     session.current = live;
     return () => {
       live.end();

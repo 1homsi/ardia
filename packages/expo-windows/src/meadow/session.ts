@@ -51,7 +51,7 @@ const reportOf = (polled: Polled) => (polled && "report" in polled ? polled.repo
 
 const isTone = (tone: unknown): tone is MeadowTone["tone"] => tone === "light" || tone === "dark";
 
-export function startMeadowSession(intro: MeadowIntro, night: boolean, url: string, deps: MeadowSessionDeps): MeadowSession {
+export function startMeadowSession(intro: MeadowIntro, night: boolean, url: string, deps: MeadowSessionDeps, readyLimitMs = MEADOW_READY_LIMIT_MS): MeadowSession {
   const createdAt = deps.now();
   const document = withoutFragment(url);
   let phase: MeadowPhase = "booting";
@@ -67,7 +67,7 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
   let closeTimer: Cancel = () => {};
 
   const stopPoll = deps.every(MEADOW_POLL_MS, () => void poll());
-  const stopDeadline = deps.later(MEADOW_READY_LIMIT_MS, () => fallBack("no first frame"));
+  const stopDeadline = deps.later(readyLimitMs, () => fallBack("no first frame"));
   deps.log("[ardia windows] meadow page created");
 
   const finished = () => phase === "closing" || phase === "closed" || phase === "fallen";
