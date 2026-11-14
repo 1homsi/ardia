@@ -1,4 +1,4 @@
-import { TurboModuleRegistry, type TurboModule } from "react-native";
+import { DeviceEventEmitter, TurboModuleRegistry, type EmitterSubscription, type TurboModule } from "react-native";
 
 export type MaterialCapabilities = {
   build: number;
@@ -52,9 +52,23 @@ export function gradientDrawsNow(): boolean {
   }
 }
 
-export const GRADIENT_RECHECK_MS = 250;
+export const GRADIENT_FAILED_EVENT = "ArdiaMaterials:gradientFailed";
 
-export function watchGradientFailure(onFailed: () => void, after = GRADIENT_RECHECK_MS) {
-  const recheck = setTimeout(() => !gradientDrawsNow() && onFailed(), after);
-  return () => clearTimeout(recheck);
+const failureListeners = new Set<() => void>();
+let failures: EmitterSubscription | null = null;
+
+function gradientFailed() {
+  if (capabilities) capabilities = { ...capabilities, gradient: false };
+  for (const listener of [...failureListeners]) listener();
+}
+
+export function onGradientFailure(listener: () => void): () => void {
+  failureListeners.add(listener);
+  failures ??= DeviceEventEmitter.addListener(GRADIENT_FAILED_EVENT, gradientFailed);
+  return () => {
+    failureListeners.delete(listener);
+    if (failureListeners.size > 0) return;
+    failures?.remove();
+    failures = null;
+  };
 }

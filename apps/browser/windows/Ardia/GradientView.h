@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "GradientFailures.h"
 #include "MaterialSupport.h"
 #include "MaterialViewParts.h"
 
@@ -129,7 +130,7 @@ struct MaterialGradientView : winrt::implements<MaterialGradientView, winrt::Win
 
  private:
   void Fail(std::wstring const &reason) noexcept {
-    Materials::GradientFailed() = true;
+    Materials::MarkGradientFailed();
     m_gradient = nullptr;
     m_masked = nullptr;
     if (m_sprite) m_sprite.Brush(nullptr);

@@ -1,57 +1,56 @@
 import assert from "node:assert/strict";
-import { mock, test } from "node:test";
+import { test } from "node:test";
 
-const { turboModules } = await import("../test-native/reactNative.ts");
+const { DeviceEventEmitter, turboModules } = await import("../test-native/reactNative.ts");
 const native = { gradient: true };
 turboModules.ArdiaMaterials = {
   capabilities: () => ({ build: 22631, systemBackdrop: true, systemBackdropSupported: true, inWindowBlur: true, gradient: native.gradient, background: true }),
 };
 const capabilities = await import("../../../../packages/expo-windows/src/views/materialCapabilities.ts");
 
-function withTimers(run) {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  try {
-    run();
-  } finally {
-    mock.timers.reset();
-  }
-}
-
-test("a gradient that keeps drawing never switches to the stripes", () => {
-  withTimers(() => {
-    let switched = 0;
-    capabilities.watchGradientFailure(() => switched++);
-    mock.timers.tick(capabilities.GRADIENT_RECHECK_MS + 1);
-    assert.equal(switched, 0);
-    assert.equal(capabilities.gradientDrawsNow(), true);
-  });
-});
-
-test("reproduction: a brush that fails after the capability answered true leaves the cached answer at true", () => {
-  assert.equal(capabilities.nativeGradient(), true, "the first answer is cached");
+const brushFails = () => {
   native.gradient = false;
-  assert.equal(capabilities.nativeGradient(), true, "GradientLayer read only this before the fix, so it kept the empty native view and drew no glow");
+  DeviceEventEmitter.emit(capabilities.GRADIENT_FAILED_EVENT, {});
+};
+
+test("while the native brush draws, a mounted layer hears nothing and keeps drawing", () => {
+  let switched = 0;
+  const stop = capabilities.onGradientFailure(() => switched++);
+  assert.equal(capabilities.gradientDrawsNow(), true);
+  assert.equal(switched, 0);
+  stop();
 });
 
-test("the layer asks native again shortly after it mounts and switches to the stripes, and the cache follows", () => {
-  withTimers(() => {
-    let switched = 0;
-    capabilities.watchGradientFailure(() => switched++);
-    mock.timers.tick(capabilities.GRADIENT_RECHECK_MS - 1);
-    assert.equal(switched, 0, "not before the recheck");
-    mock.timers.tick(1);
-    assert.equal(switched, 1, "the layer is told to draw the stripes");
-    assert.equal(capabilities.nativeGradient(), false, "and every later gradient starts striped");
-    assert.equal(capabilities.gradientDrawsNow(), false);
-  });
+test("reproduction: without the native report, the cached answer stays true after the brush fails", () => {
+  capabilities.materialCapabilities();
+  native.gradient = false;
+  assert.equal(capabilities.nativeGradient(), true, "what GradientLayer read before #1877, so it kept an empty native view");
+  native.gradient = true;
 });
 
-test("a layer that goes away before the recheck isn't told anything", () => {
-  withTimers(() => {
-    let switched = 0;
-    const stop = capabilities.watchGradientFailure(() => switched++);
-    stop();
-    mock.timers.tick(capabilities.GRADIENT_RECHECK_MS + 1);
-    assert.equal(switched, 0);
-  });
+test("a brush that fails at any later moment switches every mounted layer to the stripes and corrects the cache", async () => {
+  const told = [];
+  const first = capabilities.onGradientFailure(() => told.push("first"));
+  const second = capabilities.onGradientFailure(() => told.push("second"));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.deepEqual(told, [], "nothing before the failure");
+  brushFails();
+  assert.deepEqual(told, ["first", "second"], "both layers switch when native reports it, however late");
+  assert.equal(capabilities.nativeGradient(), false, "and every later gradient starts striped");
+  first();
+  second();
+});
+
+test("a layer that unmounts first is told nothing when a brush fails later", () => {
+  let told = 0;
+  const stop = capabilities.onGradientFailure(() => told++);
+  stop();
+  const keeper = capabilities.onGradientFailure(() => {});
+  DeviceEventEmitter.emit(capabilities.GRADIENT_FAILED_EVENT, {});
+  assert.equal(told, 0);
+  keeper();
+});
+
+test("a layer that mounts after the failure starts striped without waiting for an event", () => {
+  assert.equal(capabilities.gradientDrawsNow(), false);
 });
