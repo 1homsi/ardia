@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
 import { tabsMotion } from "./motion";
 import { isDarkColor } from "../../lib/color";
@@ -69,19 +69,26 @@ const shownSnapshots = new Set<string>();
 function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: ReactNode }) {
   const [aspect, setAspect] = useState<number | null>(null);
   const [wasShown] = useState(() => shownSnapshots.has(uri));
+  const [covered, setCovered] = useState(!wasShown);
   const appear = useSharedValue(wasShown ? 1 : 0);
   const appearing = useAnimatedStyle(() => ({ opacity: appear.value }));
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]}>
-      {wasShown ? null : under}
+      {covered ? under : null}
       <Animated.Image
         source={{ uri }}
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
           if (width > 0 && height > 0) setAspect(width / height);
-          if (shownSnapshots.has(uri)) return;
+          if (shownSnapshots.has(uri)) {
+            appear.value = 1;
+            setCovered(false);
+            return;
+          }
           shownSnapshots.add(uri);
-          appear.value = withTiming(1, { duration: tabsMotion.fade });
+          appear.value = withTiming(1, { duration: tabsMotion.fade }, (finished) => {
+            if (finished) runOnJS(setCovered)(false);
+          });
         }}
         style={[aspect ? [styles.snapshot, { aspectRatio: aspect }] : StyleSheet.absoluteFill, appearing]}
         resizeMode="cover"

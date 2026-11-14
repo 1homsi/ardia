@@ -137,6 +137,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
   return (
     <>
       <Animated.View
+        testID="deckCard"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         style={[
