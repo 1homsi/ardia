@@ -16,4 +16,4 @@ const openInActivePage = (url: string, windowId: string | null) => {
   return true;
 };
 
-setShareSurface({ menu: showMenu, copy: copyText, openInActivePage });
+setShareSurface({ menu: (items, at) => showMenu(items, undefined, at), copy: copyText, openInActivePage });

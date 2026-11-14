@@ -10,7 +10,7 @@ import { useGlassPanel } from "./shellGlass";
 import { watchPageFocus } from "./pageFocus";
 import { withShareMenus } from "./linkShare";
 
-type OpenMenu = { items: MenuItem[]; x: number; y: number; resolve: (id: string | null) => void };
+type OpenMenu = { items: MenuItem[]; x: number; y: number; resolve: (id: string | null) => void; onKeepOpenPick?: (id: string) => MenuItem[] };
 
 export function alternateShown(primary: MenuItem | undefined, alternate: MenuItem, held: ReadonlySet<MenuModifier>): boolean {
   const base = new Set(primary && "id" in primary ? primary.modifiers ?? [] : []);
@@ -54,10 +54,17 @@ if (typeof window !== "undefined") {
   for (const type of ["keydown", "keyup"] as const) window.addEventListener(type, (e) => (held = heldModifiers(e)), true);
 }
 
-export function showMenu(items: MenuItem[], at: { x: number; y: number } = pointer): Promise<string | null> {
+export function showMenu(items: MenuItem[], onKeepOpenPick?: (id: string) => MenuItem[], at: { x: number; y: number } = pointer): Promise<string | null> {
   open?.resolve(null);
-  return new Promise((resolve) => publish({ items: withShareMenus(items), x: at.x, y: at.y, resolve }));
+  return new Promise((resolve) => publish({ items: withShareMenus(items), x: at.x, y: at.y, resolve, onKeepOpenPick }));
 }
+
+const pick = (id: string, keepOpen?: boolean) => {
+  if (keepOpen && open?.onKeepOpenPick) publish({ ...open, items: withShareMenus(open.onKeepOpenPick(id)) });
+  else close(id);
+};
+
+const sameItem = (a: MenuItem | undefined, b: MenuItem) => !!a && "id" in a && "id" in b && a.id === b.id;
 
 const close = (id: string | null) => {
   const menu = open;
@@ -139,16 +146,16 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
         return (
           <div
             key={item.id + i}
-            className={`ardia-menu-item${enabled ? "" : " disabled"}${sub?.item === item ? " expanded" : ""}`}
+            className={`ardia-menu-item${enabled ? "" : " disabled"}${sameItem(sub?.item, item) ? " expanded" : ""}`}
             onPointerEnter={(e) => setSub(enabled && item.children ? { item, row: e.currentTarget } : null)}
-            onClick={() => enabled && !item.children && close(item.id)}
+            onClick={() => enabled && !item.children && pick(item.id, item.keepOpen)}
           >
             <span className="ardia-menu-check">{item.checked ? "✓" : ""}</span>
             {item.symbol ? <Symbol name={item.symbol} size={12} color="currentColor" style={{ width: 16, height: 16, marginRight: 6 }} /> : symbols && !item.swatch ? <span className="ardia-menu-symbol-gap" style={{ width: 16, marginRight: 6, flex: "none" }} /> : null}
             {item.swatch ? <span className="ardia-menu-swatch" style={{ background: item.swatch }} /> : null}
             <span className="ardia-menu-title">{item.title}</span>
             <span className="ardia-menu-key">{item.children ? "›" : item.key ? formatShortcut({ key: item.key, modifiers: item.modifiers ?? [] }) : ""}</span>
-            {sub?.item === item && item.children ? <MenuList items={item.children} anchor={{ row: sub.row }} /> : null}
+            {sub && sameItem(sub.item, item) && item.children ? <MenuList items={item.children} anchor={{ row: sub.row }} /> : null}
           </div>
         );
       })}

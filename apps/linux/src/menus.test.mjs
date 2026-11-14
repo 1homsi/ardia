@@ -8,13 +8,13 @@ const pageTakesFocus = () => notingPageFocus({}).onPageFocus();
 
 test("a page taking focus closes an open menu with no choice, and stops listening once it is closed", async () => {
   const items = [{ id: "copy", title: "Copy Link" }];
-  const first = showMenu(items, { x: 10, y: 10 });
+  const first = showMenu(items, undefined, { x: 10, y: 10 });
   assert.equal(menuShown(), true);
   pageTakesFocus();
   assert.equal(await first, null);
   assert.equal(menuShown(), false);
-  const second = showMenu(items, { x: 10, y: 10 });
-  const replaced = showMenu(items, { x: 20, y: 20 });
+  const second = showMenu(items, undefined, { x: 10, y: 10 });
+  const replaced = showMenu(items, undefined, { x: 20, y: 20 });
   assert.equal(await second, null);
   assert.equal(menuShown(), true);
   pageTakesFocus();
@@ -44,7 +44,7 @@ test("an alternate menu item shows while Alt, Linux's Option, is held, and a Com
 test("the app menu button toggles its menu from the keyboard as it does from the pointer", async () => {
   const items = [{ id: "copy", title: "Copy Link" }];
   let opened = 0;
-  const presses = menuButtonPresses(() => { opened++; void showMenu(items, { x: 0, y: 0 }); });
+  const presses = menuButtonPresses(() => { opened++; void showMenu(items, undefined, { x: 0, y: 0 }); });
   presses.click();
   assert.equal(opened, 1);
   assert.equal(menuShown(), true);
