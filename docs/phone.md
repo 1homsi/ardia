@@ -288,13 +288,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Search tray: bang queries lack their "Search <engine>" detail line. `SearchSuggestions.kt` `row()`, `SearchSuggestionsModel.swift` `row(for:)`. Small.
 - Search tray: 8 rows and no kept row for the exact typed query; both apps show 9 and keep it. Same files. Small.
 - Search tray: Mac-tab rows show the device name as text; both apps show a laptop icon and the host, and Switch to Tab uses `arrow.right.circle`. `SuggestionList.kt` `RowLabel`, `SuggestionRowView.swift`. Small.
-- Search tray: no scrubbing along the rows (highlight under the finger past 6 pt, a tick per row, open on release, press spring 0.2/0.7). `SuggestionList.kt`, `Scrub.kt`, `SearchTray.swift` `scrub`. A day.
-- Search tray: no drag down to close from the header, caption or empty area (the dim follows, traySettle 0.34/0.86 or dismiss past a threshold). `SearchTrayHost.kt`, `TrayDrag.kt`, `SearchTrayHost.swift`, `TrayDrag.swift`. A day.
-- Search tray: closing is not animated (trayDismiss 0.32/1, dim fades 300 ms, waits for the keyboard); the dim pops in. Same host files. A day.
-- Search tray: the rise does not follow the keyboard (IME insets on Android, the keyboard's own curve on iPhone, landing after 450 ms); Reanimated's `useAnimatedKeyboard` can drive it. `TrayPresentation.kt`, `TrayLift.kt`, `SearchTrayHost.swift`, `KeyboardTracker.swift`. A day.
-- Search tray: Reduce Motion ignored (both apps use a 200 ms fade or settle). `SearchTrayHost.kt`, `SearchTrayHost.swift`. Small.
 - Search tray: no 140 ms crossfade between caption, rows and empty (`resultsIn`). `SearchTray.kt` `TrayBody`, `SearchTray.swift`. Small.
-- Search tray: no fade mask at the bottom of overflowing rows (the list now ends at the last whole row). `SearchTray.kt` `FADE_MASK`, `SearchTray.swift` `fadeMask`. Small.
 - Search tray: the incognito toggle's label pops instead of fading and scaling from 0.9 (modeToggle 0.3 s, bounce 0.15). `IncognitoToggle.kt`, `IncognitoToggle.swift`. Small.
 - Search tray: field text is body, not title3 that scales with text size; the incognito caption is not centred semibold; past 1.5× text size rows don't wrap to 3–4 lines and scrubbing doesn't turn off. `SearchTray.kt`, `SearchTray.swift`, `SuggestionRowView.swift`. Small.
 - Search tray: rows expose one "More Actions" (menu at y 0); Compose exposes Refine and each menu item as accessibility actions. `SuggestionList.kt`. Small.
@@ -384,6 +378,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Pull to refresh settles on a 250 ms animator instead of Compose's snappy spring, in a fixed #007AFF instead of the accent; the swipe-to-navigate target falls back to black or white instead of the profile's surface. `PageGestures.kt` vs `PageLayer.kt` `animatePull`. Small.
 - Tab pager corner radius is a fixed 55; Compose reads the display's real corner on Android 12+. `TabPager.kt` `rememberDisplayCornerRadius`. Small.
 - Launch arguments: `pages.launchOptions()` passes only `pageLab` and `syncDemo`; the demo and capture extras need passing through. `PageViewModule.kt`, `LaunchArguments.kt`. Small.
+- Keyboard target at the start of its animation: React Native reports the keyboard's height only once it has stopped, so the first keyboard of a process can't drive the tray's rise (it lands on the 450 ms spring) and a keyboard that changes height drives it from its last height. Needs the IME animation's target height as it starts (`WindowInsetsAnimationCompat.Callback.onStart`'s upper bound), e.g. an `onKeyboardWillChange { target, durationMs }` event on the system module. `TrayPresentation.kt` `KeyboardReader` (`imeAnimationTarget`). Small.
 
 ### Needs native code on iPhone
 
@@ -447,6 +442,9 @@ the demo-mode launch arguments both apps' capture scripts use.
 - A second flick during a pager settle neither jumps nor commits twice (`TabPager.kt`).
 - The crash view's icon, title and Try Again match Compose (`PageLoadFailure.kt`).
 - Not audited: Compose's `SyncSetupContent` internals inside onboarding, and the timing of DemoScenario's deck and pager scripts.
+- Tray rise (796b78f6f): on both phones the tray comes up with the keyboard and sits on its top edge frame by frame (no gap, no overlap, including Android's navigation bar); with a hardware keyboard it lands after 450 ms; closing lets the keyboard go and follows it down; the dim fades in 300 ms; Reduce Motion fades instead of moving.
+- Tray drag (9ecac6d12): a drag down on the field, the incognito caption or the empty area moves the tray and lightens the dim; past 8 points the keyboard goes down while the tray holds still; a short slow drag springs back and the keyboard returns; a long drag or a flick closes it.
+- Tray scrub (7287c72fd): a finger on a row lights it at once; sliding along the rows ticks on each and opens the last on release (with a confirm); a tap on a query row's arrow refines; a 400 ms hold opens the row's menu; past 1.5x text size the list scrolls instead.
 
 ### Deliberately different
 
@@ -458,7 +456,6 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Menus are drawn by the app (`components/ui/Menu.tsx`) on both phones, not system menus, so they match across platforms.
 - Backdrops: native look views where the module has them, CSS gradients elsewhere; no Skia (the owner's decision).
 - The code scanner is the module's own view (`ScanView`); expo-camera and its ML Kit are gone (00b9064e9).
-- Tray rows end at the last whole row and scroll, so the iPhone's taller keyboard never cuts a row (992441306).
 - A suggestion whose text is an address opens that address, so a row tap does what Enter does (87bc6e89f).
 - A link that arrives during onboarding is held and only the last one runs afterwards (43753d1b5); both apps act at once.
 - The deck bar sits 6 points above a three-button navigation bar instead of on it (2db78f033); gesture navigation keeps Compose's numbers.
@@ -471,6 +468,7 @@ the demo-mode launch arguments both apps' capture scripts use.
 - The Sync page's inbox-problem notice exists only in the Expo app (d9b85412f).
 - Licences are generated from the shipped code, not a hand-written list (aa44da003); the iPhone list's content is the gap above.
 - For the owner to confirm, no commit says why: the sync demo runs over the real tab store (76dcdde8a); Reset › Connect Again acknowledges the reset first as Compose does (SwiftUI just navigates); iPhone Spaces shows a Bookmarks section that SwiftUI lacks (253515009).
+- The tray's rows end at the last whole row and don't scroll at normal text sizes, so no partial row is drawn for a fade mask (992441306, 7287c72fd); both apps clip with a fade instead.
 
 ## Build and run
 
