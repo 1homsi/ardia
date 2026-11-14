@@ -404,6 +404,21 @@ struct DialogsModule {
     });
   }
 
+  REACT_METHOD(devHoldFileDialog)
+  void devHoldFileDialog(std::string windowId, bool save, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
+    if (!AppLaunch::Shared().testInstance) return promise.Reject("held dialogs are for test instances only");
+    RunOnUI(m_context, [promise, windowId, save]() noexcept {
+      HWND owner = DialogParts::Owner(windowId);
+      bool started = DialogParts::RunModal(owner, [promise, owner, save](bool usable) noexcept {
+        bool picked = false;
+        if (usable && save) picked = DialogParts::ShowSaveFile(owner, DialogParts::SaveRequest{L"held.txt", L"txt", L"Text", L""}).has_value();
+        else if (usable) picked = !DialogParts::ShowOpenFiles(owner).empty();
+        if (!DialogParts::Stopping()) promise.Resolve(picked);
+      });
+      if (!started) promise.Resolve(false);
+    });
+  }
+
   REACT_METHOD(devReleaseDialogs)
   void devReleaseDialogs() noexcept {
     if (AppLaunch::Shared().testInstance) DialogParts::ReleaseAllModals();

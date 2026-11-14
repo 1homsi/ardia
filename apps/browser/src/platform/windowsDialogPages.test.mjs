@@ -45,7 +45,8 @@ test("every native modal runs through RunModal off the UI thread, and the app st
   }
   for (const [file, count] of [["NativeDialogs.h", 4], ["SaveDialog.h", 1]]) {
     assert.equal(native(file).split("ModalOverWindow modal(owner,").length - 1, count, file);
-    assert.equal(native(file).split("ModalWatch::OnAbandon(").length - 1, count, file);
+    const shown = native(file).split("ModalOverWindow modal(owner,").slice(1);
+    for (const body of shown) assert.match(body.split(/\n\}\n/)[0], /ModalWatch::OnAbandon\(|FileDialogWatch watch\(/, `${file}: a dialog with nothing to cancel it at quit`);
   }
   assert.match(module, /  ModalWatch watch;\n  OpenDialogScope open;\n  HeldPageWindows pages;\n  ModalParent parent;\n\};/);
   for (const file of ["NativeDialogs.h", "SaveDialog.h"]) {
@@ -69,4 +70,18 @@ test("every native modal runs through RunModal off the UI thread, and the app st
   assert.match(thread, /!m_ownerWasEnabled \|\| Stopping\(\)\) return;\n    bool hadFocus = m_givesFocusBack && DialogInFront\(\);/);
   assert.doesNotMatch(thread, /OursInFront/);
   assert.match(module, /void Release\(\) noexcept \{\n    if \(Stopping\(\)\) \{\n      m_pages\.clear\(\);\n      return;\n    \}/);
+});
+
+test("a file dialog cancelled at quit closes through Close and, if still open, through its own window, and says how long it took", () => {
+  const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
+  const dialogs = native("NativeDialogs.h");
+  assert.match(dialogs, /NoteCancel\(timing\.kind, L"cancelled \(Close: " \+ HexResult\(dialog->Close\(HRESULT_FROM_WIN32\(ERROR_CANCELLED\)\)\) \+ L"\)"\);\n\s+ModalWatch::OnStubborn\(/);
+  assert.match(dialogs, /timing\.byWindow = window && PostMessageW\(window, WM_COMMAND, IDCANCEL, 0\);/);
+  assert.match(dialogs, /L"closed " \+ std::to_wstring\(GetTickCount64\(\) - cancelledAt\) \+ L" ms after its cancel"/);
+  for (const [file, kind] of [["NativeDialogs.h", "file picker"], ["NativeDialogs.h", "folder picker"], ["SaveDialog.h", "save panel"]]) assert.ok(native(file).includes(`FileDialogWatch watch(dialog.get(), "${kind}");`), kind);
+  const thread = native("ModalThread.h");
+  assert.match(thread, /abandon\(\);\n\s+if \(state\.stubborn && !state\.stubbornTimer\) state\.stubbornTimer = SetTimer\(nullptr, 0, StubbornAfterMs, &AfterAbandon\);/);
+  assert.match(thread, /if \(state\.stubbornTimer\) KillTimer\(nullptr, state\.stubbornTimer\);/);
+  assert.match(thread, /if \(Stopping\(\)\) LaunchLog::Write\(L"dialog", L"a dialog's thread ended "/);
+  assert.match(native("DialogsModule.h"), /REACT_METHOD\(devHoldFileDialog\)\n\s+void devHoldFileDialog\(std::string windowId, bool save, [^)]*\) noexcept \{\n\s+if \(!AppLaunch::Shared\(\)\.testInstance\) return promise\.Reject/);
 });

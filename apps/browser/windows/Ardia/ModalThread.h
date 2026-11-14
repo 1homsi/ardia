@@ -11,11 +11,15 @@
 #include <mutex>
 #include <set>
 #include <thread>
+#include <string>
 #include <utility>
+
+#include "LaunchLog.h"
 
 namespace Ardia::DialogParts {
 
 constexpr UINT OwnerWatchMs = 250;
+constexpr UINT StubbornAfterMs = 50;
 
 struct ModalRegistry {
   std::mutex lock;
@@ -24,6 +28,7 @@ struct ModalRegistry {
   std::atomic<uint64_t> releases{0};
   std::atomic<bool> stopping{false};
   std::atomic<int> threads{0};
+  std::atomic<ULONGLONG> stoppedAt{0};
 
   static ModalRegistry &Shared() noexcept {
     static ModalRegistry *registry = new ModalRegistry();
@@ -45,6 +50,7 @@ inline void DeliverSentMessages(DWORD waitMs) noexcept {
 
 inline int StopAllModals() noexcept {
   ModalRegistry &registry = ModalRegistry::Shared();
+  registry.stoppedAt = GetTickCount64();
   registry.stopping = true;
   registry.freed.notify_all();
   ULONGLONG began = GetTickCount64();
@@ -87,12 +93,23 @@ struct ModalWatchState {
   HWND owner = nullptr;
   uint64_t release = 0;
   std::function<void()> abandon;
+  std::function<void()> stubborn;
   std::function<void()> tick;
+  UINT_PTR stubbornTimer = 0;
 };
 
 inline ModalWatchState &WatchState() noexcept {
   thread_local ModalWatchState state;
   return state;
+}
+
+inline void CALLBACK AfterAbandon(HWND, UINT, UINT_PTR timer, DWORD) noexcept {
+  KillTimer(nullptr, timer);
+  ModalWatchState &state = WatchState();
+  state.stubbornTimer = 0;
+  std::function<void()> stubborn = std::move(state.stubborn);
+  state.stubborn = nullptr;
+  if (stubborn) stubborn();
 }
 
 inline void CALLBACK WatchOwner(HWND, UINT, UINT_PTR, DWORD) noexcept {
@@ -105,7 +122,9 @@ inline void CALLBACK WatchOwner(HWND, UINT, UINT_PTR, DWORD) noexcept {
   }
   std::function<void()> abandon = std::move(state.abandon);
   state.abandon = nullptr;
-  if (abandon) abandon();
+  if (!abandon) return;
+  abandon();
+  if (state.stubborn && !state.stubbornTimer) state.stubbornTimer = SetTimer(nullptr, 0, StubbornAfterMs, &AfterAbandon);
 }
 
 struct ModalWatch {
@@ -119,14 +138,18 @@ struct ModalWatch {
   ~ModalWatch() noexcept {
     if (m_timer) KillTimer(nullptr, m_timer);
     ModalWatchState &state = WatchState();
+    if (state.stubbornTimer) KillTimer(nullptr, state.stubbornTimer);
+    state.stubbornTimer = 0;
     state.owner = nullptr;
     state.abandon = nullptr;
+    state.stubborn = nullptr;
     state.tick = nullptr;
   }
   ModalWatch(ModalWatch const &) = delete;
   ModalWatch &operator=(ModalWatch const &) = delete;
 
   static void OnAbandon(std::function<void()> abandon) noexcept { WatchState().abandon = std::move(abandon); }
+  static void OnStubborn(std::function<void()> stubborn) noexcept { WatchState().stubborn = std::move(stubborn); }
   static void OnTick(std::function<void()> tick) noexcept { WatchState().tick = std::move(tick); }
 
  private:
@@ -278,6 +301,7 @@ bool RunModal(HWND owner, TShow &&show) noexcept {
         OwnerSlot slot(owner);
         show(slot.Usable() && !Stopping());
       }
+      if (Stopping()) LaunchLog::Write(L"dialog", L"a dialog's thread ended " + std::to_wstring(GetTickCount64() - ModalRegistry::Shared().stoppedAt.load()) + L" ms after the stop began");
       ModalRegistry::Shared().threads--;
     }).detach();
     return true;

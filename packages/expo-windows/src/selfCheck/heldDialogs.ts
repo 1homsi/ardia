@@ -8,8 +8,9 @@ import type { TabEvent } from "./engineHost";
 const LOAD_MS = 8000;
 const STALLED_MS = 3000;
 const SHOWN_MS = 4000;
+const CANCELLED_WITHIN_MS = 1000;
 
-const dialogs = () => requireNativeModule<Pick<DialogsModule, "openCount" | "devHoldConfirm" | "devReleaseDialogs">>("ArdiaDialogs");
+const dialogs = () => requireNativeModule<Pick<DialogsModule, "openCount" | "devHoldConfirm" | "devHoldFileDialog" | "devReleaseDialogs">>("ArdiaDialogs");
 const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -63,7 +64,41 @@ async function countStays(count: number, forMs: number) {
   return true;
 }
 
+async function closesWithin(withinMs: number) {
+  const began = Date.now();
+  while (Date.now() - began < withinMs) {
+    if (dialogs().openCount() === 0) return Date.now() - began;
+    await settled(20);
+  }
+  return null;
+}
+
+async function heldFileDialogCancels(save: boolean) {
+  const [windowId] = await windows().windowIds();
+  expectTrue(windowId, "no window is open to own the held file dialog");
+  const held = dialogs().devHoldFileDialog(windowId, save);
+  try {
+    expectTrue(await heldConfirmShown(), `the held ${save ? "save panel" : "file picker"} never opened`);
+    dialogs().devReleaseDialogs();
+    const took = await closesWithin(CANCELLED_WITHIN_MS);
+    expectTrue(took !== null, `the ${save ? "save panel" : "file picker"} was still open ${CANCELLED_WITHIN_MS} ms after its cancel`);
+    console.info(`[ardia windows] held ${save ? "save panel" : "file picker"} closed ${took} ms after its cancel`);
+    expectTrue((await held) === false, "the cancelled dialog reported a pick");
+  } finally {
+    dialogs().devReleaseDialogs();
+    await held;
+  }
+}
+
 export const checks: Check[] = [
+  {
+    name: "a file picker the app cancels (as at quit) closes at once, so a quit with one open needn't wait",
+    run: () => heldFileDialogCancels(false),
+  },
+  {
+    name: "a save panel the app cancels closes at once too",
+    run: () => heldFileDialogCancels(true),
+  },
   {
     name: "a second dialog for the same window waits until the first closes",
     async run() {

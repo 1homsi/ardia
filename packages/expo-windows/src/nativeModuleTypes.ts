@@ -105,6 +105,7 @@ export type DialogsModule = DialogsNative & {
   saveFile(name: string, extension: string, kind: string, message: string): Promise<string | null>;
   openCount(): number;
   devHoldConfirm(windowId: string, onUiThread: boolean): Promise<boolean>;
+  devHoldFileDialog(windowId: string, save: boolean): Promise<boolean>;
   devReleaseDialogs(): void;
 };
 

@@ -3,10 +3,13 @@
 #include <commctrl.h>
 #include <shobjidl.h>
 
+#include <cstdio>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "LaunchLog.h"
 #include "ModalThread.h"
 
 namespace Ardia {
@@ -25,6 +28,54 @@ inline TaskDialogIndirectFunction ResolveTaskDialog() noexcept {
 
 constexpr int ConfirmButtonId = 1001;
 
+inline void NoteCancel(std::string_view kind, std::wstring const &what) noexcept {
+  LaunchLog::Write(L"dialog", std::wstring(kind.begin(), kind.end()) + L" " + what);
+}
+
+inline std::wstring HexResult(HRESULT result) noexcept {
+  wchar_t text[16]{};
+  swprintf_s(text, L"0x%08X", static_cast<unsigned int>(result));
+  return text;
+}
+
+struct CancelTiming {
+  explicit CancelTiming(std::string_view kind) noexcept : kind(kind) {}
+  ~CancelTiming() noexcept {
+    if (cancelledAt) NoteCancel(kind, L"closed " + std::to_wstring(GetTickCount64() - cancelledAt) + L" ms after its cancel" + (byWindow ? L", by its window's Cancel" : L""));
+  }
+  CancelTiming(CancelTiming const &) = delete;
+  CancelTiming &operator=(CancelTiming const &) = delete;
+
+  std::string_view kind;
+  ULONGLONG cancelledAt = 0;
+  bool byWindow = false;
+};
+
+inline HWND FileDialogWindow(IFileDialog *dialog) noexcept {
+  winrt::com_ptr<IOleWindow> window;
+  HWND found = nullptr;
+  if (SUCCEEDED(dialog->QueryInterface(__uuidof(IOleWindow), window.put_void())) && window) window->GetWindow(&found);
+  return found;
+}
+
+struct FileDialogWatch {
+  FileDialogWatch(IFileDialog *dialog, std::string_view kind) noexcept : timing(kind) {
+    ModalWatch::OnAbandon([this, dialog] {
+      timing.cancelledAt = GetTickCount64();
+      NoteCancel(timing.kind, L"cancelled (Close: " + HexResult(dialog->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED))) + L")");
+      ModalWatch::OnStubborn([this, dialog] {
+        HWND window = FileDialogWindow(dialog);
+        timing.byWindow = window && PostMessageW(window, WM_COMMAND, IDCANCEL, 0);
+        NoteCancel(timing.kind, timing.byWindow ? L"still open " + std::to_wstring(StubbornAfterMs) + L" ms after Close: sent Cancel to its window" : std::wstring{L"still open after Close, and no window to send Cancel to"});
+      });
+    });
+  }
+  FileDialogWatch(FileDialogWatch const &) = delete;
+  FileDialogWatch &operator=(FileDialogWatch const &) = delete;
+
+  CancelTiming timing;
+};
+
 inline HRESULT CALLBACK ConfirmEvents(HWND dialog, UINT notification, WPARAM, LPARAM, LONG_PTR data) noexcept {
   auto *shown = reinterpret_cast<HWND *>(data);
   if (notification == TDN_CREATED) *shown = dialog;
@@ -36,7 +87,10 @@ inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std
   DialogConfirmReply reply;
   ModalOverWindow modal(owner, "confirm");
   HWND shown = nullptr;
-  ModalWatch::OnAbandon([&shown, &modal] {
+  CancelTiming timing("confirm");
+  ModalWatch::OnAbandon([&shown, &modal, &timing] {
+    timing.cancelledAt = GetTickCount64();
+    NoteCancel(timing.kind, shown ? L"cancelled (Cancel button)" : L"cancelled (its window's Cancel)");
     if (shown) SendMessageW(shown, TDM_CLICK_BUTTON, IDCANCEL, 0);
     else if (HWND fallback = modal.parent.Dialog()) PostMessageW(fallback, WM_COMMAND, IDCANCEL, 0);
   });
@@ -213,7 +267,7 @@ inline std::vector<std::wstring> ShowOpenFiles(HWND owner) noexcept {
   FILEOPENDIALOGOPTIONS options = 0;
   dialog->GetOptions(&options);
   dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST);
-  ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
+  FileDialogWatch watch(dialog.get(), "file picker");
   if (FAILED(dialog->Show(modal.Parent()))) return picked;
   winrt::com_ptr<IShellItemArray> results;
   if (FAILED(dialog->GetResults(results.put())) || !results) return picked;
@@ -241,7 +295,7 @@ inline std::optional<std::wstring> ShowOpenFolder(HWND owner, std::optional<std:
     winrt::com_ptr<IShellItem> folder;
     if (SUCCEEDED(SHCreateItemFromParsingName(current->c_str(), nullptr, __uuidof(IShellItem), folder.put_void())) && folder) dialog->SetFolder(folder.get());
   }
-  ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
+  FileDialogWatch watch(dialog.get(), "folder picker");
   if (FAILED(dialog->Show(modal.Parent()))) return std::nullopt;
   winrt::com_ptr<IShellItem> result;
   if (FAILED(dialog->GetResult(result.put())) || !result) return std::nullopt;
