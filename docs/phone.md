@@ -755,16 +755,32 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs native code on iPhone
 
-- The fade view under Android's list (`FadeView`, `ArdiaPhoneFade`), to the same props: one interface on both phones.
-- Spotlight: open and archived tabs aren't indexed. `SpotlightIndexer.swift`. A day.
-- Shortcuts and Siri: no Open Tab intent or tab entity in the app target (`apps/phone/ios/Ardia/Intents.swift`). `ArdiaIntents.swift` `OpenTabIntent`, `TabEntity.swift`. A day.
-- Deck bar: SwiftUI's buttons are interactive Liquid Glass (`.glassEffect(.regular.interactive())`); the look module's Frost needs a glass variant that samples the deck. `TabDeckBar.swift`. A day.
-- Context menus: SwiftUI uses system context menus (lift preview and blur) on cards, the plus button and archive rows, with ShareLink; the app draws its own. Also Spaces rows and folder tiles. Needs a native context-menu view. `TabSwitcherView.swift`, `TabDeckBar.swift`, `ArchiveView.swift`, `SyncedSpacesView.swift`. A day.
-- Long-press on links and images uses WebKit's context menu (as SwiftUI does), so the app's drawn menu, Save Image and the Copied URL toast are Android-only; matching Android needs native long-press events. `WebTab.swift`. A day.
-- Clear Browsing Data: cache and cookies are cleared for all time whatever range is picked; SwiftUI passes the range's start. Needs `since` on `clearWebsiteData`. `ClearBrowsingDataPage.swift`, `BrowsingPreferences.swift`. Small.
-- Default Browser (JS only now): `Linking.openSettings()` never calls `DefaultBrowserStatus.willOpenSystemSettings()`, so the status isn't re-checked on return and the page keeps its instructions. `DefaultBrowserPage.swift`, `PhoneSystem.swift`. Small.
-- Enter Words: Paste reads the clipboard and triggers iOS's Allow Paste prompt; SwiftUI uses the system `PasteButton`. `RecoveryPhraseEntryPage.swift`. Small to a day.
-- Scanner: plain AVFoundation; SwiftUI uses VisionKit's `DataScannerViewController` with pinch to zoom and a highlight on the found code. `SyncCodeScanner.swift`, `ScanModule.swift`. A day.
+Nothing native is left on iPhone that hasn't a decision against it. What remains is wiring in JavaScript, and checks that need a real iPhone (next section).
+
+- JavaScript only: the deck bar on `Glass` (d5fe7c597), at the SwiftUI app's position (about 22 points lower than today); Enter Words on `PasteButton` (c317c5b8f) where `pasteButtonIsNative()`; Clear Browsing Data passing its range's start to `pages.clearWebsiteData(kinds, since)` (a2d1ce251); the deck title and the tray's peeking row on `FadeView` (de3736b41); Default Browser calling `defaultBrowser.openDefaultAppsSettings()` on iPhone instead of `Linking.openSettings()`, so the status is re-checked on return; link popups not selected when `inBackground` is true (d10c053d1).
+- For the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes.
+
+### Check on your iPhone
+
+What a simulator can't show. Install the Expo build over the SwiftUI app, with Sync connected to your Mac, then go down this list in order.
+
+1. Update over the SwiftUI app. Before updating, note a Trusted Site, a My Filters rule, one site's page zoom, Night Shade, the Open App Links In choice, a few tabs and one archived tab. After the update: the app opens with the same tabs (the archived one in the Archive), and the page menu on that site shows its zoom, Night Shade and blockers off. Relaunch: nothing appears twice. Settings › Sync still shows your Mac.
+2. Sync in the background. Leave the app for an hour with the Mac open; open it: the Mac's tabs are current without waiting. Send a tab from the Mac: a toast names it for about two seconds.
+3. Swipe to Navigate. On a page with history, drag right from the middle of the page: the previous page slides in with a tick under your thumb as it commits; a short drag springs back with no tick. On a page with a sideways carousel (a news front page), a drag on the carousel scrolls it and doesn't go back.
+4. Pull to refresh. At the top of a page, pull down past the spinner: a light tick, the spinner turns, the page reloads.
+5. The search tray. Type "goo": "gle.com" is highlighted after the caret; Backspace removes only the highlight; Return opens google.com. With a Japanese or Chinese keyboard, no highlight appears. Type a word with more suggestions than fit: the next row peeks faded at the keyboard's edge; slide a finger from the first row down onto the keyboard and lift: the row laid out there opens.
+6. Voice search. Tap the mic in the tray, allow speech and the microphone, and say "otters": the words appear as you speak and the search runs; say nothing: after a few seconds it says it didn't hear anything.
+7. Scan to connect. Settings › Sync › Connect to Your Mac › Scan Code, pointed at the Mac's code: the code is outlined when found and pinch zooms; it connects without typing.
+8. Enter Words (once the screen uses the paste button): copy the phrase on another device, tap Paste: the words fill in with no "Allow Paste" question.
+9. Offline. Turn on Airplane Mode and open a page: the offline page shows a Wi-Fi-off icon. Turn it off: the page reloads by itself.
+10. Handoff. With a page open, look at the Mac's Dock: an Ardia (or browser) Handoff icon offers the same page; private tabs never offer one.
+11. Siri and Shortcuts. Say "Open Otter in Ardia" (a tab you have open): Ardia switches to it. In Shortcuts, add Ardia's Open Tab action: it lists your tabs with their sites; running it switches to the one you pick.
+12. Spotlight. Swipe down on the Home Screen and type a word from an open tab's title: the tab is listed under Ardia; tap it: Ardia opens that tab. An archived tab comes back from the Archive.
+13. Home Screen quick actions. Touch and hold the Ardia icon: Search, Voice Search and New Incognito Tab each open what they say.
+14. Share from Safari. Share a page to Ardia: it opens in a new tab.
+15. Long press on a link. The system menu shows Open in New Tab, Open in Background, Copy Link, Share… and Download Linked File; Open in Background leaves you on the page.
+16. VoiceOver. With VoiceOver on: each tray row and Close Search can be activated; on the deck, swipe up or down on a card to move between tabs.
+17. The deck bar (once it uses Glass). The three buttons look like the SwiftUI app's glass and light up under your finger; with Settings › Accessibility › Display & Text Size › Reduce Transparency on, they turn solid.
 
 ### Unverified on a phone
 
@@ -826,6 +842,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Deliberately different
 
+- Long press on links and images in a page: iPhone shows WebKit's system menu with Open in New Tab, Open in Background, Copy Link, Share… and Download Linked File, as the SwiftUI app does; Android shows the app's drawn menu from `page.longPress` (c317c5b8f).
 - Voice screen status-bar icons: always light; Compose takes them from the light-mode tint although the screen is always dark (3a9ca2f10, `lib/statusInk.ts`).
 - Pin to Mac from the page menu: Android keeps Compose's toast, iPhone answers in the menu's title as SwiftUI does (5023ecabd).
 - Paste and Go: Android only; SwiftUI has no such row (`lib/platformCopy.ts` `offersPasteAndGo`).
