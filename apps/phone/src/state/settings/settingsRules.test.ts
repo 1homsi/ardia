@@ -101,7 +101,8 @@ test("onboarding asks about the default browser only where the phone can be aske
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: true }), true);
   assert.equal(offersDefaultBrowser({ isDefault: true, canAsk: false }), true);
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }, false), false);
-  assert.equal(offersDefaultBrowser(null), false);
+  assert.equal(offersDefaultBrowser(null, false), false);
+  assert.equal(offersDefaultBrowser(null, true), true, "Android shows the step even before its status has loaded, as Compose does");
 });
 
 test("the default browser page has the two steps until Ardia is the default, then says so", () => {

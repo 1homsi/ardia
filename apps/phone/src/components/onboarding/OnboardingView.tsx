@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut, SlideInLeft, SlideInRight, useAnimatedStyle, useSharedValue, withDelay, withSpring } from "react-native-reanimated";
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
@@ -14,6 +14,30 @@ import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetr
 import { useSyncConnected } from "../../state/sync/hooks";
 
 const welcomeSpring = spring(0.7, 0.7);
+const STEP_SHIFT = 60;
+const ONBOARDING_MIN_PAGE = 560;
+const LARGE_TEXT = 1.35;
+const smooth = spring(0.42, 0.9);
+const BACKDROP_IN = FadeIn.duration(300);
+const BACKDROP_OUT = FadeOut.duration(300);
+const REDUCED_IN = FadeIn.duration(tabsMotion.fade);
+const REDUCED_OUT = FadeOut.duration(tabsMotion.fade);
+
+const stepIn = (direction: 1 | -1) => () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 0, transform: [{ translateX: direction * STEP_SHIFT }] },
+    animations: { opacity: withSpring(1, smooth), transform: [{ translateX: withSpring(0, smooth) }] },
+  };
+};
+
+const stepOut = (direction: 1 | -1) => () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 1, transform: [{ translateX: 0 }] },
+    animations: { opacity: withSpring(0, smooth), transform: [{ translateX: withSpring(-direction * STEP_SHIFT, smooth) }] },
+  };
+};
 const WELCOME_DELAY_MS = 100;
 
 export function OnboardingView() {
@@ -22,19 +46,33 @@ export function OnboardingView() {
   const showing = useOnboarding((s) => s.showing);
   const step = useOnboarding((s) => s.step);
   const forward = useOnboarding((s) => s.forward);
+  const reduceMotion = useReducedMotion();
+  const { fontScale } = useWindowDimensions();
   useEffect(() => {
     if (showing) void refreshSettings();
   }, [showing]);
+  useEffect(() => Keyboard.dismiss(), [step]);
   if (!showing) return null;
+  const welcome = step === "welcome";
+  const content = step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : step === "defaultBrowser" ? <DefaultBrowserStep /> : <AllSet />;
   return (
     <Animated.View exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <LookBackdrop softened={step !== "welcome"} fadesOut={step !== "welcome"} />
+      <Animated.View key={welcome ? "welcome" : "steps"} entering={BACKDROP_IN} exiting={BACKDROP_OUT} style={StyleSheet.absoluteFill}>
+        <LookBackdrop softened={!welcome} fadesOut={!welcome} />
+      </Animated.View>
       <Animated.View
         key={step}
-        entering={(forward ? SlideInRight : SlideInLeft).springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping)}
+        entering={reduceMotion ? REDUCED_IN : forward ? stepIn(1) : stepIn(-1)}
+        exiting={reduceMotion ? REDUCED_OUT : forward ? stepOut(1) : stepOut(-1)}
         style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
       >
-        {step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : step === "defaultBrowser" ? <DefaultBrowserStep /> : <AllSet />}
+        {fontScale > LARGE_TEXT ? (
+          <ScrollView contentContainerStyle={styles.scrolled} keyboardShouldPersistTaps="handled">
+            {content}
+          </ScrollView>
+        ) : (
+          content
+        )}
       </Animated.View>
     </Animated.View>
   );
@@ -111,15 +149,23 @@ function Primary({ title, onPress }: { title: string; onPress: () => void }) {
 
 function Welcome() {
   const theme = useTheme();
+  const reduceMotion = useReducedMotion();
   const appear = useSharedValue(0);
   useEffect(() => {
-    appear.value = withDelay(WELCOME_DELAY_MS, withSpring(1, welcomeSpring));
+    appear.value = reduceMotion ? withTiming(1, { duration: tabsMotion.fade }) : withDelay(WELCOME_DELAY_MS, withSpring(1, welcomeSpring));
   }, [appear]);
-  const logo = useAnimatedStyle(() => ({
-    opacity: Math.min(Math.max(appear.value, 0), 1),
-    transform: [{ rotate: `${-18 + 12 * appear.value}deg` }, { scale: 0.7 + 0.3 * appear.value }],
-  }));
-  const words = useAnimatedStyle(() => ({ opacity: Math.min(Math.max(appear.value, 0), 1), transform: [{ translateY: (1 - appear.value) * 16 }] }));
+  const logo = useAnimatedStyle(
+    () => ({
+      opacity: Math.min(Math.max(appear.value, 0), 1),
+      transform: [{ rotate: `${reduceMotion ? -6 : -18 + 12 * appear.value}deg` }, { scale: reduceMotion ? 1 : 0.7 + 0.3 * appear.value }],
+    }),
+    [reduceMotion],
+  );
+  const words = useAnimatedStyle(
+    () => ({ opacity: Math.min(Math.max(appear.value, 0), 1), transform: [{ translateY: reduceMotion ? 0 : (1 - appear.value) * 16 }] }),
+    [reduceMotion],
+  );
+  const start = useAnimatedStyle(() => ({ opacity: Math.min(Math.max(appear.value, 0), 1) }));
   return (
     <View style={styles.column}>
       <View style={styles.fill} />
@@ -133,9 +179,9 @@ function Welcome() {
         <Text style={[font.title3, styles.centered, { color: theme.secondaryLabel }]}>Get what you want twice as fast.</Text>
       </Animated.View>
       <View style={styles.fill} />
-      <View style={styles.actions}>
+      <Animated.View style={[styles.actions, start]}>
         <Primary title="Get Started" onPress={advanceOnboarding} />
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -226,6 +272,7 @@ function SharingChoice() {
 }
 
 const styles = StyleSheet.create({
+  scrolled: { flexGrow: 1, minHeight: ONBOARDING_MIN_PAGE },
   sharing: { gap: space.s },
   sharingCard: { borderRadius: radius.card, overflow: "hidden" },
   column: { flex: 1, alignItems: "stretch", gap: space.xxl },

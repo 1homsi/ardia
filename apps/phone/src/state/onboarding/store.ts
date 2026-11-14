@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { haptics } from "../app/haptics";
 import { presentSearch } from "../search/store";
 import { closeSettings } from "../settings/nav";
 import { defaultBrowserStatus, refreshDefaultBrowser } from "../settings/defaultBrowser";
@@ -22,8 +23,12 @@ const offers = () => offersDefaultBrowser(defaultBrowserStatus());
 
 export function advanceOnboarding() {
   const next = nextStep(useOnboarding.getState().step, offers());
-  if (next) useOnboarding.setState({ step: next, forward: true });
-  else finishOnboarding();
+  if (!next) {
+    finishOnboarding();
+    return;
+  }
+  haptics.selection();
+  useOnboarding.setState({ step: next, forward: true });
 }
 
 export function onboardingBack(): boolean {
@@ -36,6 +41,7 @@ export function onboardingBack(): boolean {
 }
 
 export function finishOnboarding() {
+  if (useOnboarding.getState().showing) haptics.success();
   const raisesTray = opensLaunchTray(currentPreferences().autoOpensKeyboard, heldLinks());
   setPreference("hasFinishedOnboarding", true);
   useOnboarding.setState({ showing: false });

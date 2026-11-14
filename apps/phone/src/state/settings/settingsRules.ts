@@ -191,7 +191,7 @@ export const OPEN_DEFAULT_APPS = "Open Default Apps";
 type Status = { isDefault: boolean; canAsk: boolean };
 
 export function offersDefaultBrowser(status: Status | null, always = copy().offersDefaultBrowserAlways): boolean {
-  if (!status) return false;
+  if (!status) return always;
   return always || status.canAsk || status.isDefault;
 }
 
