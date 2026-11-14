@@ -1,10 +1,12 @@
+import { State } from "react-native-gesture-handler";
+import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import { act } from "react-test-renderer";
 import { SearchTray } from "../components/search/SearchTray";
 import * as browse from "../state/browse/store";
 import { presentSearch, useSearch } from "../state/search/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
 
-const mockField = { native: true, setText: [] as [string, boolean][], focused: 0 };
+const mockField = { native: true, setText: [] as [string, boolean][], focused: 0, blurred: 0 };
 
 jest.mock("@ardia/phone-native", () => {
   const actual = jest.requireActual("@ardia/phone-native");
@@ -13,7 +15,7 @@ jest.mock("@ardia/phone-native", () => {
   const CompletingField = forwardRef(function CompletingField(props: Record<string, unknown>, ref: unknown) {
     useImperativeHandle(ref, () => ({
       focus: () => (mockField.focused += 1),
-      blur: () => undefined,
+      blur: () => (mockField.blurred += 1),
       setText: (text: string, selectsAll: boolean) => mockField.setText.push([text, selectsAll]),
     }));
     return createElement(View, { ...props, testID: "completingField" });
@@ -40,7 +42,8 @@ beforeEach(() => {
   mockField.native = true;
   mockField.setText = [];
   mockField.focused = 0;
-  submit = jest.spyOn(browse, "submitSearch").mockImplementation(() => undefined);
+  mockField.blurred = 0;
+  submit = jest.spyOn(browse, "submitSearch").mockImplementation(() => true);
   withTabs(1);
   browse.useBrowse.setState({ surface: "start" });
 });
@@ -112,5 +115,52 @@ test("where the native field doesn't exist the tray keeps today's input, and it 
   expect(useSearch.getState().text).toBe("otters");
   act(() => plain.props.onSubmitEditing({ nativeEvent: { text: "otters" } }));
   expect(submit).toHaveBeenCalledWith("otters");
+  unmount(root);
+});
+
+test("a submit counts once per tray, however many times it arrives (a hardware Enter fires the field's submit and a key event)", () => {
+  presentSearch("start", "");
+  const root = renderSurface(<SearchTray />);
+  act(() => {
+    field(root)!.props.onSubmit("goo");
+    field(root)!.props.onSubmit("goo");
+  });
+  expect(submit).toHaveBeenCalledTimes(1);
+  unmount(root);
+});
+
+test("a submit that opens nothing leaves the next one free", () => {
+  submit.mockImplementationOnce(() => false);
+  presentSearch("start", "");
+  const root = renderSurface(<SearchTray />);
+  act(() => field(root)!.props.onSubmit("   "));
+  act(() => field(root)!.props.onSubmit("goo"));
+  expect(submit).toHaveBeenCalledTimes(2);
+  unmount(root);
+});
+
+test("closing the tray blurs the native field itself, since React Native's Keyboard.dismiss only reaches its own text inputs", () => {
+  presentSearch("start", "");
+  const root = renderSurface(<SearchTray />);
+  expect(mockField.blurred).toBe(0);
+  act(() => browse.cancelSearch());
+  expect(mockField.blurred).toBeGreaterThan(0);
+  unmount(root);
+});
+
+test("a drag down that lets the keyboard go blurs the native field too, so the keyboard doesn't stay up over the page", () => {
+  const cancel = jest.spyOn(browse, "cancelSearch").mockImplementation(() => undefined);
+  presentSearch("start", "");
+  const root = renderSurface(<SearchTray />);
+  act(() =>
+    fireGestureHandler(getByGestureTestId("trayDismissDrag"), [
+      { state: State.BEGAN, translationY: 0, velocityY: 0 },
+      { state: State.ACTIVE, translationY: 0, velocityY: 0 },
+      { state: State.ACTIVE, translationY: 120, velocityY: 900 },
+    ]),
+  );
+  act(() => jest.runOnlyPendingTimers());
+  expect(mockField.blurred).toBeGreaterThan(0);
+  cancel.mockRestore();
   unmount(root);
 });

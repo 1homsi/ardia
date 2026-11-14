@@ -192,7 +192,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   useEffect(() => {
     if (!closing) return;
     isClosing.value = true;
-    Keyboard.dismiss();
+    putKeyboardAway();
     const followsKeyboard = keyboardIsUp(keyboard.height.value) && heldLift.value < 0;
     landing.value = followsKeyboard
       ? 0
@@ -283,7 +283,12 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
-const letKeyboardGo = () => Keyboard.dismiss();
+const putKeyboardAway = () => {
+  trayInput?.blur();
+  Keyboard.dismiss();
+};
+
+const letKeyboardGo = () => putKeyboardAway();
 
 const resultsIn = FadeIn.duration(trayMotion.resultsIn);
 const resultsOut = FadeOut.duration(trayMotion.resultsIn);
@@ -321,6 +326,7 @@ function FieldInput({ first }: { first: boolean }) {
   const [start] = useState(() => searchState().text);
   const [hasText, setHasText] = useState(start.length > 0);
   const input = useRef<TrayInputHandle | null>(null);
+  const submitted = useRef(false);
 
   useEffect(() => {
     const focus = setTimeout(() => input.current?.focus(), 0);
@@ -345,7 +351,10 @@ function FieldInput({ first }: { first: boolean }) {
             if (text.length > 0 !== hasText) setHasText(text.length > 0);
             typeSearch(text);
           }}
-          onSubmit={submitSearch}
+          onSubmit={(text) => {
+            if (submitted.current) return;
+            if (submitSearch(text)) submitted.current = true;
+          }}
         />
         {hasText ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => setSearchText("")}>

@@ -135,9 +135,11 @@ export function openPage(url: string, origin: TabOrigin) {
   useBrowse.setState({ surface: "browsing", sheet: null, frozenOrder: null });
 }
 
-export function submitSearch(text: string) {
+export function submitSearch(text: string): boolean {
   const target = enterTarget(text);
-  if (target) openPage(target.url, target.origin);
+  if (!target) return false;
+  openPage(target.url, target.origin);
+  return true;
 }
 
 export function searchFor(query: string) {
