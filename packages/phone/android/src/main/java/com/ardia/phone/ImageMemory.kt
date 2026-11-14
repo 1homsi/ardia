@@ -23,6 +23,25 @@ object ImageMemory {
         runCatching { Fresco.getImagePipeline().evictFromMemoryCache(Uri.parse("file://${file.absolutePath}")) }
     }
 
+    data class Cache(val bytes: Int, val count: Int, val inUseBytes: Int, val keptBytes: Int, val keptCount: Int)
+
+    fun describe(cache: Cache): String =
+        "${cache.bytes / MB} MB in ${cache.count} images (shown ${cache.inUseBytes / MB} MB in ${cache.count - cache.keptCount}, kept ${cache.keptBytes / MB} MB in ${cache.keptCount})"
+
+    fun cache(): Cache? = runCatching {
+        if (!Fresco.hasBeenInitialized()) return null
+        val memory = ImagePipelineFactory.getInstance().bitmapCountingMemoryCache
+        Cache(memory.sizeInBytes, memory.count, memory.inUseSizeInBytes, memory.evictionQueueSizeInBytes, memory.evictionQueueCount)
+    }.getOrNull()
+
+    fun forgetAll(files: List<File>): Int {
+        if (files.isEmpty() || !Fresco.hasBeenInitialized()) return 0
+        val uris = files.flatMap { listOf(Uri.fromFile(it), Uri.parse("file://${it.absolutePath}")) }.distinct()
+        return runCatching {
+            ImagePipelineFactory.getInstance().bitmapCountingMemoryCache.removeAll { key -> uris.any(key::containsUri) }
+        }.getOrDefault(0)
+    }
+
     fun clear() {
         if (Fresco.hasBeenInitialized()) runCatching { Fresco.getImagePipeline().clearMemoryCaches() }
     }
@@ -42,12 +61,6 @@ object ImageMemory {
         })
     }
 
-    fun cacheBytes(): Pair<Int, Int>? = runCatching {
-        if (!Fresco.hasBeenInitialized()) return null
-        val cache = ImagePipelineFactory.getInstance().bitmapCountingMemoryCache
-        cache.sizeInBytes to cache.count
-    }.getOrNull()
-
     fun line(context: Context, livePages: Int): String {
         val runtime = Runtime.getRuntime()
         val javaUsed = (runtime.totalMemory() - runtime.freeMemory()) / MB
@@ -55,8 +68,7 @@ object ImageMemory {
         val info = Debug.MemoryInfo().also(Debug::getMemoryInfo)
         val graphics = (info.getMemoryStat("summary.graphics")?.toLongOrNull() ?: 0L) / 1024
         val total = info.totalPss / 1024
-        val cache = cacheBytes()
-        val images = cache?.let { "${it.first / MB} MB in ${it.second} images" } ?: "unknown"
+        val images = cache()?.let(::describe) ?: "unknown"
         val lowMemory = ActivityManager.MemoryInfo().also { (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it) }.lowMemory
         return "PAGELAB memory: total PSS $total MB, Java heap $javaUsed MB, native heap $native MB, graphics $graphics MB, image cache $images, live pages $livePages, low memory $lowMemory"
     }

@@ -56,6 +56,11 @@ class PageSnapshots(context: Context, private val onRemoved: (File) -> Unit = {}
         listOf(saved, private).forEach { folder -> older(folder, stem, keep = null).sortedBy { it.lastModified() }.forEach(::remove) }
     }
 
+    fun files(pageId: String): List<File> {
+        val stem = fileStem(pageId)
+        return listOf(saved, private).flatMap { folder -> older(folder, stem, keep = null) }
+    }
+
     fun endPrivateBrowsing() {
         private.listFiles()?.forEach(::remove)
     }

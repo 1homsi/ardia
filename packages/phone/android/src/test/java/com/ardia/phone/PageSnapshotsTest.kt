@@ -71,4 +71,23 @@ class PageSnapshotsTest {
         assertEquals(true, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND))
         assertEquals(true, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE))
     }
+
+    @Test
+    fun aClosedPagesSnapshotsAreListedSoTheirDecodedImagesCanBeDroppedWhileTheFilesStay() = runBlocking {
+        val mine = snapshots.write("tab-4", page(), isPrivate = false, quality = 80)!!
+        val other = snapshots.write("tab-5", page(), isPrivate = false, quality = 80)!!
+        assertEquals(listOf(mine["path"]), snapshots.files("tab-4").map { it.absolutePath })
+        assertTrue(File(other["path"] as String).isFile)
+        assertTrue(snapshots.files("tab-6").isEmpty())
+        assertTrue(File(mine["path"] as String).isFile)
+    }
+
+    @Test
+    fun theMemoryLineSaysHowMuchOfTheImageCacheIsShownAndHowMuchIsOnlyKept() {
+        val mb = 1024 * 1024
+        assertEquals(
+            "46 MB in 26 images (shown 10 MB in 6, kept 36 MB in 20)",
+            ImageMemory.describe(ImageMemory.Cache(bytes = 46 * mb, count = 26, inUseBytes = 10 * mb, keptBytes = 36 * mb, keptCount = 20)),
+        )
+    }
 }

@@ -274,6 +274,13 @@ and again only when that status changes.
     menu and in History, never "Web page not available". The deck card keeps the page's last good snapshot (or
     the placeholder), never the WebView's white error page. In dark mode the bottom bar stays dark over the
     offline view. Turn airplane mode off and tap Try Again: the real title, colours and a new snapshot come back.
+37. **Memory after closing tabs:** as in step 27 (one tab, nine tabs, close eight), tap Memory after each stage. The
+    image cache line now reads `X MB in N images (shown A MB in a, kept B MB in b)`. Each close logs
+    `PAGELAB memory page closed: dropped N decoded snapshot(s)` with N of 1 or more for a tab that had a card, and
+    the image cache after closing eight is no larger than with nine open. Then run
+    `adb shell am send-trim-memory com.ardia.browser.android RUNNING_CRITICAL` (Android's own signal, which
+    also trims the system's GPU caches; the lab's Trim only clears the image cache) and tap Memory again. Report
+    all the lines, graphics included.
 
 ## Upgrade from the Compose app on Android
 
