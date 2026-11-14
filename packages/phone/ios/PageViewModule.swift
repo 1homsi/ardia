@@ -51,7 +51,7 @@ public final class PageViewModule: Module {
     }
 
     Function("launchOptions") { () -> [String: Any] in
-      ["lab": PhoneTestBuild.isOn, "pageLab": PhoneTestBuild.flag("ArdiaPageLab"), "syncDemo": PhoneTestBuild.flag("ArdiaSyncDemo")]
+      ["lab": PhoneTestBuild.isOn, "pageLab": PhoneTestBuild.flag("ArdiaPageLab"), "syncDemo": PhoneTestBuild.isDemo, "arguments": PhoneTestBuild.launchArguments]
     }
 
     AsyncFunction("openPage") { (pageID: String, setup: PageSetupRecord) in

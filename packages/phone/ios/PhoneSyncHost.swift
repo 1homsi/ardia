@@ -89,13 +89,14 @@ public final class PhoneSyncHost {
   }
 
   func useDemoIfAsked() async {
-    guard PhoneTestBuild.flag("ArdiaSyncDemo") else { return }
-    await useDemo()
+    guard PhoneTestBuild.isDemo else { return }
+    await useDemo(overConnection: true)
   }
 
-  func useDemo() async {
+  func useDemo(overConnection: Bool = false) async {
     if let replacing { return await replacing.value }
-    guard PhoneTestBuild.isOn, !isDemo, !service.isEnabled, service.folderName == nil else { return }
+    guard PhoneTestBuild.isOn, !isDemo else { return }
+    guard overConnection || (!service.isEnabled && service.folderName == nil) else { return }
     let old = service
     let task = Task { @MainActor in
       await old.close()
