@@ -80,7 +80,7 @@ export function LookFrost({ source, variant, cornerRadius, fill, dark, incognito
       {...lookColors(look, incognito)}
       dark={incognito || (dark ?? theme.dark)}
       reduceTransparency={reduceTransparency}
-      style={[style, { borderRadius: cornerRadius }]}
+      style={[style, { borderRadius: cornerRadius, backgroundColor: fill }]}
     >
       {children}
     </Frost>
