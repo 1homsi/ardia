@@ -823,7 +823,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Default Browser: at accessibility sizes both apps show a numbered list instead of the card; title weight, step icons and the iPhone button differ; on Android, when nothing can take the role request, Compose moves onboarding on. `DefaultBrowserPage.kt`, `DefaultBrowserPage.swift`. Small.
+- Default Browser: at accessibility sizes both apps show a numbered list instead of the card; title weight and step icons differ; on Android, when nothing can take the role request, Compose moves onboarding on. `DefaultBrowserPage.kt`, `DefaultBrowserPage.swift`. Small.
 - Onboarding sync step: a symbol instead of the Mac-and-phone QR picture; the connect screen pops in (Compose slides it up, SwiftUI a sheet) and "Connected." doesn't crossfade. `SyncScanIllustration.kt`/`.swift`, `OnboardingSteps.swift`. Half a day.
 - Sync: warnings are red (both apps orange); the scanner draws inside the sheet (both apps full screen) with a full rounded border instead of corner arms, wrong "can't scan" icons and a popping "Not an Ardia sync code". `SettingsComponents.kt` `warningInk`, `SyncCodeScanner.kt`/`.swift`, `SyncConnectPage.swift`. Small.
 - Sync: Enter Words replaces the page instead of pushing one, its counter and footer don't crossfade, and on iPhone the keyboard isn't ASCII and doesn't dismiss on scroll; connect steps pop instead of animating. `RecoveryPhraseEntryPage` in `SyncPages.kt`, `RecoveryPhraseEntryPage.swift`, `SyncConnectPage.swift`. Small.
@@ -960,7 +960,7 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 - The code scanner is the module's own view (`ScanView`); expo-camera and its ML Kit are gone (00b9064e9).
 - A suggestion whose text is an address opens that address, so a row tap does what Enter does (87bc6e89f).
 - A link that arrives during onboarding is held and only the last one runs afterwards (43753d1b5); both apps act at once.
-- The deck bar sits 6 points above a three-button navigation bar instead of on it (2db78f033); gesture navigation keeps Compose's numbers.
+- The deck bar sits 6 points above a three-button navigation bar instead of on it (2db78f033), placed from the screen the deck covers (22016d607); gesture navigation keeps Compose's numbers. The owner kept this on 2026-11-15: overlapping the system's buttons is worse.
 - Find on Page is the app's own bar on both phones, not WebKit's find panel as in SwiftUI (e508b6dd2); the commit gives no reason, so the owner should confirm it.
 - Opt-in usage stats (Settings, What's Sent, onboarding's last step) exist only in the Expo app (c6ebf08a8, the owner's approval).
 - Settings has no Appearance or Downloads rows because Compose has neither (f5d1ec9f2).
@@ -971,6 +971,7 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 - Licences are generated from the shipped code, not a hand-written list (aa44da003); the iPhone list's content is the gap above.
 - For the owner to confirm, no commit says why: the sync demo runs over the real tab store (76dcdde8a); Reset › Connect Again acknowledges the reset first as Compose does (SwiftUI just navigates); iPhone Spaces shows a Bookmarks section that SwiftUI lacks (253515009).
 - The tray's rows end at the last whole row and don't scroll at normal text sizes, so no partial row is drawn for a fade mask (992441306, 7287c72fd); both apps clip with a fade instead.
+- Matches Compose, not a gap: with the on-screen keyboard up, the first Back only drops the keyboard and the tray stays, with the start page's logo hidden behind it, because the keyboard takes that Back in both apps (F4 sync12, the owner's call on 2026-11-15).
 
 ## Build and run
 

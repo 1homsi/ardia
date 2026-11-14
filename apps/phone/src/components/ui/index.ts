@@ -1,5 +1,6 @@
 export { isDarkColor } from "../../lib/color";
 export { AppIcon } from "./AppIcon";
+export { PrimaryButton, primaryButtonHeight } from "./PrimaryButton";
 export { ArdiaLogo } from "./ArdiaLogo";
 export { Backdrop } from "./Backdrop";
 export { barCenterFromBottom, barHeight, deckCenterFromBottom } from "./barGeometry";

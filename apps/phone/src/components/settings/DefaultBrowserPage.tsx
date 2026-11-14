@@ -3,7 +3,7 @@ import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { askForDefaultBrowser, refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { popSettings } from "../../state/settings/nav";
 import { defaultBrowserCopy } from "../../state/settings/settingsRules";
-import { ArdiaLogo, capsule, font, radius, settingsLayout, settingsTint, space, spacesLayout, Symbol, useTheme } from "../ui";
+import { ArdiaLogo, font, PrimaryButton, radius, settingsLayout, settingsTint, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { SettingsPage } from "./SettingsKit";
 
 export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void; onDone?: () => void }) {
@@ -46,13 +46,9 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
       ) : null}
       <View style={styles.actions}>
         {copy.action ? (
-          <Pressable accessibilityRole="button" onPress={() => void ask()} style={[styles.primary, { backgroundColor: theme.label }]}>
-            <Text style={[font.body, styles.bold, { color: theme.groupFill }]}>{copy.action}</Text>
-          </Pressable>
+          <PrimaryButton title={copy.action} onPress={() => void ask()} />
         ) : onLater ? (
-          <Pressable accessibilityRole="button" onPress={onLater} style={[styles.primary, { backgroundColor: theme.label }]}>
-            <Text style={[font.body, styles.bold, { color: theme.groupFill }]}>Continue</Text>
-          </Pressable>
+          <PrimaryButton title="Continue" onPress={onLater} />
         ) : null}
         {copy.action && onLater ? (
           <Pressable accessibilityRole="button" onPress={onLater} style={styles.secondary}>
@@ -108,6 +104,5 @@ const styles = StyleSheet.create({
   tile: { width: settingsLayout.tile, height: settingsLayout.tile, borderRadius: spacesLayout.stepTileRadius, alignItems: "center", justifyContent: "center" },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: spacesLayout.stepDividerInset },
   actions: { gap: space.s },
-  primary: { minHeight: settingsLayout.primaryButton, borderRadius: capsule(settingsLayout.primaryButton), alignItems: "center", justifyContent: "center" },
   secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
 });

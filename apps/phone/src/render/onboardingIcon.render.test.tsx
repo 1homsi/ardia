@@ -1,10 +1,10 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { act } from "react-test-renderer";
 import { LinkBubble } from "../components/onboarding/LinkBubble";
 import { OnboardingView } from "../components/onboarding/OnboardingView";
 import { AppIcon } from "../components/ui";
 import { showOnboarding } from "../state/onboarding/store";
-import { renderSurface, unmount, withTabs } from "../../test/render/harness";
+import { renderSurface, textOf, unmount, withTabs } from "../../test/render/harness";
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -17,6 +17,8 @@ afterEach(() => {
 });
 
 type Root = ReturnType<typeof renderSurface>;
+
+const textOfNode = (node: Root["root"]) => textOf({ root: node } as Root);
 
 const hostWithTestId = (root: Root, testID: string) => root.root.findAll((node) => node.props.testID === testID && typeof node.type === "string")[0]!;
 
@@ -46,5 +48,18 @@ test("the default browser step's art ends at the 60-point app icon with its shad
   const drawn = StyleSheet.flatten(hostWithTestId(root, "appIcon").props.style);
   expect(drawn.width).toBe(60);
   expect(drawn.boxShadow).toBe("0px 4px 20px rgba(0, 0, 0, 0.12)");
+  unmount(root);
+});
+
+test("the welcome step's Get Started is the native apps' primary action: 14-point corners, #0F182C with white text in light, and each platform's height (SwiftUI's 63⅓, Compose's 50)", () => {
+  showOnboarding();
+  const root = renderSurface(<OnboardingView />);
+  const button = root.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && textOfNode(node) === "Get Started")[0]!;
+  const style = StyleSheet.flatten(button.props.style);
+  expect(style.borderRadius).toBe(14);
+  expect(style.backgroundColor).toBe("#0F182C");
+  expect(style.minHeight).toBeCloseTo(Platform.OS === "ios" ? 190 / 3 : 50);
+  const label = button.findAll((node) => typeof node.type === "string" && node.type === "Text")[0]!;
+  expect(StyleSheet.flatten(label.props.style).color).toBe("#FFFFFF");
   unmount(root);
 });

@@ -4,7 +4,7 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useShare
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { AppIcon, appIconLayout, capsule, LookBackdrop, onboardingArt, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
+import { AppIcon, appIconLayout, PrimaryButton, LookBackdrop, onboardingArt, font, radius, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
 import { ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
@@ -138,14 +138,7 @@ function Secondary({ title, onPress }: { title: string; onPress: () => void }) {
   );
 }
 
-function Primary({ title, onPress }: { title: string; onPress: () => void }) {
-  const theme = useTheme();
-  return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.primary, { backgroundColor: theme.label }]}>
-      <Text style={[font.body, styles.bold, { color: theme.groupFill }]}>{title}</Text>
-    </Pressable>
-  );
-}
+const Primary = PrimaryButton;
 
 function Welcome() {
   const theme = useTheme();
@@ -289,7 +282,6 @@ const styles = StyleSheet.create({
   centered: { textAlign: "center" },
   bold: { fontWeight: "600" },
   actions: { paddingHorizontal: space.xxl, paddingBottom: space.m, gap: space.s },
-  primary: { minHeight: settingsLayout.primaryButton, borderRadius: capsule(settingsLayout.primaryButton), alignItems: "center", justifyContent: "center" },
   illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
   card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: shadowRadius.card },
   art: { alignItems: "center", justifyContent: "center", paddingHorizontal: space.huge },
