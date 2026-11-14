@@ -21,7 +21,7 @@ import { currentEngineProfile } from "../../../state/browser/current";
 import { useSettings } from "../../../state/browser/hooks";
 import { Button, Checkbox, DialogActions, DialogTitle, PopUp, Sheet, space, Text, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
+import { Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
 import { setting, type SettingId } from "../settingsIndex";
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
@@ -256,7 +256,6 @@ function SitePermissions({ shownProfileId, site }: { shownProfileId: string | nu
   const [loaded, reload] = useResource(siteOrigins, currentEngineProfile(profileId));
   const origins = loaded ?? null;
   const refresh = () => void reload();
-  const blockNotificationRequests = useSettings((s) => s.blockNotificationRequests);
   useEffect(() => {
     if (!site) return;
     const siteProfileId = shownProfileId ?? profileId;
@@ -270,12 +269,15 @@ function SitePermissions({ shownProfileId, site }: { shownProfileId: string | nu
 
   return (
     <>
+      <SectionHeader title="All sites" description="These apply in every profile." />
+      <Group>
+        <SettingToggle anchor="privacy.blockNotificationRequests" />
+      </Group>
       <SectionHeader
         anchor="privacy.sitePermissions"
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
-        <Row anchor="privacy.blockNotificationRequests"><Toggle value={blockNotificationRequests} onChange={(v) => updateSettings({ blockNotificationRequests: v })} /></Row>
         {origins === null ? (
           <Row title=" " description=" " />
         ) : origins.length === 0 ? (

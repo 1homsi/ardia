@@ -18,6 +18,12 @@ export const privacyRows = {
       },
     },
     {
+      section: "All sites",
+      rows: {
+        blockNotificationRequests: { title: "Block requests to send notifications", description: "A site that asks is set to Block, so it stops asking. Sites that asked while this was on stay blocked after you turn it off, until you allow each one in its Site Controls. Sites you already allowed keep sending them.", keywords: ["push notifications", "notification prompts", "notification requests", "stop asking", "notification spam"] },
+      },
+    },
+    {
       section: "Site permissions",
       rows: {
         sitePermissions: {
@@ -25,7 +31,6 @@ export const privacyRows = {
           description: "Pop-ups, camera, location, notifications and other permissions you've set for sites.",
           keywords: ["camera", "microphone", "location", "popups", "cookies", "javascript", "clear site data", "website settings"],
         },
-        blockNotificationRequests: { title: "Block requests to send notifications", description: "A site that asks is set to Block, so it stops asking. Sites you already allowed keep sending them. Allow one from its Site Controls.", keywords: ["push notifications", "notification prompts", "notification requests", "stop asking", "notification spam"] },
       },
     },
     { section: "Apps allowed to open links", rows: { appLinks: { advanced: true, title: "Apps allowed to open links", description: "Sites that open another app without asking first.", keywords: ["external apps", "protocol handlers", "zoom links"] } } },
