@@ -65,6 +65,7 @@ type LegacyNative = {
   readVisits?(afterId: number, limit: number): Promise<LegacyVisitPage>;
   applyNativeSettings?(): Promise<void>;
   markImportedWith?(receipt: LegacyReceipt): Promise<void>;
+  startFresh?(): Promise<void>;
   available?(): Promise<boolean>;
   imported?(): Promise<boolean>;
   markImported?(): Promise<void>;
@@ -115,6 +116,9 @@ export const legacyImport = {
   },
   applyNativeSettings: async (): Promise<void> => {
     if (usesSourceShape()) await native!.applyNativeSettings!();
+  },
+  startFresh: async (): Promise<void> => {
+    if (native?.startFresh) await native.startFresh();
   },
   markImported: async (receipt: LegacyReceipt): Promise<void> => {
     if (!native) return;

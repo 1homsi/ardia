@@ -389,6 +389,38 @@ class PhoneLegacyTest {
     }
 
     @Test
+    fun startingFreshOpensTheGateOnceLeavesComposeUntouchedAndAMarkerALaterImportCanStillReplace() {
+        composeApp()
+        UpgradeGate.install(app)
+        val heard = ArrayList<String?>()
+        PhoneSystemLinks.listen { heard += it["url"] as String? }
+        PhoneSystemLinks.receive(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://held.example/")))
+        legacy().source()
+        val before = sourceFingerprint()
+        var syncs = 0
+        legacy().startFresh { syncs += 1 }
+        assertEquals(1, syncs)
+        assertFalse(UpgradeGate.pending(app))
+        assertEquals(listOf("https://held.example/"), heard)
+        assertEquals(UpgradeGate.Completion.StartedFresh, UpgradeGate.completion(app))
+        assertNull("starting fresh is not an import", UpgradeGate.marker(app))
+        assertEquals(mapOf("kind" to "done"), legacy().source())
+        assertEquals(before, sourceFingerprint())
+        assertEquals(emptyMap<String, Any?>(), app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE).all)
+        UpgradeGate.forgetForTests()
+        assertFalse("a relaunch stays open", UpgradeGate.pending(app))
+        legacy().startFresh { syncs += 1 }
+        assertEquals(2, syncs)
+        assertEquals(UpgradeGate.Completion.StartedFresh, UpgradeGate.completion(app))
+
+        legacy().markImported(receipt) { syncs += 1 }
+        assertEquals(UpgradeGate.Completion.Imported(receipt), UpgradeGate.completion(app))
+        assertEquals(false, app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE).getBoolean("blocking.ads", true))
+        legacy().startFresh { syncs += 1 }
+        assertEquals("starting fresh never undoes an import", UpgradeGate.Completion.Imported(receipt), UpgradeGate.completion(app))
+    }
+
+    @Test
     fun aComposeAppWithOnlyPreferencesIsPendingWithNoRows() {
         composePreferenceFiles()
         assertEquals(mapOf("kind" to "pending", "counts" to mapOf("tabs" to 0.0, "archive" to 0.0, "visits" to 0.0)), legacy().source())

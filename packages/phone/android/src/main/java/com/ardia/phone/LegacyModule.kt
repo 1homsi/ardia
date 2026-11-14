@@ -26,6 +26,11 @@ class LegacyModule : Module() {
 
         AsyncFunction("applyNativeSettings") { -> reading { PhoneLegacy(context).applyNativeSettings() } }
 
+        AsyncFunction("startFresh") { ->
+            val app = context
+            reading { PhoneLegacy(app).startFresh { PhoneSync.controller(app).localDidChange() } }
+        }
+
         AsyncFunction("markImportedWith") { receipt: Map<String, Any?> ->
             val parsed = UpgradeGate.Receipt.of(org.json.JSONObject(receipt))
                 ?: throw CodedException("ERR_LEGACY_RECEIPT", "The import receipt is not valid", null)

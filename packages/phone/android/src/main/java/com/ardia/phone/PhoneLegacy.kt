@@ -65,7 +65,7 @@ class PhoneLegacy(
     private fun preferences(name: String): Map<String, Any> = LegacyPreferencesFile.read(File(dataDir, "shared_prefs/$name.xml"))
 
     fun source(): Map<String, Any?> = synchronized(LOCK) {
-        if (UpgradeGate.marker(app) != null) return mapOf("kind" to "done")
+        if (UpgradeGate.completion(app) != null) return mapOf("kind" to "done")
         if (!UpgradeGate.composeSourceExists(app)) return mapOf("kind" to "none")
         try {
             PREFERENCE_FILES.forEach(::preferences)
@@ -134,6 +134,17 @@ class PhoneLegacy(
         if (UpgradeGate.pending(app)) throw IOException("the import marker was written but the gate is still closed")
         snapshotFolder.deleteRecursively()
         reached("snapshotRemoved")
+        startSync()
+    }
+
+    fun startFresh(startSync: () -> Unit) = synchronized(LOCK) {
+        if (UpgradeGate.completion(app) == null) {
+            UpgradeGate.writeStartedFresh(app)
+            reached("marker")
+        }
+        UpgradeGate.open(app)
+        if (UpgradeGate.pending(app)) throw IOException("the start-fresh marker was written but the gate is still closed")
+        snapshotFolder.deleteRecursively()
         startSync()
     }
 
