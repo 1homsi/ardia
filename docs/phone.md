@@ -284,24 +284,8 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Deck: the page mounts only when the open spring ends; both apps select the tab and make its view when the spring starts, so the page is ready under the card. `DeckState.open`, `AppModel+Tabs.swift` `prepareToOpen`/`beginOpening`. Half a day.
 - Deck: card headers lack the trailing fade, the icon reveal, the leading placement and the 1.35 text-size cap. `TabCard.kt` `DeckCardHeaderItem`, `DeckHeaderLayout.swift`. Half a day.
 - Deck: no page-left/page-right accessibility scroll actions (the unanimated Close Tab action shipped in 98bd12f97); React Native has no scroll actions on a view that isn't a scroll view, so this needs a custom action or a native hook. `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
-- Auto-archive: runs at launch, on becoming active and on an interval change; both apps also run it every 15 minutes while active and prune expired archive rows on becoming active, and the iPhone holds it while the deck is dragged. `TabStore.kt`, `TabStore.swift`. Small.
-- Archive: day titles always "weekday, month day"; both apps say Today, Yesterday, the weekday within six days, then the date (with the year if it differs). `ArchiveView.kt` `ArchiveDayLabel`, `ArchiveView.swift`. Small.
-- Archive: no tick on restoring a row, no warning haptic on Delete All, and Delete All is enabled when empty. `ArchiveView.kt`, `ArchiveView.swift`. Small.
-- Archive: empty and no-results states are text only; both apps show the 64 pt archive tile or a magnifier, and the empty state even while a query is typed. `ArchiveView.kt`, `ArchiveView.swift`. Small.
-- Archive: rows put a tile behind the favicon and day headers have no background (sticky only on iPhone, where text overlaps); both apps draw a plain favicon at 20× text size on sticky headers with a 0.92 surface tint. `ArchiveView.kt`. Small.
-- Archive: Back closes the sheet with a query typed (Compose clears the query first), and search runs on every keystroke (Compose waits 120 ms). `ArchiveView.kt`. Small.
-- Archive (iPhone): a full swipe deletes a row; SwiftUI only reveals Delete (`allowsFullSwipe: false`). `ArchiveView.swift`. Small.
-- Page: no haptic on pressing a bottom-bar control (Compose VIRTUAL_KEY, SwiftUI light impact 0.5). `BottomBar.kt` `barPress`, `BottomBar.swift`. Small.
-- Page: no tick when a tab swipe lands on the next tab. `BrowsingView.kt` `TabPager`, `BrowsingView.swift` `tabSwitchTicks`. Small.
-- Page menu: no success haptic when Pin to Mac fills the star (iPhone). `ToolbarSheet.swift`. Small.
-- Page menu: "Copied URL" in the title stays 1.5 s and swaps; SwiftUI shows it 1 s and crossfades. `BrowseSession.swift`, `ToolbarSheet.swift`. Small.
-- Page menu: at accessibility text sizes the title stays one line; SwiftUI moves it under the buttons with up to 3 lines. `ToolbarSheet.swift` `navigationCapsule`. Small.
-- Page menu: Find on Page opens at once; SwiftUI closes the menu and shows the find bar 350 ms later. `ToolbarSheet.swift` `findRow`. Small.
 - Page menu: Site Settings closes the menu and jumps to Settings; Compose opens it inside the menu sheet with a back button, and Back returns to the menu (SwiftUI has no such row). `PageMenu.kt`, `BrowsingView.kt`. Small.
 - Downloads: progress and cancel are not shown anywhere in the app (only the lab uses `downloads.progress`/`cancel`). `SystemDownloads.kt`, `DownloadManager.swift`. Small to a day.
-- Long-press Copy Link says "Copied URL"; Compose says "Copied URL Without Trackers" (the app's own `COPIED_LINK`). `AppModel.kt` `copyLink`. Small.
-- Find: the bar swaps in for the bottom bar at once; Compose hides the bottom bar with its collapse animation. `BrowsingView.kt` (`barHidden || isFinding`). Small.
-- Reader: text can't be selected (Compose `SelectionContainer`), size changes jump (Compose animates them), and the lead image loads any address (Compose only http and https). `ReaderView.kt`. Small.
 - Haptics in Settings, sync and onboarding: none on clearing data, filter-list update/add/apply, Sync Now done or failed, Stop Syncing, a scanned or valid phrase, connected or failed, each onboarding step and the finish; needs a warning/error helper beside `tapHaptic`. `GeneralPages.kt`, `SyncPages.kt`, `BlockingPages.kt`, `OnboardingView.kt`, `SyncCodeScanner.kt`; `ClearBrowsingDataPage.swift`, `FilterListsPage.swift`, `SyncSettingsPage.swift`, `SyncConnectPage.swift`, `RecoveryPhraseEntryPage.swift`, `OnboardingView.swift`. Under 2 hours.
 - Toasts: enter with a fade only and leave with none; both apps slide in 24 dp from 0.92 scale on a snappy spring and slide out 16 dp, a plain fade with Reduce Motion. `Toasts.kt`, `ToastView.swift`. Small.
 - Toasts: no drag (a finger holds the toast, a fling down past 40 or a drag past 24 dismisses it, else it springs back and the timer resumes 1.2 s). `Toasts.kt`, `ToastView.swift`. Small.
@@ -426,6 +410,9 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Deck behaviour (98bd12f97): Back from the deck opens the selected tab with the expand animation; the card menu lists Send to each device and Pin to Mac; a lifted card can't be tapped open; a deck of 40 tabs scrolls without mounting all cards.
 - Deck look (5a3966c9c): cards fade in when the deck opens from the start page; the backdrop and bar fade with the open; snapshots fade in; two pages of one site share a placeholder colour; cards have the native shadow on both phones; a tab sent from the Mac shows "From Your Mac" until opened; the archive card scales in.
 - Deck motion (77e3d1b15): a flicked card goes up in a white poof (blurred on Android); with Reduce Motion cards close, open and settle without springs.
+- Archive (036e2dbef): day headers read Today, Yesterday, a weekday within six days, then the date (with the year only when it differs) and stay pinned with a tinted background; an empty Archive shows the archive tile even while searching; a search with no results shows the magnifier; rows show a plain favicon; restoring ticks; Delete All warns and is disabled when empty; Android Back clears a search first; on iPhone a swipe reveals Delete instead of deleting; a tab left for longer than the interval is archived within 15 minutes while the app stays open.
+- Page (02416c672): bottom-bar buttons and a landed tab swipe give haptics; on iPhone pinning from the menu gives a success haptic, the title's message lasts 1 s and crossfades, the title moves under the buttons at accessibility sizes and Find opens 350 ms after the menu closes; the bar slides away under the find bar; a link's Copy Link says "Copied URL Without Trackers".
+- Reader (e6005cbe8): text can be selected; a size change animates; a lead image that isn't a web address is skipped.
 
 ### Deliberately different
 
