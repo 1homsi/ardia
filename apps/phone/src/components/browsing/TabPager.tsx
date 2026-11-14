@@ -14,6 +14,9 @@ export type TabPager = {
   gesture: ReturnType<typeof Gesture.Pan>;
   outgoing: ReturnType<typeof useAnimatedStyle>;
   dim: ReturnType<typeof useAnimatedStyle>;
+  grab: () => boolean;
+  track: (raw: number) => void;
+  settleTo: (target: number, velocity: number) => void;
 };
 
 type Options = { width: number; selectedId: string | null; left: string | null; right: string | null; onCommit: (id: string) => void; onGrab: () => void };
@@ -40,6 +43,24 @@ export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }
   const commit = (target: number) => {
     const id = target > 0 ? left : right;
     if (id) onCommit(id);
+  };
+
+  const settleTo = (wanted: number, velocity: number) => {
+    const target = (wanted > 0 && !hasLeft.value) || (wanted < 0 && !hasRight.value) ? 0 : wanted;
+    offset.value = withSpring(target * span.value, { ...tabsMotion.pagerSettle, velocity }, (finished) => {
+      if (!finished) return;
+      if (target === 0) active.value = 0;
+      else runOnJS(commit)(target);
+    });
+  };
+  const grab = () => {
+    if (!hasLeft.value && !hasRight.value) return false;
+    if (!active.value) onGrab();
+    active.value = 1;
+    return true;
+  };
+  const track = (raw: number) => {
+    offset.value = resolvedOffset(raw, hasLeft.value, hasRight.value, span.value);
   };
 
   const gesture = Gesture.Pan()
@@ -69,7 +90,7 @@ export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }
   });
   const dim = useAnimatedStyle(() => ({ opacity: outgoingPose(offset.value, span.value, hasLeft.value, hasRight.value).dim }));
 
-  return { offset, active, gesture, outgoing, dim };
+  return { offset, active, gesture, outgoing, dim, grab, track, settleTo };
 }
 
 type NeighbourProps = { pager: TabPager; tab: BrowserTab; side: -1 | 1; width: number; statusHeight: number; hasLeft: boolean; hasRight: boolean };

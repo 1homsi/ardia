@@ -39,7 +39,9 @@ import { PageRequestHost, PressMenu } from "./PageRequests";
 import { ReaderView } from "./ReaderView";
 import { PageFailureView } from "./PageFailureView";
 import { PageSurface } from "./PageSurface";
+import { useDemoMotion } from "./DemoMotion";
 import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
+import { launchArguments } from "../../state/app/launchFlags";
 
 export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const theme = useTheme();
@@ -50,8 +52,11 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const readerId = useReaderTabId();
   const pressing = usePressOpen();
   const tone = usePageTone(tab.id);
-  const progress = useNavigation(tab.id, (n) => n?.progress ?? 0);
-  const isLoading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
+  const loadFreeze = launchArguments().loadFreeze;
+  const liveProgress = useNavigation(tab.id, (n) => n?.progress ?? 0);
+  const liveLoading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
+  const progress = loadFreeze ?? liveProgress;
+  const isLoading = loadFreeze !== null || liveLoading;
   const order = useDeckOrder();
   const frozen = useFrozenOrder();
   const searching = useSearchOpen();
@@ -70,6 +75,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
     onCommit: switchToNeighbour,
     onGrab: captureCurrentCover,
   });
+  useDemoMotion(pager, width);
   const top = tone?.top ?? theme.surface;
   const bottom = tone?.bottom ?? theme.surface;
   const barDark = isDarkColor(bottom);
