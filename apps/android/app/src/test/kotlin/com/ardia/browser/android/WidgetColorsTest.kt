@@ -38,4 +38,29 @@ class WidgetColorsTest {
         assertEquals(expected.green, colors.capsule.green, 0.01f)
         assertEquals(expected.blue, colors.capsule.blue, 0.01f)
     }
+
+    @Test
+    fun thePanelIsTwoOpaqueStopsAndTheirDirectionForEachMode() {
+        val themed = ProfileLook.of("green", listOf("#4F7CFF", "#9B6BFF"), null)
+        for (dark in listOf(false, true)) {
+            val colors = WidgetColors.of(themed, dark = dark, themed = true)
+            val stops = themed.backdropColors(dark, true)
+            assertEquals(stops.first(), colors.panelTop)
+            assertEquals(stops.last(), colors.panelBottom)
+            assertEquals(themed.showsTheme(dark, true), colors.panelDiagonal)
+        }
+        val softened = WidgetColors.of(look, dark = false, themed = false, softened = true)
+        assertEquals(1f, softened.panelTop.alpha, 0.001f)
+        val plain = look.backdropColors(false, false).first()
+        assertEquals(plain.red + (1f - plain.red) * WidgetColors.LIGHT_SOFTENING, softened.panelTop.red, 0.01f)
+    }
+
+    @Test
+    fun aWidgetCarriesBothModesSoTheLauncherPicksWithoutTheApp() {
+        val pair = WidgetColors.dayNight(look, themed = true)
+        assertEquals(WidgetColors.of(look, dark = false, themed = true), pair.day)
+        assertEquals(WidgetColors.of(look, dark = true, themed = true), pair.night)
+        assertEquals(WidgetColors.Resolver.Launcher, WidgetColors.resolver(31))
+        assertEquals(WidgetColors.Resolver.App, WidgetColors.resolver(30))
+    }
 }

@@ -248,6 +248,13 @@ and again only when that status changes.
 31. **Widgets in both modes, quickly:** with both widgets on the home screen, switch dark, light and dark again
     within 20 s: each switch updates the whole widget (panel, pill, text, icons) together within a few seconds,
     and the Search pill shows its icon and label in both modes.
+    Since the widgets carry both modes' colours (Android 12 and later), also add each widget once in light mode
+    and once in dark mode, then switch modes with the app closed (`adb shell am force-stop $P` first): every
+    widget follows within a few seconds whichever mode it was added in, its panel keeps a gradient, and the
+    pill, icons, label and text all change together. Watch `adb logcat -s ArdiaWidget`: each update logs
+    `widget search|macTabs update on API N: the launcher picks day or night …; the app sees day|night`. A switch
+    with the app closed needs no update line at all. If a widget doesn't follow, report whether any line
+    appeared and what it said.
 32. **Deck backdrop:** in the app's deck, three slow blobs in lighter shades of the profile colour drift over the base
     (two screenshots 10 s apart differ). In the lab, Look: the stage above the frosted bar shows the mesh and blobs
     in every look, its caption sits at the bottom of the stage, and the frosted bar's label is centred. Tap Probe
