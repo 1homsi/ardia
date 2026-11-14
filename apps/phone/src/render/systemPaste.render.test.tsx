@@ -55,7 +55,7 @@ test("where the system paste control exists, Enter Words uses it, so iPhone asks
   const control = systemPaste(root);
   expect(control).toBeDefined();
   expect(control!.props.accessibilityLabel).toBe("Paste");
-  expect(control!.props.style).toEqual(expect.arrayContaining([{ width: 104, height: 34 }]));
+  expect(control!.props.style).toEqual(expect.arrayContaining([{ width: 262 / 3, height: 103 / 3 }]));
   expect(drawnPaste(root)).toHaveLength(0);
   act(() => control!.props.onPaste("otter river stone"));
   expect(fieldValue(root, "Recovery Phrase")).toBe("otter river stone");

@@ -44,7 +44,7 @@ export function CapsuleButton({ title, onPress, prominent, enabled = true, icon 
   );
 }
 
-export const SYSTEM_PASTE_SIZE = { width: 104, height: 34 } as const;
+export const SYSTEM_PASTE_SIZE = { width: 262 / 3, height: 103 / 3 } as const;
 
 export function PasteAction({ onText }: { onText: (text: string) => void }) {
   const theme = useTheme();
