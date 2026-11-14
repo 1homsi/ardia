@@ -134,6 +134,31 @@ test("a copy to the phone is written whole beside the folder, checked, then rena
   assert.deepEqual(files(partsFolder(phone)), []);
 });
 
+test("a write that lands late, as on the F4, is waited for and then put in place", async () => {
+  const { phone, phoneSide, files, mac } = relayWorld();
+  fs.writeFileSync(path.join(mac, "a.nns"), "late bytes");
+  process.env.FAKE_ADB_WRITE_DELAY_MS = "600";
+  try {
+    const sent = await copyInto(phoneSide, ["cat", [path.join(mac, "a.nns")]], path.join(phone, "a.nns"));
+    assert.ok(sent.attempts > 1, `checked ${sent.attempts} time(s)`);
+  } finally {
+    delete process.env.FAKE_ADB_WRITE_DELAY_MS;
+  }
+  assert.equal(fs.readFileSync(path.join(phone, "a.nns"), "utf8"), "late bytes");
+  assert.deepEqual(files(partsFolder(phone)), []);
+});
+
+test("the probe passes on a phone whose writes land late", async () => {
+  const { phone, opts, files } = relayWorld();
+  process.env.FAKE_ADB_WRITE_DELAY_MS = "400";
+  try {
+    await probePhone(opts);
+  } finally {
+    delete process.env.FAKE_ADB_WRITE_DELAY_MS;
+  }
+  assert.deepEqual(files(phone), []);
+});
+
 test("a copy that arrives short is not put in place and its part is removed", async () => {
   const { phone, phoneSide, files, mac } = relayWorld();
   fs.writeFileSync(path.join(mac, "a.nns"), "y".repeat(5_000));

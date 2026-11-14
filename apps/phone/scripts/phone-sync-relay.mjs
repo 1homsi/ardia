@@ -16,7 +16,8 @@
 // A file changed on one side since the last pass is copied to the other; changed on both, the newer wins; gone from
 // one side after a pass saw it on both, it is deleted on the other. A copy is written whole into .ardia-relay-parts
 // beside the sync folder by a lone cat (adb exec-in drops anything after the command that reads stdin), then a
-// separate command checks its SHA-256 and only then renames it into place, so an app never reads half a file. A
+// separate command syncs, checks its SHA-256 and only then renames it into place, so an app never reads half a
+// file; a write that lands late (the F4 read some back empty at first) is checked again for up to 2 s. A
 // pass that finds a side empty after seeing files there stops without changing anything. State lives in
 // $TMPDIR/ardia-phone-relay-<serial>. --adb PATH runs another adb. type-phrase reads phrase.txt beside the Mac's
 // folder over ssh and types it into the phone's focused field through adb's stdin, never on a command line; on a
@@ -101,10 +102,13 @@ export const partsFolder = (folder) => path.posix.join(path.posix.dirname(folder
 
 export const COMMITTED = "relay-committed";
 
+export const COMMIT_TRIES = 9;
+export const COMMIT_WAIT_MS = 250;
+
 export const commitCommand = (part, target, sha256) =>
-  `h=$( (sha256sum ${quoted(part)} 2>/dev/null || shasum -a 256 ${quoted(part)}) | cut -d " " -f 1 ); ` +
+  `sync 2>/dev/null; h=$( (sha256sum ${quoted(part)} 2>/dev/null || shasum -a 256 ${quoted(part)}) | cut -d " " -f 1 ); ` +
   `if [ "$h" = "${sha256}" ]; then mkdir -p ${quoted(path.posix.dirname(target))} && mv -f ${quoted(part)} ${quoted(target)} && echo ${COMMITTED}; ` +
-  `else rm -f ${quoted(part)}; echo "relay-mismatch $h"; fi`;
+  `else echo "relay-mismatch $h $(wc -c < ${quoted(part)} 2>/dev/null || echo missing)"; fi`;
 
 function endpoints(opts) {
   const match = /^([^/:]+):(\/.*)$/.exec(opts.mac);
@@ -164,12 +168,16 @@ export async function copyInto(side, from, target) {
   const part = path.posix.join(parts, `${process.pid}-${Date.now()}-${++partNumber}${TEMP_SUFFIX}`);
   run(side.shell(`mkdir -p ${quoted(parts)}`));
   const sent = await pipe(from, side.write(part));
-  const answer = run(side.shell(commitCommand(part, target, sent.sha256))).trim();
-  if (!answer.split("\n").includes(COMMITTED)) {
-    run(side.shell(`rm -f ${quoted(part)}`));
-    throw new Error(`the copy didn't arrive whole, so it wasn't put in place (${sent.bytes} bytes sent, sha256 ${sent.sha256.slice(0, 12)}; the other side said ${JSON.stringify(answer)})`);
+  let answer = "";
+  for (let attempt = 1; attempt <= COMMIT_TRIES; attempt += 1) {
+    answer = run(side.shell(commitCommand(part, target, sent.sha256))).trim();
+    if (answer.split("\n").includes(COMMITTED)) return { ...sent, attempts: attempt };
+    if (attempt < COMMIT_TRIES) await new Promise((resolve) => setTimeout(resolve, COMMIT_WAIT_MS));
   }
-  return sent;
+  run(side.shell(`rm -f ${quoted(part)}`));
+  throw new Error(
+    `the copy didn't arrive whole within ${((COMMIT_TRIES - 1) * COMMIT_WAIT_MS) / 1000} s, so it wasn't put in place (${sent.bytes} bytes sent, sha256 ${sent.sha256.slice(0, 12)}; the other side said ${JSON.stringify(answer)})`,
+  );
 }
 
 export function emptySide(before, record) {

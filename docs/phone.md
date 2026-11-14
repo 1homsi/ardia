@@ -265,14 +265,8 @@ off in the lab`.
     appeared and what it said.
     With TalkBack on, each widget reads its name from the moment it is placed, before its first update: "Ardia
     Search" and "Ardia, Your Mac’s Tabs", never "Ardianull".
-    The launcher's own frame around a widget can still read "Ardianull": the APK carries both receivers' labels
-    ("Search", "Your Mac’s Tabs") and both providers' descriptions, so the question is what the launcher joins.
-    - Run `adb shell dumpsys appwidget | grep -B2 -A12 com.ardia.browser.android` with both widgets placed and
-      report the provider lines as the system holds them: label, description, configure activity,
-      `widgetFeatures`. A label or description that is empty there is ours to fix.
-    - When the Compose app is installed (before an upgrade run), add its two widgets on the same launcher and
-      report what TalkBack or `uiautomator dump` reads for each widget's frame. The Compose app declares the
-      same labels and descriptions: if its frames also read "Ardianull", the name is MIUI's and stays as it is.
+    MIUI's launcher reads its own frame around a widget as "Ardianull"; the Compose app's widgets read the same on
+    the same launcher (F4, sync12), so it is the launcher's and is not checked further.
 32. **Deck backdrop:** in the app's deck, three slow blobs in lighter shades of the profile colour drift over the base
     (two screenshots 10 s apart differ). In the lab, Look: the stage above the frosted bar shows the mesh and blobs
     in every look, its caption sits at the bottom of the stage, and the frosted bar's label is centred. Tap Probe
@@ -545,9 +539,10 @@ relay start --mac shiv:$W/folder   # checks the phone's folder with a probe file
 - Connect the phone (Compose or Expo app): Settings › Sync With Mac › Connect to Your Mac. Step 1, Enter Words:
   the app has one field for all 24 words. Put the cursor in it and run `relay type-phrase`: it reads the phrase
   over ssh and types it through adb's standard input, so it never appears in a command, its output or a
-  transcript. MIUI refuses injected text (`INJECT_EVENTS`); there `relay type-phrase` says so, and the route that
-  worked on the F4 is the test tool's set-text action on that field, with the text read from `$W/phrase.txt` by
-  the tool rather than pasted into the command. Never print the phrase or pass it as an argument. Step 2, Choose
+  transcript. MIUI refuses injected text (`INJECT_EVENTS`), and `relay type-phrase` says so. The MIUI method, used
+  on the F4 for upgrade14: a short script on corex reads the phrase with `ssh shiv cat $W/phrase.txt` into a
+  variable and hands it to the test tool's own set-text action on that field (agentos `set_text`), printing
+  nothing, so the phrase never reaches the screen, the log or the transcript. Never print the phrase or pass it as an argument. Step 2, Choose
   Folder…: in the system picker open Documents › Ardia Sync, then Use This Folder and Allow.
 - When done: `relay stop`, then `mac stop` (it quits the instance and deletes `$W`), then
   `adb -s $S shell 'rm -rf "/sdcard/Documents/Ardia Sync"'` (the inner quotes are for the phone's shell, which

@@ -12,6 +12,14 @@ if (kind === "exec-in") {
   const first = command.split(/\\s*(?:&&|\\|\\||;)\\s*/)[0];
   let input = fs.readFileSync(0);
   if (process.env.FAKE_ADB_TRUNCATE === "1") input = input.subarray(0, Math.floor(input.length / 2));
+  const late = Number(process.env.FAKE_ADB_WRITE_DELAY_MS || 0);
+  if (late > 0) {
+    const held = require("node:path").join(require("node:os").tmpdir(), "fake-adb-" + process.pid + "-" + Date.now());
+    fs.writeFileSync(held, input);
+    const writer = require("node:child_process").spawn("sh", ["-c", "sleep " + late / 1000 + "; " + first + " < '" + held + "'; rm -f '" + held + "'"], { detached: true, stdio: "ignore" });
+    writer.unref();
+    process.exit(0);
+  }
   spawnSync("sh", ["-c", first], { input, stdio: ["pipe", "inherit", "inherit"] });
   process.exit(0);
 }

@@ -19,6 +19,8 @@ export type RelaySummary = { at: string; mac: number; phone: number; steps: Rela
 export const COMMITTED: string;
 export function partsFolder(folder: string): string;
 export function commitCommand(part: string, target: string, sha256: string): string;
-export function copyInto(side: RelaySideAccess, from: RelayCommand, target: string): Promise<{ sha256: string; bytes: number }>;
+export const COMMIT_TRIES: number;
+export const COMMIT_WAIT_MS: number;
+export function copyInto(side: RelaySideAccess, from: RelayCommand, target: string): Promise<{ sha256: string; bytes: number; attempts: number }>;
 export function probePhone(opts: RelayOptions): Promise<void>;
 export function pass(opts: RelayOptions): Promise<RelaySummary>;
