@@ -250,8 +250,20 @@ public final class PageViewModule: Module {
       MainActor.assumeIsolated { PhonePages.shared.engine.preferences.appLinks(for: host) == .app }
     }.runOnQueue(.main)
 
-    AsyncFunction("setOpensLinksInApps") { (host: String, opens: Bool) in
-      MainActor.assumeIsolated { PhonePages.shared.engine.preferences.update(host) { $0.appLinks = opens ? .app : .ardia } }
+    AsyncFunction("setOpensLinksInApps") { (host: String, opens: Bool?) in
+      MainActor.assumeIsolated { PhonePages.shared.engine.preferences.update(host) { $0.appLinks = opens.map { $0 ? .app : .ardia } } }
+    }.runOnQueue(.main)
+
+    AsyncFunction("siteOpensLinksInApps") { (host: String) -> Bool? in
+      MainActor.assumeIsolated { PhonePages.shared.engine.preferences.settings(for: host).appLinks.map { $0 == .app } }
+    }.runOnQueue(.main)
+
+    AsyncFunction("appLinksDefault") { () -> Bool in
+      MainActor.assumeIsolated { PhonePages.shared.engine.preferences.appLinks == .app }
+    }.runOnQueue(.main)
+
+    AsyncFunction("setAppLinksDefault") { (opens: Bool) in
+      MainActor.assumeIsolated { PhonePages.shared.engine.preferences.appLinks = opens ? .app : .ardia }
     }.runOnQueue(.main)
 
     AsyncFunction("clearWebsiteData") { (kinds: [String], promise: Promise) in
