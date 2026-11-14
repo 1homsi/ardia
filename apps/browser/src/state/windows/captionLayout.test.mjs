@@ -228,10 +228,8 @@ test("Minimalism keeps the window buttons and a drag band on Windows in every la
   assert.equal(cardTopInset(state({ tabLayout: "top", autoHideTabs: true }), "w", 9, windows), 9, "without Minimalism the hidden strip leaves the toolbar on top");
 });
 
-test("a frameless window keeps a caption strip along its top edge, so the top edge still resizes over the page", () => {
-  for (const settings of [{ minimalismMode: true, sidebarSide: "right" }, { borderlessMode: true, sidebarSide: "right", addressBar: "sidebar" }, { pageFrame: 0, sidebarSide: "right", addressBar: "sidebar" }]) {
-    const strip = captionRegions(state(settings), "w", false, windows).find(([left]) => left === 0);
-    assert.ok(strip, `no top strip for ${JSON.stringify(settings)}`);
-    assert.ok(strip[3] >= 5, `a ${strip[3]} pt strip is too thin to resize from: ${JSON.stringify(settings)}`);
-  }
+test("Minimalism's frameless page leaves no full-width caption gutter over the card", () => {
+  const regions = captionRegions(state({ minimalismMode: true }), "w", false, windows);
+  assert.equal(regions.length, 1);
+  assert.ok(regions[0][0] < 0, "only the buttons' own region, counted from the trailing edge");
 });

@@ -139,7 +139,6 @@ export const windowControlsBottom = (place: WindowControlsPlace | null): number 
 
 const CAPTION_GUTTER_MIN = 3;
 const SIDEBAR_TOOLS_TOP = 7;
-const RESIZE_EDGE = 7;
 
 export function captionRegions(s: BrowserState, windowId: string, overlaid = false, chrome: WindowChrome = WINDOW_CHROME): CaptionRegion[] {
   const frame = pageFrameIn(s, windowId);
@@ -150,9 +149,7 @@ export function captionRegions(s: BrowserState, windowId: string, overlaid = fal
   const controls = windowControlsWidth(BROWSER_WINDOW_BUTTONS) + WINDOW_CONTROLS.edge;
   const regions: CaptionRegion[] = [[-(chrome.trailingWidth - 2), 0, controls + WINDOW_CONTROLS.gap, windowControlsBottom(place)]];
   if (place.host === "strip") return regions;
-  const pageAtTop = place.host === "sidebar" && toolbarless(s, windowId);
-  const edge = pageAtTop ? Math.max(frame, RESIZE_EDGE) : frame;
-  const gutter = Math.min(edge, place.centerY - place.size / 2 - 1, toolbarless(s, windowId) ? SIDEBAR_TOOLS_TOP : edge);
+  const gutter = Math.min(frame, place.centerY - place.size / 2 - 1, toolbarless(s, windowId) ? SIDEBAR_TOOLS_TOP : frame);
   if (gutter >= CAPTION_GUTTER_MIN) regions.push([0, 0, 0, gutter]);
   return regions;
 }
