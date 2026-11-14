@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
+import { isUnseenReceived } from "../../lib/tabFace";
 import { DECK, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { Favicon, font, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { Favicon, font, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -126,11 +127,12 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
         importantForAccessibility="no-hide-descendants"
         style={[
           styles.card,
-          { width: g.cardWidth, height: g.cardHeight, zIndex: z, borderColor: theme.cardEdge, shadowColor: tabsInk.cardShadow },
+          { width: g.cardWidth, height: g.cardHeight, zIndex: z, borderColor: theme.cardEdge },
           cardStyle,
         ]}
       >
         <TabFace tab={tab} title={title} host={host} tone={tone?.top ?? null} roles={theme} />
+        {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
       </Animated.View>
       <Animated.View
         accessible
@@ -161,8 +163,41 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
   );
 }
 
+const CARD_ELEVATION = 14;
+const CARD_SHADOW_BLUR = 36;
+const RECEIVED_INSET = 10;
+
+function ReceivedBadge() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.badge, { backgroundColor: theme.formAccent, boxShadow: `0px 2px 12px ${theme.formAccent}59` }]}>
+      <Symbol name="laptop" size={12} color={tabsInk.onDark} />
+      <Text style={[styles.badgeText, { color: tabsInk.onDark }]}>From Your Mac</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  card: { position: "absolute", left: 0, top: 0, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, elevation: 6 },
+  card: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    ...Platform.select({ android: { elevation: CARD_ELEVATION }, default: { boxShadow: `-2px 4px ${CARD_SHADOW_BLUR}px ${tabsInk.cardShadow}` } }),
+  },
+  badge: {
+    position: "absolute",
+    top: RECEIVED_INSET,
+    left: RECEIVED_INSET,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.xs,
+    paddingHorizontal: space.s,
+    paddingVertical: space.xs,
+    borderRadius: 999,
+  },
+  badgeText: { fontSize: 11, lineHeight: 13, fontWeight: "600" },
   reach: { position: "absolute", left: 0, top: 0 },
   header: { position: "absolute", left: 0, top: 0, height: tabsLayout.headerHeight, overflow: "hidden" },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: tabsLayout.headerSpacing, height: tabsLayout.headerHeight },

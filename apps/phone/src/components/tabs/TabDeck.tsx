@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS, useAnimatedReaction, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { haptics } from "../../state/app/haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -95,11 +95,20 @@ export function TabDeck() {
   };
   const { scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
+  const cardsStyle = useAnimatedStyle(() => ({ opacity: cardsOpacity.value }));
+  const chromeStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
+  const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
 
+  const cardsOpacity = useSharedValue(1);
   useEffect(() => {
     const entrance = consumeDeckEntrance();
     const index = entrance ? order.indexOf(entrance) : -1;
-    if (index < 0) return;
+    if (index < 0) {
+      cardsOpacity.value = 0;
+      cardsOpacity.value = withTiming(1, { duration: tabsMotion.fade });
+      return;
+    }
     scroll.value = openingDeckScroll(index, order.length);
     setPhase({ kind: "opening", id: entrance });
     scaleProgress.value = 0;
@@ -339,12 +348,14 @@ export function TabDeck() {
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      <FrostSource name={DECK_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
-        <DeckLookBackdrop />
-      </FrostSource>
+      <Animated.View style={[StyleSheet.absoluteFill, backdropStyle]} pointerEvents="none">
+        <FrostSource name={DECK_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
+          <DeckLookBackdrop />
+        </FrostSource>
+      </Animated.View>
       <Shade shaded={menu !== null || cardMenu !== null || confirmation !== null}>
         <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
-          <View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }]} collapsable={false}>
+          <Animated.View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }, cardsStyle]} collapsable={false}>
             {order.map((id, index) => {
               const tab = tabs.get(id);
               if (!tab || hidden.current.has(id) || Math.abs(index - near) > DECK_RENDER_REACH) return null;
@@ -367,13 +378,20 @@ export function TabDeck() {
                 />
               );
             })}
-          </View>
+          </Animated.View>
         </GestureDetector>
         {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} /> : null}
         {archiveCard && phase.kind === "settled" ? <ArchiveIntervalCard centerY={g.barCenterY - archiveCardLayout.rise} /> : null}
-        {privateCount > 0 && phase.kind === "settled" ? <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} /> : null}
-        {phase.kind === "settled" ? (
-          <View style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }]}>
+        {privateCount > 0 ? (
+          <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"}>
+            <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} />
+          </Animated.View>
+        ) : null}
+        {
+          <Animated.View
+            pointerEvents={phase.kind === "settled" ? "box-none" : "none"}
+            style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }, chromeStyle]}
+          >
             <DeckBar
               leading={
                 syncEnabled ? { icon: "laptop", label: "Synced Tabs", onPress: openSpaces } : { icon: "archivebox", label: "Archive", onPress: openArchive }
@@ -384,8 +402,8 @@ export function TabDeck() {
               onPlusMenu={() => setMenu("plus")}
               onSettings={() => openSettings()}
             />
-          </View>
-        ) : null}
+          </Animated.View>
+        }
       </Shade>
       {menu === "plus" ? (
         <Menu
@@ -423,6 +441,8 @@ const flickTick = () => haptics.tap();
 const DECK_FROST = "deck";
 
 const DECK_RENDER_REACH = 6;
+const BACKDROP_LEAD = 1.4;
+const CHROME_FROM = 0.6;
 
 const styles = StyleSheet.create({
   touch: { position: "absolute", left: 0, right: 0, top: 0 },

@@ -1,5 +1,8 @@
-import { useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { useState, type ReactNode } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { placeholderIndex } from "../../lib/tabFace";
+import { tabsMotion } from "./motion";
 import { isDarkColor } from "../../lib/color";
 import { Favicon } from "./Favicon";
 import { Symbol } from "./Symbol";
@@ -8,9 +11,7 @@ import { font, space, tabsInk, type ColorRoles } from "./tokens";
 export type TabFaceTab = { url: string; title: string; isPrivate: boolean; snapshotFileName: string | null; themeColorHex: string | null; faviconUrl: string | null };
 
 export function placeholderTint(url: string, roles: ColorRoles): string {
-  let hash = 0;
-  for (let i = 0; i < url.length; i++) hash = (hash * 31 + url.charCodeAt(i)) | 0;
-  return roles.placeholderTints[Math.abs(hash) % roles.placeholderTints.length]!;
+  return roles.placeholderTints[placeholderIndex(url, roles.placeholderTints.length)]!;
 }
 
 export function tabFill(tab: TabFaceTab, tone: string | null, roles: ColorRoles): string {
@@ -22,7 +23,12 @@ type Props = { tab: TabFaceTab; title: string; host: string; tone: string | null
 
 export function TabFace({ tab, title, host, tone, roles, compact }: Props) {
   const fill = tabFill(tab, tone, roles);
-  if (tab.snapshotFileName) return <Snapshot uri={tab.snapshotFileName} fill={fill} />;
+  const face = <PlainFace tab={tab} title={title} host={host} fill={fill} roles={roles} compact={compact} />;
+  if (tab.snapshotFileName) return <Snapshot uri={tab.snapshotFileName} fill={fill} under={face} />;
+  return face;
+}
+
+function PlainFace({ tab, title, host, fill, roles, compact }: { tab: TabFaceTab; title: string; host: string; fill: string; roles: ColorRoles; compact?: boolean }) {
   if (tab.isPrivate) {
     return (
       <View style={[StyleSheet.absoluteFill, styles.private, { backgroundColor: fill }]}>
@@ -58,17 +64,26 @@ export function TabFace({ tab, title, host, tone, roles, compact }: Props) {
   );
 }
 
-function Snapshot({ uri, fill }: { uri: string; fill: string }) {
+const shownSnapshots = new Set<string>();
+
+function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: ReactNode }) {
   const [aspect, setAspect] = useState<number | null>(null);
+  const [wasShown] = useState(() => shownSnapshots.has(uri));
+  const appear = useSharedValue(wasShown ? 1 : 0);
+  const appearing = useAnimatedStyle(() => ({ opacity: appear.value }));
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]}>
-      <Image
+      {wasShown ? null : under}
+      <Animated.Image
         source={{ uri }}
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
           if (width > 0 && height > 0) setAspect(width / height);
+          if (shownSnapshots.has(uri)) return;
+          shownSnapshots.add(uri);
+          appear.value = withTiming(1, { duration: tabsMotion.fade });
         }}
-        style={aspect ? [styles.snapshot, { aspectRatio: aspect }] : StyleSheet.absoluteFill}
+        style={[aspect ? [styles.snapshot, { aspectRatio: aspect }] : StyleSheet.absoluteFill, appearing]}
         resizeMode="cover"
       />
     </View>

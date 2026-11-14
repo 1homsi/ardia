@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, useReducedMotion, withTiming } from "react-native-reanimated";
 import { tileGradient } from "../../lib/favicon";
 import { linearGradientCss } from "../../lib/gradient";
 import { hideArchiveCard, hideArchiveCardSoon } from "../../state/browse/archiveCard";
@@ -13,14 +13,15 @@ const INTERVALS = Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[];
 
 export function ArchiveIntervalCard({ centerY }: { centerY: number }) {
   const theme = useTheme();
+  const reduceMotion = useReducedMotion();
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const picker = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const side = archiveCardLayout.tile;
   return (
     <Animated.View
-      entering={FadeIn.duration(tabsMotion.fade)}
-      exiting={FadeOut.duration(tabsMotion.fade)}
+      entering={reduceMotion ? FadeIn.duration(tabsMotion.fade) : cardIn}
+      exiting={reduceMotion ? FadeOut.duration(tabsMotion.fade) : cardOut}
       pointerEvents="box-none"
       style={[styles.place, { top: centerY - archiveCardLayout.tile }]}
     >
@@ -59,6 +60,24 @@ export function ArchiveIntervalCard({ centerY }: { centerY: number }) {
     </Animated.View>
   );
 }
+
+const ENTRANCE_SCALE = 0.96;
+
+const cardIn = () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: ENTRANCE_SCALE }] },
+    animations: { opacity: withTiming(1, { duration: tabsMotion.fade }), transform: [{ scale: withTiming(1, { duration: tabsMotion.fade }) }] },
+  };
+};
+
+const cardOut = () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 1, transform: [{ scale: 1 }] },
+    animations: { opacity: withTiming(0, { duration: tabsMotion.fade }), transform: [{ scale: withTiming(ENTRANCE_SCALE, { duration: tabsMotion.fade }) }] },
+  };
+};
 
 const styles = StyleSheet.create({
   place: { position: "absolute", left: space.l, right: space.l, alignItems: "center" },
