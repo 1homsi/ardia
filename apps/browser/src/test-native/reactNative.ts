@@ -1,4 +1,17 @@
-export const View = () => null;
+import type { ComponentProps, PropsWithChildren } from "react";
+
+export const View = ({ children }: PropsWithChildren) => children ?? null;
+export const Text = () => null;
+export const Image = () => null;
+export const ScrollView = () => null;
+export const TextInput = () => null;
+export const StyleSheet = { create: <Styles,>(styles: Styles) => styles };
+
+export const pressables: ComponentProps<typeof import("react-native").Pressable>[] = [];
+export const Pressable = (props: (typeof pressables)[number]) => {
+  pressables.push(props);
+  return null;
+};
 
 export const turboModules: Record<string, unknown> = {};
 
@@ -194,6 +207,7 @@ export const Easing = {
 export const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
 
 export const AccessibilityInfo = {
-  isReduceMotionEnabled: () => Promise.resolve(false),
+  isHighContrastEnabled: async () => false,
+  isReduceMotionEnabled: async () => false,
   addEventListener: () => ({ remove() {} }),
 };

@@ -25,8 +25,8 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 66 rows, 49 work, 8 work with a difference, 1 is broken, 4 do nothing, 3 are not offered
-and 1 was not walked. Works with a difference says
+who and on which build. Of the 72 rows, 49 work, 8 work with a difference, 1 is broken, 4 do nothing, 6 are not offered
+and 4 were not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
 
@@ -56,11 +56,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Close-tabs confirm while other windows load | Works: the confirm (like the prompt and the file pickers) runs on its own thread, so other windows keep loading and taking input while it is open; it stays in front of its own window and comes forward with it (#1688's self-check holds a confirm while a page loads, on CI; not walked here) | #1672, #1688 |
 | Quit and relaunch with the session restored | Works (tabs, the split and the open windows came back) | |
 | Engine memory trimmed after tabs close, once input is idle | Works (logged after closes) | #1544 |
+| Memory Saver's loaded-tab budget (the tabs hidden longest sleep past it) | Not offered; hidden: the page view has no `sleepIfHidden` on Windows | #1425 |
+| Unload inactive profiles (Settings › Advanced, with Memory Saver) | Not offered; hidden: the engine has no `profiles.unloadIdle` | #1425 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome; its command bar lists recent pages | |
 | Search Tabs (Ctrl+Shift+A), Ctrl+Tab | Works (d83398e1f): the new page has the keyboard after Ctrl+Tab and after Next Tab into a tab a restore left unloaded (#1658, #1691). Gap: a new tab opened with an address (Ctrl+T, the address, Enter) doesn't get the keyboard, tracked in #1689 (still so on 72901e27a) | #1658, #1689 |
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
 | Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works. The pale box once left over the page's top-left came from visiting a second profile, not from Ctrl+S: the next profile's sidebar page, parked beside the sidebar, cut a hole in the page. Gone on d83398e1f, on a full-width tab and a split pane. With tabs across the top (72901e27a), the open and recently closed tabs button and New Tab stay clear of the caption buttons down to the narrowest window (600 px), where tabs scroll instead, and a right-click on the empty strip opens the tab menu | #1673, #1583 |
+| Minimalism mode (Ctrl+Alt+M) | Not walked: ported in #1831, which puts the window buttons in the band, the sidebar header or the tab strip in each of five layouts (`captionLayout.test.mjs`); nobody has seen it in the VM yet | #1831 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
@@ -76,6 +79,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Command bar (history, open tabs, suggestions) | Works | |
 | Inline completion in the command bar | Works (top match completes inline) | #1520 |
 | Find in page | Works: the app's find bar, from a page or the app's UI (Ctrl+F); count, Enter, Shift+Enter, F3 and Shift+F3 step; Escape gives the page the keyboard back; private windows too | #1758 |
+| Reading mode (Ctrl+Alt+R, F9) | Not walked: it draws the article inside the page through `evaluate`, which Windows forwards; nobody has seen it in the VM yet | #1831 |
 | Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
 | Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
 | JavaScript alert, confirm and prompt | Works (Chromium's dialogs over the page) | |
@@ -101,6 +105,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Chrome Web Store install | Differs: the store says Add to Ardia, Chromium's Add extension dialog, then the icon in the toolbar and the extension's own page | stand-ins `extensions.resolveInstallPrompt` |
 | ardia://extensions | Works | |
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
+| Hide anything (Hide Element) | Not offered; hidden: its rules are kept by the content blocker, which Windows lacks | #1425 |
 | Bookmark export | Works: Windows' Save As, then the HTML file is written | #1551 |
 | Password export | Works up to Windows' own sign-in prompt over the app window; the walk cancelled it there (the VM account's password is not typed in a test), so the file was not written | #1551 |
 
@@ -111,6 +116,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Settings window, panes, search | Works (all twelve panes; search finds rows and opens their pane) | |
 | Profiles: create, switcher | Works | |
 | Appearance: light and dark | Works | |
+| Higher contrast text | Not walked: Automatic follows a Windows contrast theme through `AppTheme`; nobody has seen it in the VM yet | #1831 |
 | Keyboard Shortcuts pane | Works, Windows keys | |
 | "…" menu | Works, except Check for Updates | #1517 |
 | Sync | Works: Turn On Sync at the default folder shows the Recovery Kit, the pane says updated just now, every What Syncs row but Passwords; a Mac and a PC exchanged pinned tabs and bookmarks both ways (#1594) | #1575, #1425 |
@@ -194,11 +200,11 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   - React Native for Windows hit-tests by layout and ignores `transform`, and the app runs every animation that
     doesn't repeat from JS on Windows, so a running animation keeps writing its values to a view until it ends. So a
     style never swaps an Animated value for a constant while an animation may still write to it: the view keeps the
-    same node and `useGated` (`components/ui/motion.ts`) pins it to its resting value when it closes. A sidebar docked
-    while its peek was closing drew its rows off where they click before this (#1852); the self-check
-    `sidebar peek layer rests at identity after docking mid-close` docks the first window mid-close four times and
-    logs `sidebar peek check: <n> cycles, <m> docked mid-close, ...`. And no view that takes clicks rests under a
-    non-zero transform (#1868).
+    same node, and `useGated` (`components/ui/motion.ts`) pins that node to its resting value while its state is off.
+    A sidebar docked while its peek was closing drew its rows off where they click before this (#1852); the self-check
+    `sidebar peek layer rests at identity after docking mid-close` docks the first window six times as its peek
+    closes and logs `sidebar peek check: <n> cycles, <m> docked mid-close, ...`. And no view that takes clicks rests
+    under a non-zero transform (#1868).
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
   - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance

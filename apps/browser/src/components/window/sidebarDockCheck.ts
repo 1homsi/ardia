@@ -5,9 +5,14 @@ import type { usePeek } from "./usePeek";
 
 type SidebarDockLayer = { opacity: unknown; transform: { translateX: unknown }[] };
 
-type SidebarDockProbe = { peek: ReturnType<typeof usePeek>; open: boolean; moving: boolean; fullscreen: boolean; layer: SidebarDockLayer };
+type SidebarDockProbe = { peek: ReturnType<typeof usePeek>; open: boolean; moving: boolean; fullscreen: boolean; edgeOn: boolean; layer: SidebarDockLayer };
 
-const DOCK_AFTER_LEAVING_MS = [150, 190, 230, 270];
+type DockMoment = { label: string; ready(closingMs: number, slide: number): boolean };
+
+const DOCK_MOMENTS: DockMoment[] = [
+  ...[150, 200, 250, 300].map((ms) => ({ label: `${ms} ms into the close`, ready: (closingMs: number) => closingMs >= ms })),
+  ...[0.7, 0.3].map((at) => ({ label: `at slide ${at}`, ready: (_closingMs: number, slide: number) => slide <= at })),
+];
 const POLL_MS = 16;
 const SETTLE_MS = 4000;
 const START_MOVING_MS = 300;
@@ -65,22 +70,22 @@ async function setDocked(windowId: string, open: boolean) {
   await until("the dock to stop moving", () => !probeFor(windowId).moving);
 }
 
-async function dockMidClose(windowId: string, afterLeavingMs: number) {
+async function dockMidClose(windowId: string, moment: DockMoment) {
   const probe = () => probeFor(windowId);
   await setDocked(windowId, false);
   probe().peek.show();
   await until("the peek to slide out", () => probe().peek.live && currentValue(probe().peek.slide) === 1 && !animating(probe().peek.slide));
   probe().peek.hide();
-  const left = Date.now();
   await until("the peek to start closing", () => probe().peek.leaving);
-  await pause(Math.max(0, afterLeavingMs - (Date.now() - left)));
+  const closing = Date.now();
+  await until(`the moment to dock ${moment.label}`, () => moment.ready(Date.now() - closing, currentValue(probe().peek.slide)));
   const slideAtDock = currentValue(probe().peek.slide);
   await setDocked(windowId, true);
   await until("the peek to settle", () => !probe().peek.live && !probe().peek.leaving && !animating(probe().peek.slide));
   await pause(STRAY_WRITES_MS);
   const off = offIdentity(probe());
   if (off) {
-    console.info(`[ardia windows] sidebar peek layer rests off identity after docking ${afterLeavingMs} ms after leaving: ${off}`);
+    console.info(`[ardia windows] sidebar peek layer rests off identity after docking ${moment.label}: ${off}`);
     throw new Error(`the peek layer rests off identity: ${off}`);
   }
   return slideAtDock;
@@ -92,6 +97,10 @@ async function checkSidebarPeek() {
     console.info("[ardia windows] sidebar peek check skipped: no window shows tabs in the sidebar");
     return;
   }
+  if (!probeFor(windowId).edgeOn) {
+    console.info("[ardia windows] sidebar peek check skipped: tabs don't reveal on hover");
+    return;
+  }
   if (probeFor(windowId).fullscreen) {
     console.info("[ardia windows] sidebar peek check skipped: the window is full screen");
     return;
@@ -101,7 +110,7 @@ async function checkSidebarPeek() {
   const slides: number[] = [];
   try {
     await setDocked(windowId, true);
-    for (const afterLeavingMs of DOCK_AFTER_LEAVING_MS) slides.push(await dockMidClose(windowId, afterLeavingMs));
+    for (const moment of DOCK_MOMENTS) slides.push(await dockMidClose(windowId, moment));
   } finally {
     if (probes.has(windowId)) await setDocked(windowId, wasOpen);
   }

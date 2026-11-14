@@ -47,6 +47,7 @@ const TOP = [
   ["keyboard shortcuts", ["shortcuts.actions"]],
   ["hotkeys", ["shortcuts.actions", "shortcuts.extensionShortcuts"]],
   ["⌘L", ["appearance.commandBarPlacement"]],
+  ["shrink", ["tabs.hideToolbarWhileScrolling"]],
   ["⌘z", ["shortcuts.undoReopensClosedTab"]],
   ["update", ["general.updateChannel", "general.autoUpdate"]],
   ["nightly", ["general.updateChannel"]],
@@ -54,7 +55,9 @@ const TOP = [
   ["sync", ["sync.sync"]],
   ["extensions", ["extensions.installed"]],
   ["zoom", ["privacy.commandScrollZoom"]],
-  ["font", ["privacy.commandScrollZoom"]],
+  ["font", ["advanced.chromeSettings"]],
+  ["default zoom", ["advanced.chromeSettings"]],
+  ["chrome settings", ["advanced.chromeSettings"]],
   ["telemetry", ["privacy.whatsSent", "privacy.shareDiagnostics", "privacy.viewData"]],
   ["what's sent", ["privacy.whatsSent"]],
   ["whats sent", ["privacy.whatsSent"]],
@@ -92,6 +95,8 @@ const TOP = [
   ["auto hide", ["tabs.autoHideTabs"]],
   ["history", ["advanced.history"]],
   ["borderless mode", ["appearance.borderlessMode"]],
+  ["minimal", ["appearance.minimalismMode"]],
+  ["minimalism", ["appearance.minimalismMode"]],
   ["mouse wheel", ["privacy.commandScrollZoom"]],
   ["1password", ["passwords.managerApps"]],
   ["warn quitting", ["general.warnBeforeQuitting"]],
@@ -309,4 +314,8 @@ test("arrowing through results scrolls only as far as the selected row needs", a
   assert.equal(scrollToShow(100, 40, 200, 400, false), 100 - RESULTS_TOP);
   assert.equal(scrollToShow(260, 40, 200, 400, false), 200);
   assert.equal(scrollToShow(260, 40, 200, 400, true), 0);
+});
+
+test("Minimalism mode turns up for every word people use for it", () => {
+  for (const query of ["minimal", "minimalism", "clean", "compact", "zen", "distraction free", "no toolbar"]) assert.ok(ids(query).includes("appearance.minimalismMode"), query);
 });
