@@ -5,6 +5,7 @@ import { useIsActiveTab, useTab } from "../../state/browser/hooks";
 import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
 import { SLIDE } from "../tabstrip/tokens";
+import { useGated } from "../ui/motion";
 import { ContextMenuArea, HoverCard as HoverPanel, OutsidePressArea, space, useHover } from "../ui";
 import { SectionLabel } from "./SectionLabel";
 import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
@@ -34,6 +35,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
   const away = useFolderAway();
   const [root, setRoot] = useState<Frame | null>(null);
   const shown = useMemo(() => new Animated.Value(0), []);
+  const opacity = useGated(!away, shown, 0);
   const tail = useDragItem(tailKey("folder"), { kind: "tail", tabIds: [], section: "folder" });
 
   useEffect(() => {
@@ -68,7 +70,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
         left: layout.sidebarInset,
         width: root.w - layout.sidebarInset * 2,
         top: anchor.y + anchor.height + PANEL_GAP - root.y,
-        opacity: away ? 0 : shown,
+        opacity,
         transform: [{ scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
       }}
     >

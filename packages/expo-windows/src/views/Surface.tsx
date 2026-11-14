@@ -1,10 +1,11 @@
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef, useEffect, useState, type ReactNode } from "react";
 import type { NativeSurfaceProps } from "@ardia/shell";
 import { StyleSheet, View, type ViewStyle } from "react-native";
 import { usePageCover } from "../engine/usePageCover";
 import { parseColor, rgbaString, sampleStops, type Rgba } from "./color";
 import { fallbackColumns, fallbackRows, flatColors, gradientFill, type GradientFill } from "./gradientFill";
-import { NativeMaterialGradient, nativeGradient } from "./nativeMaterials";
+import { followGradientFailure, gradientDrawsNow } from "./materialCapabilities";
+import { NativeMaterialGradient } from "./nativeMaterials";
 import { RoundedShadow } from "./RoundedShadow";
 import { shadowSpec } from "./shadowLayers";
 import { colorOrUndefined, finite, useFirstWindow } from "./shared";
@@ -38,9 +39,15 @@ function StripedGradient({ gradient, clip }: { gradient: GradientFill; clip: Vie
   );
 }
 
+function useGradientDraws() {
+  const [draws, setDraws] = useState(gradientDrawsNow);
+  useEffect(() => (draws ? followGradientFailure(() => setDraws(false)) : undefined), [draws]);
+  return draws;
+}
+
 function GradientLayer({ gradient, corner }: { gradient: GradientFill; corner: number }) {
   const clip: ViewStyle | null = corner > 0 ? { borderRadius: corner, overflow: "hidden" } : null;
-  if (!nativeGradient()) return <StripedGradient gradient={gradient} clip={clip} />;
+  if (!useGradientDraws()) return <StripedGradient gradient={gradient} clip={clip} />;
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, clip]}>
       <NativeMaterialGradient

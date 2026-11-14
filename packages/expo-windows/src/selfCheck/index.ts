@@ -17,6 +17,7 @@ import { checks as menuChecks } from "./menus";
 import { checks as motionChecks } from "./motion";
 import { checks as pagePictureChecks } from "./pagePicture";
 import { checks as pagerChecks } from "./pager";
+import { registeredChecks } from "./registered";
 import { checks as shellChecks } from "./shell";
 import { checks as storageChecks } from "./storage";
 import { checks as symbolChecks } from "./symbol";
@@ -33,7 +34,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 export async function runSelfCheck() {
   let passed = 0;
   let failed = 0;
-  for (const check of areas.flat()) {
+  for (const check of [...areas.flat(), ...registeredChecks()]) {
     try {
       await check.run();
       passed += 1;

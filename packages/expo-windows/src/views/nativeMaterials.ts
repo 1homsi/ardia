@@ -1,24 +1,7 @@
-import { processColor, TurboModuleRegistry, type TurboModule, type ViewProps } from "react-native";
+import { processColor, type ViewProps } from "react-native";
 import * as NativeComponentRegistry from "react-native/Libraries/NativeComponent/NativeComponentRegistry";
 
-export type MaterialCapabilities = {
-  build: number;
-  systemBackdrop: boolean;
-  systemBackdropSupported: boolean;
-  inWindowBlur: boolean;
-  gradient: boolean;
-  background: boolean;
-};
-
-export type MaterialPath = { path: string; reason: string; step?: string };
-
-export type MaterialsNative = {
-  capabilities(): MaterialCapabilities;
-  applyWindowMaterial(windowId: string, material: string): Promise<MaterialPath>;
-  clearWindowMaterial(windowId: string): Promise<boolean>;
-  probeBlur(): Promise<MaterialPath>;
-  probeGradient(): Promise<MaterialPath>;
-};
+export { gradientDrawsNow, materialCapabilities, nativeBlur, nativeGradient, nativeWindowMaterial, type MaterialCapabilities, type MaterialPath, type MaterialsNative } from "./materialCapabilities";
 
 export type WindowMaterialKind = "micaAlt" | "mica" | "acrylic";
 
@@ -62,27 +45,6 @@ export const NativeMaterialGradient = NativeComponentRegistry.get<NativeMaterial
   uiViewClassName: "ArdiaMaterialGradient",
   validAttributes: { colors: true, angle: true, span: true, reach: true, stops: true, fade: true, fadeStops: true, fadeAngle: true },
 }));
-
-let capabilities: MaterialCapabilities | null | undefined;
-
-export function materialCapabilities(): MaterialCapabilities | null {
-  if (capabilities !== undefined) return capabilities;
-  capabilities = null;
-  try {
-    const native = TurboModuleRegistry.get<TurboModule & MaterialsNative>("ArdiaMaterials");
-    const answer = native?.capabilities?.();
-    if (answer && typeof answer === "object" && typeof answer.build === "number") capabilities = answer;
-  } catch {
-    capabilities = null;
-  }
-  return capabilities;
-}
-
-export const nativeWindowMaterial = () => materialCapabilities() !== null;
-
-export const nativeBlur = () => materialCapabilities()?.inWindowBlur === true;
-
-export const nativeGradient = () => materialCapabilities()?.gradient === true;
 
 type Point = [number, number];
 
