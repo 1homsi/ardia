@@ -281,21 +281,8 @@ the demo-mode launch arguments both apps' capture scripts use.
 
 ### Needs only JavaScript
 
-- Search tray: search links (`ardia://search?q=`, web search, process text, shared text, Siri) open the tray with the words instead of searching at once as both apps do. `AppModel.kt` `handle()`, `AppModel+System.swift` `handle(_:)`. Small.
-- Search tray: a voice link shows the voice screen alone; both apps put the tray under it so Cancel lands on the tray. Same files. Small.
-- Search tray: the mic button leaves the field focused; both apps drop focus while voice is up and give it back. `SearchTray.kt`, `SearchTray.swift` (`mayFocus`). Small.
-- Search tray: the calculator row does nothing; both apps copy the value with a "Copied …" toast, offer Copy on long-press and title it "= value". `AppModel.kt`/`SearchTray.kt`, `AppModel+Search.swift`/`SearchTray.swift`. Small.
-- Search tray: bang queries lack their "Search <engine>" detail line. `SearchSuggestions.kt` `row()`, `SearchSuggestionsModel.swift` `row(for:)`. Small.
-- Search tray: 8 rows and no kept row for the exact typed query; both apps show 9 and keep it. Same files. Small.
-- Search tray: Mac-tab rows show the device name as text; both apps show a laptop icon and the host, and Switch to Tab uses `arrow.right.circle`. `SuggestionList.kt` `RowLabel`, `SuggestionRowView.swift`. Small.
-- Search tray: no 140 ms crossfade between caption, rows and empty (`resultsIn`). `SearchTray.kt` `TrayBody`, `SearchTray.swift`. Small.
-- Search tray: the incognito toggle's label pops instead of fading and scaling from 0.9 (modeToggle 0.3 s, bounce 0.15). `IncognitoToggle.kt`, `IncognitoToggle.swift`. Small.
-- Search tray: field text is body, not title3 that scales with text size; the incognito caption is not centred semibold; past 1.5× text size rows don't wrap to 3–4 lines and scrubbing doesn't turn off. `SearchTray.kt`, `SearchTray.swift`, `SuggestionRowView.swift`. Small.
-- Search tray: rows expose one "More Actions" (menu at y 0); Compose exposes Refine and each menu item as accessibility actions. `SuggestionList.kt`. Small.
 - Start page: with no tabs and sync on, the leading button should be Synced Tabs (opens Spaces); the logo should fade and scale from 0.92 and the bar fade with searchRise instead of snapping. `SearchHomeView.kt`, `SearchHomeView.swift`. Small.
 - Voice screen: no 150 ms transcript crossfade, no logo shadow (12 dp, 15%), no 100 ms waveform ease (iPhone). `VoiceSearchView.kt`, `VoiceSearchView.swift`. Small.
-- System links: a tab link opens archived and private tabs as they are; both apps refuse private ones and restore archived ones, and Compose waits for the store before giving up on an unknown id. `AppModel.kt` `openTabFromSystem`, `AppModel+System.swift`. Small.
-- System links (iPhone): pages from the share sheet open with origin `link`, not `share`. `AppModel+System.swift` `drainSystemInbox`. Small.
 - Deck: no selection tick as the focused card changes, no light impact on a flick-close, no medium impact on confirming Close All or Close Incognito Tabs. `DeckState.kt`, `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
 - Deck: Android haptics use expo-haptics' vibrator calls; Compose uses the view's system haptics (tick, key, long press, confirm, reject), which follow the touch-feedback setting. expo-haptics 15 has `performAndroidHapticsAsync`. `Haptics.kt`. Small.
 - Deck: no poof (9 puffs over 420 ms) where a card closes. `PoofBurst.kt`, `PoofBurst.swift`. A few hours.
@@ -446,6 +433,9 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Tray drag (9ecac6d12): a drag down on the field, the incognito caption or the empty area moves the tray and lightens the dim; past 8 points the keyboard goes down while the tray holds still; a short slow drag springs back and the keyboard returns; a long drag or a flick closes it.
 - Tray scrub (7287c72fd): a finger on a row lights it at once; sliding along the rows ticks on each and opens the last on release (with a confirm); a tap on a query row's arrow refines; a 400 ms hold opens the row's menu; past 1.5x text size the list scrolls instead.
 - Launch arguments, once both modules pass them: `ArdiaDemo` opens on the eight demo tabs (Sintra selected) with nothing written to the real store and the demo Macs in Spaces; each `Browse…` and `Ardia…` argument in `docs/android.md` and `docs/ios.md` does what it does in the native apps, at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
+- Tray rows (2de3b7695): nine rows; typing "otter" keeps an "otter" search second; "!w otter" shows "Search Wikipedia"; a Mac tab shows a laptop and its host and opens as a synced tab; "12*12" reads "= 144", copies with a "Copied 144" toast on tap and offers Copy on a long press.
+- Links (3f6409ae0): Search in Ardia on selected text and a web search open results at once; the voice shortcut opens the voice screen over the tray (Cancel lands on the tray, the keyboard down while voice is up and back after); a tab widget link restores an archived tab and does nothing for a private one; a page shared to Ardia on iPhone opens as shared.
+- Tray look (9f98c466a): the caption, rows and empty tray crossfade; the Incognito label fades and grows from 0.9 at the toggle's edge; the field's text is title3 and grows with the text size; past 1.5x text size rows wrap; TalkBack and VoiceOver list Refine and each menu item as actions on a row.
 
 ### Deliberately different
 
