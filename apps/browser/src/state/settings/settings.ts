@@ -115,6 +115,7 @@ export const SETTING_SPECS = {
   showTranslateButton: flag(true, SYNCED),
   autoPictureInPicture: flag(true, SYNCED),
   commandScrollZoom: flag(true, SYNCED),
+  blockNotificationRequests: flag(false, SYNCED),
   videoUpscaling: flag(true, SYNCED),
   sidebarMediaControls: flag(true, SYNCED),
   sidebarWidth: width(DEFAULT_SIDEBAR_WIDTH),
