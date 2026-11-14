@@ -80,7 +80,7 @@ export default function App() {
   );
 }
 
-function Surfaces() {
+export function Surfaces() {
   const surface = useSurface();
   const sheet = useSheet();
   const tab = useSelectedTab();
