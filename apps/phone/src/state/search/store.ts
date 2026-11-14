@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { beginInteraction, INTERACTION_WINDOW_MS } from "../app/interactionPerf";
 import { history } from "../history/store";
 import { currentPreferences } from "../settings/store";
 import { currentTabs, useTabs } from "../tabs/store";
@@ -86,6 +87,7 @@ export function applySearchEngine() {
 }
 
 export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel: boolean | null = null, page: SuggestContext | null = null) {
+  beginInteraction("tray open", INTERACTION_WINDOW_MS.trayOpen);
   inFlight?.abort();
   remote = { text: "", values: [] };
   context = page ?? { currentUrl: null, currentTabId: null };

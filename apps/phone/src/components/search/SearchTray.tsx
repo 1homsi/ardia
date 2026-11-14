@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { countRender } from "../../state/app/interactionPerf";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
@@ -64,6 +65,7 @@ export function SearchTray() {
 type LayerProps = { session: number; closing: boolean; generation: number; onClosed: (generation: number) => void };
 
 function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
+  countRender("TrayLayer");
   const origin = useSearchOrigin();
   const theme = useTrayTheme();
   const incognito = useIncognito();

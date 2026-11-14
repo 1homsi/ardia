@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { countRender } from "../../state/app/interactionPerf";
 import { StyleSheet } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { PAGE_COVER, pageCoverNeeded } from "../../lib/pageCover";
@@ -9,6 +10,7 @@ import type { BrowserTab } from "../../state/tabs/tabModels";
 import { TabFace, useTheme } from "../ui";
 
 export function PageCover({ tab }: { tab: BrowserTab }) {
+  countRender("PageCover");
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const live = useNavigation(tab.id, (n) => n?.isLive ?? false);

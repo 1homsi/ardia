@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef } from "react";
+import { countRender } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
@@ -71,6 +72,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
 }
 
 export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
+  countRender("DeckCard");
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const slot = useSharedValue(0);

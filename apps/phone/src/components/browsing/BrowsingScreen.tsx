@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { countRender } from "../../state/app/interactionPerf";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
@@ -45,6 +46,7 @@ import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
 import { launchArguments } from "../../state/app/launchFlags";
 
 export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
+  countRender("BrowsingScreen");
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();

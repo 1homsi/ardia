@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { FrameProbe } from "./components/perf/FrameProbe";
+import { countRender, interactionPerfEnabled } from "./state/app/interactionPerf";
 import { AppState, BackHandler, StyleSheet, useColorScheme, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -74,6 +76,7 @@ export default function App() {
       <SafeAreaProvider>
         <ProfileLookContext.Provider value={look}>
           <OverlayHost>{ready ? <Surfaces /> : importFailed ? <ImportFailedView /> : null}</OverlayHost>
+          {interactionPerfEnabled() ? <FrameProbe /> : null}
         </ProfileLookContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -93,6 +96,7 @@ export function Surfaces() {
   const sheetProgress = useSharedValue(0);
   const front = frontSheet(settingsOpen, sheet);
   const theme = useTheme();
+  countRender("Surfaces");
   const incognito = useIncognito();
   const layer = inkLayer({ onboarding, voice, sheet: front !== null, searching, surface });
   const lightIcons = lightStatusIcons(layer, { cover: theme.backdrop[0], surface: theme.surface, deck: theme.backdrop[0], incognito });

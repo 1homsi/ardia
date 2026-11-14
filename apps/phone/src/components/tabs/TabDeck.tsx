@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { beginInteraction, countRender, INTERACTION_WINDOW_MS, interactionPerfEnabled } from "../../state/app/interactionPerf";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
@@ -66,6 +67,8 @@ function roleOf(phase: Phase, id: string, index: number, order: readonly string[
 }
 
 export function TabDeck() {
+  countRender("TabDeck");
+  const measuresInteractions = interactionPerfEnabled();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom), [width, height, insets.top, insets.bottom]);
@@ -122,6 +125,7 @@ export function TabDeck() {
       return;
     }
     scroll.value = openingDeckScroll(index, order.length);
+    beginInteraction("deck open", INTERACTION_WINDOW_MS.deckOpen);
     setPhase({ kind: "opening", id: entrance });
     scaleProgress.value = 0;
     positionProgress.value = 0;
@@ -175,6 +179,7 @@ export function TabDeck() {
   }, [command, phase.kind]);
 
   const open = (index: number) => {
+    beginInteraction("card open", INTERACTION_WINDOW_MS.cardOpen);
     const id = order[index];
     if (!id || phase.kind !== "settled" || dragIndex.value === index || flyIndex.value === index) return;
     if (reduceMotion) {
@@ -246,6 +251,7 @@ export function TabDeck() {
     .onStart((e) => {
       const down = touchDown.value;
       const card = deckCardAt(g, count, scroll.value, down.x, down.y);
+      if (measuresInteractions) runOnJS(beginInteraction)("deck scroll", INTERACTION_WINDOW_MS.deckScroll);
       startScroll.value = scroll.value;
       scrollFrom.value = e.absoluteX;
       touching.value = true;
