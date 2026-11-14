@@ -345,3 +345,13 @@ test("a scene that fails says why in the launch log", async () => {
   await page.advance(MEADOW_POLL_MS);
   assert.ok(page.logs.some((line) => line === "[ardia windows] meadow fell back: the scene failed (WebGL2 unavailable; webgl2 unavailable)"), page.logs.join("\n"));
 });
+
+test("a Skip that arrives in the same poll as the first frame keeps its quick close", async () => {
+  const { page, deps } = fakePage();
+  startMeadowSession(startedNow, false, URL_OF_PAGE, deps);
+  page.report([{ state: "skip" }, { state: "ready", at: 1 }]);
+  await page.advance(MEADOW_POLL_MS);
+  assert.deepEqual(page.told.filter((event) => event.kind === "skip"), [{ kind: "skip" }]);
+  await page.advance(intro.motion.holds.skip + 2);
+  assert.equal(page.closed, 1, "the page closes after the skip's hold, not at the exit cue");
+});

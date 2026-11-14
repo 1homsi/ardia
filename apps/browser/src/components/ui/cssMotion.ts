@@ -1,6 +1,8 @@
+import type { spring } from "./motion";
+
 type Curve = (t: number) => number;
 
-type SpringPhysics = { stiffness: number; damping: number; mass: number };
+type SpringPhysics = ReturnType<typeof spring>;
 
 const CURVE_STEPS = 32;
 const SPRING_STEPS = 60;

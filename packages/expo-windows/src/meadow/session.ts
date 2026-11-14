@@ -59,6 +59,7 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
   let pageNight = night;
   let wantedNight = night;
   let reading = false;
+  let skipped = false;
   let pageMuted = intro.muted;
   let wantedMuted = intro.muted;
   let frames = 0;
@@ -133,10 +134,11 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
       stopDeadline();
       deps.tell({ kind: "live", firstFrameMs: Math.round(deps.now() - createdAt) });
       sendNight();
-      closeAt(intro.startedAt + intro.motion.exit.delay + intro.motion.holds.exit, "finished");
+      if (!skipped) closeAt(intro.startedAt + intro.motion.exit.delay + intro.motion.holds.exit, "finished");
     } else if (state.state === "tone" && isTone(state.tone)) deps.tone({ tone: state.tone, halo: typeof state.halo === "number" ? state.halo : 0 });
     else if (state.state === "failed") fallBack(typeof state.detail === "string" ? `the scene failed (${state.detail})` : "the scene failed");
-    else if (state.state === "skip" && (phase === "live" || phase === "opening")) {
+    else if (state.state === "skip" && (phase === "live" || phase === "opening") && !skipped) {
+      skipped = true;
       stopDeadline();
       deps.tell({ kind: "skip" });
       closeAt(deps.now() + intro.motion.holds.skip, "skipped");

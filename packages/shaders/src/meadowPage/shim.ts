@@ -182,6 +182,7 @@ function start(config: MeadowPageConfig): Controls {
       }
       if (!focused || !PRESS_KEYS.has(event.key)) return;
       event.preventDefault();
+      if (event.repeat) return;
       keyPressAt = Date.now();
       keyPressed = focused;
       focused.classList.add("pressed");
