@@ -260,6 +260,8 @@ and again only when that status changes.
     stage's colours blurred in every look (green: blurred green and blue, not flat lavender), and over incognito
     its label is white. The sheet frost over the page follows the page as it scrolls. Probe frost logs
     `path live` for both lab frosts, never `inside its own source`, each with its frost and source sizes.
+34. **Voice screen in light mode:** the backdrop is the dark profile backdrop, with the white "Listening…", X and
+    stop button readable on it, the same as in dark mode.
 
 ## Upgrade from the Compose app on Android
 
