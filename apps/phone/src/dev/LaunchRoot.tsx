@@ -1,5 +1,6 @@
 import { pages } from "@ardia/phone-native";
 import { useEffect, useState } from "react";
+import { AppState } from "react-native";
 import App from "../App";
 import { PageLab } from "./PageLab";
 
@@ -19,6 +20,13 @@ export function LaunchRoot() {
     }, LAUNCH_POLL_MILLIS);
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (mode !== "app") return;
+    const resumed = AppState.addEventListener("change", (state) => {
+      if (state === "active" && pages.launchOptions()?.pageLab) setMode("lab");
+    });
+    return () => resumed.remove();
+  }, [mode]);
   if (mode === "pending") return null;
   return mode === "lab" ? <PageLab /> : <App />;
 }

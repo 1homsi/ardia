@@ -2,7 +2,7 @@ export type CopyPlatform = "android" | "ios";
 
 export type DefaultBrowserSteps = { title: string; subtitle: string; steps: string[]; action: string };
 
-export type ImportFailedCopy = { title: string; body: string; tryAgain: string; startWithout: string; startWithoutNote: string };
+export type ImportFailedCopy = { title: string; body: string; tryAgain: string; tryingAgain: string; startWithout: string; startWithoutNote: string };
 
 export type PlatformCopy = {
   importFailed: ImportFailedCopy;
@@ -37,6 +37,7 @@ const ANDROID: PlatformCopy = {
     title: "Couldn’t Bring Over Your Tabs",
     body: "Ardia couldn’t bring over the tabs and settings from the previous version. They’re still on this phone.",
     tryAgain: "Try Again",
+    tryingAgain: "Trying Again…",
     startWithout: "Start Without Them",
     startWithoutNote: "They stay on this phone, so a later version can still bring them over.",
   },
@@ -71,6 +72,7 @@ const IOS: PlatformCopy = {
     title: "Couldn’t Bring Over Your Tabs",
     body: "Ardia couldn’t bring over the tabs and settings from the previous version. They’re still on this iPhone.",
     tryAgain: "Try Again",
+    tryingAgain: "Trying Again…",
     startWithout: "Start Without Them",
     startWithoutNote: "They stay on this iPhone, so a later version can still bring them over.",
   },

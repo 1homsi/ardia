@@ -24,7 +24,8 @@ export function ImportFailedView() {
       <Text style={[font.subheadline, styles.text, { color: theme.secondaryLabel }]}>{words.body}</Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ disabled: busy, busy }}
+        accessibilityLabel={busy ? words.tryingAgain : words.tryAgain}
+        accessibilityState={{ disabled: busy }}
         disabled={busy}
         onPress={retryImport}
         style={[styles.retry, { borderColor: theme.separator }]}
