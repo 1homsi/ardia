@@ -86,11 +86,20 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const preferred = SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
   const trayHeight = trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s);
   const extend = window.height;
-  const closedByTouch = useRef(false);
-  const closeOnce = () => {
-    if (closedByTouch.current) return;
-    closedByTouch.current = true;
-    cancelSearch();
+  const closedOnPressIn = useRef(false);
+  const closeFromTouch = () => {
+    if (searchState().open && searchState().session === session) cancelSearch();
+  };
+  const closeOnPressIn = () => {
+    closedOnPressIn.current = true;
+    closeFromTouch();
+  };
+  const closeOnPress = () => {
+    if (closedOnPressIn.current) {
+      closedOnPressIn.current = false;
+      return;
+    }
+    closeFromTouch();
   };
 
   useEffect(() => {
@@ -249,8 +258,8 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
         <Pressable
           accessibilityLabel="Close Search"
           accessibilityRole="button"
-          onPressIn={closeOnce}
-          onPress={closeOnce}
+          onPressIn={closeOnPressIn}
+          onPress={closeOnPress}
           style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
         />
       </Animated.View>

@@ -5,7 +5,7 @@ export function Shade({ shaded, children }: { shaded: boolean; children: ReactNo
   return (
     <View
       style={StyleSheet.absoluteFill}
-      pointerEvents="box-none"
+      pointerEvents={shaded ? "none" : "box-none"}
       collapsable={false}
       importantForAccessibility={shaded ? "no-hide-descendants" : "auto"}
       accessibilityElementsHidden={shaded}
