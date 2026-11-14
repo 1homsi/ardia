@@ -104,11 +104,6 @@ void ClearIntent(content::WebContents* contents) {
   }
 }
 
-bool AutomaticIntentPending(content::WebContents* contents) {
-  const PendingIntent* pending = Pending(contents);
-  return pending && pending->intent != Intent::kExplicit;
-}
-
 Player::Player(content::VideoPictureInPictureWindowController* controller)
     : controller_(controller) {
   Players().push_back(this);

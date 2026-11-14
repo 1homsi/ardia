@@ -46,7 +46,7 @@ class LinuxPageMedia : public content::WebContentsObserver,
   static bool Handles(std::string_view command);
   void Dispatch(const std::string& command, const base::ListValue& args, bool activation, Done done);
   std::vector<std::pair<std::string, base::Value>> Snapshot() const { return reporter_.Snapshot(); }
-  void NotePictureInPicture(bool active, std::string kind);
+  void NotePictureInPicture(bool active, std::string kind, bool left_tab);
   bool InPictureInPicture() const;
   const LinuxMediaState& state() const { return reporter_.state(); }
   bool SessionPlaying() const { return session_.active && session_.playing; }

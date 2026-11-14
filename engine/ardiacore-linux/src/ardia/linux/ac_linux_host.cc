@@ -261,7 +261,6 @@ extern int (*g_ardia_linux_tab_shown)(content::WebContents*);
 extern void (*g_ardia_linux_auto_pip_requested)(content::WebContents*);
 extern bool (*g_ardia_linux_auto_pip_allowed)(content::WebContents*);
 extern bool (*g_ardia_linux_keeps_picture_in_picture)(content::WebContents*);
-extern bool (*g_ardia_linux_refuses_document_picture_in_picture)(content::WebContents*, bool);
 extern std::unique_ptr<content::VideoOverlayWindow> (*g_ardia_linux_video_overlay)(
     content::VideoPictureInPictureWindowController*);
 extern void (*g_ardia_linux_page_host_binder)(content::RenderFrameHost&, blink::AssociatedInterfaceRegistry&);
@@ -4313,10 +4312,11 @@ void ShellHostView::ReportPictureInPicture(content::WebContents* contents,
     if (contents && binding->contents() == contents) owners.push_back(binding->GetWeakPtr());
   }
   const bool active = state.FindBool("active").value_or(false);
+  const bool left_tab = state.FindBool("leftTab").value_or(false);
   const std::string* kind = state.FindString("kind");
   for (const auto& binding : owners) {
     if (!binding) continue;
-    if (binding->media) binding->media->NotePictureInPicture(active, kind ? *kind : "video");
+    if (binding->media) binding->media->NotePictureInPicture(active, kind ? *kind : "video", left_tab);
     else binding->ReportPresentation("pictureInPicture", state.Clone());
   }
 }
@@ -5693,6 +5693,13 @@ bool ShellHostView::DoesIntersectRect(const views::View* target, const gfx::Rect
   return !remaining.empty();
 }
 
+void TellAutoPictureInPictureDeparted(base::WeakPtr<content::WebContents> contents) {
+  if (!contents || (g_ardia_linux_tab_shown && g_ardia_linux_tab_shown(contents.get()) == 1)) return;
+  if (auto* helper = AutoPictureInPictureTabHelper::FromWebContents(contents.get())) {
+    helper->OnTabActivatedChanged(false);
+  }
+}
+
 void ShellHostView::SetPresentations(
     const base::DictValue& args,
     base::OnceCallback<void(bool, base::Value)> done) {
@@ -5730,9 +5737,14 @@ void ShellHostView::SetPresentations(
   }
   for (const auto& [contents, visible] : changes) {
     if (!contents) continue;
-    if (visible) ardia::linux_pip::ClearIntent(contents.get());
+    if (!visible) {
+      ardiacore::DepartWhenLinuxPageHidden(contents.get(), base::BindOnce(&TellAutoPictureInPictureDeparted, contents));
+      continue;
+    }
+    ardia::linux_pip::ClearIntent(contents.get());
+    ardiacore::ReturnBeforeLinuxPageHidden(contents.get());
     if (auto* helper = AutoPictureInPictureTabHelper::FromWebContents(contents.get())) {
-      helper->OnTabActivatedChanged(visible);
+      helper->OnTabActivatedChanged(true);
     }
   }
   for (const auto& binding : revealed) {
@@ -6869,7 +6881,8 @@ std::optional<gfx::PointF> TabBinding::ShellPoint(gfx::PointF page_point) const 
 
 void TabBinding::ReportSwipe(base::DictValue swipe) {
   if (!owner_ || !presented || !pane_visible) return;
-  owner_->Event("ArdiaShell", ardia::linux_swipe::kPageSwipeEvent, base::Value(std::move(swipe.Set("tabId", key_))));
+  swipe.Set("tabId", key_);
+  owner_->Event("ArdiaShell", ardia::linux_swipe::kPageSwipeEvent, base::Value(std::move(swipe)));
 }
 
 bool TabBinding::PeeksOtherSites() const {
@@ -7250,9 +7263,10 @@ class HostRegistry : public BrowserCollectionObserver,
   void ReportPictureInPicture(bool active) {
     if (!pip_opener_) return;
     for (const auto& [id, host] : Hosts()) {
-      if (host->TabShown(pip_opener_.get()) < 0) continue;
+      const int shown = host->TabShown(pip_opener_.get());
+      if (shown < 0) continue;
       host->ReportPictureInPicture(pip_opener_.get(), base::DictValue()
-          .Set("active", active).Set("kind", pip_kind_));
+          .Set("active", active).Set("kind", pip_kind_).Set("leftTab", shown != 1));
     }
   }
   void OnEnterPictureInPicture() override {
@@ -7474,9 +7488,6 @@ void StartLinuxHost() {
     return ardia::linux_pip::FindPresenter(contents) != nullptr;
   };
   g_ardia_linux_keeps_picture_in_picture = &ardia::linux_pip::Player::KeepsAfterSourceReturn;
-  g_ardia_linux_refuses_document_picture_in_picture = [](content::WebContents* source, bool user_gesture) {
-    return source && !user_gesture && ardia::linux_pip::AutomaticIntentPending(source);
-  };
   g_ardia_linux_video_overlay = [](content::VideoPictureInPictureWindowController* controller)
       -> std::unique_ptr<content::VideoOverlayWindow> {
     return std::make_unique<ardia::linux_pip::Player>(controller);

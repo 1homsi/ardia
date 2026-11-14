@@ -115,8 +115,8 @@ void LinuxPageMedia::MediaPictureInPictureChanged(bool active) {
   if (active) FinishPictureInPicture();
 }
 
-void LinuxPageMedia::NotePictureInPicture(bool active, std::string kind) {
-  reporter_.SetPictureInPicture({std::move(kind), active});
+void LinuxPageMedia::NotePictureInPicture(bool active, std::string kind, bool left_tab) {
+  reporter_.SetPictureInPicture({std::move(kind), active}, left_tab);
   if (active) FinishPictureInPicture();
 }
 

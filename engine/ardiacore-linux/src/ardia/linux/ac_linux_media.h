@@ -98,7 +98,7 @@ class LinuxMediaReporter {
   bool SetAudio(bool audible, bool muted);
   bool SetNowPlaying(std::optional<LinuxNowPlaying> state);
   bool SetAccess(LinuxMediaAccess access);
-  bool SetPictureInPicture(LinuxPictureInPicture state);
+  bool SetPictureInPicture(LinuxPictureInPicture state, std::optional<bool> left_tab = std::nullopt);
   const LinuxMediaState& state() const { return state_; }
   std::vector<std::pair<std::string, base::Value>> Snapshot() const;
   void Stop() { emit_.Reset(); }

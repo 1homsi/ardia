@@ -563,9 +563,10 @@ void LinuxPageChannel::OnInputEventAck(const content::RenderWidgetHost& widget,
 
 void LinuxPageChannel::ForwardSwipe(const ardia::linux_swipe::Step& step, std::optional<gfx::PointF> page_point) {
   if (!hooks_ || !hooks_->swipe) return;
-  base::DictValue swipe;
-  swipe.Set("phase", std::string(ardia::linux_swipe::PhaseName(step.phase)));
-  swipe.Set("dx", step.dx).Set("dy", step.dy);
+  base::DictValue swipe = base::DictValue()
+      .Set("phase", std::string(ardia::linux_swipe::PhaseName(step.phase)))
+      .Set("dx", step.dx)
+      .Set("dy", step.dy);
   if (step.phase == ardia::linux_swipe::Phase::kBegan) {
     std::optional<gfx::PointF> point =
         page_point && hooks_->shell_point ? hooks_->shell_point.Run(*page_point) : std::nullopt;
@@ -573,7 +574,8 @@ void LinuxPageChannel::ForwardSwipe(const ardia::linux_swipe::Step& step, std::o
       swipe_.End(true);
       return;
     }
-    swipe.Set("x", point->x()).Set("y", point->y());
+    swipe.Set("x", point->x());
+    swipe.Set("y", point->y());
   }
   hooks_->swipe.Run(std::move(swipe));
 }

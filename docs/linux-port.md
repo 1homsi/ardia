@@ -662,8 +662,14 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     (`LAYER_SURFACE`, 6 pt corners) above the page views and below the shell; it takes no input, and the host keeps
     its rectangle out of the shell's page pass-through.
   - An automatic request with nowhere to play (the window hidden or minimized, its shell not attached, a site set to
-    Ask) is declined before the page is asked. Automatic document PiP (video calls) is refused, since it would map a
-    toplevel; explicit document PiP is unchanged.
+    Ask) is declined before the page is asked.
+  - Leaving a tab tells Chromium's automatic PiP only once the page is hidden (its `WebContents` no longer
+    visible, then the next task), or after `kHiddenPageWaitMs` regardless, as the Mac does since #1793: Meet opens
+    PiP only from a hidden page. Coming back before then cancels the departure.
+  - Automatic document PiP (video calls such as Meet) opens Chromium's real document PiP window. It maps a toplevel,
+    so on Wayland it takes focus as any new window does there. Not yet run against a real Meet call.
+  - A PiP that opens reports `fullScreenSpaces: false` and `leftTab` (its tab wasn't shown), so the shared
+    `pip_shown` count, which needs `fullScreenSpaces`, now counts Linux too, with `left_tab`.
   - Shell (`InWindowPlayer.tsx`, `pipPlayer.ts`, `pipGeometry.ts`): Dia's PiP controls and timings (the hover scrim,
     back to tab, close, play/pause, ±10 s, the progress bar), plus a pop-out button. A click that travels under
     3 px on the video's left or right side skips back or ahead 10 s through the same `seekBy` command, as on the Mac;

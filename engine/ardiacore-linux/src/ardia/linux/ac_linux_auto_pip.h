@@ -8,6 +8,23 @@
 
 namespace ardiacore::linux_auto_pip {
 
+inline constexpr int kHiddenPageWaitMs = 400;
+
+class HiddenPageWait {
+ public:
+  bool Depart(bool page_visible) {
+    waiting_ = page_visible;
+    return !page_visible;
+  }
+  bool PageHidden() { return std::exchange(waiting_, false); }
+  bool WaitedOut() { return std::exchange(waiting_, false); }
+  void Return() { waiting_ = false; }
+  bool waiting() const { return waiting_; }
+
+ private:
+  bool waiting_ = false;
+};
+
 template <class P>
 class Preference {
  public:

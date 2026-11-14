@@ -40,7 +40,6 @@ enum class Intent { kExplicit, kAutomatic, kCancelled };
 void NoteIntent(content::WebContents* contents, Intent intent);
 Intent TakeIntent(content::WebContents* contents);
 void ClearIntent(content::WebContents* contents);
-bool AutomaticIntentPending(content::WebContents* contents);
 
 class Player;
 

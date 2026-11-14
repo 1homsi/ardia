@@ -145,6 +145,13 @@ void Reporter() {
   assert(reporter.SetPictureInPicture({"video", false}) && Text(sent.back().second, "kind") == "document" && sent.back().second.FindBool("active") == false);
   assert(!reporter.SetPictureInPicture({"video", false}));
   assert(reporter.SetPictureInPicture({"video", true}));
+  assert(!sent.back().second.Find("fullScreenSpaces") && !sent.back().second.Find("leftTab"));
+  assert(reporter.SetPictureInPicture({"video", false}, true) && !sent.back().second.Find("leftTab"));
+  assert(reporter.SetPictureInPicture({"document", true}, true));
+  assert(sent.back().second.FindBool("fullScreenSpaces") == false && sent.back().second.FindBool("leftTab") == true);
+  assert(!reporter.SetPictureInPicture({"document", true}, false));
+  assert(reporter.SetPictureInPicture({"video", false}) && reporter.SetPictureInPicture({"video", true}, false));
+  assert(sent.back().second.FindBool("leftTab") == false);
   auto snapshot = reporter.Snapshot();
   assert(snapshot.size() == 4 && snapshot[0].first == "media" && snapshot[1].first == "nowPlaying" && snapshot[2].first == "mediaAccess" && snapshot[3].first == "pictureInPicture");
   assert(snapshot[0].second.GetDict().FindBool("muted") == true && snapshot[1].second.GetDict().Find("state")->is_none());

@@ -164,7 +164,7 @@ bool LinuxMediaReporter::SetAccess(LinuxMediaAccess access) {
   return true;
 }
 
-bool LinuxMediaReporter::SetPictureInPicture(LinuxPictureInPicture state) {
+bool LinuxMediaReporter::SetPictureInPicture(LinuxPictureInPicture state, std::optional<bool> left_tab) {
   if (state.kind != "document") state.kind = "video";
   if (!state.active) {
     if (!state_.picture_in_picture.active) return false;
@@ -172,7 +172,12 @@ bool LinuxMediaReporter::SetPictureInPicture(LinuxPictureInPicture state) {
   }
   if (state_.picture_in_picture == state) return false;
   state_.picture_in_picture = state;
-  Send("pictureInPicture", LinuxPictureInPictureEventData(state));
+  base::DictValue data = LinuxPictureInPictureEventData(state);
+  if (state.active && left_tab) {
+    data.Set("fullScreenSpaces", false);
+    data.Set("leftTab", *left_tab);
+  }
+  Send("pictureInPicture", std::move(data));
   return true;
 }
 
