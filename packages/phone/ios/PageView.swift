@@ -13,6 +13,8 @@ final class PageView: ExpoView {
   var isPrivate = false
   var savedState: String?
   var toneInsets: (top: CGFloat, bottom: CGFloat) = (0, 0)
+  var swipeNavigation: PageGestures.Swipe = .anywhere
+  var pullToRefresh = true
   private(set) var page: WebTab?
 
   private weak var hostedWebView: WKWebView?
@@ -25,6 +27,15 @@ final class PageView: ExpoView {
   private var toneTask: Task<Void, Never>?
   private var scrollObservation: NSKeyValueObservation?
   private var lastScroll: TimeInterval = 0
+  private var madeGestures: PageGestures?
+
+  @MainActor
+  private var gestures: PageGestures {
+    if let madeGestures { return madeGestures }
+    let made = PageGestures(container: self)
+    madeGestures = made
+    return made
+  }
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -33,6 +44,8 @@ final class PageView: ExpoView {
 
   @MainActor
   func bind() {
+    gestures.swipe = swipeNavigation
+    gestures.pulls = pullToRefresh
     guard let pageID, failedID != pageID else { return }
     if let page, PhonePages.shared.page(pageID) === page { return }
     unbind()
@@ -59,6 +72,7 @@ final class PageView: ExpoView {
     toneTask?.cancel()
     toneTask = nil
     scrollObservation = nil
+    madeGestures?.detach()
     if let hostedWebView, hostedWebView.superview === self { hostedWebView.removeFromSuperview() }
     hostedWebView = nil
     page = nil
@@ -74,12 +88,15 @@ final class PageView: ExpoView {
     if let hostedWebView, hostedWebView.superview === self { hostedWebView.removeFromSuperview() }
     hostedWebView = webView
     scrollObservation = nil
-    guard let webView else { return }
+    guard let webView else {
+      gestures.attach(nil, page: nil)
+      return
+    }
     webView.removeFromSuperview()
     webView.frame = bounds
     webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    webView.allowsBackForwardNavigationGestures = true
     addSubview(webView)
+    gestures.attach(webView, page: page)
     scrollObservation = webView.scrollView.observe(\.contentOffset, options: []) { [weak self] _, _ in
       MainActor.assumeIsolated { self?.scrollMoved() }
     }
@@ -109,6 +126,7 @@ final class PageView: ExpoView {
       payload["name"] = "state"
       onPageEvent(payload)
     }
+    if !page.isLoading { madeGestures?.pageStoppedLoading() }
     if wasLoading, !page.isLoading { scheduleToneSample(after: .milliseconds(250)) }
     wasLoading = page.isLoading
     sendTone(theme: page.themeColor, underPage: page.underPageBackgroundColor)
@@ -155,7 +173,7 @@ final class PageView: ExpoView {
   @MainActor
   private func sampleTone() async {
     guard let page, let webView = hostedWebView, webView.window != nil, !webView.isHidden, webView.url != nil,
-          !page.isLoading, webView.bounds.height > toneInsets.top + toneInsets.bottom + ToneSampler.bandHeight * 4 else { return }
+          !page.isLoading, madeGestures?.isSwiping != true, webView.bounds.height > toneInsets.top + toneInsets.bottom + ToneSampler.bandHeight * 4 else { return }
     let id = page.id
     guard let tone = await ToneSampler.sample(webView, topInset: toneInsets.top, bottomInset: toneInsets.bottom),
           self.page?.id == id else { return }

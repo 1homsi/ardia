@@ -306,6 +306,14 @@ public final class PageViewModule: Module {
         }
       }
 
+      Prop("swipeNavigation") { (view: PageView, mode: String?) in
+        view.swipeNavigation = mode.flatMap(PageGestures.Swipe.init(rawValue:)) ?? .anywhere
+      }
+
+      Prop("pullToRefresh") { (view: PageView, pulls: Bool?) in
+        view.pullToRefresh = pulls ?? true
+      }
+
       OnViewDidUpdateProps { (view: PageView) in
         MainActor.assumeIsolated { view.bind() }
       }
