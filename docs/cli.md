@@ -346,7 +346,8 @@ presence, so it doesn't wait): agents on hydrating pages, and scripts written Pl
 that showed up a moment later. A click whose point is covered first tries two fixes, each once: when the cover is a
 cookie or consent layer (the cover's nearest fixed, sticky, dialog or CMP-vendor ancestor, or a CMP layer behind a fixed
 backdrop over half the viewport, whose text names cookies or consent and is under 3,000 characters, or 20,000 for a layer named after a consent
-platform such as OneTrust, whose preference centers run long), it clicks that
+platform such as OneTrust, consentmanager, Cookiebot, iubenda, Termly, Klaro, Complianz or CookieYes, whose banners and
+preference centers run long), it clicks that
 layer's reject button ("Reject all", "Necessary only"…), else accept ("Accept all", "I agree", "OK"…), else
 close, never a bare "Continue" or "Decline" on some other dialog, says so in the output
 (`A consent banner was in the way: … "Reject all" button was clicked (reject)`) and retries; otherwise it scrolls
