@@ -510,8 +510,15 @@ is plain Chromium.
   and offers it to the app with `tab.opened` (`foreground` as the page asked, and for a pop-up `window: true` and
   `popup: {x, y, width, height}`, only what the page asked for). A blocked pop-up the user lets through opens as a tab,
   as before. The host tracks every offer until the app adopts or discards it; offers whose app window closes are
-  closed with it, and an offer made while the app's event sink is detached (its JS reloading), which the app never
-  hears of, is closed after 30 s. An offer the app holds on purpose (a background tab not shown yet) has no deadline.
+  closed with it. The app acknowledges each `tab.opened` it handled (`tab.offerHeard`, in `engine/host.ts`) and then
+  owns the decision, so a background tab it keeps for later stays; an offer nobody acknowledged within 30 s (4 s in a
+  test instance) is closed, whatever lost it.
+- A pop-up window takes focus only if, when it opens, its opener's app window is the foreground window and the
+  opener's page holds the keyboard (`keyboard.page`, asked by `WindowManager.h` at that moment, the same rule as page
+  focus in #1658); a pop-up from a pop-up is placed and focused by that pop-up, while its tabs and prompts go to the
+  main page. Otherwise it shows just above its opener's window and that window's pages, without activating, and never
+  above another application's window. The Mac shows such a pop-up in front of its Ardia windows and makes it key
+  within Ardia; Windows shows it in the same place but leaves the keyboard where it was.
   `host.info` counts Chromium pop-up windows in `popupBrowsers`, which the self-check expects to stay 0.
 - CI takes its engine from a GitHub release: `scripts/windows/engine/prebuilt.json` names the release and each
   CPU's zip with its SHA-256, `fetch-engine.ps1` downloads and checks it, and the Windows workflow assembles the app

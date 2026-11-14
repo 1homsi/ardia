@@ -16,7 +16,6 @@ const ArdiaEngineApi* EngineApi();
 void WatchEngineEvents();
 
 void Emit(std::string_view topic, base::DictValue payload);
-bool EventSinkAttached();
 
 base::DictValue Error(std::string_view message);
 

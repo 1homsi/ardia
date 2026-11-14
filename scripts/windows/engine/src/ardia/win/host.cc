@@ -71,6 +71,7 @@ constexpr char kOfferedPrefix[] = "ardiacore:";
 constexpr int kOpenRequestTries = 20;
 constexpr base::TimeDelta kOpenRequestWait = base::Milliseconds(25);
 constexpr base::TimeDelta kOfferDeadline = base::Seconds(30);
+constexpr base::TimeDelta kTestOfferDeadline = base::Seconds(4);
 constexpr UINT_PTR kParentSubclass = 0xA2D1A;
 
 base::DictValue Ok() {
@@ -305,6 +306,17 @@ void Host::Call(const std::string& verb,
     result = CloseTab(args);
   } else if (verb == "tab.discard") {
     result = DiscardOffered(args);
+  } else if (verb == "tab.offerHeard") {
+    if (content::WebContents* offered = FindOffered(Text(args, "adopt"))) {
+      auto found = offers_.find(TabState::IdOf(offered));
+      if (found != offers_.end()) {
+        found->second.heard = true;
+      }
+    }
+    result = Ok();
+  } else if (verb == "keyboard.page") {
+    result = Ok();
+    result.Set("key", KeyboardPage());
   } else if (verb == "tabs.list") {
     result = ListTabs();
   } else if (verb == "host.info") {
@@ -756,6 +768,7 @@ base::DictValue Host::Info() {
   result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
   result.Set("pageWindows", static_cast<int>(hosted_.size()));
   result.Set("popupBrowsers", static_cast<int>(popup_browsers_.size()));
+  result.Set("offers", static_cast<int>(offers_.size()));
   result.Set("testInstance", ardiacore::TestInstance());
   result.Set("keyboardPage", KeyboardPage());
   result.Set("keyboardMayMove", KeyboardMayMove());
@@ -1189,18 +1202,15 @@ void Host::OfferInserted() {
 void Host::NoteOffer(content::WebContents* contents, HWND parent) {
   const int id = TabState::IdOf(contents);
   offers_[id] = {contents->GetWeakPtr(), parent};
-  if (EventSinkAttached()) {
-    return;
-  }
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&Host::ExpireOffer, weak_factory_.GetWeakPtr(), id),
-      kOfferDeadline);
+      ardiacore::TestInstance() ? kTestOfferDeadline : kOfferDeadline);
 }
 
 void Host::ExpireOffer(int id) {
   auto found = offers_.find(id);
-  if (found == offers_.end()) {
+  if (found == offers_.end() || found->second.heard) {
     return;
   }
   base::WeakPtr<content::WebContents> contents = found->second.contents;

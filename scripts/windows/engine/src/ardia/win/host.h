@@ -156,6 +156,7 @@ class Host : public TabStripModelObserver,
   struct Offer {
     base::WeakPtr<content::WebContents> contents;
     HWND parent = nullptr;
+    bool heard = false;
   };
   Opening opening_;
   std::map<int, Offer> offers_;
