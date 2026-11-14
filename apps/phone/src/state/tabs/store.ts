@@ -18,6 +18,7 @@ import { browserDatabase } from "../store/database";
 import { receiveTabs, type IncomingTab } from "./received";
 import type { AutoArchiveInterval, BrowserTab, TabPatch } from "./tabModels";
 import { countUsage } from "../telemetry/telemetry";
+import { labTrace } from "../../platform/lab";
 import {
   archiveTabs,
   clearArchive,
@@ -107,6 +108,8 @@ export function loadTabs() {
   useTabs.setState({ ...launchTabs(readOpenTabs(db), countArchivedTabs(db)), incognito: false, listing: 0 });
 }
 
+let tabsOpenedThisRun = 0;
+
 export function openNewTab(request: Omit<OpenRequest, "isPrivate"> & { isPrivate?: boolean }): BrowserTab {
   const { change, tab } = openTab(
     data(),
@@ -116,6 +119,7 @@ export function openNewTab(request: Omit<OpenRequest, "isPrivate"> & { isPrivate
   );
   apply(change);
   if (!tab.isPrivate && !request.received) countUsage("tabs_opened");
+  labTrace(`PAGELAB tab opened #${++tabsOpenedThisRun} origin ${request.origin}${tab.isPrivate ? " private" : ""}${request.received ? " received" : ""} id ${tab.id} open ${useTabs.getState().open.length}`);
   return tab;
 }
 
@@ -172,6 +176,7 @@ export function receiveSentTabs(incoming: readonly IncomingTab[]): BrowserTab[] 
   const known = knownReceivedKeys(browserDatabase(), incoming.map((tab) => tab.key));
   const { change, opened } = receiveTabs(data(), incoming, known, now(), newUuid);
   if (opened.length) apply(change);
+  for (const tab of opened) labTrace(`PAGELAB tab opened #${++tabsOpenedThisRun} origin received-from-mac id ${tab.id} open ${useTabs.getState().open.length}`);
   return opened;
 }
 

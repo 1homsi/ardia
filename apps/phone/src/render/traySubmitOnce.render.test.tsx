@@ -73,3 +73,18 @@ test("a field that reports one Go twice still opens one tab: the tray takes one 
   expect(currentTabs().open.length).toBe(before + 1);
   unmount(root);
 });
+
+test("each tab opened prints one lab line with its origin, so a phone run can count tabs per submit", () => {
+  const lab = require("../platform/lab") as typeof import("../platform/lab");
+  const traced: string[] = [];
+  lab.traceLab(true, (line) => traced.push(line));
+  presentSearch("page", "");
+  const root = renderSurface(<SearchTray />);
+  const field = root.root.findAll((node) => node.type === ("ArdiaPhoneCompletingField" as never))[0]!;
+  act(() => field.props.onSubmit({ nativeEvent: { displayed: "example.com" } }));
+  lab.traceLab(false);
+  const opened = traced.filter((line) => line.startsWith("PAGELAB tab opened"));
+  expect(opened).toHaveLength(1);
+  expect(opened[0]).toMatch(/^PAGELAB tab opened #\d+ origin typed id \S+ open \d+$/);
+  unmount(root);
+});
