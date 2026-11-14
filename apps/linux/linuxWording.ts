@@ -27,7 +27,7 @@ export const LINUX_WORDING: readonly Wording[] = [
     file: "components/onboarding/HomeStep.tsx",
     replacements: [
       [
-        `        {system && !system.inDock ? (
+        `        {system && system.dockAvailable && !system.inDock ? (
           <OptionCard control="check" icon="dock.rectangle" title="Add Ardia to Dock" subtitle="Quick access whenever you need it" selected={dock} onPress={() => setExtras({ dock: !dock })} />
         ) : null}
 `,
