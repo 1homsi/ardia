@@ -269,6 +269,11 @@ and again only when that status changes.
     carousel then logs `swipe left to the page … the scroller under the finger can scroll back` or
     `the page asked to keep it N ms after touch down`. A right drag on plain text, away from any carousel, still
     goes back (`swipe back claimed …`).
+36. **Offline page:** load a page, turn on airplane mode, then open a new page and reload the first. Each tab keeps
+    its last real title, or shows the address's host when it never loaded: on the deck, in the Archive, in the page
+    menu and in History, never "Web page not available". The deck card keeps the page's last good snapshot (or
+    the placeholder), never the WebView's white error page. In dark mode the bottom bar stays dark over the
+    offline view. Turn airplane mode off and tap Try Again: the real title, colours and a new snapshot come back.
 
 ## Upgrade from the Compose app on Android
 

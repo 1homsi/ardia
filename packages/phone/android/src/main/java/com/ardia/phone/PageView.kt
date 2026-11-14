@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 import com.ardia.browser.Page
 import com.ardia.browser.PageColors
 import com.ardia.browser.PageState
+import com.ardia.browser.ErrorPages
 import com.ardia.browser.PageTone
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.exception.CodedException
@@ -140,8 +141,9 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     private fun present(fields: Map<String, Any?>): Map<String, Any> = buildMap { fields.forEach { (key, value) -> if (value != null) put(key, value) } }
 
     private fun sendTone(state: PageState) {
-        val tone = PageTone.resolve(state.themeColor, state.backgroundColor, sampled, stored = null)
-        if (tone == sentTone || (tone.top == null && tone.bottom == null)) return
+        if (state.failure != null) sampled = null
+        val tone = ErrorPages.tone(state.failure, PageTone.resolve(state.themeColor, state.backgroundColor, sampled, stored = null))
+        if (tone == sentTone || (tone.top == null && tone.bottom == null && sentTone == null)) return
         sentTone = tone
         onPageEvent(
             buildMap {

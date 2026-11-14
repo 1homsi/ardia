@@ -91,6 +91,7 @@ internal class WebViewPage(
     private var lastCommitAt = Long.MIN_VALUE / 2
     private var lastCommittedUrl: String? = null
     private var failedUrl: String? = null
+    private var titledUrl: String? = setup.url.takeIf { setup.title.isNotBlank() }
     private var findQuery = ""
     private var lastTouchX = 0f
     private var lastTouchY = 0f
@@ -288,6 +289,7 @@ internal class WebViewPage(
     override suspend fun snapshot(maxWidth: Int): Bitmap? = withContext(Dispatchers.Main.immediate) {
         val web = webView ?: return@withContext null
         if (mutableState.value.url == null) return@withContext null
+        if (!ErrorPages.capturable(mutableState.value.failure)) return@withContext null
         if (web.parent == null && !web.isAttachedToWindow) {
             return@withContext engine.parked(web) {
                 repeat(PARKED_FRAMES) { awaitPaintedFrame(web) }
@@ -329,6 +331,7 @@ internal class WebViewPage(
 
     override suspend fun sampleTone(topInset: Int, bottomInset: Int): PageTone? = withContext(Dispatchers.Main.immediate) {
         val web = webView ?: return@withContext null
+        if (!ErrorPages.capturable(mutableState.value.failure)) return@withContext null
         if (!PageCapture.isDrawable(web)) return@withContext null
         val band = (ToneSampler.BAND_HEIGHT_DP * web.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
         if (web.height <= topInset + bottomInset + band * 3) return@withContext null
@@ -618,7 +621,7 @@ internal class WebViewPage(
                 security = PageSecurity.of(web.url ?: url, sawInsecureContent),
             )
         }
-        readPageLook(web)
+        if (ErrorPages.takesFromPage(failedUrl)) readPageLook(web)
         if (desktopSite) {
             val load = desktopLoad
             web.postDelayed({ if (load == desktopLoad) fitDesktopWidth(web, DESKTOP_FINISHED) }, FIT_WIDTH_DELAY_MILLIS)
@@ -647,7 +650,9 @@ internal class WebViewPage(
             previous != null && sinceLastCommit < CLIENT_REDIRECT_WINDOW_MILLIS -> VisitKind.Redirect
             else -> VisitKind.Link
         }
-        if (visit != null) mutableEvents.tryEmit(PageEvent.Visited(url, cleanTitle(web.title, url), visit))
+        if (visit == null) return
+        val title = if (ErrorPages.takesFromPage(failedUrl)) cleanTitle(web.title, url) else mutableState.value.title
+        mutableEvents.tryEmit(PageEvent.Visited(url, title, visit))
     }
 
     internal fun rendererNavigationKind(hasGesture: Boolean): VisitKind = when {
@@ -671,9 +676,11 @@ internal class WebViewPage(
     }
 
     internal fun titleReceived(web: WebView, title: String?) {
-        if (web !== webView) return
+        if (web !== webView || !ErrorPages.takesFromPage(failedUrl)) return
         val clean = cleanTitle(title, web.url)
-        if (clean.isEmpty() || clean == mutableState.value.title) return
+        if (clean.isEmpty()) return
+        titledUrl = web.url
+        if (clean == mutableState.value.title) return
         update { it.copy(title = clean) }
     }
 
@@ -684,7 +691,14 @@ internal class WebViewPage(
     internal fun failed(web: WebView, url: String, reason: NetworkFailure) {
         if (web !== webView) return
         failedUrl = url
-        update { it.copy(failure = PageLoadFailure.Network(reason)) }
+        update {
+            it.copy(
+                failure = PageLoadFailure.Network(reason),
+                title = ErrorPages.titleOnFailure(it.title, titledUrl, url),
+                themeColor = null,
+                backgroundColor = null,
+            )
+        }
     }
 
     internal fun rendererGone(web: WebView, didCrash: Boolean) {
