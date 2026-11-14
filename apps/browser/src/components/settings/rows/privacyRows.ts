@@ -38,6 +38,7 @@ export const privacyRows = {
       section: "Zoom",
       rows: {
         commandScrollZoom: {
+          shown: () => PLATFORM_FEATURES.commandScrollZoom,
           title: `Zoom with ${keyText("⌘")} and the mouse wheel`,
           description: `Sites that use ${keyText("⌘")}-scroll themselves, like maps, still get it. ${keyText("⌘+")}, ${keyText("⌘−")} and ${keyText("⌘0")} zoom either way.`,
           keywords: ["scroll wheel", "command scroll", "cmd scroll", "mouse zoom", "accidental zoom", "page zoom", "font size", "text size", "bigger text"],
@@ -72,6 +73,7 @@ export const privacyRows = {
       section: "Passwords",
       rows: {
         offerToSave: {
+          shown: () => PLATFORM_FEATURES.passwordAutofillSwitch,
           title: "Offer to save and fill passwords",
           description: "Offers to save a login after you sign in, and suggests saved ones when you click a login field.",
           keywords: ["password manager", "logins", "credentials", "keychain"],

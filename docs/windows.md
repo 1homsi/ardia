@@ -25,7 +25,7 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 64 rows, 47 work, 9 work with a difference, 1 is broken, 3 do nothing, 3 are not offered
+who and on which build. Of the 66 rows, 49 work, 8 work with a difference, 1 is broken, 4 do nothing, 3 are not offered
 and 1 was not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
@@ -75,7 +75,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | --- | --- | --- |
 | Command bar (history, open tabs, suggestions) | Works | |
 | Inline completion in the command bar | Works (top match completes inline) | #1520 |
-| Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
+| Find in page | Works: the app's find bar, from a page or the app's UI (Ctrl+F); count, Enter, Shift+Enter, F3 and Shift+F3 step; Escape gives the page the keyboard back; private windows too | #1758 |
 | Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
 | Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
 | JavaScript alert, confirm and prompt | Works (Chromium's dialogs over the page) | |
@@ -116,6 +116,8 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Sync | Works: Turn On Sync at the default folder shows the Recovery Kit, the pane says updated just now, every What Syncs row but Passwords; a Mac and a PC exchanged pinned tabs and bookmarks both ways (#1594) | #1575, #1425 |
 | Calendar | Does nothing; hidden | #1521 |
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
+| Keep new-tab links inside a Little Ardia window, zoom with Ctrl and the mouse wheel, offer to save and fill passwords | Does nothing (the engine has no call for them yet); hidden | #1783, #1425 |
+| Warn before quitting | Works (#1796's build 1f4d97db1, run 43631924720): with it on, closing the last window (close button, Alt+F4, Ctrl+Shift+W, a lone Little Ardia's Ctrl+W; Ctrl+W on a window's last tab follows the same rule) asks first with the Mac's words; Cancel keeps the app running, Quit exits, Don't ask again turns it off; a hidden instance never asks | #1782, #1803 |
 | The ardia command, Widevine | Not offered (each says so) | |
 | Copy naming the Mac | Works: the walk found three more (a ⌘T, "History › Recently Closed", "File › Close All Tabs"), fixed in #1668's PR | #1522, #1668 |
 
@@ -191,6 +193,17 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
+  - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance
+    isn't hidden, and no other window stays open: `windowIds()` less the browser windows the UI has closed or is
+    closing (Settings and Import count while listed). Little Ardia's own closes (Ctrl+W, Escape) and Ctrl+W on a
+    window's last tab ask the same way; when the last-tab confirm asks, it stands in for the quit question.
+    Windows has no Quit command, so these are the only places it asks; the Mac asks on ⌘Q and never on a window's
+    close. It asks before the window closes, so a Cancel leaves the window and the app as they were and no quit
+    starts; Quit closes the window and the quit above runs as before. A close that asked it never also shows the
+    close-tabs confirm. The dialog is the shared confirm on the dialog thread (#1672). Closing Settings when it is
+    the only window left quits without asking: Settings closes without a close request. A window that closes
+    elsewhere while a close-tabs confirm is open isn't counted again, so that close can then quit without asking.
+    Both are #1803.
   - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated`, and every
     window that is not a browser window (Little Ardia, Settings, Import: the Mac's system animates those open),
     stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s (Little Ardia
@@ -448,6 +461,12 @@ is plain Chromium.
   app text field is focused while the keyboard is in a page of the field's own window (the command bar, the find bar,
   an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates that window. A page that hides or
   closes leaves full screen, as the Mac's does.
+- Find in page is the app's bar, as on the Mac. Ctrl+F in a page reaches the app's `findInPage` through `MenuKeyboard`'s
+  thread keyboard hook, which sees keys meant for the page windows (the hosted windows have no Chromium shortcuts), so
+  Chromium's own find bar never shows. React Native for Windows fires both `onKeyDown` and `onSubmitEditing` for one
+  Enter in the find field, so the bar ignores a submit within 250 ms of the Enter it came from (`submitRepeatsKey`).
+  `find_opens` and `find_steps` in the hourly `usage_counts` count it on every platform. The engine's `find` call still
+  ignores `findNext` (#1425), so reopening the bar on the same words moves one match on.
 - Peek opens as on the Mac. The engine host keeps a DevTools session of its own on each page and puts the Peek part of
   ArdiaCore's page script into an isolated world of every web frame (`page_links.cc`): the page can't see the script
   or its binding. A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
