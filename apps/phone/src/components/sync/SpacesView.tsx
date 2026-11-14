@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, type RefObject } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import Animated, { useReducedMotion, useSharedValue, withSpring, type EntryAnimationsValues, type ExitAnimationsValues, type LayoutAnimation, type SharedValue } from "react-native-reanimated";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PinnedTile, SyncedProfile } from "../../state/sync/store";
 import { Switcher, Tiles, Unavailable } from "./SpacesParts";
+import { haptics } from "../../state/app/haptics";
+import { countUsage } from "../../state/telemetry/telemetry";
 import { closeArchive, openArchive } from "../../state/browse/store";
 import { copyLink, menuOpenedHaptic, shareUrl } from "../../state/browse/tabMenus";
 import { openSettings } from "../../state/settings/nav";
@@ -29,7 +31,6 @@ import {
   spacesLayout,
   syncInk,
   tabsLayout,
-  tabsMotion,
   useTheme,
   type MenuItem,
   type SymbolName,
@@ -67,14 +68,35 @@ export function SpacesView() {
   const tone = useMemo(() => spaceTone(profile, theme.dark, contrast, PROFILE_PRESETS, DEFAULT_PROFILE_COLOR), [profile, theme.dark, contrast]);
   const banner = syncBanner(status);
   const reduceMotion = useReducedMotion();
-  const heading = useSharedValue(1);
-  const slides = useMemo(() => pageSlides(heading), [heading]);
-  const choose = (id: string) => {
-    const from = view.profiles.findIndex((p) => p.syncId === profile?.syncId);
-    const to = view.profiles.findIndex((p) => p.syncId === id);
-    heading.value = to >= from ? 1 : -1;
+  const window = useWindowDimensions();
+  const [width, setWidth] = useState(window.width);
+  const pager = useRef<FlatList<SyncedProfile>>(null);
+  const index = Math.max(0, view.profiles.findIndex((p) => p.syncId === profile?.syncId));
+  const pagerIndex = useRef(index);
+  useEffect(() => {
+    if (pagerIndex.current === index) return;
+    pagerIndex.current = index;
+    pager.current?.scrollToOffset({ offset: index * width, animated: false });
+  }, [index, width]);
+  const select = (id: string) => {
+    pagerIndex.current = view.profiles.findIndex((p) => p.syncId === id);
+    haptics.selection();
     setChosen(id);
     selectProfile(id);
+  };
+  const choose = (id: string) => {
+    if (id === profile?.syncId) return;
+    const to = view.profiles.findIndex((p) => p.syncId === id);
+    if (to < 0) return;
+    pager.current?.scrollToIndex({ index: to, animated: !reduceMotion });
+    select(id);
+  };
+  const settle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (width <= 0) return;
+    const page = view.profiles[Math.round(event.nativeEvent.contentOffset.x / width)];
+    if (!page || page.syncId === profile?.syncId) return;
+    countUsage("spaces_swiped");
+    select(page.syncId);
   };
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -99,14 +121,35 @@ export function SpacesView() {
           </View>
         ) : null}
         {profile ? (
-          <Animated.View
-            key={profile.syncId}
+          <FlatList
+            ref={pager}
+            testID="spacesPager"
             style={styles.fill}
-            entering={reduceMotion ? undefined : slides.entering}
-            exiting={reduceMotion ? undefined : slides.exiting}
-          >
-            <SpacePage profile={profile} onMenu={setMenu} bottom={view.profiles.length > 1 ? 0 : insets.bottom} />
-          </Animated.View>
+            data={view.profiles}
+            keyExtractor={(page) => page.syncId}
+            horizontal
+            pagingEnabled
+            bounces={false}
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={index}
+            extraData={`${width}:${profile.syncId}`}
+            getItemLayout={(_data, at) => ({ length: width, offset: width * at, index: at })}
+            onLayout={(event) => {
+              const next = event.nativeEvent.layout.width;
+              if (next <= 0 || next === width) return;
+              setWidth(next);
+              pager.current?.scrollToOffset({ offset: index * next, animated: false });
+            }}
+            onMomentumScrollEnd={settle}
+            renderItem={({ item }) => {
+              const isShown = item.syncId === profile.syncId;
+              return (
+                <View style={{ width }} accessibilityElementsHidden={!isShown} importantForAccessibility={isShown ? "auto" : "no-hide-descendants"}>
+                  <SpacePage profile={item} isShown={isShown} onMenu={setMenu} bottom={view.profiles.length > 1 ? 0 : insets.bottom} />
+                </View>
+              );
+            }}
+          />
         ) : (
           <Unavailable isOff={status.phase === "off"} />
         )}
@@ -124,24 +167,6 @@ export function SpacesView() {
   );
 }
 
-function pageSlides(heading: SharedValue<number>) {
-  const entering = (values: EntryAnimationsValues): LayoutAnimation => {
-    "worklet";
-    return {
-      initialValues: { transform: [{ translateX: heading.value * values.targetWidth }] },
-      animations: { transform: [{ translateX: withSpring(0, tabsMotion.settle) }] },
-    };
-  };
-  const exiting = (values: ExitAnimationsValues): LayoutAnimation => {
-    "worklet";
-    return {
-      initialValues: { transform: [{ translateX: 0 }] },
-      animations: { transform: [{ translateX: withSpring(-heading.value * values.currentWidth, tabsMotion.settle) }] },
-    };
-  };
-  return { entering, exiting };
-}
-
 function HeaderButton({ icon, label, onPress }: { icon: SymbolName; label: string; onPress: () => void }) {
   const theme = useTheme();
   return (
@@ -153,7 +178,7 @@ function HeaderButton({ icon, label, onPress }: { icon: SymbolName; label: strin
   );
 }
 
-function SpacePage({ profile, onMenu, bottom }: { profile: SyncedProfile; onMenu: (menu: RowMenu) => void; bottom: number }) {
+function SpacePage({ profile, isShown, onMenu, bottom }: { profile: SyncedProfile; isShown: boolean; onMenu: (menu: RowMenu) => void; bottom: number }) {
   const theme = useTheme();
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -178,7 +203,7 @@ function SpacePage({ profile, onMenu, bottom }: { profile: SyncedProfile; onMenu
       initialNumToRender={SPACE_ROWS_FIRST}
       windowSize={SPACE_ROWS_WINDOW}
       removeClippedSubviews
-      {...frame?.list(true)}
+      {...(isShown ? frame?.list(true) : undefined)}
       contentContainerStyle={{ paddingBottom: bottom + space.l }}
       refreshControl={
         <RefreshControl
