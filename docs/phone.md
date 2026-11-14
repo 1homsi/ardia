@@ -658,7 +658,12 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs native code on Android
 
-- A mask view, on both phones (e.g. `@react-native-masked-view/masked-view`): the deck card header's 14-point trailing fade (`DeckCardHeaderItem` draws it with `BlendMode.DstIn`, SwiftUI with `.mask`) and the tray rows' fade at the keyboard's edge, which today fades whole rows (f5071fd5f). The deck backdrop is a native shader, so a gradient laid over the title can't stand in. Small once the view is there.
+- A fade view, on both phones, built once to this shape: `FadeView` in `@ardia/phone-native` (module `ArdiaPhoneFade`), a container that multiplies its children's alpha by a linear ramp at each edge it is given. It serves the deck card header's 14-point trailing fade (`DeckCardHeaderItem` draws it with `BlendMode.DstIn`, SwiftUI with `.mask`) and the tray rows' fade at the keyboard's edge, which today fades whole rows (f5071fd5f). The deck backdrop is a native shader, so a gradient laid over the content can't stand in.
+  - Props: `top`, `bottom`, `leading`, `trailing`, each `{ length: number; floor?: number } | undefined`: the ramp runs from full alpha at `length` points inside the edge down to `floor` (default 0) at the edge. `leading`/`trailing` follow the layout direction. All undefined, or a length of 0, draws the children unmasked at no cost.
+  - The ramp follows the view's bounds every frame it is laid out, since the deck header's width animates on the UI thread; props change rarely and need not animate.
+  - Android: an offscreen layer with a `DstIn` gradient per edge, as `DeckCardHeaderItem`. iPhone: a `CAGradientLayer` mask (or one per edge composited) resized in `layoutSubviews`.
+  - Where the native view is missing (`requireOptionalNativeModule` returns null), the JS export is a plain `View` that ignores the fade props, and each caller keeps today's fallback: the deck title clips with no fade, the tray fades whole rows.
+  - The deck uses `trailing: { length: 14 }`; the tray uses `bottom: { length: 0.3 × room, floor: 0.15 }` while its rows overflow. Small.
 - Search field: inline completion is in the tray on Android (`CompletingField` through `TrayInput`, tester step 42), unverified on a phone; the tray's rise, drag, scrub, Paste and Go, the incognito toggle and the mic around it need a phone check with it.
 - Search tray: no predictive back (the tray follows the back gesture down 72 dp); React Native's back handler gives no progress. `SearchTrayHost.kt` `PredictiveBackHandler`. A day.
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
@@ -674,6 +679,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs native code on iPhone
 
+- The fade view under Android's list (`FadeView`, `ArdiaPhoneFade`), to the same props: one interface on both phones.
 - Voice search: no speech module, so the mic is hidden and voice links, the intent and the control fall back to the tray. `VoiceDictation.swift`. A day.
 - Search field: no inline completion; needs a native field. `OmniboxTextField.swift` (`CompletingTextField`). More.
 - Spotlight: open and archived tabs aren't indexed. `SpotlightIndexer.swift`. A day.
