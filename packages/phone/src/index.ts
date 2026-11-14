@@ -1,7 +1,19 @@
 export { blocking } from "./blocking";
 export { defaultBrowser, type DefaultBrowserStatus } from "./defaultBrowser";
 export { downloads } from "./downloads";
-export { legacy, type LegacyData, type LegacyTab, type LegacyVisit } from "./legacy";
+export {
+  legacy,
+  legacyImport,
+  type LegacyCounts,
+  type LegacyData,
+  type LegacyRead,
+  type LegacyReceipt,
+  type LegacySource,
+  type LegacyTab,
+  type LegacyUnusableReason,
+  type LegacyVisit,
+  type LegacyVisitPage,
+} from "./legacy";
 export { closePage, PageView } from "./PageView";
 export { pages } from "./pages";
 export { sync } from "./sync";
