@@ -835,6 +835,11 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   `chromium-linux-navigation-hold-hook.patch` holds its page navigations for at most 2 s. Internal schemes aren't held.
   The app profile is never held, as on macOS: on a fresh profile uBlock Origin restarts itself once and compiles its
   lists, about 12 s on a loaded Xvfb box, so the first pages of a new install load unfiltered rather than wait.
+- **Saved engine.** `ubo.sh` makes uBlock Origin save its compiled engine (its selfie) 3 s after its lists change
+  instead of 53 s. Without it, a launch that ended within about a minute of the first one left no selfie, and the next
+  launch rebuilt the engine from the compiled lists (about 3.2 s here) while its page requests waited on uBlock's
+  blocking listener: first tab paint was about 3.8 s instead of 2.0 s on an existing profile. A new install still
+  pays uBlock's own restart and list compile once, about 11 s on the same box.
 
 ### Memory Saver
 
