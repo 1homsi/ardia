@@ -184,14 +184,17 @@ final class ChatGPTAccount {
       var next = connection ?? previous
       next.tokens = tokens
       save(next)
-      if let idToken = tokens.idToken {
-        do {
-          try next.confirm(await verifiedIdentity(idToken: idToken, endpoints: next.endpoints, clientID: next.clientID, nonce: nil))
-          save(next)
-        } catch ChatGPTFailure.unavailable {
-        }
+      guard let idToken = tokens.idToken else { return next }
+      let identity: ChatGPTIdentity
+      do {
+        identity = try await verifiedIdentity(idToken: idToken, endpoints: next.endpoints, clientID: next.clientID, nonce: nil)
+      } catch ChatGPTFailure.unavailable {
+        return connection ?? next
       }
-      return next
+      guard var latest = connection, latest.identity.subject == next.identity.subject else { return next }
+      try latest.confirm(identity)
+      save(latest)
+      return latest
     } catch let failure as ChatGPTFailure {
       if failure.requiresSignIn { signOutLocally(failure) }
       throw failure

@@ -59,6 +59,7 @@ extension ChatGPTAccount {
           guard text.count <= Self.maximumAnswerCharacters else { throw ChatGPTFailure.streamInterrupted }
           onText(text)
         case .completed:
+          guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ChatGPTFailure.rejected(nil) }
           return
         case .failed(let failure):
           throw failure
