@@ -513,28 +513,32 @@ S=<serial>; R=/Users/shivam-mini/.t3/worktrees/ardia/t3-ffb1082e-c9e4c64b1897b32
 mac() { ssh shiv "cd $R && node apps/phone/scripts/phone-sync-mac.mjs $* --work $W"; }
 relay() { node ~/phone-sync-relay.mjs "$@" --serial $S; }
 scp shiv:$R/apps/phone/scripts/phone-sync-relay.mjs ~/phone-sync-relay.mjs
-mac start                          # prints the phrase, the folder and the Mac's own device id
+mac start                          # prints the folder and the Mac's own device id; the phrase stays in $W/phrase.txt
 relay start --mac shiv:$W/folder   # checks the phone's folder with a probe file, then mirrors every 3 s
 ```
 
 - `mac status` (or `mac sync` to sync first) prints every device the Mac sees with its id, name and kind, each
   device's open tabs, and the Mac's own tabs. `mac send https://example.com/x` sends a tab to the phone.
 - `relay status` shows the last pass and the latest copies and deletions; `relay sync` runs a pass now.
-- Connect the phone (Compose or Expo app): Settings › Sync With Mac › Connect to Your Mac. Step 1, Enter Words: put
-  the cursor in the first word's field, then
-  `adb -s $S shell input text "$(ssh shiv cat $W/phrase.txt | sed 's/ /%s/g')"`, or type the 24 words. Step 2,
-  Choose Folder…: in the system picker open Documents › Ardia Sync, then Use This Folder and Allow.
+- Connect the phone (Compose or Expo app): Settings › Sync With Mac › Connect to Your Mac. Step 1, Enter Words:
+  the app has one field for all 24 words. Put the cursor in it and run `relay type-phrase`: it reads the phrase
+  over ssh and types it through adb's standard input, so it never appears in a command, its output or a
+  transcript. MIUI refuses injected text (`INJECT_EVENTS`); there `relay type-phrase` says so, and the route that
+  worked on the F4 is the test tool's set-text action on that field, with the text read from `$W/phrase.txt` by
+  the tool rather than pasted into the command. Never print the phrase or pass it as an argument. Step 2, Choose
+  Folder…: in the system picker open Documents › Ardia Sync, then Use This Folder and Allow.
 - When done: `relay stop`, then `mac stop` (it quits the instance and deletes `$W`), then
-  `adb -s $S shell rm -rf "/sdcard/Documents/Ardia Sync"`.
+  `adb -s $S shell 'rm -rf "/sdcard/Documents/Ardia Sync"'` (the inner quotes are for the phone's shell, which
+  would otherwise split at the space).
 
 Checked without a phone: the Mac side started with the AGENTS.md rules (a Debug build, never the installed app,
 `open -g -n`, `ARDIA_BACKGROUND=1`, a throwaway data folder), turned sync on, printed its phrase and devices, and
 stopped cleanly. The relay ran on corex against shiv's folder with a stand-in for adb: copies, an idle pass,
 deletions both ways and the loop. On shiv, a second hidden instance joined through the relayed folder with the
-phrase; the Mac listed its id and its tab, and a tab sent from the Mac arrived once. Not yet run against a phone:
-adb `exec-in`/`exec-out` and toybox `stat`/`find` on MIUI (the start probe checks them and stops before copying
-anything), the app picking a folder the shell created and reading files the shell wrote, and typing the phrase
-with `input text`.
+phrase; the Mac listed its id and its tab, and a tab sent from the Mac arrived once. On a phone: the connected
+upgrade passed on the F4 (upgrade12, 9f37754cf's relay): probe, copies both ways, the same device id through the
+import and every held kill. A file that vanishes between `find` and `stat` is now skipped rather than failing the
+pass.
 
 #### Upgrade tester script
 
@@ -599,8 +603,9 @@ Pass A
      the native settings and the marker are not. The link was kept on disk, so it survives the kill: it must open
      in step 7, once. (Don't send the link from a stopped app: that launch runs the import with no pause.)
    - The same with `afterSettings`, killing at `paused at settingsDone`. This launch finds the receipt, so it only
-     applies the native settings (no `ardia-legacy imported` line).
-   - The same with `beforeMarker`, killing at `paused at beforeMarker`.
+     applies the native settings (no `ardia-legacy imported` line). Send no new link: `held-a` from the first
+     kill must survive this one and the next.
+   - The same with `beforeMarker`, killing at `paused at beforeMarker`, again with no new link.
    Report the `ardia-legacy` and `PAGELAB upgrade` lines from each. With the helper, run `mac sync` after each
    kill: still only the step-3 phone id (a held import never makes a second device).
 7. **The import.** Open the app normally. The import finishes from the receipt, nothing is imported twice, and
@@ -631,6 +636,14 @@ Pass A
 10. **Install the Compose app back.** `adb install -r -d $COMPOSE_APK`. It opens with the tabs, Archive, visits and
     settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3 again: every line
     matches.
+    Going back to a lower versionCode works only when the installed app is debuggable or the phone runs a
+    userdebug or eng build. The Expo upgrade APK is a release build (not debuggable), so on a user build
+    (`adb shell getprop ro.build.type` says `user`) `adb install -r -d` fails with
+    `INSTALL_FAILED_VERSION_DOWNGRADE`, and `run-as` fails for the same reason; the F4 is such a phone. There,
+    skip this step and the step-3 hashes. The evidence that the Compose files are untouched is then indirect:
+    the reader copies the Compose database and the thumbnails it needs into its own folder and opens only the
+    copies, never the originals (its `PAGELAB upgrade` lines), and the hashes and the Compose-back check come from a phone where the downgrade works; report which
+    phone was which. Removing the Expo app (`adb uninstall $P`) deletes the Compose data with it.
 
 Pass B (after steps 1 to 3 again)
 

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
-import { copyInto, emptySide, nextRecord, parseListing, partsFolder, pass, plan, probePhone } from "../../scripts/phone-sync-relay.mjs";
+import { copyInto, emptySide, LIST_STAT_SCRIPT, LISTED, listed, nextRecord, parseListing, partsFolder, pass, plan, probePhone, typePhrase } from "../../scripts/phone-sync-relay.mjs";
 import { writeFakeAdb } from "../../test/fakeAdb.ts";
 
 type Entry = { mtime: number; size: number };
@@ -177,4 +177,39 @@ test("a pass copies both ways through the stand-in and a second pass does nothin
   assert.equal(fs.readFileSync(path.join(mac, "from-phone.nns"), "utf8"), "phone bytes");
   const second = await pass(opts);
   assert.deepEqual(second.steps, []);
+});
+
+test("a file that vanishes between find and stat is left out, and the listing still counts", () => {
+  const { phone, adb } = relayWorld();
+  fs.writeFileSync(path.join(phone, "kept.nns"), "k");
+  const script = LIST_STAT_SCRIPT;
+  const out = execFileSync("sh", ["-c", `cd '${phone}' && sh -c '${script.replace(/'/g, `'\\''`)}' sh ./kept.nns ./vanished.nns; echo ${LISTED}`], { encoding: "utf8" });
+  assert.deepEqual(Object.keys(listed(out, "phone's")), ["kept.nns"]);
+  assert.ok(adb);
+});
+
+test("a listing that never ran is an error, not an empty folder", () => {
+  assert.throws(() => listed("", "phone's"), /could not be listed/);
+  assert.throws(() => listed("1700000000 3 ./a.nns\n", "phone's"), /could not be listed/);
+});
+
+test("type-phrase reads the phrase beside the Mac's folder and types it through stdin, never on a command line", () => {
+  const { root, mac, opts } = relayWorld();
+  const words = Array.from({ length: 24 }, (_, index) => `word${index}`).join(" ");
+  fs.writeFileSync(path.join(path.dirname(mac), "phrase.txt"), `${words}\n`, { mode: 0o600 });
+  const bin = path.join(root, "bin");
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, "input"), `#!/bin/sh\nprintf '%s' "$2" > '${root}/typed'\n`, { mode: 0o755 });
+  const log = path.join(root, "adb.log");
+  const before = process.env.PATH;
+  process.env.PATH = `${bin}:${before}`;
+  process.env.FAKE_ADB_LOG = log;
+  try {
+    assert.match(typePhrase(opts), /typed the 24 words/);
+  } finally {
+    process.env.PATH = before;
+    delete process.env.FAKE_ADB_LOG;
+  }
+  assert.equal(fs.readFileSync(path.join(root, "typed"), "utf8"), words.replace(/ /g, "%s"));
+  assert.doesNotMatch(fs.readFileSync(log, "utf8"), /word7/);
 });

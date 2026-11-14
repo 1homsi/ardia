@@ -5,6 +5,11 @@ export type RelayStep = { kind: "toPhone" | "toMac" | "deleteOnMac" | "deleteOnP
 export function plan(mac: RelaySide, phone: RelaySide, record: RelayRecord): RelayStep[];
 export function nextRecord(record: RelayRecord, before: { mac: RelaySide; phone: RelaySide }, after: { mac: RelaySide; phone: RelaySide }, planned: RelayStep[], done: RelayStep[]): RelayRecord;
 export function parseListing(out: string, options?: { withProbe?: boolean }): RelaySide;
+export const LISTED: string;
+export const LIST_STAT_SCRIPT: string;
+export function listed(out: string, where: string, options?: { withProbe?: boolean }): RelaySide;
+export const PHRASE_SCRIPT: string;
+export function typePhrase(opts: RelayOptions): string;
 export function quoted(text: string): string;
 export function emptySide(before: { mac: RelaySide; phone: RelaySide }, record: RelayRecord): "mac" | "phone" | null;
 export type RelayCommand = [string, string[]];

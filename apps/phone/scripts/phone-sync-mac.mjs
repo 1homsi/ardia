@@ -10,7 +10,8 @@
 //
 // start launches the instance hidden (open -g -n, ARDIA_BACKGROUND=1, its own ARDIA_DATA_DIR in <work>/mac), with a
 // Metro for apps/browser on --metro-port (default 8099; started by this script when none is running), turns sync on
-// once against <work>/folder, writes the recovery phrase to <work>/phrase.txt and prints it, the folder and the
+// once against <work>/folder, writes the recovery phrase only to <work>/phrase.txt (mode 0600, never printed; the
+// relay's type-phrase puts it into the phone without it passing through a command line) and prints the folder and the
 // devices. status prints the devices the Mac sees (id, name, kind), each one's open tabs, and the tabs open on the
 // Mac, where a tab sent from the phone arrives; sync syncs now and prints the same. send opens URL in a background
 // tab on the Mac and sends it to the phone (the only device it can send to, or --to). stop quits the instance and
@@ -147,7 +148,7 @@ async function start(opts) {
     fs.writeFileSync(phrase, `${words}\n`, { mode: 0o600 });
   }
   say(`folder ${folder}`);
-  say(`recovery phrase (also in ${phrase}): ${fs.readFileSync(phrase, "utf8").trim()}`);
+  say(`recovery phrase: ${fs.readFileSync(phrase, "utf8").trim().split(/\s+/).length} words in ${phrase} (mode 0600, not printed)`);
   printReport(await mac.eval(report));
 }
 

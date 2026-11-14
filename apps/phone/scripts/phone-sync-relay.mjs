@@ -6,6 +6,7 @@
 //   node phone-sync-relay.mjs sync   [--mac [HOST:]FOLDER] [--serial SERIAL] [--phone-folder PATH]
 //   node phone-sync-relay.mjs status [--serial SERIAL]
 //   node phone-sync-relay.mjs stop   [--serial SERIAL]
+//   node phone-sync-relay.mjs type-phrase [--serial SERIAL]
 //
 // start remembers the options, creates the phone folder (default /sdcard/Documents/Ardia Sync) and runs a pass
 // every --every seconds (default 3) in the background, logging each copy and deletion. sync runs one pass now and
@@ -17,7 +18,9 @@
 // beside the sync folder by a lone cat (adb exec-in drops anything after the command that reads stdin), then a
 // separate command checks its SHA-256 and only then renames it into place, so an app never reads half a file. A
 // pass that finds a side empty after seeing files there stops without changing anything. State lives in
-// $TMPDIR/ardia-phone-relay-<serial>. --adb PATH runs another adb.
+// $TMPDIR/ardia-phone-relay-<serial>. --adb PATH runs another adb. type-phrase reads phrase.txt beside the Mac's
+// folder over ssh and types it into the phone's focused field through adb's stdin, never on a command line; on a
+// phone that refuses injected text (MIUI) it says so.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -82,8 +85,17 @@ export function parseListing(out, { withProbe = false } = {}) {
   return files;
 }
 
+export const LISTED = "relay-listed";
+
+export const LIST_STAT_SCRIPT = `if stat -c %Y . >/dev/null 2>&1; then stat -c "%Y %s %n" "$@"; else stat -f "%m %z %N" "$@"; fi 2>/dev/null; true`;
+
 const LIST = (folder) =>
-  `mkdir -p ${quoted(folder)} && cd ${quoted(folder)} && find . -type f -exec sh -c 'stat -c "%Y %s %n" "$@" 2>/dev/null || stat -f "%m %z %N" "$@"' sh {} +`;
+  `mkdir -p ${quoted(folder)} && cd ${quoted(folder)} && { find . -type f -exec sh -c ${quoted(LIST_STAT_SCRIPT)} sh {} + 2>/dev/null; echo ${LISTED}; }`;
+
+export function listed(out, where, options) {
+  if (!out.split("\n").some((line) => line.trim() === LISTED)) throw new Error(`the ${where} folder could not be listed`);
+  return parseListing(out, options);
+}
 
 export const partsFolder = (folder) => path.posix.join(path.posix.dirname(folder), PARTS_FOLDER);
 
@@ -184,20 +196,38 @@ export async function probePhone(opts) {
     failure = error.message;
   }
   const back = failure ? null : run(phone.read(probe));
-  const listed = parseListing(run(phone.shell(LIST(opts.phoneFolder))), { withProbe: true })[PROBE_NAME];
+  const listedProbe = listed(run(phone.shell(LIST(opts.phoneFolder))), "phone's", { withProbe: true })[PROBE_NAME];
   run(phone.shell(leftovers(opts.phoneFolder)));
   const stray = run(phone.shell(`find ${quoted(opts.phoneFolder)} ${quoted(partsFolder(opts.phoneFolder))} -name ${quoted(`*${TEMP_SUFFIX}`)} 2>/dev/null; true`)).trim();
-  if (failure || back !== PROBE_TEXT || listed?.size !== Buffer.byteLength(PROBE_TEXT) || !(listed.mtime > 1_000_000_000) || stray) {
+  if (failure || back !== PROBE_TEXT || listedProbe?.size !== Buffer.byteLength(PROBE_TEXT) || !(listedProbe.mtime > 1_000_000_000) || stray) {
     throw new Error(
-      `the phone's folder doesn't behave as expected over adb (${failure ? `write: ${failure}` : `wrote ${sent?.bytes} bytes, read back ${JSON.stringify(back)}, listed ${JSON.stringify(listed)}`}${stray ? `, left behind ${stray}` : ""}); nothing was copied or deleted`,
+      `the phone's folder doesn't behave as expected over adb (${failure ? `write: ${failure}` : `wrote ${sent?.bytes} bytes, read back ${JSON.stringify(back)}, listed ${JSON.stringify(listedProbe)}`}${stray ? `, left behind ${stray}` : ""}); nothing was copied or deleted`,
     );
   }
 }
 
+export const PHRASE_SCRIPT = `read -r phrase; input text "$(printf '%s' "$phrase" | sed 's/ /%s/g')" && echo relay-typed`;
+
+export function typePhrase(opts) {
+  const ends = endpoints(opts);
+  const phraseFile = path.posix.join(path.posix.dirname(ends.macFolder), "phrase.txt");
+  const phrase = run(ends.macArgs(`cat ${quoted(phraseFile)}`)).trim();
+  const words = phrase.split(/\s+/).filter(Boolean).length;
+  if (words !== 24) throw new Error(`${phraseFile} holds ${words} words, not 24`);
+  const typed = spawnSync(opts.adb, [...(opts.serial ? ["-s", opts.serial] : []), "shell", PHRASE_SCRIPT], { input: `${phrase}\n`, encoding: "utf8" });
+  if (typed.stdout?.includes("relay-typed")) return `typed the ${words} words into the focused field (read from ${phraseFile}, never on a command line)`;
+  const refused = /INJECT_EVENTS|SecurityException/.test(`${typed.stdout}${typed.stderr}`);
+  throw new Error(
+    refused
+      ? "the phone refuses injected text (MIUI's INJECT_EVENTS): type the words by hand, or set them with your test tool's set-text action reading the file, so the phrase stays off the transcript"
+      : `typing failed: ${`${typed.stderr || typed.stdout}`.trim().split("\n")[0]}`,
+  );
+}
+
 export async function pass(opts) {
   const ends = endpoints(opts);
-  const listMac = () => parseListing(run(ends.macArgs(LIST(ends.macFolder))));
-  const listPhone = () => parseListing(run(ends.adb("shell", LIST(opts.phoneFolder))));
+  const listMac = () => listed(run(ends.macArgs(LIST(ends.macFolder))), "Mac's");
+  const listPhone = () => listed(run(ends.adb("shell", LIST(opts.phoneFolder))), "phone's");
   const recordFile = path.join(opts.work, "record.json");
   const record = fs.existsSync(recordFile) ? JSON.parse(fs.readFileSync(recordFile, "utf8")) : {};
   const before = { mac: listMac(), phone: listPhone() };
@@ -302,6 +332,9 @@ async function main() {
     fs.writeFileSync(savedFile, JSON.stringify(kept));
     await probePhone(opts);
     console.log(`${stamp()} ${printPass(await pass(opts))}`);
+  } else if (opts.command === "type-phrase") {
+    if (!opts.mac) throw new Error("type-phrase needs --mac [HOST:]FOLDER, or a relay started for this phone");
+    console.log(`${stamp()} ${typePhrase(opts)}`);
   } else if (opts.command === "status") {
     console.log(`relay ${opts.pid && alive(opts.pid) ? `running (pid ${opts.pid})` : "not running"}; Mac ${opts.mac ?? "?"}, phone ${opts.serial ?? "(the only one)"} ${opts.phoneFolder}`);
     const last = path.join(opts.work, "last.json");
