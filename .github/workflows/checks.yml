@@ -8,6 +8,8 @@ on:
       - "extras/**"
       - "scripts/**"
       - "docs/**"
+      - "infra/**"
+      - ".claude/**"
       - ".github/vouch/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -25,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: checks-${{ github.ref }}
+  group: checks-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
