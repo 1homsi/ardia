@@ -1,3 +1,4 @@
+import { haptics } from "../app/haptics";
 import { sync, type ConnectResult, type PhraseCheck, type SyncedDevice } from "../../platform/sync";
 import { choiceAfterMatchToggle, type ProfileLook } from "../../lib/profileLook";
 import { pasteText } from "../../platform/system";
@@ -164,7 +165,10 @@ export async function pinToMac(tab: BrowserTab, onSetup: () => void, showInTitle
   }
   const announce = (outcome: PinOutcome) => {
     const said = pinAnnouncement(outcome, showInTitle !== null, copy());
-    if (said.where === "title") showInTitle?.(said.text);
+    if (said.where === "title") {
+      showInTitle?.(said.text);
+      if (outcome === "pinned") haptics.success();
+    }
     else showToast(said.text, said.icon);
   };
   if (isTabPinned(tab)) {

@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
 import { incomingPose, outgoingPose, PAGER, resolvedOffset, snapTarget } from "../../lib/pagerPhysics";
+import { haptics } from "../../state/app/haptics";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -42,7 +43,9 @@ export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }
 
   const commit = (target: number) => {
     const id = target > 0 ? left : right;
-    if (id) onCommit(id);
+    if (!id) return;
+    haptics.tabLanded();
+    onCommit(id);
   };
 
   const settleTo = (wanted: number, velocity: number) => {

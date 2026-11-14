@@ -1,3 +1,4 @@
+import { haptics } from "../../state/app/haptics";
 import { StyleSheet, View } from "react-native";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { display } from "../../state/search/omnibox";
@@ -29,6 +30,7 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onStep,
             { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
           ]}
           onPress={onTabs}
+          onPressIn={haptics.barPress}
           onLongPress={onTabsMenu}
           style={styles.tabs}
         >
@@ -40,6 +42,7 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onStep,
           <PressScale
             label="New Search"
             onPress={onPlus}
+            onPressIn={haptics.barPress}
             style={[
               styles.center,
               { width: plus.width, height: plus.height, borderRadius: capsule(plus.height), backgroundColor: roles.plusFill, borderColor: roles.controlEdge },
@@ -50,7 +53,7 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onStep,
         ) : null}
       </View>
       <View style={[styles.side, styles.end]}>
-        <PressScale label="Page Menu" onPress={onMore} style={styles.more}>
+        <PressScale label="Page Menu" onPress={onMore} onPressIn={haptics.barPress} style={styles.more}>
           <View
             style={[
               styles.center,

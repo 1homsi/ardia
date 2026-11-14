@@ -25,10 +25,12 @@ import { closeVoiceSearch, useVoice } from "../voice/store";
 import { addOnlineAgainListener } from "../../platform/network";
 import { hideArchiveCard } from "../browse/archiveCard";
 import { copy } from "../../lib/platformCopy";
+import { COPIED_LINK } from "../browse/tabMenus";
 import { syncData } from "../sync/store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
-const TITLE_FEEDBACK_MS = 1500;
+const TITLE_FEEDBACK_MS = 1000;
+const FIND_AFTER_MENU_MS = 350;
 const COPIED_URL = "Copied URL";
 const NO_APP_FOR_LINK = "No App Can Open This Link";
 
@@ -159,7 +161,12 @@ export const setReaderSerif = (serif: boolean) => setPreference("readerSerif", s
 export const setReaderTheme = (theme: "light" | "sepia" | "dark") => setPreference("readerTheme", theme);
 
 export function showFind() {
-  usePageUi.setState({ menuOpen: false, findOpen: true, findQuery: "" });
+  if (!copy().findWaitsForMenu) {
+    usePageUi.setState({ menuOpen: false, findOpen: true, findQuery: "" });
+    return;
+  }
+  usePageUi.setState({ menuOpen: false });
+  setTimeout(() => usePageUi.setState({ findOpen: true, findQuery: "" }), FIND_AFTER_MENU_MS);
 }
 
 export function typeFind(query: string) {
@@ -239,7 +246,7 @@ export function pressAction(press: Press, action: PressAction) {
     case "copy":
       quietly(() => copyText(mobileClean(plan.url)));
       quietly(successHaptic);
-      showToast(COPIED_URL, "link");
+      showToast(COPIED_LINK, "link");
       return;
     case "share":
       quietly(() => shareLink(plan.url, ""));

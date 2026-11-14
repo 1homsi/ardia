@@ -1,4 +1,4 @@
-import { confirmHaptic, errorHaptic, pressHaptic, selectionHaptic, successHaptic, tapHaptic, tickHaptic, warningHaptic } from "../../platform/system";
+import { barPressHaptic, confirmHaptic, errorHaptic, pressHaptic, selectionHaptic, successHaptic, tabLandedHaptic, tapHaptic, tickHaptic, warningHaptic } from "../../platform/system";
 
 const quietly = (haptic: () => Promise<void>) => () => void haptic().catch(() => undefined);
 
@@ -11,4 +11,6 @@ export const haptics = {
   warning: quietly(warningHaptic),
   error: quietly(errorHaptic),
   confirm: quietly(confirmHaptic),
+  barPress: quietly(barPressHaptic),
+  tabLanded: quietly(tabLandedHaptic),
 };

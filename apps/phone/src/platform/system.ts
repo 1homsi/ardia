@@ -30,6 +30,10 @@ export const warningHaptic = () =>
 export const errorHaptic = () =>
   android ? performAndroidHapticsAsync(atLeast(ANDROID_CONFIRM) ? AndroidHaptics.Reject : AndroidHaptics.Long_Press) : notificationAsync(NotificationFeedbackType.Error);
 
+export const barPressHaptic = () => (android ? performAndroidHapticsAsync(AndroidHaptics.Virtual_Key) : impactAsync(ImpactFeedbackStyle.Light));
+
+export const tabLandedHaptic = () => (android ? performAndroidHapticsAsync(AndroidHaptics.Clock_Tick) : impactAsync(ImpactFeedbackStyle.Light));
+
 export const tickHaptic = () => (android ? performAndroidHapticsAsync(AndroidHaptics.Clock_Tick) : selectionAsync());
 
 const ANDROID_SEGMENT_TICK = 34;

@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { copy } from "../../lib/platformCopy";
 import {
   closePageMenu,
   copyCurrentLink,
@@ -26,7 +28,7 @@ import {
 import { useMenuModel, useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
 import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
-import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, Toggle, useTheme, type SymbolName } from "../ui";
+import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, tabsMotion, Toggle, useTheme, type SymbolName } from "../ui";
 
 export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boolean; onHidden: () => void }) {
   const model = useMenuModel(tabId);
@@ -90,22 +92,37 @@ function NavigationCapsule({ tabId }: { tabId: string }) {
   const model = useMenuModel(tabId);
   const title = useMenuTitle(tabId);
   const feedback = useTitleFeedback();
+  const { fontScale } = useWindowDimensions();
+  const below = copy().menuTitleBelowAtLargeText && fontScale > ACCESSIBILITY_TEXT;
+  const shown = feedback ?? title;
+  const titleButton = (
+    <Pressable accessibilityRole="button" accessibilityLabel={shown} accessibilityHint="Edits the search" onPress={editPageQuery} style={below ? styles.titleBelow : styles.title}>
+      <Animated.Text
+        key={shown}
+        entering={TITLE_IN}
+        exiting={TITLE_OUT}
+        style={[font.body, styles.centered, feedback ? styles.feedback : null, { color: feedback ? theme.formAccent : theme.label }]}
+        numberOfLines={below ? 3 : 1}
+      >
+        {shown}
+      </Animated.Text>
+    </Pressable>
+  );
   return (
-    <View style={[styles.capsule, { backgroundColor: theme.groupFill }]}>
-      <CapsuleButton icon="chevronLeft" label="Back" enabled={model.back} onPress={menuBack} />
-      <CapsuleButton icon="chevronRight" label="Forward" enabled={model.forward} onPress={menuForward} />
-      <Pressable accessibilityRole="button" accessibilityLabel={feedback ?? title} accessibilityHint="Edits the search" onPress={editPageQuery} style={styles.title}>
-        <Text style={[font.body, styles.centered, feedback ? styles.feedback : null, { color: feedback ? theme.formAccent : theme.label }]} numberOfLines={1}>
-          {feedback ?? title}
-        </Text>
-      </Pressable>
-      <PinButton tabId={tabId} enabled={model.isWebPage} />
-      {model.reload === "stop" ? (
-        <CapsuleButton icon="xmark" label="Stop" enabled onPress={menuStop} />
-      ) : (
-        <CapsuleButton icon="arrowClockwise" label="Reload" enabled={model.reloadEnabled} onPress={menuReload} />
-      )}
-    </View>
+    <>
+      <View style={[styles.capsule, { backgroundColor: theme.groupFill }]}>
+        <CapsuleButton icon="chevronLeft" label="Back" enabled={model.back} onPress={menuBack} />
+        <CapsuleButton icon="chevronRight" label="Forward" enabled={model.forward} onPress={menuForward} />
+        {below ? <View style={styles.fill} /> : titleButton}
+        <PinButton tabId={tabId} enabled={model.isWebPage} />
+        {model.reload === "stop" ? (
+          <CapsuleButton icon="xmark" label="Stop" enabled onPress={menuStop} />
+        ) : (
+          <CapsuleButton icon="arrowClockwise" label="Reload" enabled={model.reloadEnabled} onPress={menuReload} />
+        )}
+      </View>
+      {below ? titleButton : null}
+    </>
   );
 }
 
@@ -265,6 +282,10 @@ function ZoomRow({ percent, canZoomOut, canZoomIn, enabled }: { percent: string;
   );
 }
 
+const ACCESSIBILITY_TEXT = 1.6;
+const TITLE_IN = FadeIn.duration(tabsMotion.fade);
+const TITLE_OUT = FadeOut.duration(tabsMotion.fade);
+
 const styles = StyleSheet.create({
   column: { padding: menuLayout.inset, gap: menuLayout.inset },
   capsule: {
@@ -276,6 +297,8 @@ const styles = StyleSheet.create({
   },
   capsuleButton: { minWidth: 44, minHeight: menuLayout.capsuleHeight, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, paddingHorizontal: space.xs, justifyContent: "center", minHeight: menuLayout.capsuleHeight },
+  titleBelow: { paddingHorizontal: space.l, paddingTop: space.s, justifyContent: "center" },
+  fill: { flex: 1 },
   centered: { textAlign: "center" },
   feedback: { fontWeight: "600" },
   tiles: { flexDirection: "row", gap: space.s },

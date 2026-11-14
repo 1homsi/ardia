@@ -10,13 +10,14 @@ type Props = {
   actions?: { name: string; label: string; run: () => void }[];
   onPress: () => void;
   onLongPress?: () => void;
+  onPressIn?: () => void;
   disabled?: boolean;
   grow?: boolean;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 };
 
-export function PressScale({ label, hint, value, actions, onPress, onLongPress, disabled, grow, style, children }: Props) {
+export function PressScale({ label, hint, value, actions, onPress, onLongPress, onPressIn, disabled, grow, style, children }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
   const to = (value: number) => Animated.spring(scale, { toValue: value, ...springs.barPress, useNativeDriver: true }).start();
   return (
@@ -32,7 +33,10 @@ export function PressScale({ label, hint, value, actions, onPress, onLongPress, 
       style={grow ? styles.grow : undefined}
       onPress={onPress}
       onLongPress={onLongPress}
-      onPressIn={() => to(browseLayout.barControlScale)}
+      onPressIn={() => {
+        onPressIn?.();
+        to(browseLayout.barControlScale);
+      }}
       onPressOut={() => to(1)}
     >
       <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
