@@ -73,3 +73,23 @@ test("without it, the rows keep today's per-row fade and the list asks for none"
   native.mockRestore();
   unmount(root);
 });
+
+test("when typing shrinks the rows and grows them back to the same places, the list fades as soon as the rows are laid out again, not one keystroke later", () => {
+  const native = jest.spyOn(fadeModule, "fadeIsNative").mockImplementation(() => true);
+  const root = overflowingTray();
+  const list = () => root.root.findAll((node) => node.type === fadeModule.FadeView && node.props.testID === "trayRowList")[0]!;
+  const layOut = (count: number) =>
+    act(() => {
+      for (let index = 0; index < count; index++)
+        root.root.findAll((node) => node.props.testID === `trayRow:${index}` && typeof node.props.onLayout === "function")[0]?.props.onLayout({ nativeEvent: { layout: { x: 0, y: index * ROW_HEIGHT, width: 393, height: ROW_HEIGHT } } });
+    });
+  expect(list().props.bottom).toBeDefined();
+  act(() => useSearch.setState({ rows: rows.slice(0, 2), text: "otters" }));
+  layOut(2);
+  expect(list().props.bottom).toBeUndefined();
+  act(() => useSearch.setState({ rows, text: "otter" }));
+  layOut(rows.length);
+  expect(list().props.bottom).toBeDefined();
+  native.mockRestore();
+  unmount(root);
+});

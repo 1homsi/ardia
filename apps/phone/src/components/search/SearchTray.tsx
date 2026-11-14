@@ -517,6 +517,7 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
   const latest = useRef({ rows, budget });
   latest.current = { rows, budget };
   const measured = useRef<(RowFrame | null)[]>([]);
+  const [, remeasured] = useState(0);
   const frames = useSharedValue<(RowFrame | null)[]>([]);
   const scrub = useSharedValue<ScrubState>(idleScrub);
   const menuTaken = useSharedValue(false);
@@ -609,8 +610,10 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
             style={overflows && !fadesNatively && measured.current[index] ? { opacity: rowFade(measured.current[index]!.top, measured.current[index]!.bottom, budget, true) } : null}
             onLayout={(event) => {
               const { x, y, width, height } = event.nativeEvent.layout;
+              const was = measured.current[index];
               measured.current[index] = { left: x, top: y, right: x + width, bottom: y + height };
               frames.value = [...measured.current];
+              if (!was || was.top !== y || was.bottom !== y + height) remeasured((count) => count + 1);
               onMeasure(index, event.nativeEvent.layout);
             }}
           >
