@@ -12,6 +12,7 @@ import type { ClosedTab, ClosedWindow, SplitView, TabGroup } from "../browser/ty
 import { mapSlotIds, slotTabIds } from "../splits/splits";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
 import { orderSections } from "../groups/groups";
+import { clearableRecentlyClosed, newestClosed } from "./recentlyClosedList";
 
 function restoreGroup(groups: Record<string, TabGroup>, g: Omit<TabGroup, "tabIds">, tabIds: string[]): [Record<string, TabGroup>, string] {
   const id = groups[g.id] ? newId("g") : g.id;
@@ -40,14 +41,18 @@ export function lastClosedEntry(s: BrowserState, windowId: string | null | undef
   );
 }
 
-export function withoutRecentlyClosed(s: BrowserState, windowId: string | undefined): Pick<BrowserState, "closedTabs" | "closedWindows" | "closedGroups"> {
-  const w = windowId ? s.windows[windowId] : undefined;
-  const listed = (profileId: string | undefined) => !w || w.kind === "private" || (profileId && s.profiles[profileId] ? profileId : s.settings.defaultProfileId) === w.profileId;
-  return {
-    closedTabs: s.closedTabs.filter((c) => isIncognitoProfile(c.tab.profileId) || !listed(c.tab.profileId)),
-    closedWindows: s.closedWindows.filter((c) => !listed(c.window.profileId)),
-    closedGroups: s.closedGroups.filter((c) => !(!w || w.kind === "private" || c.tabs[0]?.profileId === w.profileId)),
+export function withoutRecentlyClosed(s: BrowserState, windowId: string | null | undefined): { cleared: number; next: Pick<BrowserState, "closedTabs" | "closedWindows" | "closedGroups"> } | undefined {
+  const list = clearableRecentlyClosed(s, windowId);
+  if (!list) return undefined;
+  const reopensNext = lastWindowToRestore(s);
+  const shown = newestClosed(list);
+  const gone = new Set<string>([...list.tabs, ...list.windows.filter((c) => c !== reopensNext || shown.includes(c)), ...list.groups].map((c) => c.id));
+  const next = {
+    closedTabs: s.closedTabs.filter((c) => !gone.has(c.id)),
+    closedWindows: s.closedWindows.filter((c) => !gone.has(c.id)),
+    closedGroups: s.closedGroups.filter((c) => !gone.has(c.id)),
   };
+  return gone.size ? { cleared: gone.size, next } : undefined;
 }
 
 function canRestoreTabInto(s: BrowserState, c: ClosedTab, windowId: string | undefined): boolean {

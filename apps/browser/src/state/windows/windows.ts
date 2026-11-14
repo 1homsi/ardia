@@ -390,9 +390,8 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
   clearRecentlyClosed(windowId) {
     const s = get();
     const cleared = withoutRecentlyClosed(s, resolveWindowId(s, windowId));
-    const removed = s.closedTabs.length + s.closedWindows.length + s.closedGroups.length - cleared.closedTabs.length - cleared.closedWindows.length - cleared.closedGroups.length;
-    if (!removed) return;
-    noteRecentlyClosedCleared(removed);
-    set(cleared);
+    if (!cleared) return;
+    noteRecentlyClosedCleared(cleared.cleared);
+    set(cleared.next);
   },
 });
