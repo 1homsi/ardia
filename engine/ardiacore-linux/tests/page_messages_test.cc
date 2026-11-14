@@ -365,9 +365,59 @@ void Activity() {
 std::string FakeDigest(std::string_view text) { return "d" + std::to_string(text.size()) + ":" + std::string(text.substr(0, 4)); }
 
 constexpr LinuxPageOperation kOperations[] = {
-    {"exact", 12, "d12:post", LinuxPageOperationArgs::kNone},
-    {"replace", 7, "d7:(fn)", LinuxPageOperationArgs::kReplace},
+    {"exact", 12, "d12:post", LinuxPageOperationArgs::kNone, ""},
+    {"replace", 7, "d7:(fn)", LinuxPageOperationArgs::kReplace, ")"},
+    {"toggle", 12, "d12:r.to", LinuxPageOperationArgs::kLook, ")));"},
+    {"setLook", 14, "d14:r.se", LinuxPageOperationArgs::kLook, "])));"},
 };
+
+base::Value Look(base::Value dark, base::Value size, base::Value font) {
+  return base::Value(base::DictValue().Set("dark", std::move(dark)).Set("size", std::move(size)).Set("font", std::move(font)));
+}
+
+std::optional<base::Value> ParseLook(std::string_view json) {
+  auto one = [](base::Value look) { return std::optional<base::Value>(base::Value(base::ListValue().Append(std::move(look)))); };
+  if (json == "[{\"dark\":true,\"size\":4,\"font\":\"sans\"}]") return one(Look(base::Value(true), base::Value(4), base::Value("sans")));
+  if (json == "[{ \"font\": \"serif\", \"size\": 0, \"dark\": false }]") return one(Look(base::Value(false), base::Value(0), base::Value("serif")));
+  if (json == "[{\"dark\":true,\"size\":1,\"font\":\"sans\",\"x\":1}]") {
+    auto look = Look(base::Value(true), base::Value(1), base::Value("sans"));
+    look.GetDict().Set("x", 1);
+    return one(std::move(look));
+  }
+  if (json == "[{\"dark\":1,\"size\":1,\"font\":\"sans\"}]") return one(Look(base::Value(1), base::Value(1), base::Value("sans")));
+  if (json == "[{\"dark\":true,\"size\":1.5,\"font\":\"sans\"}]") return one(Look(base::Value(true), base::Value(1.5), base::Value("sans")));
+  if (json == "[{\"dark\":true,\"size\":5,\"font\":\"sans\"}]") return one(Look(base::Value(true), base::Value(5), base::Value("sans")));
+  if (json == "[{\"dark\":true,\"size\":-1,\"font\":\"sans\"}]") return one(Look(base::Value(true), base::Value(-1), base::Value("sans")));
+  if (json == "[{\"dark\":true,\"size\":1,\"font\":\"mono\"}]") return one(Look(base::Value(true), base::Value(1), base::Value("mono")));
+  if (json == "[{\"dark\":true,\"size\":1,\"font\":\"sans\"},1]") {
+    return base::Value(base::ListValue().Append(Look(base::Value(true), base::Value(1), base::Value("sans"))).Append(1));
+  }
+  if (json == "[\"look\"]") return base::Value(base::ListValue().Append("look"));
+  return std::nullopt;
+}
+
+void ReaderLooks() {
+  const std::string canonical = "{\"dark\":true,\"size\":4,\"font\":\"sans\"}";
+  auto toggle = LinuxPageEvaluationScript("r.toggle(R, " + canonical + ")));", FakeDigest, ParseLook, kOperations);
+  Expect(toggle && toggle->find("r.toggle(R, " + canonical + ")));") != std::string::npos, "a valid look is accepted");
+  auto set_look = LinuxPageEvaluationScript("r.setLook(...[" + canonical + "])));", FakeDigest, ParseLook, kOperations);
+  Expect(set_look && set_look->find("r.setLook(...[" + canonical + "])));") != std::string::npos, "setLook keeps its own suffix");
+  auto spaced = LinuxPageEvaluationScript("r.toggle(R, { \"font\": \"serif\", \"size\": 0, \"dark\": false })));", FakeDigest, ParseLook, kOperations);
+  Expect(spaced && spaced->find("r.toggle(R, {\"dark\":false,\"size\":0,\"font\":\"serif\"})));") != std::string::npos &&
+         spaced->find("\"font\": ") == std::string::npos, "the host re-emits a canonical look, not the page's text");
+  for (const char* refused : {"{\"dark\":true,\"size\":1,\"font\":\"sans\",\"x\":1}", "{\"dark\":1,\"size\":1,\"font\":\"sans\"}",
+                              "{\"dark\":true,\"size\":1.5,\"font\":\"sans\"}", "{\"dark\":true,\"size\":5,\"font\":\"sans\"}",
+                              "{\"dark\":true,\"size\":-1,\"font\":\"sans\"}", "{\"dark\":true,\"size\":1,\"font\":\"mono\"}",
+                              "{\"dark\":true,\"size\":1,\"font\":\"sans\"},1", "\"look\"", "{\"dark\":true}), alert(1), ({"}) {
+    Expect(!LinuxPageEvaluationScript("r.toggle(R, " + std::string(refused) + ")));", FakeDigest, ParseLook, kOperations), refused);
+  }
+  Expect(!LinuxPageEvaluationScript("r.toggle(R, " + canonical + "));", FakeDigest, ParseLook, kOperations), "short suffix refused");
+  Expect(!LinuxPageEvaluationScript("r.toggle(R, " + canonical + ")));x", FakeDigest, ParseLook, kOperations), "trailing code refused");
+  Expect(!LinuxPageEvaluationScript("r.setLook(...[" + canonical + ")));", FakeDigest, ParseLook, kOperations), "setLook needs its bracket");
+  Expect(!LinuxPageEvaluationScript("x.toggle(R, " + canonical + ")));", FakeDigest, ParseLook, kOperations), "tampered prefix refused");
+  Expect(!LinuxPageEvaluationScript("r.toggle(R, )));", FakeDigest, ParseLook, kOperations), "a missing look is refused");
+  Expect(!LinuxPageEvaluationScript("r.toggle(R, " + canonical + ")));", FakeDigest, LinuxPageJsonList(), kOperations), "no parser, no look");
+}
 
 std::optional<base::Value> ParseThree(std::string_view json) {
   if (json == "[\"a\", \"b\", true]") return base::Value(base::ListValue().Append("a").Append("b").Append(true));
@@ -400,6 +450,7 @@ void Evaluation() {
   Expect(!LinuxPageEvaluationResult(base::Value(1)), "non-string result");
   Expect(!LinuxPageEvaluationResult(base::Value(std::string(4 * 1024 * 1024 + 1, 'x'))), "oversized result");
   Expect(LinuxJavaScriptString("a\nb\\") == "\"a\\u000ab\\\\\"", "control characters escaped");
+  ReaderLooks();
 }
 
 }

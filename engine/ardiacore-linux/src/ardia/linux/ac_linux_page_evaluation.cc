@@ -25,9 +25,10 @@ std::optional<LinuxPageOperationMatch> MatchLinuxPageOperation(
         return LinuxPageOperationMatch{&operation, {}};
       continue;
     }
-    if (code.size() <= operation.length + 1 || code.back() != ')') continue;
+    const std::string_view suffix = operation.suffix;
+    if (suffix.empty() || code.size() <= operation.length + suffix.size() || !code.ends_with(suffix)) continue;
     if (digest(code.substr(0, operation.length)) != operation.sha256) continue;
-    return LinuxPageOperationMatch{&operation, code.substr(operation.length, code.size() - operation.length - 1)};
+    return LinuxPageOperationMatch{&operation, code.substr(operation.length, code.size() - operation.length - suffix.size())};
   }
   return std::nullopt;
 }
@@ -60,6 +61,22 @@ std::optional<std::string> LinuxReplaceArguments(const base::Value& arguments) {
          (list[2].GetBool() ? "true" : "false");
 }
 
+std::optional<std::string> LinuxReaderLookArgument(const base::Value& arguments) {
+  if (!arguments.is_list() || arguments.GetList().size() != 1 || !arguments.GetList()[0].is_dict()) return std::nullopt;
+  const auto& look = arguments.GetList()[0].GetDict();
+  const auto dark = look.FindBool("dark");
+  const auto size = look.FindInt("size");
+  const std::string* font = look.FindString("font");
+  if (look.size() != 3 || !dark || !size || *size < 0 || *size >= kLinuxReaderLookSizes || !font) return std::nullopt;
+  for (std::string_view known : kLinuxReaderLookFonts) {
+    if (*font == known) {
+      return base::StringPrintf("{\"dark\":%s,\"size\":%d,\"font\":\"%s\"}", *dark ? "true" : "false", *size,
+                                std::string(known).c_str());
+    }
+  }
+  return std::nullopt;
+}
+
 std::optional<std::string> LinuxPageEvaluationScript(
     std::string_view code, const LinuxPageDigest& digest, const LinuxPageJsonList& parse_list,
     std::span<const LinuxPageOperation> operations) {
@@ -71,9 +88,11 @@ std::optional<std::string> LinuxPageEvaluationScript(
   } else {
     if (!parse_list) return std::nullopt;
     auto parsed = parse_list("[" + std::string(match->arguments) + "]");
-    auto arguments = parsed ? LinuxReplaceArguments(*parsed) : std::nullopt;
+    std::optional<std::string> arguments;
+    if (parsed && match->operation->args == LinuxPageOperationArgs::kReplace) arguments = LinuxReplaceArguments(*parsed);
+    if (parsed && match->operation->args == LinuxPageOperationArgs::kLook) arguments = LinuxReaderLookArgument(*parsed);
     if (!arguments) return std::nullopt;
-    body = std::string(code.substr(0, match->operation->length)) + *arguments + ")";
+    body = std::string(code.substr(0, match->operation->length)) + *arguments + std::string(match->operation->suffix);
   }
   return "(() => {\n"
          "let ardiaResult = null;\n"

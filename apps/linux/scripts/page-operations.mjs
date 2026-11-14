@@ -1,8 +1,19 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+
+registerHooks({
+  resolve(specifier, context, next) {
+    if (/^\.\.?\//.test(specifier) && !/\.[cm]?[jt]sx?$/.test(specifier) && context.parentURL?.endsWith(".ts")) return next(`${specifier}.ts`, context);
+    return next(specifier, context);
+  },
+  load(url, context, next) {
+    return url.endsWith(".ts") ? next(url, { ...context, format: "module-typescript" }) : next(url, context);
+  },
+});
 
 const USAGE = `usage: page-operations.mjs [--check|--write]
 Derives the page evaluations the Linux host may run from the shared browser sources
@@ -12,6 +23,11 @@ const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const TABLE = `${ROOT}engine/ardiacore-linux/src/ardia/linux/ac_linux_page_operations.h`;
 const SELECTION = "apps/browser/src/state/site/selection.ts";
 const COMMANDS = "apps/browser/src/state/commands/commands.ts";
+const READER_PAGE = "apps/browser/src/state/reader/readerPage.ts";
+const READER_TOKENS = "apps/browser/src/state/reader/tokens.ts";
+
+const readerPage = await import(new URL(READER_PAGE, `file://${ROOT}`).href);
+const { READER_FONTS, READER_SIZES } = await import(new URL(READER_TOKENS, `file://${ROOT}`).href);
 
 function parse(path) {
   return ts.createSourceFile(path, readFileSync(`${ROOT}${path}`, "utf8"), ts.ScriptTarget.Latest, true);
@@ -60,23 +76,44 @@ function evaluatedLiteral(source, clause) {
   return result;
 }
 
+function lookCarrying(name, build) {
+  const split = (look) => {
+    const code = build(look);
+    const json = JSON.stringify(look);
+    const at = code.indexOf(json);
+    if (at < 0 || at !== code.lastIndexOf(json)) throw new Error(`${name} does not carry its look exactly once`);
+    return [code.slice(0, at), code.slice(at + json.length)];
+  };
+  const [text, suffix] = split({ dark: false, size: 0, font: READER_FONTS[0] });
+  const [otherText, otherSuffix] = split({ dark: true, size: READER_SIZES.length - 1, font: READER_FONTS.at(-1) });
+  if (text !== otherText || suffix !== otherSuffix || !/^[\])};]+$/.test(suffix)) throw new Error(`${name} varies outside its look`);
+  return { name, text, args: "kLook", suffix };
+}
+
 export function pageOperations() {
   const selection = constants(parse(SELECTION));
   return [
-    { name: "selectionContext", text: selection("SELECTION_CONTEXT"), args: "kNone" },
-    { name: "hasSelection", text: selection("HAS_SELECTION"), args: "kNone" },
-    { name: "jumpToSelection", text: selection("JUMP_TO_SELECTION"), args: "kNone" },
-    { name: "replaceInField", text: `(${selection("REPLACE")})(`, args: "kReplace" },
-    { name: "selectedText", text: evaluatedLiteral(parse(COMMANDS), "useSelectionForFind"), args: "kNone" },
+    { name: "selectionContext", text: selection("SELECTION_CONTEXT"), args: "kNone", suffix: "" },
+    { name: "hasSelection", text: selection("HAS_SELECTION"), args: "kNone", suffix: "" },
+    { name: "jumpToSelection", text: selection("JUMP_TO_SELECTION"), args: "kNone", suffix: "" },
+    { name: "replaceInField", text: `(${selection("REPLACE")})(`, args: "kReplace", suffix: ")" },
+    { name: "selectedText", text: evaluatedLiteral(parse(COMMANDS), "useSelectionForFind"), args: "kNone", suffix: "" },
+    { name: "readerCheck", text: readerPage.readerCheckCall(), args: "kNone", suffix: "" },
+    { name: "readerState", text: readerPage.readerCall("state"), args: "kNone", suffix: "" },
+    { name: "readerHide", text: readerPage.readerCall("hide"), args: "kNone", suffix: "" },
+    lookCarrying("readerToggle", readerPage.readerToggleCall),
+    lookCarrying("readerOpen", readerPage.readerOpenCall),
+    lookCarrying("readerSetLook", (look) => readerPage.readerCall("setLook", look)),
   ];
 }
 
 export function pageOperationsHeader(operations = pageOperations()) {
-  const rows = operations.map(({ name, text, args }) => {
+  const rows = operations.map(({ name, text, args, suffix }) => {
     const bytes = Buffer.from(text, "utf8");
     const digest = createHash("sha256").update(bytes).digest("hex");
-    return `    {"${name}", ${bytes.length}, "${digest}", LinuxPageOperationArgs::${args}},`;
+    return `    {"${name}", ${bytes.length}, "${digest}", LinuxPageOperationArgs::${args}, ${JSON.stringify(suffix)}},`;
   });
+  const fonts = READER_FONTS.map((font) => JSON.stringify(font)).join(", ");
   return [
     "#ifndef ARDIA_LINUX_AC_LINUX_PAGE_OPERATIONS_H_",
     "#define ARDIA_LINUX_AC_LINUX_PAGE_OPERATIONS_H_",
@@ -88,14 +125,18 @@ export function pageOperationsHeader(operations = pageOperations()) {
     "",
     "namespace ardiacore {",
     "",
-    "enum class LinuxPageOperationArgs { kNone, kReplace };",
+    "enum class LinuxPageOperationArgs { kNone, kReplace, kLook };",
     "",
     "struct LinuxPageOperation {",
     "  std::string_view name;",
     "  size_t length;",
     "  std::string_view sha256;",
     "  LinuxPageOperationArgs args;",
+    "  std::string_view suffix;",
     "};",
+    "",
+    `inline constexpr int kLinuxReaderLookSizes = ${READER_SIZES.length};`,
+    `inline constexpr std::array<std::string_view, ${READER_FONTS.length}> kLinuxReaderLookFonts = {{${fonts}}};`,
     "",
     `inline constexpr std::array<LinuxPageOperation, ${rows.length}> kLinuxPageOperations = {{`,
     ...rows,

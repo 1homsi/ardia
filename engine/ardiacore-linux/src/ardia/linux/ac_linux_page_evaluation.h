@@ -30,6 +30,7 @@ std::optional<LinuxPageOperationMatch> MatchLinuxPageOperation(
     std::string_view code, const LinuxPageDigest& digest,
     std::span<const LinuxPageOperation> operations = kLinuxPageOperations);
 std::optional<std::string> LinuxReplaceArguments(const base::Value& arguments);
+std::optional<std::string> LinuxReaderLookArgument(const base::Value& arguments);
 std::string LinuxJavaScriptString(std::string_view text);
 std::optional<std::string> LinuxPageEvaluationScript(
     std::string_view code, const LinuxPageDigest& digest, const LinuxPageJsonList& parse_list,

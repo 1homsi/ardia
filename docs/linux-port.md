@@ -234,6 +234,16 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   - 256 refusals mute that document.
 - **Evaluation.** `evaluate` runs only fixed, hash-pinned operations, and anything else gets
   `ERR_PAGE_EVALUATION_REFUSED`.
+  - `apps/linux/scripts/page-operations.mjs --write` generates the table (`ac_linux_page_operations.h`) from the shared
+    sources; `--check` and `pageOperations.test.mjs` fail when it is stale.
+  - Reader view uses six of them. `readerCheck`, `readerState` and `readerHide` are fixed texts. `readerToggle`,
+    `readerOpen` and `readerSetLook` pin everything before the look and a fixed suffix after it. The host accepts only
+    `{dark, size, font}` with exactly those keys, a boolean, a size index inside `READER_SIZES` and a font from
+    `READER_FONTS`, and it writes its own canonical copy of the look into the script.
+  - Every operation runs in the page's Ardia isolated world, so the reader's state on
+    `window[Symbol.for("ardia.reader")]` lasts across calls for one document. Its overlay, `inert` and key listeners act
+    on the shared DOM.
+  - `pageOperations.test.mjs` checks every operation, with its widest arguments, against the host's code cap.
 - **Gestures.** Peek and split open only after a real left mouse-up. A dragged link opens only when it is dropped back
   on a page.
 - **Page commands.** Find, Print, Save Page and DevTools (`ac_linux_page_commands`, `ac_linux_find`) act on the exact

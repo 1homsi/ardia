@@ -8,8 +8,12 @@ import { useBrowser } from "../../browser/src/state/browser/store.ts";
 import { webviews } from "../../browser/src/platform/webviews.ts";
 import { copyLinkToSelection, copyPageUrl, jumpToSelection, replaceInField } from "../../browser/src/state/site/selection.ts";
 import { runCommand } from "../../browser/src/state/commands/commands.ts";
+import { closeReader, readerState, startReader, toggleReader } from "../../browser/src/state/reader/reader.ts";
+import { READER_FONTS, READER_SIZES } from "../../browser/src/state/reader/tokens.ts";
 
 const TABLE = new URL("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_page_operations.h", import.meta.url);
+const EVALUATION = new URL("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_page_evaluation.h", import.meta.url);
+const READER_OPERATIONS = ["readerCheck", "readerState", "readerHide", "readerToggle", "readerOpen", "readerSetLook"];
 
 function recordingView(answers = {}) {
   const scripts = [];
@@ -34,8 +38,8 @@ function pinned(text) {
 
 function tableRows() {
   const rows = new Map();
-  for (const match of readFileSync(TABLE, "utf8").matchAll(/\{"(\w+)", (\d+), "([0-9a-f]{64})", LinuxPageOperationArgs::(\w+)\}/g)) {
-    rows.set(match[1], { length: Number(match[2]), sha256: match[3], args: match[4] });
+  for (const match of readFileSync(TABLE, "utf8").matchAll(/\{"(\w+)", (\d+), "([0-9a-f]{64})", LinuxPageOperationArgs::(\w+), ("[^"]*")\}/g)) {
+    rows.set(match[1], { length: Number(match[2]), sha256: match[3], args: match[4], suffix: JSON.parse(match[5]) });
   }
   return rows;
 }
@@ -55,7 +59,71 @@ test("the pinned evaluation table matches the shared sources", () => {
   assert.deepEqual([...rows.keys()], pageOperations().map((entry) => entry.name));
   for (const entry of pageOperations()) {
     const row = rows.get(entry.name);
-    assert.deepEqual({ length: row.length, sha256: row.sha256, args: row.args }, { ...pinned(entry.text), args: entry.args });
+    assert.deepEqual(row, { ...pinned(entry.text), args: entry.args, suffix: entry.suffix });
+  }
+  for (const name of READER_OPERATIONS) assert.ok(rows.has(name), name);
+  const header = readFileSync(TABLE, "utf8");
+  assert.match(header, new RegExp(`kLinuxReaderLookSizes = ${READER_SIZES.length};`));
+  assert.ok(header.includes(`kLinuxReaderLookFonts = {{${READER_FONTS.map((font) => JSON.stringify(font)).join(", ")}}};`));
+});
+
+test("every pinned operation with its widest arguments fits the host's code cap", () => {
+  const cap = readFileSync(EVALUATION, "utf8").match(/kLinuxPageEvaluationCodeMax = (\d+) \* 1024;/);
+  assert.ok(cap);
+  const widestLook = JSON.stringify({ dark: false, size: READER_SIZES.length - 1, font: READER_FONTS.reduce((a, b) => (a.length >= b.length ? a : b)) });
+  for (const entry of pageOperations()) {
+    const widest = entry.args === "kLook" ? widestLook : entry.args === "kReplace" ? "x".repeat(2 * 6 * 4096 + 16) : "";
+    assert.ok(Buffer.byteLength(entry.text + widest + entry.suffix) <= Number(cap[1]) * 1024, entry.name);
+  }
+});
+
+function readerOperationOf(script) {
+  for (const entry of pageOperations().filter((candidate) => READER_OPERATIONS.includes(candidate.name))) {
+    if (entry.args === "kNone" && script === entry.text) return { name: entry.name };
+    if (entry.args === "kLook" && script.startsWith(entry.text) && script.endsWith(entry.suffix) && script.length > entry.text.length + entry.suffix.length) {
+      return { name: entry.name, look: script.slice(entry.text.length, script.length - entry.suffix.length) };
+    }
+  }
+  return { name: null };
+}
+
+test("the reader sends exactly the pinned reader operations and a canonical look", async () => {
+  const { tabId } = mountTab("https://example.test/article");
+  const sent = [];
+  const answers = {
+    readerCheck: { active: false, readerable: true },
+    readerToggle: { active: true, look: { dark: false, size: 1, font: "serif" } },
+    readerSetLook: { active: true, look: { dark: false, size: 1, font: "sans" } },
+    readerState: { active: true, look: { dark: false, size: 1, font: "sans" } },
+    readerHide: { active: false },
+  };
+  webviews.set(tabId, { evaluate: async (script) => {
+    const found = readerOperationOf(script);
+    sent.push(found);
+    return answers[found.name] ?? null;
+  } });
+  const stop = startReader();
+  try {
+    useBrowser.setState((s) => ({ live: { ...s.live, [tabId]: { ...s.live[tabId], isLoading: false } } }));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.equal(readerState(tabId).available, true);
+    await toggleReader(tabId);
+    assert.equal(readerState(tabId).active, true);
+    useBrowser.getState().updateSettings({ readerFont: "sans" });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await closeReader(tabId);
+    assert.equal(readerState(tabId).active, false);
+    const names = sent.map((entry) => entry.name);
+    assert.ok(!names.includes(null), JSON.stringify(names));
+    for (const name of ["readerCheck", "readerToggle", "readerSetLook", "readerState", "readerHide"]) assert.ok(names.includes(name), name);
+    for (const { look } of sent.filter((entry) => entry.look !== undefined)) {
+      const parsed = JSON.parse(look);
+      assert.deepEqual(Object.keys(parsed), ["dark", "size", "font"]);
+      assert.equal(look, `{"dark":${parsed.dark},"size":${parsed.size},"font":${JSON.stringify(parsed.font)}}`);
+    }
+  } finally {
+    stop();
+    webviews.delete(tabId);
   }
 });
 
