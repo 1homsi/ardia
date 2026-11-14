@@ -295,6 +295,11 @@ and again only when that status changes.
       it, open a tab and go back. Then `adb shell dumpsys gfxinfo $P | grep -E "Janky|percentile"`.
     - With the look off, the deck and backdrops are flat colours and the frosts solid. Report both sets of lines,
       then switch the look back on.
+39. **Keyboard target:** right after a fresh launch (`adb shell am force-stop $P` first), open the tray. Logcat has
+    `PAGELAB keyboard will change 0.0 -> N dp in M ms` as the keyboard starts to rise, then
+    `PAGELAB keyboard did change to N dp` with the same N, and the tray rises with the keyboard on that first open
+    too. Close the tray, switch to a keyboard of another height (emoji panel or a different keyboard app), and
+    open it again: the will-change line already has the new height.
 
 ## Upgrade from the Compose app on Android
 
