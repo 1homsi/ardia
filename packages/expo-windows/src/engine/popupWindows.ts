@@ -3,7 +3,6 @@ import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { addNativeListener, type EventSubscription } from "../events";
 import type { AppWindowsModule } from "../nativeModuleTypes";
 import { popupFrame, popupSize, popupTitle, type PopupFeatures } from "./popupPlacement";
-import { hostCall } from "./host";
 import { privatePopupShown } from "./privateWindows";
 
 export const POPUP_WINDOW_PREFIX = "popup:";
@@ -23,13 +22,12 @@ export type PopupWindowAsk = {
   url: string;
   profile: string;
   openerKey: string;
-  openerWindowId: string;
+  openedFromKey: string;
+  openedFromWindowId: string;
   features: PopupFeatures;
 };
 
-type ListedTab = { key?: unknown; shown?: unknown; windowVisible?: unknown };
-
-type PopupWindowOptions = OpenWindowOptions & { focusWhenFront: string };
+type PopupWindowOptions = OpenWindowOptions & { focusWhenFront: string; focusWhenPage: string };
 
 type PopupWindows = TurboModule &
   Pick<AppWindowsModule, "closeWindow" | "windowFrame" | "windowIds" | "setWindowTitle"> & { openWindow(id: string, options: PopupWindowOptions): Promise<void> };
@@ -80,6 +78,8 @@ function listenForCloses() {
   closes ??= addNativeListener(WINDOWS_MODULE, "onWindowEvent", (payload) => {
     const event = payload as WindowEvent | null;
     if (event?.type === "close" && isPopupWindowId(event.id)) popupClosed(event.id);
+    const activated = event?.type === "focus" && !event.fromPage ? popups.get(event.id) : undefined;
+    if (activated) activated.focused = true;
   });
 }
 
@@ -91,14 +91,6 @@ const openerFrame = (windowId: string) =>
       )
     : Promise.resolve(null);
 
-const openerShown = (openerKey: string) =>
-  openerKey
-    ? hostCall<{ tabs?: ListedTab[] }>("tabs.list").then(
-        (listed) => !!listed?.tabs?.some((tab) => tab.key === openerKey && tab.shown === true && tab.windowVisible === true),
-        () => false,
-      )
-    : Promise.resolve(false);
-
 export async function openPopupWindow(ask: PopupWindowAsk): Promise<PopupWindowOutcome> {
   listenForCloses();
   made += 1;
@@ -107,14 +99,13 @@ export async function openPopupWindow(ask: PopupWindowAsk): Promise<PopupWindowO
   popups.set(windowId, popup);
   privateHolds.set(windowId, privatePopupShown(ask.profile));
   try {
-    const [opener, focus] = await Promise.all([openerFrame(ask.openerWindowId), openerShown(ask.openerKey)]);
-    const frame = popupFrame(ask.features, opener);
-    popup.focused = focus && !!ask.openerWindowId;
+    const frame = popupFrame(ask.features, await openerFrame(ask.openedFromWindowId));
     await windows().openWindow(windowId, {
       kind: "popup",
       title: popupTitle("", ask.url),
-      focus: popup.focused,
-      focusWhenFront: ask.openerWindowId,
+      focus: !!ask.openedFromKey && !!ask.openedFromWindowId,
+      focusWhenFront: ask.openedFromWindowId,
+      focusWhenPage: ask.openedFromKey,
       profile: ask.profile,
       ...(frame ? { frame } : { size: popupSize(ask.features) }),
     });

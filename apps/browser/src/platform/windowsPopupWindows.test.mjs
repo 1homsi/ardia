@@ -166,31 +166,51 @@ test("a private pop-up keeps its private session while it is open, after its ope
   assert.equal(released(), 1, "the private session ends when its pop-up closes");
 });
 
-test("a pop-up whose opener page is the one shown in its window asks to take focus, only while that window is in front", async () => {
+test("a pop-up leaves the focus decision to the moment it opens: its opener's window in front and the opener page holding the keyboard", async () => {
   const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, () => {});
   await settle();
   popupOpened("ardiacore:30", {});
   await settle();
   const made = opened.at(-1);
   assert.equal(made.options.focus, true);
-  assert.equal(made.options.focusWhenFront, "main", "the native side activates it only when the opener's window is the foreground window");
+  assert.equal(made.options.focusWhenFront, "main", "the native side activates it only if the opener's window is in front then");
+  assert.equal(made.options.focusWhenPage, "opener-page", "and only if the opener page holds the keyboard then");
+  assert.equal(calls.filter((call) => call.verb === "tabs.list").length, 0, "nothing is decided ahead of time from a list that can go stale");
   turboModules.ArdiaAppWindows.closeWindow(made.id);
   await settle();
   unmount();
 });
 
-test("a pop-up from a page that isn't shown, a background tab, opens without taking focus", async () => {
-  shownPages.delete("opener-page");
-  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, () => {});
-  await settle();
-  popupOpened("ardiacore:31", {});
+test("a pop-up whose opener page is unknown never takes focus", async () => {
+  popupOpened("ardiacore:31", {}, "nobody-knows-this-page");
   await settle();
   const made = opened.at(-1);
   assert.equal(made.options.focus, false);
   assert.equal(popupWindowInfo(made.id)?.focused, false, "its page does not take the keyboard either");
   turboModules.ArdiaAppWindows.closeWindow(made.id);
   await settle();
-  shownPages.add("opener-page");
+});
+
+test("a pop-up opened from a pop-up is placed and focused by the pop-up that opened it, while its tabs and prompts still go to the main page", async () => {
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, () => {});
+  await settle();
+  popupOpened("ardiacore:32", {});
+  await settle();
+  const first = opened.at(-1);
+  const firstInfo = popupWindowInfo(first.id);
+  const firstShown = mountPage(firstInfo.pageKey, { url: "", profile: firstInfo.profile, adopt: firstInfo.adopt, windowId: first.id }, () => {});
+  await settle();
+  popupOpened("ardiacore:33", {}, firstInfo.pageKey);
+  await settle();
+  const second = opened.at(-1);
+  assert.notEqual(second.id, first.id);
+  assert.equal(second.options.focusWhenFront, first.id, "focus follows the pop-up that opened it");
+  assert.equal(second.options.focusWhenPage, firstInfo.pageKey);
+  assert.equal(popupWindowInfo(second.id)?.openerKey, "opener-page", "its tabs and prompts still go to the main page");
+  turboModules.ArdiaAppWindows.closeWindow(second.id);
+  turboModules.ArdiaAppWindows.closeWindow(first.id);
+  await settle();
+  firstShown();
   unmount();
 });
 

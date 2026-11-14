@@ -175,7 +175,7 @@ function listen() {
     const features = popupFeatures(opened.popup);
     if (!features) return handOpenedTab(opener, request);
     const openedFrom = opener && !opener.closed ? opener : undefined;
-    const ask = { adopt: request.adoptId, url: request.url, profile: request.profile ?? openedFrom?.profile ?? "", openerKey: openedFrom?.key ?? "", openerWindowId: openedFrom?.windowId ?? "", features };
+    const ask = { adopt: request.adoptId, url: request.url, profile: request.profile ?? openedFrom?.profile ?? "", openerKey: openedFrom?.key ?? "", openedFromKey: (asking && !asking.closed ? asking : openedFrom)?.key ?? "", openedFromWindowId: (asking && !asking.closed ? asking : openedFrom)?.windowId ?? "", features };
     quietly(
       openPopupWindow(ask).then((outcome) => {
         if (outcome === "failed") handOpenedTab(opener, { ...request, disposition: "foreground" });

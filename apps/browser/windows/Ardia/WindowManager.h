@@ -16,6 +16,7 @@
 #include <dwmapi.h>
 #include <shellscalingapi.h>
 #include <winrt/Microsoft.UI.Input.h>
+#include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.UI.h>
 
@@ -42,6 +43,7 @@ struct OpenWindowRequest {
   bool focus{true};
   bool animated{false};
   std::string focusWhenFront;
+  std::string focusWhenPage;
 };
 
 struct ManagedWindow {
@@ -154,10 +156,28 @@ struct WindowManager {
     return hwnd && FrontRoot() == hwnd;
   }
 
-  static void StayBehindFront(HWND hwnd) noexcept {
-    HWND front = FrontRoot();
-    if (!front || front == hwnd || (GetWindowLongPtrW(front, GWL_EXSTYLE) & WS_EX_TOPMOST)) return;
-    SetWindowPos(hwnd, front, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+  static bool PageHoldsKeyboard(std::string const &key) noexcept {
+    const ArdiaEngineApi *engine = Host::Engine();
+    if (key.empty() || !engine || !engine->hostCall) return false;
+    std::string answer;
+    engine->hostCall("keyboard.page", "{}", 0, [](void *context, const char *json) noexcept { *static_cast<std::string *>(context) = json ? json : ""; }, &answer);
+    try {
+      winrt::Windows::Data::Json::JsonObject reply{nullptr};
+      if (answer.empty() || !winrt::Windows::Data::Json::JsonObject::TryParse(winrt::to_hstring(answer), reply)) return false;
+      return winrt::to_string(reply.GetNamedString(L"key", L"")) == key;
+    } catch (...) {
+      return false;
+    }
+  }
+
+  static void ShowAboveOpener(HWND hwnd, HWND opener) noexcept {
+    if (!opener || !IsWindow(opener)) return;
+    HWND top = opener;
+    for (HWND above = GetWindow(opener, GW_HWNDPREV); above && GetWindow(above, GW_OWNER) == opener; above = GetWindow(above, GW_HWNDPREV)) top = above;
+    HWND after = GetWindow(top, GW_HWNDPREV);
+    if (after == hwnd) return;
+    bool atTopOfBand = !after || (GetWindowLongPtrW(after, GWL_EXSTYLE) & WS_EX_TOPMOST);
+    SetWindowPos(hwnd, atTopOfBand ? HWND_TOP : after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
   }
 
   void Open(OpenWindowRequest const &request) noexcept {
@@ -196,7 +216,8 @@ struct WindowManager {
       ConnectNonClientInput(entry);
       ApplyInputRegions(entry);
 
-      bool activate = request.focus && !Background() && (request.focusWhenFront.empty() || InFront(request.focusWhenFront));
+      bool activate = request.focus && !Background() && (request.focusWhenFront.empty() || (InFront(request.focusWhenFront) && PageHoldsKeyboard(request.focusWhenPage)));
+      HWND openedFrom = request.focusWhenFront.empty() ? nullptr : Hwnd(request.focusWhenFront);
       bool entrance = request.animated || entry.kind != "browser";
       bool fades = entrance && WindowMotion::SystemAnimates();
       HWND hwnd = entry.hwnd;
@@ -204,11 +225,13 @@ struct WindowManager {
       m_order.push_back(entry.id);
       auto placed = m_windows.emplace(entry.id, std::move(entry)).first;
       if (fades) BeginEntrance(placed->second);
+      bool quietPopup = !activate && placed->second.kind == "popup";
+      if (quietPopup) ShowAboveOpener(hwnd, openedFrom);
       appWindow.Show(activate);
       if (activate) SetForegroundWindow(hwnd);
-      else if (placed->second.kind == "popup") {
-        StayBehindFront(hwnd);
-        LaunchLog::Write(L"window", L"a pop-up opened without taking focus: its opener's page or window is not the one in front");
+      else if (quietPopup) {
+        ShowAboveOpener(hwnd, openedFrom);
+        LaunchLog::Write(L"window", L"a pop-up opened above its opener without taking focus: its opener's window is not in front or its page does not hold the keyboard");
       }
       if (m_activeId.empty()) m_activeId = request.id;
       LaunchLog::Write(L"window", std::wstring(L"opened ").append(Paths::Wide(request.id)));
