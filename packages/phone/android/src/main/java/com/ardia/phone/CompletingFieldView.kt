@@ -34,6 +34,7 @@ class CompletingFieldView(context: Context, appContext: AppContext) : ExpoView(c
     private var pendingText: String? = null
     private var pendingTextCount = 0
     private var lastSubmit: SubmitOnce.Submit? = null
+    private var submits = 0
 
     var highlightColor: Int = DEFAULT_HIGHLIGHT
         set(value) {
@@ -78,8 +79,9 @@ class CompletingFieldView(context: Context, appContext: AppContext) : ExpoView(c
                     return@setOnEditorActionListener true
                 }
                 lastSubmit = SubmitOnce.Submit(displayed, now)
-                if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB completion submit \"$displayed\" via $via")
-                onSubmit(mapOf("displayed" to displayed))
+                submits += 1
+                if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB completion submit #$submits \"$displayed\" via $via")
+                onSubmit(mapOf("displayed" to displayed, "submit" to submits))
                 true
             }
         }

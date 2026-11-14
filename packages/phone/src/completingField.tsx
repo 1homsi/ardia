@@ -1,5 +1,6 @@
 import { createElement, forwardRef, useImperativeHandle, useRef, type ComponentType, type Ref } from "react";
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
+import { labLog } from "./system";
 import { Platform, processColor, TextInput, type ColorValue, type NativeSyntheticEvent, type TextInputProps, type ViewProps } from "react-native";
 
 export type CompletionOffer = { query: string; completion: string };
@@ -49,7 +50,7 @@ type NativeProps = Omit<CompletingFieldProps, "onTypedChange" | "onSubmit" | "on
   textEventCount: number;
   fieldLabel?: string;
   onTypedChange?: (event: NativeSyntheticEvent<{ typed: string; eventCount: number }>) => void;
-  onSubmit?: (event: NativeSyntheticEvent<{ displayed: string }>) => void;
+  onSubmit?: (event: NativeSyntheticEvent<{ displayed: string; submit?: number }>) => void;
   onFocusChange?: (event: NativeSyntheticEvent<{ focused: boolean }>) => void;
   onSuffixChange?: (event: NativeSyntheticEvent<{ suffix: string }>) => void;
 };
@@ -108,7 +109,10 @@ export const CompletingField = forwardRef<CompletingFieldHandle, CompletingField
         eventCount.current = event.nativeEvent.eventCount;
         onTypedChange?.(event.nativeEvent.typed);
       },
-      onSubmit: (event) => onSubmit?.(event.nativeEvent.displayed),
+      onSubmit: (event) => {
+        if (Platform.OS === "android") labLog(`PAGELAB completion js received submit #${event.nativeEvent.submit ?? "?"} "${event.nativeEvent.displayed}"`);
+        onSubmit?.(event.nativeEvent.displayed);
+      },
       onFocusChange: (event) => onFocusChange?.(event.nativeEvent.focused),
       onSuffixChange: (event) => onSuffixChange?.(event.nativeEvent.suffix),
     });
