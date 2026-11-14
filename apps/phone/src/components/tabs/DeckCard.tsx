@@ -7,7 +7,7 @@ import { DECK, DECK_HEADER, deckHeaderIconReveal, deckStatusStrip, deckHeaderLea
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -163,26 +163,28 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
         style={[styles.reach, { width: g.cardWidth, height: g.cardHeight, zIndex: z + 1 }, reachStyle]}
       />
       <Animated.View style={[styles.header, { width: g.cardWidth, zIndex: z + 1 }, headerStyle]} pointerEvents="none">
-        <Animated.View style={[styles.headerRow, rowStyle]}>
-          {tab.isPrivate ? (
-            <View style={[styles.privateIcon, { backgroundColor: tabsInk.incognitoCardRaised }]}>
-              <Symbol name="eyes" size={tabsLayout.faviconSize - 4} color={tabsInk.onDark} />
-            </View>
-          ) : (
-            <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
-          )}
-          <Animated.Text
-            testID="deckHeaderTitle"
-            maxFontSizeMultiplier={DECK_HEADER.maxFontScale}
-            onLayout={(event) => {
-              titleWidth.value = event.nativeEvent.layout.width;
-            }}
-            style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]}
-            numberOfLines={1}
-          >
-            {title}
-          </Animated.Text>
-        </Animated.View>
+        <FadeView testID="deckHeaderFade" trailing={{ length: DECK_HEADER.trailingFade }} style={StyleSheet.absoluteFill}>
+          <Animated.View style={[styles.headerRow, rowStyle]}>
+            {tab.isPrivate ? (
+              <View style={[styles.privateIcon, { backgroundColor: tabsInk.incognitoCardRaised }]}>
+                <Symbol name="eyes" size={tabsLayout.faviconSize - 4} color={tabsInk.onDark} />
+              </View>
+            ) : (
+              <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
+            )}
+            <Animated.Text
+              testID="deckHeaderTitle"
+              maxFontSizeMultiplier={DECK_HEADER.maxFontScale}
+              onLayout={(event) => {
+                titleWidth.value = event.nativeEvent.layout.width;
+              }}
+              style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]}
+              numberOfLines={1}
+            >
+              {title}
+            </Animated.Text>
+          </Animated.View>
+        </FadeView>
       </Animated.View>
     </>
   );

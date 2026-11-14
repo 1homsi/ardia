@@ -13,14 +13,14 @@ import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, t
 import { useOnboarding } from "../../state/onboarding/store";
 import { useVoice } from "../../state/voice/store";
 import { idleScrub, SCRUB, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
-import { rowFade, rowsOverflow, wholeRowsHeight } from "../../lib/trayRows";
+import { rowFade, rowsFadeEdge, rowsOverflow, wholeRowsHeight } from "../../lib/trayRows";
 import { haptics } from "../../state/app/haptics";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -569,15 +569,21 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
 
   const lastFrame = measured.current[rows.length - 1];
   const overflows = rowsOverflow(lastFrame?.bottom ?? 0, budget);
+  const fadesNatively = overflows && fadeIsNative();
   return (
     <GestureDetector gesture={gesture}>
-      <View testID="trayRowList" style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]} collapsable={false}>
+      <FadeView
+        testID="trayRowList"
+        bottom={fadesNatively ? rowsFadeEdge(budget) : undefined}
+        style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]}
+        collapsable={false}
+      >
         <Animated.View pointerEvents="none" style={[styles.highlight, { backgroundColor: theme.rowHighlight }, highlightStyle]} />
         {rows.map((row, index) => (
           <View
             key={index}
             testID={`trayRow:${index}`}
-            style={overflows && measured.current[index] ? { opacity: rowFade(measured.current[index]!.top, measured.current[index]!.bottom, budget, true) } : null}
+            style={overflows && !fadesNatively && measured.current[index] ? { opacity: rowFade(measured.current[index]!.top, measured.current[index]!.bottom, budget, true) } : null}
             onLayout={(event) => {
               const { x, y, width, height } = event.nativeEvent.layout;
               measured.current[index] = { left: x, top: y, right: x + width, bottom: y + height };
@@ -588,7 +594,7 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
             <SuggestionRow row={row} typed={typed} roles={theme} highlightsPress={false} menu={trayRowActions(row)} onActivate={activateRow} onRefine={onRefine} onMenu={openMenu} />
           </View>
         ))}
-      </View>
+      </FadeView>
     </GestureDetector>
   );
 }

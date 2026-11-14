@@ -146,7 +146,7 @@ export const lerp = (from: number, to: number, t: number) => {
   return from + (to - from) * t;
 };
 
-export const DECK_HEADER = { titleHidden: 52, titleShown: 84, iconFade: 12, inset: 8, edge: 16, maxFontScale: 1.35 } as const;
+export const DECK_HEADER = { titleHidden: 52, titleShown: 84, iconFade: 12, inset: 8, edge: 16, maxFontScale: 1.35, trailingFade: 14 } as const;
 
 export function deckHeaderPlacement(cardLeft: number, visible: number): { available: number; left: number } {
   "worklet";

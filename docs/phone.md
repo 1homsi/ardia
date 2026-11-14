@@ -821,7 +821,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
   - The ramp follows the view's bounds every frame it is laid out, since the deck header's width animates on the UI thread; props change rarely and need not animate.
   - Android: an offscreen layer with a `DstIn` gradient per edge, as `DeckCardHeaderItem`. iPhone: a `CAGradientLayer` mask (or one per edge composited) resized in `layoutSubviews`.
   - Where the native view is missing (`requireOptionalNativeModule` returns null), the JS export is a plain `View` that ignores the fade props, and each caller keeps today's fallback: the deck title clips with no fade, the tray fades whole rows.
-  - The deck uses `trailing: { length: 14 }`; the tray uses `bottom: { length: 0.3 × room, floor: 0.15 }` while its rows overflow. Small.
+  - The deck uses `trailing: { length: 14 }`; the tray uses `bottom: { length: 0.3 × room, floor: 0.15 }` while its rows overflow. Both are wired in the screens, and iPhone's half is in (de3736b41); Android's half is what remains.
 - Search field: inline completion is in the tray on Android (`CompletingField` through `TrayInput`, tester step 42), unverified on a phone; the tray's rise, drag, scrub, Paste and Go, the incognito toggle and the mic around it need a phone check with it.
 - Search tray: no predictive back (the tray follows the back gesture down 72 dp); React Native's back handler gives no progress. `SearchTrayHost.kt` `PredictiveBackHandler`. A day.
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
