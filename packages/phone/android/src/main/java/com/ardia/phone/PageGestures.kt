@@ -16,6 +16,7 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.ardia.browser.Page
+import com.ardia.browser.TouchScrollers
 import com.ardia.browsing.PageSwipe
 import com.ardia.browsing.PullToRefreshRules
 import com.ardia.browsing.SwipeDirection
@@ -47,11 +48,17 @@ internal object PageDragDecision {
 
     const val CONFIRM_DP = 12f
     const val CONFIRM_MILLIS = 80L
+    const val REPORT_WAIT_MILLIS = 200L
 
-    fun settle(contentClaimed: Boolean, travelledPx: Float, millisSinceSlop: Long, density: Float): Settle = when {
-        contentClaimed -> Settle.Yield
-        travelledPx >= CONFIRM_DP * density && millisSinceSlop >= CONFIRM_MILLIS -> Settle.Claim
-        else -> Settle.Wait
+    fun settle(contentClaimed: Boolean, scrollerTakes: Boolean?, travelledPx: Float, millisSinceSlop: Long, density: Float): Settle = when {
+        contentClaimed || scrollerTakes == true -> Settle.Yield
+        travelledPx < CONFIRM_DP * density || millisSinceSlop < CONFIRM_MILLIS -> Settle.Wait
+        scrollerTakes == null && millisSinceSlop < REPORT_WAIT_MILLIS -> Settle.Wait
+        else -> Settle.Claim
+    }
+
+    fun scrollerTakes(direction: SwipeDirection, report: TouchScrollers.Report?): Boolean? = report?.let {
+        if (direction == SwipeDirection.Back) it.canScrollLeft else it.canScrollRight
     }
 
     data class Decided(val drag: Drag, val direction: SwipeDirection?)
@@ -96,6 +103,8 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
 
     private var downX = 0f
     private var downY = 0f
+    private var downAt = 0L
+    private var claimedAt = -1L
     private var deciding = false
     private var decided: PageDragDecision.Decided? = null
     private var pending: PageDragDecision.Decided? = null
@@ -143,8 +152,10 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
                 decided = null
                 pending = null
                 contentClaimed = false
+                claimedAt = -1L
                 downX = event.x
                 downY = event.y
+                downAt = event.downTime
                 tracker?.recycle()
                 tracker = VelocityTracker.obtain().also { it.addMovement(event) }
             }
@@ -155,15 +166,23 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
                     tracker?.addMovement(event)
                     val dx = event.x - downX
                     val dy = event.y - downY
-                    when (PageDragDecision.settle(contentClaimed, kotlin.math.abs(dx - pendingX), event.eventTime - pendingAt, density)) {
+                    val report = scrollerReport(current)
+                    val scroller = if (mode == SwipeMode.Anywhere) PageDragDecision.scrollerTakes(waiting.direction!!, report) else false
+                    val travelled = kotlin.math.abs(dx - pendingX)
+                    val waited = event.eventTime - pendingAt
+                    when (PageDragDecision.settle(contentClaimed, scroller, travelled, waited, density)) {
                         PageDragDecision.Settle.Wait -> return false
                         PageDragDecision.Settle.Yield -> {
                             pending = null
-                            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB swipe left to the page: its content took the drag")
+                            lab {
+                                val why = if (contentClaimed) "the page asked to keep it ${claimedAt - downAt} ms after touch down" else "the scroller under the finger can scroll ${waiting.direction!!.name.lowercase()}"
+                                "swipe left to the page after $waited ms and ${dp(travelled)} dp: $why (scroller ${describe(report)})"
+                            }
                             return false
                         }
                         PageDragDecision.Settle.Claim -> {
                             pending = null
+                            lab { "swipe ${waiting.direction!!.name.lowercase()} claimed after $waited ms and ${dp(travelled)} dp: the page kept quiet, scroller ${describe(report)}" }
                             decided = waiting
                             activationX = dx
                             activationY = dy
@@ -194,7 +213,14 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
                     canScrollRight = web?.canScrollHorizontally(1) == true,
                     canScrollUp = web?.canScrollVertically(-1) == true || !state.isScrolledToTop,
                     isLoading = state.isLoading,
-                ) ?: return false
+                )
+                lab {
+                    val canScroll = "page scroll ${if (web?.canScrollHorizontally(-1) == true) "L" else "-"}${if (web?.canScrollHorizontally(1) == true) "R" else "-"}"
+                    val history = "history ${if (state.canGoBack) "B" else "-"}${if (state.canGoForward) "F" else "-"}"
+                    val chosen = choice?.let { if (it.drag == PageDragDecision.Drag.Swipe) "swipe ${it.direction!!.name.lowercase()}, waiting" else "pull" } ?: "left to the page"
+                    "swipe decide dx ${dp(dx)} dy ${dp(dy)} dp, $canScroll, $history, scroller ${describe(scrollerReport(current))}, ${mode.raw} -> $chosen"
+                }
+                choice ?: return false
                 if (choice.drag == PageDragDecision.Drag.Swipe) {
                     pending = choice
                     pendingAt = event.eventTime
@@ -216,7 +242,20 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
     }
 
     fun contentTookTheDrag() {
+        if (!contentClaimed) claimedAt = android.os.SystemClock.uptimeMillis()
         contentClaimed = true
+    }
+
+    private fun scrollerReport(current: Page): TouchScrollers.Report? = TouchScrollers.since(current.view.value, downAt)
+
+    private fun describe(report: TouchScrollers.Report?): String = report?.let {
+        "${if (it.canScrollLeft) "L" else "-"}${if (it.canScrollRight) "R" else "-"} ${it.atMillis - downAt} ms after down"
+    } ?: "not reported"
+
+    private fun dp(px: Float): Int = (px / density).toInt()
+
+    private inline fun lab(line: () -> String) {
+        if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB ${line()}")
     }
 
     fun touch(event: MotionEvent): Boolean {

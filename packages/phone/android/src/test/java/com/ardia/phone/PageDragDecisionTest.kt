@@ -1,5 +1,6 @@
 package com.ardia.phone
 
+import com.ardia.browser.TouchScrollers
 import com.ardia.browsing.SwipeDirection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -50,13 +51,47 @@ class PageDragDecisionTest {
         assertEquals(PageDragDecision.Drag.Pull, decide(mode = SwipeMode.Off, dy = 40f)?.drag)
     }
 
+    private fun settle(claimed: Boolean = false, scroller: Boolean? = false, travelledDp: Float, millis: Long, density: Float = 2.75f) =
+        PageDragDecision.settle(contentClaimed = claimed, scrollerTakes = scroller, travelledPx = travelledDp * density, millisSinceSlop = millis, density = density)
+
     @Test
     fun aSidewaysDragWaitsForThePageToSayItsContentTookItBeforeNavigating() {
-        val density = 2.75f
-        assertEquals(PageDragDecision.Settle.Wait, PageDragDecision.settle(contentClaimed = false, travelledPx = 5f * density, millisSinceSlop = 10L, density = density))
-        assertEquals(PageDragDecision.Settle.Wait, PageDragDecision.settle(contentClaimed = false, travelledPx = 40f * density, millisSinceSlop = 20L, density = density))
-        assertEquals(PageDragDecision.Settle.Wait, PageDragDecision.settle(contentClaimed = false, travelledPx = 2f * density, millisSinceSlop = 500L, density = density))
-        assertEquals(PageDragDecision.Settle.Claim, PageDragDecision.settle(contentClaimed = false, travelledPx = 14f * density, millisSinceSlop = 90L, density = density))
-        assertEquals(PageDragDecision.Settle.Yield, PageDragDecision.settle(contentClaimed = true, travelledPx = 40f * density, millisSinceSlop = 500L, density = density))
+        assertEquals(PageDragDecision.Settle.Wait, settle(travelledDp = 5f, millis = 10L))
+        assertEquals(PageDragDecision.Settle.Wait, settle(travelledDp = 40f, millis = 20L))
+        assertEquals(PageDragDecision.Settle.Wait, settle(travelledDp = 2f, millis = 500L))
+        assertEquals(PageDragDecision.Settle.Claim, settle(travelledDp = 14f, millis = 90L))
+        assertEquals(PageDragDecision.Settle.Yield, settle(claimed = true, travelledDp = 40f, millis = 500L))
+    }
+
+    @Test
+    fun aScrollerUnderTheFingerThatCanScrollThatWayKeepsTheDragEvenIfTheWebViewSaysNothing() {
+        assertEquals(PageDragDecision.Settle.Yield, settle(scroller = true, travelledDp = 2f, millis = 0L))
+        assertEquals(PageDragDecision.Settle.Yield, settle(scroller = true, travelledDp = 40f, millis = 500L))
+        assertEquals(PageDragDecision.Settle.Wait, settle(scroller = null, travelledDp = 14f, millis = 90L))
+        assertEquals(PageDragDecision.Settle.Claim, settle(scroller = null, travelledDp = 14f, millis = PageDragDecision.REPORT_WAIT_MILLIS))
+        assertEquals(PageDragDecision.Settle.Claim, settle(scroller = false, travelledDp = 14f, millis = 90L))
+    }
+
+    @Test
+    fun goingBackNeedsAScrollerThatCanScrollLeftAndForwardOneThatCanScrollRight() {
+        val atStart = TouchScrollers.Report(canScrollLeft = false, canScrollRight = true, atMillis = 0L)
+        val midway = TouchScrollers.Report(canScrollLeft = true, canScrollRight = true, atMillis = 0L)
+        assertEquals(false, PageDragDecision.scrollerTakes(SwipeDirection.Back, atStart))
+        assertEquals(true, PageDragDecision.scrollerTakes(SwipeDirection.Forward, atStart))
+        assertEquals(true, PageDragDecision.scrollerTakes(SwipeDirection.Back, midway))
+        assertEquals(null, PageDragDecision.scrollerTakes(SwipeDirection.Back, null))
+    }
+
+    @Test
+    fun thePageReportsTheScrollerUnderTheFingerAndAnOlderTouchsReportIsIgnored() {
+        assertEquals(TouchScrollers.Report(true, false, 7L), TouchScrollers.parse("touchScroller:10", 7L))
+        assertEquals(TouchScrollers.Report(false, false, 7L), TouchScrollers.parse("touchScroller:00", 7L))
+        assertNull(TouchScrollers.parse("touchScroller:1", 7L))
+        assertNull(TouchScrollers.parse("nightShade", 7L))
+        val key = Any()
+        TouchScrollers.report(key, "touchScroller:11", 100L)
+        assertEquals(true, TouchScrollers.since(key, 90L)?.canScrollLeft)
+        assertNull(TouchScrollers.since(key, 120L))
+        assertNull(TouchScrollers.since(Any(), 0L))
     }
 }

@@ -262,6 +262,13 @@ and again only when that status changes.
     `path live` for both lab frosts, never `inside its own source`, each with its frost and source sizes.
 34. **Voice screen in light mode:** the backdrop is the dark profile backdrop, with the white "Listening…", X and
     stop button readable on it, the same as in dark mode.
+35. **Swipe over a carousel, both ways:** with Swipe anywhere, on a page with back history and a sideways
+    carousel (a news site's story strip), scroll the carousel partway, then drag it right and left. Both drags
+    scroll the carousel and neither navigates. Each drag logs `PAGELAB swipe decide …`, with the page's own
+    scroll, history, the scroller report (`LR`, `-R`, `L-` or `not reported`) and the choice. A right drag on the
+    carousel then logs `swipe left to the page … the scroller under the finger can scroll back` or
+    `the page asked to keep it N ms after touch down`. A right drag on plain text, away from any carousel, still
+    goes back (`swipe back claimed …`).
 
 ## Upgrade from the Compose app on Android
 

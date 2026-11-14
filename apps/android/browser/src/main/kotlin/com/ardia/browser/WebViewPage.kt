@@ -448,11 +448,14 @@ internal class WebViewPage(
         web.addOnLayoutChangeListener { view, left, top, right, bottom, _, _, _, _ -> engine.notePageSize(view, right - left, bottom - top) }
         if (engine.supportsDocumentStartScripts) {
             WebViewCompat.addDocumentStartJavaScript(web, PageScripts.mainFrameOnly(engine.scripts.nightShade), setOf("*"))
+            if (engine.supportsMessageListener) WebViewCompat.addDocumentStartJavaScript(web, TouchScrollers.script, setOf("*"))
         }
         if (engine.supportsMessageListener) {
             WebViewCompat.addWebMessageListener(web, PageScripts.BRIDGE_NAME, setOf("*")) { _, message, origin, _, reply ->
                 if (message.data == PageScripts.NIGHT_SHADE_MESSAGE) {
                     reply.postMessage(engine.sitePreferences.nightShade(BrowserUrl.host(origin.toString()), isPrivate).raw)
+                } else {
+                    TouchScrollers.report(web, message.data, android.os.SystemClock.uptimeMillis())
                 }
             }
         }
