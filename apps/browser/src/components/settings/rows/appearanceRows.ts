@@ -51,7 +51,7 @@ export const appearanceRows = {
       rows: {
         minimalismMode: {
           title: "Minimalism mode",
-          description: "Just a column of tabs and the page, as in the Search browser: no toolbar, the page flat against the sidebar, quiet grey tabs and letter tiles, and ⌘T opens the command bar. ⌘L opens the command bar for the address; back, reload, downloads and extensions stay in the menus and their shortcuts. Turn it off and everything comes back as it was. Also in View › Minimalism Mode, ⌃⌘M.",
+          description: `Just a column of tabs and the page, as in the Search browser: no toolbar, the page flat against the sidebar, quiet grey tabs and letter tiles, and ${keyText("⌘T")} opens the command bar. ${keyText("⌘L")} opens the command bar for the address; back, reload, downloads and extensions stay in ${PLATFORM_FEATURES.menuBar ? "the menus and their shortcuts" : "their shortcuts and the command bar"}. Turn it off and everything comes back as it was. Also in ${PLATFORM_FEATURES.menuBar ? "View › Minimalism Mode" : "the command bar"}, ${keyText("⌃⌘M")}.`,
           keywords: ["minimal", "minimalism", "minimalist", "clean", "compact", "zen", "simple", "distraction free", "no toolbar", "hide toolbar", "search browser", "quiet", "focus"],
         },
       },
