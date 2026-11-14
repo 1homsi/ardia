@@ -12,7 +12,7 @@ function authority() {
   let payload = initial(), revision = 0;
   const clients = [];
   const commits = [];
-  const control = { fail: false, lose: false, muted: false, replyGate: undefined };
+  const control = { fail: false, lose: false, muted: false, replyGate: undefined, invalid: () => false };
   const snapshot = (client) => ({ document: "live.json", scope: "scope", epoch: "epoch", revision, clientId: client.id, watermark: client.sequence, payload: structuredClone(payload), incarnations: Object.fromEntries(Object.keys(payload.folders).map((id) => [id, `folder:${id}`])), generations: {} });
   const refused = (op) => {
     if (op.type === "field" && ["calendar", "config"].includes(op.target)) return JSON.stringify(payload[op.target][op.field] ?? null) !== JSON.stringify(op.expected);
@@ -38,6 +38,7 @@ function authority() {
         if (name !== "documents.commit") return name === "documents.unwatch" ? "{}" : JSON.stringify(snapshot(client));
         commits.push(structuredClone(args));
         if (control.fail) throw new Error("Storage failure");
+        if (args.operations.some((op) => control.invalid(op))) throw Object.assign(new Error("Invalid document operations"), { code: "ERR_DOCUMENT_REQUEST" });
         if (!client.receipts.has(args.requestId)) {
           const before = payload;
           for (const op of args.operations) {
@@ -165,6 +166,32 @@ test("a failed commit keeps the pending intent and canonical cache, and the retr
   await a.client.flush();
   assert.equal(a.client.state().dirty, false);
   assert.equal(native.commits[0].requestId, native.commits.at(-1).requestId);
+});
+
+test("a batch the authority rejects as invalid is dropped and reported instead of blocking every later save", async () => {
+  const native = authority(), a = bind(native.connect("a"));
+  await a.client.reconnect();
+  native.invalid = (op) => op.type === "create" && op.id === "unknown-shape";
+  const warnings = [];
+  const report = console.error;
+  console.error = (...args) => { warnings.push(args); };
+  try {
+    a.edit({ folders: folders("unknown-shape"), folderOrder: ["unknown-shape"] });
+    await a.client.flush();
+  } finally {
+    console.error = report;
+  }
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0][0].code, "ERR_DOCUMENT_REJECTED");
+  assert.equal(a.client.state().dirty, false);
+  assert.deepEqual(a.state().folders, {});
+  a.edit({ calendar: { ...a.state().calendar, showPreview: false } });
+  await a.client.flush();
+  assert.equal(native.payload.calendar.showPreview, false);
+  assert.deepEqual(native.payload.folders, {});
+  assert.equal(native.commits.length, 2);
+  assert.equal(native.commits[0].requestId, native.commits[1].requestId);
+  assert.equal(a.client.state().dirty, false);
 });
 
 test("a lost reply after the source saw its canonical event settles without a duplicate commit", async () => {

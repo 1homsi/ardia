@@ -511,6 +511,97 @@ int main() {
 '''
         self.run_main(compiler, main)
 
+    def test_repo_follow_state(self):
+        compiler = shutil.which('clang++') or shutil.which('c++')
+        self.assertIsNotNone(compiler)
+        older = {'id': 'lf-a', 'profileId': 'logical', 'kind': 'pullRequests', 'name': 'A', 'icon': None, 'collapsed': False, 'sources': ['github'], 'filters': {'authored': True, 'reviewRequests': True}, 'groupStacks': True, 'showCompleted': True, 'hiddenRepos': [], 'createdAt': 0}
+        current = {**older, 'id': 'lf-b', 'showNewRepos': True, 'shownRepos': []}
+        field = lambda folder, name, expected, value: [{'type': 'field', 'target': 'folder', 'id': folder, 'incarnation': 'folder:' + folder, 'field': name, 'expected': expected, 'value': value}]
+        create = lambda value: [{'type': 'create', 'id': value['id'], 'incarnation': 'folder:' + value['id'], 'value': value}]
+        operations = {
+            'create_older': create(older),
+            'create_current': create(current),
+            'create_bad_flag': create({**current, 'id': 'lf-c', 'showNewRepos': 'yes'}),
+            'create_bad_list': create({**current, 'id': 'lf-c', 'shownRepos': 'acme/widgets'}),
+            'stop_new_older': field('lf-a', 'showNewRepos', True, False),
+            'stop_new': field('lf-b', 'showNewRepos', True, False),
+            'show_repo': field('lf-b', 'shownRepos', [], ['acme/widgets']),
+            'show_stale': field('lf-b', 'shownRepos', [], ['acme/other']),
+            'show_text': field('lf-b', 'shownRepos', ['acme/widgets'], 'acme/widgets'),
+            'show_mixed': field('lf-b', 'shownRepos', ['acme/widgets'], ['acme/widgets', 7]),
+            'stop_text': field('lf-b', 'showNewRepos', False, 'no'),
+        }
+        main = r'''
+#include <cassert>
+#include <optional>
+#include "ardia/linux/ac_linux_documents.h"
+#include "ardia/linux/ac_linux_document_reducer.h"
+using namespace ardia;
+int main() {
+  std::optional<base::DictValue> disk;
+  auto read = [&](std::string_view name) {
+    LinuxDocumentRead result;
+    if (name == kLinuxLiveEnvelope && disk) { result.state = LinuxDocumentRead::State::kFound; result.value = disk->Clone(); }
+    return result;
+  };
+  auto write = [&](const base::DictValue& value) { disk = value.Clone(); return true; };
+  LinuxDocumentClient a{"a", "scope", true, true};
+'''
+        main += '\n'.join(f'  auto {name} = {cpp_value(value)};' for name, value in operations.items())
+        main += r'''
+  auto folder = [&](const char* id) { return disk->FindDict("payload")->FindDict("folders")->FindDict(id); };
+  {
+    LinuxDocuments service("scope", "epoch", read, write);
+    assert(service.Watch(a, [](auto) {}).ok());
+    int sequence = 0;
+    auto commit = [&](const base::Value& operations) {
+      base::DictValue request;
+      request.Set("document", "live.json"); request.Set("epoch", "epoch");
+      request.Set("requestId", "a:" + std::to_string(sequence + 1));
+      request.Set("observedRevision", base::Value(0));
+      request.Set("operations", operations.Clone());
+      auto result = service.Commit(a, request);
+      if (result.ok() && *result.value.FindString("status") == "committed") ++sequence;
+      return result;
+    };
+    assert(commit(create_bad_flag).code == "ERR_DOCUMENT_REQUEST");
+    assert(commit(create_bad_list).code == "ERR_DOCUMENT_REQUEST");
+    assert(commit(create_current).ok());
+    assert(folder("lf-b")->Find("showNewRepos")->GetBool());
+    assert(folder("lf-b")->Find("shownRepos")->GetList().size() == 0);
+    assert(commit(create_older).ok());
+    assert(folder("lf-a")->Find("showNewRepos")->GetBool());
+    assert(folder("lf-a")->Find("shownRepos")->GetList().size() == 0);
+    assert(commit(stop_new_older).ok());
+    assert(!folder("lf-a")->Find("showNewRepos")->GetBool());
+    assert(commit(stop_new).ok());
+    assert(commit(show_repo).ok());
+    assert(folder("lf-b")->Find("shownRepos")->GetList().size() == 1);
+    assert(*commit(show_stale).value.FindString("status") == "conflict");
+    for (const auto* invalid : {&show_text, &show_mixed, &stop_text})
+      assert(commit(*invalid).code == "ERR_DOCUMENT_REQUEST");
+  }
+  auto stored = disk->Clone();
+  auto payload = stored.FindDict("payload")->Clone();
+  auto folders = payload.FindDict("folders")->Clone();
+  auto before = folders.FindDict("lf-b")->Clone();
+  before.Remove("showNewRepos");
+  before.Remove("shownRepos");
+  folders.Set("lf-b", std::move(before));
+  payload.Set("folders", std::move(folders));
+  stored.Set("payload", std::move(payload));
+  disk = stored.Clone();
+  {
+    LinuxDocuments upgraded("scope", "next-epoch", read, write);
+    assert(upgraded.Watch(a, [](auto) {}).ok());
+    assert(folder("lf-b")->Find("showNewRepos")->GetBool());
+    assert(folder("lf-b")->Find("shownRepos")->GetList().size() == 0);
+    assert(!folder("lf-a")->Find("showNewRepos")->GetBool());
+  }
+}
+'''
+        self.run_main(compiler, main)
+
     def test_meeting_badge_state(self):
         compiler = shutil.which('clang++') or shutil.which('c++')
         self.assertIsNotNone(compiler)

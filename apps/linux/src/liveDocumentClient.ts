@@ -141,6 +141,11 @@ export function createLiveDocumentClient(host: ArdiaHost) {
         let reply: DocumentReply;
         try { reply = await invoke("commit", { document: "live.json", epoch: batch.epoch, requestId: batch.requestId, observedRevision: batch.observedRevision, operations: batch.operations }) as DocumentReply; }
         catch (error) {
+          if (attemptConnection === connection && (error as { code?: unknown } | null)?.code === "ERR_DOCUMENT_REQUEST") {
+            console.error(documentError("ERR_DOCUMENT_REJECTED", `Dropped a Live change the saved document rejected: ${(error as Error).message}`));
+            retire(batch);
+            continue;
+          }
           if (attemptConnection === connection) throw error;
           await ready;
           if (pending.includes(batch)) { delete batch.epoch; delete batch.observedRevision; }

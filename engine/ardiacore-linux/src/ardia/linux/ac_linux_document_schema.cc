@@ -109,10 +109,10 @@ bool Item(const base::Value& entry) {
 }
 
 bool Folder(base::DictValue& folder, const std::string& id) {
-  if (!Shape(folder, "|id|profileId|kind|name|icon|collapsed|sources|filters|groupStacks|showCompleted|hiddenRepos|createdAt|after|") ||
+  if (!Shape(folder, "|id|profileId|kind|name|icon|collapsed|sources|filters|groupStacks|showCompleted|hiddenRepos|showNewRepos|shownRepos|createdAt|after|") ||
       !folder.FindString("id") || *folder.FindString("id") != id ||
       !folder.FindString("profileId") || !folder.FindString("kind") ||
-      !Fields(folder, "|id|profileId|kind|name|icon|after|", "|collapsed|groupStacks|showCompleted|", "|createdAt|")) return false;
+      !Fields(folder, "|id|profileId|kind|name|icon|after|", "|collapsed|groupStacks|showCompleted|showNewRepos|", "|createdAt|")) return false;
   auto* sources = folder.Find("sources");
   auto* filters = folder.FindDict("filters");
   if (!sources || !Strings(*sources) || !filters ||
@@ -122,6 +122,9 @@ bool Folder(base::DictValue& folder, const std::string& id) {
   if (!folder.Find("showCompleted")) folder.Set("showCompleted", base::Value(true));
   if (auto* repos = folder.Find("hiddenRepos"); repos && !Strings(*repos)) return false;
   if (!folder.Find("hiddenRepos")) folder.Set("hiddenRepos", base::Value(base::ListValue()));
+  if (!folder.Find("showNewRepos")) folder.Set("showNewRepos", base::Value(true));
+  if (auto* repos = folder.Find("shownRepos"); repos && !Strings(*repos)) return false;
+  if (!folder.Find("shownRepos")) folder.Set("shownRepos", base::Value(base::ListValue()));
   return true;
 }
 
@@ -243,8 +246,8 @@ bool FieldValue(const std::string& target, const std::string& field,
   if (target == "folder") {
     if (field == "name") return value.is_string();
     if (field == "icon" || field == "after") return NullableString(&value);
-    if (field == "sources" || field == "hiddenRepos") return Strings(value);
-    return std::set<std::string>{"collapsed", "groupStacks", "showCompleted", "filters.authored", "filters.reviewRequests"}.contains(field) && value.is_bool();
+    if (field == "sources" || field == "hiddenRepos" || field == "shownRepos") return Strings(value);
+    return std::set<std::string>{"collapsed", "groupStacks", "showCompleted", "showNewRepos", "filters.authored", "filters.reviewRequests"}.contains(field) && value.is_bool();
   }
   if (target == "calendar") {
     if (field == "alertLead") return value.is_string();

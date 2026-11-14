@@ -139,7 +139,7 @@ std::string ApplyOne(base::DictValue& envelope, const base::DictValue& op,
     std::string key;
     if (*target == "folder") {
       if (op.size() != 7 || !Existing(envelope, op)) return "conflict";
-      if (std::set<std::string>{"name", "icon", "collapsed", "sources", "filters.authored", "filters.reviewRequests", "groupStacks", "showCompleted", "hiddenRepos", "after"}.count(*field) == 0) return "invalid";
+      if (std::set<std::string>{"name", "icon", "collapsed", "sources", "filters.authored", "filters.reviewRequests", "groupStacks", "showCompleted", "hiddenRepos", "showNewRepos", "shownRepos", "after"}.count(*field) == 0) return "invalid";
       auto folder = payload.FindDict("folders")->FindDict(*id)->Clone();
       if (field->starts_with("filters.")) {
         auto filters = folder.FindDict("filters")->Clone();
