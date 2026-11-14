@@ -4,6 +4,8 @@
 
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/linux/ac_linux_open_urls.h"
+#include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "url/gurl.h"
