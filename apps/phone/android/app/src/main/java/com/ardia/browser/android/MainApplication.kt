@@ -42,6 +42,7 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
         DefaultNewArchitectureEntryPoint.releaseLevel = runCatching {
             ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
         }.getOrDefault(ReleaseLevel.STABLE)
+        LabNetworkLog.install(this)
         loadReactNative(this)
         ApplicationLifecycleDispatcher.onApplicationCreate(this)
         SystemExport.start(this)
