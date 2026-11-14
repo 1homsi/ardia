@@ -305,6 +305,13 @@ and again only when that status changes.
     connects. Then Stop Syncing, pick a folder and leave without connecting; pick another folder and connect with
     it. `adb shell dumpsys activity uri-permissions | grep -i ardia` (or the Files app's access list) shows only the
     connected folder's grant, not the one left unused.
+41. **Launch arguments** (lab build): run the Compose app's capture commands from `docs/android.md` against the Expo
+    app, for example
+    `adb shell am start -S -n $P/.MainActivity --ez ArdiaDemo true --es BrowseQuery otters`,
+    `… --ez ArdiaDemo true --ez BrowseDeck true`, `… --ez ArdiaDemo true --es ArdiaOpenSheet settings` and
+    `… --ez ArdiaOnboarding true`. Each does what it does in the Compose app, and with `ArdiaDemo` the sync view
+    shows the demo Macs, not the real ones. Lab builds log `PAGELAB launch arguments {…}` once per launch
+    with what the app was given. A store build ignores every one of them.
 
 ## Upgrade from the Compose app on Android
 

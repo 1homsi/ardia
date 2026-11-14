@@ -21,7 +21,7 @@ def codeScanner = file("${androidApp}/settings/src/main/kotlin")
 def speech = file("${androidApp}/search/src/main/kotlin")
 def faviconPixels = file("${androidApp}/design/src/main/kotlin")
 def composeSourcesInThisModule = [
-  (appModel): ['SystemLink.kt', 'SystemActions.kt'],
+  (appModel): ['SystemLink.kt', 'SystemActions.kt', 'LaunchArguments.kt'],
   (codeScanner): ['SyncCodeReading.kt', 'SyncCodeCamera.kt'],
   (speech): ['SpeechRecorder.kt', 'DictationTypes.kt', 'ClipboardOffer.kt'],
   (faviconPixels): ['FaviconPixels.kt'],

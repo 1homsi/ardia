@@ -55,7 +55,7 @@ class SyncModule : Module() {
     private val controller: SyncController
         get() {
             val launch = appContext.currentActivity?.intent
-            val demo = launch?.getBooleanExtra(PhoneSync.DEMO_EXTRA, false)?.and(PhoneLab.isOn)
+            val demo = launch?.let { PhoneLab.isOn && LaunchExtras.isDemo(LaunchExtras.of(it)) }
             val sync = try {
                 PhoneSync.controller(context, demo)
             } catch (pending: UpgradeGate.Pending) {

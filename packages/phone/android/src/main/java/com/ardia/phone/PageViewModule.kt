@@ -54,6 +54,7 @@ class RequestAnswerRecord : Record {
 
 class PageViewModule : Module() {
     private var picking: Pair<PageRequest, Promise>? = null
+    private var loggedLaunch: android.content.Intent? = null
     private var capturing: Triple<PageRequest, Promise, Uri>? = null
 
     private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "The app context is gone", null)
@@ -110,10 +111,17 @@ class PageViewModule : Module() {
 
         Function("launchOptions") {
             val intent = appContext.currentActivity?.intent ?: return@Function null
+            val extras = LaunchExtras.of(intent)
+            val arguments = LaunchExtras.arguments(extras)
+            if (PhoneLab.isOn && arguments.isNotEmpty() && loggedLaunch !== intent) {
+                loggedLaunch = intent
+                android.util.Log.i("PAGELAB", "PAGELAB launch arguments ${arguments.toSortedMap()}")
+            }
             mapOf(
                 "lab" to PhoneLab.isOn,
                 "pageLab" to (PhoneLab.isOn && intent.getBooleanExtra(PAGE_LAB_EXTRA, false)),
-                "syncDemo" to (PhoneLab.isOn && intent.getBooleanExtra(PhoneSync.DEMO_EXTRA, false)),
+                "syncDemo" to (PhoneLab.isOn && LaunchExtras.isDemo(extras)),
+                "arguments" to arguments,
             )
         }
 
