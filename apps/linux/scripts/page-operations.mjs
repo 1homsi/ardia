@@ -26,7 +26,11 @@ const COMMANDS = "apps/browser/src/state/commands/commands.ts";
 const READER_PAGE = "apps/browser/src/state/reader/readerPage.ts";
 const READER_TOKENS = "apps/browser/src/state/reader/tokens.ts";
 
+const PICKER_HOST = "apps/linux/src/elementPickerHost.ts";
+
 const readerPage = await import(new URL(READER_PAGE, `file://${ROOT}`).href);
+const pickerHost = await import(new URL(PICKER_HOST, `file://${ROOT}`).href);
+const { pickerCall } = await import(new URL("apps/browser/src/state/site/elementPicker.ts", `file://${ROOT}`).href);
 const { READER_FONTS, READER_SIZES } = await import(new URL(READER_TOKENS, `file://${ROOT}`).href);
 
 function parse(path) {
@@ -90,6 +94,22 @@ function lookCarrying(name, build) {
   return { name, text, args: "kLook", suffix };
 }
 
+function pickerCarrying(name, op, args, samples, suffix) {
+  const splits = samples.map((value) => pickerHost.splitPickerCall(op, value));
+  if (splits.some((split) => split.prefix !== splits[0].prefix || split.suffix !== splits[0].suffix)) throw new Error(`${name} varies outside its argument`);
+  return { name, text: splits[0].prefix, args, suffix: suffix ?? splits[0].suffix };
+}
+
+function pickerOperations() {
+  return [
+    pickerCarrying("elementPickerStart", "start", "kPoint", [null, [10, 20]], pickerHost.PICKER_START_SUFFIX),
+    { name: "elementPickerTake", text: pickerHost.PICKER_TAKE, args: "kNone", suffix: "" },
+    { name: "elementPickerCancel", text: pickerCall("cancel"), args: "kNone", suffix: "" },
+    pickerCarrying("elementPickerApply", "apply", "kSelectors", [[], ["#a", "div.b > p"]]),
+    pickerCarrying("elementPickerUnhide", "unhide", "kSelectors", [[], ["#a", "div.b > p"]]),
+  ];
+}
+
 export function pageOperations() {
   const selection = constants(parse(SELECTION));
   return [
@@ -104,6 +124,7 @@ export function pageOperations() {
     lookCarrying("readerToggle", readerPage.readerToggleCall),
     lookCarrying("readerOpen", readerPage.readerOpenCall),
     lookCarrying("readerSetLook", (look) => readerPage.readerCall("setLook", look)),
+    ...pickerOperations(),
   ];
 }
 
@@ -125,7 +146,7 @@ export function pageOperationsHeader(operations = pageOperations()) {
     "",
     "namespace ardiacore {",
     "",
-    "enum class LinuxPageOperationArgs { kNone, kReplace, kLook };",
+    "enum class LinuxPageOperationArgs { kNone, kReplace, kLook, kPoint, kSelectors };",
     "",
     "struct LinuxPageOperation {",
     "  std::string_view name;",

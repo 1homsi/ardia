@@ -10,6 +10,8 @@ import { copyLinkToSelection, copyPageUrl, jumpToSelection, replaceInField } fro
 import { runCommand } from "../../browser/src/state/commands/commands.ts";
 import { closeReader, readerState, startReader, toggleReader } from "../../browser/src/state/reader/reader.ts";
 import { READER_FONTS, READER_SIZES } from "../../browser/src/state/reader/tokens.ts";
+import { pickerCall } from "../../browser/src/state/site/elementPicker.ts";
+import { PICKER_TAKE, linuxPickerStart, pickOnLinuxPage, pickerStartPoint } from "./elementPickerHost.ts";
 
 const TABLE = new URL("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_page_operations.h", import.meta.url);
 const EVALUATION = new URL("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_page_evaluation.h", import.meta.url);
@@ -38,7 +40,7 @@ function pinned(text) {
 
 function tableRows() {
   const rows = new Map();
-  for (const match of readFileSync(TABLE, "utf8").matchAll(/\{"(\w+)", (\d+), "([0-9a-f]{64})", LinuxPageOperationArgs::(\w+), ("[^"]*")\}/g)) {
+  for (const match of readFileSync(TABLE, "utf8").matchAll(/\{"(\w+)", (\d+), "([0-9a-f]{64})", LinuxPageOperationArgs::(\w+), ("(?:[^"\\]|\\.)*")\}/g)) {
     rows.set(match[1], { length: Number(match[2]), sha256: match[3], args: match[4], suffix: JSON.parse(match[5]) });
   }
   return rows;
@@ -159,4 +161,42 @@ test("the page scripts Linux answers itself are accepted by the host page-script
   for (const [method, script] of [["evaluate", PICTURE_IN_PICTURE_STATE], ["executeJavaScript", CLOSE_DOCUMENT_PICTURE_IN_PICTURE], ["evaluate", UNSAVED_WORK], ["evaluate", WEB_STORE_REQUEST]]) {
     assert.ok(hostPageScript(method, [script]), script.slice(0, 40));
   }
+});
+
+function matchOperation(script) {
+  for (const entry of pageOperations()) {
+    if (entry.args === "kNone" && script === entry.text) return { name: entry.name };
+    if (entry.args !== "kNone" && script.startsWith(entry.text) && script.endsWith(entry.suffix) && script.length > entry.text.length + entry.suffix.length) {
+      return { name: entry.name, args: script.slice(entry.text.length, script.length - entry.suffix.length) };
+    }
+  }
+  return null;
+}
+
+test("every element picker script the shell sends on Linux is a pinned operation carrying only its argument", () => {
+  const rows = tableRows();
+  for (const name of ["elementPickerStart", "elementPickerTake", "elementPickerCancel", "elementPickerApply", "elementPickerUnhide"]) assert.ok(rows.has(name), name);
+  assert.deepEqual(matchOperation(linuxPickerStart([10.5, 20])), { name: "elementPickerStart", args: "[10.5,20]" });
+  assert.deepEqual(matchOperation(linuxPickerStart(null)), { name: "elementPickerStart", args: "null" });
+  assert.deepEqual(matchOperation(PICKER_TAKE), { name: "elementPickerTake" });
+  assert.deepEqual(matchOperation(pickerCall("cancel")), { name: "elementPickerCancel" });
+  assert.deepEqual(matchOperation(pickerCall("apply", ["#a", "div.b"])), { name: "elementPickerApply", args: '["#a","div.b"]' });
+  assert.deepEqual(matchOperation(pickerCall("unhide", ["#a"])), { name: "elementPickerUnhide", args: '["#a"]' });
+  assert.equal(matchOperation(pickerCall("start", [1, 2])), null, "the shared start waits on a promise the host can't await, so the shell never sends it");
+  for (const script of [linuxPickerStart([1, 2]), PICKER_TAKE]) assert.doesNotThrow(() => new Function("post", script));
+});
+
+test("the shell turns the shared picker start into a start and a poll until the pick settles", async () => {
+  assert.deepEqual(pickerStartPoint(pickerCall("start", [3, 4])), { point: [3, 4] });
+  assert.deepEqual(pickerStartPoint(pickerCall("start", null)), { point: null });
+  for (const script of [pickerCall("cancel"), pickerCall("apply", ["#a"]), pickerCall("start", "x"), "post(1)", 5]) assert.equal(pickerStartPoint(script), null);
+  const sent = [];
+  const answers = [{ pending: true }, { pending: true }, { pick: { selector: "div.ad" } }];
+  const evaluate = async (script) => {
+    sent.push(script);
+    return script === PICKER_TAKE ? answers.shift() : null;
+  };
+  assert.deepEqual(await pickOnLinuxPage(evaluate, [3, 4], async () => {}), { selector: "div.ad" });
+  assert.deepEqual(sent, [linuxPickerStart([3, 4]), PICKER_TAKE, PICKER_TAKE, PICKER_TAKE]);
+  assert.equal(await pickOnLinuxPage(async () => null, null, async () => {}), null, "a page that went away ends the pick");
 });

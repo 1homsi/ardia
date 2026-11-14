@@ -427,7 +427,55 @@ std::optional<base::Value> ParseThree(std::string_view json) {
   return std::nullopt;
 }
 
+constexpr LinuxPageOperation kPickerOperations[] = {
+    {"start", 9, "d9:p.st", LinuxPageOperationArgs::kPoint, "]))"},
+    {"apply", 9, "d9:p.ap", LinuxPageOperationArgs::kSelectors, "]))"},
+};
+
+std::optional<base::Value> ParsePicker(std::string_view json) {
+  auto one = [](base::Value value) { return std::optional<base::Value>(base::Value(base::ListValue().Append(std::move(value)))); };
+  if (json == "[[10.5, 20]]") return one(base::Value(base::ListValue().Append(10.5).Append(20)));
+  if (json == "[null]") return one(base::Value());
+  if (json == "[[1, 2, 3]]") return one(base::Value(base::ListValue().Append(1).Append(2).Append(3)));
+  if (json == "[[1, \"2\"]]") return one(base::Value(base::ListValue().Append(1).Append("2")));
+  if (json == "[[1, 2000000]]") return one(base::Value(base::ListValue().Append(1).Append(2000000)));
+  if (json == "[[\"#a\", \"</script>\"]]") return one(base::Value(base::ListValue().Append("#a").Append("</script>")));
+  if (json == "[[]]") return one(base::Value(base::ListValue()));
+  if (json == "[[\"#a\", 3]]") return one(base::Value(base::ListValue().Append("#a").Append(3)));
+  if (json == "[[\"\"]]") return one(base::Value(base::ListValue().Append("")));
+  if (json == "[\"#a\"]") return one(base::Value("#a"));
+  if (json == "[[\"#a\"], 1]") return base::Value(base::ListValue().Append(base::Value(base::ListValue().Append("#a"))).Append(1));
+  return std::nullopt;
+}
+
+void PickerArguments() {
+  auto start = LinuxPageEvaluationScript("p.start([[10.5, 20]]))", FakeDigest, ParsePicker, kPickerOperations);
+  Expect(start && start->find("p.start([[10.5,20]]))") != std::string::npos, "a point is re-emitted canonically");
+  auto anywhere = LinuxPageEvaluationScript("p.start([null]))", FakeDigest, ParsePicker, kPickerOperations);
+  Expect(anywhere && anywhere->find("p.start([null]))") != std::string::npos, "a pick without a point is accepted");
+  for (const char* refused : {"[1, 2, 3]", "[1, \"2\"]", "[1, 2000000]", "\"#a\""}) {
+    Expect(!LinuxPageEvaluationScript("p.start([" + std::string(refused) + "]))", FakeDigest, ParsePicker, kPickerOperations), refused);
+  }
+  auto apply = LinuxPageEvaluationScript("p.apply([[\"#a\", \"</script>\"]]))", FakeDigest, ParsePicker, kPickerOperations);
+  Expect(apply && apply->find("p.apply([[\"#a\",\"\\u003c/script\\u003e\"]]))") != std::string::npos, "selectors are re-escaped by the host");
+  Expect(LinuxPageEvaluationScript("p.apply([[]]))", FakeDigest, ParsePicker, kPickerOperations).has_value(), "no selectors is fine");
+  for (const char* refused : {"[\"#a\", 3]", "[\"\"]", "\"#a\"", "[\"#a\"], 1"}) {
+    Expect(!LinuxPageEvaluationScript("p.apply([" + std::string(refused) + "]))", FakeDigest, ParsePicker, kPickerOperations), refused);
+  }
+  Expect(!LinuxPageEvaluationScript("p.apply([[]]))", FakeDigest, LinuxPageJsonList(), kPickerOperations), "no parser, no selectors");
+  base::ListValue many;
+  for (size_t i = 0; i <= kLinuxPickerSelectorsMax; ++i) many.Append("#a");
+  Expect(!LinuxPickerSelectorsArgument(base::Value(base::ListValue().Append(base::Value(std::move(many))))), "too many selectors");
+  Expect(!LinuxPickerSelectorsArgument(base::Value(base::ListValue().Append(base::Value(base::ListValue().Append(std::string(kLinuxPickerSelectorMax + 1, 'a')))))),
+         "an oversized selector");
+  Expect(!LinuxPickerSelectorsArgument(base::Value(base::ListValue().Append(base::Value(base::ListValue().Append(std::string("#a\0b", 4)))))),
+         "a selector with a NUL");
+  Expect(!LinuxPickerPointArgument(base::Value(base::ListValue().Append(base::Value(base::ListValue().Append(1.0 / 0.0).Append(1))))),
+         "an infinite coordinate");
+}
+
 void Evaluation() {
+  PickerArguments();
   Expect(MatchLinuxPageOperation("post('x', 1)", FakeDigest, kOperations)->operation->name == "exact", "exact match");
   Expect(!MatchLinuxPageOperation("post('x', 2) ", FakeDigest, kOperations), "length mismatch");
   Expect(!MatchLinuxPageOperation("alert(document.cookie)", FakeDigest, kOperations), "arbitrary code refused");

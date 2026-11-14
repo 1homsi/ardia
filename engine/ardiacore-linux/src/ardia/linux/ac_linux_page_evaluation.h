@@ -17,6 +17,9 @@ namespace ardiacore {
 inline constexpr size_t kLinuxPageEvaluationCodeMax = 64 * 1024;
 inline constexpr size_t kLinuxPageEvaluationResultMax = 4 * 1024 * 1024;
 inline constexpr size_t kLinuxPageReplaceTextMax = 4096;
+inline constexpr double kLinuxPickerCoordinateMax = 1e6;
+inline constexpr size_t kLinuxPickerSelectorsMax = 512;
+inline constexpr size_t kLinuxPickerSelectorMax = 3072;
 
 using LinuxPageDigest = std::function<std::string(std::string_view)>;
 using LinuxPageJsonList = std::function<std::optional<base::Value>(std::string_view)>;
@@ -31,6 +34,8 @@ std::optional<LinuxPageOperationMatch> MatchLinuxPageOperation(
     std::span<const LinuxPageOperation> operations = kLinuxPageOperations);
 std::optional<std::string> LinuxReplaceArguments(const base::Value& arguments);
 std::optional<std::string> LinuxReaderLookArgument(const base::Value& arguments);
+std::optional<std::string> LinuxPickerPointArgument(const base::Value& arguments);
+std::optional<std::string> LinuxPickerSelectorsArgument(const base::Value& arguments);
 std::string LinuxJavaScriptString(std::string_view text);
 std::optional<std::string> LinuxPageEvaluationScript(
     std::string_view code, const LinuxPageDigest& digest, const LinuxPageJsonList& parse_list,

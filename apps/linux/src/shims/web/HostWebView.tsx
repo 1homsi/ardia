@@ -6,6 +6,7 @@ import { ardiaHost, reportHostError } from "../../host";
 import { HostPageEvents } from "../../hostPageEvents";
 import { applyHostPageThemeState, forgetHostPageState, resetHostPageState } from "../../hostPageHooks";
 import { hostPageScript } from "../../hostPageScripts";
+import { pickOnLinuxPage, pickerStartPoint } from "../../elementPickerHost";
 import { HostTab, type HostPageFactory, type HostTabEvent } from "../../hostTab";
 import { extensionViewsSupported } from "../../hostExtensionView";
 import { HostExtensionWebView } from "./HostExtensionWebView";
@@ -72,9 +73,13 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
         const script = hostPageScript(property, args);
         if (script) return script.map ? current.command(script.command, script.args).then(script.map, () => (script.failed ? script.failed() : script.map!(null))) : current.command(script.command, script.args);
         if (property === "evaluate") {
-          const json = await current.pageResult<string | null>(property, args).catch(() => null);
-          if (typeof json !== "string") return null;
-          try { return JSON.parse(json); } catch { return null; }
+          const evaluate = async (code: unknown) => {
+            const json = await current.pageResult<string | null>(property, [code]).catch(() => null);
+            if (typeof json !== "string") return null;
+            try { return JSON.parse(json); } catch { return null; }
+          };
+          const picking = pickerStartPoint(args[0]);
+          return picking ? pickOnLinuxPage(evaluate, picking.point) : evaluate(args[0]);
         }
         const result = await current.command(property, args);
         if (property === "navigationEntries" && Array.isArray(result)) return result.map((entry: { url: string }) => ({ ...entry, url: toAppUrl(entry.url) }));

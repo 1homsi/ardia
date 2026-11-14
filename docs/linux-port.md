@@ -243,6 +243,13 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   - Every operation runs in the page's Ardia isolated world, so the reader's state on
     `window[Symbol.for("ardia.reader")]` lasts across calls for one document. Its overlay, `inert` and key listeners act
     on the shared DOM.
+  - The element picker (Hide Element) uses five. `elementPickerCancel` is the shared text; `elementPickerApply` and
+    `elementPickerUnhide` pin the shared call around its selectors, and the host accepts only a list of at most 512
+    non-empty strings of up to 3072 bytes, which it re-escapes. The shared `start` waits on a promise the host can't
+    await (Chromium runs isolated-world scripts without waiting), so the shell (`elementPickerHost.ts`) sends
+    `elementPickerStart` instead, the shared start with a fixed suffix that leaves the pick on the picker, and then
+    `elementPickerTake` every 120 ms until the pick settles or the page goes away. The host accepts `null` or two
+    finite coordinates within a million pixels as the start's point.
   - `pageOperations.test.mjs` checks every operation, with its widest arguments, against the host's code cap.
 - **Gestures.** Peek and split open only after a real left mouse-up. A dragged link opens only when it is dropped back
   on a page.
