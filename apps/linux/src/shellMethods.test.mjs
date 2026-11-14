@@ -563,3 +563,12 @@ test("a favicon's accent is its dominant saturated hue, as the Mac's iconAccent 
   assert.equal(dominantAccent(pixels([255, 0, 0, 0, 10])), null);
   assert.equal(dominantAccent(pixels([255, 0, 0, 255, 1], [128, 128, 128, 255, 20])), null);
 });
+
+test("Linux never reports screenEdge: its edge watch peeks when the pointer leaves on the sidebar side, so there is no stop at a shared screen edge to count", () => {
+  const host = readFileSync(new URL("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_host.cc", import.meta.url), "utf8");
+  const sent = host.match(/\.Set\("type", "sidebarEdge"\)[^;]*;/g) ?? [];
+  assert.equal(sent.length, 1);
+  assert.deepEqual([...sent[0].matchAll(/\.Set\("(\w+)"/g)].map((m) => m[1]), ["type", "id", "over", "point"]);
+  const shell = readFileSync(new URL("./shims/web/motion/sidebarEdge.ts", import.meta.url), "utf8");
+  assert.ok(!shell.includes("screenEdge"));
+});
