@@ -106,3 +106,31 @@ test("worklets call only worklets and never touch React Native's JS-only modules
   }
   assert.deepEqual([...new Set(problems)], []);
 });
+
+test("a worklet that runs during render reads only shared values already declared above it, since the first style is computed at once", () => {
+  const RENDER_TIME = ["useAnimatedStyle(", "useDerivedValue(", "useAnimatedProps("];
+  const problems: string[] = [];
+  for (const file of files(SRC)) {
+    const source = readFileSync(file, "utf8");
+    for (const opener of RENDER_TIME) {
+      let at = source.indexOf(opener);
+      while (at >= 0) {
+        const region = balanced(source, at + opener.length - 1);
+        for (const read of region.matchAll(/(?<![.\w])(\w+)\.value\b/g)) {
+          const name = read[1]!;
+          const declared = new RegExp(`(?:const|let|var)\\s+(?:${name}\\b|\\{[^}]*\\b${name}\\b[^}]*\\})`, "g");
+          let declaration: RegExpExecArray | null;
+          let before = false;
+          let after: number | null = null;
+          while ((declaration = declared.exec(source))) {
+            if (declaration.index < at) before = true;
+            else if (after === null) after = declaration.index;
+          }
+          if (!before && after !== null) problems.push(`${file.slice(SRC.length + 1)}: ${opener}…${name}.value) comes before ${name} is declared`);
+        }
+        at = source.indexOf(opener, at + 1);
+      }
+    }
+  }
+  assert.deepEqual([...new Set(problems)], []);
+});

@@ -102,6 +102,7 @@ export function TabDeck() {
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
   const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
+  const cardsOpacity = useSharedValue(1);
   const cardsStyle = useAnimatedStyle(() => ({ opacity: cardsOpacity.value }));
   const chromeStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
   const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
@@ -109,7 +110,6 @@ export function TabDeck() {
   const reduceMotion = useReducedMotion();
   const [poofs, setPoofs] = useState<PoofSpec[]>([]);
   const poofSeed = useRef(0);
-  const cardsOpacity = useSharedValue(1);
   useEffect(() => {
     const entrance = consumeDeckEntrance();
     const index = entrance ? order.indexOf(entrance) : -1;
