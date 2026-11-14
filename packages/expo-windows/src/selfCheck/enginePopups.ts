@@ -1,4 +1,4 @@
-import { hostCall, onEngineTopic } from "../engine/host";
+import { hostCall, leaveOffersFromUnheard, onEngineTopic } from "../engine/host";
 import { showStepsOf, traceShowsOf } from "../engine/showTrace";
 import { expectEqual, type Check } from "./check";
 
@@ -108,3 +108,30 @@ export const pagePopupShowLoop = (pageKey: string): Check => ({
     expectEqual(failures, [], `pop-ups whose page never showed in ${LOOP_ROUNDS} rounds`);
   },
 });
+
+const UNHEARD_OFFER_WAIT_MS = 9000;
+
+export const unheardOfferCheck = (pageKey: string): Check => ({
+  name: "engine: a tab a page opens that the app never hears of is closed after the deadline, while its opener's window stays",
+  async run() {
+    const name = "ardia-self-check-unheard";
+    leaveOffersFromUnheard(pageKey);
+    try {
+      expectEqual(await evaluateIn(pageKey, `post("result", JSON.stringify(!!window.open("about:blank", "${name}", "width=320,height=240")));`, true), true, "window.open with a click returns a window");
+      await pause(1000);
+      expectEqual(await evaluateIn(pageKey, `const w = window.open("", "${name}"); post("result", JSON.stringify(!!w && !w.closed));`), true, "the unheard pop-up is still open a second later");
+      await pause(UNHEARD_OFFER_WAIT_MS);
+      expectEqual(
+        await evaluateIn(pageKey, `const w = window.open("", "${name}"); post("result", JSON.stringify(!!w && !w.closed));`),
+        false,
+        `the unheard pop-up ${UNHEARD_OFFER_WAIT_MS + 1000} ms after it opened`,
+      );
+      expectEqual((await listedTabs()).some((tab) => tab.key === pageKey), true, "the opener page is still open");
+    } finally {
+      leaveOffersFromUnheard(null);
+      await evaluateIn(pageKey, `const w = window.open("", "${name}"); if (w) w.close(); post("result", "null");`).catch(() => null);
+    }
+  },
+});
+
+export const popupChecks = (pageKey: string, firstWindow: () => Promise<string>): Check[] => [pagePopupCheck(pageKey, firstWindow), pagePopupShowLoop(pageKey), unheardOfferCheck(pageKey)];
