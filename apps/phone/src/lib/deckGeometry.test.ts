@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  archiveCardBottom,
   deckBarCenterFromBottom,
   deckCardAt,
   deckDragKind,
@@ -125,4 +126,11 @@ test("each card's accessibility frame is the strip of it that shows, so activati
   }
   const covered = deckLeading(phone, 0 - 1) + phone.cardWidth / 2;
   assert.notEqual(deckCardAt(phone, 4, 1, covered, y), 0, "the whole card's centre lands on the card over it");
+});
+
+test("the Archive card hangs from a fixed gap above the deck bar, so a card that wraps to two lines grows upward", () => {
+  const g = deckGeometry(393, 873, 40, 24);
+  const bottom = archiveCardBottom(g, 28);
+  assert.equal(g.height - bottom, g.barCenterY - 28);
+  assert.ok(g.height - bottom < g.barCenterY - 40 / 2);
 });

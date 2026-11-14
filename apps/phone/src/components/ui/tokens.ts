@@ -210,7 +210,7 @@ export const voiceLayout = {
 
 export const failureLayout = { icon: 36, textWidth: 320, button: 40 } as const;
 
-export const archiveCardLayout = { radius: 16, tile: 28, maxWidth: 520, rise: 76, tint: "#B059EE" } as const;
+export const archiveCardLayout = { radius: 16, tile: 28, maxWidth: 520, aboveBarCenter: 28, tint: "#B059EE" } as const;
 
 export const onboardingArt = { appIcon: 60, linkCardWidth: 210, linkCardRadius: 18, stripHeight: 64, arrowLift: 26, shadowRadius: 12, sheetRadius: 38 } as const;
 

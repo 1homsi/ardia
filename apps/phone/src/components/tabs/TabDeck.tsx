@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   deckCardAt,
   deckGeometry,
+  archiveCardBottom,
   deckLeading,
   deckIsTap,
   deckDragKind,
@@ -403,7 +404,7 @@ export function TabDeck() {
           </Animated.View>
         </GestureDetector>
         {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} /> : null}
-        {archiveCard && phase.kind === "settled" ? <ArchiveIntervalCard centerY={g.barCenterY - archiveCardLayout.rise} /> : null}
+        {archiveCard && phase.kind === "settled" ? <ArchiveIntervalCard bottom={archiveCardBottom(g, archiveCardLayout.aboveBarCenter)} /> : null}
         {privateCount > 0 ? (
           <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"}>
             <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} />

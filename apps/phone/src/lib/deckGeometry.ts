@@ -183,3 +183,5 @@ export function deckSettleVelocity(g: DeckGeometry, scroll: number, target: numb
   if (Math.abs(distance) <= 0.001) return 0;
   return Math.min(Math.max(-velocityX / g.spacing / distance, -30), 30) * distance;
 }
+
+export const archiveCardBottom = (g: DeckGeometry, aboveBarCenter: number) => g.height - g.barCenterY + aboveBarCenter;

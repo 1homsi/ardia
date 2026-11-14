@@ -11,7 +11,7 @@ import { ArchiveTile } from "./ArchiveTile";
 
 const INTERVALS = Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[];
 
-export function ArchiveIntervalCard({ centerY }: { centerY: number }) {
+export function ArchiveIntervalCard({ bottom }: { bottom: number }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const interval = usePreferences((p) => p.autoArchiveInterval);
@@ -23,7 +23,7 @@ export function ArchiveIntervalCard({ centerY }: { centerY: number }) {
       entering={reduceMotion ? FadeIn.duration(tabsMotion.fade) : cardIn}
       exiting={reduceMotion ? FadeOut.duration(tabsMotion.fade) : cardOut}
       pointerEvents="box-none"
-      style={[styles.place, { top: centerY - archiveCardLayout.tile }]}
+      style={[styles.place, { bottom }]}
     >
       <View
         accessibilityActions={[{ name: "dismiss", label: "Dismiss" }]}
