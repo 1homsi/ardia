@@ -65,3 +65,8 @@ test("only Windows quits when its last window closes", () => {
   assert.match(source("../../lib/platformFeatures.windows.ts"), /quitsWithLastWindow: true\b/);
   assert.match(source("../../lib/platformFeatures.ts"), /quitsWithLastWindow: false\b/);
 });
+
+test("closing a window's last tab asks the quit question unless the last-tab confirm just asked", () => {
+  const actions = readFileSync(new URL("../browser/actions.ts", import.meta.url), "utf8");
+  assert.match(actions, /if \(last && !asksTabs && quitWarningMayAsk\(\) && \(await askBeforeQuitting\(w\.id\)\) === "cancelled"\) return;\n  const now = store\(\);/);
+});

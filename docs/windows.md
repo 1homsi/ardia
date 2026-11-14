@@ -117,7 +117,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Calendar | Does nothing; hidden | #1521 |
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
 | Keep new-tab links inside a Little Ardia window, zoom with Ctrl and the mouse wheel, offer to save and fill passwords | Does nothing (the engine has no call for them yet); hidden | #1783, #1425 |
-| Warn before quitting | Works (#1796's build 1f4d97db1, run 43631924720): with it on, closing the last window (close button, Alt+F4, Ctrl+Shift+W, a lone Little Ardia's Ctrl+W) asks first with the Mac's words; Cancel keeps the app running, Quit exits, Don't ask again turns it off; a hidden instance never asks | #1782, #1803 |
+| Warn before quitting | Works (#1796's build 1f4d97db1, run 43631924720): with it on, closing the last window (close button, Alt+F4, Ctrl+Shift+W, a lone Little Ardia's Ctrl+W; Ctrl+W on a window's last tab follows the same rule) asks first with the Mac's words; Cancel keeps the app running, Quit exits, Don't ask again turns it off; a hidden instance never asks | #1782, #1803 |
 | The ardia command, Widevine | Not offered (each says so) | |
 | Copy naming the Mac | Works: the walk found three more (a ⌘T, "History › Recently Closed", "File › Close All Tabs"), fixed in #1668's PR | #1522, #1668 |
 
@@ -195,7 +195,8 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     without a reply; a no cancels the quit.
   - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance
     isn't hidden, and no other window stays open: `windowIds()` less the browser windows the UI has closed or is
-    closing (Settings and Import count while listed). Little Ardia's own closes (Ctrl+W, Escape) ask the same way.
+    closing (Settings and Import count while listed). Little Ardia's own closes (Ctrl+W, Escape) and Ctrl+W on a
+    window's last tab ask the same way; when the last-tab confirm asks, it stands in for the quit question.
     Windows has no Quit command, so these are the only places it asks; the Mac asks on ⌘Q and never on a window's
     close. It asks before the window closes, so a Cancel leaves the window and the app as they were and no quit
     starts; Quit closes the window and the quit above runs as before. A close that asked it never also shows the
