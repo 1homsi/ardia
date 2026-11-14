@@ -33,7 +33,7 @@ object LookSwitch {
 
     fun setBlobFramesPerSecond(context: Context, rate: Int, lab: Boolean = PhoneLab.isOn) {
         check(lab) { "the blob frame rate is a lab switch" }
-        val kept = rate.coerceIn(0, 120)
+        val kept = rate.coerceIn(LookRules.EVERY_FRAME, 120)
         (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putInt(KEY_BLOB_RATE, kept).commit()
         knownRate = kept
     }

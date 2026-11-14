@@ -228,6 +228,9 @@ off in the lab`.
     If it is black, grey or frozen, tap Probe frost (one line with the frost's mean brightness and near-black
     share), then Page frost solid: the line says `path=solid` and the frost turns the sheet's plain colour. Report
     which one the phone needed.
+    From sync12 a frost over a page is solid by default (`path=solid (page under the frost, solid page mode)`):
+    blurring a page records its WebView into an offscreen layer, which blanked the page for 3 to 4 frames on the
+    M3, and the Compose app never blurs a page. The lab's Page frost live is there for comparison only.
 26. **Telemetry, nothing while off:** watch `adb logcat -s PAGELAB | grep telemetry`. With sharing off (a fresh
     install starts off), use the app for a minute, background it and come back: no `PAGELAB telemetry posted`
     line. Turn on "Share anonymous usage stats" in Settings, background the app: lines appear
@@ -332,6 +335,11 @@ off in the lab`.
       30 s, and the idle 10 s, and take a light-mode deck screenshot in the same profile colour: both apps' blobs
       come from the same `ProfileLook.deckBlobs` and `DeckBackdropStyle` numbers (light blobs at 0.86 to 0.9
       lightness, 0.85 opacity), so the two screenshots should match.
+    - From sync12 the blobs are paced by default: the deck redraws each time the fastest blob has moved 1% of its
+      radius (about 25 fps on a 1080x2400 deck), and the frosts re-blur only then, each at a quarter to an eighth
+      of its size. The Blobs button cycles `Blobs paced`, `Blobs every frame` (Compose's rate), `Blobs 30 fps`,
+      `Blobs 20 fps`. Measure look off, paced, and every frame; the budget is paced within 2 ms of look off at the
+      median.
 39. **Keyboard target:** right after a fresh launch (`adb shell am force-stop $P` first), open the tray. Logcat has
     `PAGELAB keyboard will change 0.0 -> N dp in M ms` as the keyboard starts to rise, then
     `PAGELAB keyboard did change to N dp` with the same N, and the tray rises with the keyboard on that first open

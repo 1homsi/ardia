@@ -6,6 +6,7 @@ import com.ardia.design.LookFrosting
 import com.ardia.design.ProfileBackdropStyle
 import com.ardia.design.ProfileLook
 import com.ardia.design.TabsBackdropMotion
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
@@ -23,6 +24,31 @@ object LookRules {
     fun blobRadius(width: Float, height: Float): Float = max(MIN_BLOB_RADIUS, blobSide(width, height) / 2f)
 
     private const val MIN_BLOB_RADIUS = 1f
+
+    const val BLOB_STEP_SHARE = 0.01f
+    const val EVERY_FRAME = -1
+    const val PACED = 0
+    private const val MIN_PACE_MILLIS = 16L
+    private const val MAX_PACE_MILLIS = 200L
+
+    fun blobPaceMillis(width: Float, height: Float): Long {
+        val side = blobSide(width, height)
+        var fastest = 0f
+        for (index in TabsBackdropMotion.loopsMillis.indices) {
+            val dx = (0.5f - TabsBackdropMotion.anchors[index * 2]) * side
+            val dy = (0.5f - TabsBackdropMotion.anchors[index * 2 + 1]) * side
+            val speed = kotlin.math.hypot(dx, dy) * (2f * PI.toFloat()) / TabsBackdropMotion.loopsMillis[index]
+            if (speed > fastest) fastest = speed
+        }
+        if (fastest <= 0f) return MAX_PACE_MILLIS
+        return (blobRadius(width, height) * BLOB_STEP_SHARE / fastest).toLong().coerceIn(MIN_PACE_MILLIS, MAX_PACE_MILLIS)
+    }
+
+    fun nextBlobFrameMillis(rate: Int, width: Float, height: Float): Long = when {
+        rate == EVERY_FRAME -> 0L
+        rate > 0 -> 1000L / rate
+        else -> blobPaceMillis(width, height)
+    }
 
     fun blobCenterInto(index: Int, angle: Float, width: Float, height: Float, out: FloatArray) {
         val side = blobSide(width, height)

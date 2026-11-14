@@ -26,14 +26,48 @@ class LookCostTest {
     }
 
     @Test
-    fun theBlobFrameRateIsALabSwitchThatLastsAndDefaultsToEveryFrame() {
-        assertEquals(0, LookSwitch.blobFramesPerSecond(app, lab = true))
+    fun theBlobFrameRateIsALabSwitchThatLastsAndDefaultsToPaced() {
+        assertEquals(LookRules.PACED, LookSwitch.blobFramesPerSecond(app, lab = true))
         LookSwitch.setBlobFramesPerSecond(app, 30, lab = true)
         LookSwitch.forgetForTests()
         assertEquals(30, LookSwitch.blobFramesPerSecond(app, lab = true))
-        assertEquals("a store build always draws every frame", 0, LookSwitch.blobFramesPerSecond(app, lab = false))
+        LookSwitch.setBlobFramesPerSecond(app, LookRules.EVERY_FRAME, lab = true)
+        assertEquals(LookRules.EVERY_FRAME, LookSwitch.blobFramesPerSecond(app, lab = true))
+        assertEquals("a store build is always paced", LookRules.PACED, LookSwitch.blobFramesPerSecond(app, lab = false))
         assertThrows(IllegalStateException::class.java) { LookSwitch.setBlobFramesPerSecond(app, 20, lab = false) }
         LookSwitch.setBlobFramesPerSecond(app, 0, lab = true)
+    }
+
+    @Test
+    fun pacedBlobsRedrawWhenTheFastestHasMovedOnePercentOfItsRadius() {
+        val pace = LookRules.blobPaceMillis(1080f, 2400f)
+        val radius = LookRules.blobRadius(1080f, 2400f)
+        var fastest = 0f
+        for (index in 0 until 3) {
+            val start = LookRules.blobCenter(index, 0f, 1080f, 2400f)
+            val angle = (2 * Math.PI * pace / com.ardia.design.TabsBackdropMotion.loopsMillis[index]).toFloat()
+            val moved = LookRules.blobCenter(index, angle, 1080f, 2400f)
+            fastest = maxOf(fastest, Math.hypot((moved.first - start.first).toDouble(), (moved.second - start.second).toDouble()).toFloat())
+        }
+        assertEquals(radius * LookRules.BLOB_STEP_SHARE, fastest, radius * LookRules.BLOB_STEP_SHARE * 0.1f)
+        assertTrue("a 1080x2400 deck is paced near 25 fps, not every frame: $pace ms", pace in 30L..50L)
+        assertEquals(0L, LookRules.nextBlobFrameMillis(LookRules.EVERY_FRAME, 1080f, 2400f))
+        assertEquals(33L, LookRules.nextBlobFrameMillis(30, 1080f, 2400f))
+        assertEquals(pace, LookRules.nextBlobFrameMillis(LookRules.PACED, 1080f, 2400f))
+    }
+
+    @Test
+    fun aFrostBlursAtAQuarterToAnEighthOfItsSizeKeepingSixPixelsOfBlur() {
+        assertEquals(8f, FrostScale.of(30f * 2.75f))
+        assertEquals(8f, FrostScale.of(20f * 2.75f))
+        assertEquals(5f, FrostScale.of(12f * 2.75f))
+        assertEquals(1f, FrostScale.of(4f))
+        assertTrue(30f * 2.75f / FrostScale.of(30f * 2.75f) >= FrostScale.MIN_LOW_RES_BLUR)
+    }
+
+    @Test
+    fun aFrostOverAPageIsSolidUnlessTheLabAsksForLive() {
+        assertEquals(FrostSources.PageMode.Solid, FrostSources.pageMode)
     }
 
     @Test

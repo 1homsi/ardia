@@ -26,7 +26,12 @@ class LookModule : Module() {
             val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
             LookSwitch.setBlobFramesPerSecond(context, rate)
             val kept = LookSwitch.blobFramesPerSecond(context)
-            android.util.Log.i("PAGELAB", "PAGELAB look blobs ${if (kept == 0) "every frame (as Compose)" else "at $kept fps"} (lasts across launches; force-stop to measure a clean launch)")
+            val shown = when {
+                kept == LookRules.EVERY_FRAME -> "every frame (as Compose)"
+                kept > 0 -> "at $kept fps"
+                else -> "paced: a frame each time the fastest blob has moved ${(LookRules.BLOB_STEP_SHARE * 100).toInt()}% of its radius"
+            }
+            android.util.Log.i("PAGELAB", "PAGELAB look blobs $shown (lasts across launches; force-stop to measure a clean launch)")
             DeckBackdrops.all().forEach { it.invalidate() }
             kept
         }

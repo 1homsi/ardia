@@ -275,8 +275,10 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }
         canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
         if (animated && isShown) {
-            val rate = LookSwitch.blobFramesPerSecond(context)
-            if (rate <= 0) postInvalidateOnAnimation() else postInvalidateDelayed(1000L / rate)
+            when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
+                0L -> postInvalidateOnAnimation()
+                else -> postInvalidateDelayed(delay)
+            }
         }
     }
 
@@ -360,7 +362,7 @@ internal object FrostSources {
     private val frosts = java.util.WeakHashMap<FrostView, Unit>()
 
     @Volatile
-    var pageMode: PageMode = PageMode.Live
+    var pageMode: PageMode = PageMode.Solid
 
     fun register(id: String, view: FrostSourceView) = synchronized(sources) { sources[id] = WeakReference(view) }
 
@@ -470,6 +472,13 @@ internal object FrostPage {
         holdsPage -> Choice(Path.Live, "page under the frost, redrawn every frame")
         else -> Choice(Path.Live, "no page under the frost")
     }
+}
+
+internal object FrostScale {
+    const val MIN_LOW_RES_BLUR = 6f
+    const val MAX_SCALE = 8f
+
+    fun of(blurPixels: Float): Float = (blurPixels / MIN_LOW_RES_BLUR).toInt().toFloat().coerceIn(1f, MAX_SCALE)
 }
 
 internal object FrostRefresh {
@@ -589,17 +598,19 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         if (choice.path == FrostPage.Path.Live && from != null) {
             if (isShown) scheduleRefresh(from.holdsPage)
             val blur = style.blurRadius.value * density
-            applyEffect(blur, style.saturation)
+            val scale = FrostScale.of(blur)
+            applyEffect(blur / scale, style.saturation)
             val margin = ceil(blur * 2)
             val offset = offsetTo(from)
             lastOffset = offset
             val dx = (offset shr 32).toInt()
             val dy = offset.toInt()
-            layerWidth = ceil(width + margin * 2).toInt()
-            layerHeight = ceil(height + margin * 2).toInt()
+            layerWidth = ceil((width + margin * 2) / scale).toInt()
+            layerHeight = ceil((height + margin * 2) / scale).toInt()
             blurNode.setPosition(0, 0, layerWidth, layerHeight)
             val recording = blurNode.beginRecording()
             try {
+                recording.scale(1f / scale, 1f / scale)
                 recording.translate(dx + margin, dy + margin)
                 from.node?.let(recording::drawRenderNode)
             } finally {
@@ -608,6 +619,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             canvas.save()
             canvas.clipPath(clip)
             canvas.translate(-margin, -margin)
+            canvas.scale(scale, scale)
             canvas.drawRenderNode(blurNode)
             canvas.restore()
             paint.style = Paint.Style.FILL

@@ -14,7 +14,7 @@ const PAGE_URL = "https://en.wikipedia.org/wiki/Hippopotamus";
 
 const VARIANTS: FrostVariant[] = ["bar", "sheet", "glass", "thin"];
 
-const BLOB_RATES = [0, 30, 20];
+const BLOB_RATES = [0, -1, 30, 20];
 
 function Button({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -29,7 +29,7 @@ export function LookLab() {
   const [dark, setDark] = useState(false);
   const [still, setStill] = useState(false);
   const [variant, setVariant] = useState(0);
-  const [pageFrost, setPageFrost] = useState<"live" | "solid">("live");
+  const [pageFrost, setPageFrost] = useState<"live" | "solid">("solid");
   const [faded, setFaded] = useState(false);
   const [lookOff, setLookOff] = useState(() => lookLab.lookIsOff());
   const [blobRate, setBlobRate] = useState(() => lookLab.blobFramesPerSecond());
@@ -61,7 +61,7 @@ export function LookLab() {
         <Button label="Probe frost" onPress={() => lookLab.probeFrosts()} />
         <Button label={lookOff ? "Look off" : "Look on"} onPress={() => setLookOff(lookLab.setLookOff(!lookOff) ?? lookOff)} />
         <Button
-          label={blobRate === 0 ? "Blobs every frame" : `Blobs ${blobRate} fps`}
+          label={blobRate === 0 ? "Blobs paced" : blobRate === -1 ? "Blobs every frame" : `Blobs ${blobRate} fps`}
           onPress={() => setBlobRate(lookLab.setBlobFramesPerSecond(BLOB_RATES[(BLOB_RATES.indexOf(blobRate) + 1) % BLOB_RATES.length]!) ?? blobRate)}
         />
       </View>

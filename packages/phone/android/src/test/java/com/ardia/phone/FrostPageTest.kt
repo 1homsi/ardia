@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
 class FrostPageTest {
     @After
     fun reset() {
-        FrostSources.pageMode = FrostSources.PageMode.Live
+        FrostSources.pageMode = FrostSources.PageMode.Solid
     }
 
     private fun choose(holdsPage: Boolean, mode: FrostSources.PageMode = FrostSources.PageMode.Live, blur: Boolean = true, reduce: Boolean = false, inside: Boolean = false, content: Boolean = true) =
