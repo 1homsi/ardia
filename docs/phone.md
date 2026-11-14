@@ -324,6 +324,9 @@ and again only when that status changes.
       `adb shell input text googleandsomemoretextthatgoesonandonforsixtyfivecharactersintotal12` (65 keys) and
       `adb shell dumpsys gfxinfo $P | grep -E "Janky|50th|90th"`. The 50th percentile stays at or under the earlier
       runs' 13 ms on the same phone; report the three lines.
+43. **Deck with TalkBack** (once the deck wraps itself in `ScrollActions`): with TalkBack on and eight tabs open, put
+    the focus on a card and use TalkBack's scroll actions (the actions menu, or a two-finger swipe). The deck moves a
+    page each way, and at either end the action that can't move is not offered.
 
 ## Upgrade from the Compose app on Android
 
