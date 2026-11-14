@@ -13,6 +13,8 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "turbo.json"
+      - "tsconfig.base.json"
+      - ".nvmrc"
       - "patches/**"
       - ".github/workflows/checks.yml"
   push:
