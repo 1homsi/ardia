@@ -1,6 +1,6 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { View } from "react-native";
-import type { PowerUpProps, ThemeSwatchProps, WindowBackdropProps } from "@ardia-real/shaders";
+import type { MeadowProps, PowerUpProps, ThemeSwatchProps, WindowBackdropProps } from "@ardia-real/shaders";
 import { useBrowser } from "../../../browser/src/state/browser/store";
 import { prefersReducedMotion } from "./web/gl/clock";
 import { parseHex } from "./web/gl/colors";
@@ -10,6 +10,7 @@ import { webgl2Supported } from "./web/gl/surface";
 import { backdropUniforms, HALO, haloUniforms, POWER_UP, powerUpPalette, powerUpUniforms } from "./web/gl/uniforms";
 import { BackdropFallback, HaloFallback, PowerUpFallback } from "./web/gl/fallbacks";
 import { Vibrancy } from "./web/gl/Vibrancy";
+import { mountMeadow, type MeadowScene } from "./web/gl/meadow";
 import { baseLine, baseStops, GRAIN_POINTS, GRAIN_SIDE, grainAlpha, overlayLine, overlayStops, padLayers, stopCss, swatchColors, type SwatchLine, type SwatchStop } from "./web/gl/themeSwatch";
 import { usePageHoleLayer } from "../shellAbove";
 import { useSurfaceDark } from "./web/chrome";
@@ -146,4 +147,23 @@ export function ThemeSwatch({ colors, grain = 0, texture = "grain", padLightness
       {tile ? <div style={{ ...SWATCH_FILL, opacity: grainOpacity, backgroundImage: `url(${tile})`, backgroundSize: `${GRAIN_POINTS}px ${GRAIN_POINTS}px`, imageRendering: "pixelated" }} /> : null}
     </View>
   );
+}
+
+export function Meadow({ night, onTone, style }: MeadowProps) {
+  const layer = useRef<View & HTMLElement>(null);
+  const scene = useRef<MeadowScene | null>(null);
+  const toneHandler = useRef(onTone);
+  toneHandler.current = onTone;
+  useEffect(() => {
+    const node = layer.current;
+    if (!node) return;
+    const mounted = mountMeadow(node, { night, reduceMotion: prefersReducedMotion(), onTone: (tone) => toneHandler.current?.(tone) });
+    scene.current = mounted;
+    return () => {
+      scene.current = null;
+      mounted.dispose();
+    };
+  }, []);
+  useEffect(() => scene.current?.setNight(night), [night]);
+  return <View ref={layer} pointerEvents="none" style={[{ overflow: "hidden" }, style]} />;
 }

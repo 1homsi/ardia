@@ -70,6 +70,15 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   swatches, preview and colour pad) is drawn by the shell (`shims/shaders.tsx`, `shims/web/gl/themeSwatch.ts`): the
   same 17 Oklab samples and start and end points as `ArcGradientLayer`, the third colour's overlay, the hue pad, and
   `GrainLayer`'s four tiles from the same generator.
+- **Onboarding meadow.** `Meadow` (the intro's scene) runs ardia.dev's own meadow (`apps/site/src/scripts/meadow`,
+  the source the Mac's `ios/Meadow/index.html` is built from) straight in the shell, since the shell CSP allows no
+  frames (`shims/web/gl/meadow.ts`, imported as `@ardia-site/meadow/*` and compiled by `vite.config.ts` without the
+  site's Astro tsconfig). It loads as its own chunk when the intro mounts, shows the Mac's dawn poster for the window's
+  shape (morning with reduced motion, none at night) until the first frame, cross-fades in over 0.4 s, and reports
+  the text tone and halo the same way. The scene draws at the display's rate, drops to 30 fps when idle, stops when
+  the page is hidden or off screen, and the intro's unmount disposes it and loses its WebGL context. A software
+  renderer (SwiftShader, llvmpipe) keeps the poster instead. Unlike the Mac's WebKit view, the scene gets the
+  pointer, so the grass brushes and the sun can be dragged. The intro music stays silent on Linux.
 
 ### Tabs and viewports
 

@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { Plugin } from "vite";
+import { transformWithEsbuild, type Plugin } from "vite";
 import { lazyComponentId, webShellConfig } from "./vite.shared";
 import { inputAdapters, rawBookmarkAdapter, resolveInputAdapter } from "./inputAdapters";
 import { credentialWording } from "./credentialWording";
@@ -57,6 +57,21 @@ const importerReplacements = new Map([
   [`${here("../browser/src/components/ui/index.ts")}\0${here("../browser/src/components/window/SidebarDock.tsx")}`, here("./src/glassUi.tsx")],
   [`${here("../browser/src/components/ui/index.ts")}\0${here("../browser/src/components/omnibox/CommandPanel.tsx")}`, here("./src/glassUi.tsx")],
 ]);
+const siteMeadow = here("../site/src/scripts/meadow/");
+const SITE_MEADOW_TSCONFIG = JSON.stringify({ compilerOptions: { target: "ESNext", verbatimModuleSyntax: true, strict: true } });
+
+function siteMeadowScripts(): Plugin {
+  return {
+    name: "ardia-linux:site-meadow",
+    enforce: "pre",
+    async transform(code, id) {
+      if (!id.startsWith(siteMeadow) || !id.endsWith(".ts")) return null;
+      const result = await transformWithEsbuild(code, id, { loader: "ts", tsconfigRaw: SITE_MEADOW_TSCONFIG });
+      return { code: result.code, map: null };
+    },
+  };
+}
+
 const adapters = new Set([...replacements.values(), ...importerReplacements.values(), rawBookmarkAdapter.replacement, importedPasswordSave.replacement]);
 
 function linuxComponents(): Plugin {
@@ -79,10 +94,13 @@ function linuxComponents(): Plugin {
   };
 }
 
-export default webShellConfig({
-  plugins: [linuxComponents(), credentialWording(), linuxWording(), calendarWording(), syncWording()],
+const shell = webShellConfig({
+  plugins: [siteMeadowScripts(), linuxComponents(), credentialWording(), linuxWording(), calendarWording(), syncWording()],
   aliases: [
     { find: /^@ardia\/shell$/, replacement: here("./src/shims/shell.tsx") },
     { find: /^@ardia\/ardiacore$/, replacement: here("./src/shims/ardiacore.tsx") },
+    { find: /^@ardia-site\/meadow\/(scene|clock|cycle)$/, replacement: `${siteMeadow}$1.ts` },
   ],
 });
+
+export default { ...shell, esbuild: { exclude: [/\.js$/, /\/apps\/site\/src\/scripts\/meadow\//] } };
