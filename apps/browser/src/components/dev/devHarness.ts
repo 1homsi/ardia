@@ -35,6 +35,9 @@ export function startDevHarness() {
   const ac = {
     store: useBrowser, actions, runCommand, webviews, shell, engine: { call, on }, omnibox: omniboxDrivers, pages: pagesDrivers,
     pageState: usePages,
+    get downloads(): typeof import("../../state/downloads/progress") {
+      return require("../../state/downloads/progress");
+    },
     openSettings,
     favicons,
     get bookmarks(): typeof import("../../state/bookmarks/bookmarks") {
@@ -131,6 +134,7 @@ export function startDevHarness() {
       return require("../settings/panes/SyncSheets");
     },
     get menus(): typeof import("../../state/sidebar/menus") &
+      typeof import("../../state/sidebar/liveMenus") &
       typeof import("../../state/site/reloadMenu") &
       typeof import("../profiles/profileMenu") &
       typeof import("../../state/bookmarks/bookmarkMenus") &
@@ -141,6 +145,7 @@ export function startDevHarness() {
       return {
         useBookmarkDialog: require("../../state/bookmarks/actions").useBookmarkDialog,
         ...require("../../state/sidebar/menus"),
+        ...require("../../state/sidebar/liveMenus"),
         ...require("../../state/site/reloadMenu"),
         ...require("../profiles/profileMenu"),
         ...require("../../state/bookmarks/bookmarkMenus"),

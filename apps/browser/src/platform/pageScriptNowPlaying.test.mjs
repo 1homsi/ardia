@@ -3,57 +3,43 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const script = readFileSync(new URL("../../../../packages/ardiacore/ios/page_script.js", import.meta.url), "utf8");
-const pick = (pattern, name) => {
-  const source = script.match(pattern)?.[0];
+const define = (name, pattern, uses = {}) => {
+  const source = script.match(pattern)?.[1];
   assert.ok(source, `page_script.js defines ${name}`);
-  return source;
+  return new Function(...Object.keys(uses), `return ${source}`)(...Object.values(uses));
 };
-const helpers = [
-  pick(/const POSITION_DRIFT_SECONDS = .*;\n/, "POSITION_DRIFT_SECONDS"),
-  pick(/const anchorPosition = .*;\n/, "anchorPosition"),
-  pick(/const advanceAnchor = \([\s\S]*?\n {2}\};\n/, "advanceAnchor"),
-  pick(/const expectedPosition = .*;\n/, "expectedPosition"),
-  pick(/const positionDrifted = .*;\n/, "positionDrifted"),
-].join("");
-const { anchorPosition, advanceAnchor, positionDrifted } = new Function(`${helpers} return { anchorPosition, advanceAnchor, positionDrifted };`)();
-const positionAfter = (state, steps) => steps.reduce((anchor, [playing, now]) => advanceAnchor(anchor, playing, now), anchorPosition(state, 0)).position;
+const clockPosition = define("clockPosition", /const clockPosition = (\(rate, clock, now\) => \{[\s\S]*?\n {2}\});\n/);
+const timelineNow = define("timelineNow", /const timelineNow = (\(reported, mediaAdvance, now\) => \{[\s\S]*?\n {2}\});\n/, { clockPosition });
+const mediaAdvanceOf = define("mediaAdvanceOf", /const mediaAdvanceOf = (\(el, timeline\) => .*);\n/);
+const timelineReport = define("timelineReport", /const timelineReport = (\(timeline, el, now\) => \{[\s\S]*?\n {2}\});\n/, { mediaAdvanceOf, timelineNow });
 
-const sent = (overrides = {}) => ({ playbackState: "playing", position: 1, playbackRate: 1, timestamp: 0, ...overrides });
-const at = (position, overrides = {}) => ({ playbackState: "playing", position, playbackRate: 1, ...overrides });
-
-test("a looping video back at its start is resent though nothing else about it changed", () => {
-  assert.equal(positionDrifted(sent(), at(1), 12_000), true, "the app thinks 13 s, the page says 1 s");
+const video = (currentTime, playbackRate = 1) => ({ currentTime, playbackRate });
+const setAt = (position, { playing = true, playbackRate = 1, media = [] } = {}) => ({
+  position,
+  duration: 200,
+  playbackRate,
+  clock: { position, at: 0, advancing: playing },
+  mediaTimes: new WeakMap(media.map(([el, at]) => [el, at])),
 });
 
-test("seeking back is resent, a position the app would extrapolate anyway is not", () => {
-  assert.equal(positionDrifted(sent({ position: 40 }), at(10), 5_000), true);
-  assert.equal(positionDrifted(sent({ position: 40 }), at(45.4), 5_000), false);
-  assert.equal(positionDrifted(sent({ position: 40, playbackRate: 2 }), at(50), 5_000), false, "extrapolated at its rate");
+test("a site that set its position once is reported where it has played to since, not where it set it", () => {
+  const el = video(110);
+  assert.deepEqual(timelineReport(setAt(30, { media: [[el, 100]] }), el, 10_000), { position: 40, playbackRate: 1 });
+  assert.deepEqual(timelineReport(setAt(30), null, 10_000), { position: 40, playbackRate: 1 }, "with no element to follow, its clock moves on");
 });
 
-test("a paused report is expected to stay put", () => {
-  assert.equal(positionDrifted(sent({ playbackState: "paused", position: 30 }), at(30, { playbackState: "paused" }), 60_000), false);
-  assert.equal(positionDrifted(sent({ playbackState: "paused", position: 30 }), at(0, { playbackState: "paused" }), 60_000), true);
+test("a site's position stands still while it says it is paused", () => {
+  assert.equal(timelineReport(setAt(30, { playing: false }), null, 10_000).position, 30);
 });
 
-test("the first report and a cleared session never count as drift", () => {
-  assert.equal(positionDrifted(null, at(5), 1_000), false);
-  assert.equal(positionDrifted(sent(), null, 1_000), false);
+test("the reported rate is the one the position moves at, so the card counts at the same speed", () => {
+  const fast = video(110, 2);
+  assert.deepEqual(timelineReport(setAt(30, { media: [[fast, 100]] }), fast, 5_000), { position: 40, playbackRate: 2 }, "following the element, its rate");
+  assert.deepEqual(timelineReport(setAt(30, { playbackRate: 1.5 }), video(0, 2), 10_000), { position: 45, playbackRate: 1.5 }, "following the clock, the site's rate");
 });
 
-test("a site's setPositionState advances only while playing, like Chrome's own media session", () => {
-  const state = { position: 30, duration: 200, playbackRate: 1 };
-  assert.equal(positionAfter(state, [[true, 10_000]]), 40);
-  assert.equal(positionAfter(state, [[false, 10_000]]), 30, "paused since it was set: where it was set");
-  assert.equal(positionAfter(state, [[true, 0], [false, 10_000], [false, 60_000], [true, 60_000]]), 40, "played 10 s, then paused 50 s: 10 s on");
-  assert.equal(positionAfter(state, [[false, 0], [true, 50_000], [true, 60_000]]), 40, "paused 50 s, then played 10 s");
-  assert.equal(positionAfter({ ...state, playbackRate: 0.5 }, [[true, 10_000]]), 35);
-  assert.equal(positionAfter(state, [[true, 1_000_000]]), 200, "never past its duration");
-  assert.equal(positionAfter({ position: 30 }, [[true, 10_000]]), 40, "no duration and no rate: 1x, unclamped");
-});
-
-test("a site that set its position once and then went quiet isn't resent as if it had jumped back", () => {
-  const state = { position: 30, duration: 200, playbackRate: 1 };
-  const first = sent({ position: positionAfter(state, [[true, 0]]), timestamp: 0 });
-  assert.equal(positionDrifted(first, at(positionAfter(state, [[true, 0], [true, 20_000]])), 20_000), false);
+test("a site's position never runs past its duration or below zero", () => {
+  assert.equal(timelineReport(setAt(195), null, 60_000).position, 200);
+  const el = video(0);
+  assert.equal(timelineReport(setAt(3, { media: [[el, 10]] }), el, 0).position, 0);
 });
