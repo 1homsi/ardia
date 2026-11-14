@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Animated, { FadeIn, FadeOut, LayoutAnimationConfig } from "react-native-reanimated";
 import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
@@ -11,7 +12,7 @@ import { appVersion, exportOpenTabs, setAppLinks, setArchiveInterval, setAutoOpe
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { capsule, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
+import { capsule, duration, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
@@ -39,19 +40,20 @@ export function SettingsRoot() {
   }, []);
   const synced = useSyncView().search;
   const engineName = syncEnabled && synced ? syncedEngineName(synced, engines) : (engines.find((engine) => engine.id === engineId)?.name ?? "");
+  const stacks = useWindowDimensions().fontScale >= settingsLayout.accessibilityFontScale;
   return (
     <SettingsPage title="Settings" trailing={<BarButton title="Done" emphasized onPress={closeSettings} />}>
       <Group>
-        <SyncCard />
+        <SyncCard stacks={stacks} />
       </Group>
-      <View style={styles.shortcuts}>
+      <View testID="settingsShortcuts" style={[styles.shortcuts, { flexDirection: stacks ? "column" : "row" }]}>
         <Pressable
           accessibilityRole="button"
           onPress={() => {
             closeSettings();
             openArchive();
           }}
-          style={[styles.shortcut, { backgroundColor: theme.groupFill }]}
+          style={[styles.shortcut, stacks ? null : styles.fill, { backgroundColor: theme.groupFill }]}
         >
           <Symbol name="archivebox" size={20} color={theme.label} />
           <Text style={[font.body, styles.medium, { color: theme.label }]}>Archive</Text>
@@ -62,7 +64,7 @@ export function SettingsRoot() {
             closeSettings();
             openSpaces();
           }}
-          style={[styles.shortcut, { backgroundColor: theme.groupFill }]}
+          style={[styles.shortcut, stacks ? null : styles.fill, { backgroundColor: theme.groupFill }]}
         >
           <Symbol name="squareStack" size={20} color={theme.label} />
           <Text style={[font.body, styles.medium, { color: theme.label }]}>Spaces</Text>
@@ -116,7 +118,7 @@ export function SettingsRoot() {
 
 const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
 
-function SyncCard() {
+function SyncCard({ stacks }: { stacks: boolean }) {
   const theme = useTheme();
   const status = useSyncStatus();
   const line = syncRowSubtitle(status);
@@ -128,12 +130,23 @@ function SyncCard() {
       onPress={() => pushSettings({ page: "sync" })}
       style={({ pressed }) => [styles.syncCard, pressed ? { backgroundColor: theme.rowHighlight } : null]}
     >
-      <IconTile icon="macAndPhone" tint={settingsTint.sync} side={settingsLayout.syncTile} />
-      <View style={styles.syncText}>
-        <Text style={[font.title3, styles.bold, { color: theme.label }]}>Sync With Mac</Text>
-        <Text style={[font.subheadline, { color: line.isWarning ? theme.destructive : theme.secondaryLabel }]} numberOfLines={2}>
-          {line.text}
-        </Text>
+      <View testID="syncCardContent" style={[styles.fill, stacks ? styles.syncStacked : styles.syncBeside]}>
+        <IconTile icon="macAndPhone" tint={settingsTint.sync} side={stacks ? settingsLayout.syncTileLarge : settingsLayout.syncTile} />
+        <View style={styles.syncText}>
+          <Text style={[font.title3, styles.bold, { color: theme.label }]}>Sync With Mac</Text>
+          <LayoutAnimationConfig skipEntering>
+            <Animated.Text
+              key={line.text}
+              testID="syncStatusLine"
+              entering={FadeIn.duration(duration.crossfade)}
+              exiting={FadeOut.duration(duration.crossfade)}
+              style={[font.subheadline, { color: line.isWarning ? theme.destructive : theme.secondaryLabel }]}
+              numberOfLines={stacks ? undefined : 2}
+            >
+              {line.text}
+            </Animated.Text>
+          </LayoutAnimationConfig>
+        </View>
       </View>
       <Symbol name="chevronRight" size={14} color={theme.tertiaryLabel} />
     </Pressable>
@@ -188,12 +201,15 @@ function ColorRow() {
 const RING = settingsLayout.swatch + (settingsLayout.swatchGap + settingsLayout.swatchRing) * 2;
 
 const styles = StyleSheet.create({
-  shortcuts: { flexDirection: "row", paddingHorizontal: space.l, gap: space.m },
-  shortcut: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.s, minHeight: 48, borderRadius: capsule(48) },
+  shortcuts: { paddingHorizontal: space.l, gap: space.s },
+  fill: { flex: 1 },
+  shortcut: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.s, minHeight: 48, borderRadius: capsule(48) },
   medium: { fontWeight: "500" },
   bold: { fontWeight: "600" },
   syncCard: { flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m },
-  syncText: { flex: 1, gap: space.tight },
+  syncText: { flexShrink: 1, gap: space.tight },
+  syncBeside: { flexDirection: "row", alignItems: "center", gap: space.s + 2 },
+  syncStacked: { flexDirection: "column", alignItems: "flex-start", gap: space.s },
   row: { flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: settingsLayout.rowInset + settingsLayout.tile + settingsLayout.labelGap },
   centered: { textAlign: "center" },

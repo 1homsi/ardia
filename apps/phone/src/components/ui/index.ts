@@ -5,7 +5,7 @@ export { barCenterFromBottom, barHeight, deckCenterFromBottom } from "./barGeome
 export { CodeCamera } from "./CodeCamera";
 export { Favicon } from "./Favicon";
 export { LoadingLine } from "./LoadingLine";
-export { spring, springs, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
+export { duration, spring, springs, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
 export { ConfirmDialog, Dialog, type Confirmation, type DialogButton } from "./Dialog";
 export { FloatingMenu, Menu, type MenuItem } from "./Menu";
 export { Shade } from "./Shade";

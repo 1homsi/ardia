@@ -3,7 +3,7 @@ import { Easing as WorkletEasing } from "react-native-reanimated";
 
 export const curve = { easeOut: Easing.bezier(0, 0, 0.58, 1) } as const;
 
-export const duration = { resultsIn: 140, progressFill: 200, progressFade: 250, progressAdvance: 450, toneFade: 250 } as const;
+export const duration = { resultsIn: 140, progressFill: 200, progressFade: 250, progressAdvance: 450, toneFade: 250, crossfade: 300 } as const;
 
 export const delay = { progressReveal: 150 } as const;
 
