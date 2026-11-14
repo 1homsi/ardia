@@ -40,7 +40,8 @@ try {
   $composedMap = Join-Path $freshMaps "$bundleName.map"
   Push-Location $browser
   try {
-    & npx @react-native-community/cli bundle --platform windows --entry-file index.js --bundle-output $javascript --assets-dest $fresh --dev false --reset-cache --sourcemap-output $packagerMap --minify false
+    $entry = if (Test-Path -LiteralPath (Join-Path $browser "index.windows.js") -PathType Leaf) { "index.windows.js" } else { "index.js" }
+    & npx @react-native-community/cli bundle --platform windows --entry-file $entry --bundle-output $javascript --assets-dest $fresh --dev false --reset-cache --sourcemap-output $packagerMap --minify false
     if ($LASTEXITCODE -ne 0) { throw "Metro did not bundle the app for Windows" }
     & $compiler -emit-binary -out $bytecode $javascript -O -output-source-map
     if ($LASTEXITCODE -ne 0) { throw "Hermes did not compile $bundleName" }

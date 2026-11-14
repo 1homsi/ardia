@@ -6,6 +6,7 @@ on:
       - "apps/browser/windows/**"
       - "apps/browser/NuGet.config"
       - "apps/browser/index.js"
+      - "apps/browser/index.windows.js"
       - "apps/browser/metro.config.js"
       - "apps/browser/src/**"
       - "packages/*/src/**"
@@ -20,6 +21,7 @@ on:
       - "apps/browser/windows/**"
       - "apps/browser/NuGet.config"
       - "apps/browser/index.js"
+      - "apps/browser/index.windows.js"
       - "apps/browser/metro.config.js"
       - "apps/browser/src/**"
       - "packages/*/src/**"
@@ -108,11 +110,18 @@ jobs:
         id: native
         shell: bash
         env:
-          TREE: ${{ hashFiles('apps/browser/windows/**', 'apps/browser/NuGet.config', 'apps/browser/package.json', 'apps/browser/app.json', 'apps/browser/react-native.config.js', 'packages/*/package.json', 'packages/*/react-native.config.js', 'packages/*/windows/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'patches/**', 'scripts/windows/rebundle.ps1', '.github/workflows/windows.yml') }}
-        run: echo "key=windows-app-${{ env.SLUG }}-$TREE" >> "$GITHUB_OUTPUT"
+          TREE: ${{ hashFiles('apps/browser/windows/**', 'apps/browser/NuGet.config', 'apps/browser/package.json', 'apps/browser/app.json', 'apps/browser/react-native.config.*', 'packages/*/package.json', 'packages/*/react-native.config.*', 'packages/*/windows/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'patches/**', 'scripts/windows/rebundle.ps1', '.github/workflows/windows.yml') }}
+        run: |
+          echo "key=windows-app-${{ env.SLUG }}-$TREE" >> "$GITHUB_OUTPUT"
+          if grep -l '"codegenConfig"' apps/browser/package.json packages/*/package.json; then
+            echo "::notice::A package above declares codegenConfig: native code is then generated from JavaScript specs, which the key does not cover. This run compiles and neither reuses nor saves a built app."
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "reuse=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Look for an app built from this native code
         id: built
-        if: env.FULL != 'true'
+        if: env.FULL != 'true' && steps.native.outputs.reuse == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
@@ -135,7 +144,7 @@ jobs:
           $digest = (Get-FileHash -LiteralPath "$env:APP/Bundle/index.windows.bundle" -Algorithm SHA256).Hash.ToLowerInvariant()
           Write-Host "build: index.windows.bundle has SHA-256 $digest"
       - name: Save the built app
-        if: steps.built.outputs.cache-hit != 'true'
+        if: steps.built.outputs.cache-hit != 'true' && steps.native.outputs.reuse == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
@@ -172,7 +181,7 @@ jobs:
         shell: pwsh
         run: scripts/windows/assemble.ps1 -App $env:APP -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia" -Build ${{ github.run_number }}
       - name: Launch it
-        if: ${{ !cancelled() && env.CPU == 'x64' && (env.FULL == 'true' || steps.engine.outcome != 'success') }}
+        if: ${{ !cancelled() && env.CPU == 'x64' && (env.FULL == 'true' || steps.engine.outcome != 'success' || steps.built.outputs.cache-hit != 'true') }}
         timeout-minutes: 12
         shell: pwsh
         run: scripts/windows/launch-smoke.ps1 -App "$env:APP/Ardia.exe" -Out "${{ runner.temp }}/launch"
@@ -279,6 +288,8 @@ jobs:
       APP: apps/browser/windows/ARM64/Release
       HERMES: .ci/windows-hermes/hermes.exe
       FULL: ${{ needs.gate.outputs.full }}
+    outputs:
+      compiled: ${{ steps.built.outputs.cache-hit != 'true' }}
     steps: *app_steps
 
   arm64:
@@ -322,7 +333,7 @@ jobs:
         shell: pwsh
         run: scripts/windows/assemble.ps1 -App $env:APP -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia" -Build ${{ github.run_number }}
       - name: Launch it
-        if: ${{ !cancelled() && (env.FULL == 'true' || steps.engine.outcome != 'success') }}
+        if: ${{ !cancelled() && (env.FULL == 'true' || steps.engine.outcome != 'success' || needs.arm64-app.outputs.compiled == 'true') }}
         timeout-minutes: 12
         shell: pwsh
         run: scripts/windows/launch-smoke.ps1 -App "$env:APP/Ardia.exe" -Out "${{ runner.temp }}/launch" -NoInput
