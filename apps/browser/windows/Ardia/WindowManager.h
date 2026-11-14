@@ -41,6 +41,7 @@ struct OpenWindowRequest {
   std::optional<std::array<double, 2>> size;
   bool focus{true};
   bool animated{false};
+  std::string focusWhenFront;
 };
 
 struct ManagedWindow {
@@ -143,6 +144,22 @@ struct WindowManager {
     return background;
   }
 
+  static HWND FrontRoot() noexcept {
+    HWND front = GetForegroundWindow();
+    return front ? GetAncestor(front, GA_ROOTOWNER) : nullptr;
+  }
+
+  bool InFront(std::string_view id) const noexcept {
+    HWND hwnd = Hwnd(id);
+    return hwnd && FrontRoot() == hwnd;
+  }
+
+  static void StayBehindFront(HWND hwnd) noexcept {
+    HWND front = FrontRoot();
+    if (!front || front == hwnd || (GetWindowLongPtrW(front, GWL_EXSTYLE) & WS_EX_TOPMOST)) return;
+    SetWindowPos(hwnd, front, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+  }
+
   void Open(OpenWindowRequest const &request) noexcept {
     if (ManagedWindow *existing = Find(request.id)) {
       bool wasClosing = !existing->exits.empty() || (existing->fade && (existing->fade->phase == WindowFade::Phase::Leaving || existing->fade->phase == WindowFade::Phase::Lingering));
@@ -179,7 +196,7 @@ struct WindowManager {
       ConnectNonClientInput(entry);
       ApplyInputRegions(entry);
 
-      bool activate = request.focus && !Background();
+      bool activate = request.focus && !Background() && (request.focusWhenFront.empty() || InFront(request.focusWhenFront));
       bool entrance = request.animated || entry.kind != "browser";
       bool fades = entrance && WindowMotion::SystemAnimates();
       HWND hwnd = entry.hwnd;
@@ -189,6 +206,10 @@ struct WindowManager {
       if (fades) BeginEntrance(placed->second);
       appWindow.Show(activate);
       if (activate) SetForegroundWindow(hwnd);
+      else if (placed->second.kind == "popup") {
+        StayBehindFront(hwnd);
+        LaunchLog::Write(L"window", L"a pop-up opened without taking focus: its opener's page or window is not the one in front");
+      }
       if (m_activeId.empty()) m_activeId = request.id;
       LaunchLog::Write(L"window", std::wstring(L"opened ").append(Paths::Wide(request.id)));
       if (entrance && !fades) LaunchLog::Write(L"window", std::wstring(L"window ").append(Paths::Wide(request.id)).append(L" shown at once: animations are off in Windows"));

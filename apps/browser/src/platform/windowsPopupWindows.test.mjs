@@ -8,11 +8,13 @@ const closed = [];
 const openIds = new Set();
 let refuseWindows = false;
 let closeWhileOpening = false;
+const shownPages = new Set(["opener-page"]);
 
 turboModules.ArdiaEngineHost = {
   available: () => true,
   hostCall: async (verb, argsJson, windowId) => {
     calls.push({ verb, args: JSON.parse(argsJson), windowId });
+    if (verb === "tabs.list") return JSON.stringify({ tabs: [...shownPages].map((key) => ({ key, shown: true, windowVisible: true })) });
     return JSON.stringify(verb === "tab.create" ? { tab: calls.length } : { ok: true });
   },
   engineCall: async () => "{}",
@@ -39,7 +41,8 @@ turboModules.ArdiaAppWindows = {
 
 const { mountPage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
 const { popupWindowInfo, isPopupWindowId } = await import("../../../../packages/expo-windows/src/engine/popupWindows.ts");
-const { privateWindowShown } = await import("../../../../packages/expo-windows/src/engine/privateWindows.ts");
+const { privateWindowShown, releaseProfile } = await import("../../../../packages/expo-windows/src/engine/privateWindows.ts");
+const { hostCall } = await import("../../../../packages/expo-windows/src/engine/host.ts");
 
 const emitTopic = (topic, payload) => DeviceEventEmitter.emit("ArdiaEngineHost:event", { topic, json: JSON.stringify(payload) });
 const settle = async () => {
@@ -152,12 +155,43 @@ test("a private pop-up keeps its private session while it is open, after its ope
   await settle();
   const made = opened.at(-1);
   assert.equal(popupWindowInfo(made.id)?.profile, profile);
+  const released = () => calls.filter((call) => call.verb === "profile.release" && call.args.profile === profile).length;
+  await releaseProfile(profile, (name) => hostCall("profile.release", { profile: name }));
   openerWindowGone();
   unmount();
   await settle();
-  assert.ok(!calls.some((call) => call.verb === "profile.release" && call.args.profile === profile), "the private profile is not released while its pop-up is open");
+  assert.equal(released(), 0, "the window sync's release of the closed opener window waits while its pop-up is open");
   turboModules.ArdiaAppWindows.closeWindow(made.id);
   await settle();
+  assert.equal(released(), 1, "the private session ends when its pop-up closes");
+});
+
+test("a pop-up whose opener page is the one shown in its window asks to take focus, only while that window is in front", async () => {
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, () => {});
+  await settle();
+  popupOpened("ardiacore:30", {});
+  await settle();
+  const made = opened.at(-1);
+  assert.equal(made.options.focus, true);
+  assert.equal(made.options.focusWhenFront, "main", "the native side activates it only when the opener's window is the foreground window");
+  turboModules.ArdiaAppWindows.closeWindow(made.id);
+  await settle();
+  unmount();
+});
+
+test("a pop-up from a page that isn't shown, a background tab, opens without taking focus", async () => {
+  shownPages.delete("opener-page");
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, () => {});
+  await settle();
+  popupOpened("ardiacore:31", {});
+  await settle();
+  const made = opened.at(-1);
+  assert.equal(made.options.focus, false);
+  assert.equal(popupWindowInfo(made.id)?.focused, false, "its page does not take the keyboard either");
+  turboModules.ArdiaAppWindows.closeWindow(made.id);
+  await settle();
+  shownPages.add("opener-page");
+  unmount();
 });
 
 test("a link a pop-up page opens in a new window (shift-click) goes to the pop-up's opener, without the pop-up's click point", async () => {

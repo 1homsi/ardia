@@ -199,6 +199,13 @@ function PopupContent({ popup }: { popup: PopupWindowInfo }) {
     };
   }, [windowId, pageKey]);
 
+  useEffect(() => {
+    const subscription = controls().addListener("onWindowEvent", (event) => {
+      if (event.type === "focus" && event.id === windowId && !event.fromPage) void callPage(pageKey, "focus");
+    });
+    return () => subscription.remove();
+  }, [windowId, pageKey]);
+
   const onPageEvent = useCallback(
     ({ nativeEvent: { name, data } }: PageEvent) => {
       const fields = (data ?? {}) as { url?: unknown; title?: unknown; level?: unknown };
@@ -206,7 +213,7 @@ function PopupContent({ popup }: { popup: PopupWindowInfo }) {
         void callPage<{ level?: unknown }>(pageKey, "getSecurityInfo").then((info) => {
           if (typeof info?.level === "string") setLevel(info.level);
         });
-        return void callPage(pageKey, "focus");
+        return void (popup.focused ? callPage(pageKey, "focus", { follow: true }) : undefined);
       }
       if (name === "windowClose") return closePopupWindow(windowId);
       if (name === "security") return setLevel(typeof fields.level === "string" ? fields.level : null);
@@ -216,7 +223,7 @@ function PopupContent({ popup }: { popup: PopupWindowInfo }) {
         title: typeof fields.title === "string" ? fields.title : shown.title,
       }));
     },
-    [pageKey, windowId],
+    [pageKey, windowId, popup.focused],
   );
 
   return view(

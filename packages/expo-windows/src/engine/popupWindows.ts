@@ -1,9 +1,10 @@
-import type { WindowEvent } from "@ardia/shell";
+import type { OpenWindowOptions, WindowEvent } from "@ardia/shell";
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { addNativeListener, type EventSubscription } from "../events";
 import type { AppWindowsModule } from "../nativeModuleTypes";
 import { popupFrame, popupSize, popupTitle, type PopupFeatures } from "./popupPlacement";
-import { privateWindowShown } from "./privateWindows";
+import { hostCall } from "./host";
+import { privatePopupShown } from "./privateWindows";
 
 export const POPUP_WINDOW_PREFIX = "popup:";
 
@@ -14,6 +15,7 @@ export type PopupWindowInfo = {
   url: string;
   profile: string;
   openerKey: string;
+  focused: boolean;
 };
 
 export type PopupWindowAsk = {
@@ -25,7 +27,12 @@ export type PopupWindowAsk = {
   features: PopupFeatures;
 };
 
-type PopupWindows = TurboModule & Pick<AppWindowsModule, "openWindow" | "closeWindow" | "windowFrame" | "windowIds" | "setWindowTitle">;
+type ListedTab = { key?: unknown; shown?: unknown; windowVisible?: unknown };
+
+type PopupWindowOptions = OpenWindowOptions & { focusWhenFront: string };
+
+type PopupWindows = TurboModule &
+  Pick<AppWindowsModule, "closeWindow" | "windowFrame" | "windowIds" | "setWindowTitle"> & { openWindow(id: string, options: PopupWindowOptions): Promise<void> };
 
 const WINDOWS_MODULE = "ArdiaAppWindows";
 
@@ -84,18 +91,30 @@ const openerFrame = (windowId: string) =>
       )
     : Promise.resolve(null);
 
+const openerShown = (openerKey: string) =>
+  openerKey
+    ? hostCall<{ tabs?: ListedTab[] }>("tabs.list").then(
+        (listed) => !!listed?.tabs?.some((tab) => tab.key === openerKey && tab.shown === true && tab.windowVisible === true),
+        () => false,
+      )
+    : Promise.resolve(false);
+
 export async function openPopupWindow(ask: PopupWindowAsk): Promise<PopupWindowOutcome> {
   listenForCloses();
   made += 1;
   const windowId = `${POPUP_WINDOW_PREFIX}${Date.now().toString(36)}-${made}`;
-  popups.set(windowId, { windowId, pageKey: `${windowId}:page`, adopt: ask.adopt, url: ask.url, profile: ask.profile, openerKey: ask.openerKey });
-  privateHolds.set(windowId, privateWindowShown(ask.profile));
+  const popup: PopupWindowInfo = { windowId, pageKey: `${windowId}:page`, adopt: ask.adopt, url: ask.url, profile: ask.profile, openerKey: ask.openerKey, focused: false };
+  popups.set(windowId, popup);
+  privateHolds.set(windowId, privatePopupShown(ask.profile));
   try {
-    const frame = popupFrame(ask.features, await openerFrame(ask.openerWindowId));
+    const [opener, focus] = await Promise.all([openerFrame(ask.openerWindowId), openerShown(ask.openerKey)]);
+    const frame = popupFrame(ask.features, opener);
+    popup.focused = focus && !!ask.openerWindowId;
     await windows().openWindow(windowId, {
       kind: "popup",
       title: popupTitle("", ask.url),
-      focus: true,
+      focus: popup.focused,
+      focusWhenFront: ask.openerWindowId,
       profile: ask.profile,
       ...(frame ? { frame } : { size: popupSize(ask.features) }),
     });

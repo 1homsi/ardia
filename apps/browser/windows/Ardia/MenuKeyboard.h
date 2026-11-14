@@ -234,7 +234,7 @@ struct MenuKeyboard {
       LaunchLog::Write(L"keys", L"close tab closes the pop-up window");
       return true;
     }
-    if (!store.EntryEnabled(*entry)) return false;
+    if (!WindowManager::Shared().IsPopupWindow(window.id) && !store.EntryEnabled(*entry)) return false;
     Emit(entry->command, entry->arg, window.id);
     if (entry->command == "tabSwitcher") OpenedSwitcher(*entry, press);
     return true;
