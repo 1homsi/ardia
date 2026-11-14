@@ -849,6 +849,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 Nothing native is left on iPhone that hasn't a decision against it. What remains is wiring in JavaScript, and checks that need a real iPhone (next section).
 
 - Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (f0fbeebcf); Enter Words and Add a List on `PasteButton` where `pasteButtonIsNative()`, 104 × 34 points, tinted with the form accent (2a3ba11d5); a link the page opens with Open in Background (`inBackground` on `page.popup`, d10c053d1) becomes a tab beside its opener without being selected (d44966b0b).
+- Simulator re-check at 2fbd950ca: these hold beside the SwiftUI app: the bar's place and glass in light and dark; the deck title fade at the next card; the tray's native bottom fade (the peeking row at contrast 32, SwiftUI's at 39); the system Paste pasting with no question; Open in Background; VoiceOver's action names and the Tabs button's double tap; Last Hour clearing website data modified since an hour ago; an opening card's picture landing 0 px from the live page; the welcome icon. Still to wire in JavaScript: the paste control at SwiftUI's 87⅓ × 34⅓ points, not 104 × 34; the deck bar's glass without the square hairline border, with SF-sized icons, and without the system Reduce Transparency setting passed as the prop (the system glass turns white by itself since 42dbf84e6); the tray's overflow decided after its rows are measured, so the fade isn't a render late. Default Browser can't run on a simulator: the page is only offered with Apple's web-browser entitlement.
 - For the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes.
 
 ### Check on your iPhone
@@ -862,7 +863,7 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 5. The search tray. Type "goo": "gle.com" is highlighted after the caret; Backspace removes only the highlight; Return opens google.com. With a Japanese or Chinese keyboard, no highlight appears. Type a word with more suggestions than fit: the next row peeks faded at the keyboard's edge; slide a finger from the first row down onto the keyboard and lift: the row laid out there opens.
 6. Voice search. Tap the mic in the tray, allow speech and the microphone, and say "otters": the words appear as you speak and the search runs; say nothing: after a few seconds it says it didn't hear anything.
 7. Scan to connect. Settings › Sync › Connect to Your Mac › Scan Code, pointed at the Mac's code: the code is outlined when found and pinch zooms; it connects without typing.
-8. Enter Words: copy the phrase on another device, tap Paste: the words fill in with no "Allow Paste" question. Settings › Ad Blocking › Filter Lists › Add a List does the same with an address. Put the button beside the SwiftUI app's: same size and blue.
+8. Enter Words: copy the phrase on your Mac, tap Paste on the iPhone: the words fill in with no "Allow Paste" question. Settings › Ad Blocking › Filter Lists › Add a List does the same with an address copied on the Mac. (The simulator already shows the paste without a question; this checks the clipboard from another device.)
 9. Offline. Turn on Airplane Mode and open a page: the offline page shows a Wi-Fi-off icon. Turn it off: the page reloads by itself.
 10. Handoff. With a page open, look at the Mac's Dock: an Ardia (or browser) Handoff icon offers the same page; private tabs never offer one.
 11. Siri and Shortcuts. Say "Open Otter in Ardia" (a tab you have open): Ardia switches to it. In Shortcuts, add Ardia's Open Tab action: it lists your tabs with their sites; running it switches to the one you pick.
@@ -871,17 +872,19 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 14. Share from Safari. Share a page to Ardia: it opens in a new tab.
 15. Long press on a link. The system menu shows Open in New Tab, Open in Background, Copy Link, Share… and Download Linked File; Open in Background leaves you on the page.
 16. VoiceOver. With VoiceOver on: each tray row and Close Search can be activated; on the deck, swipe up or down on a card to move between tabs.
-17. The deck bar (once it uses Glass). The three buttons look like the SwiftUI app's glass and light up under your finger; with Settings › Accessibility › Display & Text Size › Reduce Transparency on, they turn solid.
+17. The deck bar. The three buttons light up and flex under your finger, as the SwiftUI app's do; with Settings › Accessibility › Display & Text Size › Reduce Transparency on, they turn white with an edge.
+18. Default Browser, once the app carries Apple's web-browser entitlement (`ARDIA_DEFAULT_BROWSER = YES`; it is off in both apps, so neither shows the step or the Settings row). Settings › Default Browser › Open Default Apps opens the system's Default Apps page; choose Ardia and come back: the page says Ardia is your default browser. In onboarding, the step moves on as you leave for Settings.
+19. Clear Browsing Data by range. Sign in to a site, use the phone for a day, then clear Last Hour with Cookies and Site Data on: you're still signed in to that site.
 
 ### Unverified on a phone
 
-- iPhone look views: `packages/phone/ios/LookModule.swift` is in progress (uncommitted); until it lands the iPhone draws gradients and solid fills. Check: the deck's animated backdrop and frosted controls, and Reduce Motion and Reduce Transparency switching them.
+- iPhone look views on a device: the deck's animated backdrop, frosted controls and glass bar, and Reduce Motion and Reduce Transparency switching them.
 - Scroll position restore: scroll a long page, kill the app, relaunch; the same tab opens at the same offset, also after it was discarded in the background (both phones).
 - Card snapshot on deck entry: open the deck right after scrolling; the card shows the current view.
 - Deck gestures: a 400 ms hold opens the card menu without scrolling, a slow vertical drag lifts, a tap right after a settle opens the right card.
 - Incognito chip: compare its tap with Compose's `IncognitoChip` (SwiftUI shows a one-item menu, as the app does).
 - Voice from the tray: the keyboard goes down over the voice screen and comes back on the tray after Cancel.
-- Tray rows that don't fit above the keyboard: the row after the last whole one peeks at the keyboard's edge, faded (each row takes SwiftUI's mask at the middle of its visible part, since the app has no mask view), and a scrub from the first row down into the keyboard opens the row laid out under the finger, with a tick per row on the way.
+- Tray rows that don't fit above the keyboard: the row after the last whole one peeks at the keyboard's edge, faded by the native fade view as SwiftUI's mask does, and a scrub from the first row down into the keyboard opens the row laid out under the finger, with a tick per row on the way.
 - Refine arrow with TalkBack and VoiceOver: reachable, read as "Refine <title>".
 - iPhone Lock Screen widgets and Control Center controls open the right link (the app target has its own intent copies).
 - iPhone search widget follows the profile colour and Match My Mac (`WidgetExporter.swift`).
