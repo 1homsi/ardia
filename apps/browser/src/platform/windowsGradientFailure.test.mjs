@@ -28,6 +28,20 @@ test("reproduction: without the native report, the cached answer stays true afte
   native.gradient = true;
 });
 
+test("a brush that fails between the layer's first render and its subscription still switches it, though nobody heard the event", () => {
+  const rendered = capabilities.gradientDrawsNow();
+  assert.equal(rendered, true, "the layer's first render chose the native gradient");
+  native.gradient = false;
+  DeviceEventEmitter.emit(capabilities.GRADIENT_FAILED_EVENT, {});
+  let switched = 0;
+  const stop = capabilities.followGradientFailure(() => switched++);
+  assert.equal(switched, 1, "the ask right after subscribing catches it");
+  DeviceEventEmitter.emit(capabilities.GRADIENT_FAILED_EVENT, {});
+  assert.equal(switched, 2, "and the layer is subscribed for anything after");
+  stop();
+  native.gradient = true;
+});
+
 test("a brush that fails at any later moment switches every mounted layer to the stripes and corrects the cache", async () => {
   const told = [];
   const first = capabilities.onGradientFailure(() => told.push("first"));

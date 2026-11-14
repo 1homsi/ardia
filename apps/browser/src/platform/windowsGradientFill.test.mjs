@@ -96,7 +96,7 @@ test("a gradient brush that fails reports it once, at once, and every mounted la
   assert.match(source("../../windows/Ardia/Ardia.cpp"), /Ardia::Materials::ReportGradientFailuresTo\(nullptr\);\n  host\.engine = nullptr;\n  SetFocus\(nullptr\);\n  if \(host\.queue\) host\.queue\.ShutdownQueue\(\);/);
   assert.ok(source("../../windows/Ardia/Ardia.vcxproj").includes('<ClInclude Include="GradientFailures.h" />'));
   const surface = source("../../../../packages/expo-windows/src/views/Surface.tsx");
-  assert.match(surface, /const stop = onGradientFailure\(\(\) => setDraws\(false\)\);\n\s+if \(!gradientDrawsNow\(\)\) setDraws\(false\);\n\s+return stop;/);
+  assert.match(surface, /const \[draws, setDraws\] = useState\(gradientDrawsNow\);\n\s+useEffect\(\(\) => \(draws \? followGradientFailure\(\(\) => setDraws\(false\)\) : undefined\), \[draws\]\);/);
   assert.match(surface, /if \(!useGradientDraws\(\)\) return <StripedGradient /);
   assert.doesNotMatch(surface, /setTimeout|watchGradientFailure/);
 });

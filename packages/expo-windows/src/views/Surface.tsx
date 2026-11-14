@@ -4,7 +4,7 @@ import { StyleSheet, View, type ViewStyle } from "react-native";
 import { usePageCover } from "../engine/usePageCover";
 import { parseColor, rgbaString, sampleStops, type Rgba } from "./color";
 import { fallbackColumns, fallbackRows, flatColors, gradientFill, type GradientFill } from "./gradientFill";
-import { gradientDrawsNow, onGradientFailure } from "./materialCapabilities";
+import { followGradientFailure, gradientDrawsNow } from "./materialCapabilities";
 import { NativeMaterialGradient } from "./nativeMaterials";
 import { RoundedShadow } from "./RoundedShadow";
 import { shadowSpec } from "./shadowLayers";
@@ -41,12 +41,7 @@ function StripedGradient({ gradient, clip }: { gradient: GradientFill; clip: Vie
 
 function useGradientDraws() {
   const [draws, setDraws] = useState(gradientDrawsNow);
-  useEffect(() => {
-    if (!draws) return;
-    const stop = onGradientFailure(() => setDraws(false));
-    if (!gradientDrawsNow()) setDraws(false);
-    return stop;
-  }, [draws]);
+  useEffect(() => (draws ? followGradientFailure(() => setDraws(false)) : undefined), [draws]);
   return draws;
 }
 

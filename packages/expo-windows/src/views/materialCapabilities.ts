@@ -72,3 +72,9 @@ export function onGradientFailure(listener: () => void): () => void {
     failures = null;
   };
 }
+
+export function followGradientFailure(onFailed: () => void): () => void {
+  const stop = onGradientFailure(onFailed);
+  if (!gradientDrawsNow()) onFailed();
+  return stop;
+}
