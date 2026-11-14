@@ -42,6 +42,8 @@ export const trayMotion = {
   press: spring(0.2, 0.7),
   dim: 300,
   reduced: 200,
+  resultsIn: 140,
+  modeToggle: spring(0.3, 0.85),
 } as const;
 
 export const tabsCurve = { easeOut: WorkletEasing.bezier(0, 0, 0.58, 1), easeInOut: WorkletEasing.bezier(0.42, 0, 0.58, 1) } as const;

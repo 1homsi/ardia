@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
 import { browseLayout, Favicon, font, radius, space, Symbol, type ColorRoles, type SymbolName } from "../ui";
 
@@ -12,15 +12,18 @@ type Props = {
   typed: string;
   roles: ColorRoles;
   interactive?: boolean;
+  menu?: readonly { label: string; run: () => void }[];
   onActivate: (row: TrayRow) => void;
   onRefine: (row: TrayRow) => void;
   onMenu: (row: TrayRow, y: number) => void;
 };
 
-export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, interactive = true, onActivate, onRefine, onMenu }: Props) {
+export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, interactive = true, menu = [], onActivate, onRefine, onMenu }: Props) {
   const content = <RowContent row={row} typed={typed} roles={roles} interactive={interactive} onRefine={onRefine} />;
+  const menuActions = menu.map((item, index) => ({ name: `${MENU_ACTION}${index}`, label: item.label }));
+  const runMenuAction = (name: string) => menu[Number(name.slice(MENU_ACTION.length))]?.run();
   if (!interactive) {
-    const actions = [{ name: "activate" }, ...(row.kind === "query" ? [{ name: "refine", label: `Refine ${row.title}` }] : []), { name: "longpress", label: "More Actions" }];
+    const actions = [{ name: "activate" }, ...(row.kind === "query" ? [{ name: "refine", label: `Refine ${row.title}` }] : []), ...menuActions];
     return (
       <View
         accessible
@@ -29,7 +32,7 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, in
         onAccessibilityAction={(event) => {
           const name = event.nativeEvent.actionName;
           if (name === "refine") onRefine(row);
-          else if (name === "longpress") onMenu(row, 0);
+          else if (name.startsWith(MENU_ACTION)) runMenuAction(name);
           else onActivate(row);
         }}
         style={styles.row}
@@ -43,8 +46,8 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, in
       accessibilityRole="button"
       onPress={() => onActivate(row)}
       onLongPress={(event) => onMenu(row, event.nativeEvent.pageY)}
-      accessibilityActions={[{ name: "longpress", label: "More Actions" }]}
-      onAccessibilityAction={() => onMenu(row, 0)}
+      accessibilityActions={menuActions}
+      onAccessibilityAction={(event) => runMenuAction(event.nativeEvent.actionName)}
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? roles.rowHighlight : undefined }]}
     >
       {content}
@@ -52,7 +55,12 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, in
   );
 });
 
+const MENU_ACTION = "menu";
+
+const LARGE_TEXT = 1.5;
+
 function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow; typed: string; roles: ColorRoles; interactive: boolean; onRefine: (row: TrayRow) => void }) {
+  const large = useWindowDimensions().fontScale > LARGE_TEXT;
   return (
     <>
       <View style={styles.leading}>
@@ -61,7 +69,7 @@ function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow
       <View style={styles.label}>
         {row.kind === "query" ? (
           <>
-            <QueryTitle title={row.title} typed={typed} roles={roles} />
+            <QueryTitle title={row.title} typed={typed} roles={roles} lines={large ? 4 : 2} />
             {row.detail ? (
               <Text style={[font.subheadline, { color: roles.foregroundSecondary }]} numberOfLines={1}>
                 {row.detail}
@@ -70,7 +78,7 @@ function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow
           </>
         ) : (
           <>
-            <Text style={[font.body, { color: roles.foregroundPrimary }]} numberOfLines={1}>
+            <Text style={[font.body, { color: roles.foregroundPrimary }]} numberOfLines={large ? 3 : 1}>
               {row.title}
             </Text>
             <View style={styles.detail}>
@@ -102,10 +110,10 @@ function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow
   );
 }
 
-function QueryTitle({ title, typed, roles }: { title: string; typed: string; roles: ColorRoles }) {
+function QueryTitle({ title, typed, roles, lines }: { title: string; typed: string; roles: ColorRoles; lines: number }) {
   const prefix = queryPrefixLength(title, typed);
   return (
-    <Text style={[font.title3, { color: roles.foregroundPrimary }]} numberOfLines={2}>
+    <Text style={[font.title3, { color: roles.foregroundPrimary }]} numberOfLines={lines}>
       {prefix > 0 ? <Text style={{ color: roles.foregroundSecondary }}>{title.slice(0, prefix)}</Text> : null}
       {title.slice(prefix)}
     </Text>

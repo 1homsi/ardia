@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { cancelAnimation, runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import type { GestureType } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
@@ -270,6 +270,25 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
+const resultsIn = FadeIn.duration(trayMotion.resultsIn);
+const resultsOut = FadeOut.duration(trayMotion.resultsIn);
+
+const modeToggleIn = () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: 0.9 }] },
+    animations: { opacity: withSpring(1, trayMotion.modeToggle), transform: [{ scale: withSpring(1, trayMotion.modeToggle) }] },
+  };
+};
+
+const modeToggleOut = () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 1, transform: [{ scale: 1 }] },
+    animations: { opacity: withSpring(0, trayMotion.modeToggle), transform: [{ scale: withSpring(0.9, trayMotion.modeToggle) }] },
+  };
+};
+
 let trayInput: TextInput | null = null;
 
 const focusTray = () => trayInput?.focus();
@@ -304,7 +323,7 @@ function FieldInput({ first }: { first: boolean }) {
             input.current = field;
             trayInput = field;
           }}
-          style={[font.body, styles.input, { color: theme.foregroundPrimary }]}
+          style={[font.title3, styles.input, { color: theme.foregroundPrimary }]}
           defaultValue={start}
           selection={selection}
           onSelectionChange={() => {
@@ -361,7 +380,11 @@ function IncognitoToggle() {
       onPress={toggleTrayIncognito}
       style={styles.incognito}
     >
-      {on ? <Text style={[font.footnote, styles.medium, { color: tabsInk.onDarkSoft }]}>Incognito</Text> : null}
+      {on ? (
+        <Animated.Text entering={modeToggleIn} exiting={modeToggleOut} style={[font.footnote, styles.medium, styles.toggleLabel, { color: tabsInk.onDarkSoft }]}>
+          Incognito
+        </Animated.Text>
+      ) : null}
       <Symbol name="eyeglasses" size={22} color={on ? tabsInk.onDark : theme.foregroundTertiary} />
     </Pressable>
   );
@@ -389,16 +412,16 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   if (incognito && !typed.trim()) {
     return (
       <GestureDetector gesture={dismissDrag}>
-        <View style={[styles.rows, styles.incognitoNote]}>
-          <Text style={[font.title3, styles.medium, { color: tabsInk.onDarkSoft }]}>You’re browsing Incognito</Text>
-        </View>
+        <Animated.View key="caption" entering={resultsIn} exiting={resultsOut} style={[styles.rows, styles.incognitoNote]}>
+          <Text style={[font.title3, styles.semibold, styles.centered, { color: tabsInk.onDarkSoft }]}>You’re browsing Incognito</Text>
+        </Animated.View>
       </GestureDetector>
     );
   }
   if (!rows.length) {
     return (
       <GestureDetector gesture={dismissDrag}>
-        <View style={styles.rows} collapsable={false} />
+        <Animated.View key="empty" entering={resultsIn} exiting={resultsOut} style={styles.rows} collapsable={false} />
       </GestureDetector>
     );
   }
@@ -419,14 +442,14 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   };
   if (window.fontScale <= LARGE_FONT_SCALE) {
     return (
-      <View style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
+      <Animated.View key="rows" entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
         <ScrubbedRows rows={rows} typed={typed} budget={shown ?? room} onMeasure={measure} onRefine={refine} onMenu={showMenu} />
         {menuView}
-      </View>
+      </Animated.View>
     );
   }
   return (
-    <View style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
+    <Animated.View key="rows" entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
       <ScrollView
         style={shown === null ? styles.rows : { height: shown, flexGrow: 0 }}
         contentContainerStyle={styles.rowsContent}
@@ -435,12 +458,12 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
       >
         {rows.map((row, index) => (
           <View key={index} onLayout={(event) => measure(index, event.nativeEvent.layout)}>
-            <SuggestionRow row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} onMenu={showMenu} />
+            <SuggestionRow row={row} typed={typed} roles={theme} menu={trayRowActions(row)} onActivate={activateRow} onRefine={refine} onMenu={showMenu} />
           </View>
         ))}
       </ScrollView>
       {menuView}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -571,7 +594,7 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
               onMeasure(index, event.nativeEvent.layout);
             }}
           >
-            <SuggestionRow row={row} typed={typed} roles={theme} interactive={false} onActivate={activateRow} onRefine={onRefine} onMenu={onMenu} />
+            <SuggestionRow row={row} typed={typed} roles={theme} interactive={false} menu={trayRowActions(row)} onActivate={activateRow} onRefine={onRefine} onMenu={onMenu} />
           </View>
         ))}
       </View>
@@ -612,7 +635,10 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingLeft: space.xs + 2,
   },
-  incognitoNote: { alignItems: "center", paddingTop: space.huge },
+  incognitoNote: { alignItems: "center", justifyContent: "center", paddingHorizontal: space.l },
+  semibold: { fontWeight: "600" },
+  centered: { textAlign: "center" },
+  toggleLabel: { transformOrigin: "100% 50%" },
   medium: { fontWeight: "500" },
   rowsContent: { paddingHorizontal: space.s, paddingBottom: space.s },
   highlight: { position: "absolute", borderRadius: radius.row },
