@@ -73,6 +73,7 @@ final class PageView: ExpoView {
     toneTask = nil
     scrollObservation = nil
     madeGestures?.detach()
+    PhoneHandoff.withdraw(self)
     if let hostedWebView, hostedWebView.superview === self { hostedWebView.removeFromSuperview() }
     hostedWebView = nil
     page = nil
@@ -127,6 +128,7 @@ final class PageView: ExpoView {
       onPageEvent(payload)
     }
     if !page.isLoading { madeGestures?.pageStoppedLoading() }
+    if window != nil, !isPrivate { PhoneHandoff.offer(page.url, title: page.title, from: self) } else { PhoneHandoff.withdraw(self) }
     if wasLoading, !page.isLoading { scheduleToneSample(after: .milliseconds(250)) }
     wasLoading = page.isLoading
     sendTone(theme: page.themeColor, underPage: page.underPageBackgroundColor)
@@ -183,8 +185,12 @@ final class PageView: ExpoView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-    guard window != nil else { return }
+    guard window != nil else {
+      MainActor.assumeIsolated { PhoneHandoff.withdraw(self) }
+      return
+    }
     MainActor.assumeIsolated {
+      if let page, !isPrivate { PhoneHandoff.offer(page.url, title: page.title, from: self) }
       if let pageID, page != nil { _ = PhonePages.shared.activate(pageID) }
       scheduleToneSample(after: .milliseconds(120))
     }
