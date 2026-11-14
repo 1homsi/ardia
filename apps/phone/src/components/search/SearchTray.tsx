@@ -13,7 +13,7 @@ import { useOnboarding } from "../../state/onboarding/store";
 import { useVoice } from "../../state/voice/store";
 import { idleScrub, releaseRefines, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
 import { wholeRowsHeight } from "../../lib/trayRows";
-import { confirmHaptic, selectionHaptic } from "../../platform/system";
+import { haptics } from "../../state/app/haptics";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
@@ -513,11 +513,11 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
   const release = (index: number, wasScrubbing: boolean, refine: boolean) => {
     const row = latest.current.rows[index];
     if (!row) return;
-    if (wasScrubbing) void confirmHaptic().catch(() => undefined);
+    if (wasScrubbing) haptics.confirm();
     if (refine) latest.current.onRefine(row);
     else activateRow(row);
   };
-  const tick = () => void selectionHaptic().catch(() => undefined);
+  const tick = () => haptics.selection();
 
   const gesture = useMemo(
     () =>

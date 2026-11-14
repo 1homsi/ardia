@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import { runOnJS, useAnimatedReaction, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import { haptics } from "../../state/app/haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   deckCardAt,
@@ -175,6 +176,14 @@ export function TabDeck() {
   };
 
   const count = order.length;
+  const touching = useSharedValue(false);
+  useAnimatedReaction(
+    () => (touching.value ? focusedIndex(scroll.value, count) : -1),
+    (focused, previous) => {
+      if (focused >= 0 && previous !== null && previous >= 0 && focused !== previous) runOnJS(focusTick)();
+    },
+    [count],
+  );
   const startScroll = useSharedValue(0);
   const vertical = useSharedValue(false);
   const touchDown = useSharedValue({ x: 0, y: 0, absoluteX: 0, absoluteY: 0 });
@@ -184,11 +193,13 @@ export function TabDeck() {
     .onBegin((e) => {
       touchDown.value = { x: e.x, y: e.y, absoluteX: e.absoluteX, absoluteY: e.absoluteY };
     })
+
     .onStart((e) => {
       const down = touchDown.value;
       const card = deckCardAt(g, count, scroll.value, down.x, down.y);
       startScroll.value = scroll.value;
       scrollFrom.value = e.absoluteX;
+      touching.value = true;
       runOnJS(hideArchiveCard)();
       if (deckDragKind(card, e.absoluteX - down.absoluteX, e.absoluteY - down.absoluteY) === "lift") {
         vertical.value = true;
@@ -208,8 +219,10 @@ export function TabDeck() {
     })
     .onEnd((e) => {
       if (vertical.value) {
+        touching.value = false;
         const card = dragIndex.value;
         if (deckShouldClose(e.absoluteY - touchDown.value.absoluteY, e.velocityY, g.cardHeight)) {
+          runOnJS(flickTick)();
           runOnJS(close)(card, dragLift.value);
         } else {
           dragLift.value = withSpring(0, tabsMotion.release, (finished) => {
@@ -219,7 +232,9 @@ export function TabDeck() {
         return;
       }
       const target = deckSettleTarget(g, scroll.value, e.velocityX, count);
-      scroll.value = withSpring(target, { ...tabsMotion.settle, velocity: deckSettleVelocity(g, scroll.value, target, e.velocityX) });
+      scroll.value = withSpring(target, { ...tabsMotion.settle, velocity: deckSettleVelocity(g, scroll.value, target, e.velocityX) }, () => {
+        touching.value = false;
+      });
     });
   const showCardMenu = (index: number, x: number, y: number) => {
     if (phase.kind !== "settled" || !order[index]) return;
@@ -268,6 +283,7 @@ export function TabDeck() {
       action: count === 1 ? "Close Tab" : "Close All Tabs",
       run: () => {
         hideArchiveCard();
+        haptics.press();
         closeAllFromDeck();
       },
     });
@@ -276,7 +292,10 @@ export function TabDeck() {
       title: "Close Incognito Tabs?",
       message: "Their pages, cookies and history are cleared.",
       action: "Close Incognito Tabs",
-      run: leaveIncognito,
+      run: () => {
+        haptics.press();
+        leaveIncognito();
+      },
     });
 
   const plusItems: MenuItem[] = incognito
@@ -371,6 +390,9 @@ export function TabDeck() {
     </View>
   );
 }
+
+const focusTick = () => haptics.tick();
+const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
 

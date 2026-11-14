@@ -13,20 +13,33 @@ export const openExternal = (url: string) => Linking.openURL(url);
 
 export const preferredLanguage = () => getLocales()[0]?.languageCode ?? "en";
 
-export const tapHaptic = () => impactAsync(ImpactFeedbackStyle.Light);
+const android = Platform.OS === "android";
+const ANDROID_CONFIRM = 30;
+const atLeast = (version: number) => Number(Platform.Version) >= version;
 
-export const pressHaptic = () => impactAsync(ImpactFeedbackStyle.Medium);
+export const tapHaptic = () => (android ? performAndroidHapticsAsync(AndroidHaptics.Virtual_Key) : impactAsync(ImpactFeedbackStyle.Light));
 
-export const successHaptic = () => notificationAsync(NotificationFeedbackType.Success);
+export const pressHaptic = () => (android ? performAndroidHapticsAsync(AndroidHaptics.Long_Press) : impactAsync(ImpactFeedbackStyle.Medium));
+
+export const successHaptic = () =>
+  android ? performAndroidHapticsAsync(atLeast(ANDROID_CONFIRM) ? AndroidHaptics.Confirm : AndroidHaptics.Virtual_Key) : notificationAsync(NotificationFeedbackType.Success);
+
+export const warningHaptic = () =>
+  android ? performAndroidHapticsAsync(atLeast(ANDROID_CONFIRM) ? AndroidHaptics.Reject : AndroidHaptics.Long_Press) : notificationAsync(NotificationFeedbackType.Warning);
+
+export const errorHaptic = () =>
+  android ? performAndroidHapticsAsync(atLeast(ANDROID_CONFIRM) ? AndroidHaptics.Reject : AndroidHaptics.Long_Press) : notificationAsync(NotificationFeedbackType.Error);
+
+export const tickHaptic = () => (android ? performAndroidHapticsAsync(AndroidHaptics.Clock_Tick) : selectionAsync());
 
 const ANDROID_SEGMENT_TICK = 34;
 
 export const selectionHaptic = () =>
-  Platform.OS === "android"
+  android
     ? performAndroidHapticsAsync(Number(Platform.Version) >= ANDROID_SEGMENT_TICK ? AndroidHaptics.Segment_Tick : AndroidHaptics.Clock_Tick)
     : selectionAsync();
 
-export const confirmHaptic = () => (Platform.OS === "android" ? performAndroidHapticsAsync(AndroidHaptics.Confirm) : impactAsync(ImpactFeedbackStyle.Light));
+export const confirmHaptic = () => (android ? performAndroidHapticsAsync(AndroidHaptics.Confirm) : impactAsync(ImpactFeedbackStyle.Light));
 
 export const shareText = (text: string, title: string) => Share.share({ message: text, title });
 
