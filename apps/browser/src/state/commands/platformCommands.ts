@@ -1,6 +1,6 @@
 import { exportBookmarksFromWindow as exportBookmarks } from "../bookmarks/exportHtml";
 import { useBrowser } from "../browser/store";
-import { noteDownloadsPanelToggle } from "../telemetry/downloadsPanelCounts";
+import { noteDownloadsPanelToggle } from "../telemetry/downloadsPanelCauses";
 import { UNAVAILABLE_COMMANDS } from "./commandCatalog";
 
 export const exportBookmarksFromWindow = async (windowId: string | null | undefined) => {

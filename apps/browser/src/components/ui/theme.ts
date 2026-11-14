@@ -6,7 +6,7 @@ import { isRgbFunction, luminance, mix, over, parseColor, rgbToHsl, toHex } from
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { WINDOW_CHROME } from "../../lib/windowChrome";
-import { arcSelectedFill, colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
+import { arcSelectedFill, colorRoles, HIGH_CONTRAST_INK, ink, INCOGNITO_TINT, withAlpha, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
 import type { BasePalette } from "../../lib/themeFile";
 import { visibleSelection } from "../../lib/selectionContrast";
 
@@ -15,6 +15,7 @@ export { PROFILE_COLORS } from "./tokens";
 export type Theme = ColorRoles & {
   rowSelectedText: string;
   adaptiveInk: boolean;
+  highContrastText: boolean;
   profileColor: ProfileColor | "incognito";
   backdrop: BackdropTint & ThemeBackdropProps;
   windowTint: [string, string];
@@ -92,6 +93,28 @@ export function tintTheme(theme: Theme): Theme {
   return tint;
 }
 
+const contrastThemes = new WeakMap<Theme, Theme>();
+
+export function contrastTheme(theme: Theme): Theme {
+  if (theme.highContrastText) return theme;
+  let strong = contrastThemes.get(theme);
+  if (!strong) {
+    const inkAt = (alpha: number) => withAlpha(theme.textPrimary, alpha);
+    strong = {
+      ...theme,
+      highContrastText: true,
+      textTab: inkAt(HIGH_CONTRAST_INK.tab),
+      textSecondary: inkAt(HIGH_CONTRAST_INK.secondary),
+      textTertiary: inkAt(HIGH_CONTRAST_INK.tertiary),
+      placeholder: inkAt(HIGH_CONTRAST_INK.placeholder),
+      icon: withAlpha(theme.icon, HIGH_CONTRAST_INK.icon),
+    };
+    contrastThemes.set(theme, strong);
+    windowThemes.set(strong, windowThemes.get(theme) ?? theme);
+  }
+  return strong;
+}
+
 export function surfaceTheme(theme: Theme): Theme {
   return windowThemes.get(theme) ?? theme;
 }
@@ -109,6 +132,7 @@ export function themeFor(key: string, palette?: BasePalette | null): Theme {
       ...base,
       rowSelectedText: base.tabSelectedText,
       adaptiveInk: false,
+      highContrastText: false,
       profileColor: color,
       backdrop: { ...backdrop, ...PRESET_BACKDROP },
       windowTint: opaqueTint(backdrop, base.dark),

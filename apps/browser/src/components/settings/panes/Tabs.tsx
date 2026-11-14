@@ -110,6 +110,10 @@ export function TabsPane() {
             anchor="tabs.autoHideTabs"
             description={`In every window, the tabs slide out of view and come back when you move the pointer to the window's ${top ? "top edge" : "edge"}. Changing it here resets every window; ${keyText("⌘S")} ${PLATFORM_FEATURES.menuBar ? "and View › Auto-Hide Tabs hide or show" : "hides or shows"} the tabs in one window only.`}
           />
+          <SettingToggle
+            anchor="tabs.revealTabsOnHover"
+            description={`With Auto-hide tabs on, the tabs slide back over the page while the pointer is at the window's ${top ? "top edge" : "edge"}. Off, they come back only with ⌘S or View › Auto-Hide Tabs.`}
+          />
         <Row anchor="tabs.sidebarSide">
           <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />
         </Row>
@@ -120,6 +124,7 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.balancedTopApps" />
         <SettingToggle anchor="tabs.showUnreadCounts" />
         <SettingToggle anchor="tabs.showTopAppBadges" />
+        <SettingToggle anchor="tabs.showTabHoverMenu" />
         <SettingToggle anchor="tabs.fadeUnloadedTabs" />
         </Group>
       </Box>
