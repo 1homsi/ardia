@@ -31,6 +31,8 @@ int main() {
   assert(!capture::SharesInstead(kStop | kInstead, kInstead, true, 2));
   assert(capture::ReachesTab(false, false) && capture::ReachesTab(true, true));
   assert(!capture::ReachesTab(true, false) && !capture::ReachesTab(false, true));
+  assert(std::string(capture::kCaptureCapabilities[0]) == capture::kChangeCaptureSourceCall);
+  assert(std::string(capture::kCaptureCapabilities[1]) == capture::kStopCaptureCall);
   std::puts("ok");
   return 0;
 }

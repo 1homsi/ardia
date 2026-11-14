@@ -16,7 +16,7 @@ namespace linux_capture {
 
 inline constexpr char kChangeCaptureSourceCall[] = "media.changeCaptureSource";
 inline constexpr char kStopCaptureCall[] = "media.stopCapture";
-inline constexpr const char* kCaptureCapabilities[] = {kChangeCaptureSourceCall, kStopCaptureCall};
+inline constexpr const char* kCaptureCapabilities[] = {"media.changeCaptureSource", "media.stopCapture"};
 
 enum class Kind { kSwitch, kStop };
 
