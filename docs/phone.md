@@ -281,25 +281,9 @@ the demo-mode launch arguments both apps' capture scripts use.
 
 ### Needs only JavaScript
 
-- Start page: with no tabs and sync on, the leading button should be Synced Tabs (opens Spaces); the logo should fade and scale from 0.92 and the bar fade with searchRise instead of snapping. `SearchHomeView.kt`, `SearchHomeView.swift`. Small.
-- Voice screen: no 150 ms transcript crossfade, no logo shadow (12 dp, 15%), no 100 ms waveform ease (iPhone). `VoiceSearchView.kt`, `VoiceSearchView.swift`. Small.
-- Deck: no selection tick as the focused card changes, no light impact on a flick-close, no medium impact on confirming Close All or Close Incognito Tabs. `DeckState.kt`, `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
-- Deck: Android haptics use expo-haptics' vibrator calls; Compose uses the view's system haptics (tick, key, long press, confirm, reject), which follow the touch-feedback setting. expo-haptics 15 has `performAndroidHapticsAsync`. `Haptics.kt`. Small.
-- Deck: no poof (9 puffs over 420 ms) where a card closes. `PoofBurst.kt`, `PoofBurst.swift`. A few hours.
-- Deck: opening without a page shows the cards at once; both apps fade them in over 200 ms, and crossfade a handoff cover when the page could not be animated. `DeckState.appear`, `TabSwitcherView.swift` `appear()`/`DeckCover`. Small.
-- Deck: the backdrop, bar and chip pop in and out around open and close; both apps fade the backdrop with position×1.4 and the chrome over the last 40%, and hide the chip while a card is lifted. `DeckPose.kt`, `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
-- Deck: Reduce Motion ignored (both apps crossfade to open, close without the fly-away, and settle and close gaps with a 200 ms fade). `DeckState.kt`, `TabSwitcherView.swift` `crossfadeOpen`. Half a day.
 - Deck: the page mounts only when the open spring ends; both apps select the tab and make its view when the spring starts, so the page is ready under the card. `DeckState.open`, `AppModel+Tabs.swift` `prepareToOpen`/`beginOpening`. Half a day.
-- Deck: system Back leaves without the expand animation and ignores the focused card; Compose closes the card menu, then the archive card, then opens the selected or focused tab with the animation. `DeckState.back()`. Small.
-- Deck: the card menu lacks Send to <device> and Pin to Mac. `TabCard.kt` `CardMenu`, `TabSwitcherView.swift` `CardMenu`. Small.
-- Deck: no "From Your Mac" badge on received tabs not yet seen. `TabCard.kt` `ReceivedBadge`, `TabCardView.swift`. Small.
 - Deck: card headers lack the trailing fade, the icon reveal, the leading placement and the 1.35 text-size cap. `TabCard.kt` `DeckCardHeaderItem`, `DeckHeaderLayout.swift`. Half a day.
-- Deck: snapshots don't fade in over 200 ms; the placeholder colour hashes the whole URL, not the host; its title is body semibold, not headline. `TabCard.kt`, `TabCardView.swift`. Small.
-- Deck: card shadow is elevation 6; both apps use radius 18, offset (−2, 4) on iPhone and elevation 14 on Android. `TabDeckPlacement.swift`, `DeckModifiers.kt`. Small.
-- Deck: every card is mounted; both apps draw only the cards within 6 of the scroll position. `TabsDeckGeometry.swift`, `DeckState.renderedRange`. Small.
-- Deck: no page-left/page-right accessibility scroll actions, and the Close Tab action animates. `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
-- Deck: a tap on a card that is lifted or flying away still opens it. `DeckState.open`. Small.
-- Archive card: enters with a fade only; both apps fade and scale from 0.96. `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
+- Deck: no page-left/page-right accessibility scroll actions (the unanimated Close Tab action shipped in 98bd12f97); React Native has no scroll actions on a view that isn't a scroll view, so this needs a custom action or a native hook. `TabSwitcherView.kt`, `TabSwitcherView.swift`. Small.
 - Auto-archive: runs at launch, on becoming active and on an interval change; both apps also run it every 15 minutes while active and prune expired archive rows on becoming active, and the iPhone holds it while the deck is dragged. `TabStore.kt`, `TabStore.swift`. Small.
 - Archive: day titles always "weekday, month day"; both apps say Today, Yesterday, the weekday within six days, then the date (with the year if it differs). `ArchiveView.kt` `ArchiveDayLabel`, `ArchiveView.swift`. Small.
 - Archive: no tick on restoring a row, no warning haptic on Delete All, and Delete All is enabled when empty. `ArchiveView.kt`, `ArchiveView.swift`. Small.
@@ -436,6 +420,12 @@ the demo-mode launch arguments both apps' capture scripts use.
 - Tray rows (2de3b7695): nine rows; typing "otter" keeps an "otter" search second; "!w otter" shows "Search Wikipedia"; a Mac tab shows a laptop and its host and opens as a synced tab; "12*12" reads "= 144", copies with a "Copied 144" toast on tap and offers Copy on a long press.
 - Links (3f6409ae0): Search in Ardia on selected text and a web search open results at once; the voice shortcut opens the voice screen over the tray (Cancel lands on the tray, the keyboard down while voice is up and back after); a tab widget link restores an archived tab and does nothing for a private one; a page shared to Ardia on iPhone opens as shared.
 - Tray look (9f98c466a): the caption, rows and empty tray crossfade; the Incognito label fades and grows from 0.9 at the toggle's edge; the field's text is title3 and grows with the text size; past 1.5x text size rows wrap; TalkBack and VoiceOver list Refine and each menu item as actions on a row.
+- Start page (5c211809a): with no tabs and sync on, the leading button is Synced Tabs; the logo fades and grows from 0.92 and the bar fades as the tray comes and goes.
+- Voice screen (c0fa87652): the transcript crossfades as words arrive; the logo has a soft shadow; on iPhone the waveform eases.
+- Haptics (e043b58c2): with Android's touch feedback off, the app makes no haptics; on, the deck ticks per card while scrolling, taps on a flick-close and presses on confirming Close All; iPhone keeps its impacts.
+- Deck behaviour (98bd12f97): Back from the deck opens the selected tab with the expand animation; the card menu lists Send to each device and Pin to Mac; a lifted card can't be tapped open; a deck of 40 tabs scrolls without mounting all cards.
+- Deck look (5a3966c9c): cards fade in when the deck opens from the start page; the backdrop and bar fade with the open; snapshots fade in; two pages of one site share a placeholder colour; cards have the native shadow on both phones; a tab sent from the Mac shows "From Your Mac" until opened; the archive card scales in.
+- Deck motion (77e3d1b15): a flicked card goes up in a white poof (blurred on Android); with Reduce Motion cards close, open and settle without springs.
 
 ### Deliberately different
 
