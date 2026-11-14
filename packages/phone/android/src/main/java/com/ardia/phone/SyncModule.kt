@@ -71,6 +71,8 @@ class SyncModule : Module() {
         Events("onSyncEvent")
 
         OnCreate {
+            val resumed = (appContext.currentActivity as? androidx.lifecycle.LifecycleOwner)?.lifecycle?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) == true
+            if (resumed) PhoneSync.enteredForeground()
             appContext.backgroundCoroutineScope.launch { runCatching { folderPicks.sweep() } }
             route = SyncEventRoute(PhoneSync.inbox(context), { event -> sendEvent("onSyncEvent", event) }) { problem ->
                 PhoneSync.current()?.let { sync -> SyncPayloads.status(sync.state.value, problem) }
@@ -86,11 +88,11 @@ class SyncModule : Module() {
         }
 
         OnActivityEntersForeground {
-            PhoneSync.current()?.appForegrounded()
+            PhoneSync.enteredForeground()
         }
 
         OnActivityEntersBackground {
-            PhoneSync.current()?.appBackgrounded()
+            PhoneSync.enteredBackground()
         }
 
         OnActivityResult { _, payload ->

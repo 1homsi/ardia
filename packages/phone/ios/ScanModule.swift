@@ -2,6 +2,7 @@ import ArdiaSync
 import AVFoundation
 import ExpoModulesCore
 import UIKit
+import VisionKit
 
 public final class ScanModule: Module {
   public func definition() -> ModuleDefinition {
@@ -75,7 +76,7 @@ final class SyncCodeJudge {
   }
 }
 
-final class ScanView: ExpoView, AVCaptureMetadataOutputObjectsDelegate {
+final class ScanView: ExpoView, AVCaptureMetadataOutputObjectsDelegate, DataScannerViewControllerDelegate {
   let onCode = EventDispatcher()
   let onRejected = EventDispatcher()
   let onError = EventDispatcher()
@@ -90,6 +91,9 @@ final class ScanView: ExpoView, AVCaptureMetadataOutputObjectsDelegate {
   private let judge = SyncCodeJudge()
   private var reported: String?
   private var interruption: NSObjectProtocol?
+  private var scanner: DataScannerViewController?
+
+  static var usesVisionKit: Bool { DataScannerViewController.isSupported && DataScannerViewController.isAvailable }
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -102,6 +106,7 @@ final class ScanView: ExpoView, AVCaptureMetadataOutputObjectsDelegate {
   override func layoutSubviews() {
     super.layoutSubviews()
     preview.frame = bounds
+    scanner?.view.frame = bounds
   }
 
   override func didMoveToWindow() {
@@ -114,12 +119,13 @@ final class ScanView: ExpoView, AVCaptureMetadataOutputObjectsDelegate {
   }
 
   private func start() {
-    guard session == nil else { return }
+    guard session == nil, scanner == nil else { return }
     switch ScanAccess.status() {
     case .unsupported: return fail("unsupported")
     case .denied, .undetermined: return fail("permission")
     case .granted: break
     }
+    if Self.usesVisionKit, startVisionKit() { return }
     guard let device = AVCaptureDevice.default(for: .video), let input = try? AVCaptureDeviceInput(device: device) else { return fail("camera") }
     let capture = AVCaptureSession()
     let output = AVCaptureMetadataOutput()
@@ -138,7 +144,69 @@ final class ScanView: ExpoView, AVCaptureMetadataOutputObjectsDelegate {
     queue.async { capture.startRunning() }
   }
 
+  private func startVisionKit() -> Bool {
+    guard let host = hostController() else { return false }
+    let made = DataScannerViewController(
+      recognizedDataTypes: [.barcode(symbologies: [.qr])],
+      qualityLevel: .balanced,
+      recognizesMultipleItems: false,
+      isHighFrameRateTrackingEnabled: false,
+      isPinchToZoomEnabled: true,
+      isGuidanceEnabled: false,
+      isHighlightingEnabled: true
+    )
+    made.delegate = self
+    host.addChild(made)
+    made.view.frame = bounds
+    made.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    addSubview(made.view)
+    made.didMove(toParent: host)
+    do {
+      try made.startScanning()
+    } catch {
+      remove(made)
+      return false
+    }
+    scanner = made
+    reported = nil
+    return true
+  }
+
+  private func hostController() -> UIViewController? {
+    var responder: UIResponder? = self
+    while let next = responder?.next {
+      if let controller = next as? UIViewController { return controller }
+      responder = next
+    }
+    return nil
+  }
+
+  private func remove(_ made: DataScannerViewController) {
+    made.stopScanning()
+    made.willMove(toParent: nil)
+    made.view.removeFromSuperview()
+    made.removeFromParent()
+  }
+
+  nonisolated func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+    MainActor.assumeIsolated {
+      for item in addedItems {
+        guard case .barcode(let barcode) = item, let payload = barcode.payloadStringValue else { continue }
+        received(payload)
+        return
+      }
+    }
+  }
+
+  nonisolated func dataScanner(_ dataScanner: DataScannerViewController, becameUnavailableWithError error: DataScannerViewController.ScanningUnavailable) {
+    MainActor.assumeIsolated { fail("camera") }
+  }
+
   private func stop() {
+    if let made = scanner {
+      scanner = nil
+      remove(made)
+    }
     guard let capture = session else { return }
     session = nil
     preview.session = nil

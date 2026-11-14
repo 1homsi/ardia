@@ -43,6 +43,20 @@ object PhoneSync {
 
     fun current(): SyncController? = made
 
+    @Volatile
+    var isInForeground: Boolean = false
+        private set
+
+    fun enteredForeground() {
+        isInForeground = true
+        made?.appForegrounded()
+    }
+
+    fun enteredBackground() {
+        isInForeground = false
+        made?.appBackgrounded()
+    }
+
     fun controller(context: Context, demo: Boolean? = null): SyncController = synchronized(this) {
         if (UpgradeGate.pending(context)) throw UpgradeGate.Pending()
         val current = made
@@ -65,6 +79,7 @@ object PhoneSync {
         fresh.start()
         isDemo = wantsDemo
         made = fresh
+        if (isInForeground) fresh.appForegrounded()
         fresh
     }
 
@@ -83,6 +98,7 @@ object PhoneSync {
         madeInbox = null
         madeSource = null
         isDemo = false
+        isInForeground = false
         labBuild = PhoneLab.isOn
     }
 
