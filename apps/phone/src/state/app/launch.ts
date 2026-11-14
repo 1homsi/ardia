@@ -1,5 +1,4 @@
-import { deckSteps, LAUNCH_TIMING, NO_LAUNCH_ARGUMENTS, parseLaunchArguments, TRUSTED_SITES_SAMPLE, type DeckStep, type LaunchArguments } from "../../lib/launchArguments";
-import { launchValues } from "../../platform/launch";
+import { deckSteps, LAUNCH_TIMING, TRUSTED_SITES_SAMPLE, type DeckStep, type LaunchArguments } from "../../lib/launchArguments";
 import { newTab, openArchive, openPage, openSpaces, openTab, showDeck } from "../browse/store";
 import { openPageMenu, showReader } from "../page/actions";
 import { presentSearch } from "../search/store";
@@ -10,18 +9,9 @@ import { setPreference } from "../settings/store";
 import { closeEveryTab, closeTabById, currentTabs, openNewTab, receiveSentTabs, setIncognito, updateTabById } from "../tabs/store";
 import { deckOrder } from "../tabs/tabsState";
 import { showToast } from "../toasts/store";
+import { launchArguments } from "./launchFlags";
 import { DEMO_PRIVATE_URLS, manyTabTitle, sampleToast } from "./launchRules";
 
-let launch: LaunchArguments = NO_LAUNCH_ARGUMENTS;
-let read = false;
-
-export function launchArguments(): LaunchArguments {
-  if (!read) {
-    read = true;
-    launch = parseLaunchArguments(launchValues());
-  }
-  return launch;
-}
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
