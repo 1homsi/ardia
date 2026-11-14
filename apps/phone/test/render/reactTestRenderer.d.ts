@@ -1,0 +1,19 @@
+declare module "react-test-renderer" {
+  import type { ReactElement } from "react";
+
+  export type ReactTestInstance = {
+    type: unknown;
+    props: Record<string, any>;
+    children: (ReactTestInstance | string)[];
+    findAll(predicate: (node: ReactTestInstance) => boolean): ReactTestInstance[];
+  };
+
+  export type ReactTestRenderer = {
+    root: ReactTestInstance;
+    toJSON(): unknown;
+    unmount(): void;
+  };
+
+  export function create(element: ReactElement): ReactTestRenderer;
+  export function act(work: () => void): void;
+}
