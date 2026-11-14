@@ -1,63 +1,269 @@
 import ArdiaBrowser
 import ExpoModulesCore
 import Foundation
+import PhoneSync
+import SQLite3
 import SwiftData
 
-@MainActor
-enum PhoneLegacy {
-  static let defaultsPrefixes = ["blocking.", "browsing.", "defaultBrowser.", "filters.", "reader.", "settings.", "tabs."]
+enum LegacyPaths {
+  static let migratedPrefixes = ["blocking.", "browsing.", "filters.", "reader.", "settings.", "tabs."]
+  static let nativePrefixes = ["blocking.", "browsing.", "filters."]
+  static let pagesSuite = "ardia.phone.pages"
 
-  static var storeFolders: [URL] {
-    var folders: [URL] = []
+  static var storeFolder: URL {
     if let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: BrowserStore.appGroupIdentifier) {
-      folders.append(group.appending(path: "Library/Application Support", directoryHint: .isDirectory))
+      return group.appending(path: "Library/Application Support", directoryHint: .isDirectory)
     }
-    folders.append(URL.applicationSupportDirectory.appending(path: "Ardia", directoryHint: .isDirectory))
-    return folders
+    return URL.applicationSupportDirectory.appending(path: "Ardia", directoryHint: .isDirectory)
   }
 
-  static var storeFolder: URL? {
-    storeFolders.first { FileManager.default.fileExists(atPath: $0.appending(path: "Browser.store").path(percentEncoded: false)) }
+  static var store: URL { storeFolder.appending(path: "Browser.store") }
+
+  static var syncFolder: URL { URL.applicationSupportDirectory.appending(path: "PhoneSync", directoryHint: .isDirectory) }
+
+  static var settingsReceipt: URL { syncFolder.appending(path: "legacy-settings.json") }
+
+  static var gate: LegacyImportGate {
+    LegacyImportGate(legacyStores: [store], marker: syncFolder.appending(path: "legacy-imported.json"), hasLegacyPreferences: { !legacyPreferences().isEmpty })
   }
 
-  static var isAvailable: Bool { storeFolder != nil || !preferences().isEmpty }
+  static func legacyPreferences() -> [String: Any] {
+    UserDefaults.standard.dictionaryRepresentation().filter { key, _ in migratedPrefixes.contains(where: key.hasPrefix) }
+  }
+}
 
-  static func read() throws -> [String: Any]? {
-    guard isAvailable else { return nil }
-    var result: [String: Any] = ["version": 1, "preferences": preferences()]
-    result["store"] = storeFolder.map { $0.appending(path: "Browser.store").path(percentEncoded: false) }
-    guard let source = storeFolder else {
-      result["tabs"] = [Any]()
-      result["archive"] = [Any]()
-      result["visits"] = [Any]()
-      return result
+enum LegacyFailure: Error, CustomStringConvertible {
+  case locked
+  case corrupt
+  case schema
+  case io
+  case settings
+  case receipt
+
+  var description: String {
+    switch self {
+    case .locked: "locked"
+    case .corrupt: "corrupt"
+    case .schema: "schema"
+    case .io: "io"
+    case .settings: "the old settings could not be applied"
+    case .receipt: "the import receipt is not valid"
     }
-    let copy = URL.temporaryDirectory.appending(path: "LegacyBrowserStore-\(UUID().uuidString)", directoryHint: .isDirectory)
-    defer { try? FileManager.default.removeItem(at: copy) }
-    try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
-    let entries = try FileManager.default.contentsOfDirectory(atPath: source.path(percentEncoded: false))
-    for name in entries where name.hasPrefix("Browser.store") || name == ".Browser_SUPPORT" {
-      try FileManager.default.copyItem(at: source.appending(path: name), to: copy.appending(path: name))
+  }
+}
+
+enum LegacySettings {
+  struct Receipt: Codable {
+    var version: Int
+    var keys: Int
+  }
+
+  static var applied: Bool {
+    guard let data = try? Data(contentsOf: LegacyPaths.settingsReceipt), let receipt = try? JSONDecoder().decode(Receipt.self, from: data) else { return false }
+    return receipt.version == 1 && receipt.keys >= 0
+  }
+
+  @discardableResult
+  static func apply() throws -> Int {
+    if applied { return 0 }
+    guard let suite = UserDefaults(suiteName: LegacyPaths.pagesSuite) else { throw LegacyFailure.settings }
+    let values = UserDefaults.standard.dictionaryRepresentation().filter { key, _ in LegacyPaths.nativePrefixes.contains(where: key.hasPrefix) }
+    for (key, value) in values { suite.set(value, forKey: key) }
+    for (key, value) in values {
+      guard let stored = suite.object(forKey: key), (stored as AnyObject).isEqual(value) else { throw LegacyFailure.settings }
     }
-    let container = try BrowserStore.makeContainer(.directory(copy))
-    let context = container.mainContext
+    do {
+      try FileManager.default.createDirectory(at: LegacyPaths.syncFolder, withIntermediateDirectories: true)
+      try JSONEncoder().encode(Receipt(version: 1, keys: values.count)).write(to: LegacyPaths.settingsReceipt, options: .atomic)
+    } catch {
+      throw LegacyFailure.settings
+    }
+    guard applied else { throw LegacyFailure.settings }
+    return values.count
+  }
+
+  static func applyAtLaunch() {
+    let gate = LegacyPaths.gate
+    guard !gate.imported, gate.hasLegacyData, !applied else { return }
+    do {
+      try apply()
+    } catch {
+      NSLog("ARDIA_LEGACY settings not applied at launch: %@", String(describing: error))
+    }
+  }
+}
+
+final class LegacySnapshot: @unchecked Sendable {
+  static let shared = LegacySnapshot()
+
+  private let lock = NSLock()
+  private var folder: URL?
+  private var container: ModelContainer?
+
+  func open() throws -> ModelContainer {
+    try lock.withLock {
+      if let container { return container }
+      let copy = URL.temporaryDirectory.appending(path: "LegacyBrowserStore-\(UUID().uuidString)", directoryHint: .isDirectory)
+      do {
+        try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
+        try Self.backup(from: LegacyPaths.store, to: copy.appending(path: "Browser.store"))
+        let support = LegacyPaths.storeFolder.appending(path: ".Browser_SUPPORT", directoryHint: .isDirectory)
+        if FileManager.default.fileExists(atPath: support.path(percentEncoded: false)) {
+          try FileManager.default.copyItem(at: support, to: copy.appending(path: ".Browser_SUPPORT", directoryHint: .isDirectory))
+        }
+        let made = try BrowserStore.makeContainer(.directory(copy))
+        folder = copy
+        container = made
+        return made
+      } catch let failure as LegacyFailure {
+        try? FileManager.default.removeItem(at: copy)
+        throw failure
+      } catch {
+        try? FileManager.default.removeItem(at: copy)
+        throw LegacyFailure.schema
+      }
+    }
+  }
+
+  func close() {
+    lock.withLock {
+      container = nil
+      if let folder { try? FileManager.default.removeItem(at: folder) }
+      folder = nil
+    }
+  }
+
+  static func backup(from source: URL, to destination: URL) throws {
+    var input: OpaquePointer?
+    let uri = "file:\(source.path(percentEncoded: true))?mode=ro"
+    guard sqlite3_open_v2(uri, &input, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK, let input else {
+      if let input { sqlite3_close_v2(input) }
+      throw LegacyFailure.io
+    }
+    defer { sqlite3_close_v2(input) }
+    sqlite3_busy_timeout(input, 5_000)
+    var output: OpaquePointer?
+    guard sqlite3_open_v2(destination.path(percentEncoded: false), &output, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK, let output else {
+      if let output { sqlite3_close_v2(output) }
+      throw LegacyFailure.io
+    }
+    defer { sqlite3_close_v2(output) }
+    guard let backup = sqlite3_backup_init(output, "main", input, "main") else { throw LegacyFailure.io }
+    let deadline = Date.now.addingTimeInterval(10)
+    var result = SQLITE_OK
+    repeat {
+      result = sqlite3_backup_step(backup, -1)
+      if result == SQLITE_BUSY || result == SQLITE_LOCKED { usleep(100_000) }
+    } while (result == SQLITE_BUSY || result == SQLITE_LOCKED) && Date.now < deadline
+    sqlite3_backup_finish(backup)
+    switch result {
+    case SQLITE_DONE: break
+    case SQLITE_BUSY, SQLITE_LOCKED: throw LegacyFailure.locked
+    case SQLITE_CORRUPT, SQLITE_NOTADB: throw LegacyFailure.corrupt
+    default: throw LegacyFailure.io
+    }
+    var check: OpaquePointer?
+    defer { sqlite3_finalize(check) }
+    guard sqlite3_prepare_v2(output, "PRAGMA quick_check", -1, &check, nil) == SQLITE_OK, sqlite3_step(check) == SQLITE_ROW,
+          let text = sqlite3_column_text(check, 0), String(cString: text) == "ok"
+    else { throw LegacyFailure.corrupt }
+  }
+}
+
+enum LegacyReader {
+  static func source() -> [String: Any] {
+    let gate = LegacyPaths.gate
+    if gate.imported { return ["kind": "done"] }
+    let store = gate.storePresence
+    if store == .unreadable { return ["kind": "unusable", "reason": "io"] }
+    if store == .absent {
+      return LegacyPaths.legacyPreferences().isEmpty ? ["kind": "none"] : ["kind": "pending", "counts": ["tabs": 0, "archive": 0, "visits": 0]]
+    }
+    do {
+      let context = ModelContext(try LegacySnapshot.shared.open())
+      let tabs = try context.fetch(FetchDescriptor<BrowserTab>())
+      let visits = try context.fetchCount(FetchDescriptor<Visit>())
+      return ["kind": "pending", "counts": ["tabs": tabs.filter { !$0.isArchived }.count, "archive": tabs.filter(\.isArchived).count, "visits": visits]]
+    } catch let failure as LegacyFailure {
+      return ["kind": "unusable", "reason": failure.description]
+    } catch {
+      return ["kind": "unusable", "reason": "corrupt"]
+    }
+  }
+
+  static func read() throws -> [String: Any] {
+    var result: [String: Any] = ["preferences": preferenceStrings(), "tabs": [Any](), "archive": [Any](), "selectedTabId": NSNull()]
+    switch LegacyPaths.gate.storePresence {
+    case .absent: return result
+    case .unreadable: throw LegacyFailure.io
+    case .present: break
+    }
+    let context = ModelContext(try LegacySnapshot.shared.open())
     let tabs = try context.fetch(FetchDescriptor<BrowserTab>())
     let open = tabs.filter { !$0.isArchived }.sorted { $0.position < $1.position }
     let archived = tabs.filter(\.isArchived).sorted { ($0.archivedAt ?? .distantPast) > ($1.archivedAt ?? .distantPast) }
-    let visits = try context.fetch(FetchDescriptor<Visit>(sortBy: [SortDescriptor(\.visitedAt, order: .reverse)]))
     result["tabs"] = open.map(tab)
-    result["selectedTabId"] = open.max { $0.lastActive < $1.lastActive }?.id.uuidString
     result["archive"] = archived.map(tab)
-    result["visits"] = visits.map(visit)
+    result["selectedTabId"] = open.max { $0.lastActive < $1.lastActive }?.id.uuidString.lowercased() ?? NSNull()
     return result
   }
 
-  static func preferences() -> [String: Any] {
-    var values: [String: Any] = [:]
-    for (key, value) in UserDefaults.standard.dictionaryRepresentation() where defaultsPrefixes.contains(where: key.hasPrefix) {
-      if let json = jsonValue(value) { values[key] = json }
+  static func visits(after: Int, limit: Int) throws -> [String: Any] {
+    let size = max(1, min(limit, 2_000))
+    let start = max(0, after)
+    guard LegacyPaths.gate.storePresence == .present else { return ["visits": [Any](), "next": NSNull()] }
+    let context = ModelContext(try LegacySnapshot.shared.open())
+    var descriptor = FetchDescriptor<Visit>(sortBy: [SortDescriptor(\.visitedAt), SortDescriptor(\.url), SortDescriptor(\.title)])
+    descriptor.fetchOffset = start
+    descriptor.fetchLimit = size + 1
+    let page = try context.fetch(descriptor)
+    let kept = page.prefix(size).enumerated().map { index, item -> [String: Any] in
+      var fields = visit(item)
+      fields["id"] = start + index + 1
+      return fields
     }
-    return values
+    return ["visits": kept, "next": page.count > size ? start + size : NSNull()]
+  }
+
+  static func oldRead() throws -> [String: Any]? {
+    let gate = LegacyPaths.gate
+    guard gate.hasLegacyData else { return nil }
+    var result = try read()
+    result["version"] = 1
+    result["preferences"] = LegacyPaths.legacyPreferences().compactMapValues(jsonValue)
+    if case .absent = gate.storePresence {
+      result["visits"] = [Any]()
+      result["selectedTabId"] = nil
+      return result
+    }
+    var visits: [Any] = []
+    var after = 0
+    while true {
+      let page = try self.visits(after: after, limit: 2_000)
+      visits += page["visits"] as? [Any] ?? []
+      guard let next = page["next"] as? Int else { break }
+      after = next
+    }
+    result["visits"] = visits.map { item -> Any in
+      guard var fields = item as? [String: Any] else { return item }
+      fields["id"] = nil
+      return fields
+    }
+    if result["selectedTabId"] is NSNull { result["selectedTabId"] = nil }
+    return result
+  }
+
+  static func preferenceStrings() -> [String: String] {
+    var strings: [String: String] = [:]
+    for (key, value) in LegacyPaths.legacyPreferences() {
+      switch value {
+      case let text as String: strings[key] = text
+      case let number as NSNumber:
+        strings[key] = CFGetTypeID(number) == CFBooleanGetTypeID() ? (number.boolValue ? "true" : "false") : number.stringValue
+      default: continue
+      }
+    }
+    return strings
   }
 
   private static func tab(_ tab: BrowserTab) -> [String: Any] {
@@ -75,13 +281,30 @@ enum PhoneLegacy {
     if let state = tab.interactionState { fields["savedState"] = state.base64EncodedString() }
     if let favicon = tab.faviconURL { fields["faviconUrl"] = favicon }
     if let theme = tab.themeColorHex { fields["themeColor"] = theme }
-    if let name = tab.snapshotFileName {
-      let path = URL.cachesDirectory.appending(path: "TabSnapshots").appending(path: name)
-      if FileManager.default.fileExists(atPath: path.path(percentEncoded: false)) { fields["snapshotPath"] = path.path(percentEncoded: false) }
-    }
+    if let name = tab.snapshotFileName, let path = ownThumbnail(named: name, tabID: tab.id) { fields["snapshotPath"] = path }
     if let key = tab.receivedKey { fields["receivedKey"] = key }
     if let device = tab.receivedFromDevice { fields["receivedFromDevice"] = device }
     return fields
+  }
+
+  static func ownThumbnail(named name: String, tabID: UUID) -> String? {
+    guard !name.isEmpty, !name.contains("/"), !name.hasPrefix("."), !name.hasPrefix("memory") else { return nil }
+    let folder = URL.cachesDirectory.appending(path: "TabSnapshots", directoryHint: .isDirectory).standardizedFileURL
+    let source = folder.appending(path: name).standardizedFileURL
+    guard source.deletingLastPathComponent() == folder,
+          (try? source.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+    else { return nil }
+    let target = PageSnapshots.saved.appending(path: "\(PageSnapshots.fileStem(tabID.uuidString.lowercased()))-legacy.jpg")
+    let manager = FileManager.default
+    if !manager.fileExists(atPath: target.path(percentEncoded: false)) {
+      do {
+        try manager.createDirectory(at: PageSnapshots.saved, withIntermediateDirectories: true)
+        try manager.copyItem(at: source, to: target)
+      } catch {
+        return nil
+      }
+    }
+    return target.path(percentEncoded: false)
   }
 
   private static func visit(_ visit: Visit) -> [String: Any] {
@@ -97,7 +320,7 @@ enum PhoneLegacy {
 
   private static func milliseconds(_ date: Date) -> Double { (date.timeIntervalSince1970 * 1000).rounded() }
 
-  private static func jsonValue(_ value: Any) -> Any? {
+  static func jsonValue(_ value: Any) -> Any? {
     switch value {
     case let date as Date: return milliseconds(date)
     case let data as Data:
@@ -110,59 +333,20 @@ enum PhoneLegacy {
     }
   }
 
-  static func dumpIfAsked() {
-    guard PhoneTestBuild.flag("ArdiaLegacyDump") else { return }
-    do {
-      guard let value = try read() else {
-        NSLog("ARDIA_LEGACY none")
-        return
-      }
-      let tabs = value["tabs"] as? [[String: Any]] ?? []
-      let archive = value["archive"] as? [[String: Any]] ?? []
-      let visits = value["visits"] as? [[String: Any]] ?? []
-      NSLog("ARDIA_LEGACY keys=%@ tabs=%d archive=%d visits=%d selected=%@", value.keys.sorted().joined(separator: ","), tabs.count, archive.count, visits.count, value["selectedTabId"] as? String ?? "none")
-      for (index, tab) in tabs.enumerated() { log("tab[\(index)]", tab) }
-      for (index, tab) in archive.enumerated() { log("archive[\(index)]", tab) }
-      for (index, visit) in visits.prefix(12).enumerated() { log("visit[\(index)]", visit) }
-      log("preferences", value["preferences"] as? [String: Any] ?? [:])
-      if PhoneTestBuild.flag("ArdiaLegacyRestore"), let first = tabs.first(where: { $0["savedState"] != nil }) {
-        restore(first)
-      }
-    } catch {
-      NSLog("ARDIA_LEGACY failed: %@", String(describing: error))
-    }
+  static func receipt(_ value: [String: Any]?) throws -> LegacyImportGate.Receipt? {
+    guard let value else { return nil }
+    guard (value["version"] as? NSNumber)?.intValue == 1,
+          let tabs = (value["tabs"] as? NSNumber)?.intValue, let archive = (value["archive"] as? NSNumber)?.intValue,
+          let visits = (value["visits"] as? NSNumber)?.intValue, let preferences = (value["preferences"] as? NSNumber)?.intValue,
+          [tabs, archive, visits, preferences].allSatisfy({ $0 >= 0 })
+    else { throw LegacyFailure.receipt }
+    return LegacyImportGate.Receipt(tabs: tabs, archive: archive, visits: visits, preferences: preferences)
   }
 
-  private static func log(_ label: String, _ fields: [String: Any]) {
-    var shown = fields
-    if let state = shown["savedState"] as? String { shown["savedState"] = "<\(state.count) base64 chars>" }
-    guard let data = try? JSONSerialization.data(withJSONObject: shown, options: [.sortedKeys]) else { return }
-    let text = String(decoding: data, as: UTF8.self)
-    var offset = text.startIndex
-    var part = 0
-    while offset < text.endIndex {
-      let end = text.index(offset, offsetBy: 700, limitedBy: text.endIndex) ?? text.endIndex
-      NSLog("ARDIA_LEGACY %@#%d %@", label, part, String(text[offset..<end]))
-      offset = end
-      part += 1
-    }
-  }
-
-  private static func restore(_ tab: [String: Any]) {
-    let pageID = "legacy-restore"
-    do {
-      let page = try PhonePages.shared.open(pageID, url: tab["url"] as? String, title: tab["title"] as? String, isPrivate: false, savedState: tab["savedState"] as? String)
-      Task { @MainActor in
-        for _ in 0..<40 {
-          try? await Task.sleep(for: .milliseconds(500))
-          if !page.isLoading, page.url != nil, page.canGoBack || page.title.count > 0 { break }
-        }
-        NSLog("ARDIA_LEGACY restore tab=%@ savedUrl=%@ url=%@ title=%@ canGoBack=%d live=%d", tab["id"] as? String ?? "", tab["url"] as? String ?? "", page.url?.absoluteString ?? "nil", page.title, page.canGoBack ? 1 : 0, page.isLive ? 1 : 0)
-        PhonePages.shared.close(pageID)
-      }
-    } catch {
-      NSLog("ARDIA_LEGACY restore failed: %@", String(describing: error))
-    }
+  static func markImported(_ receipt: LegacyImportGate.Receipt?) throws {
+    try LegacySettings.apply()
+    try LegacyPaths.gate.markImported(receipt: receipt, settingsApplied: LegacySettings.applied)
+    LegacySnapshot.shared.close()
   }
 }
 
@@ -170,27 +354,42 @@ public final class LegacyModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaPhoneLegacy")
 
-    OnCreate {
-      onMain { PhoneLegacy.dumpIfAsked() }
+    AsyncFunction("sourceState") { () -> [String: Any] in
+      LegacyReader.source()
+    }
+
+    AsyncFunction("readLegacy") { () throws -> [String: Any] in
+      try LegacyReader.read()
+    }
+
+    AsyncFunction("readVisits") { (afterId: Int, limit: Int) throws -> [String: Any] in
+      try LegacyReader.visits(after: afterId, limit: limit)
+    }
+
+    AsyncFunction("applyNativeSettings") { () throws in
+      try LegacySettings.apply()
+    }
+
+    AsyncFunction("markImportedWith") { (receipt: [String: Any]) throws in
+      try LegacyReader.markImported(try LegacyReader.receipt(receipt))
+      DispatchQueue.main.async { MainActor.assumeIsolated { PhoneSyncHost.shared.legacyImportFinished() } }
     }
 
     AsyncFunction("available") { () -> Bool in
-      MainActor.assumeIsolated { PhoneLegacy.isAvailable }
-    }.runOnQueue(.main)
+      LegacyPaths.gate.hasLegacyData
+    }
 
-    AsyncFunction("read") { () -> [String: Any]? in
-      try MainActor.assumeIsolated { try PhoneLegacy.read() }
-    }.runOnQueue(.main)
+    AsyncFunction("read") { () throws -> [String: Any]? in
+      try LegacyReader.oldRead()
+    }
 
     AsyncFunction("imported") { () -> Bool in
-      MainActor.assumeIsolated { PhoneSyncHost.legacyGate.imported }
-    }.runOnQueue(.main)
+      LegacyPaths.gate.imported
+    }
 
-    AsyncFunction("markImported") {
-      try MainActor.assumeIsolated {
-        try PhoneSyncHost.legacyGate.markImported()
-        PhoneSyncHost.shared.legacyImportFinished()
-      }
-    }.runOnQueue(.main)
+    AsyncFunction("markImported") { () throws in
+      try LegacyReader.markImported(nil)
+      DispatchQueue.main.async { MainActor.assumeIsolated { PhoneSyncHost.shared.legacyImportFinished() } }
+    }
   }
 }

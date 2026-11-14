@@ -311,14 +311,56 @@ func received(_ key: String, url: String = "https://sent.example/", sentAt: Date
     try Data("store".utf8).write(to: scratch.root.appending(path: "Group/Browser.store"))
     let source = try source(scratch, gate)
     #expect(throws: LocalBrowsingNotReady.self) { try source.beginRead() }
-    try gate.markImported(at: Date(timeIntervalSince1970: 1_000))
+    #expect(throws: LegacyImportGate.NotReady.self) { try gate.markImported(receipt: nil, settingsApplied: false) }
+    #expect(!gate.imported)
+    let receipt = LegacyImportGate.Receipt(tabs: 4, archive: 1, visits: 6, preferences: 3)
+    try gate.markImported(receipt: receipt, settingsApplied: true, at: Date(timeIntervalSince1970: 1_000))
     let first = try Data(contentsOf: gate.marker)
-    try gate.markImported(at: Date(timeIntervalSince1970: 2_000))
+    try gate.markImported(receipt: nil, settingsApplied: true, at: Date(timeIntervalSince1970: 2_000))
+    #expect(gate.markerState == .valid(LegacyImportGate.Marker(version: 1, importedAt: 1_000_000, settingsApplied: true, receipt: receipt)))
     #expect(try Data(contentsOf: gate.marker) == first)
     #expect(gate.imported && !gate.holdsSync)
     #expect(scratch.names("Group") == ["Browser.store"])
     try source.beginRead()
     #expect(try source.syncedTabs().count == 1)
     source.endRead()
+  }
+
+  @Test func aLegacyInstallWithOnlyPreferencesHoldsSync() throws {
+    let scratch = try Scratch()
+    let gate = LegacyImportGate(
+      legacyStores: [scratch.root.appending(path: "Ardia/Browser.store")],
+      marker: scratch.root.appending(path: "PhoneSync/legacy-imported.json"),
+      hasLegacyPreferences: { true }
+    )
+    #expect(!gate.hasLegacyStore)
+    #expect(gate.hasLegacyData && gate.holdsSync)
+  }
+
+  @Test func aStoreThatCannotBeCheckedCountsAsLegacyData() throws {
+    let scratch = try Scratch()
+    let folder = scratch.root.appending(path: "Locked")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try Data("store".utf8).write(to: folder.appending(path: "Browser.store"))
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: folder.path(percentEncoded: false))
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path(percentEncoded: false)) }
+    let gate = LegacyImportGate(legacyStores: [folder.appending(path: "Browser.store")], marker: scratch.root.appending(path: "PhoneSync/legacy-imported.json"))
+    #expect(gate.storePresence == .unreadable)
+    #expect(gate.holdsSync)
+  }
+
+  @Test func aMarkerThatDoesNotDecodeOrHasAnotherVersionDoesNotRelease() throws {
+    let scratch = try Scratch()
+    let gate = gate(scratch)
+    try FileManager.default.createDirectory(at: scratch.root.appending(path: "Ardia"), withIntermediateDirectories: true)
+    try Data("store".utf8).write(to: scratch.root.appending(path: "Ardia/Browser.store"))
+    try FileManager.default.createDirectory(at: gate.marker.deletingLastPathComponent(), withIntermediateDirectories: true)
+    for text in ["", "{}", "not json", #"{"importedAt":1}"#, #"{"version":2,"importedAt":1,"settingsApplied":true}"#, #"{"version":1,"importedAt":1,"settingsApplied":false}"#] {
+      try Data(text.utf8).write(to: gate.marker)
+      #expect(gate.markerState == .invalid)
+      #expect(gate.holdsSync)
+    }
+    try gate.markImported(receipt: nil, settingsApplied: true)
+    #expect(gate.imported && !gate.holdsSync)
   }
 }

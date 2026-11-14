@@ -12,12 +12,7 @@ public final class PhoneSyncHost {
   static var folder: URL { URL.applicationSupportDirectory.appending(path: "PhoneSync", directoryHint: .isDirectory) }
   static var database: URL { URL.documentsDirectory.appending(path: "SQLite/browser.db") }
 
-  public static var legacyGate: LegacyImportGate {
-    LegacyImportGate(
-      legacyStores: PhoneLegacy.storeFolders.map { $0.appending(path: "Browser.store") },
-      marker: folder.appending(path: "legacy-imported.json")
-    )
-  }
+  public static var legacyGate: LegacyImportGate { LegacyPaths.gate }
 
   enum Change {
     case status
@@ -73,6 +68,7 @@ public final class PhoneSyncHost {
   public func launch() {
     guard !launched else { return }
     launched = true
+    LegacySettings.applyAtLaunch()
     SyncService.registerBackgroundRefresh()
     inbox.load()
     service.start()
