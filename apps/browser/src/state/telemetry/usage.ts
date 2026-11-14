@@ -359,10 +359,8 @@ async function launchEvents(session: ReturnType<typeof startClient>) {
 export function startUsage(continuing = false) {
   const session = startClient(continuing);
   previousContext = session.context;
-  if (!continuing) {
-    void launchEvents(session);
-    launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
-  }
+  if (!continuing) void launchEvents(session);
+  if (!continuing) launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
   startWatchChecks();
   startLocalStore(LOCAL_STORE_LAUNCH_DELAY_MS);
   startContextSamples();
@@ -386,16 +384,10 @@ export function startUsage(continuing = false) {
   });
 }
 
-export function emitWindowUsage() {
-  emitCounts();
-  emitOmniboxLatency();
-  emitTabPresses();
-}
+export const emitWindowUsage = () => [emitCounts, emitOmniboxLatency, emitTabPresses].forEach((emit) => emit());
 
 export function sessionEnding() {
-  emitCounts();
-  emitOmniboxLatency();
-  emitTabPresses();
+  emitWindowUsage();
   journeysEnding();
   capture("app_session_ended", { duration_minutes: Math.round((Date.now() - startedAt) / 60_000) });
   endSession();

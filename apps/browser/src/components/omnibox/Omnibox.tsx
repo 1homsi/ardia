@@ -318,7 +318,6 @@ export function Omnibox({
 
   const latest = useRef({ choose, profileId, go, current, onCancel, tabId, windowId });
   latest.current = { choose, profileId, go, current, onCancel, tabId, windowId };
-  const [canDictate] = useState(dictationAvailable);
   const [barActions] = useState(() => ({
     go: (url: string) => latest.current.go(url),
     openTabOrFile: () => void openTabOrFile(latest.current.windowId, latest.current.tabId, (url) => latest.current.go(url)),
@@ -376,7 +375,7 @@ export function Omnibox({
         <BottomRow
           hero={hero}
           addChip={<AddChip onPress={barActions.openTabOrFile} />}
-          onDictate={canDictate ? barActions.dictate : undefined}
+          onDictate={dictationAvailable() ? barActions.dictate : undefined}
           label={destinationLabel(current)}
           enabled={!hero || !!typed.trim() || previewing}
           onGo={barActions.choose}
