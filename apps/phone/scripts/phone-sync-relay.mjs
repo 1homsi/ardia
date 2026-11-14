@@ -1,0 +1,282 @@
+#!/usr/bin/env node
+// The phone half of a sync test for an Android phone that has no Mac. Run it where the phone is plugged in. It keeps
+// the Mac's sync folder (phone-sync-mac.mjs, here or over ssh) and the phone's folder the same, both ways, over adb.
+//
+//   node phone-sync-relay.mjs start  --mac [HOST:]FOLDER [--serial SERIAL] [--phone-folder PATH] [--every SECONDS]
+//   node phone-sync-relay.mjs sync   [--mac [HOST:]FOLDER] [--serial SERIAL] [--phone-folder PATH]
+//   node phone-sync-relay.mjs status [--serial SERIAL]
+//   node phone-sync-relay.mjs stop   [--serial SERIAL]
+//
+// start remembers the options, creates the phone folder (default /sdcard/Documents/Ardia Sync) and runs a pass
+// every --every seconds (default 3) in the background, logging each copy and deletion. sync runs one pass now and
+// prints it; both remember the options, so later commands need only --serial, and both first write, read back, list
+// and delete a probe file on the phone, so a phone that doesn't behave fails before anything is copied. status says
+// whether the loop runs, its last pass and the file counts on both sides; stop ends the loop and forgets the state.
+// A file changed on one side since the last pass is copied to the other (through a temporary name, then renamed);
+// changed on both, the newer wins; gone from one side after a pass saw it on both, it is deleted on the other. A
+// pass that finds a side empty after seeing files there stops without changing anything. State lives in
+// $TMPDIR/ardia-phone-relay-<serial>. --adb PATH runs another adb.
+import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const TEMP_SUFFIX = ".relay-part";
+const PROBE_NAME = ".ardia-relay-probe";
+const PROBE_TEXT = "ardia relay probe\n";
+
+export function plan(mac, phone, record) {
+  const steps = [];
+  const same = (a, b) => !!a && !!b && a.mtime === b.mtime && a.size === b.size;
+  for (const file of [...new Set([...Object.keys(mac), ...Object.keys(phone)])].sort()) {
+    const onMac = mac[file];
+    const onPhone = phone[file];
+    const last = record[file];
+    if (onMac && onPhone) {
+      const macChanged = !last || !same(onMac, last.mac);
+      const phoneChanged = !last || !same(onPhone, last.phone);
+      if (!macChanged && !phoneChanged) continue;
+      if (!last && onMac.size === onPhone.size && onMac.mtime === onPhone.mtime) continue;
+      if (macChanged && !phoneChanged) steps.push({ kind: "toPhone", file });
+      else if (phoneChanged && !macChanged) steps.push({ kind: "toMac", file });
+      else steps.push({ kind: onMac.mtime >= onPhone.mtime ? "toPhone" : "toMac", file });
+    } else if (onMac) {
+      steps.push({ kind: last ? "deleteOnMac" : "toPhone", file });
+    } else {
+      steps.push({ kind: last ? "deleteOnPhone" : "toMac", file });
+    }
+  }
+  return steps;
+}
+
+export function nextRecord(record, before, after, planned, done) {
+  const copied = new Map(done.filter((s) => s.kind === "toPhone" || s.kind === "toMac").map((s) => [s.file, s.kind]));
+  const finished = new Set(done.map((s) => s.file));
+  const unfinished = new Set(planned.filter((s) => !finished.has(s.file)).map((s) => s.file));
+  const next = {};
+  for (const file of new Set([...Object.keys(before.mac), ...Object.keys(before.phone)])) {
+    const kind = copied.get(file);
+    if (kind === "toPhone" && after.phone[file]) next[file] = { mac: before.mac[file], phone: after.phone[file] };
+    else if (kind === "toMac" && after.mac[file]) next[file] = { mac: after.mac[file], phone: before.phone[file] };
+    else if (unfinished.has(file)) {
+      if (record[file]) next[file] = record[file];
+    } else if (!finished.has(file) && before.mac[file] && before.phone[file]) next[file] = { mac: before.mac[file], phone: before.phone[file] };
+  }
+  return next;
+}
+
+export const quoted = (text) => `'${String(text).replace(/'/g, `'\\''`)}'`;
+
+export function parseListing(out, { withProbe = false } = {}) {
+  const files = {};
+  for (const line of out.split("\n")) {
+    const match = /^(\d+) (\d+) \.\/(.+)$/.exec(line.trim());
+    if (!match || match[3].endsWith(TEMP_SUFFIX) || (match[3] === PROBE_NAME && !withProbe)) continue;
+    files[match[3]] = { mtime: Number(match[1]), size: Number(match[2]) };
+  }
+  return files;
+}
+
+const LIST = (folder) =>
+  `mkdir -p ${quoted(folder)} && cd ${quoted(folder)} && find . -type f -exec sh -c 'stat -c "%Y %s %n" "$@" 2>/dev/null || stat -f "%m %z %N" "$@"' sh {} +`;
+
+function endpoints(opts) {
+  const match = /^([^/:]+):(\/.*)$/.exec(opts.mac);
+  const host = match ? match[1] : null;
+  const macFolder = match ? match[2] : path.resolve(opts.mac);
+  const control = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ControlMaster=auto", "-o", `ControlPath=${path.join(opts.work, "ssh-%C")}`, "-o", "ControlPersist=120"];
+  const macArgs = (command) => (host ? ["ssh", [...control, host, command]] : ["sh", ["-c", command]]);
+  const adb = (kind, command) => [opts.adb, [...(opts.serial ? ["-s", opts.serial] : []), kind, command]];
+  return { host, macFolder, macArgs, adb };
+}
+
+function run([command, args], input) {
+  const result = spawnSync(command, args, { encoding: "utf8", input, maxBuffer: 256 * 1024 * 1024 });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${command} ${args.slice(-1)[0]} failed (${result.status}): ${(result.stderr || result.stdout).trim().split("\n")[0]}`);
+  return result.stdout;
+}
+
+function pipe(from, to) {
+  return new Promise((resolve, reject) => {
+    const reader = spawn(from[0], from[1], { stdio: ["ignore", "pipe", "pipe"] });
+    const writer = spawn(to[0], to[1], { stdio: ["pipe", "pipe", "pipe"] });
+    let errors = "";
+    reader.stderr.on("data", (chunk) => (errors += chunk));
+    writer.stderr.on("data", (chunk) => (errors += chunk));
+    writer.stdout.on("data", (chunk) => (errors += chunk));
+    reader.stdout.pipe(writer.stdin);
+    const codes = [];
+    const done = (code) => {
+      codes.push(code);
+      if (codes.length < 2) return;
+      if (codes.every((c) => c === 0)) resolve();
+      else reject(new Error(`copy failed (${codes.join(", ")}): ${errors.trim().split("\n")[0]}`));
+    };
+    reader.on("close", done);
+    writer.on("close", done);
+    reader.on("error", reject);
+    writer.on("error", reject);
+  });
+}
+
+const writeInto = (target) => {
+  const part = `${target}${TEMP_SUFFIX}`;
+  return `mkdir -p ${quoted(path.posix.dirname(target))} && cat > ${quoted(part)} && mv -f ${quoted(part)} ${quoted(target)}`;
+};
+
+export function emptySide(before, record) {
+  const had = (side) => Object.values(record).some((entry) => entry[side]);
+  if (Object.keys(before.mac).length === 0 && had("mac")) return "mac";
+  if (Object.keys(before.phone).length === 0 && had("phone")) return "phone";
+  return null;
+}
+
+export async function probePhone(opts) {
+  const ends = endpoints(opts);
+  const probe = path.posix.join(opts.phoneFolder, PROBE_NAME);
+  await pipe(["printf", [PROBE_TEXT.replace(/\n/g, "\\n")]], ends.adb("exec-in", writeInto(probe)));
+  const back = run(ends.adb("exec-out", `cat ${quoted(probe)}`));
+  const listed = parseListing(run(ends.adb("shell", LIST(opts.phoneFolder))), { withProbe: true })[PROBE_NAME];
+  run(ends.adb("shell", `rm -f ${quoted(probe)}`));
+  if (back !== PROBE_TEXT || listed?.size !== Buffer.byteLength(PROBE_TEXT) || !(listed.mtime > 1_000_000_000)) {
+    throw new Error(`the phone's folder doesn't behave as expected over adb (read back ${JSON.stringify(back)}, listed ${JSON.stringify(listed)}); nothing was copied or deleted`);
+  }
+}
+
+export async function pass(opts) {
+  const ends = endpoints(opts);
+  const listMac = () => parseListing(run(ends.macArgs(LIST(ends.macFolder))));
+  const listPhone = () => parseListing(run(ends.adb("shell", LIST(opts.phoneFolder))));
+  const recordFile = path.join(opts.work, "record.json");
+  const record = fs.existsSync(recordFile) ? JSON.parse(fs.readFileSync(recordFile, "utf8")) : {};
+  const before = { mac: listMac(), phone: listPhone() };
+  const empty = emptySide(before, record);
+  if (empty) throw new Error(`the ${empty === "mac" ? "Mac's" : "phone's"} folder lists no files though the last pass saw some there; nothing was copied or deleted (check the folder, then stop and start the relay to begin again)`);
+  const steps = plan(before.mac, before.phone, record);
+  const done = [];
+  const failed = [];
+  for (const step of steps) {
+    const onMac = path.posix.join(ends.macFolder, step.file);
+    const onPhone = path.posix.join(opts.phoneFolder, step.file);
+    try {
+      if (step.kind === "toPhone") await pipe(ends.macArgs(`cat ${quoted(onMac)}`), ends.adb("exec-in", writeInto(onPhone)));
+      else if (step.kind === "toMac") await pipe(ends.adb("exec-out", `cat ${quoted(onPhone)}`), ends.macArgs(writeInto(onMac)));
+      else if (step.kind === "deleteOnMac") run(ends.macArgs(`rm -f ${quoted(onMac)}`));
+      else run(ends.adb("shell", `rm -f ${quoted(onPhone)}`));
+      done.push(step);
+    } catch (error) {
+      failed.push({ ...step, error: error.message });
+    }
+  }
+  const after = { mac: listMac(), phone: listPhone() };
+  fs.writeFileSync(recordFile, JSON.stringify(nextRecord(record, before, after, steps, done)));
+  const summary = { at: new Date().toISOString(), mac: Object.keys(after.mac).length, phone: Object.keys(after.phone).length, steps: done, failed };
+  fs.writeFileSync(path.join(opts.work, "last.json"), JSON.stringify(summary));
+  return summary;
+}
+
+const stamp = () => new Date().toISOString().slice(11, 19);
+
+function printPass(summary) {
+  for (const step of summary.steps) console.log(`${stamp()} ${step.kind} ${step.file}`);
+  for (const step of summary.failed) console.log(`${stamp()} FAILED ${step.kind} ${step.file}: ${step.error}`);
+  return `${summary.mac} file(s) on the Mac, ${summary.phone} on the phone, ${summary.steps.length} change(s), ${summary.failed.length} failure(s)`;
+}
+
+function options(argv) {
+  const found = { command: argv[0] };
+  for (let index = 1; index < argv.length; index += 1) {
+    const [name, value] = [argv[index], argv[index + 1]];
+    if (name === "--mac") found.mac = value;
+    else if (name === "--serial") found.serial = value;
+    else if (name === "--phone-folder") found.phoneFolder = value;
+    else if (name === "--every") found.every = Number(value);
+    else if (name === "--adb") found.adb = value;
+    else if (name === "--work") found.work = value;
+    else throw new Error(`unknown option ${name}`);
+    index += 1;
+  }
+  found.work = path.resolve(found.work ?? path.join(os.tmpdir(), `ardia-phone-relay-${found.serial ?? "default"}`));
+  const savedFile = path.join(found.work, "relay.json");
+  const saved = fs.existsSync(savedFile) ? JSON.parse(fs.readFileSync(savedFile, "utf8")) : {};
+  const merged = { ...saved, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)) };
+  return { ...merged, every: merged.every ?? 3, adb: merged.adb ?? "adb", phoneFolder: merged.phoneFolder ?? "/sdcard/Documents/Ardia Sync" };
+}
+
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+async function loop(opts) {
+  for (;;) {
+    try {
+      const summary = await pass(opts);
+      if (summary.steps.length || summary.failed.length) console.log(`${stamp()} ${printPass(summary)}`);
+    } catch (error) {
+      console.log(`${stamp()} pass failed: ${error.message}`);
+    }
+    await new Promise((done) => setTimeout(done, opts.every * 1000));
+  }
+}
+
+async function main() {
+  const opts = options(process.argv.slice(2));
+  const savedFile = path.join(opts.work, "relay.json");
+  if (opts.command === "start") {
+    if (!opts.mac) throw new Error("start needs --mac [HOST:]FOLDER");
+    if (opts.pid && alive(opts.pid)) throw new Error(`a relay already runs for this phone (pid ${opts.pid}); stop it first`);
+    fs.mkdirSync(opts.work, { recursive: true });
+    const { command, pid, ...kept } = opts;
+    fs.writeFileSync(savedFile, JSON.stringify(kept));
+    await probePhone(opts);
+    console.log(`${stamp()} the phone's folder answers over adb (write, read back, list, delete)`);
+    console.log(`${stamp()} first pass: ${printPass(await pass(opts))}`);
+    const log = path.join(opts.work, "relay.log");
+    const out = fs.openSync(log, "a");
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "loop", "--work", opts.work], { detached: true, stdio: ["ignore", out, out] });
+    child.unref();
+    fs.writeFileSync(savedFile, JSON.stringify({ ...kept, pid: child.pid }));
+    console.log(`${stamp()} relay running (pid ${child.pid}) every ${opts.every} s; log ${log}`);
+  } else if (opts.command === "loop") {
+    await loop(opts);
+  } else if (opts.command === "sync") {
+    if (!opts.mac) throw new Error("sync needs --mac [HOST:]FOLDER, or a relay started for this phone");
+    fs.mkdirSync(opts.work, { recursive: true });
+    const { command, ...kept } = opts;
+    fs.writeFileSync(savedFile, JSON.stringify(kept));
+    await probePhone(opts);
+    console.log(`${stamp()} ${printPass(await pass(opts))}`);
+  } else if (opts.command === "status") {
+    console.log(`relay ${opts.pid && alive(opts.pid) ? `running (pid ${opts.pid})` : "not running"}; Mac ${opts.mac ?? "?"}, phone ${opts.serial ?? "(the only one)"} ${opts.phoneFolder}`);
+    const last = path.join(opts.work, "last.json");
+    if (fs.existsSync(last)) {
+      const summary = JSON.parse(fs.readFileSync(last, "utf8"));
+      console.log(`last pass ${summary.at}: ${summary.mac} file(s) on the Mac, ${summary.phone} on the phone, ${summary.steps.length} change(s), ${summary.failed.length} failure(s)`);
+    }
+    const log = path.join(opts.work, "relay.log");
+    if (fs.existsSync(log)) console.log(fs.readFileSync(log, "utf8").trim().split("\n").slice(-10).join("\n"));
+  } else if (opts.command === "stop") {
+    if (opts.pid && alive(opts.pid)) process.kill(opts.pid, "SIGTERM");
+    if (opts.mac && /^[^/:]+:\//.test(opts.mac)) spawnSync("ssh", ["-o", `ControlPath=${path.join(opts.work, "ssh-%C")}`, "-O", "exit", opts.mac.split(":")[0]], { stdio: "ignore" });
+    fs.rmSync(opts.work, { recursive: true, force: true });
+    console.log(`relay stopped; removed ${opts.work}`);
+  } else {
+    const lines = fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1);
+    console.log(lines.filter((line) => line.startsWith("//")).map((line) => line.replace(/^\/\/ ?/, "")).join("\n"));
+    process.exit(opts.command === "--help" || opts.command === "-h" ? 0 : 64);
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}

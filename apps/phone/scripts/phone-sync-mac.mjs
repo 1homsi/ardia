@@ -1,41 +1,44 @@
 #!/usr/bin/env node
-// A real Mac sync peer for an Android phone on adb, so a phone can sync without a reachable Mac.
+// The Mac half of a sync test for an Android phone that has no Mac: a hidden Ardia for Mac on this Mac, syncing to
+// a folder here. phone-sync-relay.mjs, on the machine the phone is plugged into, mirrors that folder to the phone.
 //
-//   node apps/phone/scripts/phone-sync-mac.mjs --app <Ardia.app> [--work DIR] [--serial SERIAL]
-//                                              [--phone-folder PATH] [--every SECONDS] [--metro-port PORT]
+//   node apps/phone/scripts/phone-sync-mac.mjs start  [--work DIR] [--app APP] [--metro-port PORT]
+//   node apps/phone/scripts/phone-sync-mac.mjs status [--work DIR]
+//   node apps/phone/scripts/phone-sync-mac.mjs sync   [--work DIR]
+//   node apps/phone/scripts/phone-sync-mac.mjs send URL [--to DEVICE_ID] [--work DIR]
+//   node apps/phone/scripts/phone-sync-mac.mjs stop   [--work DIR] [--keep]
 //
-// The Mac app is a Debug build of this checkout, for example:
-//   scripts/agent/locked pod -- sh -c 'cd apps/browser/macos && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install'
+// start launches the instance hidden (open -g -n, ARDIA_BACKGROUND=1, its own ARDIA_DATA_DIR in <work>/mac), with a
+// Metro for apps/browser on --metro-port (default 8099; started by this script when none is running), turns sync on
+// once against <work>/folder, writes the recovery phrase to <work>/phrase.txt and prints it, the folder and the
+// devices. status prints the devices the Mac sees (id, name, kind), each one's open tabs, and the tabs open on the
+// Mac, where a tab sent from the phone arrives; sync syncs now and prints the same. send opens URL in a background
+// tab on the Mac and sends it to the phone (the only device it can send to, or --to). stop quits the instance and
+// the Metro it started (or hands that Metro to another phone's instance still using it), and deletes <work> unless
+// --keep. The default work folder is /tmp/ardia-phone-sync-mac; the default app is the Debug build that
 //   ARDIACORE_FRAMEWORK="$(packages/ardiacore/scripts/fetch-engine.sh --nearest)" \
 //     XCODE_XCCONFIG_FILE="$PWD/apps/browser/macos/AdHoc.xcconfig" scripts/agent/build-app --as phone-sync-mac
-// and its JavaScript comes from a Metro for apps/browser on --metro-port (default 8081):
-//   (cd apps/browser && pnpm exec react-native start --port 8099)
-//
-// It runs a hidden Ardia for Mac instance whose sync folder is <work>/folder, turns sync on there once and
-// writes the recovery phrase to <work>/phrase.txt. It then mirrors <work>/folder and the phone's folder
-// (default /sdcard/Documents/Ardia Sync) both ways over adb, file by file, newest first, following deletions,
-// and prints the Mac's device list (ids and names) whenever it changes. On the phone, pick that folder in the
-// system picker (Documents › Ardia Sync) and enter the phrase. Ctrl-C quits the Mac instance; run it again
-// with the same --work to continue with the same Mac and folder.
-import { execFileSync } from "node:child_process";
+// makes (sync's test hooks exist only in Debug). Never an installed app.
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { launch } from "../../../scripts/lib/instance.mjs";
+import { attach, isAlive, launch, listenerPids, sleep } from "../../../scripts/lib/instance.mjs";
 
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const defaultApp = path.join(repo, "apps/browser/build-phone-sync-mac/Build/Products/Debug/Ardia.app");
 
 function options(argv) {
-  const found = { work: path.join(process.env.TMPDIR ?? "/tmp", "ardia-phone-sync-mac"), phoneFolder: "/sdcard/Documents/Ardia Sync", every: 3, metroPort: 8081 };
-  for (let index = 0; index < argv.length; index += 1) {
+  const found = { command: argv[0], work: "/tmp/ardia-phone-sync-mac", app: defaultApp, metroPort: 8099, keep: false, rest: [] };
+  for (let index = 1; index < argv.length; index += 1) {
     const [name, value] = [argv[index], argv[index + 1]];
-    if (name === "--help" || name === "-h") found.help = true;
-    else if (name === "--app") (found.app = value), (index += 1);
-    else if (name === "--work") (found.work = value), (index += 1);
-    else if (name === "--serial") (found.serial = value), (index += 1);
-    else if (name === "--phone-folder") (found.phoneFolder = value), (index += 1);
-    else if (name === "--every") (found.every = Number(value)), (index += 1);
+    if (name === "--work") (found.work = path.resolve(value)), (index += 1);
+    else if (name === "--app") (found.app = path.resolve(value)), (index += 1);
     else if (name === "--metro-port") (found.metroPort = Number(value)), (index += 1);
-    else throw new Error(`unknown option ${name}`);
+    else if (name === "--to") (found.to = value), (index += 1);
+    else if (name === "--keep") found.keep = true;
+    else if (name.startsWith("--")) throw new Error(`unknown option ${name}`);
+    else found.rest.push(name);
   }
   return found;
 }
@@ -46,134 +49,167 @@ const printHelp = () => {
 };
 
 const say = (line) => console.log(`${new Date().toISOString().slice(11, 19)} ${line}`);
+const paths = (work) => ({ data: path.join(work, "mac"), folder: path.join(work, "folder"), phrase: path.join(work, "phrase.txt"), metro: path.join(work, "metro.json") });
 
-export function plan(local, remote, seenBefore) {
-  const steps = [];
-  for (const file of new Set([...Object.keys(local), ...Object.keys(remote)])) {
-    const here = local[file];
-    const there = remote[file];
-    if (here && there) {
-      if (here.mtime === there.mtime && here.size === there.size) continue;
-      steps.push({ kind: here.mtime >= there.mtime ? "push" : "pull", file });
-    } else if (here) {
-      steps.push({ kind: seenBefore.has(file) ? "deleteHere" : "push", file });
-    } else {
-      steps.push({ kind: seenBefore.has(file) ? "deleteThere" : "pull", file });
+async function ensureMetro(opts) {
+  if (listenerPids(opts.metroPort).length > 0) return null;
+  const log = path.join(opts.work, "metro.log");
+  const out = fs.openSync(log, "a");
+  const child = spawn("pnpm", ["exec", "react-native", "start", "--port", String(opts.metroPort)], { cwd: path.join(repo, "apps/browser"), detached: true, stdio: ["ignore", out, out] });
+  child.unref();
+  for (const end = Date.now() + 120_000; Date.now() < end; await sleep(500)) {
+    if (listenerPids(opts.metroPort).length > 0) {
+      const record = { pid: child.pid, port: opts.metroPort, log };
+      fs.writeFileSync(paths(opts.work).metro, JSON.stringify(record));
+      return record;
     }
+    if (!isAlive(child.pid)) break;
   }
-  return steps.sort((a, b) => a.file.localeCompare(b.file));
+  throw new Error(`Metro for apps/browser did not start on :${opts.metroPort} (log: ${log})`);
 }
 
-function localFiles(root) {
-  const files = {};
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.isFile()) {
-        const stat = fs.statSync(full);
-        files[path.relative(root, full)] = { mtime: Math.floor(stat.mtimeMs / 1000), size: stat.size };
-      }
-    }
+function otherInstanceOn(port, work) {
+  const lines = spawnSync("ps", ["-axo", "command"], { encoding: "utf8" }).stdout.split("\n");
+  for (const line of lines) {
+    const match = / --metro-proxy (\S+) (\d+)$/.exec(line.trim());
+    if (match && Number(match[2]) === port && path.dirname(match[1]) !== work && fs.existsSync(match[1])) return path.dirname(match[1]);
+  }
+  return null;
+}
+
+function stopMetro(work) {
+  const file = paths(work).metro;
+  if (!fs.existsSync(file)) return "no Metro of ours";
+  const record = JSON.parse(fs.readFileSync(file, "utf8"));
+  fs.rmSync(file, { force: true });
+  const { pid } = record;
+  if (!isAlive(pid)) return "Metro had already stopped";
+  const other = otherInstanceOn(record.port, work);
+  if (other) {
+    fs.writeFileSync(paths(other).metro, JSON.stringify(record));
+    return `Metro (pid ${pid}) left running for the instance in ${other}, which now stops it`;
+  }
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch {
+    process.kill(pid, "SIGTERM");
+  }
+  return `Metro (pid ${pid}) stopped`;
+}
+
+const report = `
+  const u = acSync.useSync.getState();
+  const s = ac.store.getState();
+  const profileId = Object.values(s.windows)[0]?.profileId ?? Object.keys(u.remoteTabs)[0];
+  const remote = Object.values(u.remoteTabs).flat();
+  return {
+    enabled: acSync.doc().enabled,
+    status: u.status,
+    mac: acSync.doc().deviceId,
+    devices: u.devices.map((d) => ({ id: d.id, name: d.name, kind: d.kind, current: d.current })),
+    tabsOnDevices: remote.map((d) => ({ id: d.deviceId, name: d.name, tabs: d.tabs.map((t) => t.url) })),
+    sendTargets: profileId ? acSync.menu.sendTabMenuItem({ id: "", url: "https://example.com", profileId }) : null,
+    macTabs: Object.values(s.tabs).map((t) => t.url),
   };
-  walk(root);
-  return files;
+`;
+
+function printReport(state) {
+  say(`sync ${state.enabled ? "on" : "off"}, status ${state.status}, this Mac's device id ${state.mac}`);
+  for (const device of state.devices) say(`device ${device.id} ${JSON.stringify(device.name)} ${device.kind ?? ""}${device.current ? " (this Mac)" : ""}`);
+  for (const device of state.tabsOnDevices) say(`tabs on ${device.id} ${JSON.stringify(device.name)}: ${device.tabs.length}${device.tabs.length ? `\n    ${device.tabs.join("\n    ")}` : ""}`);
+  say(`tabs open on this Mac: ${state.macTabs.length}${state.macTabs.length ? `\n    ${state.macTabs.join("\n    ")}` : ""}`);
 }
 
-function adb(serial, args, input) {
-  return execFileSync("adb", [...(serial ? ["-s", serial] : []), ...args], { encoding: "utf8", input, maxBuffer: 64 * 1024 * 1024 });
-}
-
-const quoted = (text) => `'${text.replace(/'/g, `'\\''`)}'`;
-
-function remoteFiles(serial, root) {
-  const out = adb(serial, ["shell", `cd ${quoted(root)} && find . -type f -exec stat -c '%Y %s %n' {} +`]);
-  const files = {};
-  for (const line of out.split("\n")) {
-    const match = /^(\d+) (\d+) \.\/(.+)$/.exec(line.trim());
-    if (match) files[match[3]] = { mtime: Number(match[1]), size: Number(match[2]) };
+async function start(opts) {
+  const { data, folder, phrase } = paths(opts.work);
+  if (/^\/Applications\//.test(opts.app)) throw new Error("never an installed app");
+  if (!fs.existsSync(opts.app)) throw new Error(`no app at ${opts.app}: build it first (see --help)`);
+  fs.mkdirSync(folder, { recursive: true });
+  try {
+    attach(data);
+    say(`already running for ${opts.work}`);
+    return status(opts);
+  } catch {}
+  const metro = await ensureMetro(opts);
+  say(metro ? `started Metro for apps/browser on :${metro.port} (pid ${metro.pid})` : `using the Metro already on :${opts.metroPort}`);
+  const mac = await launch(opts.app, {
+    metroPort: opts.metroPort,
+    data,
+    instance: { syncFolder: folder },
+    test: { reauth: "granted" },
+    ready: { timeout: 180_000, test: "return !!globalThis.acSync && Object.keys(ac.store.getState().windows).length > 0" },
+  });
+  say(`hidden Mac instance pid ${mac.pid}, data ${data}, log ${mac.log}`);
+  if (!(await mac.eval("return acSync.doc().enabled"))) {
+    const turned = await mac.eval(`return acSync.turnOnSync(${JSON.stringify(folder)})`);
+    say(`sync turned on: ${JSON.stringify(turned)}`);
+    const words = (await mac.eval("return acSync.native.recoveryWords()")).join(" ");
+    fs.writeFileSync(phrase, `${words}\n`, { mode: 0o600 });
   }
-  return files;
+  say(`folder ${folder}`);
+  say(`recovery phrase (also in ${phrase}): ${fs.readFileSync(phrase, "utf8").trim()}`);
+  printReport(await mac.eval(report));
 }
 
-function mirrorOnce(opts, folder, seen) {
-  const steps = plan(localFiles(folder), remoteFiles(opts.serial, opts.phoneFolder), seen);
-  for (const { kind, file } of steps) {
-    const here = path.join(folder, file);
-    const there = `${opts.phoneFolder}/${file}`;
-    if (kind === "push") {
-      adb(opts.serial, ["shell", `mkdir -p ${quoted(path.posix.dirname(there))}`]);
-      adb(opts.serial, ["push", here, there]);
-      const mtime = Math.floor(fs.statSync(here).mtimeMs / 1000);
-      adb(opts.serial, ["shell", `touch -m -d @${mtime} ${quoted(there)}`]);
-    } else if (kind === "pull") {
-      fs.mkdirSync(path.dirname(here), { recursive: true });
-      adb(opts.serial, ["pull", "-a", there, here]);
-    } else if (kind === "deleteHere") {
-      fs.rmSync(here, { force: true });
-    } else {
-      adb(opts.serial, ["shell", `rm -f ${quoted(there)}`]);
-    }
-    say(`${kind} ${file}`);
+async function status(opts) {
+  const mac = attach(paths(opts.work).data);
+  const { folder } = paths(opts.work);
+  const files = fs.existsSync(folder) ? fs.readdirSync(folder, { recursive: true }).filter((file) => fs.statSync(path.join(folder, file)).isFile()) : [];
+  say(`hidden Mac instance pid ${mac.pid}; ${files.length} file(s) in ${folder}`);
+  printReport(await mac.eval(report));
+}
+
+async function syncNow(opts) {
+  const mac = attach(paths(opts.work).data);
+  await mac.eval("return acSync.syncNow()", { timeout: 60_000 });
+  printReport(await mac.eval(report));
+}
+
+async function send(opts) {
+  const url = opts.rest[0];
+  if (!url || !/^https?:\/\//.test(url)) throw new Error("send takes an http(s) URL");
+  const mac = attach(paths(opts.work).data);
+  const result = await mac.eval(`
+    const s = ac.store.getState();
+    const windowId = Object.keys(s.windows)[0];
+    const tabId = s.newTab(windowId, { url: ${JSON.stringify(url)}, background: true });
+    const tab = ac.store.getState().tabs[tabId];
+    const item = acSync.menu.sendTabMenuItem({ ...tab, url: ${JSON.stringify(url)} });
+    const targets = item ? (item.children ?? [item]).map((c) => ({ id: c.id.slice("sendTo:".length), name: c.title.replace(/^Send to /, "") })) : [];
+    const phones = targets.filter((t) => ${JSON.stringify(opts.to ?? null)} === null || t.id === ${JSON.stringify(opts.to ?? null)});
+    if (phones.length !== 1) return { sent: false, targets };
+    acSync.menu.sendTabFromMenu("sendTo:" + phones[0].id, { ...tab, url: ${JSON.stringify(url)} });
+    return { sent: true, to: phones[0], targets };
+  `);
+  if (!result.sent) throw new Error(`no single device to send to; the Mac can send to ${JSON.stringify(result.targets)} (pick one with --to)`);
+  await mac.eval("return acSync.syncNow()", { timeout: 60_000 });
+  say(`sent ${url} to ${result.to.id} ${JSON.stringify(result.to.name)}`);
+}
+
+async function stop(opts) {
+  let instance = null;
+  try {
+    instance = attach(paths(opts.work).data);
+  } catch (error) {
+    say(error.gone ? "the hidden Mac instance had already quit" : `no instance in ${opts.work}`);
+    if (error.gone) await error.instance.quit({ graceful: false }).catch(() => undefined);
   }
-  return new Set([...Object.keys(localFiles(folder))]);
+  if (instance) say(`hidden Mac instance ${JSON.stringify(await instance.quit())}`);
+  say(stopMetro(opts.work));
+  if (!opts.keep && fs.existsSync(opts.work)) {
+    fs.rmSync(opts.work, { recursive: true, force: true });
+    say(`removed ${opts.work}`);
+  }
 }
 
 async function main() {
   const opts = options(process.argv.slice(2));
-  if (opts.help || !opts.app) {
+  const commands = { start, status, sync: syncNow, send, stop };
+  if (!commands[opts.command]) {
     printHelp();
-    process.exit(opts.help ? 0 : 64);
+    process.exit(opts.command === "--help" || opts.command === "-h" ? 0 : 64);
   }
-  const folder = path.join(opts.work, "folder");
-  fs.mkdirSync(folder, { recursive: true });
-  adb(opts.serial, ["shell", `mkdir -p ${quoted(opts.phoneFolder)}`]);
-  const mac = await launch(path.resolve(opts.app), {
-    metroPort: opts.metroPort,
-    data: path.join(opts.work, "mac"),
-    instance: { syncFolder: folder },
-    test: { reauth: "granted" },
-    ready: { timeout: 120_000, test: "return !!globalThis.acSync && Object.keys(ac.store.getState().windows).length > 0" },
-  });
-  say(`Mac instance pid ${mac.pid}, data ${path.join(opts.work, "mac")}, log ${mac.log}`);
-  let quitting = false;
-  const quit = async () => {
-    if (quitting) return;
-    quitting = true;
-    await mac.quit().catch(() => undefined);
-    process.exit(0);
-  };
-  process.on("SIGINT", quit);
-  process.on("SIGTERM", quit);
-  const enabled = await mac.eval("return acSync.useSync.getState().enabled");
-  if (!enabled) {
-    const turned = await mac.eval(`return acSync.turnOnSync(${JSON.stringify(folder)})`);
-    say(`sync on: ${JSON.stringify(turned)}`);
-    const phrase = (await mac.eval("return acSync.native.recoveryWords()")).join(" ");
-    fs.writeFileSync(path.join(opts.work, "phrase.txt"), `${phrase}\n`, { mode: 0o600 });
-    say(`recovery phrase written to ${path.join(opts.work, "phrase.txt")}`);
-  } else {
-    say("sync was already on for this Mac");
-  }
-  const seenFile = path.join(opts.work, "mirror-seen.json");
-  let seen = new Set(fs.existsSync(seenFile) ? JSON.parse(fs.readFileSync(seenFile, "utf8")) : []);
-  let lastDevices = "";
-  for (;;) {
-    try {
-      seen = mirrorOnce(opts, folder, seen);
-      fs.writeFileSync(seenFile, JSON.stringify([...seen]));
-      await mac.eval("return acSync.syncNow()").catch(() => undefined);
-      const devices = await mac.eval("const u = acSync.useSync.getState(); return { mac: acSync.doc().deviceId, devices: u.devices.map((d) => ({ id: d.id, name: d.name })) }");
-      const shown = JSON.stringify(devices);
-      if (shown !== lastDevices) {
-        lastDevices = shown;
-        say(`devices the Mac sees: ${shown}`);
-      }
-    } catch (error) {
-      say(`mirror pass failed: ${error.message.split("\n")[0]}`);
-    }
-    await new Promise((done) => setTimeout(done, opts.every * 1000));
-  }
+  await commands[opts.command](opts);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
@@ -182,3 +218,4 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     process.exit(1);
   });
 }
+
