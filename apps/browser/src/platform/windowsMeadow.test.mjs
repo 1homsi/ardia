@@ -80,6 +80,11 @@ test("one source: the page and its shim carry none of the intro's words, cues or
   assert.ok(!/class="hero-title">[^<]/.test(markup), "the bundled title is empty: the shim fills it from the app's config");
 });
 
+test("Skip and Mute draw in the system's sans face when the theme names none, never the browser's serif default", () => {
+  assert.match(MEADOW_PAGE_SCRIPT, /html,body\{[^}]*font-family:-apple-system,system-ui,sans-serif/);
+  assert.match(MEADOW_PAGE_SCRIPT, /\.intro-button\{position:fixed;[^\n]*font-family:inherit;/);
+});
+
 test("the page's icon is the app's icon file that the intro shows", () => {
   const icon = readFileSync(new URL("apps/browser/assets/app-icon.png", repo)).toString("base64");
   assert.ok(MEADOW_PAGE_SCRIPT.includes(`data:image/png;base64,${icon}`));

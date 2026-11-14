@@ -69,7 +69,7 @@ function styleFor(config: MeadowPageConfig): string {
 .intro-button.circle svg{width:${intro.mute.iconBox}px;height:${intro.mute.iconBox}px}
 .intro-button.skip{right:${layout.inset}px}
 .intro-veil{position:fixed;inset:0;background:${colors.background};opacity:0;pointer-events:none}
-html,body{user-select:none;-webkit-user-select:none}`;
+html,body{user-select:none;-webkit-user-select:none;font-family:-apple-system,system-ui,sans-serif}`;
 }
 
 function blockSceneInput() {
