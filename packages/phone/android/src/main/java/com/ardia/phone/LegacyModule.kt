@@ -9,6 +9,11 @@ class LegacyModule : Module() {
     private val context: Context
         get() = appContext.reactContext?.applicationContext ?: throw CodedException("ERR_NO_CONTEXT", "The app context is gone", null)
 
+    private fun pausing(app: Context): PhoneLegacy {
+        val requested = appContext.currentActivity?.intent?.getStringExtra(ImportPause.EXTRA)
+        return PhoneLegacy(app, reached = ImportPause.forLaunch(requested)::reached)
+    }
+
     private fun <T> reading(block: () -> T): T = try {
         block()
     } catch (unusable: LegacyUnusable) {
@@ -24,7 +29,7 @@ class LegacyModule : Module() {
 
         AsyncFunction("readVisits") { afterId: Double, limit: Int -> reading { PhoneLegacy(context).readVisits(afterId.toLong(), limit) } }
 
-        AsyncFunction("applyNativeSettings") { -> reading { PhoneLegacy(context).applyNativeSettings() } }
+        AsyncFunction("applyNativeSettings") { -> reading { pausing(context).applyNativeSettings() } }
 
         Function("labSetUnusable") { on: Boolean -> PhoneLegacy(context).setLabUnusable(on) }
 
@@ -38,7 +43,7 @@ class LegacyModule : Module() {
                 ?: throw CodedException("ERR_LEGACY_RECEIPT", "The import receipt is not valid", null)
             val app = context
             reading {
-                PhoneLegacy(app).markImported(parsed) { PhoneSync.controller(app).localDidChange() }
+                pausing(app).markImported(parsed) { PhoneSync.controller(app).localDidChange() }
             }
         }
     }

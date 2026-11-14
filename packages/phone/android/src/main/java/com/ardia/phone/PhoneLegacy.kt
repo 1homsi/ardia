@@ -126,6 +126,7 @@ class PhoneLegacy(
     }
 
     fun applyNativeSettings() = synchronized(LOCK) {
+        reached("settingsStart")
         applyBlocking()
         reached("blocking")
         applySites()
@@ -138,12 +139,14 @@ class PhoneLegacy(
                 }
             }
         }
+        reached("settingsDone")
     }
 
     fun markImported(receipt: UpgradeGate.Receipt, startSync: () -> Unit) = synchronized(LOCK) {
         if (!receipt.isValid()) throw IllegalArgumentException("the import receipt is not valid")
         if (UpgradeGate.marker(app) == null) {
             applyNativeSettings()
+            reached("beforeMarker")
             UpgradeGate.writeMarker(app, receipt)
             reached("marker")
         }

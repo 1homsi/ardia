@@ -437,9 +437,16 @@ then Upgrade; opening the lab never runs the import.
      `ardia-legacy failed reason=unusable_io`. example.com does not open.
    - Tap Try Again: the same screen, now with Start Without Them and its note under it. Don't tap it.
    - Open the lab, tap Make source usable, then force-stop.
-7. **A kill in the middle of the import.** Run each of these once, then wait 3 s:
-   `adb shell "am start -n $P/.MainActivity; sleep 0.3; am force-stop $P"`, then the same with `sleep 0.8` and
-   `sleep 1.5`. Report the `ardia-legacy` lines from each.
+7. **A kill at each durable step.** A lab build can hold the import for 20 s at a step, through
+   `--es ArdiaImportPause <step>`. Do these three in order, each from a stopped app:
+   - `adb shell am start -n $P/.MainActivity --es ArdiaImportPause afterReceipt`. When logcat says
+     `PAGELAB upgrade paused at settingsStart`, run `adb shell am force-stop $P`. The SQL receipt is written, and
+     the native settings and the marker are not.
+   - The same with `afterSettings`, killing at `paused at settingsDone`. This launch finds the receipt, so it only
+     applies the native settings (no `ardia-legacy imported` line).
+   - The same with `beforeMarker`, killing at `paused at beforeMarker`.
+   Report the `ardia-legacy` and `PAGELAB upgrade` lines from each. Step 8's normal launch then finishes the import
+   from the receipt, and nothing is imported twice.
 8. **The import.** Open the app normally. The deck appears with the import (`ardia-legacy imported …`), and
    `example.com/upgrade` opens once, after the deck. Then check every item against step 3:
    - The deck has every tab in the same order, the same tab is selected, and each card shows its thumbnail.
