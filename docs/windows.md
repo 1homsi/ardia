@@ -23,8 +23,8 @@ Walked by hand on 2026-11-14 in the Windows 11 ARM VM (1920 by 1080), with the `
 43544610044 (commit 45a0962e6, engine `windows-engine-20261113-12`, `ArdiaApp.dll` checked against the artifact), from
 a fresh data folder, as a user would: 41 driven runs, every row below seen on that build. Later that day the rows
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
-d83398e1f, engine `windows-engine-20261113-16`); those rows say so. Of the 64 rows, 45 work, 9 work with a difference,
-2 are broken, 4 do nothing, 3 are not offered and 1 was not walked. Works with a difference says
+d83398e1f, engine `windows-engine-20261113-16`); those rows say so. Of the 65 rows, 45 work, 9 work with a difference,
+2 are broken, 5 do nothing, 3 are not offered and 1 was not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
 
@@ -114,6 +114,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Sync | Works: Turn On Sync at the default folder shows the Recovery Kit, the pane says updated just now, every What Syncs row but Passwords; a Mac and a PC exchanged pinned tabs and bookmarks both ways (#1594) | #1575, #1425 |
 | Calendar | Does nothing; hidden | #1521 |
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
+| Keep new-tab links inside a Little Ardia window, zoom with Ctrl and the mouse wheel, offer to save and fill passwords | Does nothing (the engine has no call for them yet); hidden | #1783, #1425 |
 | The ardia command, Widevine | Not offered (each says so) | |
 | Copy naming the Mac | Works: the walk found three more (a ⌘T, "History › Recently Closed", "File › Close All Tabs"), fixed in #1668's PR | #1522, #1668 |
 

@@ -31,6 +31,7 @@ export const generalRows = {
           keywords: ["little ardia", "little arc", "arc", "little window", "small window", "mini window", "external links", "links from other apps", "open links", "discord", "slack", "mail", "messages"],
         },
         littleArdiaOpensNewTabLinks: {
+          shown: () => PLATFORM_FEATURES.keepsNewTabLinksInLittleArdia,
           title: "Keep new-tab links inside a Little Ardia window",
           description: `For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ${keyText("⌘")}-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.`,
           keywords: ["little ardia", "target blank", "new tab", "links"],
