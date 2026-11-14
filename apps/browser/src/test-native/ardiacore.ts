@@ -483,6 +483,8 @@ const fakeModules = {
   ArdiaContentBlocker: domain("contentBlocker", {
     setEnabled: () => null,
     setListEnabled: () => null,
+    addList: ({ url }) => ({ id: url, custom: true, existed: false, filters: 1, failed: false }),
+    removeList: () => null,
     isAllowed: () => false,
     setAllowed: () => null,
   }),
@@ -509,6 +511,7 @@ const fakeModules = {
     setSplitLinkModifier: () => null,
     setPeekOtherSiteTabs: () => null,
     setSelectionPopover: () => null,
+    setBlockAutoplayEverywhere: () => null,
     setCommandScrollZoom: () => null,
     setLittleArdiaOpensNewTabLinks: () => null,
     setAutoPictureInPicture: () => null,
