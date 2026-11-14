@@ -5,6 +5,9 @@ import {
   deckScrollActionTarget,
   deckBarCenterFromBottom,
   deckCardAt,
+  deckHeaderLeading,
+  deckHeaderPlacement,
+  deckHeaderIconReveal,
   deckDragKind,
   deckIsTap,
   deckGeometry,
@@ -87,6 +90,21 @@ test("a header's title fades in between 52 and 84 points of visible card", () =>
   assert.equal(titleReveal(40), 0);
   assert.equal(titleReveal(68), 0.5);
   assert.equal(titleReveal(200), 1);
+});
+
+test("a header spans the visible card less 8 points, centred on it but never closer than 16 to the screen's edge, as both native apps place it", () => {
+  assert.deepEqual(deckHeaderPlacement(40, 100), { available: 92, left: 44 });
+  assert.deepEqual(deckHeaderPlacement(-90, 100), { available: 92, left: 16 - 46 });
+  assert.deepEqual(deckHeaderPlacement(40, 4), { available: 0, left: 42 });
+});
+
+test("a header's icon fades in over the 12 points after it fits, and its content stays centred as the title reveals", () => {
+  assert.equal(deckHeaderIconReveal(10, 16), 0);
+  assert.equal(deckHeaderIconReveal(22, 16), 0.5);
+  assert.equal(deckHeaderIconReveal(40, 16), 1);
+  assert.equal(deckHeaderLeading(100, 16, 6, 60, 0), 42);
+  assert.equal(deckHeaderLeading(100, 16, 6, 60, 0.5), 25.5);
+  assert.equal(deckHeaderLeading(100, 16, 6, 300, 1), 0);
 });
 
 test("the deck's buttons keep Compose's place over a gesture bar and clear a 3-button bar", () => {

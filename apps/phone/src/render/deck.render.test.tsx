@@ -17,4 +17,14 @@ describe("the deck", () => {
       unmount(root);
     });
   }
+
+  test("card titles stop growing at 1.35 times text size, as both native apps cap them", () => {
+    withTabs(3);
+    useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null });
+    const root = renderSurface(<TabDeck />);
+    const titles = root.root.findAll((node) => typeof node.type === "string" && node.props.testID === "deckHeaderTitle");
+    expect(titles).toHaveLength(3);
+    for (const title of titles) expect(title.props.maxFontSizeMultiplier).toBe(1.35);
+    unmount(root);
+  });
 });

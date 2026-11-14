@@ -1,8 +1,8 @@
 import { memo, useEffect, useRef } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
-import { DECK, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
+import { DECK, DECK_HEADER, deckHeaderIconReveal, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -96,13 +96,22 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
       transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
     };
   }, [g, role, index, isLast]);
-  const headerStyle = useAnimatedStyle(() => {
+  const header = useDerivedValue(() => {
     const flying = flyIndex.value === index;
     const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
     const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
     const top = p.y - (g.cardHeight * p.scale) / 2 - tabsLayout.headerGap - tabsLayout.headerHeight;
-    return { opacity: p.header, width: p.visible, transform: [{ translateX: p.x - (g.cardWidth * p.scale) / 2 }, { translateY: top }] };
+    return { pose: p, top, place: deckHeaderPlacement(p.x - (g.cardWidth * p.scale) / 2, p.visible) };
   }, [g, role, index, isLast]);
+  const titleWidth = useSharedValue(0);
+  const headerStyle = useAnimatedStyle(() => {
+    const { pose: p, top, place } = header.value;
+    return {
+      opacity: p.header * deckHeaderIconReveal(place.available, tabsLayout.faviconSize),
+      width: place.available,
+      transform: [{ translateX: place.left }, { translateY: top }],
+    };
+  });
   const reachStyle = useAnimatedStyle(() => {
     const flying = flyIndex.value === index;
     const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
@@ -113,10 +122,11 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
       transform: [{ translateX: p.x - (g.cardWidth * p.scale) / 2 }, { translateY: p.y - (g.cardHeight * p.scale) / 2 }],
     };
   }, [g, role, index, isLast]);
-  const titleStyle = useAnimatedStyle(() => {
-    const visible = deckVisibleWidth(g, index + slot.value - scroll.value, isLast);
-    return { opacity: titleReveal(visible), maxWidth: Math.max(0, visible - tabsLayout.faviconSize - tabsLayout.headerSpacing) };
-  }, [g, index, isLast]);
+  const rowStyle = useAnimatedStyle(() => {
+    const available = header.value.place.available;
+    return { transform: [{ translateX: deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
+  });
+  const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(header.value.place.available) }));
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
@@ -147,7 +157,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
         style={[styles.reach, { zIndex: z + 1 }, reachStyle]}
       />
       <Animated.View style={[styles.header, { zIndex: z + 1 }, headerStyle]} pointerEvents="none">
-        <View style={styles.headerRow}>
+        <Animated.View style={[styles.headerRow, rowStyle]}>
           {tab.isPrivate ? (
             <View style={[styles.privateIcon, { backgroundColor: tabsInk.incognitoCardRaised }]}>
               <Symbol name="eyes" size={tabsLayout.faviconSize - 4} color={tabsInk.onDark} />
@@ -155,16 +165,25 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
           ) : (
             <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
           )}
-          <Animated.Text style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]} numberOfLines={1}>
+          <Animated.Text
+            testID="deckHeaderTitle"
+            maxFontSizeMultiplier={DECK_HEADER.maxFontScale}
+            onLayout={(event) => {
+              titleWidth.value = event.nativeEvent.layout.width;
+            }}
+            style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]}
+            numberOfLines={1}
+          >
             {title}
           </Animated.Text>
-        </View>
+        </Animated.View>
       </Animated.View>
     </>
   );
 });
 
 const CARD_ELEVATION = 14;
+const HEADER_ROW_ROOM = 2000;
 const CARD_SHADOW_BLUR = 36;
 const RECEIVED_INSET = 10;
 
@@ -201,7 +220,7 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 11, lineHeight: 13, fontWeight: "600" },
   reach: { position: "absolute", left: 0, top: 0 },
   header: { position: "absolute", left: 0, top: 0, height: tabsLayout.headerHeight, overflow: "hidden" },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: tabsLayout.headerSpacing, height: tabsLayout.headerHeight },
-  title: { fontWeight: "500", flexShrink: 1 },
+  headerRow: { position: "absolute", left: 0, top: 0, width: HEADER_ROW_ROOM, flexDirection: "row", alignItems: "center", gap: tabsLayout.headerSpacing, height: tabsLayout.headerHeight },
+  title: { fontWeight: "500" },
   privateIcon: { width: tabsLayout.faviconSize, height: tabsLayout.faviconSize, borderRadius: tabsLayout.faviconRadius, alignItems: "center", justifyContent: "center" },
 });

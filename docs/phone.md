@@ -597,7 +597,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Deck: card headers lack the trailing fade, the icon reveal, the leading placement and the 1.35 text-size cap. `TabCard.kt` `DeckCardHeaderItem`, `DeckHeaderLayout.swift`. Half a day.
 - Page menu: Site Settings closes the menu and jumps to Settings; Compose opens it inside the menu sheet with a back button, and Back returns to the menu (SwiftUI has no such row). `PageMenu.kt`, `BrowsingView.kt`. Small.
 - Downloads: progress and cancel are not shown anywhere in the app (only the lab uses `downloads.progress`/`cancel`). `SystemDownloads.kt`, `DownloadManager.swift`. Small to a day.
 - Haptics in Settings, sync and onboarding: none on clearing data, filter-list update/add/apply, Sync Now done or failed, Stop Syncing, a scanned or valid phrase, connected or failed, each onboarding step and the finish; needs a warning/error helper beside `tapHaptic`. `GeneralPages.kt`, `SyncPages.kt`, `BlockingPages.kt`, `OnboardingView.kt`, `SyncCodeScanner.kt`; `ClearBrowsingDataPage.swift`, `FilterListsPage.swift`, `SyncSettingsPage.swift`, `SyncConnectPage.swift`, `RecoveryPhraseEntryPage.swift`, `OnboardingView.swift`. Under 2 hours.
@@ -626,6 +625,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs native code on Android
 
+- A mask view, on both phones (e.g. `@react-native-masked-view/masked-view`): the deck card header's 14-point trailing fade (`DeckCardHeaderItem` draws it with `BlendMode.DstIn`, SwiftUI with `.mask`) and the tray rows' fade at the keyboard's edge, which today fades whole rows (f5071fd5f). The deck backdrop is a native shader, so a gradient laid over the title can't stand in. Small once the view is there.
 - Search field: inline completion is in the tray on Android (`CompletingField` through `TrayInput`, tester step 42), unverified on a phone; the tray's rise, drag, scrub, Paste and Go, the incognito toggle and the mic around it need a phone check with it.
 - Search tray: no predictive back (the tray follows the back gesture down 72 dp); React Native's back handler gives no progress. `SearchTrayHost.kt` `PredictiveBackHandler`. A day.
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.

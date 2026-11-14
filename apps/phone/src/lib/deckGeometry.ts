@@ -146,7 +146,25 @@ export const lerp = (from: number, to: number, t: number) => {
   return from + (to - from) * t;
 };
 
-export const DECK_HEADER = { titleHidden: 52, titleShown: 84 } as const;
+export const DECK_HEADER = { titleHidden: 52, titleShown: 84, iconFade: 12, inset: 8, edge: 16, maxFontScale: 1.35 } as const;
+
+export function deckHeaderPlacement(cardLeft: number, visible: number): { available: number; left: number } {
+  "worklet";
+  const width = Math.max(visible, 0);
+  const available = Math.max(width - DECK_HEADER.inset, 0);
+  const centerX = Math.max(cardLeft + width / 2, DECK_HEADER.edge);
+  return { available, left: centerX - available / 2 };
+}
+
+export function deckHeaderIconReveal(available: number, icon: number): number {
+  "worklet";
+  return Math.min(Math.max((available - icon) / DECK_HEADER.iconFade, 0), 1);
+}
+
+export function deckHeaderLeading(available: number, icon: number, spacing: number, title: number, reveal: number): number {
+  "worklet";
+  return Math.max(0, (available - (icon + (spacing + title) * reveal)) / 2);
+}
 
 export function titleReveal(width: number): number {
   "worklet";
