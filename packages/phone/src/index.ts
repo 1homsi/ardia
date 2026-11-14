@@ -37,6 +37,7 @@ export {
   INCOGNITO_LOOK,
   lookIsNative,
   lookLab,
+  type LookCounts,
   ProfileBackdrop,
   type DeckBackdropProps,
   type FilmGrainProps,

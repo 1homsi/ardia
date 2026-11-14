@@ -184,6 +184,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }.toTypedArray()
     }
 
+    internal val isAnimating: Boolean get() = isShown && !lookIsOff && !reduceMotion && !reduceTransparency
+
     internal fun forgetPaint() {
         paintedLook = null
         mesh = null
@@ -378,13 +380,25 @@ internal object FrostSources {
 
     fun frosts(): List<FrostView> = synchronized(frosts) { frosts.keys.toList() }
 
+    fun allSources(): List<FrostSourceView> = synchronized(sources) { sources.values.mapNotNull { it.get() } }
+
+    fun anyFrostCanBlur(id: String?): Boolean = id != null && frosts().any { it.source == id && it.isAttachedToWindow && it.canBlur() }
+
+    fun sourceChanged(id: String?) {
+        find(id)?.invalidate()
+    }
+
     fun redrawFrostsOf(source: FrostSourceView) {
         for (frost in frosts()) if (frost.source != null && find(frost.source) === source) frost.invalidate()
     }
 }
 
 class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
-    internal val node: RenderNode? = RenderNode("ardiaFrostSource")
+    private var recorder: RenderNode? = null
+
+    internal val node: RenderNode? get() = recorder
+
+    internal val isRecording: Boolean get() = recorder != null
 
     var sourceId: String? = null
         set(value) {
@@ -394,12 +408,26 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
             if (isAttachedToWindow) value?.let { FrostSources.register(it, this) }
         }
 
-    internal val hasContent: Boolean get() = node?.hasDisplayList() == true
+    internal val hasContent: Boolean get() = recorder?.hasDisplayList() == true
 
-    internal var holdsPage: Boolean = false
-        private set
+    private var pageKnown = false
+    private var pageHeld = false
 
-    private val laidOut = ViewTreeObserver.OnGlobalLayoutListener { holdsPage = FrostPage.holdsPage(this) }
+    internal val holdsPage: Boolean
+        get() {
+            if (!pageKnown) {
+                pageHeld = FrostPage.holdsPage(this)
+                pageKnown = true
+            }
+            return pageHeld
+        }
+
+    private val laidOut = ViewTreeObserver.OnGlobalLayoutListener { pageKnown = false }
+
+    private fun stopRecording() {
+        recorder?.discardDisplayList()
+        recorder = null
+    }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
@@ -415,24 +443,26 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
     override fun onDetachedFromWindow() {
         viewTreeObserver.removeOnGlobalLayoutListener(laidOut)
         sourceId?.let { FrostSources.unregister(it, this) }
-        node?.discardDisplayList()
+        stopRecording()
         super.onDetachedFromWindow()
     }
 
     override fun dispatchDraw(canvas: Canvas) {
-        val recorder = node
-        if (recorder == null || !canvas.isHardwareAccelerated || width == 0 || height == 0 || LookSwitch.isOff(context)) {
+        val wanted = canvas.isHardwareAccelerated && width > 0 && height > 0 && !LookSwitch.isOff(context) && FrostSources.anyFrostCanBlur(sourceId)
+        if (!wanted) {
+            if (recorder != null) stopRecording()
             super.dispatchDraw(canvas)
             return
         }
-        recorder.setPosition(0, 0, width, height)
-        val recording = recorder.beginRecording(width, height)
+        val node = recorder ?: RenderNode("ardiaFrostSource").also { recorder = it }
+        node.setPosition(0, 0, width, height)
+        val recording = node.beginRecording(width, height)
         try {
             super.dispatchDraw(recording)
         } finally {
-            recorder.endRecording()
+            node.endRecording()
         }
-        canvas.drawRenderNode(recorder)
+        canvas.drawRenderNode(node)
         FrostSources.redrawFrostsOf(this)
     }
 }
@@ -510,15 +540,20 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
     private var scrolledAt = 0L
     private val refresh = Runnable { invalidate() }
     private val scrolled = ViewTreeObserver.OnScrollChangedListener {
-        if (FrostSources.find(source)?.holdsPage == true) {
+        if (lastChoice?.path == FrostPage.Path.Live && FrostSources.find(source)?.holdsPage == true) {
             scrolledAt = SystemClock.uptimeMillis()
             invalidate()
         }
     }
     var cornerRadius: Float = 0f
     var reduceTransparency: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            FrostSources.sourceChanged(source)
+        }
 
-    private val blurNode = RenderNode("ardiaFrost")
+    private var blurNode: RenderNode? = null
     private var effectRadius = -1f
     private var effectSaturation = -1f
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -529,6 +564,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
     private var lastOffset = Long.MIN_VALUE
 
     private val moved = ViewTreeObserver.OnPreDrawListener {
+        if (lastChoice?.path != FrostPage.Path.Live) return@OnPreDrawListener true
         val from = FrostSources.find(source)
         if (from != null) {
             val offset = offsetTo(from)
@@ -545,6 +581,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         viewTreeObserver.addOnPreDrawListener(moved)
         viewTreeObserver.addOnScrollChangedListener(scrolled)
         FrostSources.attach(this)
+        FrostSources.sourceChanged(source)
     }
 
     override fun onDetachedFromWindow() {
@@ -553,8 +590,14 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         viewTreeObserver.removeOnScrollChangedListener(scrolled)
         removeCallbacks(refresh)
         forgetLayer()
+        FrostSources.sourceChanged(source)
         super.onDetachedFromWindow()
     }
+
+    internal fun canBlur(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Frosting.isBlurSupported && !reduceTransparency && !lookIsOff
+
+    internal val holdsLayer: Boolean get() = blurNode != null
 
     internal var layerWidth = 0
         private set
@@ -562,7 +605,10 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         private set
 
     internal fun forgetLayer() {
-        blurNode.discardDisplayList()
+        blurNode?.discardDisplayList()
+        blurNode = null
+        effectRadius = -1f
+        effectSaturation = -1f
         layerWidth = 0
         layerHeight = 0
     }
@@ -583,6 +629,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         clip.reset()
         clip.addRoundRect(bounds, radius, radius, Path.Direction.CW)
         val from = FrostSources.find(source)
+        val blurs = canBlur()
         val choice = FrostPage.choose(
             blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Frosting.isBlurSupported,
             reduceTransparency = reduceTransparency,
@@ -590,16 +637,17 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             sourceHasContent = from?.hasContent == true,
             hardware = canvas.isHardwareAccelerated,
             insideSource = from != null && isInside(from),
-            holdsPage = from?.holdsPage == true,
+            holdsPage = blurs && from?.holdsPage == true,
             pageMode = FrostSources.pageMode,
             lookOff = lookIsOff,
         )
         report(choice)
         if (choice.path == FrostPage.Path.Live && from != null) {
             if (isShown) scheduleRefresh(from.holdsPage)
+            val layerNode = blurNode ?: RenderNode("ardiaFrost").also { blurNode = it }
             val blur = style.blurRadius.value * density
             val scale = FrostScale.of(blur)
-            applyEffect(blur / scale, style.saturation)
+            applyEffect(layerNode, blur / scale, style.saturation)
             val margin = ceil(blur * 2)
             val offset = offsetTo(from)
             lastOffset = offset
@@ -607,26 +655,27 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             val dy = offset.toInt()
             layerWidth = ceil((width + margin * 2) / scale).toInt()
             layerHeight = ceil((height + margin * 2) / scale).toInt()
-            blurNode.setPosition(0, 0, layerWidth, layerHeight)
-            val recording = blurNode.beginRecording()
+            layerNode.setPosition(0, 0, layerWidth, layerHeight)
+            val recording = layerNode.beginRecording()
             try {
                 recording.scale(1f / scale, 1f / scale)
                 recording.translate(dx + margin, dy + margin)
                 from.node?.let(recording::drawRenderNode)
             } finally {
-                blurNode.endRecording()
+                layerNode.endRecording()
             }
             canvas.save()
             canvas.clipPath(clip)
             canvas.translate(-margin, -margin)
             canvas.scale(scale, scale)
-            canvas.drawRenderNode(blurNode)
+            canvas.drawRenderNode(layerNode)
             canvas.restore()
             paint.style = Paint.Style.FILL
             paint.color = style.tint.resolve(dark).toArgb()
             canvas.drawPath(clip, paint)
         } else {
-            if (layerWidth != 0) forgetLayer()
+            if (blurNode != null) forgetLayer()
+            removeCallbacks(refresh)
             paint.style = Paint.Style.FILL
             paint.color = style.fallback.resolve(dark).toArgb()
             canvas.drawPath(clip, paint)
@@ -648,13 +697,13 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         }
     }
 
-    private fun applyEffect(radius: Float, saturation: Float) {
+    private fun applyEffect(layerNode: RenderNode, radius: Float, saturation: Float) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         if (radius == effectRadius && saturation == effectSaturation) return
         effectRadius = radius
         effectSaturation = saturation
         val blur = RenderEffect.createBlurEffect(radius, radius, Shader.TileMode.CLAMP)
-        blurNode.setRenderEffect(
+        layerNode.setRenderEffect(
             if (saturation == 1f) {
                 blur
             } else {
@@ -685,19 +734,43 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
 internal object LookMemory {
     private const val MB = 1024.0 * 1024.0
 
-    fun line(context: Context): String {
+    data class Counts(
+        val sources: Int,
+        val recording: Int,
+        val frosts: Int,
+        val holdingLayers: Int,
+        val layerBytes: Long,
+        val decks: Int,
+        val animating: Int,
+    )
+
+    fun counts(): Counts {
+        val sources = FrostSources.allSources()
         val frosts = FrostSources.frosts()
-        val live = frosts.filter { it.isShown && it.layerWidth > 0 }
-        val bytes = live.sumOf { it.layerWidth.toLong() * it.layerHeight * 4 }
-        val largest = live.maxByOrNull { it.layerWidth.toLong() * it.layerHeight }
+        val layered = frosts.filter { it.holdsLayer }
         val decks = DeckBackdrops.all()
-        return "look ${if (LookSwitch.isOff(context)) "off" else "on"}: ${live.size} of ${frosts.size} frost(s) blurring, about ${"%.1f".format(bytes / MB)} MB of blur layers" +
+        return Counts(
+            sources = sources.size,
+            recording = sources.count { it.isRecording },
+            frosts = frosts.size,
+            holdingLayers = layered.size,
+            layerBytes = layered.sumOf { it.layerWidth.toLong() * it.layerHeight * 4 },
+            decks = decks.size,
+            animating = decks.count { it.isAnimating },
+        )
+    }
+
+    fun line(context: Context): String {
+        val counts = counts()
+        val largest = FrostSources.frosts().filter { it.holdsLayer }.maxByOrNull { it.layerWidth.toLong() * it.layerHeight }
+        return "look ${if (LookSwitch.isOff(context)) "off" else "on"}: ${counts.recording} of ${counts.sources} frost source(s) recording, " +
+            "${counts.holdingLayers} of ${counts.frosts} frost(s) holding a blur layer, about ${"%.1f".format(counts.layerBytes / MB)} MB" +
             (largest?.let { " (largest ${it.logLabel} ${it.layerWidth}x${it.layerHeight})" } ?: "") +
-            ", ${decks.count { it.isShown }} of ${decks.size} deck backdrop(s) shown"
+            ", ${counts.animating} of ${counts.decks} deck backdrop(s) animating"
     }
 
     fun trim(): String {
-        val hidden = FrostSources.frosts().filter { !it.isShown && it.layerWidth > 0 }
+        val hidden = FrostSources.frosts().filter { !it.isShown && it.holdsLayer }
         hidden.forEach { it.forgetLayer() }
         DeckBackdrops.all().filter { !it.isShown }.forEach { it.forgetPaint() }
         LookPaint.forgetCaches()

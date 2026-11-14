@@ -31,7 +31,10 @@ type LookNative = {
   lookIsOff?: () => boolean;
   setBlobFramesPerSecond?: (rate: number) => number;
   blobFramesPerSecond?: () => number;
+  lookCounts?: () => LookCounts;
 };
+
+export type LookCounts = { sources: number; recording: number; frosts: number; holdingLayers: number; layerBytes: number; decks: number; animating: number };
 
 const lookNative = requireOptionalNativeModule<LookNative>("ArdiaPhoneLook");
 
@@ -44,6 +47,7 @@ export const lookLab = {
   lookIsOff: (): boolean => lookNative?.lookIsOff?.() ?? false,
   setBlobFramesPerSecond: (rate: number): number | null => lookNative?.setBlobFramesPerSecond?.(rate) ?? null,
   blobFramesPerSecond: (): number => lookNative?.blobFramesPerSecond?.() ?? 0,
+  counts: (): LookCounts | null => lookNative?.lookCounts?.() ?? null,
 };
 
 const views = new Map<string, ComponentType<object>>();

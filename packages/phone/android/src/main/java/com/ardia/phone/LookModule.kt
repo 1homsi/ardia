@@ -19,7 +19,21 @@ class LookModule : Module() {
             LookSwitch.set(context, off)
             android.util.Log.i("PAGELAB", "PAGELAB look views ${if (off) "off: flat colours, no blur, grain or motion" else "on"} (takes effect for views drawn from now; force-stop to measure a clean launch)")
             FrostSources.frosts().forEach { it.invalidate() }
+            FrostSources.allSources().forEach { it.invalidate() }
             off
+        }
+
+        Function("lookCounts") {
+            val counts = LookMemory.counts()
+            mapOf(
+                "sources" to counts.sources,
+                "recording" to counts.recording,
+                "frosts" to counts.frosts,
+                "holdingLayers" to counts.holdingLayers,
+                "layerBytes" to counts.layerBytes.toDouble(),
+                "decks" to counts.decks,
+                "animating" to counts.animating,
+            )
         }
 
         Function("setBlobFramesPerSecond") { rate: Int ->
