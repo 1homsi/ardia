@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { newIncognitoTab, newRegularTab, newTab, openArchive, reopenLastClosed, showDeck } from "../../state/browse/store";
+import { newIncognitoTab, newRegularTab, newTab, openArchive, openSpaces, reopenLastClosed, showDeck } from "../../state/browse/store";
+import { useSyncEnabled } from "../../state/sync/hooks";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, Menu, tabsLayout, type MenuItem } from "../ui";
+import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
 
@@ -17,8 +19,23 @@ export function StartScreen() {
   const incognito = useIncognito();
   const canReopen = useCanReopen();
   const { width } = useWindowDimensions();
+  const syncs = useSyncEnabled();
+  const reduceMotion = useReducedMotion();
   const [menu, setMenu] = useState(false);
   const center = deckCenterFromBottom(insets.bottom);
+  const shown = useSharedValue(trayUp ? 0 : 1);
+  useEffect(() => {
+    shown.value = reduceMotion
+      ? withTiming(trayUp ? 0 : 1, { duration: trayMotion.reduced, easing: tabsCurve.easeInOut })
+      : withSpring(trayUp ? 0 : 1, springs.searchRise);
+  }, [trayUp, reduceMotion]);
+  const logoStyle = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ scale: reduceMotion ? 1 : 0.92 + 0.08 * shown.value }] }), [reduceMotion]);
+  const barStyle = useAnimatedStyle(() => ({ opacity: shown.value }));
+  const leading = hasTabs
+    ? { icon: "squareOnSquare" as const, label: "Tabs", onPress: showDeck }
+    : syncs
+      ? { icon: "laptop" as const, label: "Synced Tabs", onPress: openSpaces }
+      : { icon: "archivebox" as const, label: "Archive", onPress: openArchive };
   const items: MenuItem[] = incognito
     ? [
         { label: "New Tab", icon: "plus", onPress: newRegularTab },
@@ -33,21 +50,26 @@ export function StartScreen() {
       <FrostSource name={START_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
         <LookBackdrop themed={!incognito} incognito={incognito} />
       </FrostSource>
-      <View style={[styles.logo, { paddingBottom: BAR_RESERVE / 2, opacity: trayUp ? 0 : 1 }]} pointerEvents="none">
-        <ArdiaLogo width={browseLayout.logoWidth} />
+      <View style={[styles.logo, { paddingBottom: BAR_RESERVE / 2 }]} pointerEvents="none" importantForAccessibility={trayUp ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={trayUp}>
+        <Animated.View style={logoStyle}>
+          <ArdiaLogo width={browseLayout.logoWidth} />
+        </Animated.View>
       </View>
-      {trayUp ? null : (
-        <View style={[styles.deck, { bottom: center - browseLayout.hitTarget / 2, paddingHorizontal: tabsLayout.barSideInset - 4 }]}>
-          <DeckBar
-            leading={hasTabs ? { icon: "squareOnSquare", label: "Tabs", onPress: showDeck } : { icon: "archivebox", label: "Archive", onPress: openArchive }}
+      <Animated.View
+        pointerEvents={trayUp ? "none" : "box-none"}
+        importantForAccessibility={trayUp ? "no-hide-descendants" : "auto"}
+        accessibilityElementsHidden={trayUp}
+        style={[styles.deck, { bottom: center - browseLayout.hitTarget / 2, paddingHorizontal: tabsLayout.barSideInset - 4 }, barStyle]}
+      >
+        <DeckBar
+            leading={leading}
             plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
             frost={{ source: START_FROST, variant: "glass", incognito }}
             onPlus={newTab}
             onPlusMenu={() => setMenu(true)}
             onSettings={() => openSettings()}
           />
-        </View>
-      )}
+      </Animated.View>
       {menu && !trayUp ? (
         <Menu
           items={items}
