@@ -423,13 +423,26 @@ off in the lab`.
     blobs every frame, at 30 fps and at 20 fps, the idle deck, and the Compose baseline if Compose is installed),
     then step 37 with the look on and off, the frost megabytes from each Memory line, and the Home plus
     `UI_HIDDEN` trim.
-51. **The look's budget** (from the build that has it): on a fresh install, open the deck and leave it idle for 4 s,
-    twice, closing it in between. Each time logcat has `PAGELAB look budget over|within …` with the frames, the
-    median against the deadline and the share missed. On the M3 report both lines and what the lab's Look says
-    about the next build; force-stop and reopen: if two samples were over, the deck stands still and the frosts
-    are fills, and the Memory line says 0 recording, 0 layers, 0 animating. On the F4 the same, expecting
-    `within`. Then in the lab: Budget: force degraded, force-stop, reopen (still and solid), Budget: measured,
-    Budget: reset. Turn on Remove animations and check the deck stands still whatever the lab's verdict says.
+51. **The look's budget** (first switched on in sync13). Watch `adb logcat -s PAGELAB | grep "look budget"`.
+    - Start clean: fresh install, or the lab's Look › Budget: reset (then force-stop). Look on, blobs paced.
+    - Open the deck and leave it untouched for 4 s: after its first second the deck samples 2 s and logcat has
+      `PAGELAB look budget over|within|inconclusive: verdict …, next build full|degraded, last N frames, median
+      X ms against Y ms, Z% missed`. Touching the deck in those 3 s drops the sample (no line): leave it alone.
+    - Close the deck (go to a page), open it again, leave it 4 s: a second line. One deck open gives at most one
+      sample, so a third line needs a third open.
+    - What the lab shows: Look › "Look budget: …" with the same verdict, the look the next build will get, the
+      last sample's frames, median against deadline and share missed, and "lab forces …" when forced.
+    - The look never changes in front of you: when the second `over` arrives the deck you are looking at keeps
+      its blobs and frosts. Only after closing and opening the deck again (or force-stop and reopen) does it
+      stand still with plain fills, and then the Memory line reads 0 recording, 0 holding a layer, 0 animating.
+      Report if anything changed while the deck stayed open.
+    - Expected: the M3 measures `over` twice and degrades; the F4 measures `within` once and keeps the look.
+      Report both phones' lines and the lab's text.
+    - The lab's controls: Budget: force degraded (from the next build the look is still and solid), Budget: force
+      full, Budget: measured (back to what was measured), Budget: reset (forget everything and measure again on
+      the next deck open). Check each takes effect only after the deck is rebuilt.
+    - System settings win: with Remove animations on (Settings › Accessibility), the deck stands still whatever
+      the budget says, and no sample is taken (nothing moves to measure).
 52. **An idle app draws nothing** (sync11's look-off deck drew 1825 frames in 30 s with nothing changing). With the
     deck open and untouched, run `adb shell am broadcast -a com.ardia.phone.FRAMES -p com.ardia.browser.android
     --ei seconds 5` and keep hands off for 5 s. Logcat (`-s PAGELAB`) has `PAGELAB idle frames: N frame(s) drawn in
