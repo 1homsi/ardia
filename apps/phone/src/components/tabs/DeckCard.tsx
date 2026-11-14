@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
 import { DECK, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
@@ -74,13 +74,14 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const slot = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
   const shown = useRef(index);
   useEffect(() => {
     const by = shown.current - index + shift.by;
     shown.current = index;
     if (Math.abs(by) < 0.001) return;
     slot.value = by;
-    slot.value = withSpring(0, tabsMotion.gapClose);
+    slot.value = reduceMotion ? withTiming(0, { duration: tabsMotion.fade }) : withSpring(0, tabsMotion.gapClose);
   }, [index, shift.generation, shift.by, slot]);
 
   const { scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;

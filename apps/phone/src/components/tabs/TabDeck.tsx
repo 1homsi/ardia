@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import { POOF } from "../../lib/poof";
+import { PoofBurst, type PoofSpec } from "./PoofBurst";
 import { haptics } from "../../state/app/haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   deckCardAt,
   deckGeometry,
+  deckLeading,
   deckIsTap,
   deckDragKind,
   deckLift,
@@ -100,6 +103,9 @@ export function TabDeck() {
   const chromeStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
   const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
 
+  const reduceMotion = useReducedMotion();
+  const [poofs, setPoofs] = useState<PoofSpec[]>([]);
+  const poofSeed = useRef(0);
   const cardsOpacity = useSharedValue(1);
   useEffect(() => {
     const entrance = consumeDeckEntrance();
@@ -165,6 +171,10 @@ export function TabDeck() {
   const open = (index: number) => {
     const id = order[index];
     if (!id || phase.kind !== "settled" || dragIndex.value === index || flyIndex.value === index) return;
+    if (reduceMotion) {
+      settledOpen(id);
+      return;
+    }
     setMenu(null);
     setPhase({ kind: "closing", id });
     scaleProgress.value = withSpring(0, tabsMotion.expand);
@@ -182,6 +192,14 @@ export function TabDeck() {
     const id = order[index];
     if (!id) return;
     hideArchiveCard();
+    if (reduceMotion) {
+      remove(id);
+      return;
+    }
+    const lift = startLift - g.cardHeight * 0.18;
+    const spec = { id: ++poofSeed.current, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + lift, size: g.cardWidth * POOF.sizeShare };
+    setPoofs((now) => [...now, spec]);
+    setTimeout(() => setPoofs((now) => now.filter((poof) => poof.id !== spec.id)), POOF.durationMs + POOF_LINGER_MS);
     flyIndex.value = index;
     flyLift.value = startLift;
     flyVanish.value = 0;
@@ -255,9 +273,13 @@ export function TabDeck() {
         return;
       }
       const target = deckSettleTarget(g, scroll.value, e.velocityX, count);
-      scroll.value = withSpring(target, { ...tabsMotion.settle, velocity: deckSettleVelocity(g, scroll.value, target, e.velocityX) }, () => {
+      const settled = () => {
+        "worklet";
         touching.value = false;
-      });
+      };
+      scroll.value = reduceMotion
+        ? withTiming(target, { duration: tabsMotion.fade, easing: tabsCurve.easeOut }, settled)
+        : withSpring(target, { ...tabsMotion.settle, velocity: deckSettleVelocity(g, scroll.value, target, e.velocityX) }, settled);
     });
   const showCardMenu = (index: number, x: number, y: number) => {
     if (phase.kind !== "settled" || !order[index]) return;
@@ -404,6 +426,9 @@ export function TabDeck() {
             />
           </Animated.View>
         }
+        {poofs.map((spec) => (
+          <PoofBurst key={spec.id} spec={spec} />
+        ))}
       </Shade>
       {menu === "plus" ? (
         <Menu
@@ -443,6 +468,7 @@ const DECK_FROST = "deck";
 const DECK_RENDER_REACH = 6;
 const BACKDROP_LEAD = 1.4;
 const CHROME_FROM = 0.6;
+const POOF_LINGER_MS = 50;
 
 const styles = StyleSheet.create({
   touch: { position: "absolute", left: 0, right: 0, top: 0 },

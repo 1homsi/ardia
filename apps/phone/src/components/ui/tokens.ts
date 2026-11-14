@@ -239,6 +239,7 @@ export const spacesLayout = {
 
 export const tabsInk = {
   incognitoCard: "#1C1D22",
+  poof: "#F7F5FF",
   incognitoCardRaised: "#2A2B31",
   incognitoBackdrop: ["#1A1A1E", "#0E0E10"] as const,
   incognitoSheet: "#151517",
