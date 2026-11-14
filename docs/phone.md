@@ -672,6 +672,26 @@ Pass C (after steps 1 to 3 again, with a trusted site and a My Filters line set 
       the app twice: it stays started fresh, with no failure screen and no import.
     - `adb install -r -d $COMPOSE_APK`: the Compose app still has its tabs and settings, and every sha256 matches.
 
+## Deck speed
+
+Every interaction in a lab build prints one line, `PAGELAB perf <interaction> <window>ms | js … | ui … | renders … | look …`:
+- js and ui are the frames each thread produced in that window (count, median, 90th percentile, worst, and frames over 1.5 budgets at 60 Hz);
+- renders counts React renders by component;
+- look gives the native look's recording, held layers and animations.
+
+The render thread and the GPU don't appear there, so every run pairs the lines with gfxinfo over the same steps. The windows start at a deck pan (1.2 s), the deck's open (0.9 s), a card's open (0.9 s) and the tray's open (0.8 s).
+
+#### Deck speed tester script (lab build)
+
+Run it once with the look off (lab › Look) and once with it on, at animator scale 1, with nine tabs that all have pictures (visit nine sites and wait on each until it has loaded). `$P` is the package. Swipes are in pixels for a 1080-wide screen; scale them for others.
+
+1. `adb logcat -c`, then `adb shell dumpsys gfxinfo $P reset`.
+2. Deck scroll: open the deck. Five times, `adb shell input swipe 860 1300 220 1300 300`, then 1.5 s idle; then five times the other way, `adb shell input swipe 220 1300 860 1300 300`. Save `adb shell dumpsys gfxinfo $P > scroll-<look>.txt`.
+3. Reset gfxinfo. Deck open: from a page, tap the Tabs button, wait 1.5 s, tap the focused card, wait 1.5 s. Repeat five times. Save gfxinfo as `open-<look>.txt`. The same loop gives both "deck open" and "card open" lines.
+4. Reset gfxinfo. Tray open: from a page, tap +, wait 1.5 s, Back, wait 1.5 s. Repeat five times. Save gfxinfo as `tray-<look>.txt`.
+5. `adb logcat -d -s PAGELAB | grep "PAGELAB perf" > perf-<look>.txt`.
+6. Report from each gfxinfo file: janky frames %, 50th and 90th percentiles, GPU 50th percentile, "Number Slow UI thread" and "Number Slow issue draw commands". From the perf lines, the median js and ui p50 per interaction and the renders.
+
 ## Telemetry
 
 Off until the user chooses, in Settings (Share anonymous usage stats, with What's Sent) or on onboarding's last step. The consent model is the Mac's: nothing is sent, queued or counted while sharing is off, turning it off drops the queue, the day's counts and any request in flight at once, and an install ID is made only the first time sharing is turned on. Unlike the Mac, the phone sends no `daily_active` ping while sharing is off.

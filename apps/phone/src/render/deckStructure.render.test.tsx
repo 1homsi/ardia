@@ -121,7 +121,7 @@ test("dragging the deck two cards renders nothing and mounts no card mid-gesture
   );
   act(() => perf.finishInteraction());
   perf.enableInteractionPerf(false, () => undefined);
-  expect(lines[0]).toMatch(/renders 0$/);
+  expect(lines[0]).toMatch(/renders 0 \| look /);
   expect(cards(root).length).toBe(mountedBefore);
   act(() =>
     fireGestureHandler(getByGestureTestId("deckPan"), [

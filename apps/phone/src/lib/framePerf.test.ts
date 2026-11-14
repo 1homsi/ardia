@@ -18,7 +18,10 @@ test("an interaction prints one lab line with both threads and the renders by co
   const ui = summarizeFrames([16.7, 16.7]);
   assert.equal(
     interactionLine("card open", 900, js, ui, new Map([["TabDeck", 2], ["DeckCard", 18]])),
-    "PAGELAB perf card open 900ms | js 2 frames p50 16.7 p90 33.3 max 33.3 slow 1 | ui 2 frames p50 16.7 p90 16.7 max 16.7 slow 0 | renders 20 (DeckCard=18 TabDeck=2)",
+    "PAGELAB perf card open 900ms | js 2 frames p50 16.7 p90 33.3 max 33.3 slow 1 | ui 2 frames p50 16.7 p90 16.7 max 16.7 slow 0 | renders 20 (DeckCard=18 TabDeck=2) | look unmeasured",
   );
-  assert.equal(interactionLine("tray open", 800, js, null, new Map()), "PAGELAB perf tray open 800ms | js 2 frames p50 16.7 p90 33.3 max 33.3 slow 1 | ui unmeasured | renders 0");
+  assert.equal(
+    interactionLine("tray open", 800, js, null, new Map(), { recording: 0, holdingLayers: 0, animating: 0 }),
+    "PAGELAB perf tray open 800ms | js 2 frames p50 16.7 p90 33.3 max 33.3 slow 1 | ui unmeasured | renders 0 | look recording 0 holding 0 animating 0",
+  );
 });

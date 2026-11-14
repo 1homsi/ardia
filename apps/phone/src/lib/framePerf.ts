@@ -21,7 +21,9 @@ const ms = (value: number) => value.toFixed(1);
 const frameText = (thread: string, summary: FrameSummary) =>
   `${thread} ${summary.frames} frames p50 ${ms(summary.p50)} p90 ${ms(summary.p90)} max ${ms(summary.max)} slow ${summary.overBudget}`;
 
-export function interactionLine(name: string, windowMs: number, js: FrameSummary, ui: FrameSummary | null, renders: ReadonlyMap<string, number>): string {
+export type LookActivity = { recording: number; holdingLayers: number; animating: number };
+
+export function interactionLine(name: string, windowMs: number, js: FrameSummary, ui: FrameSummary | null, renders: ReadonlyMap<string, number>, look: LookActivity | null = null): string {
   const counted = [...renders.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([component, count]) => `${component}=${count}`);
   const total = [...renders.values()].reduce((sum, count) => sum + count, 0);
   return [
@@ -29,5 +31,6 @@ export function interactionLine(name: string, windowMs: number, js: FrameSummary
     frameText("js", js),
     ui ? frameText("ui", ui) : "ui unmeasured",
     `renders ${total}${counted.length ? ` (${counted.join(" ")})` : ""}`,
+    look ? `look recording ${look.recording} holding ${look.holdingLayers} animating ${look.animating}` : "look unmeasured",
   ].join(" | ");
 }

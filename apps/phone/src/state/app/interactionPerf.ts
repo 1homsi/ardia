@@ -1,5 +1,5 @@
 import { interactionLine, summarizeFrames } from "../../lib/framePerf";
-import { isLabBuild, labLog } from "../../platform/lab";
+import { isLabBuild, labLog, lookActivity } from "../../platform/lab";
 
 export type UiFrameRecorder = { start: () => void; stop: () => number[] };
 
@@ -52,5 +52,5 @@ export function finishInteraction() {
   if (done.frame !== null) cancelAnimationFrame(done.frame);
   if (done.timer) clearTimeout(done.timer);
   const ui = uiRecorder ? uiRecorder.stop() : null;
-  report(interactionLine(done.name, done.windowMs, summarizeFrames(done.js), ui ? summarizeFrames(ui) : null, done.renders));
+  report(interactionLine(done.name, done.windowMs, summarizeFrames(done.js), ui ? summarizeFrames(ui) : null, done.renders, lookActivity()));
 }
