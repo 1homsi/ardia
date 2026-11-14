@@ -195,7 +195,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     runs as before. A close that asked it never also shows the close-tabs confirm. The dialog is the shared confirm on
     the dialog thread (#1672). Closing Settings when it is the only window left quits without asking: Settings closes
     without a close request. A window that closes elsewhere while a close-tabs confirm is open isn't counted again, so
-    that close can then quit without asking.
+    that close can then quit without asking. Both are #1803.
   - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated`, and every
     window that is not a browser window (Little Ardia, Settings, Import: the Mac's system animates those open),
     stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s (Little Ardia
