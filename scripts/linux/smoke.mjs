@@ -24,7 +24,7 @@ ARDIA_BACKGROUND=1, a throwaway profile and HOME, the sandbox on) without
   bootstrap         the native bootstrap reports appBuild "linux-host"
   native-tab        a native tab loads a local HTTP fixture, visibly, without window.__ardiaHost
   sandbox           every renderer runs under seccomp-bpf in its own namespaces, no --no-sandbox
-  content-blocker   the packaged uBlock Origin and its Linux bridge are present and load
+  content-blocker   the packaged uBlock Origin and its Linux bridge are present and load, tuned to save its engine soon after launch
   restart-restore   after a clean quit and relaunch on the same profile the fixture tab is restored
   staged-install    install.sh --destdir stages the launcher, desktop entry, runtime and polkit policy,
                     and lib/ardia/VERSION and lib/ardia/cli when the package has them
@@ -68,6 +68,15 @@ export const STAGED_FILES = [
   { path: "usr/share/polkit-1/actions/dev.ardia.linux.policy", mode: 0o644 },
 ];
 export const BLOCKER_FILES = ["manifest.json", "js/vapi.js", "js/vapi-common.js", "js/vapi-client.js"];
+export const UBO_TUNING = { selfieDelayInSeconds: 3, autoUpdateDelayAfterLaunch: 600 };
+
+export function uboTuningProblems(background, tuning = UBO_TUNING) {
+  return Object.entries(tuning).flatMap(([name, wanted]) => {
+    const found = new RegExp(`\\b${name}:\\s*(\\d+)\\s*,`).exec(background);
+    if (!found) return [`${name} is missing`];
+    return Number(found[1]) === wanted ? [] : [`${name} is ${found[1]}, not ${wanted}`];
+  });
+}
 export const VERSION_PATTERN = /^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$/;
 export const CLI_CONTROL_CAPABILITIES = ["engine.setCliControl", "ArdiaCli.install", "ArdiaAutomation.start"];
 export const USER_SCRIPTS_CAPABILITIES = ["ArdiaUserScripts.watch", "ArdiaUserScripts.read", "ArdiaUserScripts.readStatus", "ArdiaUserScripts.writeStatus"];
@@ -598,6 +607,8 @@ class Smoke {
     if (missing.length) throw new Error(`lib/ardia/extensions/ublock lacks ${missing.join(", ")}`);
     const manifest = JSON.parse(await readFile(join(blocker, "manifest.json"), "utf8"));
     if (typeof manifest.key !== "string" || manifest.manifest_version !== 2) throw new Error("the packaged manifest is not the keyed MV2 uBlock Origin build");
+    const tuning = uboTuningProblems(await readFile(join(blocker, "js", "background.js"), "utf8").catch(() => ""));
+    if (tuning.length) throw new Error(`the packaged uBlock Origin is not tuned for launch: ${tuning.join("; ")}`);
     let last;
     const state = await until(async () => {
       last = await shell.call("contentBlocker.state");

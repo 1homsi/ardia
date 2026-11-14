@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { launchArguments, launchEnvironment } from "../../apps/linux/scripts/acceptance/lib/ardia.mjs";
-import { ASSERTIONS, SCRIPT_NAME, SCRIPT_TITLE_PREFIX, USAGE, USER_SCRIPTS_CAPABILITIES, VERSION_PATTERN, appVersionVerdict, cliControlSupport, cliTarball, formatTable, installerRanAgain, launchRefusal, packageStagedFiles, parseArgs, pipeLaunchArguments, splitPipeMessages, summarize, userScriptSource } from "./smoke.mjs";
+import { ASSERTIONS, SCRIPT_NAME, SCRIPT_TITLE_PREFIX, USAGE, USER_SCRIPTS_CAPABILITIES, VERSION_PATTERN, appVersionVerdict, cliControlSupport, cliTarball, formatTable, installerRanAgain, launchRefusal, packageStagedFiles, parseArgs, pipeLaunchArguments, splitPipeMessages, summarize, uboTuningProblems, userScriptSource } from "./smoke.mjs";
 
 test("the package checks are named in the usage and keep the original eight first", () => {
   assert.deepEqual(ASSERTIONS.slice(0, 8), ["ldd", "shell-ui", "bootstrap", "native-tab", "sandbox", "content-blocker", "restart-restore", "staged-install"]);
@@ -86,4 +86,12 @@ test("skipped and old-engine checks pass the gate but show what they are; an old
   rows[10] = { name: "cli-control", ok: false, status: "old", detail: { error: "the engine predates CLI control (--allow-old-engine accepts this)" }, ms: 0 };
   assert.equal(summarize(rows).ok, false);
   assert.match(formatTable(rows), /^FAIL {2}cli-control/m);
+});
+
+test("the packaged uBlock Origin saves its engine soon after a launch and waits before updating its lists", () => {
+  const tuned = "const hiddenSettingsDefault = {\n    autoUpdateDelayAfterLaunch: 600,\n    selfieDelayInSeconds: 3,\n};";
+  assert.deepEqual(uboTuningProblems(tuned), []);
+  assert.deepEqual(uboTuningProblems(tuned.replace("selfieDelayInSeconds: 3,", "selfieDelayInSeconds: 53,")), ["selfieDelayInSeconds is 53, not 3"]);
+  assert.deepEqual(uboTuningProblems(tuned.replace("autoUpdateDelayAfterLaunch: 600,", "autoUpdateDelayAfterLaunch: 37,")), ["autoUpdateDelayAfterLaunch is 37, not 600"]);
+  assert.deepEqual(uboTuningProblems(""), ["selfieDelayInSeconds is missing", "autoUpdateDelayAfterLaunch is missing"]);
 });

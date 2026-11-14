@@ -872,7 +872,8 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   instead of 53 s. Without it, a launch that ended within about a minute of the first one left no selfie, and the next
   launch rebuilt the engine from the compiled lists (about 3.2 s here) while its page requests waited on uBlock's
   blocking listener: first tab paint was about 3.8 s instead of 2.0 s on an existing profile. A new install still
-  pays uBlock's own restart and list compile once, about 11 s on the same box.
+  pays uBlock's own restart and list compile once, about 11 s on the same box. The smoke test's `content-blocker` check fails a
+  package whose `js/background.js` lacks this delay or the 600 s update delay after launch.
 
 ### Memory Saver
 
