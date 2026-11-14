@@ -304,7 +304,11 @@ class SyncService(
             if (!isEnabled) return
             val fetchedAt = now()
             val generation = visitGeneration.get()
-            val local = gatherLocal(fetchedAt, generation)
+            val local = try {
+                gatherLocal(fetchedAt, generation)
+            } catch (notReady: LocalBrowsingNotReady) {
+                return
+            }
             val dirty = localDirty.getAndSet(false)
             try {
                 val outcome = current.cycle(local)

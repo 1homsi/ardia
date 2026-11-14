@@ -80,7 +80,9 @@ class WorkManagerSyncScheduler(context: Context) : SyncBackgroundScheduler {
 
 class SyncWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
-        val controller = (applicationContext as? SyncControllerOwner)?.syncController ?: SyncController.active ?: return Result.success()
+        val owner = applicationContext as? SyncControllerOwner
+        if (holds(owner)) return Result.retry()
+        val controller = owner?.syncController ?: SyncController.active ?: return Result.success()
         val updated = controller.backgroundCycle()
         return when {
             updated -> Result.success()
@@ -91,5 +93,7 @@ class SyncWorker(context: Context, parameters: WorkerParameters) : CoroutineWork
 
     companion object {
         const val FLUSH = "flush"
+
+        fun holds(owner: SyncControllerOwner?): Boolean = owner != null && !owner.isSyncReady
     }
 }

@@ -3,6 +3,7 @@ package com.ardia.browser.android
 import android.app.Application
 import android.content.res.Configuration
 import com.ardia.phone.PhoneSync
+import com.ardia.phone.UpgradeGate
 import com.ardia.sync.SyncController
 import com.ardia.sync.SyncControllerOwner
 import com.facebook.react.PackageList
@@ -34,6 +35,9 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
     override val syncController: SyncController
         get() = PhoneSync.controller(this)
 
+    override val isSyncReady: Boolean
+        get() = !UpgradeGate.pending(this)
+
     override val reactHost: ReactHost
         get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)
 
@@ -42,6 +46,7 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
         DefaultNewArchitectureEntryPoint.releaseLevel = runCatching {
             ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
         }.getOrDefault(ReleaseLevel.STABLE)
+        UpgradeGate.install(this)
         LabNetworkLog.install(this)
         loadReactNative(this)
         ApplicationLifecycleDispatcher.onApplicationCreate(this)

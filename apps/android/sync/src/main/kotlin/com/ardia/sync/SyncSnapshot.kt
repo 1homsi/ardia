@@ -142,6 +142,8 @@ sealed interface SyncPhase {
     data object Reset : SyncPhase
 }
 
+class LocalBrowsingNotReady : IllegalStateException("the phone's browsing data is not ready to read")
+
 interface LocalBrowsingSource {
     fun syncedTabs(): List<LocalTabRecord>
 

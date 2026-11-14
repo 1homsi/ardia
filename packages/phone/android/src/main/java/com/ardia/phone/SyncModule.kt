@@ -36,7 +36,11 @@ class SyncModule : Module() {
         get() {
             val launch = appContext.currentActivity?.intent
             val demo = launch?.getBooleanExtra(PhoneSync.DEMO_EXTRA, false)?.and(PhoneLab.isOn)
-            val sync = PhoneSync.controller(context, demo)
+            val sync = try {
+                PhoneSync.controller(context, demo)
+            } catch (pending: UpgradeGate.Pending) {
+                throw CodedException("ERR_IMPORT_PENDING", "The import from the previous Ardia app has not finished", null)
+            }
             if (watched !== sync) watch(sync)
             return sync
         }

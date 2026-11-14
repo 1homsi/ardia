@@ -44,6 +44,7 @@ object PhoneSync {
     fun current(): SyncController? = made
 
     fun controller(context: Context, demo: Boolean? = null): SyncController = synchronized(this) {
+        if (UpgradeGate.pending(context)) throw UpgradeGate.Pending()
         val current = made
         val app = context.applicationContext ?: context
         val wanted = when {
@@ -73,7 +74,7 @@ object PhoneSync {
     }
 
     internal fun source(context: Context): PhoneBrowsingSource = madeSource ?: synchronized(this) {
-        madeSource ?: PhoneBrowsingSource(makeRows(database(context)), inbox(context)).also { madeSource = it }
+        madeSource ?: PhoneBrowsingSource(makeRows(database(context)), inbox(context), isReady = { !UpgradeGate.pending(context) }).also { madeSource = it }
     }
 
     internal fun forgetForTests() = synchronized(this) {

@@ -6,6 +6,10 @@ import java.sql.Connection
 import java.sql.DriverManager
 
 internal object PhoneTestDatabase {
+    init {
+        Class.forName("org.sqlite.JDBC")
+    }
+
     private val schemaFile = File(System.getProperty("ardia.phoneSchema") ?: error("ardia.phoneSchema isn't set"))
 
     fun schema(): List<String> {
@@ -67,6 +71,7 @@ internal fun Connection.visit(url: String, at: Long, profile: String? = null, ti
 
 internal class JdbcRows(private val file: File, private val before: (String) -> Unit = {}) : BrowserRows {
     override fun <T> open(block: (BrowserQuery) -> T): T? {
+        Class.forName("org.sqlite.JDBC")
         if (!file.isFile) return null
         DriverManager.getConnection("jdbc:sqlite:${file.path}").use { connection ->
             val query = BrowserQuery { sql, args ->

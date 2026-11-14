@@ -3,6 +3,7 @@ package com.ardia.phone
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.ardia.sync.HistoryRemoval
+import com.ardia.sync.LocalBrowsingNotReady
 import com.ardia.sync.LocalBrowsingSource
 import com.ardia.sync.LocalTabRecord
 import com.ardia.sync.LocalVisitRecord
@@ -44,9 +45,11 @@ class SqliteBrowserRows(private val file: File) : BrowserRows {
 class PhoneBrowsingSource(
     private val rows: BrowserRows,
     private val inbox: PhoneInbox,
+    private val isReady: () -> Boolean = { true },
     private val clock: () -> Long = System::currentTimeMillis,
 ) : LocalBrowsingSource {
     override fun syncedTabs(): List<LocalTabRecord> {
+        ready()
         val found = query("SELECT url, title, lastActive, profileSyncId FROM tabs WHERE archivedAt IS NULL", emptyList()) ?: return emptyList()
         val counts = HashMap<String?, Int>()
         return found
@@ -61,9 +64,10 @@ class PhoneBrowsingSource(
     }
 
     override fun syncedVisits(since: Long): List<LocalVisitRecord> =
-        visits("SELECT url, title, visitedAt, profileSyncId FROM visits WHERE visitedAt >= ? ORDER BY visitedAt, id", listOf("$since"))
+        ready().let { _ -> visits("SELECT url, title, visitedAt, profileSyncId FROM visits WHERE visitedAt >= ? ORDER BY visitedAt, id", listOf("$since")) }
 
     override fun syncedVisits(urls: Set<String>): List<LocalVisitRecord> {
+        ready()
         if (urls.isEmpty()) return emptyList()
         val cutoff = clock() - HISTORY_RETENTION_MILLIS
         return urls.toList().chunked(CHUNK).flatMap { chunk ->
@@ -73,15 +77,21 @@ class PhoneBrowsingSource(
     }
 
     override fun removeVisits(urls: Set<String>, profileSyncId: String?) {
+        ready()
         if (urls.isEmpty()) return
         if (!inbox.remove(HistoryRemoval(profileSyncId, urls))) throw java.io.IOException("couldn't keep the history the Mac removed")
     }
 
-    override fun receive(tabs: List<ReceivedTab>): Boolean = inbox.receive(tabs.filter { isSyncable(it.url) })
+    override fun receive(tabs: List<ReceivedTab>): Boolean = ready().let { _ -> inbox.receive(tabs.filter { isSyncable(it.url) }) }
 
     private val session = ThreadLocal<BrowserQuery?>()
 
+    private fun ready() {
+        if (!isReady()) throw LocalBrowsingNotReady()
+    }
+
     override fun <T> readingTogether(block: () -> T): T {
+        ready()
         if (session.get() != null) return block()
         repeat(READ_ATTEMPTS) {
             val read = rows.open { query ->

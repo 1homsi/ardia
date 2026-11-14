@@ -58,7 +58,10 @@ object PhonePages {
     var blockingSink: EventSink? = null
 
     @Synchronized
-    fun engine(context: Context): DevelopmentWebViewEngine = shared ?: create(context.applicationContext)
+    fun engine(context: Context): DevelopmentWebViewEngine = shared ?: run {
+        if (UpgradeGate.pending(context)) throw CodedException("ERR_IMPORT_PENDING", "The import from the previous Ardia app has not finished", null)
+        create(context.applicationContext)
+    }
 
     private fun create(context: Context): DevelopmentWebViewEngine {
         app = context
@@ -89,6 +92,7 @@ object PhonePages {
 
     fun attach(activity: Activity) {
         host = WeakReference(activity)
+        if (shared == null && UpgradeGate.pending(activity)) return
         engine(activity).attach(activity)
         blocking.refreshIfDue()
     }

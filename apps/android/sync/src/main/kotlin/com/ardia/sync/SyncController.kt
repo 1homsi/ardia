@@ -61,6 +61,8 @@ class SystemSyncTimers : SyncTimers {
 
 interface SyncControllerOwner {
     val syncController: SyncController
+
+    val isSyncReady: Boolean get() = true
 }
 
 class SyncController(

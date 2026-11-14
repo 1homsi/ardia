@@ -23,6 +23,22 @@ object PhoneSystemLinks {
     private val queued = ArrayDeque<Map<String, Any?>>()
     private var listener: Listener? = null
 
+    @Volatile
+    private var holding: () -> Boolean = { false }
+
+    fun holdWhile(predicate: () -> Boolean) {
+        holding = predicate
+    }
+
+    fun release() {
+        if (holding()) return
+        val (current, waiting) = synchronized(lock) {
+            val current = listener ?: return
+            current to ArrayList(queued).also { queued.clear() }
+        }
+        waiting.forEach { runCatching { current.link(it) } }
+    }
+
     fun link(intent: Intent?): Map<String, Any?>? {
         intent ?: return null
         return when (intent.action) {
@@ -48,12 +64,12 @@ object PhoneSystemLinks {
         receive(intent, restored)
     }
 
-    fun takeInitial(): Map<String, Any?>? = synchronized(lock) { queued.removeFirstOrNull() }
+    fun takeInitial(): Map<String, Any?>? = if (holding()) null else synchronized(lock) { queued.removeFirstOrNull() }
 
     fun listen(listener: Listener): Listener {
         val waiting = synchronized(lock) {
             this.listener = listener
-            ArrayList(queued).also { queued.clear() }
+            if (holding()) emptyList() else ArrayList(queued).also { queued.clear() }
         }
         waiting.forEach { runCatching { listener.link(it) } }
         return listener
@@ -66,11 +82,12 @@ object PhoneSystemLinks {
     internal fun forgetForTests() = synchronized(lock) {
         queued.clear()
         listener = null
+        holding = { false }
     }
 
     private fun deliver(payload: Map<String, Any?>) {
         val current = synchronized(lock) {
-            listener ?: run {
+            listener?.takeUnless { holding() } ?: run {
                 if (queued.size >= QUEUE_LIMIT) queued.removeFirst()
                 queued.addLast(payload)
                 null
