@@ -669,23 +669,15 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 ### Needs native code on iPhone
 
 - The fade view under Android's list (`FadeView`, `ArdiaPhoneFade`), to the same props: one interface on both phones.
-- Voice search: no speech module, so the mic is hidden and voice links, the intent and the control fall back to the tray. `VoiceDictation.swift`. A day.
-- Search field: no inline completion; needs a native field. `OmniboxTextField.swift` (`CompletingTextField`). More.
 - Spotlight: open and archived tabs aren't indexed. `SpotlightIndexer.swift`. A day.
 - Shortcuts and Siri: no Open Tab intent or tab entity in the app target (`apps/phone/ios/Ardia/Intents.swift`). `ArdiaIntents.swift` `OpenTabIntent`, `TabEntity.swift`. A day.
-- Handoff: the current page isn't offered to other devices (incoming works). `SystemIntegrations.swift`, `AppModel+System.swift`. Small.
 - Deck bar: SwiftUI's buttons are interactive Liquid Glass (`.glassEffect(.regular.interactive())`); the look module's Frost needs a glass variant that samples the deck. `TabDeckBar.swift`. A day.
 - Context menus: SwiftUI uses system context menus (lift preview and blur) on cards, the plus button and archive rows, with ShareLink; the app draws its own. Also Spaces rows and folder tiles. Needs a native context-menu view. `TabSwitcherView.swift`, `TabDeckBar.swift`, `ArchiveView.swift`, `SyncedSpacesView.swift`. A day.
-- Open in Background opens in front: the module drops `inBackground` from the link callback, and the app selects every popup. `WebTab.swift`, `PhonePages.linkOpened`. Small (plus a JS line).
-- Offline pages never retry by themselves: failures carry no reason and there is no network module, so no online-again signal and no Wi-Fi-off icon. `WebTab.swift` `PageLoadFailure.network`. Small, plus an hour or two for an `NWPathMonitor` module.
-- Per-site Open App Links In: `siteOpensLinksInApps`, `appLinksDefault` and `setAppLinksDefault` are missing, and clearing a site's choice (null) can't decode. `BrowsingPreferences.swift`. Small.
 - Long-press on links and images uses WebKit's context menu (as SwiftUI does), so the app's drawn menu, Save Image and the Copied URL toast are Android-only; matching Android needs native long-press events. `WebTab.swift`. A day.
 - Clear Browsing Data: cache and cookies are cleared for all time whatever range is picked; SwiftUI passes the range's start. Needs `since` on `clearWebsiteData`. `ClearBrowsingDataPage.swift`, `BrowsingPreferences.swift`. Small.
-- Default Browser: `Linking.openSettings()` never calls `DefaultBrowserStatus.willOpenSystemSettings()`, so the status isn't re-checked on return and the page keeps its instructions. `DefaultBrowserPage.swift`, `PhoneSystem.swift`. Small.
-- Sync connect: folder before phrase, as on Android. `SyncConnectPage.swift` `SyncConnectFlow`, `SyncModule.swift`. Shared with Android.
+- Default Browser (JS only now): `Linking.openSettings()` never calls `DefaultBrowserStatus.willOpenSystemSettings()`, so the status isn't re-checked on return and the page keeps its instructions. `DefaultBrowserPage.swift`, `PhoneSystem.swift`. Small.
 - Enter Words: Paste reads the clipboard and triggers iOS's Allow Paste prompt; SwiftUI uses the system `PasteButton`. `RecoveryPhraseEntryPage.swift`. Small to a day.
 - Scanner: plain AVFoundation; SwiftUI uses VisionKit's `DataScannerViewController` with pinch to zoom and a highlight on the found code. `SyncCodeScanner.swift`, `ScanModule.swift`. A day.
-- Launch arguments: `launchOptions()` must return an `arguments` map holding every launch argument whose name starts with `Ardia` or `Browse` (from the argument domain, `-ArdiaDemo YES` as a boolean), in test builds only, and `ArdiaDemo` must also switch the sync demo on (today only `ArdiaSyncDemo` does). `PageViewModule.swift`, `AppModel.swift`. Small.
 
 ### Unverified on a phone
 
