@@ -20,6 +20,8 @@ export type LinuxCapabilities = {
   dictation: boolean;
   fullScreen: boolean;
   pageEdits: boolean;
+  unloadIdleProfiles: boolean;
+  hiddenElements: boolean;
 };
 
 export const CLI_CONTROL_METHODS = [
@@ -41,6 +43,8 @@ export const DICTATION_METHOD = "ArdiaShell.startDictation";
 export const FULL_SCREEN_METHOD = "ArdiaShell.toggleFullScreen";
 export const FULL_SCREEN_ITEM = "std:toggleFullScreen:";
 export const PAGE_EDIT_COMMAND = "tab.edit";
+export const UNLOAD_IDLE_PROFILES_CALL = "profiles.unloadIdle";
+export const HIDDEN_ELEMENTS_CALLS = ["contentBlocker.hiddenElements", "contentBlocker.hideElements", "contentBlocker.restoreElements"] as const;
 
 export function linuxCapabilities(host: ArdiaHost | undefined = ardiaHost): LinuxCapabilities {
   const has = (...methods: string[]) => !!host && methods.every((method) => hostSupports(method, host));
@@ -64,6 +68,8 @@ export function linuxCapabilities(host: ArdiaHost | undefined = ardiaHost): Linu
     dictation: has(DICTATION_METHOD),
     fullScreen: has(FULL_SCREEN_METHOD),
     pageEdits: has(PAGE_EDIT_COMMAND),
+    unloadIdleProfiles: has(UNLOAD_IDLE_PROFILES_CALL),
+    hiddenElements: has(...HIDDEN_ELEMENTS_CALLS),
   };
 }
 
@@ -73,12 +79,13 @@ export function unavailableSettingIds(capabilities: LinuxCapabilities, settingId
   if (!capabilities.launchAtLogin) ids.add("general.openAtLogin");
   if (!capabilities.thinScrollBars) ids.add("appearance.pageScrollBars");
   if (!capabilities.videoUpscaling) ids.add("tabs.videoUpscaling");
-  if (!capabilities.cliControl) for (const id of ["advanced.cliControl", "advanced.cliInstall"]) ids.add(id);
+  if (!capabilities.cliControl) for (const id of ["advanced.cliControl", "advanced.cliInstall", "advanced.compactCliPill"]) ids.add(id);
   if (!capabilities.cliInstall) ids.add("advanced.cliInstall");
   if (!capabilities.commandScrollZoom) ids.add("privacy.commandScrollZoom");
   if (!capabilities.littleArdiaNewTabLinks) ids.add("general.littleArdiaOpensNewTabLinks");
   if (!capabilities.peekOtherSites) ids.add("tabs.peekLinksToOtherSites");
   if (!capabilities.haptics) ids.add("tabs.tabReorderHaptics");
+  if (!capabilities.unloadIdleProfiles) ids.add("advanced.unloadProfilesAfter");
   if (!capabilities.linksFromOtherApps) for (const id of ["general.openLinksInLittleArdia", "tabs.appLinksFirst"]) ids.add(id);
   if (!capabilities.webkit) for (const id of settingIds) if (id.startsWith("engines.")) ids.add(id);
   return ids;
@@ -90,6 +97,7 @@ export const unavailableCommands = (capabilities: LinuxCapabilities): Set<string
     ...(capabilities.linksFromOtherApps ? [] : ["toggleOpenLinksInLittleArdia"]),
     ...(capabilities.webkit ? [] : ["togglePageEngine", "toggleJavaScriptFromAppleEvents"]),
     ...(capabilities.fullScreen ? [] : [FULL_SCREEN_ITEM]),
+    ...(capabilities.hiddenElements ? [] : ["hideElement", "showHiddenElements"]),
   ]);
 
 export const unavailablePanes = (capabilities: LinuxCapabilities): Set<string> => new Set(capabilities.webkit ? [] : ["engines"]);

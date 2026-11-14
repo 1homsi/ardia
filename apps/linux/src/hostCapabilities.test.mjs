@@ -43,9 +43,10 @@ test("Linux capabilities come from the host contract, and WebKit is never offere
   assert.deepEqual(linuxCapabilities(fakeHost().host), {
     defaultBrowser: false, launchAtLogin: false, thinScrollBars: false, webkit: false, cliControl: false, cliInstall: false, userScripts: false, externalLinks: false, performanceRecording: false, taskManager: false, videoUpscaling: false,
     commandScrollZoom: false, littleArdiaNewTabLinks: false, peekOtherSites: false, haptics: false, linksFromOtherApps: false, dictation: false, fullScreen: false, pageEdits: false,
+    unloadIdleProfiles: false, hiddenElements: false,
   });
   const full = linuxCapabilities(fakeHost(["ArdiaSystem.isDefaultBrowser", "ArdiaSystem.setAsDefaultBrowser", "ArdiaSystem.launchAtLoginStatus", "ArdiaSystem.setLaunchAtLogin", "ArdiaSystem.setThinScrollBars", "engine.beginTracing", "engine.endTracing", "engine.isTracing", "engine.openTaskManager", "ArdiaApp.openExternalURL"]).host);
-  assert.deepEqual(full, { defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, webkit: false, cliControl: false, cliInstall: false, userScripts: false, externalLinks: true, performanceRecording: true, taskManager: true, videoUpscaling: false, commandScrollZoom: false, littleArdiaNewTabLinks: false, peekOtherSites: false, haptics: false, linksFromOtherApps: false, dictation: false, fullScreen: false, pageEdits: false });
+  assert.deepEqual(full, { defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, webkit: false, cliControl: false, cliInstall: false, userScripts: false, externalLinks: true, performanceRecording: true, taskManager: true, videoUpscaling: false, commandScrollZoom: false, littleArdiaNewTabLinks: false, peekOtherSites: false, haptics: false, linksFromOtherApps: false, dictation: false, fullScreen: false, pageEdits: false, unloadIdleProfiles: false, hiddenElements: false });
   const routed = linuxCapabilities(fakeHost(["webView.setCommandScrollZoom", "webView.setLittleArdiaOpensNewTabLinks", "webView.setPeekOtherSiteTabs", "ArdiaSystem.hapticTick", LINKS_FROM_OTHER_APPS, DICTATION_METHOD]).host);
   assert.deepEqual([routed.commandScrollZoom, routed.littleArdiaNewTabLinks, routed.peekOtherSites, routed.haptics, routed.linksFromOtherApps, routed.dictation], [true, true, true, true, true, true]);
   assert.equal(linuxCapabilities(undefined).taskManager, false);
@@ -60,17 +61,17 @@ test("the command bar's Dictate button follows the dictation capability: off whi
 });
 
 test("unavailable choices map to exact settings ids and the Engines pane", () => {
-  const ids = ["general.defaultBrowser", "general.openAtLogin", "general.warnBeforeQuitting", "appearance.pageScrollBars", "engines.defaultEngine", "engines.protectedVideo", "search.otherEngines", "advanced.cliControl", "advanced.cliInstall", "advanced.showFullUrl", "tabs.videoUpscaling", "tabs.autoPictureInPicture"];
+  const ids = ["general.defaultBrowser", "general.openAtLogin", "general.warnBeforeQuitting", "appearance.pageScrollBars", "engines.defaultEngine", "engines.protectedVideo", "search.otherEngines", "advanced.cliControl", "advanced.cliInstall", "advanced.compactCliPill", "advanced.unloadProfilesAfter", "advanced.showFullUrl", "tabs.videoUpscaling", "tabs.autoPictureInPicture"];
   const unrouted = ["general.littleArdiaOpensNewTabLinks", "general.openLinksInLittleArdia", "privacy.commandScrollZoom", "tabs.appLinksFirst", "tabs.peekLinksToOtherSites", "tabs.tabReorderHaptics"];
   const routedRows = { commandScrollZoom: true, littleArdiaNewTabLinks: true, peekOtherSites: true, haptics: true, linksFromOtherApps: true };
   const none = linuxCapabilities(fakeHost().host);
-  assert.deepEqual([...unavailableSettingIds(none, ids)].sort(), [...unrouted, "advanced.cliControl", "advanced.cliInstall", "appearance.pageScrollBars", "engines.defaultEngine", "engines.protectedVideo", "general.defaultBrowser", "general.openAtLogin", "tabs.videoUpscaling"].sort());
+  assert.deepEqual([...unavailableSettingIds(none, ids)].sort(), [...unrouted, "advanced.cliControl", "advanced.cliInstall", "advanced.compactCliPill", "advanced.unloadProfilesAfter", "appearance.pageScrollBars", "engines.defaultEngine", "engines.protectedVideo", "general.defaultBrowser", "general.openAtLogin", "tabs.videoUpscaling"].sort());
   for (const [capability, rows] of Object.entries({ commandScrollZoom: ["privacy.commandScrollZoom"], littleArdiaNewTabLinks: ["general.littleArdiaOpensNewTabLinks"], peekOtherSites: ["tabs.peekLinksToOtherSites"], haptics: ["tabs.tabReorderHaptics"], linksFromOtherApps: ["general.openLinksInLittleArdia", "tabs.appLinksFirst"] })) {
     const shown = unavailableSettingIds({ ...none, [capability]: true }, ids);
     assert.deepEqual(unrouted.filter((id) => !shown.has(id)), rows, capability);
   }
   assert.deepEqual([...unavailablePanes(none)], ["engines"]);
-  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, cliControl: true, cliInstall: true, videoUpscaling: true, ...routedRows }, ids)].sort(), ["engines.defaultEngine", "engines.protectedVideo"]);
+  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, cliControl: true, cliInstall: true, videoUpscaling: true, unloadIdleProfiles: true, ...routedRows }, ids)].sort(), ["engines.defaultEngine", "engines.protectedVideo"]);
   const cliRows = (capabilities) => [...unavailableSettingIds(capabilities, ids)].filter((id) => id.startsWith("advanced.cli")).sort();
   assert.deepEqual(cliRows({ ...none, cliControl: true }), ["advanced.cliInstall"]);
   assert.deepEqual(cliRows({ ...none, cliInstall: true }), ["advanced.cliControl", "advanced.cliInstall"]);
