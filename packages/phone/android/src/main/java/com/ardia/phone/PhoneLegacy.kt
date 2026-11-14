@@ -288,6 +288,7 @@ class PhoneLegacy(
         val target = app.getSharedPreferences(SITE_PREFERENCES, Context.MODE_PRIVATE)
         val editor = target.edit()
         var changed = false
+        val trusted = LinkedHashSet<String>()
         (browser[KEY_NIGHT_SHADE] as? String)?.takeIf { it in NIGHT_SHADE_MODES }?.let {
             editor.putString(SITE_NIGHT_SHADE_DEFAULT, it)
             changed = true
@@ -311,12 +312,29 @@ class PhoneLegacy(
                 site.optString("nightShade").takeIf { it in NIGHT_SHADE_MODES }?.let { maps.getValue(SITE_NIGHT_SHADE).put(key, it) }
                 site.optString("appLinks").takeIf { it == "app" || it == "ardia" }?.let { maps.getValue(SITE_APP_LINKS).put(key, it == "app") }
                 if (site.has("desktopSite") && !site.isNull("desktopSite")) maps.getValue(SITE_DESKTOP).put(key, site.getBoolean("desktopSite"))
-                if (site.has("blockersOff") && !site.isNull("blockersOff")) maps.getValue(SITE_BLOCKERS_OFF).put(key, site.getBoolean("blockersOff"))
+                if (site.has("blockersOff") && !site.isNull("blockersOff") && site.getBoolean("blockersOff")) trusted += key
             }
             for ((key, map) in maps) if (map.length() > 0) editor.putString(key, map.toString())
             changed = true
         }
         if (changed && !editor.commit()) throw IOException("couldn't save the site settings")
+        trustSites(trusted)
+    }
+
+    private fun trustSites(hosts: Set<String>) {
+        if (hosts.isEmpty()) return
+        val blocking = app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE)
+        val existing = blocking.getString(KEY_EXEMPT_HOSTS, null)?.let { text ->
+            val list = try {
+                org.json.JSONArray(text)
+            } catch (error: Exception) {
+                throw LegacyUnusable("corrupt")
+            }
+            (0 until list.length()).map { list.getString(it) }.toSet()
+        }.orEmpty()
+        val merged = (existing + hosts).sorted()
+        if (merged.size == existing.size) return
+        if (!blocking.edit().putString(KEY_EXEMPT_HOSTS, org.json.JSONArray(merged).toString()).commit()) throw IOException("couldn't save the trusted sites")
     }
 
     private fun <T> withDatabase(block: (LegacyDatabase) -> T): T {
@@ -399,9 +417,9 @@ class PhoneLegacy(
         private const val SITE_ZOOM = "pageZoom.sites"
         private const val SITE_NIGHT_SHADE = "nightShade.sites"
         private const val SITE_APP_LINKS = "appLinks.sites"
-        private const val SITE_DESKTOP = "desktopSite.sites"
-        private const val SITE_BLOCKERS_OFF = "blockersOff.sites"
-        private val SITE_MAPS = listOf(SITE_ZOOM, SITE_NIGHT_SHADE, SITE_APP_LINKS, SITE_DESKTOP, SITE_BLOCKERS_OFF)
+        private const val SITE_DESKTOP = PhoneSitePreferences.KEY_DESKTOP_SITES
+        private const val KEY_EXEMPT_HOSTS = "blocking.exemptHosts"
+        private val SITE_MAPS = listOf(SITE_ZOOM, SITE_NIGHT_SHADE, SITE_APP_LINKS, SITE_DESKTOP)
         private val NIGHT_SHADE_MODES = setOf("disabled", "automatic", "always")
         val STORE_KEYS = listOf(
             "tabs.autoArchiveInterval",

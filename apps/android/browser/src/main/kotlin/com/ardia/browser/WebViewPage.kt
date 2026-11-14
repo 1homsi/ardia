@@ -71,6 +71,7 @@ internal class WebViewPage(
     private var firstVisit: VisitKind? = setup.firstVisit
     private var pendingUrl: String? = null
     private var desktopSite = savedBundle?.getBoolean(DESKTOP_SITE_KEY, false) ?: false
+    private var desktopHost: String? = setup.url?.takeIf { savedBundle?.containsKey(DESKTOP_SITE_KEY) == true }?.let(BrowserUrl::host)
     private var crashReloads = 0
     private var released = false
     private var systemUserAgent = ""
@@ -494,6 +495,13 @@ internal class WebViewPage(
 
     private fun navigate(web: WebView, url: String, kind: VisitKind) {
         pendingVisit = kind
+        val host = BrowserUrl.host(url)
+        DesktopSites.onEnter(host, desktopHost, desktopSite, host?.let { engine.sitePreferences.desktopSite(it, isPrivate) })?.let { wanted ->
+            desktopSite = wanted
+            update { it.copy(isDesktopSite = wanted) }
+            applyUserAgent(web)
+        }
+        if (host != null) desktopHost = host
         prepareNavigation(web, url)
         web.loadUrl(url)
     }
@@ -580,6 +588,11 @@ internal class WebViewPage(
             installedBundle?.let { web.evaluateJavascript(it, null) }
         }
         val host = BrowserUrl.host(url)
+        val lastDesktopHost = desktopHost
+        if (host != null) desktopHost = host
+        DesktopSites.onEnter(host, lastDesktopHost, desktopSite, host?.let { engine.sitePreferences.desktopSite(it, isPrivate) })?.let { wanted ->
+            engine.mainHandler.post { if (web === webView && desktopHost == host) setDesktopSite(wanted) }
+        }
         if (!engine.supportsMessageListener) applyNightShade(web, engine.sitePreferences.nightShade(host, isPrivate))
         scrollTracker.reset()
         val zoom = engine.sitePreferences.pageZoom(host, isPrivate) ?: 1.0

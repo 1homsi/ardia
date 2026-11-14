@@ -323,7 +323,8 @@ class PhoneLegacyTest {
 
         val blocking = app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE)
         assertEquals(false, blocking.getBoolean("blocking.ads", true))
-        assertEquals("[\"bank.example\"]", blocking.getString("blocking.exemptHosts", null))
+        assertEquals("[\"ads.example\",\"bank.example\"]", blocking.getString("blocking.exemptHosts", null))
+        assertTrue(com.ardia.blocking.BlockingSettings(com.ardia.blocking.SharedPreferencesBlockingStore(blocking)).isExempt("www.ads.example"))
         assertEquals("[\"easylist\",\"ublock-privacy\"]", blocking.getString("filters.selection", null))
         assertEquals("||tracker.example^", blocking.getString("filters.myFilters", null))
         val sites = PhoneSitePreferences(app.getSharedPreferences("ardia-site-preferences", Context.MODE_PRIVATE))
@@ -334,8 +335,9 @@ class PhoneLegacyTest {
         assertEquals(NightShadeMode.Disabled, sites.siteNightShade("ads.example", false))
         assertEquals(true, sites.siteOpensLinksInApps("docs.example"))
         val raw = app.getSharedPreferences("ardia-site-preferences", Context.MODE_PRIVATE)
-        assertEquals(true, JSONObject(raw.getString("desktopSite.sites", "{}")!!).getBoolean("docs.example"))
-        assertEquals(true, JSONObject(raw.getString("blockersOff.sites", "{}")!!).getBoolean("ads.example"))
+        assertEquals(true, sites.desktopSite("www.docs.example", false))
+        assertEquals(null, sites.desktopSite("news.example", false))
+        assertFalse(raw.contains("blockersOff.sites"))
 
         val copied = File(app.filesDir, "PageSnapshots").listFiles()!!.toList()
         assertEquals(1, copied.size)

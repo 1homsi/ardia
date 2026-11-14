@@ -80,6 +80,12 @@ class PhoneSitePreferences(private val store: SharedPreferences) : SitePreferenc
         editSites(KEY_APP_LINK_SITES) { if (opens == null) it.remove(key) else it.put(key, opens) }
     }
 
+    override fun desktopSite(host: String?, isPrivate: Boolean): Boolean? {
+        val key = host?.let(::siteKey) ?: return null
+        val sites = sites(KEY_DESKTOP_SITES)
+        return if (sites.has(key)) sites.optBoolean(key) else null
+    }
+
     fun endPrivateBrowsing() = synchronized(lock) {
         privateNightShade.clear()
         privateZoom.clear()
@@ -99,6 +105,7 @@ class PhoneSitePreferences(private val store: SharedPreferences) : SitePreferenc
         private const val KEY_ZOOM_SITES = "pageZoom.sites"
         private const val KEY_APP_LINK_SITES = "appLinks.sites"
         private const val KEY_APP_LINKS = "appLinks.default"
+        const val KEY_DESKTOP_SITES = "desktopSite.sites"
 
         fun mode(raw: String?): NightShadeMode? = NightShadeMode.entries.firstOrNull { it.raw == raw }
 
