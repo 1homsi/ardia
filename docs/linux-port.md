@@ -42,10 +42,12 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 - **Startup tab.** While the shell loads, the launch window reads the saved session on the file thread and starts the
   page it will restore (`ac_linux_startup_tab.*`): the active tab of the window `initialHostSession` restores (the
   saved `main`, or the first saved main window when `main` has no tabs), when restoring is on, the tab is idle and on
-  the window's profile, and its address is `http` or `https`. It is a background tab in the window's strip that no
-  binding owns. The shell's first `tab.create` for that address takes it instead of opening another, whatever its
-  page has redirected to since. Nothing starts for a utility, Little Ardia or private window, a launch that brought
-  addresses from another app, or an empty session; a started page the shell hasn't taken after 30 s is closed.
+  the window's profile, and its address is `http` or `https`. It loads in the strip's blank first tab (Chrome's new
+  tab page), or in a new background tab when there is none, and no binding owns it. The shell's first `tab.create`
+  for that address takes it instead of opening another, whatever its page has redirected to since. Nothing starts for
+  a utility, Little Ardia or private window, a launch that brought addresses from another app, or an empty session.
+  A started page the shell hasn't taken after 30 s is closed, or turned back into a blank page when it is the strip's
+  only tab, so the window never closes with it.
 - **CSP.** The shell's policy is `default-src 'none'`, `script-src 'self'`, `connect-src 'none'`, `frame-src 'none'`,
   `object-src 'none'`, `form-action 'none'`, and `trusted-types ardia-symbols`. The UI can't reach the network.
   Search suggestions, live folders, favicons, import and telemetry all go through native services. The one Trusted Types policy

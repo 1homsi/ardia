@@ -2616,15 +2616,27 @@ void ShellHostView::StartedStartupTab(std::optional<linux_startup_tab::StartupTa
   if (!saved || !browser_ || !bindings_.empty() || startup_tab_) return;
   const GURL url(saved->url);
   if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS()) return;
-  NavigateParams navigation(browser_.get(), url, ui::PAGE_TRANSITION_TYPED);
-  navigation.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
-  navigation.window_action = NavigateParams::WindowAction::kNoAction;
-  const auto weak = GetWeakPtr();
-  app_operation_ = true;
-  Navigate(&navigation);
-  if (!weak) return;
-  app_operation_ = false;
-  content::WebContents* contents = navigation.navigated_or_inserted_contents;
+  TabStripModel* model = browser_->GetTabStripModel();
+  content::WebContents* contents = nullptr;
+  for (int index = 0; index < model->count() && !contents; ++index) {
+    content::WebContents* candidate = model->GetWebContentsAt(index);
+    if (BlankTabUrl(candidate->GetVisibleURL()) && !TabClaimed(candidate)) contents = candidate;
+  }
+  if (contents) {
+    content::NavigationController::LoadURLParams params(url);
+    params.transition_type = ui::PAGE_TRANSITION_TYPED;
+    contents->GetController().LoadURLWithParams(params);
+  } else {
+    NavigateParams navigation(browser_.get(), url, ui::PAGE_TRANSITION_TYPED);
+    navigation.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    navigation.window_action = NavigateParams::WindowAction::kNoAction;
+    const auto weak = GetWeakPtr();
+    app_operation_ = true;
+    Navigate(&navigation);
+    if (!weak) return;
+    app_operation_ = false;
+    contents = navigation.navigated_or_inserted_contents;
+  }
   if (!contents || TabId(contents) <= 0) return;
   startup_tab_ = StartupTab{url, contents->GetWeakPtr()};
   startup_tab_timer_.Start(FROM_HERE, base::Milliseconds(linux_startup_tab::kUnclaimedCloseMs),
@@ -2651,6 +2663,11 @@ void ShellHostView::DropStartupTab() {
   BrowserWindowInterface* owner = OwnerOf(contents);
   const int index = owner ? owner->GetTabStripModel()->GetIndexOfWebContents(contents) : TabStripModel::kNoTab;
   if (index == TabStripModel::kNoTab) return;
+  if (owner->GetTabStripModel()->count() == 1) {
+    content::NavigationController::LoadURLParams blank(GURL("about:blank"));
+    contents->GetController().LoadURLWithParams(blank);
+    return;
+  }
   const auto weak = GetWeakPtr();
   app_operation_ = true;
   owner->GetTabStripModel()->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
