@@ -53,7 +53,7 @@ export function pressGroupClose(groupId: string) {
 export function pressTabClose(tabId: string) {
   const s = useBrowser.getState();
   const intent = closeIntent(s, tabId);
-  if (intent.kind === "unload") s.closeTabs(intent.ids);
+  if (intent.kind === "unload") s.closeTabs(intent.ids, { keepTopApps: false });
   else middleClickTab(tabId);
 }
 

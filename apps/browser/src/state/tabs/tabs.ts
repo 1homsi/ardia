@@ -61,11 +61,12 @@ export function closeIntent(s: BrowserState, tabId: string): CloseIntent {
 }
 
 const isTopApp = (t: Tab | undefined) => t?.pin?.as === "tile";
-const runningTopApp = (t: Tab | undefined) => isTopApp(t) && hasOwnOrSharedPage(t!);
+const keptWithTopApp = (s: BrowserState, id: string) => inPinnedContainer(s, id) && withPinnedPanes(s, [id]).some((pane) => isTopApp(s.tabs[pane]));
+const runningKept = (s: BrowserState, id: string) => keptWithTopApp(s, id) && hasOwnOrSharedPage(s.tabs[id]!);
 
 function withoutTopApps(s: BrowserState, ids: string[]): string[] {
   if (!s.settings.keepTopAppsRunning) return ids;
-  const others = ids.filter((id) => !isTopApp(s.tabs[id]));
+  const others = ids.filter((id) => !keptWithTopApp(s, id));
   return others.length ? others : ids;
 }
 
@@ -80,8 +81,8 @@ export function closingTabs(s: BrowserState, ids: string[], { lastClosesWindow =
   for (const w of Object.values(next.windows)) {
     const view = viewTabIds(next, w.id);
     const shown = view.filter((id) => goneIds.has(id));
-    const keptRunning = keepTopApps && view.some((id) => !goneIds.has(id) && runningTopApp(next.tabs[id]));
-    if (!shown.length || !view.every((id) => goneIds.has(id) || isAsleep(next.tabs[id]) || (keptRunning && isTopApp(next.tabs[id])))) continue;
+    const keptRunning = keepTopApps && view.some((id) => !goneIds.has(id) && runningKept(next, id));
+    if (!shown.length || !view.every((id) => goneIds.has(id) || isAsleep(next.tabs[id]) || (keptRunning && keptWithTopApp(next, id)))) continue;
     const keepsWindow = keptRunning || !lastClosesWindow || leavesEmptyWindow(shown.length > 1 ? removeTabs(next, shown.slice(1), false) : next, shown[0]!);
     if (keepsWindow) next = withNewTab(next, w.id)[0];
     else closedWindows.add(w.id);
@@ -271,7 +272,7 @@ function lastLivePinnedTab(s: BrowserState, w: BrowserWindow, id: string, closin
   const profileId = s.tabs[id]!.profileId;
   const live = w.tabIds.filter((t) => {
     const tab = s.tabs[t];
-    return !closing.has(t) && tab?.profileId === profileId && inPinnedContainer(s, t) && hasPage(tab) && !(skipTopApps && tab.pin?.as === "tile");
+    return !closing.has(t) && tab?.profileId === profileId && inPinnedContainer(s, t) && hasPage(tab) && !(skipTopApps && keptWithTopApp(s, t));
   });
   return live.reduce<string | undefined>((best, t) => (!best || byRecentUse(s.tabs[t]!, s.tabs[best]!) < 0 ? t : best), undefined);
 }

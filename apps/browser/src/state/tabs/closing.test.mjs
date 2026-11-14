@@ -301,3 +301,100 @@ test("with Top Apps kept running, a cold tile with no page doesn't count as runn
   assert.ok(viewTabIds(S(), w).length < before);
   S().updateSettings({ keepTopAppsRunning: false });
 });
+
+const HELD_PRESSES = 25;
+
+async function holdCloseTab(w, kept) {
+  const shown = [];
+  for (let i = 0; i < HELD_PRESSES; i++) {
+    await closeTab(activeTabId(S(), w));
+    assert.ok(S().windows[w], `the window stays (press ${i + 1})`);
+    shown.push(activeTabId(S(), w));
+  }
+  const back = shown.filter((id) => kept.includes(id));
+  assert.deepEqual(back, [], `no kept Top App or pane of its split comes forward while ⌘W is held`);
+  for (const id of shown.slice(-5)) {
+    assert.equal(S().tabs[id]?.url ?? "", "", "it stays on a New Tab");
+    assert.equal(S().tabs[id]?.pin ?? null, null);
+  }
+  assert.equal(shownTab(w).url, "");
+  assert.equal(shownTab(w).pin, null);
+  for (const id of kept) assert.equal(S().tabs[id].page.kind, "loaded", "every kept pane stays loaded");
+}
+
+function topAppSplitWithRow(w, app, row) {
+  S().pinTabs([app], true);
+  S().pinTabs([row], true, true);
+  S().createSplit([app, row]);
+}
+
+const heldCloseShapes = {
+  "one Top App split with a pinned row, no regular tabs": () => {
+    const { w, ids: [app, row] } = windowWith("app", "row");
+    topAppSplitWithRow(w, app, row);
+    S().activate(app);
+    return { w, kept: [app, row] };
+  },
+  "two Top App splits with pinned rows, no regular tabs": () => {
+    const { w, ids: [a, ra, b, rb] } = windowWith("a", "ra", "b", "rb");
+    topAppSplitWithRow(w, a, ra);
+    topAppSplitWithRow(w, b, rb);
+    S().activate(b);
+    S().activate(a);
+    return { w, kept: [a, ra, b, rb] };
+  },
+  "a Top App split with a pinned row and regular tabs": () => {
+    const { w, ids: [app, row] } = windowWith("app", "row", "r1", "r2");
+    topAppSplitWithRow(w, app, row);
+    S().activate(app);
+    return { w, kept: [app, row] };
+  },
+  "a plain Top App and regular tabs": () => {
+    const { w, ids: [app] } = windowWith("app", "r1", "r2");
+    S().pinTabs([app], true);
+    S().activate(app);
+    return { w, kept: [app] };
+  },
+  "a plain Top App, no regular tabs": () => {
+    const { w, ids: [app] } = windowWith("app");
+    S().pinTabs([app], true);
+    S().activate(app);
+    return { w, kept: [app] };
+  },
+};
+
+for (const [shape, setUp] of Object.entries(heldCloseShapes)) {
+  test(`with Top Apps kept running, holding ⌘W on ${shape} ends on a New Tab and stays there`, async () => {
+    const { w, kept } = setUp();
+    S().updateSettings({ keepTopAppsRunning: true });
+    await holdCloseTab(w, kept);
+    S().updateSettings({ keepTopAppsRunning: false });
+  });
+}
+
+test("with Top Apps kept running, closing the last regular tab beside a kept Top App split brings a New Tab, not the split's row", () => {
+  const { w, ids: [app, row, last] } = windowWith("app", "row", "last");
+  topAppSplitWithRow(w, app, row);
+  S().updateSettings({ keepTopAppsRunning: true });
+  S().activate(app);
+  S().activate(last);
+  S().closeTabs([last], { lastClosesWindow: true });
+  assert.ok(S().windows[w]);
+  assert.equal(shownTab(w).url, "");
+  assert.equal(shownTab(w).pin, null);
+  assert.equal(S().tabs[row].page.kind, "loaded");
+  S().updateSettings({ keepTopAppsRunning: false });
+});
+
+test("off, ⌘W on a tile in a pinned split unloads both panes and keeps the split", async () => {
+  for (const pressed of ["app", "row"]) {
+    const { w, ids: [app, row, other] } = windowWith("app", "row", "other");
+    topAppSplitWithRow(w, app, row);
+    S().activate(pressed === "app" ? app : row);
+    await closeTab(pressed === "app" ? app : row);
+    assert.equal(S().tabs[app].page.kind, "asleep", pressed);
+    assert.equal(S().tabs[row].page.kind, "asleep", pressed);
+    assert.deepEqual(Object.values(S().splits).map((split) => [...splitTabIdsOf(split)].sort()), [[app, row].sort()], `the split stays (${pressed})`);
+    assert.equal(activeTabId(S(), w), other, pressed);
+  }
+});

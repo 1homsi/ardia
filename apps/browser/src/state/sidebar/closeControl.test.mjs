@@ -51,3 +51,26 @@ test("a pinned tab's copy in another window shows − and unloads the page it sh
   pressTabClose(mirror);
   assert.ok(!hasPage(first));
 });
+
+for (const keep of [false, true]) {
+  for (const inFront of [true, false]) {
+    test(`− on a pinned row split with a Top App unloads the split (Keep Top Apps running ${keep ? "on" : "off"}, split ${inFront ? "in front" : "in the background"})`, () => {
+      S().hydrate({});
+      const w = S().createWindow({ url: "https://app.com/" });
+      const [app] = S().windows[w].tabIds;
+      const row = S().newTab(w, { url: "https://row.com/" });
+      const other = S().newTab(w, { url: "https://other.com/" });
+      S().pinTabs([app], true);
+      S().pinTabs([row], true, true);
+      S().createSplit([app, row]);
+      S().updateSettings({ keepTopAppsRunning: keep });
+      S().activate(inFront ? row : other);
+      assert.equal(tabCloseControl(S(), row).icon, "minus");
+      pressTabClose(row);
+      assert.equal(S().tabs[row].page.kind, "asleep");
+      assert.equal(S().tabs[app].page.kind, "asleep");
+      assert.equal(S().windows[w].activeTabIds[S().windows[w].profileId], other);
+      S().updateSettings({ keepTopAppsRunning: false });
+    });
+  }
+}
