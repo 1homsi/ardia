@@ -14,6 +14,7 @@ import { canSearchByVoice, closeVoiceSearch, presentVoiceSearch } from "../voice
 import { currentTabs, setIncognito, useTabs } from "../tabs/store";
 import { findTab } from "../tabs/tabsState";
 import { serialQueue } from "../../lib/serialQueue";
+import { countUsage } from "../telemetry/telemetry";
 import { heldLinks, holdLink, takeHeldLinks } from "./heldLinks";
 import { ALL_COVERS, coversToClose, heldAfterOnboarding, linkAction, type Cover, type IncomingLink } from "./linkRules";
 
@@ -33,7 +34,7 @@ function close(covers: readonly Cover[]) {
   for (const cover of covers) CLOSE[cover]();
 }
 
-async function run(link: IncomingLink) {
+async function run(link: IncomingLink, expired: () => boolean = () => false) {
   const action = linkAction(link, {
     onboarding: useOnboarding.getState().showing,
     syncEnabled: syncData().status.isEnabled,
@@ -86,7 +87,7 @@ async function run(link: IncomingLink) {
       return;
     case "inbox": {
       const opened = await applyInbox();
-      if (opened <= 0 || useOnboarding.getState().showing) return;
+      if (opened <= 0 || expired() || useOnboarding.getState().showing) return;
       close(ALL_COVERS);
       void showDeck();
       return;
@@ -96,9 +97,11 @@ async function run(link: IncomingLink) {
   }
 }
 
-const inOrder = serialQueue();
+const LINK_DEADLINE_MS = 8_000;
 
-const take = (link: SystemLink) => void inOrder(() => run(link));
+const inOrder = serialQueue(LINK_DEADLINE_MS, () => countUsage("links_given_up"));
+
+const take = (link: SystemLink) => void inOrder((expired) => run(link, expired));
 
 let waiting: SystemLink[] | null = null;
 let listening = false;
@@ -122,6 +125,6 @@ export function startLinks() {
   });
   useOnboarding.subscribe((state) => {
     if (state.showing || !heldLinks().length) return;
-    for (const link of heldAfterOnboarding(takeHeldLinks())) void inOrder(() => run(link));
+    for (const link of heldAfterOnboarding(takeHeldLinks())) void inOrder((expired) => run(link, expired));
   });
 }
