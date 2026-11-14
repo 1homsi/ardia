@@ -7,7 +7,7 @@ import { spring, curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowBackdrop, WindowDragRegion } from "../ui";
 import { useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
-import { useToolbarLightsCenter } from "../../state/windows/layout";
+import { useCardTopInset, useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
 import { ResizeHandle } from "../sidebar/ResizeHandle";
 import { dismissHoverIn } from "../../state/sidebar/hover";
@@ -122,7 +122,8 @@ export function DockedLayout({
       }),
     [dock, width, sideInset, frame.inset],
   );
-  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [frame.inset, inset.top] }), [dock, frame.inset, inset.top]);
+  const hiddenTop = useCardTopInset(frame.inset);
+  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [hiddenTop, inset.top] }), [dock, hiddenTop, inset.top]);
   const stripY = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-inset.top, 0] }), [dock, inset.top]);
   const stripShown = topTabs && (open || !away);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
