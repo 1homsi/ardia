@@ -11,6 +11,7 @@ import { asAdoptId, isAdoptKind } from "./adoptIds";
 import { gateOpening, isGatedUrl, settleOpening } from "./openingGate";
 import { noteBackgroundTab } from "./newTabNotice";
 import { noteLinkTabWait } from "../telemetry/usage";
+import { notePopupOpenedAsTab } from "../telemetry/popupTabCounts";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
@@ -20,6 +21,7 @@ const UNGATED = new Set(["current", "peek", "incognito"]);
 
 export function openFromPage(request: OpenWindowRequest, page: PageRef) {
   if (request.linkWait) noteLinkTabWait(request.linkWait);
+  if (request.popup) notePopupOpenedAsTab();
   if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
   const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, null);
   settleOpening(gated, null, (verdict) => {

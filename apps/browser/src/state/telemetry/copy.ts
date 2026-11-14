@@ -62,6 +62,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times you turned Minimalism mode on and off on this Mac, from Settings, the View menu or ⌃⌘M, summed up once an hour",
       "How many times a page tried to open a link no app on this Mac opens, so Ardia asked nothing, and how many times it asked to open an app, summed up once an hour. Never which page, link or app",
       "How many times you collapsed or expanded a tab group from the tab strip across the top, summed up once an hour",
+      "How many pop-up windows opened as tabs because Open pop-up windows as tabs is on, summed up once an hour. Never which page or pop-up",
       "How many tab hover cards the tab strip across the top showed, and how many of those were for a tab from a profile other than the window's, summed up once an hour. Never which tab",
       "How many times the toolbar hid while you scrolled a page, and how many of those came less than a second after it had shown again, summed up once an hour. Never which page",
       "While a window is being resized, how many size changes its page area got and how many of them it laid out again, and how many resizes were made from the window's centre with Option held, summed up once an hour",

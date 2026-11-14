@@ -6,3 +6,4 @@ export const setPeekOtherSiteTabs = (tabIds: string[]) => call("webView.setPeekO
 export const setSelectionPopover = (enabled: boolean) => call("webView.setSelectionPopover", { enabled });
 export const setSearchEngineName = (name: string) => call("search.setEngineName", { name });
 export const setLittleArdiaOpensNewTabLinks = (enabled: boolean) => call("webView.setLittleArdiaOpensNewTabLinks", { enabled });
+export const setPopupsOpenAsTabs = (enabled: boolean) => call("webView.setPopupsOpenAsTabs", { enabled });

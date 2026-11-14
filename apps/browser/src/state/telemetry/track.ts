@@ -74,6 +74,8 @@ export const takeExternalAppRequests = () => {
   return taken;
 };
 
+export { takePopupTabCounts } from "./popupTabCounts";
+
 let firstWindowAt: number | null = null;
 
 export function markFirstWindow() {
