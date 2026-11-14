@@ -1,0 +1,69 @@
+name: Checks
+
+on:
+  pull_request:
+    paths: &code
+      - "apps/**"
+      - "packages/**"
+      - "extras/**"
+      - "scripts/**"
+      - "docs/**"
+      - ".github/vouch/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "patches/**"
+      - ".github/workflows/checks.yml"
+  push:
+    branches: [main]
+    paths: *code
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps: &install
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        if: ${{ !matrix.shard }}
+        run: pnpm typecheck
+      - name: Tests that need no Mac, the browser's aside
+        if: ${{ !cancelled() && !matrix.shard }}
+        run: pnpm run test:portable:packages --filter=!@ardia/browser
+      - name: Repository tests
+        if: ${{ !cancelled() && !matrix.shard }}
+        run: pnpm run test:root
+      - name: Vouch tests
+        if: ${{ !cancelled() && !matrix.shard }}
+        run: node --test .github/vouch/vouch.test.cjs
+      - name: This share of the browser's tests
+        if: ${{ matrix.shard }}
+        env:
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/4
+        run: pnpm --filter @ardia/browser test
+
+  browser:
+    name: browser tests, share ${{ matrix.shard }} of 4
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps: *install
