@@ -263,10 +263,13 @@ off in the lab`.
     With TalkBack on, each widget reads its name from the moment it is placed, before its first update: "Ardia
     Search" and "Ardia, Your Mac’s Tabs", never "Ardianull".
     The launcher's own frame around a widget can still read "Ardianull": the APK carries both receivers' labels
-    ("Search", "Your Mac’s Tabs") and both providers' descriptions, so that name is the launcher's. To tell, run
-    `adb shell dumpsys appwidget | grep -B2 -A8 com.ardia.browser.android` and report the provider lines, and,
-    when the Compose app is installed (before an upgrade run), add its Search widget and report what the frame
-    reads there: the Compose app declares the same labels.
+    ("Search", "Your Mac’s Tabs") and both providers' descriptions, so the question is what the launcher joins.
+    - Run `adb shell dumpsys appwidget | grep -B2 -A12 com.ardia.browser.android` with both widgets placed and
+      report the provider lines as the system holds them: label, description, configure activity,
+      `widgetFeatures`. A label or description that is empty there is ours to fix.
+    - When the Compose app is installed (before an upgrade run), add its two widgets on the same launcher and
+      report what TalkBack or `uiautomator dump` reads for each widget's frame. The Compose app declares the
+      same labels and descriptions: if its frames also read "Ardianull", the name is MIUI's and stays as it is.
 32. **Deck backdrop:** in the app's deck, three slow blobs in lighter shades of the profile colour drift over the base
     (two screenshots 10 s apart differ). In the lab, Look: the stage above the frosted bar shows the mesh and blobs
     in every look, its caption sits at the bottom of the stage, and the frosted bar's label is centred. Tap Probe
@@ -379,6 +382,45 @@ off in the lab`.
     deck's three buttons (Spaces, New Tab, the menu) or a card. Run the dump from step 23 with the sheet open: no
     deck button between `begin` and `end`. Close it, then do the same with the Archive and with Settings. Then close
     the sheet: the deck's buttons are read again. Report any sheet where a deck element is read, with its dump.
+46. **Closing tabs from the deck** (sync10 crashed here): with nine tabs open, close ten tabs one at a time by
+    flicking a card up or sideways, opening new tabs to keep a few, then ten more with the card's long-press menu
+    (Close Tab). Each close plays the poof and the deck closes the gap; nothing freezes and `adb logcat -b crash`
+    stays empty. Then close the last tab both ways: the app goes to the start screen. Report any crash with its
+    `logcat -b crash` lines.
+47. **The tray's blank frame** (the frame where the tray showed nothing over a page): with the look on, on a page
+    (Wikipedia), open and close the tray ten times while recording the screen (`adb shell screenrecord
+    /sdcard/tray.mp4`, stop with Ctrl-C after 30 s). Then the same with the look off (step 38's switch, force-stop
+    between). For each run report whether any frame shows the tray blank (no frost, no rows) and the
+    `PAGELAB look frost surfaces/sheet #N …` lines (the tray's frost) with their `path=` and reason. If it only happens with the look on,
+    the frost is the cause; if both, it is not the look.
+48. **The blank tab** (sync9's BBC tab): open bbc.com/news, wikipedia.org and github.com in three tabs, go to the
+    deck and back into each twice. If a tab shows blank, pink or white, note which and report every
+    `PAGELAB page view …` line from that moment (`shows its WebView at WxH`, `taken from another view`,
+    `lost its WebView`, `size A -> B`) with a screenshot, and the same lines from a tab that drew.
+49. **TalkBack for real.** A test tool that uses UiAutomation (uiautomator, agentos) keeps other accessibility
+    services from running while it is attached, so touch exploration stays off. So:
+    - Set the scene first, with the tool: open the deck with eight tabs, then Spaces.
+    - Stop the tool, so nothing holds UiAutomation (`adb shell ps -A | grep -i -E "uiautomator|agentos"` should
+      list nothing; stop its server or `adb shell am force-stop` its package).
+    - Turn TalkBack on from adb:
+      `adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`
+      then `adb shell settings put secure accessibility_enabled 1`. MIUI may ship TalkBack as
+      `com.google.android.marvin.talkback` or not at all; `adb shell pm list packages | grep -i talkback` says.
+      In TalkBack's settings (Advanced › Developer settings) turn on Display speech output, so what it says
+      shows on screen and `adb shell screencap` can capture it.
+    - Move with TalkBack's keyboard shortcuts, which need no touch: next item
+      `adb shell input keycombination KEYCODE_ALT_LEFT KEYCODE_DPAD_RIGHT`, previous item the same with
+      `KEYCODE_DPAD_LEFT`, activate `adb shell input keycombination KEYCODE_ALT_LEFT KEYCODE_ENTER` (Android 13
+      and later have `input keycombination`). After each move take `adb shell screencap -p /sdcard/tb-N.png`.
+      Step through the whole sheet and past its end: report every item read, and whether any is a deck button
+      (Spaces, New Tab, the menu) or a card.
+    - Turn TalkBack off (`adb shell settings put secure enabled_accessibility_services ""`), reattach the tool,
+      open the Archive, and repeat; then Settings; then no sheet, where the deck's buttons are read. If MIUI
+      ignores the key combinations, say so: then only a hand on the phone can do this pass.
+50. **Step 38 and the memory steps in their sync11 form**: run step 38 with every bullet (look off, look on with
+    blobs every frame, at 30 fps and at 20 fps, the idle deck, and the Compose baseline if Compose is installed),
+    then step 37 with the look on and off, the frost megabytes from each Memory line, and the Home plus
+    `UI_HIDDEN` trim.
 
 ## Upgrade from the Compose app on Android
 
