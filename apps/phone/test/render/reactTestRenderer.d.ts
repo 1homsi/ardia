@@ -16,4 +16,5 @@ declare module "react-test-renderer" {
 
   export function create(element: ReactElement): ReactTestRenderer;
   export function act(work: () => void): void;
+  export function act(work: () => Promise<void>): Promise<void>;
 }

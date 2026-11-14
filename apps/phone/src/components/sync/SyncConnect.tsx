@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TextInput, View } from "react-native";
-import { checkPhrase, connectSync, pastedText } from "../../state/sync/actions";
+import { canPickSyncFolderFirst, checkPhrase, connectSync, pastedText, syncConnectSession } from "../../state/sync/actions";
+import { IDLE_CONNECT, type ConnectState } from "../../state/sync/connectSession";
 import { chooseFolderTitle, setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
 import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
@@ -21,17 +22,32 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const [failure, setFailure] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ConnectResult["result"] | null>(null);
   const hasPhrase = phrase.length > 0 && checkPhrase(phrase).isValid;
+  const [session] = useState(() => (canPickSyncFolderFirst() ? syncConnectSession() : null));
+  const picked = useSyncExternalStore(session?.subscribe ?? noSubscription, session?.state ?? idleConnect);
+  const busy = connecting || picked.connecting;
+
+  const finished = (result: ConnectResult | null) => {
+    if (result?.result !== "connected") return;
+    setPhrase("");
+    onConnected();
+  };
+
+  useEffect(() => () => session?.abandon(), [session]);
+
+  useEffect(() => {
+    if (session && hasPhrase) void session.connectIfReady(phrase).then(finished);
+  }, [session, phrase, hasPhrase]);
 
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (connecting) return true;
+      if (busy) return true;
       if (scanning) setScanning(false);
       else if (entering) setEntering(false);
       else onClose();
       return true;
     });
     return () => back.remove();
-  }, [connecting, entering, scanning, onClose]);
+  }, [busy, entering, scanning, onClose]);
 
   const connect = async () => {
     if (!hasPhrase || connecting) return;
@@ -78,8 +94,8 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   return (
     <SettingsPage
       title="Connect to Your Mac"
-      onBack={closes || connecting ? undefined : onClose}
-      leading={closes ? <BarButton title="Close" onPress={onClose} enabled={!connecting} /> : undefined}
+      onBack={closes || busy ? undefined : onClose}
+      leading={closes ? <BarButton title="Close" onPress={onClose} enabled={!busy} /> : undefined}
     >
       <SyncHero title="Connect to Your Mac" subtitle="Two steps, and your Mac’s tabs are here." />
       <Group header="Two Steps" footer={copy().phraseStays}>
@@ -94,8 +110,22 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
           )}
         </Step>
         <Step number={2} title="Choose the Ardia Sync folder" detail={copy().chooseFolderDetail} done={false} current={hasPhrase}>
-          {connecting ? <Connecting /> : <CapsuleButton title={chooseFolderTitle(lastResult)} enabled={hasPhrase} onPress={() => void connect()} />}
-          {failure ? <Problem text={failure} /> : null}
+          {session ? (
+            <>
+              {picked.folder && !picked.connecting ? <PickedFolder name={picked.folder.name} /> : null}
+              {picked.connecting ? (
+                <Connecting />
+              ) : (
+                <CapsuleButton title={picked.folder ? "Choose Another Folder…" : "Choose Folder…"} onPress={() => void session.pickFolder(phrase).then(finished)} />
+              )}
+              {picked.failure && connectMessage(picked.failure) ? <Problem text={connectMessage(picked.failure)!} /> : null}
+            </>
+          ) : (
+            <>
+              {connecting ? <Connecting /> : <CapsuleButton title={chooseFolderTitle(lastResult)} enabled={hasPhrase} onPress={() => void connect()} />}
+              {failure ? <Problem text={failure} /> : null}
+            </>
+          )}
         </Step>
       </Group>
     </SettingsPage>
@@ -126,6 +156,20 @@ function PhraseAdded({ onChange }: { onChange: () => void }) {
       <Symbol name="checkmarkCircle" size={18} color={theme.switchOn} />
       <Text style={[font.subheadline, styles.medium, styles.fill, { color: theme.switchOn }]}>Recovery phrase added</Text>
       <BarButton title="Change" onPress={onChange} />
+    </View>
+  );
+}
+
+const noSubscription = () => () => undefined;
+
+const idleConnect = (): ConnectState<ConnectResult> => IDLE_CONNECT;
+
+function PickedFolder({ name }: { name: string }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.added}>
+      <Symbol name="folderFill" size={16} color={theme.secondaryLabel} />
+      <Text style={[font.subheadline, styles.medium, { color: theme.secondaryLabel }]}>{name}</Text>
     </View>
   );
 }

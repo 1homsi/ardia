@@ -302,9 +302,9 @@ and again only when that status changes.
     `PAGELAB keyboard did change to N dp` with the same N, and the tray rises with the keyboard on that first open
     too. Close the tray, switch to a keyboard of another height (emoji panel or a different keyboard app), and
     open it again: the will-change line already has the new height.
-40. **Connect in two steps** (once the sync screen uses `sync.pickFolder()`): pick the sync folder, then enter a
-    phrase with one wrong word and Connect. Fix the word and Connect again: no folder picker opens, and sync
-    connects. Then Stop Syncing, pick a folder and leave without connecting; pick another folder and connect with
+40. **Connect in two steps**: pick the sync folder (Choose Folder… under step 2; its name then shows there), then enter a
+    phrase with one wrong word: connecting starts by itself and fails with the phrase's message, and the folder's
+    name stays. Fix the word: it connects again by itself, no folder picker opens, and sync connects. Then Stop Syncing, pick a folder and leave without connecting; pick another folder and connect with
     it. `adb shell dumpsys activity uri-permissions | grep -i ardia` (or the Files app's access list) shows only the
     connected folder's grant, not the one left unused.
 41. **Launch arguments** (lab build): run the Compose app's capture commands from `docs/android.md` against the Expo

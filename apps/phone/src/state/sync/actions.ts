@@ -1,3 +1,4 @@
+import { createConnectSession } from "./connectSession";
 import { haptics } from "../app/haptics";
 import { sync, type ConnectResult, type PhraseCheck, type SyncedDevice } from "../../platform/sync";
 import { choiceAfterMatchToggle, type ProfileLook } from "../../lib/profileLook";
@@ -121,6 +122,28 @@ export async function connectSync(phrase: string): Promise<ConnectResult> {
   if (result.result === "connected") showToast(CONNECTED_TOAST, "checkmark");
   return result;
 }
+
+export const canPickSyncFolderFirst = () => {
+  try {
+    return sync.canPickFolderFirst();
+  } catch {
+    return false;
+  }
+};
+
+export const syncConnectSession = () =>
+  createConnectSession<ConnectResult>(
+    {
+      pickFolder: () => sync.pickFolder(),
+      connect: async (phrase, folder) => {
+        const result = await sync.connect(phrase, folder);
+        if (result.result === "connected") showToast(CONNECTED_TOAST, "checkmark");
+        return result;
+      },
+      forgetFolder: (folder) => sync.forgetFolder(folder),
+    },
+    (phrase) => checkPhrase(phrase).isValid,
+  );
 
 export const changeSyncFolder = (): Promise<ConnectResult> => settled(() => sync.changeFolder(), { result: "folderUnavailable" } as ConnectResult);
 

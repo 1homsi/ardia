@@ -69,3 +69,11 @@ export function textOf(root: ReactTestRenderer): string {
     .map((node) => node.children.filter((child) => typeof child === "string").join(""))
     .join("\n");
 }
+
+export async function pressButton(root: ReactTestRenderer, title: string) {
+  const button = root.root.findAll((node) => node.props.accessibilityRole === "button" && typeof node.props.onPress === "function" && textOf({ root: node } as ReactTestRenderer).includes(title))[0];
+  if (!button) throw new Error(`no button titled ${title}`);
+  await act(async () => {
+    button.props.onPress();
+  });
+}
