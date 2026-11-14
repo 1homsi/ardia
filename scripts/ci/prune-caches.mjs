@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const HELP = `Frees GitHub Actions cache space, which is capped at 10 GB a repository.
 Deletes the caches of pull requests that are no longer open, and for each --newest-only
@@ -38,6 +39,20 @@ export function plan({ caches, openPulls, newestOnly }) {
   return [...doomed.values()];
 }
 
+export function sweep(doomed, remove) {
+  const outcome = { deleted: [], gone: [], failed: [] };
+  for (const cache of doomed) {
+    try {
+      remove(cache);
+      outcome.deleted.push(cache);
+    } catch (error) {
+      if (/\b404\b|Not Found/.test(`${error.stderr || ""}${error.message || ""}`)) outcome.gone.push(cache);
+      else outcome.failed.push({ ...cache, error: String(error.stderr || error.message || error).trim() });
+    }
+  }
+  return outcome;
+}
+
 function parse(argv) {
   const options = { dryRun: false, repo: process.env.GITHUB_REPOSITORY || "", newestOnly: [], help: false };
   for (let index = 0; index < argv.length; index += 1) {
@@ -53,7 +68,7 @@ function parse(argv) {
 }
 
 function gh(args) {
-  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 }
 
 function listCaches(repo) {
@@ -82,17 +97,22 @@ function main() {
   const caches = listCaches(options.repo);
   const doomed = plan({ caches, openPulls: listOpenPulls(options.repo), newestOnly: options.newestOnly });
   const total = caches.reduce((sum, cache) => sum + cache.size, 0);
-  const freed = doomed.reduce((sum, cache) => sum + cache.size, 0);
-  for (const cache of doomed) {
-    console.log(`${options.dryRun ? "would delete" : "delete"} ${cache.key} (${megabytes(cache.size)}, ${cache.ref}): ${cache.why}`);
-    if (!options.dryRun) gh(["api", "-X", "DELETE", `repos/${options.repo}/actions/caches/${cache.id}`]);
+  const sizeOf = (list) => list.reduce((sum, cache) => sum + cache.size, 0);
+  for (const cache of doomed) console.log(`${options.dryRun ? "would delete" : "delete"} ${cache.key} (${megabytes(cache.size)}, ${cache.ref}): ${cache.why}`);
+  if (options.dryRun) {
+    console.log(`${options.repo}: ${caches.length} caches, ${megabytes(total)}; would free ${megabytes(sizeOf(doomed))} in ${doomed.length}, leaving ${megabytes(total - sizeOf(doomed))}`);
+    return;
   }
-  console.log(
-    `${options.repo}: ${caches.length} caches, ${megabytes(total)}; ${options.dryRun ? "would free" : "freed"} ${megabytes(freed)} in ${doomed.length}, leaving ${megabytes(total - freed)}`,
-  );
+  const outcome = sweep(doomed, (cache) => gh(["api", "-X", "DELETE", `repos/${options.repo}/actions/caches/${cache.id}`]));
+  for (const cache of outcome.gone) console.log(`already gone: ${cache.key} (${cache.ref})`);
+  for (const cache of outcome.failed) console.error(`could not delete ${cache.key} (${cache.ref}): ${cache.error}`);
+  const freed = sizeOf(outcome.deleted) + sizeOf(outcome.gone);
+  console.log(`${options.repo}: ${caches.length} caches, ${megabytes(total)}; freed ${megabytes(freed)} in ${outcome.deleted.length + outcome.gone.length}, leaving ${megabytes(total - freed)}`);
+  if (outcome.failed.length) throw new Error(`${outcome.failed.length} of ${doomed.length} caches could not be deleted`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+const invokedAs = process.argv[1] ? realpathSync(process.argv[1]) : "";
+if (invokedAs === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     main();
   } catch (error) {

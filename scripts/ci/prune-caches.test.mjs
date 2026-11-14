@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { plan, pullNumberOf } from "./prune-caches.mjs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { plan, pullNumberOf, sweep } from "./prune-caches.mjs";
 
 const cache = (id, key, ref, createdAt) => ({ id, key, ref, size: 100, createdAt });
 const MAIN = "refs/heads/main";
@@ -61,4 +66,24 @@ test("each branch keeps its own newest cache, since main cannot restore a branch
   ];
   const doomed = plan({ caches, openPulls: [], newestOnly: ["xcode-cas-release-"] });
   assert.deepEqual(doomed.map((item) => item.id), [1]);
+});
+
+test("a cache that is already gone counts as freed, and one failed delete does not stop the rest", () => {
+  const doomed = [cache(1, "a", MAIN, "x"), cache(2, "b", MAIN, "x"), cache(3, "c", MAIN, "x"), cache(4, "d", MAIN, "x")];
+  const tried = [];
+  const outcome = sweep(doomed, (entry) => {
+    tried.push(entry.id);
+    if (entry.id === 2) throw Object.assign(new Error("Command failed"), { stderr: "gh: Not Found (HTTP 404)" });
+    if (entry.id === 3) throw Object.assign(new Error("Command failed"), { stderr: "gh: Server Error (HTTP 502)" });
+  });
+  assert.deepEqual(tried, [1, 2, 3, 4]);
+  assert.deepEqual(outcome.deleted.map((entry) => entry.id), [1, 4]);
+  assert.deepEqual(outcome.gone.map((entry) => entry.id), [2]);
+  assert.deepEqual(outcome.failed.map((entry) => [entry.id, entry.error]), [[3, "gh: Server Error (HTTP 502)"]]);
+});
+
+test("the script still runs when it is started through a symlinked path", () => {
+  const link = join(mkdtempSync(join(tmpdir(), "prune-caches-")), "prune.mjs");
+  symlinkSync(fileURLToPath(new URL("./prune-caches.mjs", import.meta.url)), link);
+  assert.match(execFileSync(process.execPath, [link, "--help"], { encoding: "utf8" }), /Frees GitHub Actions cache space/);
 });
