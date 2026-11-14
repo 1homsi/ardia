@@ -782,9 +782,13 @@ Ardia runs no AI and never reads them itself.
 A flow is a read-only task done once in the page (a search, a filtered list, a lookup) saved as the GET request
 behind it, so the next run is one call that returns just the data (`browse/flowlog.py` records, `flows.py` builds,
 checks and stores, `flowurl.py` parses and masks URLs, `flowrun.py` runs, `shape.py` shapes). Modeled on
-agent-browser's saved flows, without its launch flag, direct HTTP tier, writes or MCP tools. Flows keep and send GET
-requests only: a task whose answer comes from a POST, GraphQL over POST included, can't be saved (`flow_not_get`), and
-GraphQL over GET works only when its URL values pass the literal rule below (a query text in the URL doesn't).
+agent-browser's saved flows, without its launch flag, direct HTTP tier, command replay, writes or MCP tools.
+
+**What a run does.** A flow run opens the flow's start page like `open` and sends GET requests to the flow's site; it
+never replays clicks or typing, and a site whose GET endpoints change state (some logout links) isn't protected
+against that. When anything goes wrong it stops and says why; the agent then drives the page itself (open, click,
+read). Flows keep and send GET requests only: a task whose answer comes from a POST, GraphQL over POST included,
+can't be saved (`flow_not_get`), and GraphQL over GET works only when its URL values pass the literal rule below.
 
 - **Recording.** Every session keeps its last 200 actions (`open`, `click`, `dblclick`, `fill`, `type`, `press`,
   `keyboard`, `select`, `check`/`uncheck`, `find`, `back`/`forward`/`reload`, `scroll`, `hover`, `focus`, `wait`,
@@ -795,93 +799,79 @@ GraphQL over GET works only when its URL values pass the literal rule below (a q
   document is kept only when a `<script>` holds JSON: `type="application/json"`, `__NEXT_DATA__`, JSON-LD, or a plain
   `window.x = {...}`. Answers stay under 16 MB per session (the oldest are dropped first). Request bodies are never
   read; other methods are only counted, so `flow steps` and `flow save` can say they weren't kept. `--no-changes`
-  records the step without its requests. A ref in a command is kept as the role and name it pointed at (`find role
-  button click --name Save --exact`). After a typing command it reads the focused field once: a password field, an
-  `autocomplete` of `current-password`, `new-password`, `one-time-code` or `cc-*`, a name, id, label, placeholder or
+  records the step without its requests. After a typing command it reads the focused field once: a password field,
+  an `autocomplete` of `current-password`, `new-password`, `one-time-code` or `cc-*`, a name, id, label, placeholder or
   selector with `pass`, `secret`, `token`, `otp`, `pin`, `cvv`, `cvc` or `card`, or a value the CLI redacts (a vault
   password) makes the value a secret.
-- **URLs** (`flowurl.parse`, one parser for the start URL, step URLs, request URLs and replayed `open` arguments).
-  An absolute `http` or `https` URL in plain ASCII (an IDN host must already be punycode), with no backslash,
-  whitespace, control character or user info, a host of DNS labels (lowercased) or a bracketed IPv6 address, and a
-  port from 1 to 65535. A host whose last label is a number in any spelling (`127.1`, `2130706433`, `0x7f000001`,
-  `0177.0.0.1`) or an IPv6 address is an IP literal; it, and `localhost`, are allowed only when the flow was recorded
-  on that exact host and port. Other hosts must sit on the start URL's base domain, on its port or the scheme's
-  default. Origins are compared by exact equality after that normalization.
+- **URLs** (`flowurl.parse`, one parser for the start URL and request URLs). An absolute `http` or `https` URL in
+  plain ASCII (an IDN host must already be punycode), with no backslash, whitespace, control character or user info,
+  a host of DNS labels (lowercased) or a bracketed IPv6 address, and a port from 1 to 65535. A host whose last label is
+  a number in any spelling (`127.1`, `2130706433`, `0x7f000001`, `0177.0.0.1`) or an IPv6 address is an IP literal;
+  it, and `localhost`, are allowed only when the flow was recorded on that exact host and port. Other hosts must sit
+  on the start URL's base domain, on its port or the scheme's default. Origins are compared by exact equality after
+  that normalization.
 - **The literal rule.** A saved request URL keeps a path segment or query value only when it is a param, a number,
   or a short value (up to 24 letters, digits, `-` and `_`, plus `.` inside a path segment) with no `@`, isn't a typed
   secret in any encoding (as is, percent-encoded, JSON-escaped, base64, hex or as decimal bytes), isn't under a
   credential-named query key (`token`, `key`, `sig`, `session`, `password`, `csrf`, …), and the path has no
   credential word (`sessions`, `tokens`, …). Anything else leaves the whole request out, and the save report says why.
-  Param examples follow the same rule; a value that fails it is a param with no example. `flow steps`, the save
-  report and each saved step's page URL show the same URLs with every value that fails the rule as `<hidden>` and
+  This is a limit, not a guarantee: a short opaque token or a numeric id under a query key the rule doesn't
+  recognize (`?u=a8f3k2`, `?ref=1234567`) is kept. Param examples follow the same rule; a value that fails it is a
+  param with no example. `flow steps`, the save report and each saved step's command and page URL show URLs with every
+  value that fails the rule, or carries a known typed secret, as `<hidden>` (a bare secret word is `<redacted>`), and
   user info and fragments dropped.
+- **Answer shapes.** The recorded shape keeps an object key only when it is a short identifier
+  (`[A-Za-z_][A-Za-z0-9_]{0,31}`) and not a typed secret; other keys become `*`, so a map keyed by emails or ids is one
+  stable shape (drift checks skip `*`). The main list's path and item fields follow the same rule, and a document's
+  JSON block is found again only by a plain `id`.
 - **`flow steps [--all]`** lists the steps since the last save (`[3] click #go → <url>`, then each kept GET as
   `s3r1 GET <url> 200 json` and a count of other requests not kept), text and `--json` (`data.steps`).
 - **`flow save <name> [--from n] [--to n] [--param k=v]… [--output s3r1] [--description text]`** saves steps from the
   last `open` after the previous save to the latest (or `--from`/`--to`). It keeps the GET requests on the start
-  page's site whose answer was JSON (or a document's largest JSON block, found again by its `id` or position) and
-  whose URL passes the literal rule, and for each: the URL, the `accept` and `x-requested-with` headers when plain,
-  and the answer's status, MIME type, size, shape (keys and value types, 6 levels deep, first list item only), main
-  list and its item fields (only names of up to 24 letters, digits and `_`, dotted once). Params: every value typed
-  into an ordinary field becomes `{{name}}` (named after the field's name, id or label when that is a short
-  identifier, `[a-z][a-z0-9_]{0,23}`, else `p1`, `p2`, …) wherever it appears in the commands and a request's path
-  segments and query values (whole value, or inside a longer one when 3 or more characters), with no copy kept, so a
-  run must pass it; `--param k=v` names a typed value and keeps it as the example; a query value of the start or an
-  opened URL that a request also sent becomes a param. `--output` defaults to the largest answer among requests that
-  use a param, else the largest; it must name a kept GET. The saved flow is checked with the same validation as a
-  load before it's written. Cookies and credential headers are never kept (the request is marked `strippedAuth`); a
-  secret typed value becomes `<redacted>` in its command and the step is listed in `redactedSteps`; an `open` whose
-  URL fails the parser or the rule becomes `<redacted>`; a flow with a redacted step isn't replayable.
+  page's site whose answer was JSON (or a document's largest JSON block) and whose URL passes the literal rule, and
+  for each: the URL, the `accept` and `x-requested-with` headers when plain, and the answer's status, MIME type, size,
+  shape, main list and its item fields (only names of up to 24 letters, digits and `_`, dotted once). Params: every
+  value typed into an ordinary field becomes `{{name}}` (named after the field's name, id or label when that is a short
+  identifier, `[a-z][a-z0-9_]{0,23}`, else `p1`, `p2`, …) wherever it appears in a request's path segments and query
+  values (whole value, or inside a longer one when 3 or more characters), with no copy kept, so a run must pass it;
+  `--param k=v` names a typed value and keeps it as the example; a query value of the start or an opened URL that a
+  request also sent becomes a param. `--output` defaults to the largest answer among requests that use a param, else
+  the largest; it must name a kept GET. The steps are kept only so `flow show` can list them; nothing runs them. The
+  saved flow is checked with the same validation as a load before it's written. Cookies and credential headers are
+  never kept (the request is marked `strippedAuth`).
 - **Storage.** `<data dir>/Flows/<site>/<name>.json`, where `<site>` is the start URL's base domain (`example.com`
   for `shop.example.com`, `example.co.uk` for `www.example.co.uk`, an IP or `localhost` as is) plus a non-default
   port. Folders are 0700 and must be real folders the user owns, files 0600, opened relative to the folder with
   `O_NOFOLLOW`, written to a temp file renamed over the old one, at most 4 MB. The file is `version: 1`:
   `name`, `description`, `site`, `origin`, `startUrl`, `hosts` (the origins the flow may contact), `createdAt`,
-  `createdBy`, `params` (`{name, example, source}`, source `typed`, `given` or `query`), `output`, `verified`,
-  `replayable`, `redactedSteps` and `steps` (`{seq, command, url, ok, requests}`, each request `{id, method: "GET",
-  url, headers, kind, expect}`, never a body). Loading fails with `code: "flow_invalid"` for an unknown field,
-  another version, a site or name that doesn't match where the file sits, an `origin` that isn't the start URL's, an
-  origin in `hosts` the URL rules don't allow, a request that isn't a GET, has a body or another field, or whose URL
-  fails the parser, the rule or isn't on a listed origin, a header beyond plain `accept` and `x-requested-with`, a param
-  name, example or item field that isn't a short identifier or value, a description over 120 characters or with a
-  line break, a step command other than `open` (to a listed origin), `click`, `dblclick`, `fill`, `type`, `press`,
-  `keyboard type|inserttext`, `select`, `check`/`uncheck`, `find` (with one of its actions), `back`/`forward`/`reload`,
-  `scroll`, `scrollintoview`, `hover`, `focus` and `wait` (no URL, no `--fn`), a flag beyond `--name`, `--exact`,
-  `--partial`, `--text`, `--url`, `--load`, `--timeout`, `--state` and `--no-humanize`, or a missing output request.
-- **`flow run <name> [--param k=v]… [--fields a,b.c] [--where f=v]… [--limit n] [--tier page|replay] [--site s]
-  [--timeout 60s]`.** Unknown params fail with the list of real ones; a param with no example must be given. Values
-  are encoded for where they land, and the filled URL must still parse and sit on a listed origin (`off_site`).
-  Tiers, in order, sharing one clock (`--timeout`, 60 s):
-  1. **page**: `fetch(url, {method: "GET", credentials: "include", cache: "no-store", redirect: "manual"})` with the
-     recorded headers, from the session's tab when it is on the request's exact origin, else from a temporary
-     background tab that first loads the start URL (or the origin's `/`) and must land on that origin. No body is ever
-     sent and cookies stay in Ardia. A redirected answer goes on to the replay.
-  2. **replay**: the recorded commands run again in a temporary background tab (or, where background tabs don't take
-     input, the session's own tab, which it says), with request interception on for that tab (`Fetch.enable` with
-     a `*` pattern at the request stage). Every paused request, redirect hops included, goes on only when it is a
-     `GET` or `HEAD`, has no method-override header (`X-HTTP-Method-Override`, `X-Method-Override`, `X-HTTP-Method`),
-     and its URL passes the parser with an origin the flow lists; anything else, other schemes included, fails with
-     `BlockedByClient` before it is sent. The blocked requests come back as `blocked` (`{method, host}`, at most 50)
-     and make the run unverified. The answer is the replayed request with the same host, path and recorded query
-     values (extra ones, like cache-busters, are ignored). When interception can't be turned on (the token policy
-     refuses `Fetch.enable`, see Gated, or the session has `network route` or `set credentials` on), the replay
-     doesn't run, and a run with no other answer fails with `replay_unavailable`. Requests from out-of-process
-     iframes and workers belong to other targets and aren't intercepted.
-  There is no direct-HTTP tier: it would need the cookies through `Network.getCookies`, which the token policy
-  refuses, and the page tier gets the same answer without cookies leaving Ardia.
-- **Checks.** Every answer is compared with the recorded shape: a missing key, a changed type, or the main list gone
-  or no longer a list is drift (a present, empty list isn't), and the run goes on to the next tier. If a later tier
-  gets the recorded shape, the answer comes back with `verified: false` and `drift`; if none does, the run fails
-  with `drifted`. The file is marked `verified: false` after a drift or a blocked request (and true again after a
-  clean run). A 401 or 403 is `auth_expired` (or, for a request recorded with a stripped credential header, the next
-  tier, then `credential_not_sendable`), 429 is `rate_limited` (`data.retryAfter`), a bot-check page is `blocked`,
-  another 4xx is `http_error`, a 5xx, a network error or an answer too large to read goes to the next tier.
+  `createdBy`, `params` (`{name, example, source}`, source `typed`, `given` or `query`), `output`, `verified` and
+  `steps` (`{seq, command, url, ok, requests}`, each request `{id, method: "GET", url, headers, kind, expect}`, never a
+  body). Loading fails with `code: "flow_invalid"` for an unknown field, another version, a site or name that doesn't
+  match where the file sits, an `origin` that isn't the start URL's, an origin in `hosts` the URL rules don't allow, a
+  request that isn't a GET, has a body or another field, or whose URL fails the parser, the rule or isn't on a listed
+  origin, a header beyond plain `accept` and `x-requested-with`, a param name, example or item field that isn't a short
+  identifier or value, a description over 120 characters or with a line break, a step command that isn't a short list
+  of words, or a missing output request.
+- **`flow run <name> [--param k=v]… [--fields a,b.c] [--where f=v]… [--limit n] [--site s] [--timeout 60s]`.**
+  Unknown params fail with the list of real ones; a param with no example must be given. Values are encoded for where
+  they land, and the filled URL must still parse and sit on a listed origin (`off_site`). The request is sent with
+  `fetch(url, {method: "GET", credentials: "include", cache: "no-store", redirect: "manual"})` and the recorded
+  headers, from the session's tab when it is already on the request's or the start page's origin, else from a
+  temporary background tab that loads the start URL the way `open` does (closed again afterwards); a start page that
+  lands off the flow's origins (a sign-in page) is `redirected`. No body is ever sent and cookies stay in Ardia.
+  There is no direct-HTTP tier (it would need the cookies through `Network.getCookies`, which the token policy
+  refuses) and no command replay.
+- **Outcomes.** One answer, checked once; every failure says to drive the page instead: a redirect is `redirected`
+  (a flow never follows one), a 401 or 403 `auth_expired` (or `credential_not_sendable` for a request recorded with
+  a stripped credential header), 429 `rate_limited` (`data.retryAfter`), a bot-check page `blocked`, another status
+  `http_error`, a network or CORS failure `fetch_failed`, an answer over 8 MB `answer_too_large`. The answer is
+  compared with the recorded shape: a missing key, a changed type, or the main list gone or no longer a list is
+  `drifted` (a present, empty list isn't), and the file is marked `verified: false` (true again after a clean run).
 - **Output.** The list at the path the recording saw, else the answer's heaviest list of objects (or the answer
   itself when it's a list), as `{list, total, matched, items}` after `--where` (case-insensitive contains, dotted
   paths, all must match), `--limit` and `--fields`; a field no item has fails with `unknown_field` and the items'
   fields, and a list that is now empty gives zero items. An answer with no list comes back as `value`. Text output is
-  a header (`✓ search via page: 2 of 3 items in results`), one JSON line per item and a line for anything blocked;
-  `data` has `tier`, `verified`, `fellBack` (`{tier, why}`), `blocked` and `result`.
+  a header (`✓ search: 2 of 3 items in results`) and one JSON line per item; `data` has `verified` and `result`.
 - **Discovery.** When `open` lands on a site, or `snapshot` runs on it, with saved flows, the answer starts with
   `# saved flows for <site> (…): name(params) [saved description: "…"]; …` (up to five, the description quoted and
   cut at 80 characters, since a page could have shaped it), once per site per session (a session that saved a flow
@@ -904,7 +894,6 @@ only change needed.
 | `set device\|geo\|media` | `Emulation.setTouchEmulationEnabled`, `Emulation.setUserAgentOverride`, `Emulation.setGeolocationOverride`, `Emulation.setEmulatedMedia` |
 | `set offline`, `set headers` | `Network.emulateNetworkConditions`, `Network.setExtraHTTPHeaders` |
 | `set credentials`, `network route\|unroute` | `Fetch.enable` (and `Fetch.fulfillRequest`, `failRequest`, `continueRequest`) |
-| `flow run`'s replay tier (`replay_unavailable` without it) | `Fetch.enable`, `Fetch.continueRequest`, `Fetch.failRequest`, `Fetch.disable` |
 | `upload` | `DOM.setFileInputFiles` |
 | `download <sel> <path>`, `wait --download [path]` | `Browser.setDownloadBehavior` (`wait --download` waits for the next download that starts after it; `download` clicks and saves) |
 | `highlight` | `Overlay.enable`, `Overlay.highlightNode` |
@@ -1253,7 +1242,7 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `stale_ref_after_navigation` (a ref from before the page navigated was used; the error says the page navigated, where it used to say only that the ref came from an earlier snapshot, and names the same role and name on the new page when there is one; watch `error_code` `stale_ref`), `attach_refused` (the policy refused the attach to a tab; watch it with `error_code` `policy_refused` on `read` and `open`, where it should stay at zero), `network_disable_unconfirmed` (a command's change report turned network capture off and the page didn't confirm within 2 s, usually because it was mid-navigation or its main thread was busy; the tab is kept, where it used to be detached and the command failed with `error_code` `tab_detached`), `reattached_after_detach` (`open`, or an action's change report, found its tab detached from the command while the tab was still open, attached to it again and finished; watch `error_code` `tab_detached` on `open` and `script`, which should stay near zero), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `select_opened_list` (`select` picked from the one list that opened when it opened a field with no linked list; watch `error_code` `no_fresh_suggestions` on `select`, which it should lower), `press_targeted` (`press <sel> <key>` focused the element first), `focused_inner_field` (an element that couldn't take focus itself, like a combobox wrapper, had the field inside it focused instead; a hidden or inert one now fails with `error_code` `not_focusable` and says to click it open, where it used to print the raw `DOM.focus: Element is not focusable`), `waited_for_reaction` (after typing into a search or filter field, the next command that targets something else waited, best effort, at least 0.6 s from the last keystroke for the page to redraw and go quiet, longer while anything is `aria-busy`, counting only the results the field `aria-controls` when it names them, up to 1.5 s; key presses without a target, `tab`, `notes`, `frame` and `get url`/`title` don't wait, and `--no-changes` keeps the wait; watch `error_code` `target_replaced` and `input_not_delivered` on `fill`, which it should keep low), `selector_nth` (a selector ended in `>> nth=N`), `saved_as_csv` (`--out` wrote a CSV or TSV table), `script_state_kept` (a script ended or timed out with something in `state`), `script_timeout_read_hint` (a timed-out script had opened three or more pages one after another and was pointed at `read <url> <url> …`; watch `error_code` `timeout` on `script`, which it should lower), `saved_to_file` (`script`, `eval` or `read` ran with `--out`; watch `output_truncated` on `script`, which it should lower), `waited_for_element` (a selector matched only after polling; watch `error_code` `not_found`, which it should lower), `output_saved` (a capped output was saved whole to a file; watch `output_truncated` on `script`, which it should lower), `consent_dismissed` (a click dismissed the consent banner covering it; watch `error_code` `covered` on `click`, which it should lower), `dom_click_fallback` (a click target outside the page got a DOM click), `screenshot_unchanged` (`screenshot --if-changed` found the view unchanged since its last screenshot and saved nothing), `flow_saved` with `flow_requests_kept` and `flow_params` (a `flow save` and what it kept), `flow_run_page` or `flow_run_replay` (the tier that answered a `flow run`), `flow_fell_back` (a tier was skipped or failed first), `flow_replay_blocked` with `flow_blocked` (the replay's interception blocked requests, and how many), `flow_drifted` (an answer's shape changed; watch it with `error_code` `drifted`, `auth_expired`, `blocked`, `rate_limited`, `flow_not_get` and `replay_unavailable` on `flow`), `flow_shaped` with `flow_items` (`--fields`, `--where` or `--limit` were given, and the items returned), `flow_hint_shown` (`open` or `snapshot` listed a site's saved flows), `frame_cross_process_box` (`frame` on a cross-process iframe, which ardia browse can't enter, answered with `error_code` `cross_process_frame`, the iframe's viewport box and the `mouse move`/`down`/`up` recipe for clicking inside it), `click_scroll_locked` (a click target the page couldn't scroll to was held back by an open dialog or a scroll lock, and the error named it and said to close it; watch `error_code` `outside_viewport` on `click`), `click_recentered` (a covered or off-screen click target was scrolled to the middle and retried; watch `error_code` `outside_viewport`), `clicked_label_of_hidden_input` (a click on a checkbox or radio drawn by its label, with the input itself hidden, went to the label; watch `error_code` `not_visible` on `click`), `waited_for_box_to_settle` (a click target was still moving, from a scroll or a layout change, and the click waited up to 1 s for it to stop before aiming), `read_scope_shown` (a read printed the page's own total or pagination), `read_bot_check` (a page read like a bot check or block and got the retry note), `read_scroll_guessed` (`read --scroll` without `-s` picked the page's main repeated list; watch `error_code` `no_list`), `read_beside_busy` (a `read` of named URLs ran in the sibling session because its own was busy; watch `error_code` `session_busy` on `read`, which it should lower), `read_waited_for_content` (a page read thin after settling and was read again until it filled in or 5 s passed; watch `read_pages` against it), `read_pdf` (`read` extracted a PDF's text; watch `error_code` `pdf_unreadable`), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_tabs_reopened` (reading tabs Ardia detached mid-read that were opened again; watch it with `error_code` `tab_detached`, which should stay near zero), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `open_still_loading` (`open` hit its time limit waiting for the load event on a page that already showed content, and returned it with a note instead of failing; watch `error_code` `timeout` on `open`, which it should lower), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
+  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `stale_ref_after_navigation` (a ref from before the page navigated was used; the error says the page navigated, where it used to say only that the ref came from an earlier snapshot, and names the same role and name on the new page when there is one; watch `error_code` `stale_ref`), `attach_refused` (the policy refused the attach to a tab; watch it with `error_code` `policy_refused` on `read` and `open`, where it should stay at zero), `network_disable_unconfirmed` (a command's change report turned network capture off and the page didn't confirm within 2 s, usually because it was mid-navigation or its main thread was busy; the tab is kept, where it used to be detached and the command failed with `error_code` `tab_detached`), `reattached_after_detach` (`open`, or an action's change report, found its tab detached from the command while the tab was still open, attached to it again and finished; watch `error_code` `tab_detached` on `open` and `script`, which should stay near zero), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `select_opened_list` (`select` picked from the one list that opened when it opened a field with no linked list; watch `error_code` `no_fresh_suggestions` on `select`, which it should lower), `press_targeted` (`press <sel> <key>` focused the element first), `focused_inner_field` (an element that couldn't take focus itself, like a combobox wrapper, had the field inside it focused instead; a hidden or inert one now fails with `error_code` `not_focusable` and says to click it open, where it used to print the raw `DOM.focus: Element is not focusable`), `waited_for_reaction` (after typing into a search or filter field, the next command that targets something else waited, best effort, at least 0.6 s from the last keystroke for the page to redraw and go quiet, longer while anything is `aria-busy`, counting only the results the field `aria-controls` when it names them, up to 1.5 s; key presses without a target, `tab`, `notes`, `frame` and `get url`/`title` don't wait, and `--no-changes` keeps the wait; watch `error_code` `target_replaced` and `input_not_delivered` on `fill`, which it should keep low), `selector_nth` (a selector ended in `>> nth=N`), `saved_as_csv` (`--out` wrote a CSV or TSV table), `script_state_kept` (a script ended or timed out with something in `state`), `script_timeout_read_hint` (a timed-out script had opened three or more pages one after another and was pointed at `read <url> <url> …`; watch `error_code` `timeout` on `script`, which it should lower), `saved_to_file` (`script`, `eval` or `read` ran with `--out`; watch `output_truncated` on `script`, which it should lower), `waited_for_element` (a selector matched only after polling; watch `error_code` `not_found`, which it should lower), `output_saved` (a capped output was saved whole to a file; watch `output_truncated` on `script`, which it should lower), `consent_dismissed` (a click dismissed the consent banner covering it; watch `error_code` `covered` on `click`, which it should lower), `dom_click_fallback` (a click target outside the page got a DOM click), `screenshot_unchanged` (`screenshot --if-changed` found the view unchanged since its last screenshot and saved nothing), `flow_saved` with `flow_requests_kept` and `flow_params` (a `flow save` and what it kept), `flow_run_page` (a `flow run` got its answer), `flow_drifted` (an answer's shape changed; watch it with `error_code` `drifted`, `redirected`, `auth_expired`, `blocked`, `rate_limited`, `fetch_failed` and `flow_not_get` on `flow`), `flow_shaped` with `flow_items` (`--fields`, `--where` or `--limit` were given, and the items returned), `flow_hint_shown` (`open` or `snapshot` listed a site's saved flows), `frame_cross_process_box` (`frame` on a cross-process iframe, which ardia browse can't enter, answered with `error_code` `cross_process_frame`, the iframe's viewport box and the `mouse move`/`down`/`up` recipe for clicking inside it), `click_scroll_locked` (a click target the page couldn't scroll to was held back by an open dialog or a scroll lock, and the error named it and said to close it; watch `error_code` `outside_viewport` on `click`), `click_recentered` (a covered or off-screen click target was scrolled to the middle and retried; watch `error_code` `outside_viewport`), `clicked_label_of_hidden_input` (a click on a checkbox or radio drawn by its label, with the input itself hidden, went to the label; watch `error_code` `not_visible` on `click`), `waited_for_box_to_settle` (a click target was still moving, from a scroll or a layout change, and the click waited up to 1 s for it to stop before aiming), `read_scope_shown` (a read printed the page's own total or pagination), `read_bot_check` (a page read like a bot check or block and got the retry note), `read_scroll_guessed` (`read --scroll` without `-s` picked the page's main repeated list; watch `error_code` `no_list`), `read_beside_busy` (a `read` of named URLs ran in the sibling session because its own was busy; watch `error_code` `session_busy` on `read`, which it should lower), `read_waited_for_content` (a page read thin after settling and was read again until it filled in or 5 s passed; watch `read_pages` against it), `read_pdf` (`read` extracted a PDF's text; watch `error_code` `pdf_unreadable`), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_tabs_reopened` (reading tabs Ardia detached mid-read that were opened again; watch it with `error_code` `tab_detached`, which should stay near zero), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `open_still_loading` (`open` hit its time limit waiting for the load event on a page that already showed content, and returned it with a note instead of failing; watch `error_code` `timeout` on `open`, which it should lower), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
   daemon's answer: the queue wait plus the command's own limit plus 30 s, `browse/limits.py`), `batch_steps` (also the operations an `ardia apply`, `tabs …`
   or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer
