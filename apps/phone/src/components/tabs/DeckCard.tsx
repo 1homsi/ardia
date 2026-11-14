@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
@@ -70,7 +70,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
   return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift };
 }
 
-export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
+export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const slot = useSharedValue(0);
@@ -162,7 +162,7 @@ export function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift,
       </Animated.View>
     </>
   );
-}
+});
 
 const CARD_ELEVATION = 14;
 const CARD_SHADOW_BLUR = 36;

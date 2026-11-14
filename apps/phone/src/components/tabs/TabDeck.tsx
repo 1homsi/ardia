@@ -87,17 +87,18 @@ export function TabDeck() {
   }, [phase.kind]);
   useEffect(() => () => void hideArchiveCard(), []);
   const hidden = useRef(new Set<string>());
-  const motion: DeckMotion = {
-    scroll: useSharedValue(initialDeckScroll(order.length)),
-    scaleProgress: useSharedValue(1),
-    positionProgress: useSharedValue(1),
-    dragIndex: useSharedValue(-1),
-    dragLift: useSharedValue(0),
-    flyIndex: useSharedValue(-1),
-    flyLift: useSharedValue(0),
-    flyVanish: useSharedValue(0),
-  };
-  const { scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
+  const scroll = useSharedValue(initialDeckScroll(order.length));
+  const scaleProgress = useSharedValue(1);
+  const positionProgress = useSharedValue(1);
+  const dragIndex = useSharedValue(-1);
+  const dragLift = useSharedValue(0);
+  const flyIndex = useSharedValue(-1);
+  const flyLift = useSharedValue(0);
+  const flyVanish = useSharedValue(0);
+  const motion = useMemo<DeckMotion>(
+    () => ({ scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
+    [scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
+  );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
   const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
   const cardsStyle = useAnimatedStyle(() => ({ opacity: cardsOpacity.value }));
@@ -352,6 +353,20 @@ export function TabDeck() {
       },
     });
 
+  const closeNow = (at: number) => {
+    const closing = order[at];
+    if (closing) remove(closing);
+  };
+  const latestActions = useRef({ open, close, closeNow });
+  latestActions.current = { open, close, closeNow };
+  const cardActions = useMemo(
+    () => ({
+      open: (at: number) => latestActions.current.open(at),
+      close: (at: number) => latestActions.current.close(at, 0),
+      closeNow: (at: number) => latestActions.current.closeNow(at),
+    }),
+    [],
+  );
   const plusItems: MenuItem[] = incognito
     ? [
         { label: "New Tab", icon: "plus", onPress: newRegularTab },
@@ -392,12 +407,9 @@ export function TabDeck() {
                   geometry={g}
                   motion={motion}
                   shift={shift}
-                  onOpen={open}
-                  onClose={(at) => close(at, 0)}
-                  onCloseNow={(at) => {
-                    const closing = order[at];
-                    if (closing) remove(closing);
-                  }}
+                  onOpen={cardActions.open}
+                  onClose={cardActions.close}
+                  onCloseNow={cardActions.closeNow}
                 />
               );
             })}

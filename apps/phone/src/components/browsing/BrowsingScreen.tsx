@@ -52,11 +52,6 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const readerId = useReaderTabId();
   const pressing = usePressOpen();
   const tone = usePageTone(tab.id);
-  const loadFreeze = launchArguments().loadFreeze;
-  const liveProgress = useNavigation(tab.id, (n) => n?.progress ?? 0);
-  const liveLoading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
-  const progress = loadFreeze ?? liveProgress;
-  const isLoading = loadFreeze !== null || liveLoading;
   const order = useDeckOrder();
   const frozen = useFrozenOrder();
   const searching = useSearchOpen();
@@ -102,7 +97,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
         {left ? <PagerNeighbour pager={pager} tab={left} side={-1} width={width} statusHeight={insets.top} hasLeft hasRight={right !== null} /> : null}
         {right ? <PagerNeighbour pager={pager} tab={right} side={1} width={width} statusHeight={insets.top} hasLeft={left !== null} hasRight /> : null}
         <View style={[styles.loading, { top: insets.top }]} pointerEvents="none">
-          <LoadingLine progress={progress} isLoading={isLoading} color={theme.accent} />
+          <PageLoadingLine tabId={tab.id} color={theme.accent} />
         </View>
         {
           <GestureDetector gesture={pager.gesture}>
@@ -169,6 +164,13 @@ function useBarCollapse(tabId: string, finding: boolean) {
 function tabsMenuItems(order: BrowserTab[]): MenuItem[] {
   const others = recentTabs(order).map((tab): MenuItem => ({ label: tabTitle(tab), onPress: () => switchToTab(tab.id) }));
   return [...others, ...(others.length ? ["divider" as const] : []), { label: "Close Tab", icon: "xmark", destructive: true, onPress: closeFrontTab }];
+}
+
+function PageLoadingLine({ tabId, color }: { tabId: string; color: string }) {
+  const loadFreeze = launchArguments().loadFreeze;
+  const liveProgress = useNavigation(tabId, (n) => n?.progress ?? 0);
+  const liveLoading = useNavigation(tabId, (n) => n?.isLoading ?? true);
+  return <LoadingLine progress={loadFreeze ?? liveProgress} isLoading={loadFreeze !== null || liveLoading} color={color} />;
 }
 
 function SnapshotUnderPage({ uri }: { uri: string }) {
