@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import type { GestureType } from "react-native-gesture-handler";
@@ -211,13 +211,27 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
         ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeInOut })
         : withSpring(0, trayMotion.dismiss);
     let live = true;
+    let stopWaiting = () => {};
     void (async () => {
+      if (AppState.currentState === "background") {
+        await new Promise<void>((resolve) => {
+          const resumes = AppState.addEventListener("change", (next) => {
+            if (next !== "active") return;
+            resumes.remove();
+            resolve();
+          });
+          stopWaiting = () => resumes.remove();
+        });
+        if (!live) return;
+        putKeyboardAway();
+      }
       for (let polls = 0; polls < TRAY_LIFT.closePolls && keyboardIsUp(keyboard.height.value); polls++) await wait(TRAY_LIFT.closePollMs);
       await wait(TRAY_LIFT.removalDelayMs);
       if (live) onClosed(generation);
     })();
     return () => {
       live = false;
+      stopWaiting();
     };
   }, [closing]);
 
