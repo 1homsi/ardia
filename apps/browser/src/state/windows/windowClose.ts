@@ -1,5 +1,5 @@
 import { confirm } from "../../platform/dialogs";
-import { onWindowEvent } from "../../platform/windows";
+import { closeWindow as closeNativeWindow, onWindowEvent } from "../../platform/windows";
 import { useBrowser } from "../browser/store";
 import { inPinnedContainer, plural, profileFor } from "../browser/model";
 import { tabsLostWithWindow } from "../tabs/sharedWindowClose";
@@ -25,10 +25,15 @@ export function startWindowCloseGuard() {
   });
 }
 
+async function closeWindowWithoutTabs(windowId: string) {
+  if ((await askBeforeQuitting(windowId)) === "cancelled") return;
+  await closeNativeWindow(windowId);
+}
+
 async function requestClose(windowId: string) {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
-  if (!w) return;
+  if (!w) return closeWindowWithoutTabs(windowId);
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
   const quitWarning = await askBeforeQuitting(windowId);
   if (quitWarning === "cancelled") return;

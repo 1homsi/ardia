@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { profileFor } = await import("../browser/model.ts");
@@ -288,4 +289,19 @@ test("⌘W right after moving a window: the frame the native close flushes is th
   assert.equal(S().windows[b], undefined, "B closed");
   assert.deepEqual(S().closedWindows.at(-1).window.frame, [444, 333, 1100, 700]);
   assert.ok(S().windows[a]);
+});
+
+test("Settings and Import close through the same request as browser windows, from every way they can be closed", async () => {
+  windows.open.set("settings", { kind: "settings", title: "Settings" });
+  windows.emit({ type: "closeRequest", id: "settings" });
+  await tick();
+  await tick();
+  assert.equal(windows.open.has("settings"), false, "a close request for Settings closes it");
+  const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  assert.match(source("./windowClose.ts"), /if \(!w\) return closeWindowWithoutTabs\(windowId\);/);
+  assert.match(source("./windowClose.ts"), /async function closeWindowWithoutTabs\(windowId: string\) \{\n\s+if \(\(await askBeforeQuitting\(windowId\)\) === "cancelled"\) return;\n\s+await closeNativeWindow\(windowId\);/);
+  assert.match(source("./controls.ts"), /export const closeFromWindowControls = \(windowId: string\) => requestWindowClose\(windowId\);/);
+  assert.match(source("../commands/commands.ts"), /if \(command === "closeTab"\) return requestWindowClose\(requested!\);/);
+  assert.match(source("../import/flow.ts"), /export const closeImport = \(\) => requestWindowClose\(IMPORT_WINDOW_ID\);/);
+  assert.match(source("../../../windows/Ardia/WindowManager.h"), /if \(!found \|\| !m_context \|\| m_quitting\) return;\n\s+try \{\n\s+args\.Cancel\(true\);/);
 });
