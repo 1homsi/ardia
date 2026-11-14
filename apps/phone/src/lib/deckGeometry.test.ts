@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   archiveCardBottom,
+  deckScrollActionTarget,
   deckBarCenterFromBottom,
   deckCardAt,
   deckDragKind,
@@ -133,4 +134,13 @@ test("the Archive card hangs from a fixed gap above the deck bar, so a card that
   const bottom = archiveCardBottom(g, 28);
   assert.equal(g.height - bottom, g.barCenterY - 28);
   assert.ok(g.height - bottom < g.barCenterY - 40 / 2);
+});
+
+test("a screen reader's scroll action moves the deck one card, and the end it can't move past offers nothing", () => {
+  assert.equal(deckScrollActionTarget(3, 8, "forward"), 4);
+  assert.equal(deckScrollActionTarget(3, 8, "backward"), 2);
+  assert.equal(deckScrollActionTarget(7, 8, "forward"), null);
+  assert.equal(deckScrollActionTarget(0, 8, "backward"), null);
+  assert.equal(deckScrollActionTarget(0, 1, "forward"), null);
+  assert.equal(deckScrollActionTarget(0, 0, "backward"), null);
 });

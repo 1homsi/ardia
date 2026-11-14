@@ -25,4 +25,4 @@ export { SwipeToDelete } from "./SwipeToDelete";
 export { useIncreasedContrast, useReduceTransparency } from "./contrast";
 export { FadingBackdrop } from "./FadingBackdrop";
 export { DeckLookBackdrop, LookBackdrop, LookFrost, SURFACES_FROST } from "./LookViews";
-export { FrostSource } from "@ardia/phone-native";
+export { FrostSource, ScrollActions } from "@ardia/phone-native";

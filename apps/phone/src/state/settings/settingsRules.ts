@@ -167,6 +167,9 @@ export type OnboardingStep = "welcome" | "blocking" | "defaultBrowser" | "sync" 
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = ["welcome", "blocking", "defaultBrowser", "sync", "allSet"];
 
+export const restoredOnboardingStep = (raw: string | null): OnboardingStep =>
+  (ONBOARDING_STEPS as readonly string[]).includes(raw ?? "") ? (raw as OnboardingStep) : "welcome";
+
 const shownSteps = (offersDefaultBrowser: boolean) => ONBOARDING_STEPS.filter((step) => step !== "defaultBrowser" || offersDefaultBrowser);
 
 export const nextStep = (step: OnboardingStep, offersDefaultBrowser = false): OnboardingStep | null => {

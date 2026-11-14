@@ -3,7 +3,8 @@ import { haptics } from "../app/haptics";
 import { presentSearch } from "../search/store";
 import { closeSettings } from "../settings/nav";
 import { defaultBrowserStatus, refreshDefaultBrowser } from "../settings/defaultBrowser";
-import { nextStep, offersDefaultBrowser, previousStep, type OnboardingStep } from "../settings/settingsRules";
+import { keepRestorable, restoredValue } from "../../platform/restorable";
+import { nextStep, offersDefaultBrowser, previousStep, restoredOnboardingStep, type OnboardingStep } from "../settings/settingsRules";
 import { currentPreferences, setPreference } from "../settings/store";
 import { useTabs } from "../tabs/store";
 import { heldLinks } from "../links/heldLinks";
@@ -13,9 +14,16 @@ export const useOnboarding = create<{ showing: boolean; step: OnboardingStep; fo
 
 export const onboardingShowing = () => useOnboarding.getState().showing;
 
+const STEP_KEY = "onboarding.step";
+
+useOnboarding.subscribe((state, previous) => {
+  if (state.showing === previous.showing && state.step === previous.step) return;
+  keepRestorable(STEP_KEY, state.showing ? state.step : null);
+});
+
 export function showOnboarding() {
   closeSettings();
-  useOnboarding.setState({ showing: true, step: "welcome", forward: true });
+  useOnboarding.setState({ showing: true, step: restoredOnboardingStep(restoredValue(STEP_KEY)), forward: true });
   void refreshDefaultBrowser();
 }
 

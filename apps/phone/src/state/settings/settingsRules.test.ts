@@ -18,6 +18,7 @@ import {
   myFiltersSummary,
   defaultBrowserCopy,
   nextStep,
+  restoredOnboardingStep,
   offersDefaultBrowser,
   previousStep,
   resetMessage,
@@ -151,4 +152,10 @@ test("Settings takes the one sheet over the Archive or Spaces, which come back w
   assert.equal(frontSheet(false, "spaces"), "spaces");
   assert.equal(frontSheet(true, "spaces"), "settings");
   assert.equal(frontSheet(true, null), "settings");
+});
+
+test("onboarding comes back on the step it was on when the activity was recreated, and on the welcome step for anything else", () => {
+  assert.equal(restoredOnboardingStep("sync"), "sync");
+  assert.equal(restoredOnboardingStep("defaultBrowser"), "defaultBrowser");
+  for (const raw of [null, "", "nonsense", "constructor"]) assert.equal(restoredOnboardingStep(raw), "welcome", String(raw));
 });

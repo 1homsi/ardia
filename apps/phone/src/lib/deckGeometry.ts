@@ -185,3 +185,8 @@ export function deckSettleVelocity(g: DeckGeometry, scroll: number, target: numb
 }
 
 export const archiveCardBottom = (g: DeckGeometry, aboveBarCenter: number) => g.height - g.barCenterY + aboveBarCenter;
+
+export function deckScrollActionTarget(focused: number, count: number, direction: "forward" | "backward"): number | null {
+  const target = focused + (direction === "forward" ? 1 : -1);
+  return target >= 0 && target < count ? target : null;
+}

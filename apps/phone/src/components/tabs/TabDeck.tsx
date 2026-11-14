@@ -10,6 +10,7 @@ import {
   deckCardAt,
   deckGeometry,
   archiveCardBottom,
+  deckScrollActionTarget,
   deckLeading,
   deckIsTap,
   deckDragKind,
@@ -39,7 +40,7 @@ import {
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, FrostSource, Menu, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem } from "../ui";
+import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, FrostSource, Menu, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { pinToMac, sendTab, sendTargetsFor } from "../../state/sync/actions";
@@ -392,29 +393,41 @@ export function TabDeck() {
         </FrostSource>
       </Animated.View>
       <Shade shaded={menu !== null || cardMenu !== null || confirmation !== null}>
-        <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
-          <Animated.View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }, cardsStyle]} collapsable={false}>
-            {order.map((id, index) => {
-              const tab = tabs.get(id);
-              if (!tab || hidden.current.has(id) || Math.abs(index - near) > DECK_RENDER_REACH) return null;
-              return (
-                <DeckCard
-                  key={id}
-                  tab={tab}
-                  index={index}
-                  isLast={index === count - 1}
-                  role={roleOf(phase, id, index, order)}
-                  geometry={g}
-                  motion={motion}
-                  shift={shift}
-                  onOpen={cardActions.open}
-                  onClose={cardActions.close}
-                  onCloseNow={cardActions.closeNow}
-                />
-              );
-            })}
-          </Animated.View>
-        </GestureDetector>
+        <ScrollActions
+          style={StyleSheet.absoluteFill}
+          pointerEvents="box-none"
+          canScrollForward={deckScrollActionTarget(near, count, "forward") !== null}
+          canScrollBackward={deckScrollActionTarget(near, count, "backward") !== null}
+          onScrollAction={(direction) => {
+            const target = deckScrollActionTarget(near, count, direction);
+            if (target === null) return;
+            scroll.value = reduceMotion ? withTiming(target, { duration: tabsMotion.fade }) : withSpring(target, tabsMotion.settle);
+          }}
+        >
+          <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
+            <Animated.View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }, cardsStyle]} collapsable={false}>
+              {order.map((id, index) => {
+                const tab = tabs.get(id);
+                if (!tab || hidden.current.has(id) || Math.abs(index - near) > DECK_RENDER_REACH) return null;
+                return (
+                  <DeckCard
+                    key={id}
+                    tab={tab}
+                    index={index}
+                    isLast={index === count - 1}
+                    role={roleOf(phase, id, index, order)}
+                    geometry={g}
+                    motion={motion}
+                    shift={shift}
+                    onOpen={cardActions.open}
+                    onClose={cardActions.close}
+                    onCloseNow={cardActions.closeNow}
+                  />
+                );
+              })}
+            </Animated.View>
+          </GestureDetector>
+        </ScrollActions>
         {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} /> : null}
         {archiveCard && phase.kind === "settled" ? <ArchiveIntervalCard bottom={archiveCardBottom(g, archiveCardLayout.aboveBarCenter)} /> : null}
         {privateCount > 0 ? (
