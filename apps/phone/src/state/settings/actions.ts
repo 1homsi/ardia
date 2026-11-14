@@ -14,7 +14,7 @@ import { clearArchivedTabs, currentTabs, setAutoArchiveInterval } from "../tabs/
 import type { AutoArchiveInterval } from "../tabs/tabModels";
 import { closeSettings } from "./nav";
 import type { ColorChoice, NightShadeMode, Preferences, SwipeNavigationMode } from "./preferences";
-import { clearSince, exportableUrls, listsUpdateFailed, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
+import { clearSince, exportableUrls, FILTER_LIST_ADDRESS, listsUpdateFailed, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
 import { currentPreferences, setPreference } from "./store";
 
 export type { BlockingState };
@@ -105,13 +105,21 @@ export async function updateListsFromButton() {
   else haptics.success();
 }
 
-export async function addList(url: string): Promise<boolean> {
-  const id = await settled(() => blocking.addCustomList(url), null);
+const listRefusal = (error: unknown): string =>
+  error instanceof Error && (error as { code?: string }).code === "ERR_FILTER_LIST" && error.message ? error.message : FILTER_LIST_ADDRESS.failed;
+
+export async function addList(url: string): Promise<string | null> {
+  let refusal: string | null = null;
+  try {
+    await blocking.addCustomList(url);
+  } catch (error) {
+    refusal = listRefusal(error);
+  }
   const state = await settled(() => blocking.state(), null);
   if (state) useBlocking.setState({ state });
-  if (id !== null) haptics.success();
-  else haptics.error();
-  return id !== null;
+  if (refusal) haptics.error();
+  else haptics.success();
+  return refusal;
 }
 
 export async function applyMyFilters(text: string) {

@@ -5,9 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
 import { duration, FloatingMenu, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 
-type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown>; heroTitle?: boolean };
+type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown>; heroTitle?: boolean; overlay?: ReactNode };
 
-export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh, heroTitle = false }: PageProps) {
+export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh, heroTitle = false, overlay }: PageProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const list = useRef<ScrollView>(null);
@@ -78,6 +78,7 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
       ) : (
         <View style={[styles.fill, { paddingBottom: insets.bottom }]}>{children}</View>
       )}
+      {overlay}
     </View>
   );
 }

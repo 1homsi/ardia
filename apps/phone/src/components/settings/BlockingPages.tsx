@@ -1,5 +1,9 @@
-import { useMemo, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, BackHandler, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import Animated, { FadeIn, FadeOut, useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { pastedText } from "../../state/sync/actions";
+import { CapsuleButton } from "../sync/SyncPage";
 import { openFromSettings,
   addList,
   applyMyFilters,
@@ -26,9 +30,10 @@ import {
   resetMessage,
   rulesText,
   updatedText,
-  validListUrl,
+  filterListAddress,
+  FILTER_LIST_ADDRESS,
 } from "../../state/settings/settingsRules";
-import { ConfirmDialog, Dialog, dialogLayout, font, radius, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
+import { ConfirmDialog, duration, font, Sheet, usePresence, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
 import { copy } from "../../lib/platformCopy";
 
 const FILTER_SYNTAX_URL = "https://github.com/gorhill/uBlock/wiki/Static-filter-syntax";
@@ -39,6 +44,7 @@ export function FilterListsPage() {
   const state = useBlocking((s) => s.state);
   const busy = useBlocking((s) => s.busy);
   const [adding, setAdding] = useState(false);
+  const addSheet = usePresence(adding);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const now = Date.now();
   const lists = state?.lists ?? [];
@@ -50,7 +56,13 @@ export function FilterListsPage() {
   const enabled = lists.filter((list) => list.isEnabled);
   const updating = busy || Boolean(state?.isUpdating);
   return (
-    <SettingsPage title="Filter Lists" onBack={popSettings} onRefresh={updateLists} heroTitle>
+    <SettingsPage
+      title="Filter Lists"
+      onBack={popSettings}
+      onRefresh={updateLists}
+      heroTitle
+      overlay={addSheet.mounted ? <AddListSheet open={adding} onClose={() => setAdding(false)} onHidden={addSheet.hidden} /> : null}
+    >
       <View style={styles.hero}>
         <IconTile icon="shieldLefthalf" tint={settingsTint.ads} side={settingsLayout.heroTile} />
         <Text style={[font.title3, styles.bold, { color: theme.label }]}>Filter Lists</Text>
@@ -89,7 +101,6 @@ export function FilterListsPage() {
           }
         />
       </Group>
-      {adding ? <AddListDialog onClose={() => setAdding(false)} /> : null}
       {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}
     </SettingsPage>
   );
@@ -170,41 +181,95 @@ export function FilterListDetailPage({ id }: { id: string }) {
   );
 }
 
-function AddListDialog({ onClose }: { onClose: () => void }) {
+function AddListSheet({ open, onClose, onHidden }: { open: boolean; onClose: () => void; onHidden: () => void }) {
   const theme = useTheme();
-  const [text, setText] = useState("");
-  const [failed, setFailed] = useState(false);
-  const url = validListUrl(text);
-  const add = async () => {
-    if (!url) return;
-    if (await addList(url)) onClose();
-    else setFailed(true);
+  const insets = useSafeAreaInsets();
+  const [address, setAddress] = useState("");
+  const [failure, setFailure] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const addingNow = useRef(false);
+  const keyboard = useAnimatedKeyboard({ isStatusBarTranslucentAndroid: true, isNavigationBarTranslucentAndroid: true });
+  const lift = useAnimatedStyle(() => ({ height: Math.max(keyboard.height.value - insets.bottom, 0) }));
+  const check = filterListAddress(address);
+  const url = "url" in check ? check.url : null;
+  const close = () => {
+    if (!adding) onClose();
   };
+  const add = async () => {
+    if (!url || addingNow.current) return;
+    addingNow.current = true;
+    setAdding(true);
+    const refusal = await addList(url);
+    addingNow.current = false;
+    setAdding(false);
+    if (refusal) setFailure(refusal);
+    else onClose();
+  };
+  useEffect(() => {
+    if (!open) return;
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      close();
+      return true;
+    });
+    return () => back.remove();
+  });
+  const footer = failure
+    ? { text: failure, ink: theme.destructive }
+    : "message" in check && address
+      ? { text: check.message, ink: theme.secondaryLabel }
+      : { text: FILTER_LIST_ADDRESS.footer, ink: theme.secondaryLabel };
   return (
-    <Dialog
-      title="Add a List"
-      message={failed ? "Couldn’t add that list." : "Adblock Plus or uBlock Origin format."}
-      onDismiss={onClose}
-      buttons={[
-        { title: "Cancel", onPress: onClose },
-        { title: "Add", onPress: () => void add() },
-      ]}
-    >
-      <TextInput
-        accessibilityLabel="List Address"
-        value={text}
-        onChangeText={(value) => {
-          setText(value);
-          setFailed(false);
-        }}
-        placeholder="https://example.com/filters.txt"
-        placeholderTextColor={theme.foregroundTertiary}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        style={[font.body, styles.field, { color: theme.label, borderColor: theme.separator }]}
-      />
-    </Dialog>
+    <Sheet open={open} onDismiss={close} onHidden={onHidden}>
+      <View style={styles.sheetBar}>
+        <View style={styles.sheetSide}>
+          <BarButton title="Cancel" onPress={close} />
+        </View>
+        <Text accessibilityRole="header" style={[font.body, styles.bold, styles.sheetTitle, { color: theme.label }]} numberOfLines={1}>
+          Add a List
+        </Text>
+        <View style={[styles.sheetSide, styles.sheetEnd]}>
+          {adding ? <ActivityIndicator testID="addingList" color={theme.secondaryLabel} /> : <BarButton title="Add" emphasized enabled={url !== null} onPress={() => void add()} />}
+        </View>
+      </View>
+      <View style={styles.sheetBody}>
+        <Text style={[font.footnote, styles.bold, styles.sheetLabel, { color: theme.secondaryLabel }]}>List Address</Text>
+        <View style={[styles.fieldSurface, { backgroundColor: theme.groupFill }]}>
+          <TextInput
+            accessibilityLabel="List Address"
+            autoFocus
+            value={address}
+            onChangeText={(value) => {
+              setAddress(value);
+              setFailure(null);
+            }}
+            onSubmitEditing={() => void add()}
+            submitBehavior="submit"
+            returnKeyType="done"
+            placeholder="https://example.com/filters.txt"
+            placeholderTextColor={theme.foregroundTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            style={[font.body, styles.sheetField, { color: theme.label }]}
+          />
+        </View>
+        <CrossfadeText testID="addListFooter" text={footer.text} style={[font.footnote, styles.sheetLabel, { color: footer.ink }]} />
+        {address === "" ? (
+          <Animated.View entering={FadeIn.duration(duration.crossfade)} exiting={FadeOut.duration(duration.crossfade)} style={styles.paste}>
+            <CapsuleButton
+              title="Paste"
+              icon="docOnDoc"
+              onPress={() => {
+                void pastedText().then((text) => {
+                  if (text.trim()) setAddress(text.trim());
+                });
+              }}
+            />
+          </Animated.View>
+        ) : null}
+      </View>
+      <Animated.View style={lift} />
+    </Sheet>
   );
 }
 
@@ -284,7 +349,15 @@ const styles = StyleSheet.create({
   bold: { fontWeight: "600" },
   fill: { flex: 1 },
   listRow: { flexDirection: "row", alignItems: "center", gap: space.m, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
-  field: { minHeight: dialogLayout.fieldHeight, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.row, paddingHorizontal: space.m },
+  sheetBar: { flexDirection: "row", alignItems: "center", minHeight: settingsLayout.topBar, paddingHorizontal: space.xs },
+  sheetSide: { flex: 1, flexDirection: "row" },
+  sheetEnd: { justifyContent: "flex-end", paddingRight: space.s },
+  sheetTitle: { textAlign: "center" },
+  sheetBody: { paddingVertical: space.l, gap: space.s },
+  sheetLabel: { paddingHorizontal: settingsLayout.rowInset + space.l },
+  fieldSurface: { marginHorizontal: space.l, borderRadius: settingsLayout.groupRadius, paddingHorizontal: settingsLayout.rowInset, minHeight: settingsLayout.rowMinHeight, justifyContent: "center" },
+  sheetField: { minHeight: settingsLayout.rowMinHeight },
+  paste: { alignItems: "center", paddingTop: space.s },
   editor: { marginHorizontal: space.l, borderRadius: settingsLayout.groupRadius, padding: space.l, minHeight: 240 },
   editorText: { flex: 1, textAlignVertical: "top", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   footer: { paddingHorizontal: space.l + settingsLayout.rowInset, gap: space.xs },

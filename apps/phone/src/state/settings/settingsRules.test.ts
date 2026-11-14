@@ -24,7 +24,8 @@ import {
   previousStep,
   resetMessage,
   updatedText,
-  validListUrl,
+  filterListAddress,
+  FILTER_LIST_ADDRESS,
   websiteDataKinds,
 } from "./settingsRules.ts";
 
@@ -68,9 +69,15 @@ test("My Filters and the add-a-list field", () => {
   assert.equal(myFiltersSummary(3, 1, false), "3 rules · 1 skipped");
   assert.equal(myFiltersSummary(0, 0, false), "No rules yet");
   assert.equal(myFiltersSummary(3, 0, true), "Changes aren’t applied yet");
-  assert.equal(validListUrl(" https://example.com/filters.txt "), "https://example.com/filters.txt");
-  assert.equal(validListUrl("example.com/filters.txt"), null);
-  assert.equal(validListUrl("https://localhost"), null);
+});
+
+test("a list address is checked as Compose's FilterListAddress, with its own message for each problem", () => {
+  assert.deepEqual(filterListAddress(" https://example.com/filters.txt "), { url: "https://example.com/filters.txt" });
+  assert.deepEqual(filterListAddress("http://lists.example.org:8080/a?b=1"), { url: "http://lists.example.org:8080/a?b=1" });
+  assert.deepEqual(filterListAddress("   "), { message: FILTER_LIST_ADDRESS.empty });
+  assert.deepEqual(filterListAddress("example.com/filters.txt"), { message: FILTER_LIST_ADDRESS.invalid });
+  assert.deepEqual(filterListAddress("https://localhost"), { message: FILTER_LIST_ADDRESS.invalid });
+  assert.deepEqual(filterListAddress("ftp://example.com/list"), { message: FILTER_LIST_ADDRESS.invalid });
 });
 
 test("onboarding runs Welcome, Blocking, All Set without the sync and default browser steps", () => {

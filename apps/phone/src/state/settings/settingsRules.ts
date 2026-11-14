@@ -158,9 +158,19 @@ export function myFiltersSummary(ruleCount: number, skippedCount: number, hasCha
   return skippedCount > 0 ? `${rules} · ${formatNumber(skippedCount)} skipped` : rules;
 }
 
-export function validListUrl(text: string): string | null {
+export const FILTER_LIST_ADDRESS = {
+  empty: "Enter the list’s address.",
+  invalid: "Enter an address that starts with https://.",
+  footer: "Adblock Plus or uBlock Origin format.",
+  failed: "Couldn’t add that list.",
+} as const;
+
+export function filterListAddress(text: string): { url: string } | { message: string } {
   const trimmed = text.trim();
-  return /^https?:\/\/[^\s/?#]+\.[^\s/?#]+[^\s]*$/i.test(trimmed) ? trimmed : null;
+  if (!trimmed) return { message: FILTER_LIST_ADDRESS.empty };
+  const match = /^(https?):\/\/([^\s/?#:@]+)(?::\d+)?(?:[/?#]\S*)?$/i.exec(trimmed);
+  if (!match || !match[2]!.includes(".")) return { message: FILTER_LIST_ADDRESS.invalid };
+  return { url: trimmed };
 }
 
 export type OnboardingStep = "welcome" | "blocking" | "defaultBrowser" | "sync" | "allSet";
