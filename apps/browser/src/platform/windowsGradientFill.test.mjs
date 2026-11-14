@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { flatColors, gradientFill } from "../../../../packages/expo-windows/src/views/gradientFill.ts";
+import { fallbackColumns, fallbackRows, flatColors, gradientFill } from "../../../../packages/expo-windows/src/views/gradientFill.ts";
 
 const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -51,11 +51,36 @@ test("the native gradient places its stops and masks itself with the fade's alph
   for (const header of ["GradientView.h", "MaterialViewParts.h"]) assert.ok(project.includes(`<ClInclude Include="${header}" />`), header);
 });
 
-test("a gradient-only Surface cuts no page window: every GradientFill sits inside a toolbar or sidebar plate that does", () => {
+test("the striped fallback keeps a thin bottom line and the fade's soft front", () => {
+  const lineTop = 1 - 1.5 / 30;
+  const glow = gradientFill({ fillColors: ["#2060ff10", "#2060ff30", "#2060ffff", "#2060ffff"], fillStops: [0, lineTop * 0.6, lineTop, 1], fade: [1, 0.55, 0.3, 0], fadeStops: [0, 0.7, 0.85, 1] });
+  const rows = fallbackRows(glow);
+  const line = rows.filter((row) => row.at >= lineTop - 1e-9);
+  assert.equal(line.length, 1, "the line is one row of its own");
+  assert.ok(Math.abs(line[0].size - (1 - lineTop)) < 1e-9, `the line row is ${line[0].size} tall`);
+  assert.ok(Math.abs(line[0].color[3] - 1) < 1e-6, "the line is opaque");
+  assert.ok(rows[0].color[3] < 0.1, "the top is faint");
+  assert.ok(Math.abs(rows.reduce((sum, row) => sum + row.size, 0) - 1) < 1e-9, "rows fill the height");
+  const columns = fallbackColumns(glow);
+  assert.ok(columns.length >= 4, `${columns.length} columns`);
+  assert.ok(columns[0].opacity > 0.9 && columns.at(-1).opacity < 0.2, "opaque at the start, nearly gone at the front");
+  for (let i = 1; i < columns.length; i++) assert.ok(columns[i].opacity <= columns[i - 1].opacity + 1e-9, "the fade never brightens");
+  assert.ok(Math.abs(columns.reduce((sum, column) => sum + column.size, 0) - 1) < 1e-9, "columns fill the width");
+  assert.deepEqual(fallbackColumns(gradientFill({ fillColors: ["#000", "#fff"] })), [{ at: 0, size: 1, opacity: 1 }]);
+  assert.doesNotMatch(source("../../../../packages/expo-windows/src/views/Surface.tsx"), /<Bands /);
+});
+
+const files = (dir) =>
+  readdirSync(new URL(dir, import.meta.url), { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? files(`${dir}${entry.name}/`) : /\.tsx?$/.test(entry.name) && !/\.test\./.test(entry.name) ? [`${dir}${entry.name}`] : [],
+  );
+const DRAWS_THE_GRADIENT = "../../../../packages/expo-windows/src/views/Surface.tsx";
+const using = (pattern) => [...files("../"), ...files("../../../../packages/expo-windows/src/")].filter((file) => file !== DRAWS_THE_GRADIENT && pattern.test(source(file))).sort();
+
+test("a gradient-only Surface cuts no page window, and every gradient drawn sits inside a plate that does", () => {
   const surface = source("../../../../packages/expo-windows/src/views/Surface.tsx");
   assert.match(surface, /const own = gradient \? \{ ref, onLayout \} : \{ ref: cover\.ref, onLayout: cover\.onLayout \};/);
-  const users = ["../components/toolbar/FieldLoadFill.tsx"];
-  for (const file of users) assert.match(source(file), /<GradientFill /);
-  const anywhere = ["../components/toolbar/Toolbar.tsx", "../components/littleArdia/SmallChrome.tsx", "../components/window/PageOverlays.tsx", "../components/window/LoadingPill.tsx"];
-  for (const file of anywhere) assert.doesNotMatch(source(file), /<GradientFill /, `${file} draws a GradientFill of its own`);
+  assert.deepEqual(using(/\bfillColors=|\bfadeStops=/), ["../components/ui/GradientFill.tsx"], "only GradientFill gives a Surface a gradient");
+  assert.deepEqual(using(/<GradientFill\b/), ["../components/toolbar/FieldLoadFill.tsx"], "only the field glow draws a GradientFill");
+  assert.deepEqual(using(/<FieldLoadFill\b/), ["../components/littleArdia/SmallChrome.tsx", "../components/toolbar/Toolbar.tsx"], "the glow sits in the toolbar, sidebar and Little Ardia fields");
 });

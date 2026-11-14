@@ -2,9 +2,8 @@ import { forwardRef, type ReactNode } from "react";
 import type { NativeSurfaceProps } from "@ardia/shell";
 import { StyleSheet, View, type ViewStyle } from "react-native";
 import { usePageCover } from "../engine/usePageCover";
-import { Bands } from "./Bands";
 import { parseColor, rgbaString, sampleStops, type Rgba } from "./color";
-import { flatColors, gradientFill, type GradientFill } from "./gradientFill";
+import { fallbackColumns, fallbackRows, flatColors, gradientFill, type GradientFill } from "./gradientFill";
 import { NativeMaterialGradient, nativeGradient } from "./nativeMaterials";
 import { RoundedShadow } from "./RoundedShadow";
 import { shadowSpec } from "./shadowLayers";
@@ -22,9 +21,26 @@ const CLEAR_BORDER = "rgba(0,0,0,0)";
 const TOP_TO_BOTTOM = 180;
 const LEFT_TO_RIGHT = 90;
 
+const percent = (unit: number) => `${unit * 100}%` as const;
+
+function StripedGradient({ gradient, clip }: { gradient: GradientFill; clip: ViewStyle | null }) {
+  const rows = fallbackRows(gradient);
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, clip]}>
+      {fallbackColumns(gradient).map((column, c) => (
+        <View key={c} style={{ position: "absolute", top: 0, bottom: 0, left: percent(column.at), width: percent(column.size), opacity: column.opacity }}>
+          {rows.map((row, r) => (
+            <View key={r} style={{ position: "absolute", left: 0, right: 0, top: percent(row.at), height: percent(row.size), backgroundColor: rgbaString(row.color) }} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function GradientLayer({ gradient, corner }: { gradient: GradientFill; corner: number }) {
   const clip: ViewStyle | null = corner > 0 ? { borderRadius: corner, overflow: "hidden" } : null;
-  if (!nativeGradient()) return <Bands stops={gradient.stops} angle={TOP_TO_BOTTOM} borderRadius={corner} />;
+  if (!nativeGradient()) return <StripedGradient gradient={gradient} clip={clip} />;
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, clip]}>
       <NativeMaterialGradient
