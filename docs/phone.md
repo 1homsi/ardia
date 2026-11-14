@@ -238,6 +238,12 @@ what each tap does, what is remembered, animations and their timing. Every item 
 lives in the native app, and its size (small: an hour or two; a day; more). Anything not yet seen working on a
 phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 608a701c5.
 
+Largest first: the Android upgrade import from the Compose app (data loss, native), inline completion in the search
+field (native on both phones), the tray's motion and gestures (keyboard-driven rise, drag to close, scrubbing,
+animated close), the iPhone page view's Swipe to Navigate and pull to refresh, and iPhone voice search. Then the
+iPhone import dropping blocking and site settings (small, but data loss), folder-before-phrase sync connect, and
+the demo-mode launch arguments both apps' capture scripts use.
+
 ### Needs only JavaScript
 
 - Search tray: search links (`ardia://search?q=`, web search, process text, shared text, Siri) open the tray with the words instead of searching at once as both apps do. `AppModel.kt` `handle()`, `AppModel+System.swift` `handle(_:)`. Small.
@@ -308,6 +314,28 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 
 - Settings root: at accessibility text sizes the sync card stacks its tile above the text (44 dp tile) and the Archive and Spaces buttons stack; the card's status line crossfades when it changes. `SettingsRootPage.kt`, `SettingsView.swift`. Small.
 - Profile colour: the swatch ring doesn't animate to the picked colour. `ColorChoice.kt`. Small.
 - Spaces: no swipe between profiles (the switcher slides since 616d4a43f), and no tick on switching (iPhone). `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. A day.
+- Filter Lists: no pull to refresh; a downloading list's switch is disabled with no spinner; status and facts lines swap without a fade; the top bar repeats the hero title (Compose shows it once the hero scrolls away). `BlockingPages.kt` `FilterListsPage`/`FilterListRow`, `FilterListsPage.swift`. Small.
+- Add a List: a centred dialog with Add always enabled and one generic error; both apps use a bottom sheet whose field takes focus, adds on Done, offers Paste while empty, validates the address with its own message and guards a double add. `BlockingPages.kt` `AddFilterListSheet`, `FilterLists.kt`, `AddFilterListSheet.swift`. Small.
+- Filter list detail: Last Updated is relative (both apps: date and time), a failure is only footer text, Try Again stays enabled while updating, the source can't be tapped, and the list's website opens outside the app (Compose: an Ardia tab). `FilterListDetailPage` in `BlockingPages.kt`, `FilterListDetailPage.swift`. Small.
+- My Filters: Back loses unapplied edits (Compose blocks Back, SwiftUI hides it); Apply has no spinner or double-tap guard and leaves the keyboard up; the editor is a 240-high box instead of filling the page. `BlockingPages.kt` `MyFiltersEditor`, `MyFiltersEditor.swift`. Small.
+- Trusted Sites: remove buttons always showing and removal not animated; both apps use Edit/Done (SwiftUI also swipe to delete) and a globe per row. `TrustedSitesPage` in `BlockingPages.kt`, `TrustedSitesPage.swift`. Small.
+- Search Engine: the picker can list the Mac's custom engines and "Custom"; the From Your Mac row has no laptop icon. `SearchEngineNames.kt`, `GeneralPages.kt`, `SearchEnginePage.swift`. Small.
+- Default Browser: at accessibility sizes both apps show a numbered list instead of the card; title weight, step icons and the iPhone button differ; on Android, when nothing can take the role request, Compose moves onboarding on. `DefaultBrowserPage.kt`, `DefaultBrowserPage.swift`. Small.
+- About: the hero is the logo, not the 72 pt app icon with a shadow and bold title; the iPhone licences list Android-only libraries and miss the iPhone's own native code. `AboutPage` in `GeneralPages.kt`, `AboutPage.swift`, `apps/phone/test/credits.ts`. Small.
+- Onboarding: a fast Continue on Android skips the default-browser step while its status loads (Compose always shows it); pages don't scroll at accessibility sizes (both keep a 260 dp picture minimum); Welcome ignores Reduce Motion, Get Started doesn't fade in, and the icon isn't the 104 pt app icon on white; the current step is lost when Android kills the app (`rememberSaveable`). `OnboardingFlow.kt`, `OnboardingView.kt`, `OnboardingWelcomeStep.swift`, `OnboardingPage.swift`. Small each.
+- Onboarding sync step: a symbol instead of the Mac-and-phone QR picture; the connect screen pops in (Compose slides it up, SwiftUI a sheet) and "Connected." doesn't crossfade. `SyncScanIllustration.kt`/`.swift`, `OnboardingSteps.swift`. Half a day.
+- Sync: warnings are red (both apps orange); the scanner draws inside the sheet (both apps full screen) with a full rounded border instead of corner arms, wrong "can't scan" icons, a popping "Not an Ardia sync code" and no error haptic. `SettingsComponents.kt` `warningInk`, `SyncCodeScanner.kt`/`.swift`, `SyncConnectPage.swift`. Small.
+- Sync: Enter Words replaces the page instead of pushing one, its counter and footer don't crossfade, and on iPhone the keyboard isn't ASCII and doesn't dismiss on scroll; connect steps pop instead of animating. `RecoveryPhraseEntryPage` in `SyncPages.kt`, `RecoveryPhraseEntryPage.swift`, `SyncConnectPage.swift`. Small.
+- Sync devices: rows say "5 minutes ago" (Compose "5 min. ago", SwiftUI nothing for other devices); the iPhone lacks the iMac, Studio and mini symbols; Stop Syncing on iPhone is a centred dialog, not an action sheet. `SyncDeviceWords.kt`, `SyncSettingsPage.swift`. Small.
+- Spaces: the empty state's Sync With Mac opens Settings › Sync, not Connect; pinned tabs with a symbol show a favicon (`row.icon` never drawn); open groups, folders and devices are forgotten on every profile switch (Compose keeps them per profile, across launches); no tick on a profile change on Android either. `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
+- Spaces at large text and motion: rows don't wrap, icons and tiles don't grow, the switcher doesn't scroll when profiles overflow; the folder chevron, Show All and group expansion snap and the header doesn't crossfade; the banner uses Compose's icons on iPhone; rows and tiles have no accessibility action for their menu. `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
+- Received-tab toast: always the laptop icon; SwiftUI uses `iphone` when the sender is an iPhone. `Toast.swift` `tabReceived`. Small.
+- Page cover: blank until the page paints; Compose shows the tab's saved image or a placeholder (up to 4 s) and fades it over 180 ms. `PageLayer.kt` `PageCover`. Half a day.
+- Page menu sheet: can't be dragged down to close (flick 800, or past 35% of its height capped at 120); it and the tab pager ignore Reduce Motion; the incoming pager card has no edge shadow though `incomingPose` computes it. `BrowsingSheet.kt`, `TrayDrag.kt`, `BrowsingRules.kt`, `TabPager.kt`. Half a day.
+- Page menu: in toggle rows only the switch is tappable (Compose: the whole row, one Switch for TalkBack); at 1.3× text size Compose turns tiles into a list and stacks the zoom row; Open in Default Browser is disabled off web pages (Compose always enables it). `PageMenu.kt`. Small.
+- Downloads toasts: a download refused at the start still says Downloading, ending incognito gives one toast per file instead of "Stopped N Private Downloads", and several icons differ. `AppModel.kt` `startDownload`/`announceDownload`, `Toasts.kt`. Small.
+- Bottom bar: the recent-tabs menu shows "New Tab" for a tab without title or host (Compose: the address); the tab thumbnail reads only the saved file, so it lags about 700 ms (Compose uses the in-memory cover first). `BrowsingRules.kt`, `BottomBar.kt` `TabThumbnail`. Small.
+- Demo mode: only sync has a demo; tabs, Archive and history use the tester's real store, and none of the capture or motion-capture launch arguments work (BrowseOpen … StepGap, ArdiaDeck, Onboarding, OpenSheet, OpenSettings, RestingStart, Color, Toast, TrustedSites, BrowsePagerFreeze/Script, BrowseLoadFreeze). `LaunchArguments.kt`, `DemoScenario.kt`, `DemoSeed.swift`, `MotionDemo.swift`, `AppModel.swift`. A day or more, plus the native pass-through below.
 
 ### Needs native code on Android
 
@@ -316,6 +344,11 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
 - Widgets: the Color setting doesn't tint them. `system/WidgetColors.kt`, `SystemSnapshotExport.kt`. Small.
 - Page permission order: Compose asks Android for camera, mic or location first and shows the site's Allow dialog only once Android grants it (a refusal ends quietly); the app shows the site dialog first. Needs a check-or-request call before the dialog. `PageRequests.kt` `PermissionRequest`. Small.
+- **Upgrade import from the Compose app (data loss).** Both apps are `com.ardia.browser.android`, so the Expo app installs over Compose, but there is no Android legacy module: Compose's `databases/browser.db` and SharedPreferences are never read, and upgraders lose tabs, Archive, history, settings and the finished onboarding. 51a85181c kept the schema so it can be a copy; the copy was never written. `BrowserDatabase.kt`, `BrowsingPreferences.kt`. A day.
+- Sync connect: both apps pick the folder first, show its name and reuse it after a mismatch; the module's `connect(phrase)` opens the picker inside the call, so a retry asks again. Needs `pickFolder()` and `connect(phrase, folder)`. `SyncConnectSession.kt`, `SyncModule.kt`. A day (shared with iPhone).
+- Pull to refresh settles on a 250 ms animator instead of Compose's snappy spring, in a fixed #007AFF instead of the accent; the swipe-to-navigate target falls back to black or white instead of the profile's surface. `PageGestures.kt` vs `PageLayer.kt` `animatePull`. Small.
+- Tab pager corner radius is a fixed 55; Compose reads the display's real corner on Android 12+. `TabPager.kt` `rememberDisplayCornerRadius`. Small.
+- Launch arguments: `pages.launchOptions()` passes only `pageLab` and `syncDemo`; the demo and capture extras need passing through. `PageViewModule.kt`, `LaunchArguments.kt`. Small.
 
 ### Needs native code on iPhone
 
@@ -325,7 +358,7 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 
 - Shortcuts and Siri: no Open Tab intent or tab entity in the app target (`apps/phone/ios/Ardia/Intents.swift`). `ArdiaIntents.swift` `OpenTabIntent`, `TabEntity.swift`. A day.
 - Handoff: the current page isn't offered to other devices (incoming works). `SystemIntegrations.swift`, `AppModel+System.swift`. Small.
 - Deck bar: SwiftUI's buttons are interactive Liquid Glass (`.glassEffect(.regular.interactive())`); the look module's Frost needs a glass variant that samples the deck. `TabDeckBar.swift`. A day.
-- Context menus: SwiftUI uses system context menus (lift preview and blur) on cards, the plus button and archive rows, with ShareLink; the app draws its own. Needs a native context-menu view. `TabSwitcherView.swift`, `TabDeckBar.swift`, `ArchiveView.swift`. A day.
+- Context menus: SwiftUI uses system context menus (lift preview and blur) on cards, the plus button and archive rows, with ShareLink; the app draws its own. Also Spaces rows and folder tiles. Needs a native context-menu view. `TabSwitcherView.swift`, `TabDeckBar.swift`, `ArchiveView.swift`, `SyncedSpacesView.swift`. A day.
 - Swipe to Navigate: the page view has no `swipeNavigation`, so the setting does nothing and only WebKit's edge swipe runs; SwiftUI swipes from anywhere with snapshot parallax, a shade and a haptic at the commit point. `WebPageView.swift` `swipePan`/`handleSwipe`. A day.
 - Pull to refresh: no `pullToRefresh` on the page view; SwiftUI uses a refresh control tinted with the loading colour. `WebPageView.swift`. Small.
 - Open in Background opens in front: the module drops `inBackground` from the link callback, and the app selects every popup. `WebTab.swift`, `PhonePages.linkOpened`. Small (plus a JS line).
@@ -333,6 +366,12 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 
 - Per-site Open App Links In: `siteOpensLinksInApps`, `appLinksDefault` and `setAppLinksDefault` are missing, and clearing a site's choice (null) can't decode. `BrowsingPreferences.swift`. Small.
 - Long-press on links and images uses WebKit's context menu (as SwiftUI does), so the app's drawn menu, Save Image and the Copied URL toast are Android-only; matching Android needs native long-press events. `WebTab.swift`. A day.
 - Clear Browsing Data: cache and cookies are cleared for all time whatever range is picked; SwiftUI passes the range's start. Needs `since` on `clearWebsiteData`. `ClearBrowsingDataPage.swift`, `BrowsingPreferences.swift`. Small.
+- **Upgrade import drops blocking and site settings (data loss).** `blocking.*` (Trusted Sites), `browsing.sites` and `filters.*` (My Filters) land in `unmapped`, because the page module reads them from the `ardia.phone.pages` suite and the import never copies them there; blocking resets to its defaults. Copy them in `PhoneLegacy.swift` before `markImported`. `BlockingSettings.swift`, `FilterLists.swift`, `BrowsingPreferences.swift`. Small.
+- Default Browser: `Linking.openSettings()` never calls `DefaultBrowserStatus.willOpenSystemSettings()`, so the status isn't re-checked on return and the page keeps its instructions. `DefaultBrowserPage.swift`, `PhoneSystem.swift`. Small.
+- Sync connect: folder before phrase, as on Android. `SyncConnectPage.swift` `SyncConnectFlow`, `SyncModule.swift`. Shared with Android.
+- Enter Words: Paste reads the clipboard and triggers iOS's Allow Paste prompt; SwiftUI uses the system `PasteButton`. `RecoveryPhraseEntryPage.swift`. Small to a day.
+- Scanner: plain AVFoundation; SwiftUI uses VisionKit's `DataScannerViewController` with pinch to zoom and a highlight on the found code. `SyncCodeScanner.swift`, `ScanModule.swift`. A day.
+- Launch arguments: `PageViewModule.swift` returns only `lab`, `pageLab` and `syncDemo`. Small.
 
 ### Unverified on a phone
 
@@ -359,6 +398,20 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 
 - iPhone: a toast raised from Settings (Cleared Browsing Data) shows above the sheet, as SwiftUI's own toast window does.
 - A tab sent from the Mac shows a toast on both phones and tapping it opens the tab (SwiftUI `ReceivedTabsAnnouncer.swift`).
 - Turning Match My Mac off with a Mac custom theme keeps the colour Compose's `choiceAfterMatchToggle` keeps.
+- Site Settings and filter-list switches don't snap back for a moment while the native call and re-read run (`withBlocking`).
+- iPhone confirmations (Restore Defaults, Remove List) are centred dialogs where SwiftUI uses action sheets; the owner should say whether the drawn-menus decision covers them.
+- Where About and filter-list links open on iPhone (an Ardia tab or outside), against SwiftUI's `Link`.
+- Imported deck snapshots on iPhone are absolute `file://` Caches paths; cards keep their images after an app update and after iOS clears Caches.
+- iPhone default-browser step shows when SwiftUI's would (`DefaultBrowserStatus.isOffered`, asked within 100 days).
+- A real SwiftUI-to-Expo upgrade skips onboarding (`state/app/boot.ts`).
+- Leaving the welcome step crossfades the backdrop (Compose `surfaceSwap`).
+- The scanner inside the sheet covers the screen, Cancel and Back stop the camera, and the status bar reads.
+- A Spaces row opened from a Mac counts as a typed visit (`AppModel.kt` `openRemote`).
+- The Spaces sheet can't be dragged closed while connecting (SwiftUI `interactiveDismissDisabled`).
+- The recent-tabs long-press haptic against Compose's `BottomBar.kt`.
+- A second flick during a pager settle neither jumps nor commits twice (`TabPager.kt`).
+- The crash view's icon, title and Try Again match Compose (`PageLoadFailure.kt`).
+- Not audited: Compose's `SyncSetupContent` internals inside onboarding, and the timing of DemoScenario's deck and pager scripts.
 
 ### Deliberately different
 
@@ -378,6 +431,11 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 
 - Opt-in usage stats (Settings, What's Sent, onboarding's last step) exist only in the Expo app (c6ebf08a8, the owner's approval).
 - Settings has no Appearance or Downloads rows because Compose has neither (f5d1ec9f2).
 - Toasts sit above the deck bar's measured top, not a fixed 64 dp, so they never cover + (87e9ed9e6).
+- After a reload the failure screen stays until that load ends, so the WebView's own error page never shows (becf40624).
+- Labs and the sync demo are gated by the build (`ARDIA_LAB`, `ARDIA_TEST_BUILD`), not by a debuggable build as in Compose (4f474ff95).
+- The Sync page's inbox-problem notice exists only in the Expo app (d9b85412f).
+- Licences are generated from the shipped code, not a hand-written list (aa44da003); the iPhone list's content is the gap above.
+- For the owner to confirm, no commit says why: the sync demo runs over the real tab store (76dcdde8a); Reset › Connect Again acknowledges the reset first as Compose does (SwiftUI just navigates); iPhone Spaces shows a Bookmarks section that SwiftUI lacks (253515009).
 
 ## Build and run
 
