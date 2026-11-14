@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { pastedText } from "../../state/sync/actions";
-import { CapsuleButton } from "../sync/SyncPage";
+import { PasteAction } from "../sync/SyncPage";
 import { openFromSettings,
   addList,
   applyMyFilters,
@@ -281,15 +280,7 @@ function AddListSheet({ open, onClose, onHidden }: { open: boolean; onClose: () 
         <CrossfadeText testID="addListFooter" text={footer.text} style={[font.footnote, styles.sheetLabel, { color: footer.ink }]} />
         {address === "" ? (
           <Animated.View entering={FadeIn.duration(duration.crossfade)} exiting={FadeOut.duration(duration.crossfade)} style={styles.paste}>
-            <CapsuleButton
-              title="Paste"
-              icon="docOnDoc"
-              onPress={() => {
-                void pastedText().then((text) => {
-                  if (text.trim()) setAddress(text.trim());
-                });
-              }}
-            />
+            <PasteAction onText={(text) => setAddress(text.trim())} />
           </Animated.View>
         ) : null}
       </View>

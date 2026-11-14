@@ -1,12 +1,12 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TextInput, View } from "react-native";
-import { canPickSyncFolderFirst, checkPhrase, connectSync, pastedText, syncConnectSession } from "../../state/sync/actions";
+import { canPickSyncFolderFirst, checkPhrase, connectSync, syncConnectSession } from "../../state/sync/actions";
 import { IDLE_CONNECT, type ConnectState } from "../../state/sync/connectSession";
 import { haptics } from "../../state/app/haptics";
 import { chooseFolderTitle, setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
 import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
-import { CapsuleButton, SyncHero } from "./SyncPage";
+import { CapsuleButton, PasteAction, SyncHero } from "./SyncPage";
 import { SyncScan } from "./SyncScan";
 import { copy } from "../../lib/platformCopy";
 import type { ConnectResult } from "../../platform/sync";
@@ -249,15 +249,7 @@ function PhraseEntry({ initial, onUse, onBack }: { initial: string; onUse: (phra
       </View>
       {!draft ? (
         <View style={styles.paste}>
-          <CapsuleButton
-            title="Paste"
-            icon="docOnDoc"
-            onPress={() => {
-              void pastedText().then((text) => {
-                if (text.trim()) setDraft(text);
-              });
-            }}
-          />
+          <PasteAction onText={setDraft} />
         </View>
       ) : null}
     </SettingsPage>

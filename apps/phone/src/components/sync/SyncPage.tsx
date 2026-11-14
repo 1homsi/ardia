@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { acknowledgeSyncReset, changeSyncFolder, setDeviceName, stopSyncing, syncNow } from "../../state/sync/actions";
+import { acknowledgeSyncReset, changeSyncFolder, pastedText, setDeviceName, stopSyncing, syncNow } from "../../state/sync/actions";
 import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { haptics } from "../../state/app/haptics";
 import { useSync } from "../../state/sync/store";
 import { syncNowFeedback, connectMessage, deviceIcon, inboxNotice, shownProfile, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
 import { popSettings, pushSettings } from "../../state/settings/nav";
-import { capsule, ConfirmDialog, font, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
+import { capsule, ConfirmDialog, font, PasteButton, pasteButtonIsNative, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { copy } from "../../lib/platformCopy";
 import { ButtonRow, Divider, Group, IconTile, NavRow, SettingsPage, ValueRow } from "../settings/SettingsKit";
 
@@ -42,6 +42,19 @@ export function CapsuleButton({ title, onPress, prominent, enabled = true, icon 
       <Text style={[font.body, styles.bold, { color: ink }]}>{title}</Text>
     </Pressable>
   );
+}
+
+export const SYSTEM_PASTE_SIZE = { width: 104, height: 34 } as const;
+
+export function PasteAction({ onText }: { onText: (text: string) => void }) {
+  const theme = useTheme();
+  const take = (text: string) => {
+    if (text.trim()) onText(text);
+  };
+  if (pasteButtonIsNative()) {
+    return <PasteButton testID="systemPaste" accessibilityLabel="Paste" tint={theme.formAccent} onPaste={take} style={[styles.systemPaste, SYSTEM_PASTE_SIZE]} />;
+  }
+  return <CapsuleButton title="Paste" icon="docOnDoc" onPress={() => void pastedText().then(take)} />;
 }
 
 function FeatureRow({ icon, title, divider }: { icon: SymbolName; title: string; divider?: boolean }) {
@@ -220,6 +233,7 @@ const styles = StyleSheet.create({
   hero: { alignItems: "center", gap: space.s, paddingHorizontal: space.xxl },
   bold: { fontWeight: "600" },
   centered: { textAlign: "center" },
+  systemPaste: { alignSelf: "center", marginTop: space.s },
   capsule: {
     flexDirection: "row",
     alignItems: "center",

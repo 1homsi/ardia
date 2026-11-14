@@ -839,8 +839,8 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 Nothing native is left on iPhone that hasn't a decision against it. What remains is wiring in JavaScript, and checks that need a real iPhone (next section).
 
-- JavaScript only, still to wire: Enter Words on `PasteButton` (c317c5b8f) where `pasteButtonIsNative()`; link popups not selected when `inBackground` is true (d10c053d1).
-- Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (this commit).
+- JavaScript only, still to wire: link popups not selected when `inBackground` is true (d10c053d1).
+- Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (f0fbeebcf); Enter Words and Add a List on `PasteButton` where `pasteButtonIsNative()`, 104 × 34 points, tinted with the form accent (this commit).
 - For the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes.
 
 ### Check on your iPhone
@@ -854,7 +854,7 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 5. The search tray. Type "goo": "gle.com" is highlighted after the caret; Backspace removes only the highlight; Return opens google.com. With a Japanese or Chinese keyboard, no highlight appears. Type a word with more suggestions than fit: the next row peeks faded at the keyboard's edge; slide a finger from the first row down onto the keyboard and lift: the row laid out there opens.
 6. Voice search. Tap the mic in the tray, allow speech and the microphone, and say "otters": the words appear as you speak and the search runs; say nothing: after a few seconds it says it didn't hear anything.
 7. Scan to connect. Settings › Sync › Connect to Your Mac › Scan Code, pointed at the Mac's code: the code is outlined when found and pinch zooms; it connects without typing.
-8. Enter Words (once the screen uses the paste button): copy the phrase on another device, tap Paste: the words fill in with no "Allow Paste" question.
+8. Enter Words: copy the phrase on another device, tap Paste: the words fill in with no "Allow Paste" question. Settings › Ad Blocking › Filter Lists › Add a List does the same with an address. Put the button beside the SwiftUI app's: same size and blue.
 9. Offline. Turn on Airplane Mode and open a page: the offline page shows a Wi-Fi-off icon. Turn it off: the page reloads by itself.
 10. Handoff. With a page open, look at the Mac's Dock: an Ardia (or browser) Handoff icon offers the same page; private tabs never offer one.
 11. Siri and Shortcuts. Say "Open Otter in Ardia" (a tab you have open): Ardia switches to it. In Shortcuts, add Ardia's Open Tab action: it lists your tabs with their sites; running it switches to the one you pick.

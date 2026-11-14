@@ -27,4 +27,4 @@ export { SwipeToDelete } from "./SwipeToDelete";
 export { useIncreasedContrast, useReduceTransparency } from "./contrast";
 export { FadingBackdrop } from "./FadingBackdrop";
 export { DeckLookBackdrop, LookBackdrop, LookFrost, LookGlass, SURFACES_FROST, usesGlass } from "./LookViews";
-export { FadeView, fadeIsNative, FrostSource, ScrollActions } from "@ardia/phone-native";
+export { FadeView, fadeIsNative, FrostSource, PasteButton, pasteButtonIsNative, ScrollActions } from "@ardia/phone-native";
