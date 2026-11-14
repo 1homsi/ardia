@@ -57,6 +57,8 @@ object PhonePages {
     var downloadSink: EventSink? = null
     var blockingSink: EventSink? = null
 
+    fun hasEngine(): Boolean = shared != null
+
     @Synchronized
     fun engine(context: Context): DevelopmentWebViewEngine = shared ?: run {
         if (UpgradeGate.pending(context)) throw CodedException("ERR_IMPORT_PENDING", "The import from the previous Ardia app has not finished", null)

@@ -133,6 +133,7 @@ export type NightShade = { defaultMode: NightShadeMode; siteMode: NightShadeMode
 export type WebsiteDataKind = "cache" | "cookiesAndSiteData";
 
 export type PageEngineCapabilities = {
+  ready: boolean;
   engineName: string;
   isDevelopmentOnly: boolean;
   supportsPrivatePages: boolean;

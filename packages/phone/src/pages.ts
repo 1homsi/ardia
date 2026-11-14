@@ -16,6 +16,16 @@ import type {
   WebsiteDataKind,
 } from "./pageTypes";
 
+const NOT_READY: PageEngineCapabilities = {
+  ready: false,
+  engineName: "not ready",
+  isDevelopmentOnly: true,
+  supportsPrivatePages: false,
+  pageZoomLevels: [],
+  pageZoomScalesTextOnly: true,
+  snapshotsIncludeVideo: false,
+};
+
 export type LaunchArgumentValue = string | number | boolean;
 
 export type LaunchOptions = { pageLab: boolean; syncDemo: boolean; lab: boolean; arguments: Record<string, LaunchArgumentValue> };
@@ -72,7 +82,14 @@ let loaded: PagesNative | undefined;
 const native = () => (loaded ??= requireNativeModule<PagesNative>("ArdiaPhonePageView"));
 
 export const pages = {
-  capabilities: () => native().capabilities(),
+  capabilities: (): PageEngineCapabilities => {
+    try {
+      const capabilities = native().capabilities();
+      return { ...capabilities, ready: capabilities.ready ?? true };
+    } catch (error) {
+      return { ...NOT_READY, engineName: `not ready: ${error instanceof Error ? error.message : "refused"}` };
+    }
+  },
   launchOptions: (): LaunchOptions | null => {
     const options = native().launchOptions();
     return options ? { pageLab: options.pageLab, syncDemo: options.syncDemo ?? false, lab: options.lab ?? false, arguments: options.arguments ?? {} } : null;

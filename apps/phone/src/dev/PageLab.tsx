@@ -178,7 +178,7 @@ function Lab() {
     const restored = store.load("lab-saved");
     if (restored) setRestoreSource(restored);
     const capabilities = pages.capabilities();
-    note(`engine ${capabilities.engineName} private=${capabilities.supportsPrivatePages}`);
+    note(capabilities.ready ? `engine ${capabilities.engineName} private=${capabilities.supportsPrivatePages}` : `engine refused: ${capabilities.engineName}`);
     return () => subscriptions.forEach((subscription) => subscription.remove());
   }, [note]);
 

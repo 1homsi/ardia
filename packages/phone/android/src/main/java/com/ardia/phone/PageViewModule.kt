@@ -97,17 +97,7 @@ class PageViewModule : Module() {
             promise.resolve(uris.isNotEmpty())
         }
 
-        Function("capabilities") {
-            val engine = PhonePages.engine(context)
-            mapOf(
-                "engineName" to engine.name,
-                "isDevelopmentOnly" to engine.isDevelopmentOnly,
-                "supportsPrivatePages" to engine.separatesPrivatePages,
-                "pageZoomLevels" to PageZoom.levels,
-                "pageZoomScalesTextOnly" to true,
-                "snapshotsIncludeVideo" to false,
-            )
-        }
+        Function("capabilities") { PageCapabilities.payload(context) }
 
         Function("launchOptions") {
             val intent = appContext.currentActivity?.intent ?: return@Function null
