@@ -44,6 +44,7 @@ import { PageSurface } from "./PageSurface";
 import { useDemoMotion } from "./DemoMotion";
 import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
 import { launchArguments } from "../../state/app/launchFlags";
+import { shownTone } from "../../lib/pageTone";
 
 export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   countRender("BrowsingScreen");
@@ -75,7 +76,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   });
   useDemoMotion(pager, width);
   const failed = useNavigation(tab.id, (n) => n?.failure != null);
-  const pageTone = failed ? null : tone;
+  const pageTone = failed ? null : shownTone(tone, tab.themeColorHex);
   const top = pageTone?.top ?? theme.surface;
   const bottom = pageTone?.bottom ?? theme.surface;
   const barDark = isDarkColor(bottom);

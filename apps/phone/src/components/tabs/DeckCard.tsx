@@ -7,6 +7,7 @@ import { DECK, DECK_HEADER, deckHeaderIconReveal, deckStatusStrip, deckHeaderLea
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
+import { shownTone } from "../../lib/pageTone";
 import { FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
@@ -102,7 +103,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
 export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
   countRender("DeckCard");
   const theme = useTheme();
-  const tone = usePageTone(tab.id);
+  const tone = shownTone(usePageTone(tab.id), tab.themeColorHex);
   const slot = useSharedValue(0);
   const reduceMotion = useReducedMotion();
   const shown = useRef(index);
@@ -171,12 +172,12 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g
         importantForAccessibility="no-hide-descendants"
         style={[
           styles.card,
-          { width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone?.top ?? theme.surface },
+          { width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface },
           cardStyle,
         ]}
       >
         <Animated.View testID="deckCardFace" style={[StyleSheet.absoluteFill, faceStyle]}>
-          <TabFace tab={tab} title={title} host={host} tone={tone?.top ?? null} roles={theme} />
+          <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} />
         </Animated.View>
         {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
       </Animated.View>
