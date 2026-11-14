@@ -631,7 +631,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Trusted Sites: remove buttons always showing and removal not animated; both apps use Edit/Done (SwiftUI also swipe to delete) and a globe per row. `TrustedSitesPage` in `BlockingPages.kt`, `TrustedSitesPage.swift`. Small.
 - Search Engine: the picker can list the Mac's custom engines and "Custom"; the From Your Mac row has no laptop icon. `SearchEngineNames.kt`, `GeneralPages.kt`, `SearchEnginePage.swift`. Small.
 - Default Browser: at accessibility sizes both apps show a numbered list instead of the card; title weight, step icons and the iPhone button differ; on Android, when nothing can take the role request, Compose moves onboarding on. `DefaultBrowserPage.kt`, `DefaultBrowserPage.swift`. Small.
 - About: the hero is the logo, not the 72 pt app icon with a shadow and bold title; the iPhone licences list Android-only libraries and miss the iPhone's own native code. `AboutPage` in `GeneralPages.kt`, `AboutPage.swift`, `apps/phone/test/credits.ts`. Small.

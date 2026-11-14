@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut, useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { pastedText } from "../../state/sync/actions";
 import { CapsuleButton } from "../sync/SyncPage";
@@ -32,7 +32,7 @@ import {
   filterListAddress,
   FILTER_LIST_ADDRESS,
 } from "../../state/settings/settingsRules";
-import { ConfirmDialog, duration, font, Sheet, usePresence, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
+import { ConfirmDialog, duration, font, ink, Sheet, usePresence, settingsLayout, settingsTint, space, Symbol, Toggle, useTheme, type Confirmation } from "../ui";
 import { copy } from "../../lib/platformCopy";
 
 const FILTER_SYNTAX_URL = "https://github.com/gorhill/uBlock/wiki/Static-filter-syntax";
@@ -365,30 +365,63 @@ export function MyFiltersPage() {
 }
 
 export function TrustedSitesPage() {
-  const theme = useTheme();
-  const hosts = useBlocking((s) => s.state?.exemptHosts ?? []);
+  const exempt = useBlocking((s) => s.state?.exemptHosts);
+  const hosts = useMemo(() => [...(exempt ?? [])].sort(), [exempt]);
+  const [editing, setEditing] = useState(false);
+  const editingShown = editing && hosts.length > 0;
   return (
-    <SettingsPage title="Trusted Sites" onBack={popSettings}>
+    <SettingsPage
+      title="Trusted Sites"
+      onBack={popSettings}
+      trailing={hosts.length ? <BarButton title={editingShown ? "Done" : "Edit"} emphasized={editingShown} onPress={() => setEditing(!editingShown)} /> : null}
+    >
       {hosts.length === 0 ? (
         <EmptyState title="No Trusted Sites" message="Sites you allow from the page menu show up here." icon="checkmarkShield" />
       ) : (
         <Group>
           {hosts.map((host, index) => (
-            <View key={host}>
-              <View style={styles.listRow}>
-                <Text style={[font.body, styles.fill, { color: theme.label }]}>{host}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${host}`} onPress={() => trustSite(host, false)} style={styles.remove}>
-                  <Symbol name="xmarkCircleFill" size={20} color={theme.destructive} />
-                </Pressable>
-              </View>
-              {index < hosts.length - 1 ? <Divider /> : null}
-            </View>
+            <TrustedSiteRow key={host} host={host} editing={editingShown} divider={index < hosts.length - 1} />
           ))}
         </Group>
       )}
     </SettingsPage>
   );
 }
+
+function TrustedSiteRow({ host, editing, divider }: { host: string; editing: boolean; divider: boolean }) {
+  const theme = useTheme();
+  const removeLabel = `Remove ${host}`;
+  const remove = () => trustSite(host, false);
+  return (
+    <Animated.View exiting={FadeOut.duration(duration.crossfade)} layout={LinearTransition.duration(duration.crossfade)}>
+      <View
+        testID={`trusted:${host}`}
+        accessible
+        accessibilityLabel={host}
+        accessibilityActions={[{ name: "remove", label: removeLabel }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === "remove") remove();
+        }}
+        style={styles.listRow}
+      >
+        {editing ? (
+          <Animated.View entering={FadeIn.duration(duration.crossfade)} exiting={FadeOut.duration(duration.crossfade)}>
+            <Pressable accessibilityRole="button" accessibilityLabel={removeLabel} onPress={remove} style={[styles.removeDot, { backgroundColor: theme.destructive }]}>
+              <Symbol name="minus" size={14} color={ink.white} />
+            </Pressable>
+          </Animated.View>
+        ) : null}
+        <Animated.View layout={LinearTransition.duration(duration.crossfade)} style={styles.trustedLabel}>
+          <Symbol name="globe" size={22} color={theme.secondaryLabel} />
+          <Text style={[font.body, styles.fill, { color: theme.label }]}>{host}</Text>
+        </Animated.View>
+      </View>
+      {divider ? <Divider inset={settingsLayout.rowInset + TRUSTED_GLOBE + settingsLayout.labelGap} /> : null}
+    </Animated.View>
+  );
+}
+
+const TRUSTED_GLOBE = 22;
 
 const styles = StyleSheet.create({
   syntax: { alignSelf: "flex-start", paddingVertical: space.xs },
@@ -411,5 +444,6 @@ const styles = StyleSheet.create({
   barSpinner: { marginRight: space.s },
   editorText: { flex: 1, textAlignVertical: "top", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   footer: { paddingHorizontal: space.l + settingsLayout.rowInset, gap: space.xs },
-  remove: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  removeDot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  trustedLabel: { flex: 1, flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap },
 });
