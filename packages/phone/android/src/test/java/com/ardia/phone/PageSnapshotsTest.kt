@@ -16,7 +16,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PageSnapshotsTest {
-    private val snapshots = PageSnapshots(RuntimeEnvironment.getApplication())
+    private val removed = ArrayList<String>()
+    private val snapshots = PageSnapshots(RuntimeEnvironment.getApplication()) { removed += it.name }
 
     private fun page(): Bitmap = Bitmap.createBitmap(64, 128, Bitmap.Config.ARGB_8888).apply {
         eraseColor(Color.WHITE)
@@ -46,5 +47,28 @@ class PageSnapshotsTest {
         val first = snapshots.write("tab-2", white(), isPrivate = false, quality = 80)
         assertNotNull(first)
         assertTrue(File(first!!["path"] as String).isFile)
+    }
+
+    @Test
+    fun aReplacedOrDeletedSnapshotIsReportedSoItsDecodedImageCanBeDropped() = runBlocking {
+        val first = snapshots.write("tab-3", page(), isPrivate = false, quality = 80)!!
+        assertTrue(removed.isEmpty())
+        snapshots.write("tab-3", white(), isPrivate = false, quality = 80)
+        assertTrue(removed.isEmpty())
+        Thread.sleep(2)
+        val second = snapshots.write("tab-3", page(), isPrivate = false, quality = 80)!!
+        assertEquals(listOf(File(first["path"] as String).name), removed)
+        snapshots.delete("tab-3")
+        assertEquals(listOf(File(first["path"] as String).name, File(second["path"] as String).name), removed)
+    }
+
+    @Test
+    fun theImageCacheIsClearedWhenAndroidAsksForMemoryNotWhenTheAppMerelyLeavesTheScreen() {
+        assertEquals(false, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE))
+        assertEquals(true, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW))
+        assertEquals(true, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL))
+        assertEquals(false, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN))
+        assertEquals(true, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND))
+        assertEquals(true, ImageMemory.clearsOn(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE))
     }
 }

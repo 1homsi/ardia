@@ -1,4 +1,4 @@
-import { defaultBrowser, favicons, network, system, type DefaultBrowserStatus, type SystemLink } from "@ardia/phone-native";
+import { defaultBrowser, favicons, network, system, systemLab, type DefaultBrowserStatus, type SystemLink } from "@ardia/phone-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -79,6 +79,8 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
           (error: { message?: string }) => note(`requestRole ✗ ${error.message ?? ""}`),
         )} />
         <Button label="Default apps settings" onPress={() => defaultBrowser.openDefaultAppsSettings().catch((error: { message?: string }) => note(`settings ✗ ${error.message ?? ""}`))} />
+        <Button label="Memory" onPress={() => note((systemLab.memory() ?? "memory: not in this build").replace("PAGELAB ", ""))} />
+        <Button label="Trim" onPress={() => note((systemLab.trim() ?? "trim: not in this build").replace("PAGELAB ", ""))} />
         <Button label="Favicon looks" onPress={() => {
           const icons = ["https://github.com/favicon.ico", "https://www.apple.com/favicon.ico", "https://www.wikipedia.org/static/favicon/wikipedia.ico"];
           for (const icon of icons) {

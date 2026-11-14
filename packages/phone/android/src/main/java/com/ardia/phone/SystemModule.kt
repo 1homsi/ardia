@@ -37,6 +37,19 @@ class SystemModule : Module() {
 
         Function("processStartedAt") { ProcessStart.epochMillis() }
 
+        Function("labMemory") {
+            check(PhoneLab.isOn) { "the memory readout is a lab tool" }
+            val context = appContext.reactContext ?: return@Function null
+            ImageMemory.line(context, PhonePages.livePageIds().size).also { android.util.Log.i("PAGELAB", it) }
+        }
+
+        Function("labTrim") {
+            check(PhoneLab.isOn) { "the trim is a lab tool" }
+            ImageMemory.clear()
+            val context = appContext.reactContext ?: return@Function null
+            ImageMemory.line(context, PhonePages.livePageIds().size).also { android.util.Log.i("PAGELAB", "PAGELAB memory: image cache cleared as on a trim"); android.util.Log.i("PAGELAB", it) }
+        }
+
         AsyncFunction("initialLink") { -> PhoneSystemLinks.takeInitial() }
 
         AsyncFunction("setHidesFromRecents") { hidden: Boolean ->

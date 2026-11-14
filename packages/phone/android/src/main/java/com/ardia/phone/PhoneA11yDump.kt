@@ -14,6 +14,8 @@ import androidx.core.content.ContextCompat
 
 object PhoneA11yDump {
     const val ACTION = "com.ardia.phone.A11Y_DUMP"
+    const val MEMORY_ACTION = "com.ardia.phone.MEMORY"
+    const val TRIM_ACTION = "com.ardia.phone.TRIM"
     private const val TAG = "PAGELAB"
     private const val PREFIX = "PAGELAB a11y "
 
@@ -41,9 +43,23 @@ object PhoneA11yDump {
     fun listen(context: Context, activity: () -> Activity?) {
         if (!PhoneLab.isOn || registered != null) return
         val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) = dump(activity())
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    MEMORY_ACTION -> ImageMemory.log(context, PhonePages.livePageIds().size)
+                    TRIM_ACTION -> {
+                        ImageMemory.clear()
+                        Log.i(TAG, "PAGELAB memory: image cache cleared as on a trim")
+                        ImageMemory.log(context, PhonePages.livePageIds().size)
+                    }
+                    else -> dump(activity())
+                }
+            }
         }
-        ContextCompat.registerReceiver(context, receiver, IntentFilter(ACTION), ContextCompat.RECEIVER_EXPORTED)
+        val filter = IntentFilter(ACTION).apply {
+            addAction(MEMORY_ACTION)
+            addAction(TRIM_ACTION)
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
         registered = context to receiver
     }
 

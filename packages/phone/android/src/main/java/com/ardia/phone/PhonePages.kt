@@ -64,7 +64,8 @@ object PhonePages {
         app = context
         sitePreferences = PhoneSitePreferences(context.getSharedPreferences(SITE_PREFERENCES, Context.MODE_PRIVATE))
         blocking = PhoneBlocking(context)
-        snapshots = PageSnapshots(context)
+        snapshots = PageSnapshots(context, ImageMemory::forget)
+        ImageMemory.watch(context)
         val made = DevelopmentWebViewEngine(context, sitePreferences)
         made.filter = blocking.pageFilter(isPrivate = false)
         made.privateFilter = blocking.pageFilter(isPrivate = true)

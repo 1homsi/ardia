@@ -1,0 +1,69 @@
+package com.ardia.phone
+
+import android.app.ActivityManager
+import android.content.ComponentCallbacks2
+import android.content.Context
+import android.content.res.Configuration
+import android.net.Uri
+import android.os.Debug
+import android.util.Log
+import com.facebook.drawee.backends.pipeline.Fresco
+import com.facebook.imagepipeline.core.ImagePipelineFactory
+import java.io.File
+
+object ImageMemory {
+    private var watching = false
+
+    fun clearsOn(level: Int): Boolean =
+        level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW || level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL || level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
+
+    fun forget(file: File) {
+        if (!Fresco.hasBeenInitialized()) return
+        runCatching { Fresco.getImagePipeline().evictFromCache(Uri.fromFile(file)) }
+        runCatching { Fresco.getImagePipeline().evictFromMemoryCache(Uri.parse("file://${file.absolutePath}")) }
+    }
+
+    fun clear() {
+        if (Fresco.hasBeenInitialized()) runCatching { Fresco.getImagePipeline().clearMemoryCaches() }
+    }
+
+    fun watch(context: Context) {
+        if (watching) return
+        watching = true
+        context.applicationContext.registerComponentCallbacks(object : ComponentCallbacks2 {
+            override fun onTrimMemory(level: Int) {
+                if (clearsOn(level)) clear()
+            }
+
+            override fun onConfigurationChanged(newConfig: Configuration) = Unit
+
+            @Deprecated("Deprecated in Android")
+            override fun onLowMemory() = clear()
+        })
+    }
+
+    fun cacheBytes(): Pair<Int, Int>? = runCatching {
+        if (!Fresco.hasBeenInitialized()) return null
+        val cache = ImagePipelineFactory.getInstance().bitmapCountingMemoryCache
+        cache.sizeInBytes to cache.count
+    }.getOrNull()
+
+    fun line(context: Context, livePages: Int): String {
+        val runtime = Runtime.getRuntime()
+        val javaUsed = (runtime.totalMemory() - runtime.freeMemory()) / MB
+        val native = Debug.getNativeHeapAllocatedSize() / MB
+        val info = Debug.MemoryInfo().also(Debug::getMemoryInfo)
+        val graphics = (info.getMemoryStat("summary.graphics")?.toLongOrNull() ?: 0L) / 1024
+        val total = info.totalPss / 1024
+        val cache = cacheBytes()
+        val images = cache?.let { "${it.first / MB} MB in ${it.second} images" } ?: "unknown"
+        val lowMemory = ActivityManager.MemoryInfo().also { (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it) }.lowMemory
+        return "PAGELAB memory: total PSS $total MB, Java heap $javaUsed MB, native heap $native MB, graphics $graphics MB, image cache $images, live pages $livePages, low memory $lowMemory"
+    }
+
+    fun log(context: Context, livePages: Int) {
+        Log.i("PAGELAB", line(context, livePages))
+    }
+
+    private const val MB = 1024 * 1024
+}

@@ -6,7 +6,7 @@ export { closePage, PageView } from "./PageView";
 export { pages } from "./pages";
 export { sync } from "./sync";
 export { syncLab, type SyncRuntimeCheck } from "./syncLab";
-export { system, type SystemLink, type SystemLinkSource } from "./system";
+export { system, systemLab, type SystemLink, type SystemLinkSource } from "./system";
 export { scanner, ScanView, type ScanError, type ScanPermission, type ScanViewProps } from "./scan";
 export { clipboard, type ClipboardOffer } from "./clipboard";
 export {
