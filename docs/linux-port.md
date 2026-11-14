@@ -39,6 +39,13 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   compiled scripts between launches. Chromium keys each entry by the script's URL and a hash of its source, so an
   updated bundle never runs old code. On an existing profile (Xvfb, llvmpipe, a shared box, median of 5 interleaved
   runs) the shell's first contentful paint went from 1.83 s to 1.46 s and its `DOMContentLoaded` from 1.51 s to 1.17 s.
+- **Startup tab.** While the shell loads, the launch window reads the saved session on the file thread and starts the
+  page it will restore (`ac_linux_startup_tab.*`): the active tab of the window `initialHostSession` restores (the
+  saved `main`, or the first saved main window when `main` has no tabs), when restoring is on, the tab is idle and on
+  the window's profile, and its address is `http` or `https`. It is a background tab in the window's strip that no
+  binding owns. The shell's first `tab.create` for that address takes it instead of opening another, whatever its
+  page has redirected to since. Nothing starts for a utility, Little Ardia or private window, a launch that brought
+  addresses from another app, or an empty session; a started page the shell hasn't taken after 30 s is closed.
 - **CSP.** The shell's policy is `default-src 'none'`, `script-src 'self'`, `connect-src 'none'`, `frame-src 'none'`,
   `object-src 'none'`, `form-action 'none'`, and `trusted-types ardia-symbols`. The UI can't reach the network.
   Search suggestions, live folders, favicons, import and telemetry all go through native services. The one Trusted Types policy

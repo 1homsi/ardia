@@ -84,6 +84,7 @@
 #include "ardia/core/ac_host_visibility.h"
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/linux/ac_linux_session.h"
+#include "ardia/linux/ac_linux_startup_tab.h"
 #include "ardia/linux/ac_linux_site_controls_service.h"
 #include "ardia/linux/ac_linux_window_caption.h"
 #include "ardia/linux/ac_linux_window_commands.h"
@@ -1476,6 +1477,16 @@ class ShellHostView : public views::View,
   std::map<int, base::WeakPtr<content::WebContents>> announced_;
   std::optional<uint64_t> unclaimed_listener_;
   std::optional<uint64_t> open_urls_listener_;
+  struct StartupTab {
+    GURL url;
+    base::WeakPtr<content::WebContents> contents;
+  };
+  std::optional<StartupTab> startup_tab_;
+  base::OneShotTimer startup_tab_timer_;
+  void StartStartupTab();
+  void StartedStartupTab(std::optional<linux_startup_tab::StartupTab> saved);
+  content::WebContents* TakeStartupTab(const GURL& url, TabStripModel* model);
+  void DropStartupTab();
   friend class HostMessageHandler;
   static bool TabClaimed(content::WebContents* contents);
   void NoteUnclaimedTab(content::WebContents* contents, bool active);
@@ -2579,11 +2590,71 @@ void ShellHostView::Initialize() {
         NoteUnclaimedTab(contents, contents == model->GetActiveWebContents());
       }
     }
+    if (startup_ && !small_ && private_window_.empty() && unclaimed_.empty()) StartStartupTab();
   }
   shell_->LoadInitialURL(GURL("chrome://ardia/"));
   shell_transparency_ = std::make_unique<ShellTransparency>(shell());
   ApplyShellInput();
   ardiacore::WatchLinuxShellInput(shell());
+}
+
+void ShellHostView::StartStartupTab() {
+  FileRunner()->PostTaskAndReplyWithResult(
+      FROM_HERE,
+      base::BindOnce(
+          [](const base::FilePath& directory, const std::string& window,
+             const std::string& profile) -> std::optional<linux_startup_tab::StartupTab> {
+            const auto session = ReadSession(directory);
+            return session ? linux_startup_tab::StartupTabFor(*session, window, profile) : std::nullopt;
+          },
+          DocumentDirectory(profile()), window_id_, linux_startup_tab::ShellProfile(page_profile_)),
+      base::BindOnce(&ShellHostView::StartedStartupTab, GetWeakPtr()));
+}
+
+void ShellHostView::StartedStartupTab(std::optional<linux_startup_tab::StartupTab> saved) {
+  if (!saved || !browser_ || !bindings_.empty() || startup_tab_) return;
+  const GURL url(saved->url);
+  if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS()) return;
+  NavigateParams navigation(browser_.get(), url, ui::PAGE_TRANSITION_TYPED);
+  navigation.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+  navigation.window_action = NavigateParams::WindowAction::kNoAction;
+  const auto weak = GetWeakPtr();
+  app_operation_ = true;
+  Navigate(&navigation);
+  if (!weak) return;
+  app_operation_ = false;
+  content::WebContents* contents = navigation.navigated_or_inserted_contents;
+  if (!contents || TabId(contents) <= 0) return;
+  startup_tab_ = StartupTab{url, contents->GetWeakPtr()};
+  startup_tab_timer_.Start(FROM_HERE, base::Milliseconds(linux_startup_tab::kUnclaimedCloseMs),
+                           base::BindOnce(&ShellHostView::DropStartupTab, base::Unretained(this)));
+}
+
+content::WebContents* ShellHostView::TakeStartupTab(const GURL& url, TabStripModel* model) {
+  if (!startup_tab_) return nullptr;
+  content::WebContents* contents = startup_tab_->contents.get();
+  if (!contents || startup_tab_->url != url || model->GetIndexOfWebContents(contents) == TabStripModel::kNoTab ||
+      TabClaimed(contents)) {
+    return nullptr;
+  }
+  startup_tab_.reset();
+  startup_tab_timer_.Stop();
+  return contents;
+}
+
+void ShellHostView::DropStartupTab() {
+  if (!startup_tab_) return;
+  content::WebContents* contents = startup_tab_->contents.get();
+  startup_tab_.reset();
+  if (!contents || TabClaimed(contents)) return;
+  BrowserWindowInterface* owner = OwnerOf(contents);
+  const int index = owner ? owner->GetTabStripModel()->GetIndexOfWebContents(contents) : TabStripModel::kNoTab;
+  if (index == TabStripModel::kNoTab) return;
+  const auto weak = GetWeakPtr();
+  app_operation_ = true;
+  owner->GetTabStripModel()->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+  if (!weak) return;
+  app_operation_ = false;
 }
 
 bool ShellHostView::TabClaimed(content::WebContents* contents) {
@@ -5237,7 +5308,7 @@ void ShellHostView::CreateTabIn(
           return std::move(done).Run(false, base::Value("The offered tab is already claimed"));
         }
       }
-    } else {
+    } else if (!(contents = TakeStartupTab(url, model))) {
       for (int index = 0; index < model->count(); ++index) {
         content::WebContents* candidate = model->GetWebContentsAt(index);
         if (Binding(TabId(candidate)) && Binding(TabId(candidate))->contents()) continue;
