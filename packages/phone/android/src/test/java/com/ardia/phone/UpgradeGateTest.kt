@@ -153,4 +153,68 @@ class UpgradeGateTest {
         UpgradeGate.open(app)
         assertEquals(2, heard.size)
     }
+
+    private fun processDies() {
+        PhoneSystemLinks.forgetForTests()
+        UpgradeGate.forgetForTests()
+    }
+
+    @Test
+    fun aLinkHeldWhileTheImportWaitsSurvivesTheProcessAndOpensOnceAfterALaterImport() {
+        composeDatabase()
+        UpgradeGate.install(app)
+        PhoneSystemLinks.receive(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/held")))
+        assertTrue(UpgradeGate.heldLinksFile(app).isFile)
+        assertFalse("only the address is kept", UpgradeGate.heldLinksFile(app).readText().contains("title"))
+        processDies()
+
+        UpgradeGate.install(app)
+        val heard = ArrayList<String?>()
+        PhoneSystemLinks.activityStarted(Intent(Intent.ACTION_MAIN), restored = false)
+        PhoneSystemLinks.listen { heard += it["url"] as String? }
+        assertTrue("still held while the import waits", heard.isEmpty())
+        UpgradeGate.writeMarker(app, receipt)
+        UpgradeGate.open(app)
+        assertEquals(listOf("https://example.com/held"), heard)
+        assertFalse(UpgradeGate.heldLinksFile(app).exists())
+        processDies()
+
+        UpgradeGate.install(app)
+        val later = ArrayList<String?>()
+        PhoneSystemLinks.listen { later += it["url"] as String? }
+        assertTrue("delivered once, never again", later.isEmpty())
+    }
+
+    @Test
+    fun aLinkHeldBeforeStartWithoutThemOpensWhenTheAppStarts() {
+        composeDatabase()
+        UpgradeGate.install(app)
+        PhoneSystemLinks.receive(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/before-fresh")))
+        processDies()
+        UpgradeGate.install(app)
+        val heard = ArrayList<String?>()
+        PhoneSystemLinks.listen { heard += it["url"] as String? }
+        UpgradeGate.writeStartedFresh(app)
+        UpgradeGate.open(app)
+        assertEquals(listOf("https://example.com/before-fresh"), heard)
+    }
+
+    @Test
+    fun heldLinksAreBoundedAndAFreshAppWithNothingPendingNeverWritesThem() {
+        composeDatabase()
+        UpgradeGate.install(app)
+        for (index in 1..25) PhoneSystemLinks.receive(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/$index")))
+        processDies()
+        UpgradeGate.install(app)
+        val heard = ArrayList<String?>()
+        PhoneSystemLinks.listen { heard += it["url"] as String? }
+        UpgradeGate.writeMarker(app, receipt)
+        UpgradeGate.open(app)
+        assertEquals((6..25).map { "https://example.com/$it" }, heard)
+        processDies()
+
+        UpgradeGate.install(app)
+        PhoneSystemLinks.receive(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/normal")))
+        assertFalse("nothing is pending, so nothing is kept on disk", UpgradeGate.heldLinksFile(app).exists())
+    }
 }

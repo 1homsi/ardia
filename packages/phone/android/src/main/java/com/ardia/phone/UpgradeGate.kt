@@ -96,8 +96,11 @@ object UpgradeGate {
         if (completion(context) != expected) throw IOException("the import marker did not read back")
     }
 
+    fun heldLinksFile(context: Context): File = File(File(app(context).noBackupFilesDir, "PhoneSync"), "held-links.json")
+
     fun install(context: Context) {
         val app = app(context)
+        PhoneSystemLinks.keepHeldIn(heldLinksFile(app))
         PhoneSystemLinks.holdWhile { pending(app) }
     }
 

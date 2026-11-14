@@ -21,7 +21,29 @@ object PhoneSystemLinks {
 
     private val lock = Any()
     private val queued = ArrayDeque<Map<String, Any?>>()
+    private val held = ArrayDeque<Map<String, Any?>>()
+    private var heldFile: java.io.File? = null
     private var listener: Listener? = null
+
+    fun keepHeldIn(file: java.io.File) = synchronized(lock) {
+        heldFile = file
+        held.clear()
+        held.addAll(HeldLinks.read(file).takeLast(QUEUE_LIMIT))
+    }
+
+    private fun persistHeld() {
+        val file = heldFile ?: return
+        runCatching { HeldLinks.write(file, held.toList()) }
+    }
+
+    private fun takeAllLocked(): List<Map<String, Any?>> {
+        val all = ArrayList(held) + ArrayList(queued)
+        val hadHeld = held.isNotEmpty()
+        held.clear()
+        queued.clear()
+        if (hadHeld) persistHeld()
+        return all
+    }
 
     @Volatile
     private var holding: () -> Boolean = { false }
@@ -34,7 +56,7 @@ object PhoneSystemLinks {
         if (holding()) return
         val (current, waiting) = synchronized(lock) {
             val current = listener ?: return
-            current to ArrayList(queued).also { queued.clear() }
+            current to takeAllLocked()
         }
         waiting.forEach { runCatching { current.link(it) } }
     }
@@ -64,12 +86,14 @@ object PhoneSystemLinks {
         receive(intent, restored)
     }
 
-    fun takeInitial(): Map<String, Any?>? = if (holding()) null else synchronized(lock) { queued.removeFirstOrNull() }
+    fun takeInitial(): Map<String, Any?>? = if (holding()) null else synchronized(lock) {
+        held.removeFirstOrNull()?.also { persistHeld() } ?: queued.removeFirstOrNull()
+    }
 
     fun listen(listener: Listener): Listener {
         val waiting = synchronized(lock) {
             this.listener = listener
-            if (holding()) emptyList() else ArrayList(queued).also { queued.clear() }
+            if (holding()) emptyList() else takeAllLocked()
         }
         waiting.forEach { runCatching { listener.link(it) } }
         return listener
@@ -81,6 +105,8 @@ object PhoneSystemLinks {
 
     internal fun forgetForTests() = synchronized(lock) {
         queued.clear()
+        held.clear()
+        heldFile = null
         listener = null
         holding = { false }
     }
@@ -88,8 +114,14 @@ object PhoneSystemLinks {
     private fun deliver(payload: Map<String, Any?>) {
         val current = synchronized(lock) {
             listener?.takeUnless { holding() } ?: run {
-                if (queued.size >= QUEUE_LIMIT) queued.removeFirst()
-                queued.addLast(payload)
+                if (holding()) {
+                    if (held.size >= QUEUE_LIMIT) held.removeFirst()
+                    held.addLast(payload)
+                    persistHeld()
+                } else {
+                    if (queued.size >= QUEUE_LIMIT) queued.removeFirst()
+                    queued.addLast(payload)
+                }
                 null
             }
         }
