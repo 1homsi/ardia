@@ -72,6 +72,9 @@
 #include "ardia/linux/ac_linux_power.h"
 #include "ardia/linux/ac_linux_tab_policy.h"
 #include "ardia/linux/ac_linux_tab_sleep.h"
+#include "ardia/linux/ac_linux_idle_profile_engine.h"
+#include "ardia/linux/ac_linux_idle_profiles.h"
+#include "chrome/browser/ardia/ac_tab_restore.h"
 #include "ardia/linux/ac_linux_launch_steps.h"
 #include "ardia/linux/ac_linux_launch_urls.h"
 #include "ardia/linux/ac_linux_link_tabs.h"
@@ -1227,6 +1230,7 @@ class ShellHostView : public views::View,
   void ActivateMember(BrowserWindowInterface* member);
   void CompanionClosed(BrowserWindowInterface* companion);
   void CloseCompanions();
+  ardiacore::LinuxIdleProfileWindow IdleProfileWindow(Profile* profile);
   void ConfirmCompanions(base::OnceCallback<void(bool)> done);
   base::ListValue Strips() const;
   bool closing() const {
@@ -2007,6 +2011,20 @@ class HostMessageHandler : public content::WebUIMessageHandler,
               for (std::string& what : remaining) left.Append(std::move(what));
               handler->Resolve(id, base::Value(base::DictValue().Set("remaining", std::move(left))));
             }, weak_factory_.GetWeakPtr(), id));
+      }
+      if (name == ardiacore::kLinuxUnloadIdleProfileCall) {
+        Profile* engine_profile = ardiacore::LinuxProfile(profile);
+        ardiacore::LinuxIdleProfileState state;
+        state.loaded = engine_profile;
+        state.regular = engine_profile && !engine_profile->IsOffTheRecord() && !private_request &&
+                        profile_name->kind != ardiacore::linux_profiles::ProfileKind::kPrivate;
+        if (state.regular) state.held_open_by = ardiacore::LinuxProfileHeldOpenBy(engine_profile);
+        std::vector<ardiacore::LinuxIdleProfileWindow> windows;
+        if (state.regular) {
+          for (const auto& [window, other] : Hosts()) windows.push_back(other->IdleProfileWindow(engine_profile));
+        }
+        return Resolve(id, base::Value(ardiacore::UnloadLinuxIdleProfile(
+            state, windows, [engine_profile] { return ardiacore::ReleaseLinuxIdleProfile(engine_profile); })));
       }
       if (name == "profiles.loaded") {
         base::ListValue loaded;
@@ -2897,6 +2915,55 @@ void ShellHostView::CloseCompanions() {
       }, std::move(companions)));
 }
 
+ardiacore::LinuxIdleProfileWindow ShellHostView::IdleProfileWindow(Profile* profile) {
+  ardiacore::LinuxIdleProfileWindow window;
+  BrowserWindowInterface* member = MemberFor(profile);
+  window.shows_profile = page_profile() == profile || ActiveProfile() == profile;
+  if (!member || window.shows_profile || closing() || member->IsDeleteScheduled()) return window;
+  const base::WeakPtr<ShellHostView> host = GetWeakPtr();
+  TabStripModel* model = member->GetTabStripModel();
+  for (int index = 0; index < model->count(); ++index) {
+    content::WebContents* contents = model->GetWebContentsAt(index);
+    TabBinding* binding = Binding(TabId(contents));
+    ardiacore::LinuxIdleProfileTab tab;
+    if (binding) {
+      const bool shown = binding->presented || binding->pane_visible;
+      const auto protection = binding->media ? binding->media->Protection(shown) : ardiacore::LinuxTabProtection();
+      tab.key = binding->key();
+      if (shown) tab.kept_by = "visible";
+      else if (binding->temporary) tab.kept_by = "ownWindow";
+      else if (protection.capturing.value_or(false)) tab.kept_by = "capture";
+      else if (protection.picture_in_picture.value_or(false)) tab.kept_by = "pictureInPicture";
+      else if (binding->devtools_viewport()) tab.kept_by = "devTools";
+    }
+    const base::WeakPtr<content::WebContents> page = contents->GetWeakPtr();
+    tab.can_keep_history = [page] { return page && ardia::CanKeepTabHistory(page.get()); };
+    tab.discarded = [page] { return page && page->WasDiscarded(); };
+    tab.sleeps = [page](bool sleep) { return page && ardiacore::LinuxTabSleepsOrCanSleep(page.get(), sleep); };
+    tab.keep_history = [page] { return page && ardia::KeepTabHistory(page.get()); };
+    tab.unload = [host, page] {
+      if (!host || !page || !page->WasDiscarded() || !ardia::KeepTabHistoryWhenClosed(page.get())) return false;
+      BrowserWindowInterface* owner = host->OwnerOf(page.get());
+      const int at = owner ? owner->GetTabStripModel()->GetIndexOfWebContents(page.get()) : TabStripModel::kNoTab;
+      if (at == TabStripModel::kNoTab) return false;
+      host->app_operation_ = true;
+      owner->GetTabStripModel()->CloseWebContentsAt(at, TabCloseTypes::CLOSE_NONE);
+      if (host) {
+        host->app_operation_ = false;
+        host->QueueTransaction(-1);
+      }
+      return true;
+    };
+    window.tabs.push_back(std::move(tab));
+  }
+  window.close_member = [weak_member = member->GetWeakPtr()] {
+    if (weak_member && !weak_member->IsDeleteScheduled() && weak_member->GetTabStripModel()->empty()) {
+      weak_member->GetWindow()->Close();
+    }
+  };
+  return window;
+}
+
 void ShellHostView::ConfirmCompanions(base::OnceCallback<void(bool)> done) {
   std::vector<base::WeakPtr<BrowserWindowInterface>> waiting;
   for (const auto& companion : companions_) {
@@ -3057,6 +3124,7 @@ base::DictValue ShellHostView::Bootstrap() const {
   }
   capabilities.Append("engine.systemState");
   capabilities.Append("profiles.deleteData");
+  capabilities.Append(ardiacore::kLinuxUnloadIdleProfileCall);
   capabilities.Append("shell.inputRegions");
   capabilities.Append("pip.attach");
   capabilities.Append("tab.adoptCopies");

@@ -291,6 +291,18 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   Performance › Load profiles when opened and the `lazyProfiles` kill switch. Native reports what `ProfileRegistry` has
   loaded through the `profiles.loaded` call, and a later load through the event of the same name, to every window. An
   engine without the call answers `ERR_UNKNOWN_CALL`, and every profile loads at launch.
+- **Unloading idle profiles.** Settings › Advanced › Performance › Unload inactive profiles works as on macOS: the
+  shared `state/profiles/profileUnloading.ts` calls `profiles.unloadIdle` for a profile no window shows. The host
+  (`ac_linux_idle_profiles.cc`, Chrome glue in `ac_linux_idle_profile_engine.cc`) answers `busy` with `heldBy` when a
+  tab of that profile has no binding (`tab`) or is visible, in its own window, capturing, in picture in picture or has
+  DevTools open; when the profile is the app profile, has a private profile or a download (`profile`, `private`,
+  `download`); when a window's own Browser or active profile is it (`window`); when a tab's history can't be kept
+  (`history`); or when Chrome's discard policy keeps a page (`page`, its strip's active tab excepted). Otherwise it
+  sleeps every tab of the companion Browsers and answers `sleeping` until all are discarded with their history
+  saved, then closes each tab keeping its history (`KeepTabHistoryWhenClosed`, no closed-tab entry), closes the empty
+  companions, drops the profile's first-window keep-alive and answers `released` (the profile is gone) or `pending`,
+  with the unloaded tabs' keys in `tabs`. A profile that isn't loaded answers `released`. Test:
+  `engine/ardiacore-linux/tests/test_idle_profiles.py`.
 - **The window's active engine profile.** The Linux shell tells the host which engine profile the window shows
   (`ArdiaShell.setActiveProfile`, sent by `watchActiveProfile` in `hostWindowProfiles.ts` whenever the window's engine
   profile changes, with a sequence number so a late reply can't win). The extension toolbar, popups, side panels and
