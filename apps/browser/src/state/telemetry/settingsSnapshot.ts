@@ -23,9 +23,8 @@ function measured(spec: SettingSpec<unknown>, value: unknown): string | null {
   return null;
 }
 
-function customShortcutCounts(overrides: unknown): Record<string, string> {
-  const stored = overrides && typeof overrides === "object" ? Object.values(overrides as Record<string, unknown>) : [];
-  const keys = stored.filter((s): s is string[] => Array.isArray(s) && typeof s[0] === "string" && s[0] !== "").map((s) => storedShortcut(s).key);
+function customShortcutCounts(overrides: Settings["shortcuts"]): Record<string, string> {
+  const keys = Object.values(overrides).filter((stored) => stored[0]).map((stored) => storedShortcut(stored).key);
   return { custom_shortcuts: String(keys.length), custom_shortcuts_navigation_keys: String(keys.filter(isNavigationOrFunctionKey).length) };
 }
 
