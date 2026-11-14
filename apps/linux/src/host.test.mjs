@@ -54,6 +54,20 @@ test("module dispatch keeps the named module and argument list", async () => {
   assert.deepEqual(requests, [["ArdiaShell.openWindow", { args: ["w_linux", { profile: "default" }] }]]);
 });
 
+test("main's swipe haptic, theme key-look hold and unattended ardia command install answer on Linux without reaching the host", async () => {
+  const { host, requests } = fixture();
+  assert.equal(resolveHostModule(host, "ArdiaSwipe", "haptic")("levelChange"), undefined);
+  assert.equal(await resolveHostModule(host, "ArdiaWindowBackdrop", "holdKeyLook")(true), undefined);
+  assert.equal(resolveHostModule(host, "ArdiaCli", "canInstallUnattended")(), false);
+  host.bootstrap.capabilities = ["ArdiaCli.install"];
+  assert.equal(resolveHostModule(host, "ArdiaCli", "canInstallUnattended")(), true);
+  host.bootstrap.launchConfig = { isolated: true, instance: { cliHome: "/tmp/cli-home" } };
+  assert.equal(resolveHostModule(host, "ArdiaCli", "canInstallUnattended")(), false, "a test instance installs only into its own folders");
+  host.bootstrap.launchConfig.instance.cliBinDir = "/tmp/cli-bin";
+  assert.equal(resolveHostModule(host, "ArdiaCli", "canInstallUnattended")(), true);
+  assert.deepEqual(requests, []);
+});
+
 test("documents read their native bootstrap and persist writes and removals in order", async () => {
   let finish;
   const pending = new Promise((resolve) => { finish = resolve; });

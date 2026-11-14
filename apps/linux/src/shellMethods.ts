@@ -1,7 +1,7 @@
 import { emitNativeEvent } from "./shims/expo-modules-core";
 import { watchSidebarEdge } from "./shims/web/motion/sidebarEdge";
 import type { ArdiaHost } from "./host";
-import { hostModuleMethod } from "./host.ts";
+import { hostModuleMethod, invokeHost } from "./host.ts";
 import { linuxCapabilities, unavailableError } from "./hostCapabilities.ts";
 import type { BangListReply } from "../../../packages/shell/src/documents";
 
@@ -80,9 +80,25 @@ export const fetchBangList: (etag: string | null) => Promise<BangListReply> = un
 
 export const LINUX_WINDOW_CORNER_RADIUS = 19;
 
+type WindowFrame = [number, number, number, number];
+
+const isWindowFrame = (value: unknown): value is WindowFrame => Array.isArray(value) && value.length === 4 && value.every(Number.isFinite);
+
+function fillsScreen([, , width, height]: WindowFrame) {
+  const screen = typeof window === "undefined" ? undefined : window.screen;
+  return !!screen && width >= screen.availWidth && height >= screen.availHeight;
+}
+
+const frameCornerRadius = (host?: ArdiaHost) => (id: string): Promise<number> =>
+  invokeHost<unknown>("ArdiaShell.windowFrame", { args: [id] }, host).then(
+    (frame) => isWindowFrame(frame) && fillsScreen(frame) ? 0 : LINUX_WINDOW_CORNER_RADIUS,
+    () => 0,
+  );
+
+const HOST_SHELL_METHODS: Record<string, (host?: ArdiaHost) => ShellMethod> = { frameCornerRadius };
+
 const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
   windowCornerRadius: () => LINUX_WINDOW_CORNER_RADIUS,
-  frameCornerRadius: () => Promise.resolve(LINUX_WINDOW_CORNER_RADIUS),
   updateMenu: resolved,
   watchSidebarEdge: (id: string, on: boolean, hold = 0, right = false) => {
     watchSidebarEdge(id, on, hold, right);
@@ -125,6 +141,7 @@ export function sidebarEdgeEvent(module: string, event: string, payload: unknown
   return (payload as { type?: unknown }).type === "leftEdge" ? { ...payload, type: "sidebarEdge" } : payload;
 }
 
-export function linuxShellMethod(method: string): ShellMethod | undefined {
+export function linuxShellMethod(method: string, host?: ArdiaHost): ShellMethod | undefined {
+  if (Object.hasOwn(HOST_SHELL_METHODS, method)) return HOST_SHELL_METHODS[method]!(host);
   return Object.hasOwn(LINUX_SHELL_METHODS, method) ? LINUX_SHELL_METHODS[method] : undefined;
 }

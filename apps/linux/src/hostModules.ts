@@ -21,7 +21,7 @@ const synchronousDefaults: Record<string, Record<string, unknown>> = {
 
 const synchronousMethods: Record<string, Record<string, unknown>> = {
   ArdiaGlassEffect: { isLiquidGlass: false },
-  ArdiaCli: { installedVersion: null, canInstallUnattended: false },
+  ArdiaCli: { installedVersion: null },
   ArdiaConfig: { readFile: { status: "missing" } },
   ArdiaAutomation: { reply: undefined, broadcast: undefined },
 };
@@ -44,7 +44,7 @@ export function resolveHostModule(host: ArdiaHost, name: string, method: string)
     return watchSidebarEdgeBesideNativeLeftEdge(host);
   }
   if (name === "ArdiaShell" && !hostSupports(`${name}.${method}`, host)) {
-    const local = linuxShellMethod(method);
+    const local = linuxShellMethod(method, host);
     if (local) return local;
   }
   if (name === "ArdiaSystem") {

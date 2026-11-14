@@ -1,5 +1,6 @@
 import type { CliInstallResult } from "../../../packages/shell/src/cli";
 import { hostSupports, invokeHost, reportHostError, type ArdiaHost } from "./host.ts";
+import { hostLaunchConfig } from "./hostLaunchConfig.ts";
 
 type CliCache = { version: string | null; refreshed: boolean };
 
@@ -44,11 +45,20 @@ function install(host: ArdiaHost) {
   };
 }
 
+function canInstallUnattended(host: ArdiaHost) {
+  return () => {
+    if (!hostSupports("ArdiaCli.install", host)) return false;
+    const { isolated, instance } = hostLaunchConfig(host);
+    return !isolated || (!!instance.cliHome && !!instance.cliBinDir);
+  };
+}
+
 const sendOnly = (host: ArdiaHost, method: string) => (...args: unknown[]) => {
   void invokeHost(method, { args }, host).catch(reportHostError);
 };
 
 export function cliModuleMethod(host: ArdiaHost, name: string, method: string): unknown {
+  if (name === "ArdiaCli" && method === "canInstallUnattended") return canInstallUnattended(host);
   if (!hostSupports(`${name}.${method}`, host)) return undefined;
   if (name === "ArdiaCli" && method === "installedVersion") return installedVersion(host);
   if (name === "ArdiaCli" && method === "install") return install(host);

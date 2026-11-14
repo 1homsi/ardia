@@ -247,6 +247,36 @@ test("every ArdiaShell method resolves to its Linux fallback while the native ho
   }
 });
 
+test("a window's frame corner radius is 19 like the Mac's, 0 while it fills the screen, and 0 once the window is gone", async () => {
+  const host = linuxHost();
+  let frame = [100, 80, 1200, 800];
+  const asked = [];
+  host.invoke = async (method, { args }) => {
+    asked.push([method, ...args]);
+    if (frame instanceof Error) throw frame;
+    return frame;
+  };
+  const radius = resolveHostModule(host, "ArdiaShell", "frameCornerRadius");
+  const saved = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", { value: { screen: { width: 1920, height: 1080, availWidth: 1920, availHeight: 1048 } }, configurable: true });
+  try {
+    assert.equal(await radius("w1"), 19);
+    frame = [0, 32, 1920, 1048];
+    assert.equal(await radius("w1"), 0, "maximized");
+    frame = [0, 0, 1920, 1080];
+    assert.equal(await radius("w1"), 0, "full screen");
+    frame = null;
+    assert.equal(await radius("w1"), 19, "a host without global screen coordinates still has a rounded window");
+    frame = new Error("No such native window");
+    assert.equal(await radius("gone"), 0);
+  } finally {
+    if (saved) Object.defineProperty(globalThis, "window", saved);
+    else delete globalThis.window;
+  }
+  assert.deepEqual(asked.map(([method]) => method), Array(5).fill("ArdiaShell.windowFrame"));
+  assert.deepEqual(asked.at(-1), ["ArdiaShell.windowFrame", "gone"]);
+});
+
 test("reading the clipboard uses the shell's own clipboard on Linux until the native host advertises ArdiaShell.readText", async () => {
   const read = resolveHostModule(olderEngine("ArdiaShell.readText"), "ArdiaShell", "readText");
   const saved = Object.getOwnPropertyDescriptor(globalThis, "navigator");
