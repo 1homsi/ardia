@@ -23,8 +23,8 @@ Walked by hand on 2026-11-14 in the Windows 11 ARM VM (1920 by 1080), with the `
 43544610044 (commit 45a0962e6, engine `windows-engine-20261113-12`, `ArdiaApp.dll` checked against the artifact), from
 a fresh data folder, as a user would: 41 driven runs, every row below seen on that build. Later that day the rows
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
-d83398e1f, engine `windows-engine-20261113-16`); those rows say so. Of the 65 rows, 45 work, 9 work with a difference,
-2 are broken, 5 do nothing, 3 are not offered and 1 was not walked. Works with a difference says
+d83398e1f, engine `windows-engine-20261113-16`); those rows say so. Of the 66 rows, 45 work, 9 work with a difference,
+2 are broken, 5 do nothing, 3 are not offered and 2 were not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
 
@@ -115,6 +115,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Calendar | Does nothing; hidden | #1521 |
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
 | Keep new-tab links inside a Little Ardia window, zoom with Ctrl and the mouse wheel, offer to save and fill passwords | Does nothing (the engine has no call for them yet); hidden | #1783, #1425 |
+| Warn before quitting | Not walked yet: with it on, closing the last window (close button, Alt+F4, Ctrl+Shift+W) asks first with the Mac's words and its Don't ask again | #1782 |
 | The ardia command, Widevine | Not offered (each says so) | |
 | Copy naming the Mac | Works: the walk found three more (a ⌘T, "History › Recently Closed", "File › Close All Tabs"), fixed in #1668's PR | #1522, #1668 |
 
@@ -186,6 +187,13 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
+  - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance isn't
+    hidden, and `windowIds()` lists no other window (Settings and Import count). Windows has no Quit command, so this
+    is the only place it asks; the Mac asks on ⌘Q and never on a window's close. It asks before the window closes, so a
+    Cancel leaves the window and the app as they were and no quit starts; Quit closes the window and the quit above
+    runs as before. A close that asked it never also shows the close-tabs confirm. The dialog is the shared confirm on
+    the dialog thread (#1672). Closing Settings when it is the only window left quits without asking: Settings closes
+    without a close request.
   - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated`, and every
     window that is not a browser window (Little Ardia, Settings, Import: the Mac's system animates those open),
     stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s (Little Ardia

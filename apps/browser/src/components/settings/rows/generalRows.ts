@@ -19,7 +19,12 @@ export const generalRows = {
           keywords: ["onboarding", "setup", "redo", "welcome", "start over", "walkthrough", "first run"],
         },
         openAtLogin: { title: `Open ${APP} at login`, keywords: ["startup", "launch", "login items", "boot"] },
-        warnBeforeQuitting: { advanced: true, title: "Warn before quitting", description: `Asks before ${APP} quits with ${keyText("⌘Q")}.`, keywords: ["quit", "confirm", "cmd q"] },
+        warnBeforeQuitting: {
+          advanced: true,
+          title: "Warn before quitting",
+          description: PLATFORM_FEATURES.quitsWithLastWindow ? `Asks before ${APP} quits when you close its last window.` : `Asks before ${APP} quits with ${keyText("⌘Q")}.`,
+          keywords: ["quit", "confirm", "cmd q", "last window", "exit"],
+        },
         warnBeforeClosingWindow: {
           advanced: true,
           title: "Warn before closing a window with multiple tabs",
