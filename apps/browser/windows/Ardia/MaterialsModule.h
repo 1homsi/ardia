@@ -6,6 +6,7 @@
 #include <string>
 
 #include "Events.h"
+#include "GradientFailures.h"
 #include "Host.h"
 #include "MaterialEffects.h"
 #include "MaterialSupport.h"
@@ -44,6 +45,7 @@ struct MaterialsModule {
   REACT_INIT(Initialize)
   void Initialize(winrt::Microsoft::ReactNative::ReactContext const &context) noexcept {
     m_context = context;
+    Materials::ReportGradientFailuresTo(context);
     Materials::NoteOnce(L"capabilities", Summary());
   }
 
