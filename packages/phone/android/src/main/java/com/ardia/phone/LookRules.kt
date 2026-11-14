@@ -20,7 +20,9 @@ object LookRules {
 
     fun blobSide(width: Float, height: Float): Float = max(width, height) * DeckBackdropStyle.BLOB_SIDE_SHARE
 
-    fun blobRadius(width: Float, height: Float): Float = blobSide(width, height) / 2f
+    fun blobRadius(width: Float, height: Float): Float = max(MIN_BLOB_RADIUS, blobSide(width, height) / 2f)
+
+    private const val MIN_BLOB_RADIUS = 1f
 
     fun blobCenter(index: Int, angle: Float, width: Float, height: Float): Pair<Float, Float> {
         val side = blobSide(width, height)

@@ -263,7 +263,8 @@ and again only when that status changes.
     frost: `PAGELAB look deck probe:` gives each deck's size (never `0x0`), frames and fps (about the panel's rate
     while moving, 0 more frames while still), and three `probe pixel` lines. The centre pixel is close to the
     `mesh centre` colour, and the blob 1 pixel is lighter than it in light mode. `PAGELAB look deck size` and
-    `first frame` lines appear once per deck.
+    `first frame` lines appear once per deck. A look view that cannot draw shows a flat colour and logs
+    `PAGELAB look <View> could not draw …` once instead of crashing; report any such line.
 33. **Frost:** open the tray over the deck in dark mode. Behind the suggestion rows, the deck bar's three buttons
     show only as soft smudges, never as sharp icons. In the lab's Look, the frosted bar over the stage is the
     stage's colours blurred in every look (green: blurred green and blue, not flat lavender), and over incognito

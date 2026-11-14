@@ -89,6 +89,29 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
 
     open fun update() = invalidate()
+
+    private var reportedFailure = false
+
+    final override fun onDraw(canvas: Canvas) = drawSafely(canvas)
+
+    internal fun drawSafely(canvas: Canvas) {
+        if (width <= 0 || height <= 0) return
+        val saved = canvas.saveCount
+        try {
+            drawLook(canvas)
+        } catch (failure: Exception) {
+            canvas.restoreToCount(saved)
+            canvas.drawColor(fallbackColor())
+            if (!reportedFailure) {
+                reportedFailure = true
+                android.util.Log.w("PAGELAB", "PAGELAB look ${javaClass.simpleName} could not draw at ${width}x$height and fell back to a flat colour: ${failure.javaClass.simpleName}: ${failure.message}")
+            }
+        }
+    }
+
+    protected abstract fun drawLook(canvas: Canvas)
+
+    protected open fun fallbackColor(): Int = runCatching { SystemPalette.background.resolve(isDark).toArgb() }.getOrDefault(Color.GRAY)
 }
 
 internal object DeckBackdrops {
@@ -150,7 +173,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck size ${oldw}x$oldh -> ${w}x$h")
     }
 
-    override fun onDraw(canvas: Canvas) {
+    override fun drawLook(canvas: Canvas) {
         val dark = isDark
         val look = look
         val drawn = "${if (dark) "dark" else "light"}, look $look"
@@ -192,6 +215,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (animated && isShown) postInvalidateOnAnimation()
     }
 
+    override fun fallbackColor(): Int = runCatching { LookSwitch.flatDeck(look, isDark).toArgb() }.getOrDefault(super.fallbackColor())
+
     private fun angle(index: Int, now: Long): Float {
         val loop = TabsBackdropMotion.loopsMillis[index]
         val progress = (now % loop).toFloat() / loop
@@ -208,7 +233,7 @@ class ProfileBackdropView(context: Context, appContext: AppContext) : LookView(c
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val mask = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
 
-    override fun onDraw(canvas: Canvas) {
+    override fun drawLook(canvas: Canvas) {
         val dark = isDark
         val w = width.toFloat()
         val h = height.toFloat()
@@ -254,10 +279,12 @@ class ProfileBackdropView(context: Context, appContext: AppContext) : LookView(c
 class FilmGrainView(context: Context, appContext: AppContext) : LookView(context, appContext) {
     var opacity: Float = ProfileBackdropStyle.LIGHT_GRAIN
 
+    override fun drawLook(canvas: Canvas) = Unit
+
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
-        if (lookIsOff) return
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), LookPaint.grain(density, opacity))
+        if (lookIsOff || width <= 0 || height <= 0) return
+        runCatching { canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), LookPaint.grain(density, opacity)) }
     }
 }
 
@@ -425,7 +452,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look frost ${source ?: "-"} path=${choice.path.name.lowercase()} (${choice.reason})")
     }
 
-    override fun onDraw(canvas: Canvas) {
+    override fun drawLook(canvas: Canvas) {
         val dark = isDark
         val style = LookRules.frost(variant, lookOrNull)
         val radius = cornerRadius * density
