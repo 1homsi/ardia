@@ -6,7 +6,7 @@ import { beginInteraction, countRender, INTERACTION_WINDOW_MS, interactionPerfEn
 import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
-import { POOF } from "../../lib/poof";
+import { POOF, poofCentreY } from "../../lib/poof";
 import { PoofBurst, type PoofSpec } from "./PoofBurst";
 import { haptics } from "../../state/app/haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -233,7 +233,8 @@ export function TabDeck() {
       return;
     }
     const lift = startLift - g.cardHeight * 0.18;
-    const spec = { id: ++poofSeed.current, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + lift, size: g.cardWidth * POOF.sizeShare };
+    const size = g.cardWidth * POOF.sizeShare;
+    const spec = { id: ++poofSeed.current, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: poofCentreY(g.cardCenterY + lift, size, g.safeTop), size };
     setPoofs((now) => [...now, spec]);
     setTimeout(() => setPoofs((now) => now.filter((poof) => poof.id !== spec.id)), POOF.durationMs + POOF_LINGER_MS);
     flyIndex.value = index;

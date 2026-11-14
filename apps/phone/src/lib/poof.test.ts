@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POOF, poofPuff } from "./poof.ts";
+import { POOF, poofPuff, poofCentreY } from "./poof.ts";
 
 test("the poof is Compose's PoofBurst: nine puffs flying out and growing, and a centre puff shrinking by half", () => {
   const start = poofPuff(0, 0, 100);
@@ -11,4 +11,10 @@ test("the poof is Compose's PoofBurst: nine puffs flying out and growing, and a 
   assert.equal(poofPuff(1, 1, 100).radius, 15 * 1.2);
   assert.equal(poofPuff(POOF.count, 0, 100).radius, 21);
   assert.equal(poofPuff(POOF.count, 1, 100).radius, 10.5);
+});
+
+test("a poof keeps half its size of room below the status bar, so a card flicked from the top of the screen still bursts where it can be seen", () => {
+  assert.equal(poofCentreY(400, 300, 40), 400);
+  assert.equal(poofCentreY(60, 300, 40), 190);
+  assert.equal(poofCentreY(-120, 300, 40), 190);
 });
