@@ -85,7 +85,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it; Ctrl+J opens it | #1519 |
 | History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works | |
 | Bookmarks (Ctrl+D, Ctrl+Shift+O) | Works | |
-| mailto and other app links | Works: the app's prompt, then the handler (`mailto` opens the mail app without a prompt, as Chromium and the Mac allow it by default). The engine thread saw the prompt and the handler in the VM on build 347 of #1701; not walked here. Open: the first click on the prompt is ignored (#1709), and a data: page's prompt stays approvable after its document is gone (#1748) | #1590, #1701, #1709, #1748 |
+| mailto and other app links | Works: the app's prompt, then the handler (`mailto` opens the mail app without a prompt, as Chromium and the Mac allow it by default). The engine thread saw the prompt and the handler in the VM on build 347 of #1701; not walked here. The first click on the prompt works after using the page since #1749, and a data: page's prompt stops counting once its document is gone since #1750 (engine `-22`); the engine thread saw the first in the VM and the self-check proves the second on both CPUs. | #1590, #1701, #1749, #1750 |
 | Translate | Not offered | #1520 |
 | Network error page | Works (Chromium's) | |
 | DevTools (F12), Task Manager (Shift+Esc) | Works (Chromium's) | |
@@ -960,7 +960,8 @@ App side, an agent can do these now:
 1. A new tab opened with an address (Ctrl+T, the address, Enter) gets no keyboard (#1689). S, with the engine
    thread.
 2. Onboarding: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812). S.
-3. App links: the first click on the app's prompt is ignored after using the page (#1709). S.
+3. The address field shows no load: the glow that replaced the progress line is a gradient the Windows `Surface`
+   doesn't draw (#1820). S.
 4. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
 5. The app's own page, link and image menus instead of Chromium's (#1518). M.
 6. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
@@ -975,9 +976,9 @@ Engine work (#1425): the walk found nothing new missing beyond what is already l
   sync);
 - the password, permission and picture-in-picture events the app needs to draw its own prompts and windows;
 - the 67 calls `packages/expo-windows/src/engine/domains/forwarded.json` lists under `missing`;
-- an Ardia process still running 15 s after quitting (#1706), and a data: page's app-link prompt that stays approvable
-  after its document is gone (#1748), both the engine thread's. A tab the app closes no longer prompts and is gone
-  within its deadlines since #1696.
+- nothing else open from the 2026-11-14 walk: a tab the app closes no longer prompts and is gone within its deadlines
+  (#1696), a data: page's app-link prompt needs its document alive (#1750), the first click on a page prompt works after
+  using the page (#1749), and the app process exits at once after quit (#1761).
 
 Decisions for Shivam:
 - the calendar source on Windows (#1521);
