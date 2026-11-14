@@ -781,7 +781,7 @@ Every count and timing the phone can send, for the owner to read as one set and 
 | `page_processes_gone` | c6ebf08a8 | How often the page engine dies under people; a rise after a release is a regression |
 | `launch_ms`, `js_ms` (`perf_launch`) | c6ebf08a8 | Cold launch time, process start to first screen, and the JavaScript share of it |
 | `legacy_import_failures` (`app_launched`) | 12a33bf03 | Whether the upgrade import fails in the field, and how many tries it takes |
-| `look_mode` (`app_launched`) | this commit | How many phones the look's budget turns down, and to what; a share that grows after a release means the look got dearer |
+| `look_mode` (`app_launched`) | 428c9a18d | How many phones the look's budget turns down, and to what; a share that grows after a release means the look got dearer |
 | `links_given_up` | 16509434e | Whether a link's handling still hangs past 8 s; anything above zero is a bug to chase |
 | `pages_reloaded_online` | b59e43a94 | Whether the reload on reconnect fires; near the line, worth striking once it is seen working |
 | `spaces_swiped` | b9bb6e53e | Whether people find the swipe in Spaces or only use the switcher |
@@ -838,7 +838,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 Nothing native is left on iPhone that hasn't a decision against it. What remains is wiring in JavaScript, and checks that need a real iPhone (next section).
 
-- Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (f0fbeebcf); Enter Words and Add a List on `PasteButton` where `pasteButtonIsNative()`, 104 × 34 points, tinted with the form accent (2a3ba11d5); a link the page opens with Open in Background (`inBackground` on `page.popup`, d10c053d1) becomes a tab beside its opener without being selected (this commit).
+- Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (f0fbeebcf); Enter Words and Add a List on `PasteButton` where `pasteButtonIsNative()`, 104 × 34 points, tinted with the form accent (2a3ba11d5); a link the page opens with Open in Background (`inBackground` on `page.popup`, d10c053d1) becomes a tab beside its opener without being selected (d44966b0b).
 - For the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes.
 
 ### Check on your iPhone
