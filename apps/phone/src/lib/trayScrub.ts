@@ -1,0 +1,53 @@
+export type RowFrame = { left: number; top: number; right: number; bottom: number };
+
+export const SCRUB = { slack: 8, distance: 6, refineWidth: 40 } as const;
+
+export type ScrubState = { highlighted: number; scrubbing: boolean; startX: number; startY: number };
+
+export type ScrubRelease = { kind: "nothing" } | { kind: "activate"; index: number; wasScrubbing: boolean };
+
+export const idleScrub: ScrubState = { highlighted: -1, scrubbing: false, startX: 0, startY: 0 };
+
+export function rowAt(frames: readonly (RowFrame | null | undefined)[], x: number, y: number, budget: number, slack: number = SCRUB.slack): number {
+  "worklet";
+  if (y > budget) return -1;
+  for (let index = 0; index < frames.length; index++) {
+    const frame = frames[index];
+    if (!frame || frame.bottom <= frame.top) continue;
+    if (frame.top <= y && y < frame.bottom && frame.left - slack <= x && x <= frame.right + slack) return index;
+  }
+  return -1;
+}
+
+export function scrubBegin(frames: readonly (RowFrame | null | undefined)[], x: number, y: number, budget: number): ScrubState {
+  "worklet";
+  return { highlighted: rowAt(frames, x, y, budget), scrubbing: false, startX: x, startY: y };
+}
+
+export function scrubMove(
+  state: ScrubState,
+  frames: readonly (RowFrame | null | undefined)[],
+  x: number,
+  y: number,
+  budget: number,
+): { state: ScrubState; ticks: boolean } {
+  "worklet";
+  const scrubbing = state.scrubbing || Math.abs(y - state.startY) > SCRUB.distance || Math.abs(x - state.startX) > SCRUB.distance;
+  const hit = rowAt(frames, x, y, budget);
+  if (hit === state.highlighted) return { state: { ...state, scrubbing }, ticks: false };
+  return { state: { ...state, scrubbing, highlighted: hit }, ticks: scrubbing && hit !== -1 };
+}
+
+export function scrubEnd(state: ScrubState, frames: readonly (RowFrame | null | undefined)[], x: number, y: number, budget: number): ScrubRelease {
+  "worklet";
+  const hit = rowAt(frames, x, y, budget);
+  if (hit === -1) return { kind: "nothing" };
+  return { kind: "activate", index: hit, wasScrubbing: state.scrubbing };
+}
+
+export function releaseRefines(release: ScrubRelease, frames: readonly (RowFrame | null | undefined)[], x: number, refinable: boolean): boolean {
+  "worklet";
+  if (release.kind !== "activate" || release.wasScrubbing || !refinable) return false;
+  const frame = frames[release.index];
+  return Boolean(frame) && x >= frame!.right - SCRUB.refineWidth;
+}
