@@ -630,8 +630,9 @@ Pass A
    It is not a second, new device. A tab sent from the Mac arrives, and one sent from the phone reaches the Mac.
    With the helper, after the import:
    - `mac sync` lists the phone under the step-3 id and no other phone, with the phone's tabs.
-   - `mac send https://example.com/after-upgrade` arrives on the phone once (not twice, not again after a
-     force-stop and relaunch).
+   - `mac send https://example.com/after-upgrade` arrives on the phone once, by itself, within about 20 s, with
+     the app in front and nothing tapped (sync cycles every 15 s in front; sync11 and earlier needed Sync Now).
+     Note the seconds from `mac send` to the toast. Not twice, not again after a force-stop and relaunch.
    - A page opened on the phone (`https://example.com/opened-after-upgrade`) shows under the phone's tabs in the
      next `mac sync`.
    - Settings › Sync With Mac on the phone shows it connected to the Mac, with no folder picker and no phrase
@@ -639,7 +640,16 @@ Pass A
    Report the `mac sync` output from step 3, after the import, and after step 9, and the `relay status` lines.
 9. **Relaunch with no second import.** `adb shell am force-stop $P`, then open the app twice. Each time, the deck,
    the Archive and History have the same counts as step 7 (nothing doubled), no `ardia-legacy imported` line, and
-   `example.com/held-a` does not open again.
+   `example.com/held-a` does not open again. With the helper, after the second relaunch, `mac send
+   https://example.com/after-relaunch`: it arrives once, by itself, within about 20 s, as in step 8.
+9a. **One tab per typed address** (the double tab after sync9's upgrade). With sync connected, open the tray and
+   type `example.com/typed-after-upgrade`, then tap Go; then type `example.com/ime-after-upgrade` and submit it
+   with the test tool's ime_enter. For each, `adb logcat -s PAGELAB` must show, in order, one
+   `PAGELAB completion submit #n "…" via …`, one `PAGELAB completion js received submit #n "…"` with the same
+   n, and one `PAGELAB tab opened … origin typed`; the deck gains one tab, and the next `mac sync` lists the
+   address once. If two tabs open, report every one of those lines: two native numbers mean the field emitted
+   twice, two received lines with one number mean the event was delivered twice, and a second `tab opened`
+   line names the path that opened it (`origin received-from-mac` is a tab coming back through sync).
 10. **Install the Compose app back.** `adb install -r -d $COMPOSE_APK`. It opens with the tabs, Archive, visits and
     settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3 again: every line
     matches.
