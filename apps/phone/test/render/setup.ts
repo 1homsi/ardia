@@ -2,6 +2,44 @@ import "react-native-gesture-handler/jestSetup";
 
 require("react-native-reanimated").setUpTests();
 
+jest.mock("react-native-reanimated", () => {
+  const actual = jest.requireActual("react-native-reanimated");
+  const { onUiThread, fromRemote, trust } = jest.requireActual("./uiRuntime");
+  const ui = onUiThread;
+  for (const value of Object.values(actual)) if (typeof value === "function") trust(value);
+  const runOnJS = trust((fn: unknown) => actual.runOnJS(fromRemote(fn)));
+  return {
+    ...actual,
+    __esModule: true,
+    runOnJS,
+    useAnimatedStyle: (updater: unknown, ...rest: unknown[]) => actual.useAnimatedStyle(ui(updater), ...rest),
+    useAnimatedProps: (updater: unknown, ...rest: unknown[]) => actual.useAnimatedProps(ui(updater), ...rest),
+    useDerivedValue: (updater: unknown, ...rest: unknown[]) => actual.useDerivedValue(ui(updater), ...rest),
+    useAnimatedReaction: (prepare: unknown, react: unknown, ...rest: unknown[]) => actual.useAnimatedReaction(ui(prepare), ui(react), ...rest),
+    useFrameCallback: (callback: unknown, ...rest: unknown[]) => actual.useFrameCallback(ui(callback), ...rest),
+    withTiming: trust((to: unknown, config: unknown, done: unknown) => actual.withTiming(to, config, ui(done))),
+    withSpring: trust((to: unknown, config: unknown, done: unknown) => actual.withSpring(to, config, ui(done))),
+    withDecay: trust((config: unknown, done: unknown) => actual.withDecay(config, ui(done))),
+  };
+});
+
+{
+  const { onUiThread } = jest.requireActual("./uiRuntime");
+  const gestures = jest.requireActual("react-native-gesture-handler/lib/commonjs/handlers/gestures/gesture");
+  const setters: [object, string[]][] = [
+    [gestures.BaseGesture.prototype, ["onBegin", "onStart", "onEnd", "onFinalize", "onTouchesDown", "onTouchesMove", "onTouchesUp", "onTouchesCancelled"]],
+    [gestures.ContinousBaseGesture.prototype, ["onUpdate", "onChange"]],
+  ];
+  for (const [prototype, names] of setters) {
+    for (const name of names) {
+      const original = (prototype as Record<string, (callback: unknown) => unknown>)[name]!;
+      (prototype as Record<string, (callback: unknown) => unknown>)[name] = function (this: unknown, callback: unknown) {
+        return original.call(this, onUiThread(callback));
+      };
+    }
+  }
+}
+
 jest.mock("react-native-safe-area-context", () => require("react-native-safe-area-context/jest/mock").default);
 
 jest.mock("../../src/platform/database", () => {

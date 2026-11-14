@@ -8,12 +8,13 @@ export type ScrubRelease = { kind: "nothing" } | { kind: "activate"; index: numb
 
 export const idleScrub: ScrubState = { highlighted: -1, scrubbing: false, startX: 0, startY: 0 };
 
-export function rowAt(frames: readonly (RowFrame | null | undefined)[], x: number, y: number, slack: number = SCRUB.slack): number {
+export function rowAt(frames: readonly (RowFrame | null | undefined)[], x: number, y: number, slack?: number): number {
   "worklet";
+  const side = slack ?? SCRUB.slack;
   for (let index = 0; index < frames.length; index++) {
     const frame = frames[index];
     if (!frame || frame.bottom <= frame.top) continue;
-    if (frame.top <= y && y < frame.bottom && frame.left - slack <= x && x <= frame.right + slack) return index;
+    if (frame.top <= y && y < frame.bottom && frame.left - side <= x && x <= frame.right + side) return index;
   }
   return -1;
 }

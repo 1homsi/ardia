@@ -1,8 +1,19 @@
 export const POOF = { count: 9, durationMs: 420, opacity: 0.95, blurFrom: 2, blurGrow: 4, sizeShare: 0.9, centerShare: 0.21 } as const;
 
-const angle = (index: number) => (index / POOF.count) * 2 * Math.PI + (index % 2 === 0 ? 0.2 : -0.15);
-const distance = (index: number) => (index % 3 === 0 ? 0.46 : 0.36);
-const radius = (index: number) => (index % 2 === 0 ? 0.2 : 0.15);
+function angle(index: number): number {
+  "worklet";
+  return (index / POOF.count) * 2 * Math.PI + (index % 2 === 0 ? 0.2 : -0.15);
+}
+
+function distance(index: number): number {
+  "worklet";
+  return index % 3 === 0 ? 0.46 : 0.36;
+}
+
+function radius(index: number): number {
+  "worklet";
+  return index % 2 === 0 ? 0.2 : 0.15;
+}
 
 export function poofPuff(index: number, t: number, size: number): { dx: number; dy: number; radius: number } {
   "worklet";
