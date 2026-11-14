@@ -12,10 +12,14 @@ export const spring = (response: number, dampingFraction: number) => {
   return { stiffness, damping: 2 * dampingFraction * Math.sqrt(stiffness), mass: 1 };
 };
 
+export const COMPOSE_PROGRESS_SETTLE = 1e-4;
+
+export const progressSpring = (response: number, dampingFraction: number) => ({ ...spring(response, dampingFraction), energyThreshold: COMPOSE_PROGRESS_SETTLE });
+
 export const tabsMotion = {
-  openScale: spring(0.19, 1),
-  openPosition: spring(0.3, 1),
-  expand: spring(0.3, 1),
+  openScale: progressSpring(0.19, 1),
+  openPosition: progressSpring(0.3, 1),
+  expand: progressSpring(0.3, 1),
   release: spring(0.3, 0.9),
   settle: spring(0.4, 1),
   gapClose: spring(0.4, 0.8),

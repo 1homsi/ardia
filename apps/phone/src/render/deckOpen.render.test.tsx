@@ -58,3 +58,18 @@ test("an opening card grows a status-bar strip in the page's tone above its pict
   expect(grown * (g.width / g.cardWidth)).toBeLessThanOrEqual(40.001);
   unmount(root);
 });
+
+test("the deck takes taps and a card's page takes over as soon as their springs are within Compose's settle point, about a third of a second, not Reanimated's 0.6", () => {
+  withTabs(3);
+  useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const root = renderSurface(<Surfaces />);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  let elapsed = 0;
+  while (useBrowse.getState().surface === "deck" && elapsed < 1000) {
+    act(() => jest.advanceTimersByTime(16));
+    elapsed += 16;
+  }
+  expect(useBrowse.getState().surface).toBe("browsing");
+  expect(elapsed).toBeLessThan(450);
+  unmount(root);
+});
