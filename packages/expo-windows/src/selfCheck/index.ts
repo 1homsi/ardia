@@ -1,3 +1,5 @@
+import type { AppNative } from "@ardia/shell";
+import { requireNativeModule } from "../modules";
 import type { Check } from "./check";
 import { checks as appSystemChecks } from "./appSystem";
 import { checks as engineCallChecks } from "./engineCalls";
@@ -10,6 +12,7 @@ import { checks as focusChecks } from "./focus";
 import { checks as idleTimeChecks } from "./idleTime";
 import { checks as importChecks } from "./importFiles";
 import { checks as introMusicChecks } from "./introMusic";
+import { checks as meadowChecks } from "./meadow";
 import { checks as importFirefoxChecks } from "./importFirefox";
 import { checks as launchLinkChecks } from "./launchLinks";
 import { checks as materialChecks } from "./materials";
@@ -26,14 +29,15 @@ import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, pagePictureChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, idleTimeChecks, textFocusChecks, launchLinkChecks, engineHostChecks, engineCallChecks, importChecks, importFirefoxChecks, introMusicChecks, desktopCallChecks, externalAppChecks, syncChecks, heldDialogChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, pagePictureChecks, materialChecks, windowDragChecks, fileDropChecks, focusChecks, idleTimeChecks, textFocusChecks, launchLinkChecks, engineHostChecks, engineCallChecks, importChecks, importFirefoxChecks, introMusicChecks, desktopCallChecks, externalAppChecks, syncChecks, heldDialogChecks, meadowChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export async function runSelfCheck() {
   let passed = 0;
   let failed = 0;
-  for (const check of areas.flat()) {
+  const only = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().test.selfCheckOnly;
+  for (const check of areas.flat().filter((each) => !only || each.name.startsWith(only))) {
     try {
       await check.run();
       passed += 1;
