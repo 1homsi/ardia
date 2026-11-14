@@ -30,6 +30,7 @@ public final class SyncModule: Module {
         guard let self else { return }
         PhoneSyncHost.shared.stopListening(self)
         FolderPicker.shared.cancel()
+        FolderPicks.shared.forgetAll()
       }
     }
 
@@ -56,6 +57,27 @@ public final class SyncModule: Module {
         guard let folder = await FolderPicker.shared.pick() else { return SyncPayloads.object(SyncPayloads.connect(nil)) }
         return SyncPayloads.object(SyncPayloads.connect(await sync.connect(phrase: phrase, folder: folder)))
       }
+    }
+
+    AsyncFunction("pickFolder") { (promise: Promise) in
+      PageViewModule.main(promise) { () -> [String: Any]? in
+        guard let url = await FolderPicker.shared.pick() else { return nil }
+        return FolderPicks.shared.hold(url)
+      }
+    }
+
+    AsyncFunction("connectWithFolder") { (phrase: String, folder: String, promise: Promise) in
+      PageViewModule.main(promise) { () -> [String: Any] in
+        let sync = await PhoneSyncHost.shared.ready()
+        guard let url = FolderPicks.shared.url(folder) else { return SyncPayloads.object(SyncPayloads.connect(.folderUnavailable)) }
+        let result = await sync.connect(phrase: phrase, folder: url)
+        if result == .connected { FolderPicks.shared.forget(folder) }
+        return SyncPayloads.object(SyncPayloads.connect(result))
+      }
+    }
+
+    AsyncFunction("forgetFolder") { (folder: String, promise: Promise) in
+      PageViewModule.main(promise) { FolderPicks.shared.forget(folder) }
     }
 
     AsyncFunction("changeFolder") { (promise: Promise) in
@@ -153,6 +175,49 @@ public final class SyncModule: Module {
     case .inbox(let count):
       sendEvent("onSyncEvent", ["name": "sync.inbox", "count": count])
     }
+  }
+}
+
+@MainActor
+final class FolderPicks {
+  static let shared = FolderPicks()
+
+  private struct Pick {
+    var url: URL
+    let bookmark: Data?
+    var accessing: Bool
+  }
+
+  private var picks: [String: Pick] = [:]
+
+  func hold(_ url: URL) -> [String: Any] {
+    let accessing = url.startAccessingSecurityScopedResource()
+    let bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+    let id = UUID().uuidString
+    picks[id] = Pick(url: url, bookmark: bookmark, accessing: accessing)
+    return ["folder": id, "name": url.lastPathComponent]
+  }
+
+  func url(_ id: String) -> URL? {
+    guard var pick = picks[id] else { return nil }
+    if FileManager.default.isReadableFile(atPath: pick.url.path(percentEncoded: false)) { return pick.url }
+    guard let bookmark = pick.bookmark else { return pick.url }
+    var stale = false
+    guard let resolved = try? URL(resolvingBookmarkData: bookmark, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return pick.url }
+    if pick.accessing { pick.url.stopAccessingSecurityScopedResource() }
+    pick.accessing = resolved.startAccessingSecurityScopedResource()
+    pick.url = resolved
+    picks[id] = pick
+    return resolved
+  }
+
+  func forget(_ id: String) {
+    guard let pick = picks.removeValue(forKey: id) else { return }
+    if pick.accessing { pick.url.stopAccessingSecurityScopedResource() }
+  }
+
+  func forgetAll() {
+    for id in Array(picks.keys) { forget(id) }
   }
 }
 
