@@ -68,3 +68,9 @@ export function neighbours(order: readonly string[], current: string | null): { 
   if (index < 0) return { left: null, right: null };
   return { left: order[index - 1] ?? null, right: order[index + 1] ?? null };
 }
+
+export function neighbourAt(order: readonly string[], current: string | null, delta: number): string | null {
+  const index = current === null ? -1 : order.indexOf(current);
+  if (index < 0) return null;
+  return order[index + delta] ?? null;
+}

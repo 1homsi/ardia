@@ -1,5 +1,7 @@
 import { deckSteps, LAUNCH_TIMING, TRUSTED_SITES_SAMPLE, type DeckStep, type LaunchArguments } from "../../lib/launchArguments";
-import { newTab, openArchive, openPage, openSpaces, openTab, showDeck } from "../browse/store";
+import { neighbourAt } from "../../lib/pagerPhysics";
+import { sendDeckCommand } from "../browse/deckCommands";
+import { captureSnapshot, newTab, openArchive, openPage, openSpaces, openTab, showDeck, swipeOrder, switchToNeighbour, useBrowse } from "../browse/store";
 import { openPageMenu, showReader } from "../page/actions";
 import { presentSearch } from "../search/store";
 import { trustSite } from "../settings/actions";
@@ -56,7 +58,11 @@ async function runDemoScenario(args: LaunchArguments) {
     await wait(args.browseDelayMs);
     newTab();
   }
-  if (args.browseSteps.length) console.log("ardia-launch BrowseSteps needs the pager's step command; skipped");
+  for (const step of args.browseSteps) {
+    const id = neighbourAt(swipeOrder(), currentTabs().selectedId, step);
+    if (id) switchToNeighbour(id);
+    await wait(args.browseStepGapMs);
+  }
 }
 
 async function runLaunchHooks(args: LaunchArguments) {
@@ -77,8 +83,6 @@ async function runDeckScript(script: string) {
   for (const step of deckSteps(script)) await deckStep(step);
 }
 
-const SUPPORTED_LATER = new Set(["warm", "open", "snapall", "scroll", "close", "tap", "lift", "archivecard"]);
-
 async function deckStep({ kind, argument }: DeckStep) {
   switch (kind) {
     case "wait":
@@ -87,6 +91,36 @@ async function deckStep({ kind, argument }: DeckStep) {
     case "deck":
     case "switcher":
       await showDeck();
+      return;
+    case "open": {
+      const selected = currentTabs().selectedId;
+      if (useBrowse.getState().surface !== "browsing" && selected) {
+        openTab(selected);
+        await wait(OPEN_SETTLE_MS);
+      }
+      await showDeck();
+      return;
+    }
+    case "snapall":
+      await snapshotTabs(deckOrder(currentTabs()).slice(-(Number(argument) || 6)).map((tab) => tab.id));
+      return;
+    case "warm":
+      await snapshotTabs(currentTabs().open.filter((tab) => !tab.snapshotFileName).map((tab) => tab.id));
+      return;
+    case "scroll":
+      sendDeckCommand({ kind: "scroll", index: Number(argument) || 0 });
+      return;
+    case "close":
+      sendDeckCommand({ kind: "closeFocused" });
+      return;
+    case "tap":
+      sendDeckCommand({ kind: "openFocused" });
+      return;
+    case "lift":
+      sendDeckCommand({ kind: "lift", offset: argument !== null && Number.isFinite(Number(argument)) ? Number(argument) : DEFAULT_LIFT });
+      return;
+    case "archivecard":
+      sendDeckCommand({ kind: "showArchiveCard" });
       return;
     case "browse": {
       const selected = currentTabs().selectedId;
@@ -129,6 +163,19 @@ async function deckStep({ kind, argument }: DeckStep) {
       }
       return;
     default:
-      console.log(`ardia-launch deck step ${kind}${SUPPORTED_LATER.has(kind) ? " needs the deck's commands" : " is unknown"}; skipped`);
+      console.log(`ardia-launch deck step ${kind} is unknown; skipped`);
   }
+}
+
+const OPEN_SETTLE_MS = 1000;
+const DEFAULT_LIFT = -120;
+
+async function snapshotTabs(ids: readonly string[]) {
+  for (const id of ids) {
+    openTab(id);
+    await wait(LAUNCH_TIMING.snapWaitMs);
+    await captureSnapshot(id);
+  }
+  const last = ids.at(-1);
+  if (last) openTab(last);
 }

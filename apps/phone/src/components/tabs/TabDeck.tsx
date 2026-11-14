@@ -39,7 +39,8 @@ import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { DeckBar } from "./DeckBar";
 import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
-import { hideArchiveCard, offerArchiveCard, useArchiveCardShowing } from "../../state/browse/archiveCard";
+import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
+import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
 import { ArchiveIntervalCard } from "./ArchiveIntervalCard";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
 
@@ -129,6 +130,20 @@ export function TabDeck() {
   }, [live]);
 
   const settledOpen = (id: string) => openTab(id);
+
+  const command = useDeckCommand((s) => s.command);
+  useEffect(() => {
+    if (!command || phase.kind !== "settled") return;
+    takeDeckCommand(command.id);
+    const focused = focusedIndex(scroll.value, order.length);
+    if (command.kind === "scroll") scroll.value = withSpring(Math.min(Math.max(command.index, 0), Math.max(order.length - 1, 0)), tabsMotion.settle);
+    else if (command.kind === "closeFocused") close(focused, 0);
+    else if (command.kind === "openFocused") open(focused);
+    else if (command.kind === "lift") {
+      dragIndex.value = focused;
+      dragLift.value = command.offset;
+    } else showArchiveCardNow();
+  }, [command, phase.kind]);
 
   const open = (index: number) => {
     const id = order[index];

@@ -23,6 +23,11 @@ export function offerArchiveCard(openTabs: number) {
   later(() => useArchiveCard.setState({ showing: true }), ARCHIVE_CARD_DELAY_MS);
 }
 
+export function showArchiveCardNow() {
+  setPreference("archiveCardShown", true);
+  later(() => useArchiveCard.setState({ showing: true }), ARCHIVE_CARD_DELAY_MS);
+}
+
 export function hideArchiveCard(): boolean {
   if (timer) clearTimeout(timer);
   timer = null;
