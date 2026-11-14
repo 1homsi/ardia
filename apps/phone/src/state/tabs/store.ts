@@ -94,10 +94,16 @@ export function saveTabState(id: string, saved: string | null) {
   if (data().open.some((t) => t.id === id)) writeTabState(browserDatabase(), id, saved);
 }
 
-export function loadTabs() {
+export function pruneExpiredArchive() {
   const db = browserDatabase();
   const expired = expiredArchivedIds(db, now() - ARCHIVE_RETENTION_MS, ARCHIVE_LIMIT);
   if (expired.length) writeTabs(db, [], expired);
+  return expired.length;
+}
+
+export function loadTabs() {
+  const db = browserDatabase();
+  pruneExpiredArchive();
   useTabs.setState({ ...launchTabs(readOpenTabs(db), countArchivedTabs(db)), incognito: false, listing: 0 });
 }
 

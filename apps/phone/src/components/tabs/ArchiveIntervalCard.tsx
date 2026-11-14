@@ -1,13 +1,13 @@
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeOut, useReducedMotion, withTiming } from "react-native-reanimated";
-import { tileGradient } from "../../lib/favicon";
-import { linearGradientCss } from "../../lib/gradient";
 import { hideArchiveCard, hideArchiveCardSoon } from "../../state/browse/archiveCard";
 import { setArchiveInterval } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { archiveCardLayout, FloatingMenu, font, ink, radius, shadowRadius, space, Symbol, tabsLayout, tabsMotion, useTheme } from "../ui";
+
+import { ArchiveTile } from "./ArchiveTile";
 
 const INTERVALS = Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[];
 
@@ -31,9 +31,7 @@ export function ArchiveIntervalCard({ centerY }: { centerY: number }) {
         style={[styles.card, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}
       >
         <View style={styles.label}>
-          <View style={[styles.tile, { width: side, height: side, borderRadius: side * 0.25, experimental_backgroundImage: linearGradientCss(tileGradient(archiveCardLayout.tint), false, side, side) }]}>
-            <Symbol name="archivebox" size={side * 0.55} color={ink.white} />
-          </View>
+          <ArchiveTile side={side} />
           <Text style={[font.body, { color: theme.label }]}>Archive Inactive Tabs</Text>
         </View>
         <Pressable ref={picker} accessibilityRole="button" accessibilityLabel="Archive Inactive Tabs" accessibilityValue={{ text: autoArchiveTitle(interval) }} onPress={() => setOpen(true)} style={styles.picker}>
@@ -98,6 +96,5 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   label: { flexDirection: "row", alignItems: "center", gap: space.m },
-  tile: { alignItems: "center", justifyContent: "center" },
   picker: { flexDirection: "row", alignItems: "center", gap: space.xs, minHeight: 44, paddingHorizontal: space.s + 2, borderRadius: radius.row },
 });

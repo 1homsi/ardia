@@ -25,6 +25,8 @@ import { enterTarget, rowTarget, resolve, type TrayRow } from "../search/omnibox
 import { applySearchEngine, dismissSearch, presentSearch, refreshSearchRows, searchState, useSearch } from "../search/store";
 import {
   archiveDueTabs,
+  loadArchive,
+  pruneExpiredArchive,
   closeEveryTab,
   closePrivateTabs,
   closeTabById,
@@ -71,6 +73,7 @@ export function startBrowser(beforeOpening: () => void = () => undefined) {
   loadTabs();
   history().pruneBefore(Date.now() - HISTORY_RETENTION_MS);
   archiveDueTabs();
+  archiveTimer = setInterval(archiveDueTabs, AUTO_ARCHIVE_CHECK_MS);
   listenToPages(pageEvent);
   watchFrontScroll(frontPageId);
   if (!currentPreferences().hasFinishedOnboarding) showOnboarding();
@@ -97,8 +100,15 @@ export function pageCovered() {
   );
 }
 
+let archiveTimer: ReturnType<typeof setInterval> | null = null;
+
+const AUTO_ARCHIVE_CHECK_MS = 15 * 60_000;
+
 export function appBecameActive() {
   appActive = true;
+  if (pruneExpiredArchive() > 0) loadArchive();
+  if (archiveTimer) clearInterval(archiveTimer);
+  archiveTimer = setInterval(archiveDueTabs, AUTO_ARCHIVE_CHECK_MS);
   void refreshDefaultBrowser();
   const selected = currentTabs().selectedId;
   if (selected) selectTabById(selected);
@@ -107,6 +117,8 @@ export function appBecameActive() {
 
 export function appWillResignActive() {
   appActive = false;
+  if (archiveTimer) clearInterval(archiveTimer);
+  archiveTimer = null;
   const selected = currentTabs().selectedId;
   if (selected) selectTabById(selected);
   void savePageStates();

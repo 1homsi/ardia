@@ -10,7 +10,7 @@ import type { SymbolName } from "./symbolPaths";
 import { useTheme } from "./theme";
 import { font, ink, menuShadow, radius, space } from "./tokens";
 
-export type MenuItem = { label: string; icon?: SymbolName; destructive?: boolean; checked?: boolean; onPress: () => void } | "divider" | { heading: string };
+export type MenuItem = { label: string; icon?: SymbolName; destructive?: boolean; checked?: boolean; disabled?: boolean; onPress: () => void } | "divider" | { heading: string };
 
 type Props = { items: MenuItem[]; place: ViewStyle; onDismiss: () => void };
 
@@ -48,12 +48,13 @@ export function Menu({ items, place, onDismiss }: Props) {
               key={`${index}:${item.label}`}
               accessibilityRole="menuitem"
               accessibilityLabel={item.label}
-              accessibilityState={{ checked: item.checked }}
+              accessibilityState={{ checked: item.checked, disabled: item.disabled }}
+              disabled={item.disabled}
               onPress={() => {
                 onDismiss();
                 item.onPress();
               }}
-              style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+              style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null, item.disabled ? styles.disabled : null]}
             >
               <Text style={[font.body, styles.label, { color }]}>{item.label}</Text>
               {item.checked ? <Symbol name="checkmark" size={18} color={theme.formAccent} /> : null}
@@ -109,4 +110,5 @@ const styles = StyleSheet.create({
   label: { flex: 1 },
   heading: { paddingHorizontal: space.l, paddingVertical: space.xs + 2 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: space.xs },
+  disabled: { opacity: 0.4 },
 });
