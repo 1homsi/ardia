@@ -73,7 +73,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | --- | --- | --- |
 | Command bar (history, open tabs, suggestions) | Works | |
 | Inline completion in the command bar | Works (top match completes inline) | #1520 |
-| Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
+| Find in page | Works: the app's find bar, from a page or the app's UI (Ctrl+F); count, Enter, Shift+Enter, F3 and Shift+F3 step; Escape gives the page the keyboard back; private windows too | #1758 |
 | Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
 | Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
 | JavaScript alert, confirm and prompt | Works (Chromium's dialogs over the page) | |
@@ -442,6 +442,12 @@ is plain Chromium.
   app text field is focused while the keyboard is in a page of the field's own window (the command bar, the find bar,
   an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates that window. A page that hides or
   closes leaves full screen, as the Mac's does.
+- Find in page is the app's bar, as on the Mac. Ctrl+F in a page reaches the app's `findInPage` through `MenuKeyboard`'s
+  thread keyboard hook, which sees keys meant for the page windows (the hosted windows have no Chromium shortcuts), so
+  Chromium's own find bar never shows. React Native for Windows fires both `onKeyDown` and `onSubmitEditing` for one
+  Enter in the find field, so the bar ignores a submit within 250 ms of the Enter it came from (`submitRepeatsKey`).
+  `find_opens` and `find_steps` in the hourly `usage_counts` count it on every platform. The engine's `find` call still
+  ignores `findNext` (#1425), so reopening the bar on the same words moves one match on.
 - Peek opens as on the Mac. The engine host keeps a DevTools session of its own on each page and puts the Peek part of
   ArdiaCore's page script into an isolated world of every web frame (`page_links.cc`): the page can't see the script
   or its binding. A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
