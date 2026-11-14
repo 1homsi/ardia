@@ -18,11 +18,23 @@ export const LINUX_WORDING: readonly Wording[] = [
   },
   {
     file: "components/onboarding/LookStep.tsx",
-    replacements: [[`subtitle: "Buttons and panels catch the light, as in Tahoe"`, `subtitle: "Buttons and panels catch the light"`]],
+    replacements: [
+      [`subtitle: "Buttons and panels catch the light, as in Tahoe"`, `subtitle: "Buttons and panels catch the light"`],
+      [`subtitle: "Light by day, dark by night, like your Mac"`, `subtitle: "Light by day, dark by night, like your desktop"`],
+    ],
   },
   {
-    file: "components/onboarding/OutroStep.tsx",
-    replacements: [[`<OptionRow title="Keep in the Dock"`, `<OptionRow title="Keep in the taskbar"`]],
+    file: "components/onboarding/HomeStep.tsx",
+    replacements: [
+      [
+        `        {system && !system.inDock ? (
+          <OptionCard control="check" icon="dock.rectangle" title="Add Ardia to Dock" subtitle="Quick access whenever you need it" selected={dock} onPress={() => setExtras({ dock: !dock })} />
+        ) : null}
+`,
+        "",
+      ],
+      [`        {chip(dock, "dock.rectangle", "In your Dock")}\n`, ""],
+    ],
   },
   {
     file: "components/onboarding/previews/MockWindow.tsx",
@@ -89,14 +101,16 @@ export const LINUX_WORDING: readonly Wording[] = [
       ["A random install ID, made on this Mac once", "A random install ID, made on this computer once"],
       ["App version and build, macOS version, chip", "App version and build, operating system version, chip"],
       [
-        "Every 10 minutes Ardia notes on this Mac its tab, window and profile counts, its memory use, rough free disk space, the Mac's memory pressure and how long it has been open. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the Mac restarted since.",
-        "Every 10 minutes Ardia notes on this computer its tab, window and profile counts, its memory use, rough free disk space, the system's memory pressure and how long it has been open. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the computer restarted since.",
+        "Every 10 minutes Ardia notes on this Mac its tab, window and profile counts, its memory use, rough free disk space, the Mac's memory pressure, how long it has been open, and which of Ardia's own pages (like Settings or History) the tab in front was on, never a website's address. Ardia also takes that note when you open or leave one of those pages. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the Mac restarted since.",
+        "Every 10 minutes Ardia notes on this computer its tab, window and profile counts, its memory use, rough free disk space, the system's memory pressure, how long it has been open, and which of Ardia's own pages (like Settings or History) the tab in front was on, never a website's address. Ardia also takes that note when you open or leave one of those pages. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the computer restarted since.",
       ],
       [
         "how much memory the Mac has, how many displays and their scale, and whether the Mac decodes",
         "how much memory the computer has, how many displays and their scale, and whether the computer decodes",
       ],
       ["whether it's the first launch since the Mac started", "whether it's the first launch since the computer started"],
+      ["Also at launch: the Mac's load average", "Also at launch: the system's load average"],
+      ["a link no app on this Mac opens", "a link no app on this computer opens"],
       ["Its version, macOS version, chip and Python version, with this Mac's install ID", "Its version, operating system version, chip and Python version, with this computer's install ID"],
       ["Leaves this Mac only as the events above", "Leaves this computer only as the events above"],
       ["whether macOS and Ardia agree that Ardia is the app in front", "whether the system and Ardia agree that Ardia is the app in front"],

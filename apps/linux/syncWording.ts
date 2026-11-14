@@ -59,7 +59,7 @@ export const SYNC_WORDING: readonly Wording[] = [
       ],
       [`Saved to {saved.replace(/^\\/Users\\/[^/]+/, "~")}.`, `Saved to {saved.replace(/^\\/home\\/[^/]+/, "~")}.`],
       [
-        `        <View accessibilityLabel="Recovery kit preview" style={[PREVIEW_FRAME, { borderColor: theme.groupBorder }]}>
+        `        <View accessibilityLabel="Recovery kit preview" style={[PREVIEW_FRAME(), { borderColor: theme.groupBorder }]}>
           {preview ? <Image source={{ uri: preview }} style={PREVIEW} /> : null}
         </View>
 `,
@@ -81,10 +81,6 @@ export const SYNC_WORDING: readonly Wording[] = [
       [
         "Click Show Code. On your iPhone, open Ardia, tap Sync With Mac, and scan the code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard.",
         "Click Show Code, then scan the code with your phone’s camera to copy the words, and type or paste them on your other device.",
-      ],
-      [
-        `const WORD = { width: "25%", paddingVertical: space.xs, fontFamily: "Menlo" } as const;`,
-        `const WORD = { width: "25%", paddingVertical: space.xs, fontFamily: "monospace" } as const;`,
       ],
       [`<Button title="Add to This Mac"`, `<Button title="Add to This Computer"`],
       [
@@ -116,8 +112,8 @@ export const SYNC_WORDING: readonly Wording[] = [
     ],
   },
   {
-    file: "components/ui/Field.tsx",
-    replacements: [[`const MONO = { fontFamily: "Menlo" } as const;`, `const MONO = { fontFamily: "monospace" } as const;`]],
+    file: "lib/themeLook.ts",
+    replacements: [[`export const MONO_FAMILY = "Menlo";`, `export const MONO_FAMILY = "monospace";`]],
   },
   {
     file: "state/sync/syncDoc.ts",

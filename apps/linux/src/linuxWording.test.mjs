@@ -35,7 +35,8 @@ const EXPECTED = [
   ["components/settings/panes/Calendar.tsx", ["<Button title=\"Try Again\" onPress={() => void connectCalendar()} />", "Ardia reads your calendars through Evolution Data Server, which isn't running", "Evolution Data Server refused to share your calendars"], []],
   ["components/settings/panes/Passwords.tsx", ["system password"], []],
   ["components/settings/panes/Sync.tsx", ["across your computers", "Syncthing, Nextcloud or Dropbox", "title: \"Open Sync Folder\""], ["Linking.openURL"]],
-  ["components/settings/panes/SyncSheets.tsx", ["title=\"Add to This Computer\"", "system keyring", "fontFamily: \"monospace\"", "return folder.path.replace(/^\\/home\\/[^/]+(?=\\/|$)/, \"~\");", "<Button title=\"Save as Text…\" kind=\"primary\" onPress={() => void save(\"text\")} />", "<Button title=\"Copy Words\" onPress={() => void copyRecoveryPhrase()} />"], ["fontFamily: \"Menlo\"", "recoveryKitPreview(", "copyRecoveryKit()", "shareRecoveryKit()", "save(\"pdf\")", "title=\"Other Options\""]],
+  ["components/settings/panes/SyncSheets.tsx", ["title=\"Add to This Computer\"", "system keyring", "return folder.path.replace(/^\\/home\\/[^/]+(?=\\/|$)/, \"~\");", "<Button title=\"Save as Text…\" kind=\"primary\" onPress={() => void save(\"text\")} />", "<Button title=\"Copy Words\" onPress={() => void copyRecoveryPhrase()} />"], ["recoveryKitPreview(", "copyRecoveryKit()", "shareRecoveryKit()", "save(\"pdf\")", "title=\"Other Options\""]],
+  ["lib/themeLook.ts", ["export const MONO_FAMILY = \"monospace\";"], ["export const MONO_FAMILY = \"Menlo\";"]],
   ["state/sync/syncDoc.ts", ["never removes them from this computer"], []],
   ["state/sync/engine.ts", ["keep syncing on this device", "Couldn’t save the sync key in your Keychain."], []],
   ["components/onboarding/SourceStep.tsx", ["Found on this computer"], []],
@@ -142,7 +143,6 @@ test("shortcut glyphs become Linux key names without stray '+-' click modifiers"
 test("onboarding names no Mac, macOS or Dock on Linux, and the Engines pane is not offered without WebKit", () => {
   const words = /\bMacs?\b|macOS|\bDock\b|iCloud|Keychain/;
   const leftover = componentFiles("components/onboarding")
-    .filter((path) => path !== "components/onboarding/HomeStep.tsx")
     .flatMap((path) => strings(linuxCopy(path)).filter((text) => words.test(text)).map((text) => `${path}: ${text}`));
   assert.deepEqual(leftover, []);
   assert.ok(unavailablePanes({ webkit: false }).has("engines"));
