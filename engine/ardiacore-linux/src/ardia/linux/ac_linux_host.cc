@@ -421,8 +421,8 @@ linux_window::FocusLedger& WindowFocus() {
 }
 
 linux_window::AppActivation& AppActivationState() {
-  static base::NoDestructor<linux_window::AppActivation> activation;
-  return *activation;
+  static linux_window::AppActivation activation;
+  return activation;
 }
 
 void NoteAppActivation();
