@@ -81,6 +81,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Check the sources out with Windows line endings, as the Windows build has them
+        run: git config --global core.autocrlf true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -99,6 +101,7 @@ jobs:
           mkdir -p "$out/Bundle"
           npx @react-native-community/cli bundle --platform windows --entry-file "$entry" --bundle-output "$out/Bundle/index.windows.bundle" --assets-dest "$out/Bundle" --dev false --reset-cache --minify false
           echo "bundled $entry: $(find "$out/Bundle" -type f | wc -l) files, index.windows.bundle is $(sha256sum "$out/Bundle/index.windows.bundle" | cut -d' ' -f1) before Hermes"
+          echo "it holds $(grep -c $'\r' "$out/Bundle/index.windows.bundle" || true) lines with a carriage return"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: windows-javascript
