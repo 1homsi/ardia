@@ -70,6 +70,7 @@ struct FileDialogWatch {
       });
     });
   }
+  ~FileDialogWatch() noexcept { ModalWatch::Disarm(); }
   FileDialogWatch(FileDialogWatch const &) = delete;
   FileDialogWatch &operator=(FileDialogWatch const &) = delete;
 

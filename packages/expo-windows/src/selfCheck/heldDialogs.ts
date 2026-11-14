@@ -9,6 +9,8 @@ const LOAD_MS = 8000;
 const STALLED_MS = 3000;
 const SHOWN_MS = 4000;
 const CANCELLED_WITHIN_MS = 1000;
+const SHOWING_MS = 800;
+const GIVE_UP_MS = 3000;
 
 const dialogs = () => requireNativeModule<Pick<DialogsModule, "openCount" | "devHoldConfirm" | "devHoldFileDialog" | "devReleaseDialogs">>("ArdiaDialogs");
 const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows");
@@ -79,6 +81,7 @@ async function heldFileDialogCancels(save: boolean) {
   const held = dialogs().devHoldFileDialog(windowId, save);
   try {
     expectTrue(await heldConfirmShown(), `the held ${save ? "save panel" : "file picker"} never opened`);
+    await settled(SHOWING_MS);
     dialogs().devReleaseDialogs();
     const took = await closesWithin(CANCELLED_WITHIN_MS);
     expectTrue(took !== null, `the ${save ? "save panel" : "file picker"} was still open ${CANCELLED_WITHIN_MS} ms after its cancel`);
@@ -86,7 +89,7 @@ async function heldFileDialogCancels(save: boolean) {
     expectTrue((await held) === false, "the cancelled dialog reported a pick");
   } finally {
     dialogs().devReleaseDialogs();
-    await held;
+    await Promise.race([held, settled(GIVE_UP_MS)]);
   }
 }
 

@@ -150,6 +150,13 @@ struct ModalWatch {
 
   static void OnAbandon(std::function<void()> abandon) noexcept { WatchState().abandon = std::move(abandon); }
   static void OnStubborn(std::function<void()> stubborn) noexcept { WatchState().stubborn = std::move(stubborn); }
+  static void Disarm() noexcept {
+    ModalWatchState &state = WatchState();
+    if (state.stubbornTimer) KillTimer(nullptr, state.stubbornTimer);
+    state.stubbornTimer = 0;
+    state.abandon = nullptr;
+    state.stubborn = nullptr;
+  }
   static void OnTick(std::function<void()> tick) noexcept { WatchState().tick = std::move(tick); }
 
  private:

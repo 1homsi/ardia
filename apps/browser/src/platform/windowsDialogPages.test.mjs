@@ -73,6 +73,7 @@ test("every native modal runs through RunModal off the UI thread, and the app st
 });
 
 test("a file dialog cancelled at quit closes through Close and, if still open, through its own window, and says how long it took", () => {
+  const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
   const dialogs = native("NativeDialogs.h");
   assert.match(dialogs, /NoteCancel\(timing\.kind, L"cancelled \(Close: " \+ HexResult\(dialog->Close\(HRESULT_FROM_WIN32\(ERROR_CANCELLED\)\)\) \+ L"\)"\);\n\s+ModalWatch::OnStubborn\(/);
@@ -82,6 +83,8 @@ test("a file dialog cancelled at quit closes through Close and, if still open, t
   const thread = native("ModalThread.h");
   assert.match(thread, /abandon\(\);\n\s+if \(state\.stubborn && !state\.stubbornTimer\) state\.stubbornTimer = SetTimer\(nullptr, 0, StubbornAfterMs, &AfterAbandon\);/);
   assert.match(thread, /if \(state\.stubbornTimer\) KillTimer\(nullptr, state\.stubbornTimer\);/);
+  assert.match(dialogs, /~FileDialogWatch\(\) noexcept \{ ModalWatch::Disarm\(\); \}/);
+  assert.match(source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts") , /await Promise\.race\(\[held, settled\(GIVE_UP_MS\)\]\);/);
   assert.match(thread, /if \(Stopping\(\)\) LaunchLog::Write\(L"dialog", L"a dialog's thread ended "/);
   assert.match(native("DialogsModule.h"), /REACT_METHOD\(devHoldFileDialog\)\n\s+void devHoldFileDialog\(std::string windowId, bool save, [^)]*\) noexcept \{\n\s+if \(!AppLaunch::Shared\(\)\.testInstance\) return promise\.Reject/);
 });
