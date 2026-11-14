@@ -318,6 +318,13 @@ export function createSessionWriter(host: ArdiaHost, initial: HydrateData = {}, 
           const shaped = linuxSessionShape(reply);
           acceptCanonical(shaped);
           onCanonical?.(pair.session, shaped);
+        } else if (sessionObject(reply)) {
+          canonical = mergeSession(pair.base, pair.session, canonical);
+          if (pending) {
+            const rebased = { base: cloneSessionValue(canonical), session: pending.session };
+            if (latest === pending) latest = rebased;
+            pending = rebased;
+          }
         }
         if (latest === pair) dirty = false;
       } catch (error) {
