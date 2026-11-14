@@ -35,6 +35,10 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 - **Assets.** These come from `lib/ardia/ardia-ui` beside the executable, or from `--ardia-ui-dir` during development.
   The data source serves them only to a host's own shell `WebContents`. An ordinary tab that navigates to
   `chrome://ardia/` gets nothing.
+- **Code cache.** `chromium-linux-auto-pip.patch` turns on Chromium's `WebUICodeCache`, so V8 keeps the shell's
+  compiled scripts between launches. Chromium keys each entry by the script's URL and a hash of its source, so an
+  updated bundle never runs old code. On an existing profile (Xvfb, llvmpipe, a shared box, median of 5 interleaved
+  runs) the shell's first contentful paint went from 1.83 s to 1.46 s and its `DOMContentLoaded` from 1.51 s to 1.17 s.
 - **CSP.** The shell's policy is `default-src 'none'`, `script-src 'self'`, `connect-src 'none'`, `frame-src 'none'`,
   `object-src 'none'`, `form-action 'none'`, and `trusted-types ardia-symbols`. The UI can't reach the network.
   Search suggestions, live folders, favicons, import and telemetry all go through native services. The one Trusted Types policy
