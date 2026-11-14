@@ -119,12 +119,12 @@ function start(config: MeadowPageConfig): Controls {
   const timed: Timed[] = [];
   const run = (target: Element, keyframes: Keyframe[], m: MeadowMotion, origin: number) => {
     const animation = target.animate(keyframes, { delay: m.delay, duration: m.duration, easing: m.easing, fill: "both" });
-    animation.currentTime = Math.max(0, Date.now() - origin);
+    animation.currentTime = Date.now() - origin;
     timed.push({ animation, origin });
     return animation;
   };
   const resync = () => {
-    for (const { animation, origin } of timed) if (animation.playState === "running") animation.currentTime = Math.max(0, Date.now() - origin);
+    for (const { animation, origin } of timed) if (animation.playState === "running") animation.currentTime = Date.now() - origin;
   };
   document.addEventListener("visibilitychange", () => !document.hidden && resync());
 
