@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,6 +38,7 @@ import { PageMenu } from "./PageMenu";
 import { PageRequestHost, PressMenu } from "./PageRequests";
 import { ReaderView } from "./ReaderView";
 import { PageFailureView } from "./PageFailureView";
+import { PageCover } from "./PageCover";
 import { PageSurface } from "./PageSurface";
 import { useDemoMotion } from "./DemoMotion";
 import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
@@ -88,8 +89,8 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
         <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
           <Animated.View style={[{ height: insets.top }, statusStyle]} />
           <View style={[styles.page, { marginBottom: layout.pageBottom }]}>
-            {tab.snapshotFileName ? <SnapshotUnderPage key={`${tab.id}:snapshot`} uri={tab.snapshotFileName} /> : null}
             <PageSurface key={tab.id} tab={tab} toneBottom={layout.toneBottom} />
+            <PageCover key={`${tab.id}:cover`} tab={tab} />
             <PageFailureView key={tab.id} tabId={tab.id} />
           </View>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }, pager.dim]} pointerEvents="none" />
@@ -173,30 +174,8 @@ function PageLoadingLine({ tabId, color }: { tabId: string; color: string }) {
   return <LoadingLine progress={loadFreeze ?? liveProgress} isLoading={loadFreeze !== null || liveLoading} color={color} />;
 }
 
-function SnapshotUnderPage({ uri }: { uri: string }) {
-  const [shown, setShown] = useState(true);
-  const [aspect, setAspect] = useState<number | null>(null);
-  useEffect(() => {
-    const done = setTimeout(() => setShown(false), tabsMotion.pageHandover);
-    return () => clearTimeout(done);
-  }, []);
-  if (!shown) return null;
-  return (
-    <Image
-      source={{ uri }}
-      fadeDuration={0}
-      resizeMode="cover"
-      onLoad={(event) => {
-        const { width, height } = event.nativeEvent.source;
-        if (width > 0 && height > 0) setAspect(width / height);
-      }}
-      style={aspect ? [styles.snapshot, { aspectRatio: aspect }] : StyleSheet.absoluteFill}
-    />
-  );
-}
 
 const styles = StyleSheet.create({
-  snapshot: { position: "absolute", top: 0, left: 0, width: "100%" },
   outgoing: { overflow: "hidden" },
   page: { flex: 1 },
   loading: { position: "absolute", left: 0, right: 0 },

@@ -16,7 +16,7 @@ function Look({ children }: { children: ReactNode }) {
   return <ProfileLookContext.Provider value={look}>{children}</ProfileLookContext.Provider>;
 }
 
-export function renderSurface(node: ReactNode): ReactTestRenderer {
+export function renderSurface(node: ReactNode, { flushTimers = true }: { flushTimers?: boolean } = {}): ReactTestRenderer {
   let root: ReactTestRenderer | null = null;
   act(() => {
     root = create(
@@ -29,7 +29,7 @@ export function renderSurface(node: ReactNode): ReactTestRenderer {
       </GestureHandlerRootView>,
     );
   });
-  act(() => jest.runOnlyPendingTimers());
+  if (flushTimers) act(() => jest.runOnlyPendingTimers());
   return root!;
 }
 

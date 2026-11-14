@@ -213,6 +213,11 @@ and again only when that status changes.
     `adb shell am broadcast -a com.ardia.phone.A11Y_DUMP -p com.ardia.browser.android` and
     `adb logcat -d -s PAGELAB | grep "PAGELAB a11y"`. The lines between `begin` and `end` are what TalkBack can
     reach; the surface behind a cover should not be among them.
+Look checks (24, 25, 32, 33, 38) start from the look on. The lab's Look on/Look off switch lasts across launches
+and app updates, so before the first of them open the lab's Look, set Look on (logcat `PAGELAB look views on`),
+force-stop and reopen the app. The deck's `PAGELAB look deck draws …` line then ends in `look on`, not `look switched
+off in the lab`.
+
 24. **Look:** the lab's Look section. Look plum/green/orange/incognito: the deck backdrop's blobs move (still
     with Reduce motion), incognito draws dark even in Light; the middle tile with Fades out goes from the backdrop
     at the top to the plain system background by 80% of its height; each Frost variant shows the blobs blurred
@@ -320,7 +325,11 @@ and again only when that status changes.
     `… --ez ArdiaOnboarding true`. Each does what it does in the Compose app, and with `ArdiaDemo` the sync view
     shows the demo Macs, not the real ones. Lab builds log `PAGELAB launch arguments {…}` once per launch
     with what the app was given. A store build ignores every one of them.
-42. **Inline completion** (the tray on Android, and the lab's Completion panel):
+42. **Inline completion** (the tray on Android, and the lab's Completion panel). Do it first in the app's real tray
+    (open it from the deck or a page), then in the lab:
+    - In the tray, type `goo`: `gle.com` shows highlighted after the caret. Press Enter (the keyboard's Go): the tab
+      opens google.com. Open the tray again, type `goo`, press Backspace once: only `gle.com` goes, `goo` stays,
+      and typing `g` brings the highlight back.
     - Type `goo`: `gle.com` appears after the caret, highlighted, and the caret stays after `goo`.
     - Type `g`: the highlight shrinks to `le.com` with no flicker. Type `x`: the highlight goes and `googx` stays.
     - Backspace with a highlight showing removes only the highlight, then typing brings offers back.
@@ -332,6 +341,9 @@ and again only when that status changes.
       `adb shell input text googleandsomemoretextthatgoesonandonforsixtyfivecharactersintotal12` (65 keys) and
       `adb shell dumpsys gfxinfo $P | grep -E "Janky|50th|90th"`. The 50th percentile stays at or under the earlier
       runs' 13 ms on the same phone; report the three lines.
+    - The same speed run in the real tray: open the tray with an empty field, then the same reset, `input text` and
+      `gfxinfo` lines. The suggestions under the field update as you type, so report these three lines apart from
+      the lab's.
 43. **Deck with TalkBack**: with TalkBack on and eight tabs open, put
     the focus on a card and use TalkBack's scroll actions (the actions menu, or a two-finger swipe). The deck moves one
     card each way, as Compose's page left and right do, and at either end the action that can't move is not offered.
@@ -339,6 +351,11 @@ and again only when that status changes.
     Developer options › Don't keep activities, start onboarding on a fresh install, go to its third step, press
     Home, then come back from Recents. Onboarding reopens on the third step, not the first. Turn the option off
     afterwards.
+45. **TalkBack behind Spaces, the Archive and Settings**: with TalkBack on, open the deck, then Spaces. Swipe
+    right through every element to the end, then left back to the start: TalkBack reads only the sheet, never the
+    deck's three buttons (Spaces, New Tab, the menu) or a card. Run the dump from step 23 with the sheet open: no
+    deck button between `begin` and `end`. Close it, then do the same with the Archive and with Settings. Then close
+    the sheet: the deck's buttons are read again. Report any sheet where a deck element is read, with its dump.
 
 ## Upgrade from the Compose app on Android
 
@@ -580,12 +597,11 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 - Sync devices: rows say "5 minutes ago" (Compose "5 min. ago", SwiftUI nothing for other devices); the iPhone lacks the iMac, Studio and mini symbols; Stop Syncing on iPhone is a centred dialog, not an action sheet. `SyncDeviceWords.kt`, `SyncSettingsPage.swift`. Small.
 - Spaces: the empty state's Sync With Mac opens Settings › Sync, not Connect; pinned tabs with a symbol show a favicon (`row.icon` never drawn); open groups, folders and devices are forgotten on every profile switch (Compose keeps them per profile, across launches); no tick on a profile change on Android either. `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
 - Spaces at large text and motion: rows don't wrap, icons and tiles don't grow, the switcher doesn't scroll when profiles overflow; the folder chevron, Show All and group expansion snap and the header doesn't crossfade; the banner uses Compose's icons on iPhone; rows and tiles have no accessibility action for their menu. `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
-- Page cover: blank until the page paints; Compose shows the tab's saved image or a placeholder (up to 4 s) and fades it over 180 ms. `PageLayer.kt` `PageCover`. Half a day.
 - Page menu sheet: can't be dragged down to close (flick 800, or past 35% of its height capped at 120); it and the tab pager ignore Reduce Motion; the incoming pager card has no edge shadow though `incomingPose` computes it. `BrowsingSheet.kt`, `TrayDrag.kt`, `BrowsingRules.kt`, `TabPager.kt`. Half a day.
 - Page menu: in toggle rows only the switch is tappable (Compose: the whole row, one Switch for TalkBack); at 1.3× text size Compose turns tiles into a list and stacks the zoom row; Open in Default Browser is disabled off web pages (Compose always enables it). `PageMenu.kt`. Small.
 - Downloads toasts: a download refused at the start still says Downloading, ending incognito gives one toast per file instead of "Stopped N Private Downloads", and several icons differ. `AppModel.kt` `startDownload`/`announceDownload`, `Toasts.kt`. Small.
 - Bottom bar: the recent-tabs menu shows "New Tab" for a tab without title or host (Compose: the address); the tab thumbnail reads only the saved file, so it lags about 700 ms (Compose uses the in-memory cover first). `BrowsingRules.kt`, `BottomBar.kt` `TabThumbnail`. Small.
-- Loading placeholder under `BrowseLoadFreeze` (Compose's `PageLoadingPlaceholder`): comes with the page cover above. `PageLayer.kt`. With the page cover.
+- Loading placeholder under `BrowseLoadFreeze` (Compose's `PageLoadingPlaceholder`): the page cover now draws the tab's face, but the load-freeze capture still shows the page. `PageLayer.kt`. Small.
 
 ### Needs native code on Android
 

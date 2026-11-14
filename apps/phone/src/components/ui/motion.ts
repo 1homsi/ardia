@@ -13,7 +13,6 @@ export const spring = (response: number, dampingFraction: number) => {
 };
 
 export const tabsMotion = {
-  pageHandover: 600,
   openScale: spring(0.19, 1),
   openPosition: spring(0.3, 1),
   expand: spring(0.3, 1),
