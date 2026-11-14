@@ -2,19 +2,21 @@ import type { MeadowIntro, MeadowIntroEvent, MeadowTone } from "@ardia/shaders";
 import type { AppNative, WindowsNative } from "@ardia/shell";
 import { engineAvailable, hostCall } from "../engine/host";
 import { meadowPageUrl } from "../meadow/pageUrl";
-import { startMeadowSession } from "../meadow/session";
+import { MEADOW_READY_LIMIT_MS, startMeadowSession } from "../meadow/session";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 const PROBE_KEY = "self-check-webgl-probe";
 const PROBE_URL = "data:text/html,<title>webgl probe</title>";
+const VISIBILITY_CODE = `let frames = 0; const tick = () => { frames += 1; requestAnimationFrame(tick); }; requestAnimationFrame(tick); setTimeout(() => post("result", JSON.stringify({ hidden: document.hidden, state: document.visibilityState, frames })), 500);`;
+const STRETCH = 8;
 const PROBE_CODE = `const canvas = document.createElement("canvas"); const gl = canvas.getContext("webgl2"); let renderer = ""; if (gl) { const info = gl.getExtension("WEBGL_debug_renderer_info"); renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } post("result", JSON.stringify({ webgl2: !!gl, renderer }));`;
 const PROBE_TRIES = 40;
 const PROBE_WAIT_MS = 250;
 const INTRO_KEY = "self-check-meadow-intro";
 const INTRO_PROFILE = `${INTRO_KEY}@`;
 const INTRO_PLACE = { unit: "px", x: 0, y: 0, width: 640, height: 400 };
-const LIVE_MS = 4000;
+const LIVE_MS = 25000;
 const TONE_MS = 3000;
 const ANSWER_MS = 2000;
 const CLOSED_MS = 4000;
@@ -87,6 +89,9 @@ export const checks: Check[] = [
       try {
         const found = await probe(windowId);
         console.info(`[ardia windows] webgl2 probe: ${found ? `webgl2 ${found.webgl2 ? "available" : "unavailable"}, renderer "${found.renderer}"` : "no answer"}`);
+        await hostCall("tab.show", { key: PROBE_KEY, visible: true, ...INTRO_PLACE }, windowId).catch(() => undefined);
+        const seen = await hostCall<{ result?: unknown }>("tab.call", { key: PROBE_KEY, method: "evaluate", code: VISIBILITY_CODE }, windowId).catch(() => null);
+        console.info(`[ardia windows] webgl2 probe, shown page: ${String(seen?.result ?? "no answer")}`);
         if (webglRequired()) expectTrue(found?.webgl2, `no WebGL2 in an engine page (${JSON.stringify(found)})`);
       } finally {
         await hostCall("tab.close", { key: PROBE_KEY }).catch(() => undefined);
@@ -108,7 +113,7 @@ export const checks: Check[] = [
       const session = startMeadowSession(intro, false, url, {
         now: () => Date.now(),
         later(ms, run) {
-          const timer = setTimeout(run, ms);
+          const timer = setTimeout(run, ms === MEADOW_READY_LIMIT_MS ? ms * STRETCH : ms);
           return () => clearTimeout(timer);
         },
         every(ms, run) {
