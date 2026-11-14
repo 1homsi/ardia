@@ -203,8 +203,8 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     same node, and `useGated` (`components/ui/motion.ts`) pins that node to its resting value while its state is off.
     A sidebar docked while its peek was closing drew its rows off where they click before this (#1852); the self-check
     `sidebar peek layer rests at identity after docking mid-close` docks the first window six times as its peek
-    closes and logs `sidebar peek check: <n> cycles, <m> docked mid-close, ...`. And no view that takes clicks rests
-    under a non-zero transform (#1868).
+    closes and logs `self-check note: sidebar peek, <n> cycles, <m> docked mid-close, ...`. And no view that takes
+    clicks rests under a non-zero transform (#1868).
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
   - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance
