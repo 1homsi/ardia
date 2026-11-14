@@ -114,13 +114,13 @@ export function ArchiveView() {
           ) : null}
         </View>
         {loaded && !hasArchive ? (
-          <View style={styles.empty}>
+          <View style={styles.empty} accessible accessibilityRole="header" accessibilityLabel="No Archived Tabs. Closed and inactive tabs show up here.">
             <ArchiveTile side={EMPTY_TILE} />
             <Text style={[font.title2, styles.bold, styles.centered, { color: theme.label }]}>No Archived Tabs</Text>
             <Text style={[font.subheadline, styles.centered, { color: theme.secondaryLabel }]}>Closed and inactive tabs show up here.</Text>
           </View>
         ) : results && !results.length ? (
-          <View style={styles.empty}>
+          <View style={styles.empty} accessible accessibilityLabel={`No Results for “${searched}”. Check the spelling or try a new search.`}>
             <Symbol name="magnifyingglass" size={NO_RESULTS_ICON} color={theme.secondaryLabel} />
             <Text style={[font.title2, styles.bold, styles.centered, { color: theme.label }]}>{`No Results for “${searched}”`}</Text>
             <Text style={[font.subheadline, styles.centered, { color: theme.secondaryLabel }]}>Check the spelling or try a new search.</Text>

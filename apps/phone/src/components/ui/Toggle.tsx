@@ -7,13 +7,6 @@ import { capsule, ink, shadowRadius, toggleLayout } from "./tokens";
 const TRAVEL = toggleLayout.width - toggleLayout.knob - toggleLayout.inset * 2;
 
 export function Toggle({ value, disabled, onChange, label }: { value: boolean; disabled?: boolean; onChange: (value: boolean) => void; label: string }) {
-  const theme = useTheme();
-  const position = useRef(new Animated.Value(value ? 1 : 0)).current;
-  useEffect(() => {
-    Animated.spring(position, { toValue: value ? 1 : 0, ...springs.barPress, useNativeDriver: false }).start();
-  }, [position, value]);
-  const track = position.interpolate({ inputRange: [0, 1], outputRange: [theme.tertiaryFill, theme.switchOn] });
-  const knob = position.interpolate({ inputRange: [0, 1], outputRange: [0, TRAVEL] });
   return (
     <Pressable
       accessibilityRole="switch"
@@ -24,10 +17,23 @@ export function Toggle({ value, disabled, onChange, label }: { value: boolean; d
       onPress={() => onChange(!value)}
       style={disabled ? styles.disabled : undefined}
     >
-      <Animated.View style={[styles.track, { backgroundColor: track }]}>
-        <Animated.View style={[styles.knob, { transform: [{ translateX: knob }] }]} />
-      </Animated.View>
+      <ToggleTrack value={value} />
     </Pressable>
+  );
+}
+
+export function ToggleTrack({ value, disabled }: { value: boolean; disabled?: boolean }) {
+  const theme = useTheme();
+  const position = useRef(new Animated.Value(value ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.spring(position, { toValue: value ? 1 : 0, ...springs.barPress, useNativeDriver: false }).start();
+  }, [position, value]);
+  const track = position.interpolate({ inputRange: [0, 1], outputRange: [theme.tertiaryFill, theme.switchOn] });
+  const knob = position.interpolate({ inputRange: [0, 1], outputRange: [0, TRAVEL] });
+  return (
+    <Animated.View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.track, { backgroundColor: track }, disabled ? styles.disabled : null]}>
+      <Animated.View style={[styles.knob, { transform: [{ translateX: knob }] }]} />
+    </Animated.View>
   );
 }
 

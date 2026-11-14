@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
-import { duration, FloatingMenu, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { duration, FloatingMenu, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, ToggleTrack, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown>; heroTitle?: boolean; overlay?: ReactNode };
 
@@ -168,13 +168,20 @@ export function ToggleRow({ title, icon, tint, divider, value, onChange, detail 
   const theme = useTheme();
   return (
     <View>
-      <View style={styles.row}>
-        <View style={styles.fill}>
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityLabel={title}
+        accessibilityHint={detail}
+        accessibilityState={{ checked: value }}
+        onPress={() => onChange(!value)}
+        style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+      >
+        <View style={styles.fill} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           <Label title={title} icon={icon} tint={tint} />
           {detail ? <Text style={[font.footnote, { color: theme.secondaryLabel, marginLeft: icon ? settingsLayout.tile + settingsLayout.labelGap : 0 }]}>{detail}</Text> : null}
         </View>
-        <Toggle label={title} value={value} onChange={onChange} />
-      </View>
+        <ToggleTrack value={value} />
+      </Pressable>
       {divider ? <Divider /> : null}
     </View>
   );
@@ -235,7 +242,7 @@ export function PickerRow<T extends string>({ title, icon, tint, divider, option
 export function EmptyState({ title, message, icon }: { title: string; message: string; icon: SymbolName }) {
   const theme = useTheme();
   return (
-    <View style={styles.empty}>
+    <View style={styles.empty} accessible accessibilityRole="header" accessibilityLabel={message ? `${title}. ${message}` : title}>
       <Symbol name={icon} size={44} color={theme.tertiaryLabel} />
       <Text style={[font.title3, styles.bold, { color: theme.label }]}>{title}</Text>
       {message ? <Text style={[font.subheadline, styles.centered, { color: theme.secondaryLabel }]}>{message}</Text> : null}

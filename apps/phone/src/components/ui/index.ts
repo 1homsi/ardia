@@ -12,7 +12,7 @@ export { FloatingMenu, Menu, type MenuItem } from "./Menu";
 export { Shade } from "./Shade";
 export { measureAnchor, OverlayHost, Portal } from "./Overlay";
 export { Sheet, usePresence } from "./Sheet";
-export { Toggle } from "./Toggle";
+export { Toggle, ToggleTrack } from "./Toggle";
 export { PageView, type PageNavigationState, type PageTone, type PageViewHandle } from "./Page";
 export { PressScale } from "./PressScale";
 export { Symbol } from "./Symbol";
