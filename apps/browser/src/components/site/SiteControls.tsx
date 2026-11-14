@@ -17,7 +17,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { useEngineRule, usePageEngine, useRecommendedEngine, useStreamingSite } from "../../state/engines/hooks";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import { isIncognitoProfile, tabLabel } from "../../state/browser/model";
-import { canSwitchEngine, ENGINE_NAMES, ENGINE_SYMBOLS, otherEngine } from "../../state/engines/engines";
+import { ENGINE_NAMES, ENGINE_SYMBOLS, offersSiteEngineSwitch, otherEngine } from "../../state/engines/engines";
 import { openPageIn, togglePageEngine } from "../../state/engines/actions";
 import { Box, Divider, MenuRow, MenuSeparator, PANEL, PanelHeader, Popover, PopoverValue, space, Toggle, usePopoverPresence } from "../ui";
 import { Favicon } from "../favicon/Favicon";
@@ -161,7 +161,7 @@ function SiteControlsPanel({
   const toggle = (section: Exclude<Expanded, null>) => setExpanded((e) => (e === section ? null : section));
 
   const findable = isWebPageUrl(url);
-  const switchable = canSwitchEngine(url);
+  const switchable = offersSiteEngineSwitch(url);
   const castTile = !video && !!origin;
   const tiles = [
     canShare(tab) ? <ActionTile key="share" ref={shareTile} icon="square.and.arrow.up" label="Share…" onPress={share} /> : null,

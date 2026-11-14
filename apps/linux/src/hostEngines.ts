@@ -6,6 +6,7 @@ export * from "../../browser/src/state/engines/engines.ts";
 const webkit = linuxCapabilities().webkit;
 
 export const canSwitchEngine: typeof shared.canSwitchEngine = (url) => webkit && shared.canSwitchEngine(url);
+export const offersSiteEngineSwitch: typeof shared.offersSiteEngineSwitch = (url) => webkit && shared.offersSiteEngineSwitch(url);
 export const defaultEngine: typeof shared.defaultEngine = (s) => (webkit ? shared.defaultEngine(s) : "chromium");
 export const ruleFor: typeof shared.ruleFor = (s, url) => (webkit ? shared.ruleFor(s, url) : undefined);
 export const builtInEngine: typeof shared.builtInEngine = (s, url) => (webkit ? shared.builtInEngine(s, url) : undefined);

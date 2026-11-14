@@ -66,7 +66,7 @@ test("production graph uses current Linux adapters and one canonical shared stat
     ["state/settings/settingsWindows.ts", "settingsWindows.ts", ["goToSettingsPane", "openImport", "openSettings", "useSettingsNav"]],
     ["components/settings/settingsIndex.ts", "settingsIndex.ts", ["PANES", "SETTINGS_INDEX", "findSetting", "setting", "settingUnavailable"]],
     ["components/settings/Form.tsx", "settingsForm.tsx", ["Anchor", "Group", "Row", "SectionHeader", "SettingsPaneContext"]],
-    ["state/engines/engines.ts", "hostEngines.ts", ["canSwitchEngine", "chosenEngine", "defaultEngine", "tabEngine", "siteOf"]],
+    ["state/engines/engines.ts", "hostEngines.ts", ["canSwitchEngine", "chosenEngine", "defaultEngine", "offersSiteEngineSwitch", "tabEngine", "siteOf"]],
     ["state/import/apply.ts", "importApply.ts", ["applyResult", "applySafari", "emptyCounts", "importBookmarks"]],
     ["state/extensions/store.ts", "extensionsStore.ts", ["extensionProfile", "shownIn", "useExtensions", "useWindowExtensions", "windowExtensions"]],
   ];
