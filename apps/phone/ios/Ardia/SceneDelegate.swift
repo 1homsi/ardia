@@ -22,6 +22,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
           let factory = (UIApplication.shared.delegate as? AppDelegate)?.reactNativeFactory else { return false }
     let window = UIWindow(windowScene: windowScene)
     self.window = window
+    (UIApplication.shared.delegate as? AppDelegate)?.window = window
     factory.startReactNative(withModuleName: "main", in: window, launchOptions: nil)
     return true
   }

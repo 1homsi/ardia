@@ -7,6 +7,7 @@ import ReactAppDependencyProvider
 class AppDelegate: ExpoAppDelegate {
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
+  @objc var window: UIWindow?
   private var sceneAdoption: NSObjectProtocol?
 
   override func application(
