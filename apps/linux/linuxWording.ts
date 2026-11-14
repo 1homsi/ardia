@@ -85,6 +85,9 @@ export const LINUX_WORDING: readonly Wording[] = [
       ["Sent to ardia.dev with a random ID made on this Mac, and kept", "Sent to ardia.dev with a random ID made on this computer, and kept"],
       [`keptOnThisMac: "Kept on this Mac"`, `keptOnThisMac: "Kept on this computer"`],
       ["switched Auto-hide tabs on or off on this Mac,", "switched Auto-hide tabs on or off on this computer,"],
+      ["more were loaded than your Mac's memory allows for", "more were loaded than your computer's memory allows for"],
+      ["turned Minimalism mode on and off on this Mac, from Settings, the View menu or ⌃⌘M,", "turned Minimalism mode on and off on this computer, from Settings, the View menu or Ctrl+Super+M,"],
+      ["whether macOS Increase Contrast is on", "whether the desktop's high contrast setting is on"],
       [
         "whether macOS returned an error, whether Ardia or the app that opened it was asked, whether System Settings opened, and how long it took.",
         "whether Evolution Data Server returned an error, and how long it took.",

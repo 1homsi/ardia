@@ -65,7 +65,7 @@ const EXPECTED = [
   ["components/report/ReportPreview.tsx", ["Exactly what leaves this computer when you press Send."], ["leaves your Mac"]],
   ["components/report/ReportSheet.tsx", ["Contact and details stay private.", "share errors and usage for 14 days"], ["Recordings, contact and details stay private.", "share crash reports and usage"]],
   ["components/report/AttachedRow.tsx", ["title: \"Usage and errors, last 7 days\""], ["Usage, errors and crashes, last 7 days"]],
-  ["components/tabstrip/NewTabButton.tsx", ["New Tab (Ctrl+T) — Alt-click to open in Split View"], []],
+  ["components/tabstrip/NewTabButton.tsx", ["Alt-click to open in Split View"], ["⌥-click"]],
 ];
 
 test("every listed replacement matches its shared source exactly once", () => {
