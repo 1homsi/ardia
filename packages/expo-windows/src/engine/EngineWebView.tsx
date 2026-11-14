@@ -56,6 +56,8 @@ const ANSWERS: Record<string, unknown> = {
   takeControlPress: false,
 };
 const SETTLE_MS = [0, 50, 200, 500];
+const UNMEASURED_RETRY_MS = 100;
+const UNMEASURED_RETRIES = 50;
 const PICTURE_DEADLINE_MS = 1000;
 
 type Picture = Awaited<ReturnType<WebViewHandle["capturePicture"]>>;
@@ -97,6 +99,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   const visible = props.visible !== false;
   const shown = useRef<Shown>({ visible: false, placed: "", shows: 0 });
   const fullScreen = useRef(false);
+  const unmeasured = useRef<{ tries: number; timer: ReturnType<typeof setTimeout> | null }>({ tries: 0, timer: null });
 
   const place = useCallback(() => {
     const wanted = latest.current.visible !== false && !hiddenByFullScreen(windowId, key);
@@ -108,7 +111,19 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       return;
     }
     view.current?.measureInWindow((x, y, width, height) => {
-      if (latest.current.visible === false || hiddenByFullScreen(windowId, key) || !(width > 0) || !(height > 0)) return;
+      if (latest.current.visible === false || hiddenByFullScreen(windowId, key)) return;
+      const retry = unmeasured.current;
+      if (!(width > 0) || !(height > 0)) {
+        if (retry.timer || retry.tries >= UNMEASURED_RETRIES) return;
+        retry.tries += 1;
+        if (retry.tries === UNMEASURED_RETRIES) console.warn(`[ardia windows] the page ${key} in ${windowId} still measures ${width} by ${height}; it stays hidden until its view is laid out`);
+        retry.timer = setTimeout(() => {
+          retry.timer = null;
+          place();
+        }, UNMEASURED_RETRY_MS);
+        return;
+      }
+      retry.tries = 0;
       const page = { x, y, width, height };
       const shape: PageShape = fullScreen.current
         ? { ...page, radius: 0, holes: [] }
@@ -125,6 +140,14 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   }, [key, windowId]);
 
   useEffect(() => onCoversChange((changed) => changed === windowId && place()), [windowId, place]);
+
+  useEffect(
+    () => () => {
+      const pending = unmeasured.current.timer;
+      if (pending) clearTimeout(pending);
+    },
+    [],
+  );
 
   useEffect(() => followMotion(place), [place]);
 
