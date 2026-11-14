@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { askForDefaultBrowser, refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { popSettings } from "../../state/settings/nav";
 import { defaultBrowserCopy } from "../../state/settings/settingsRules";
@@ -11,12 +11,17 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
   const status = useDefaultBrowser((s) => s.status);
   useEffect(() => {
     void refreshDefaultBrowser();
+    const returns = AppState.addEventListener("change", (next) => {
+      if (next === "active") void refreshDefaultBrowser();
+    });
+    return () => returns.remove();
   }, []);
   if (!status) return null;
   const copy = defaultBrowserCopy(status);
   const ask = async () => {
+    if (copy.inSettings) onDone?.();
     const after = await askForDefaultBrowser(copy.does);
-    if (after?.isDefault) onDone?.();
+    if (!copy.inSettings && after?.isDefault) onDone?.();
   };
   return (
     <View style={styles.column}>
@@ -31,7 +36,7 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
           {copy.steps.map((step, index) => (
             <View key={step}>
               <View accessible style={styles.step}>
-                <StepIcon index={index} count={copy.steps.length} inSettings={copy.does === "openAppSettings"} />
+                <StepIcon index={index} count={copy.steps.length} inSettings={copy.inSettings} />
                 <Text style={[font.body, styles.fill, { color: theme.label }]}>{`${index + 1}. ${step}`}</Text>
               </View>
               {index < copy.steps.length - 1 ? <View style={[styles.divider, { backgroundColor: theme.separator }]} /> : null}

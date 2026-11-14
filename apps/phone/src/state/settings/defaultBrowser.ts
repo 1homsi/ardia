@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { defaultBrowser, openAppSettings, type DefaultBrowserStatus } from "../../platform/defaultBrowser";
+import { defaultBrowser, type DefaultBrowserStatus } from "../../platform/defaultBrowser";
 import type { DefaultBrowserAction } from "./settingsRules";
 import { settled } from "../pages/store";
 
@@ -16,6 +16,5 @@ export async function refreshDefaultBrowser(): Promise<DefaultBrowserStatus | nu
 export async function askForDefaultBrowser(does: DefaultBrowserAction | null): Promise<DefaultBrowserStatus | null> {
   if (does === "askForRole") await settled(() => defaultBrowser.requestRole(), false);
   else if (does === "openDefaultApps") await settled(() => defaultBrowser.openDefaultAppsSettings(), undefined);
-  else if (does === "openAppSettings") await settled(() => openAppSettings(), undefined);
   return refreshDefaultBrowser();
 }

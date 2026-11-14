@@ -124,6 +124,7 @@ test("the default browser page has the two steps until Ardia is the default, the
     steps: ["Tap “Set as Default Browser”", "Select Ardia"],
     action: "Set as Default Browser",
     does: "askForRole",
+    inSettings: false,
   });
   assert.deepEqual(defaultBrowserCopy({ isDefault: true, canAsk: false }), {
     title: "Ardia is your default browser",
@@ -131,6 +132,7 @@ test("the default browser page has the two steps until Ardia is the default, the
     steps: [],
     action: null,
     does: null,
+    inSettings: false,
   });
 });
 
@@ -142,12 +144,13 @@ test("without the browser role on offer, Android sends you to Default Apps to ch
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }, true), true);
 });
 
-test("on iPhone the page has the three Settings steps and opens Ardia in Settings", () => {
+test("on iPhone the page has the three Settings steps and opens the system's default apps page through the module", () => {
   const ios = copyTable("ios");
   const copy = defaultBrowserCopy({ isDefault: true, canAsk: false }, ios.defaultBrowserInstructions);
   assert.equal(copy.title, "How to change your default browser");
   assert.deepEqual(copy.steps, ["Open Ardia in Settings", "Tap on “Default Browser App”", "Select Ardia"]);
-  assert.equal(copy.does, "openAppSettings");
+  assert.equal(copy.does, "openDefaultApps");
+  assert.equal(copy.inSettings, true);
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }, ios.offersDefaultBrowserAlways), false);
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: true }, ios.offersDefaultBrowserAlways), true);
 });

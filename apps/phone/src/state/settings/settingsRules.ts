@@ -211,9 +211,9 @@ export const previousStep = (step: OnboardingStep, offersDefaultBrowser = false)
   return at <= 0 ? null : (steps[at - 1] ?? null);
 };
 
-export type DefaultBrowserAction = "askForRole" | "openDefaultApps" | "openAppSettings";
+export type DefaultBrowserAction = "askForRole" | "openDefaultApps";
 
-export type DefaultBrowserCopy = { title: string; subtitle: string; steps: string[]; action: string | null; does: DefaultBrowserAction | null };
+export type DefaultBrowserCopy = { title: string; subtitle: string; steps: string[]; action: string | null; does: DefaultBrowserAction | null; inSettings: boolean };
 
 export const DEFAULT_BROWSER_ACTION = "Set as Default Browser";
 export const OPEN_DEFAULT_APPS = "Open Default Apps";
@@ -227,9 +227,9 @@ export function offersDefaultBrowser(status: Status | null, always = copy().offe
 
 export function defaultBrowserCopy(status: Status, instructions: DefaultBrowserSteps | null = copy().defaultBrowserInstructions): DefaultBrowserCopy {
   if (instructions) {
-    return { title: instructions.title, subtitle: instructions.subtitle, steps: instructions.steps, action: instructions.action, does: "openAppSettings" };
+    return { title: instructions.title, subtitle: instructions.subtitle, steps: instructions.steps, action: instructions.action, does: "openDefaultApps", inSettings: true };
   }
-  if (status.isDefault) return { title: "Ardia is your default browser", subtitle: "Links from other apps open in Ardia.", steps: [], action: null, does: null };
+  if (status.isDefault) return { title: "Ardia is your default browser", subtitle: "Links from other apps open in Ardia.", steps: [], action: null, does: null, inSettings: false };
   const action = status.canAsk ? DEFAULT_BROWSER_ACTION : OPEN_DEFAULT_APPS;
   return {
     title: "Make Ardia your default browser",
@@ -237,6 +237,7 @@ export function defaultBrowserCopy(status: Status, instructions: DefaultBrowserS
     steps: [`Tap “${action}”`, status.canAsk ? "Select Ardia" : "Choose Browser app"],
     action,
     does: status.canAsk ? "askForRole" : "openDefaultApps",
+    inSettings: false,
   };
 }
 
