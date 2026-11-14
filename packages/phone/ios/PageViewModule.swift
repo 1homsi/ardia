@@ -268,14 +268,14 @@ public final class PageViewModule: Module {
 
     AsyncFunction("clearWebsiteData") { (kinds: [String], promise: Promise) in
       Self.main(promise) {
-        let parsed = try Set(kinds.map { kind -> BrowsingDataKind in
-          switch kind {
-          case "cache": return .cache
-          case "cookiesAndSiteData": return .cookiesAndSiteData
-          default: throw PagePayloads.badArgs("Unknown website data kind \(kind)")
-          }
-        })
-        await BrowsingDataCleaner.clear(parsed, tabs: PhonePages.shared.engine.tabs)
+        await BrowsingDataCleaner.clear(try Self.dataKinds(kinds), tabs: PhonePages.shared.engine.tabs)
+      }
+    }.runOnQueue(.main)
+
+    AsyncFunction("clearWebsiteDataSince") { (kinds: [String], since: Double, promise: Promise) in
+      Self.main(promise) {
+        let date = Date(timeIntervalSince1970: since / 1000)
+        await BrowsingDataCleaner.clear(try Self.dataKinds(kinds), since: date, tabs: PhonePages.shared.engine.tabs)
       }
     }.runOnQueue(.main)
 
@@ -350,6 +350,16 @@ public final class PageViewModule: Module {
         MainActor.assumeIsolated { view.page?.stopLoading() }
       }.runOnQueue(.main)
     }
+  }
+
+  static func dataKinds(_ kinds: [String]) throws -> Set<BrowsingDataKind> {
+    try Set(kinds.map { kind -> BrowsingDataKind in
+      switch kind {
+      case "cache": return .cache
+      case "cookiesAndSiteData": return .cookiesAndSiteData
+      default: throw PagePayloads.badArgs("Unknown website data kind \(kind)")
+      }
+    })
   }
 
   static func main<Value>(_ promise: Promise, _ work: @escaping @MainActor () async throws -> Value) {

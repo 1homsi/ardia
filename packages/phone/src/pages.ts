@@ -75,6 +75,7 @@ type PagesNative = {
   appLinksDefault?(): Promise<boolean>;
   setAppLinksDefault?(opens: boolean): Promise<void>;
   clearWebsiteData(kinds: WebsiteDataKind[]): Promise<void>;
+  clearWebsiteDataSince?(kinds: WebsiteDataKind[], since: number): Promise<void>;
   setInspectable(inspectable: boolean): Promise<void>;
 };
 
@@ -143,7 +144,11 @@ export const pages = {
   setAppLinksDefault: async (opens: boolean): Promise<void> => {
     await native().setAppLinksDefault?.(opens);
   },
-  clearWebsiteData: (kinds: WebsiteDataKind[]) => native().clearWebsiteData(kinds),
+  clearWebsiteData: (kinds: WebsiteDataKind[], since?: number | null): Promise<void> => {
+    const bounded = native().clearWebsiteDataSince;
+    return since != null && bounded ? bounded(kinds, since) : native().clearWebsiteData(kinds);
+  },
+  clearsWebsiteDataSince: (): boolean => typeof native().clearWebsiteDataSince === "function",
   setInspectable: (inspectable: boolean) => native().setInspectable(inspectable),
   addListener: (listener: (event: PageEngineEvent) => void): Subscription =>
     native().addListener("onPageEngineEvent", (event) =>
