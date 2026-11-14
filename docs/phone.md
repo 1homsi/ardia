@@ -463,13 +463,18 @@ back), pass B (step 11: the failure screen, then an import) and pass C (step 12:
    - In Site Settings: Night Shade (Automatic), swipe navigation, collapse bottom bar; zoom on one site and Night
      Shade on another; blocking: cookie banners off, a trusted site, a line in My Filters, one list off.
    - The Reader's size, serif and theme.
-   - Connect sync to the Mac and send one tab each way, if a Mac is reachable.
+   - Connect sync. With no Mac of the tester's own, use this Mac's helper ("A Mac for a phone without one"): run
+     `node apps/phone/scripts/phone-sync-mac.mjs --app <Debug Ardia.app> --work /tmp/ardia-upgrade-mac --metro-port 8099`
+     with the phone on adb and leave it running for the whole pass. In the Compose app, connect sync to
+     Documents › Ardia Sync with the phrase from `/tmp/ardia-upgrade-mac/phrase.txt`. Within a minute the helper
+     prints `devices the Mac sees:` with the phone's id and name, and the Compose app lists the helper's Mac.
    - Not carried, because the Compose app doesn't store it: per-site Desktop Site (shown in the page menu but never
      written to disk) and open-in-app per site (there is no such control).
    Passes B and C need only a few tabs, one archived tab, a trusted site and a My Filters line.
 3. **Write down the state.** Do this before anything else:
    - Screenshot the deck, the Archive, search results for an old visit, every settings page you changed, and the
-     Mac's device list (Settings › Sync on the Mac, with the phone's device id in its detail).
+     Mac's device list (Settings › Sync on the Mac, with the phone's device id in its detail; with the helper, copy
+     its last `devices the Mac sees:` line instead).
    - Run `adb shell am force-stop $P`.
    - Run `adb shell "run-as $P sh -c 'sha256sum databases/* shared_prefs/ardia.*.xml cache/TabSnapshots/*'"`
      and save the output. (`run-as` works only on the Compose debug build; the Expo build can't be inspected so.)
@@ -485,12 +490,13 @@ Pass A
    - `preferences` lists the keys you changed, and `visits` matches the source's visit count.
    - The lab's page area stays blank with "no state": the page engine waits for the import. Force-stop.
 6. **A kill at each durable step.** A lab build can hold the import for 20 s at a step, through
-   `--es ArdiaImportPause <step>`. Send a link first, while nothing is running:
-   `adb shell am start -a android.intent.action.VIEW -d https://example.com/held-a -n $P/.MainActivity`, then
-   force-stop at once. Then do these three in order, each from a stopped app:
+   `--es ArdiaImportPause <step>`. Do these three in order, each from a stopped app:
    - `adb shell am start -n $P/.MainActivity --es ArdiaImportPause afterReceipt`. When logcat says
-     `PAGELAB upgrade paused at settingsStart`, run `adb shell am force-stop $P`. The SQL receipt is written, and
-     the native settings and the marker are not.
+     `PAGELAB upgrade paused at settingsStart`, send a link to the held app:
+     `adb shell am start -a android.intent.action.VIEW -d https://example.com/held-a -n $P/.MainActivity`. It does
+     not open; the import is still waiting. Then run `adb shell am force-stop $P`. The SQL receipt is written, and
+     the native settings and the marker are not. The link was kept on disk, so it survives the kill: it must open
+     in step 7, once. (Don't send the link from a stopped app: that launch runs the import with no pause.)
    - The same with `afterSettings`, killing at `paused at settingsDone`. This launch finds the receipt, so it only
      applies the native settings (no `ardia-legacy imported` line).
    - The same with `beforeMarker`, killing at `paused at beforeMarker`.
@@ -508,6 +514,9 @@ Pass A
    - In the lab, Read source gives `done` with `outcome imported`.
 8. **The device the Mac sees.** On the Mac, the phone appears once, under the same name and device id as in step 3.
    It is not a second, new device. A tab sent from the Mac arrives, and one sent from the phone reaches the Mac.
+   With the helper, its next `devices the Mac sees:` line after the import has the step-3 id and no new one, and
+   Settings › Sync on the phone shows it connected and lists the helper's Mac, with no folder picker and no phrase
+   asked for. Report the helper's lines from the whole pass.
 9. **Relaunch with no second import.** `adb shell am force-stop $P`, then open the app twice. Each time, the deck,
    the Archive and History have the same counts as step 7 (nothing doubled), no `ardia-legacy imported` line, and
    `example.com/held-a` does not open again.
