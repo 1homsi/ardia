@@ -5,7 +5,8 @@ const frames = new Map();
 let nextFrame = 1;
 const reported = [];
 const windowListeners = new Map();
-globalThis.document = { hidden: false, addEventListener: () => {} };
+const documentListeners = new Map();
+globalThis.document = { hidden: false, addEventListener: (type, listener) => documentListeners.set(type, listener) };
 globalThis.window = {
   innerHeight: 800,
   addEventListener: (type, listener) => windowListeners.set(type, listener),
@@ -17,6 +18,7 @@ globalThis.requestAnimationFrame = (callback) => {
 };
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 globalThis.reportError = (error) => reported.push(error);
+globalThis.HTMLIFrameElement ??= class {};
 
 const { subscribeFrames } = await import("./shims/web/gl/clock.ts");
 const { paletteColors, PALETTES } = await import("./shims/web/gl/colors.ts");
@@ -78,6 +80,20 @@ test("a hover area that appears under a pointer that has stopped moving gets its
   assert.deepEqual(calls, ["first enter 20,10", "first leave", "away enter 20,12"]);
   stopFirst();
   stopAway();
+});
+
+test("a sidebar row gets its leave when the pointer goes straight into a page, from the leave the host sends the shell when the page takes the pointer", () => {
+  const box = { left: 0, top: 100, right: 240, bottom: 130, width: 240, height: 30 };
+  const point = (x, y) => ({ clientX: x, clientY: y, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false });
+  windowListeners.get("pointermove")(point(200, 110));
+  const calls = [];
+  const stop = trackHover(hoverEntry(hoverNode(box), calls, "row"));
+  assert.deepEqual(calls, ["row enter 200,10"]);
+  documentListeners.get("mouseout")({ relatedTarget: { tagName: "DIV" } });
+  assert.deepEqual(calls, ["row enter 200,10"]);
+  documentListeners.get("mouseout")({ relatedTarget: null });
+  assert.deepEqual(calls, ["row enter 200,10", "row leave"]);
+  stop();
 });
 
 test("the meadow starts on the poster the Mac picks for the window's shape, dawn normally and morning with reduced motion", () => {

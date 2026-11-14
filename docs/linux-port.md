@@ -108,7 +108,9 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   `shell.inputRegions` (page rects minus overlay rects) and the host passes input at those points through to the page
   below: Views and Aura targeting on the shell, plus `BrowserView::ShouldDescendIntoChildForEventHandling` for drag and
   drop (`chromium-linux-shell-above-input.patch`). An overlay that newly covers a page stays hidden until its region is
-  acknowledged, so a press on its first frame can't reach the page.
+  acknowledged, so a press on its first frame can't reach the page. When a page takes the pointer from the shell, the
+  host sends the shell a mouse leave (`LinuxPageChannel::ReleaseShellPointer`), so a sidebar hover card closes when the
+  pointer moves straight from the sidebar into the page.
 - **Glass panels.** Menus, hover cards, the command panel, popovers and the extension popup's panel can be
   translucent over the live page. Every other panel, and every control, keeps the opaque fallback, and
   `isLiquidGlass` stays off. The sidebar peek's panel opts in too, but the peek covers it with the window's opaque
@@ -1482,7 +1484,6 @@ These were open at the time of the PR.
 - **Hardware details.** The GPU name and the hardware decoders are empty until Chromium's GPU process has reported,
   and a software renderer reports none. The chip is `/proc/cpuinfo`'s `model name`, which some ARM kernels leave out.
 - **Small UI bugs.**
-  - A sidebar hover card stays open when the pointer moves straight from the sidebar into the page.
   - A played video removed from the DOM keeps its media entry until the element is collected.
 - **Not available on Linux:**
   - casting (Cast shows a toast);
