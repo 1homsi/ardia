@@ -29,9 +29,9 @@ async function requestClose(windowId: string) {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
   if (!w) return;
+  if (isSmall(s, windowId)) return closeLittleArdia(windowId);
   const quitWarning = await askBeforeQuitting(windowId);
   if (quitWarning === "cancelled") return;
-  if (isSmall(useBrowser.getState(), windowId)) return closeLittleArdia(windowId);
   const asked = new Set<string>();
   let last = false;
   for (;;) {

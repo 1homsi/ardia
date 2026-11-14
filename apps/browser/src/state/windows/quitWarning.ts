@@ -3,6 +3,8 @@ import { windowIds } from "../../platform/windows";
 import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { backgroundInstance } from "../app/appSettings";
 import { useBrowser } from "../browser/store";
+import { isUtilityWindowId } from "../settings/settingsWindows";
+import { isWindowClosing } from "./closingWindows";
 
 export const QUIT_WARNING = {
   title: "Are you sure you want to quit Ardia?",
@@ -13,20 +15,32 @@ export const QUIT_WARNING = {
 
 export type QuitWarning = "notAsked" | "confirmed" | "cancelled";
 
-type Asking = { quitsWithLastWindow: boolean; background: boolean; warns: boolean; openWindowIds: readonly string[]; closing: string };
+type Asking = { quitsWithLastWindow: boolean; background: boolean; warns: boolean; staysOpen: readonly string[] };
 
-export const closingQuits = ({ quitsWithLastWindow, openWindowIds, closing }: Pick<Asking, "quitsWithLastWindow" | "openWindowIds" | "closing">) =>
-  quitsWithLastWindow && openWindowIds.length > 0 && openWindowIds.every((id) => id === closing);
+export const asksBeforeQuit = (asking: Asking) => asking.quitsWithLastWindow && !asking.background && asking.warns && asking.staysOpen.length === 0;
 
-export const asksBeforeQuit = (asking: Asking) => !asking.background && asking.warns && closingQuits(asking);
+export function windowsStayingOpen(openWindowIds: readonly string[], closing: string, browserWindowIds: ReadonlySet<string>, isClosing: (id: string) => boolean) {
+  if (openWindowIds.length === 0) return [closing];
+  return openWindowIds.filter((id) => id !== closing && (browserWindowIds.has(id) ? !isClosing(id) : isUtilityWindowId(id)));
+}
+
+export const quitWarningMayAsk = () => PLATFORM_FEATURES.quitsWithLastWindow && !backgroundInstance && useBrowser.getState().settings.warnBeforeQuitting;
+
+const asking = new Set<string>();
 
 export async function askBeforeQuitting(windowId: string): Promise<QuitWarning> {
-  const { quitsWithLastWindow } = PLATFORM_FEATURES;
-  const warns = useBrowser.getState().settings.warnBeforeQuitting;
-  if (!quitsWithLastWindow || backgroundInstance || !warns) return "notAsked";
-  const openWindowIds = await windowIds().catch(() => [] as string[]);
-  if (!asksBeforeQuit({ quitsWithLastWindow, background: backgroundInstance, warns, openWindowIds, closing: windowId })) return "notAsked";
-  const { confirmed, suppressed } = await confirm({ ...QUIT_WARNING, windowId });
-  if (suppressed) useBrowser.getState().updateSettings({ warnBeforeQuitting: false });
-  return confirmed ? "confirmed" : "cancelled";
+  if (!quitWarningMayAsk()) return "notAsked";
+  if (asking.has(windowId)) return "cancelled";
+  asking.add(windowId);
+  try {
+    const openWindowIds = await windowIds().catch(() => [] as string[]);
+    const s = useBrowser.getState();
+    const staysOpen = windowsStayingOpen(openWindowIds, windowId, new Set(Object.keys(s.windows)), isWindowClosing);
+    if (!asksBeforeQuit({ quitsWithLastWindow: true, background: false, warns: s.settings.warnBeforeQuitting, staysOpen })) return "notAsked";
+    const { confirmed, suppressed } = await confirm({ ...QUIT_WARNING, windowId });
+    if (suppressed) useBrowser.getState().updateSettings({ warnBeforeQuitting: false });
+    return confirmed ? "confirmed" : "cancelled";
+  } finally {
+    asking.delete(windowId);
+  }
 }

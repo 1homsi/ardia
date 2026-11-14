@@ -188,12 +188,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   - The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
     without a reply; a no cancels the quit.
   - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance isn't
-    hidden, and `windowIds()` lists no other window (Settings and Import count). Windows has no Quit command, so this
-    is the only place it asks; the Mac asks on ⌘Q and never on a window's close. It asks before the window closes, so a
+    hidden, and no other window stays open: `windowIds()` less the browser windows the UI has closed or is closing
+    (Settings and Import count while listed). Little Ardia's own closes (Ctrl+W, Escape) ask the same way. Windows has
+    no Quit command, so these are the only places it asks; the Mac asks on ⌘Q and never on a window's close. It asks before the window closes, so a
     Cancel leaves the window and the app as they were and no quit starts; Quit closes the window and the quit above
     runs as before. A close that asked it never also shows the close-tabs confirm. The dialog is the shared confirm on
     the dialog thread (#1672). Closing Settings when it is the only window left quits without asking: Settings closes
-    without a close request.
+    without a close request. A window that closes elsewhere while a close-tabs confirm is open isn't counted again, so
+    that close can then quit without asking.
   - Windows fade as on the Mac (`WindowFade.h`), fade only with no grow. A window opened with `animated`, and every
     window that is not a browser window (Little Ardia, Settings, Import: the Mac's system animates those open),
     stays transparent until its React root has content or for 0.6 s, then fades in over 0.25 s (Little Ardia
