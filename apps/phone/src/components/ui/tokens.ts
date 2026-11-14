@@ -138,6 +138,7 @@ export const settingsLayout = {
   labelGap: 16,
   tile: 29,
   heroTile: 64,
+  heroScrollThreshold: 150,
   syncTile: 56,
   syncTileLarge: 44,
   accessibilityFontScale: 1.5,

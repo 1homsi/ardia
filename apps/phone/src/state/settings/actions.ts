@@ -92,15 +92,17 @@ export const removeList = (id: string) => withBlocking(() => blocking.removeList
 export const resetLists = () => withBlocking(() => blocking.resetToDefaults());
 export const trustSite = (host: string, trusted: boolean) => withBlocking(() => blocking.setEnabledForSite(`https://${host}/`, !trusted, false));
 
-export function updateLists() {
+export async function updateLists(): Promise<boolean> {
   useBlocking.setState({ busy: true });
-  quietly(async () => {
-    await settled(() => blocking.updateLists(), undefined);
-    const state = await blocking.state();
-    useBlocking.setState({ state, busy: false });
-    if (listsUpdateFailed(state)) haptics.error();
-    else haptics.success();
-  });
+  await settled(() => blocking.updateLists(), undefined);
+  const state = await settled(() => blocking.state(), null);
+  useBlocking.setState(state ? { state, busy: false } : { busy: false });
+  return state === null || listsUpdateFailed(state);
+}
+
+export async function updateListsFromButton() {
+  if (await updateLists()) haptics.error();
+  else haptics.success();
 }
 
 export async function addList(url: string): Promise<boolean> {

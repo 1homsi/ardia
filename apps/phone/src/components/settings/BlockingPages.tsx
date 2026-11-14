@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { openFromSettings,
   addList,
   applyMyFilters,
@@ -9,6 +9,7 @@ import { openFromSettings,
   setListEnabled,
   trustSite,
   updateLists,
+  updateListsFromButton,
   useBlocking,
   type FilterListInfo,
 } from "../../state/settings/actions";
@@ -31,7 +32,7 @@ import { ConfirmDialog, Dialog, dialogLayout, font, radius, settingsLayout, sett
 import { copy } from "../../lib/platformCopy";
 
 const FILTER_SYNTAX_URL = "https://github.com/gorhill/uBlock/wiki/Static-filter-syntax";
-import { BarButton, ButtonRow, Divider, EmptyState, Group, IconTile, NavRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
+import { BarButton, ButtonRow, CrossfadeText, Divider, EmptyState, Group, IconTile, NavRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 
 export function FilterListsPage() {
   const theme = useTheme();
@@ -49,17 +50,19 @@ export function FilterListsPage() {
   const enabled = lists.filter((list) => list.isEnabled);
   const updating = busy || Boolean(state?.isUpdating);
   return (
-    <SettingsPage title="Filter Lists" onBack={popSettings}>
+    <SettingsPage title="Filter Lists" onBack={popSettings} onRefresh={updateLists} heroTitle>
       <View style={styles.hero}>
         <IconTile icon="shieldLefthalf" tint={settingsTint.ads} side={settingsLayout.heroTile} />
         <Text style={[font.title3, styles.bold, { color: theme.label }]}>Filter Lists</Text>
         <Text style={[font.subheadline, { color: theme.secondaryLabel }]}>{`${listsText(enabled.length)} · ${rulesText(state?.enabledRuleCount ?? 0)}`}</Text>
-        <Text style={[font.footnote, { color: state?.isOffline ? theme.destructive : theme.secondaryLabel }]}>
-          {listsStatus(updating, Boolean(state?.isOffline), state?.lastUpdated ?? null, now)}
-        </Text>
+        <CrossfadeText
+          testID="listsStatus"
+          text={listsStatus(updating, Boolean(state?.isOffline), state?.lastUpdated ?? null, now)}
+          style={[font.footnote, { color: state?.isOffline ? theme.destructive : theme.secondaryLabel }]}
+        />
       </View>
       <Group footer="Checked weekly.">
-        <ButtonRow title={updating ? "Updating Lists…" : "Update Now"} enabled={!updating} busy={updating} onPress={updateLists} />
+        <ButtonRow title={updating ? "Updating Lists…" : "Update Now"} enabled={!updating} busy={updating} onPress={() => void updateListsFromButton()} />
       </Group>
       {groups.map(([group, items]) => (
         <Group key={group} header={group}>
@@ -102,9 +105,10 @@ function ListRow({ list, now, divider }: { list: FilterListInfo; now: number; di
           <Text style={[font.body, { color: theme.label }]} numberOfLines={2}>
             {list.title}
           </Text>
-          <Text style={[font.footnote, { color: facts.isWarning ? theme.destructive : theme.secondaryLabel }]}>{facts.text}</Text>
+          <CrossfadeText testID="listFacts" text={facts.text} style={[font.footnote, { color: facts.isWarning ? theme.destructive : theme.secondaryLabel }]} />
         </Pressable>
-        <Toggle label={list.title} value={list.isEnabled} disabled={listIsBusy(list)} onChange={(on) => setListEnabled(list.id, on)} />
+        {listIsBusy(list) ? <ActivityIndicator testID="listBusy" size="small" color={theme.secondaryLabel} /> : null}
+        <Toggle label={list.title} value={list.isEnabled} onChange={(on) => setListEnabled(list.id, on)} />
       </View>
       {divider ? <Divider /> : null}
     </View>
@@ -127,7 +131,7 @@ export function FilterListDetailPage({ id }: { id: string }) {
       </Group>
       {list.state === "failed" ? (
         <Group footer={list.failure}>
-          <ButtonRow title="Try Again" onPress={updateLists} />
+          <ButtonRow title="Try Again" onPress={() => void updateLists()} />
         </Group>
       ) : null}
       <Group footer={list.skippedCount > 0 ? copy().filterRulesUnsupported : null}>

@@ -631,7 +631,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Filter Lists: no pull to refresh; a downloading list's switch is disabled with no spinner; status and facts lines swap without a fade; the top bar repeats the hero title (Compose shows it once the hero scrolls away). `BlockingPages.kt` `FilterListsPage`/`FilterListRow`, `FilterListsPage.swift`. Small.
 - Add a List: a centred dialog with Add always enabled and one generic error; both apps use a bottom sheet whose field takes focus, adds on Done, offers Paste while empty, validates the address with its own message and guards a double add. `BlockingPages.kt` `AddFilterListSheet`, `FilterLists.kt`, `AddFilterListSheet.swift`. Small.
 - Filter list detail: Last Updated is relative (both apps: date and time), a failure is only footer text, Try Again stays enabled while updating, the source can't be tapped, and the list's website opens outside the app (Compose: an Ardia tab). `FilterListDetailPage` in `BlockingPages.kt`, `FilterListDetailPage.swift`. Small.
 - My Filters: Back loses unapplied edits (Compose blocks Back, SwiftUI hides it); Apply has no spinner or double-tap guard and leaves the keyboard up; the editor is a 240-high box instead of filling the page. `BlockingPages.kt` `MyFiltersEditor`, `MyFiltersEditor.swift`. Small.

@@ -140,7 +140,7 @@ export function SyncPage() {
       },
     });
   return (
-    <SettingsPage title="Sync With Mac" onBack={popSettings} onRefresh={status.isEnabled ? syncNow : undefined}>
+    <SettingsPage title="Sync With Mac" onBack={popSettings} onRefresh={status.isEnabled ? syncNow : undefined} heroTitle>
       <SyncHero title="Sync With Mac" subtitle={hero.text} warning={hero.isWarning}>
         {off ? <CapsuleButton title="Connect to Your Mac" prominent onPress={() => pushSettings({ page: "syncConnect" })} /> : null}
       </SyncHero>

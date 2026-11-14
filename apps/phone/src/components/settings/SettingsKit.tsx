@@ -1,12 +1,13 @@
-import { useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle } from "react-native";
+import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
-import { FloatingMenu, LookBackdrop, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { duration, FloatingMenu, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 
-type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown> };
+type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown>; heroTitle?: boolean };
 
-export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh }: PageProps) {
+export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh, heroTitle = false }: PageProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const list = useRef<ScrollView>(null);
@@ -19,6 +20,14 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
         void onRefresh().finally(() => setRefreshing(false));
       }
     : null;
+  const sheetList = frame?.list(refresh !== null);
+  const [heroAway, setHeroAway] = useState(false);
+  const titleShown = !heroTitle || heroAway;
+  const titleOpacity = useSharedValue(titleShown ? 1 : 0);
+  useEffect(() => {
+    titleOpacity.value = withSpring(titleShown ? 1 : 0, settingsMotion.titleFade);
+  }, [titleShown, titleOpacity]);
+  const titleStyle = useAnimatedStyle(() => ({ opacity: titleOpacity.value }));
   return (
     <View style={StyleSheet.absoluteFill}>
       <LookBackdrop />
@@ -31,9 +40,16 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
           ) : null}
           {leading}
         </View>
-        <Text accessibilityRole="header" style={[font.body, styles.bold, styles.title, { color: theme.label }]} numberOfLines={1}>
+        <Animated.Text
+          testID="settingsTitle"
+          accessibilityRole="header"
+          accessibilityElementsHidden={!titleShown}
+          importantForAccessibility={titleShown ? "auto" : "no-hide-descendants"}
+          style={[font.body, styles.bold, styles.title, { color: theme.label }, titleStyle]}
+          numberOfLines={1}
+        >
           {title}
-        </Text>
+        </Animated.Text>
         <View style={[styles.topSide, styles.end]}>{trailing}</View>
       </View>
       {scroll ? (
@@ -50,7 +66,12 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
           onMomentumScrollEnd={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           keyboardShouldPersistTaps="handled"
           refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} /> : undefined}
-          {...frame?.list(refresh !== null)}
+          {...sheetList}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            sheetList?.onScroll(event);
+            if (heroTitle) setHeroAway(event.nativeEvent.contentOffset.y > settingsLayout.heroScrollThreshold);
+          }}
         >
           {children}
         </ScrollView>
@@ -58,6 +79,16 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
         <View style={[styles.fill, { paddingBottom: insets.bottom }]}>{children}</View>
       )}
     </View>
+  );
+}
+
+export function CrossfadeText({ text, style, testID }: { text: string; style: StyleProp<TextStyle>; testID?: string }) {
+  return (
+    <LayoutAnimationConfig skipEntering>
+      <Animated.Text key={text} testID={testID} entering={FadeIn.duration(duration.crossfade)} exiting={FadeOut.duration(duration.crossfade)} style={style}>
+        {text}
+      </Animated.Text>
+    </LayoutAnimationConfig>
   );
 }
 
