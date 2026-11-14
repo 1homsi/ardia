@@ -44,6 +44,14 @@ object LookRules {
         return (blobRadius(width, height) * BLOB_STEP_SHARE / fastest).toLong().coerceIn(MIN_PACE_MILLIS, MAX_PACE_MILLIS)
     }
 
+    const val BUSY_WINDOW_MILLIS = 250L
+
+    fun othersAreDrawing(drawTimes: LongArray, now: Long, paceMillis: Long): Boolean {
+        val recent = drawTimes.count { it > 0L && now - it in 0..BUSY_WINDOW_MILLIS }
+        val ownShare = BUSY_WINDOW_MILLIS / paceMillis.coerceAtLeast(1L)
+        return recent > ownShare + 2
+    }
+
     fun nextBlobFrameMillis(rate: Int, width: Float, height: Float): Long = when {
         rate == EVERY_FRAME -> 0L
         rate > 0 -> 1000L / rate

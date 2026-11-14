@@ -70,8 +70,12 @@ class LookOffTest {
     fun withReduceTransparencyNoFrostWantsTheSourceSoItIsNotRecorded() {
         val made = scene()
         val (_, frost, deck) = made
-        assertEquals(Frosting.isBlurSupported, FrostSources.anyFrostCanBlur(sourceName))
+        assertFalse("drawn on a software canvas it falls back, so it does not keep the source recording", frost.wantsSource())
+        val fresh = FrostView(activity, appContext).apply { source = sourceName }
+        (frost.parent as android.view.ViewGroup).addView(fresh)
+        assertEquals("a frost that has not drawn yet wants its source", Frosting.isBlurSupported, FrostSources.anyFrostCanBlur(sourceName))
         frost.reduceTransparency = true
+        fresh.reduceTransparency = true
         deck.reduceTransparency = true
         assertFalse(FrostSources.anyFrostCanBlur(sourceName))
         assertNothingLeftBehind("reduce transparency", made)

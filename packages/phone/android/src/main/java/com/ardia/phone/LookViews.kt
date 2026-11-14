@@ -221,7 +221,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     }
 
     internal fun firstBlobCentre(): Pair<Float, Float> {
-        val angle = if (still) 0f else angle(0, SystemClock.uptimeMillis())
+        val angle = if (still) 0f else angle(0, clock(SystemClock.uptimeMillis()))
         return LookRules.blobCenter(0, angle, width.toFloat(), height.toFloat())
     }
 
@@ -229,13 +229,57 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         "${width}x$height, ${frames} frames, ${framesPerSecond} fps, ${if (still) "still" else "moving"}, ${if (isDark) "dark" else "light"}, " +
             "transparency ${if (noBlobs) "reduced" else "on"}${if (budgetDegraded) " (look budget: degraded)" else ""}, mesh centre ${LookProbeText.hex(meshCentre())}"
 
+    private val drawTimes = LongArray(64)
+    private var drawIndex = 0
+    private val counted = ViewTreeObserver.OnPreDrawListener {
+        drawTimes[drawIndex] = SystemClock.uptimeMillis()
+        drawIndex = (drawIndex + 1) % drawTimes.size
+        true
+    }
+    private var clockBase = 0L
+    private var runningSince = SystemClock.uptimeMillis()
+
+    internal var heldStill = false
+        private set
+
+    private fun clock(now: Long): Long = if (heldStill) clockBase else clockBase + (now - runningSince)
+
+    private fun holdStill(now: Long) {
+        if (heldStill) return
+        clockBase = clock(now)
+        heldStill = true
+    }
+
+    private fun moveOn(now: Long) {
+        if (!heldStill) return
+        runningSince = now
+        heldStill = false
+    }
+
+    private var paceMillis = 40L
+    private val tick = Runnable {
+        val now = SystemClock.uptimeMillis()
+        if (LookRules.othersAreDrawing(drawTimes, now, paceMillis)) {
+            holdStill(now)
+            postDelayed(nextTick(), paceMillis)
+        } else {
+            moveOn(now)
+            invalidate()
+        }
+    }
+
+    private fun nextTick(): Runnable = tick
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         DeckBackdrops.attach(this)
+        viewTreeObserver.addOnPreDrawListener(counted)
     }
 
     override fun onDetachedFromWindow() {
         DeckBackdrops.detach(this)
+        viewTreeObserver.removeOnPreDrawListener(counted)
+        removeCallbacks(tick)
         super.onDetachedFromWindow()
     }
 
@@ -277,7 +321,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         canvas.drawBitmap(meshBitmap, source, target, meshPaint)
         if (noBlobs) return
         val animated = !still
-        val now = SystemClock.uptimeMillis()
+        val now = clock(SystemClock.uptimeMillis())
         blobPaint.alpha = (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt()
         for (index in blobShaders.indices) {
             val angle = if (animated) angle(index, now) else 0f
@@ -289,10 +333,14 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             canvas.restoreToCount(saved)
         }
         canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
+        removeCallbacks(tick)
         if (animated && isShown) {
             when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
                 0L -> postInvalidateOnAnimation()
-                else -> postInvalidateDelayed(delay)
+                else -> {
+                    paceMillis = delay
+                    postDelayed(tick, delay)
+                }
             }
         }
     }
@@ -395,7 +443,7 @@ internal object FrostSources {
 
     fun allSources(): List<FrostSourceView> = synchronized(sources) { sources.values.mapNotNull { it.get() } }
 
-    fun anyFrostCanBlur(id: String?): Boolean = id != null && frosts().any { it.source == id && it.isAttachedToWindow && it.canBlur() }
+    fun anyFrostCanBlur(id: String?): Boolean = id != null && frosts().any { it.source == id && it.isAttachedToWindow && it.wantsSource() }
 
     fun sourceChanged(id: String?) {
         find(id)?.invalidate()
@@ -486,6 +534,8 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
 }
 
 internal object FrostPage {
+    const val SOURCE_NOT_DRAWN = "source not drawn yet"
+
     fun holdsPage(view: View, sized: (View) -> Boolean = { it.width > 0 && it.height > 0 }): Boolean {
         if (view.visibility != View.VISIBLE) return false
         if (view is android.webkit.WebView) return sized(view)
@@ -517,7 +567,7 @@ internal object FrostPage {
         !hasSource -> Choice(Path.Fallback, "no source")
         !hardware -> Choice(Path.Fallback, "software canvas")
         insideSource -> Choice(Path.Fallback, "inside its own source")
-        !sourceHasContent -> Choice(Path.Fallback, "source not drawn yet")
+        !sourceHasContent -> Choice(Path.Fallback, SOURCE_NOT_DRAWN)
         holdsPage && pageMode == FrostSources.PageMode.Solid -> Choice(Path.Solid, "page under the frost, solid page mode")
         holdsPage -> Choice(Path.Live, "page under the frost, redrawn every frame")
         else -> Choice(Path.Live, "no page under the frost")
@@ -633,9 +683,17 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         layerHeight = 0
     }
 
+    internal fun wantsSource(): Boolean {
+        if (!canBlur()) return false
+        val choice = lastChoice ?: return true
+        return choice.path == FrostPage.Path.Live || choice.reason == FrostPage.SOURCE_NOT_DRAWN
+    }
+
     private fun report(choice: FrostPage.Choice) {
         if (choice == lastChoice) return
+        val wanted = wantsSource()
         lastChoice = choice
+        if (wantsSource() != wanted) FrostSources.sourceChanged(source)
         if (PhoneLab.isOn) {
             android.util.Log.i("PAGELAB", "PAGELAB look frost $logLabel ${width}x$height path=${choice.path.name.lowercase()} (${choice.reason})")
         }
@@ -763,6 +821,9 @@ internal object LookMemory {
         val layerBytes: Long,
         val decks: Int,
         val animating: Int,
+        val recordingNames: List<String> = emptyList(),
+        val layerNames: List<String> = emptyList(),
+        val heldStill: Int = 0,
     )
 
     fun counts(): Counts {
@@ -778,16 +839,19 @@ internal object LookMemory {
             layerBytes = layered.sumOf { it.layerWidth.toLong() * it.layerHeight * 4 },
             decks = decks.size,
             animating = decks.count { it.isAnimating },
+            recordingNames = sources.filter { it.isRecording }.map { it.sourceId ?: "?" },
+            layerNames = layered.map { it.logLabel },
+            heldStill = decks.count { it.heldStill },
         )
     }
 
     fun line(context: Context): String {
         val counts = counts()
         val largest = FrostSources.frosts().filter { it.holdsLayer }.maxByOrNull { it.layerWidth.toLong() * it.layerHeight }
-        return "look ${if (LookSwitch.isOff(context)) "off" else "on"}: ${counts.recording} of ${counts.sources} frost source(s) recording, " +
+        return "look ${if (LookSwitch.isOff(context)) "off" else "on"}: ${counts.recording} of ${counts.sources} frost source(s) recording ${counts.recordingNames}, " +
             "${counts.holdingLayers} of ${counts.frosts} frost(s) holding a blur layer, about ${"%.1f".format(counts.layerBytes / MB)} MB" +
             (largest?.let { " (largest ${it.logLabel} ${it.layerWidth}x${it.layerHeight})" } ?: "") +
-            ", ${counts.animating} of ${counts.decks} deck backdrop(s) animating"
+            ", ${counts.animating} of ${counts.decks} deck backdrop(s) animating (${counts.heldStill} held still while the screen moves), frosts with a layer ${counts.layerNames}"
     }
 
     fun trim(): String {

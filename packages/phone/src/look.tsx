@@ -34,7 +34,18 @@ type LookNative = {
   lookCounts?: () => LookCounts;
 };
 
-export type LookCounts = { sources: number; recording: number; frosts: number; holdingLayers: number; layerBytes: number; decks: number; animating: number };
+export type LookCounts = {
+  sources: number;
+  recording: number;
+  frosts: number;
+  holdingLayers: number;
+  layerBytes: number;
+  decks: number;
+  animating: number;
+  recordingNames?: string[];
+  layerNames?: string[];
+  heldStill?: number;
+};
 
 const lookNative = requireOptionalNativeModule<LookNative>("ArdiaPhoneLook");
 

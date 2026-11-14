@@ -57,6 +57,20 @@ class LookCostTest {
     }
 
     @Test
+    fun theBlobsHoldStillWhileSomethingElseDrawsAndMoveOnWhenOnlyTheyDo() {
+        val pace = 40L
+        val now = 10_000L
+        val ownOnly = LongArray(64).also { times -> for (i in 0 until 7) times[i] = now - i * pace }
+        assertFalse("the blobs' own paced frames are not someone else drawing", LookRules.othersAreDrawing(ownOnly, now, pace))
+        val scrolling = LongArray(64).also { times -> for (i in 0 until 30) times[i] = now - i * 8 }
+        assertTrue("a 120 Hz scroll", LookRules.othersAreDrawing(scrolling, now, pace))
+        val sixty = LongArray(64).also { times -> for (i in 0 until 15) times[i] = now - i * 16 }
+        assertTrue("a 60 Hz scroll", LookRules.othersAreDrawing(sixty, now, pace))
+        val longAgo = LongArray(64).also { times -> for (i in 0 until 30) times[i] = now - 2_000 - i * 8 }
+        assertFalse("a scroll that ended", LookRules.othersAreDrawing(longAgo, now, pace))
+    }
+
+    @Test
     fun aFrostBlursAtAQuarterToAnEighthOfItsSizeKeepingSixPixelsOfBlur() {
         assertEquals(8f, FrostScale.of(30f * 2.75f))
         assertEquals(8f, FrostScale.of(20f * 2.75f))

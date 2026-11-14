@@ -62,6 +62,9 @@ class LookModule : Module() {
                 "layerBytes" to counts.layerBytes.toDouble(),
                 "decks" to counts.decks,
                 "animating" to counts.animating,
+                "recordingNames" to counts.recordingNames,
+                "layerNames" to counts.layerNames,
+                "heldStill" to counts.heldStill,
             )
         }
 
