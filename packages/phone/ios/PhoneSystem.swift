@@ -1,6 +1,7 @@
 import ArdiaBrowser
 import Darwin
 import ArdiaDesign
+import CoreSpotlight
 import ExpoModulesCore
 import UIKit
 
@@ -43,14 +44,29 @@ public final class PhoneSystemLinks {
 
   @discardableResult
   public func receive(userActivity: NSUserActivity) -> Bool {
+    if userActivity.activityType == CSSearchableItemActionType {
+      guard let identifier = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+            let id = Self.tabID(fromItemIdentifier: identifier) else { return false }
+      deliver(["kind": "tab", "id": id, "source": "spotlight"])
+      return true
+    }
     guard userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL,
           let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return false }
     deliver(["kind": "open", "url": url.absoluteString, "source": "handoff"])
     return true
   }
 
+  public nonisolated static func tabID(fromItemIdentifier identifier: String) -> String? {
+    let pattern = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/
+    return identifier.firstMatch(of: pattern).map { String($0.output).lowercased() }
+  }
+
   public func post(_ link: SystemLink, source: String) {
     deliver(Self.payload(link, source: source))
+  }
+
+  public func openTab(_ id: String, source: String) {
+    deliver(["kind": "tab", "id": id.lowercased(), "source": source])
   }
 
   public func sceneBecameActive() {
@@ -99,7 +115,7 @@ public final class PhoneSystemLinks {
     case .voiceSearch: return ["kind": "voiceSearch", "source": source]
     case .incognito: return ["kind": "incognito", "source": source]
     case .open(let url): return ["kind": "open", "url": url.absoluteString, "source": source]
-    case .tab(let id): return ["kind": "tab", "id": id.uuidString, "source": source]
+    case .tab(let id): return ["kind": "tab", "id": id.uuidString.lowercased(), "source": source]
     case .macTabs: return ["kind": "macTabs", "source": source]
     case .inbox: return ["kind": "inbox", "source": source]
     }

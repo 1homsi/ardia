@@ -40,9 +40,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   func sceneDidBecomeActive(_ scene: UIScene) {
     PhoneSystemLinks.shared.sceneBecameActive()
     PhoneSyncHost.shared.sceneBecameActive()
+    SpotlightIndexer.shared.update()
   }
 
   func sceneWillResignActive(_ scene: UIScene) {
+    SpotlightIndexer.shared.update()
     PhoneSyncHost.shared.sceneWillResignActive()
   }
 
