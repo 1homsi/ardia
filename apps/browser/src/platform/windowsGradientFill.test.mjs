@@ -84,3 +84,12 @@ test("a gradient-only Surface cuts no page window, and every gradient drawn sits
   assert.deepEqual(using(/<GradientFill\b/), ["../components/toolbar/FieldLoadFill.tsx"], "only the field glow draws a GradientFill");
   assert.deepEqual(using(/<FieldLoadFill\b/), ["../components/littleArdia/SmallChrome.tsx", "../components/toolbar/Toolbar.tsx"], "the glow sits in the toolbar, sidebar and Little Ardia fields");
 });
+
+test("a gradient brush that fails reports it, and the layer reading it draws the striped fallback", () => {
+  const view = source("../../windows/Ardia/GradientView.h");
+  assert.match(view, /void Fail\(std::wstring const &reason\) noexcept \{\n\s+Materials::GradientFailed\(\) = true;/);
+  assert.match(source("../../windows/Ardia/MaterialsModule.h"), /answer\.gradient = Materials::GradientAvailable\(\);/);
+  const surface = source("../../../../packages/expo-windows/src/views/Surface.tsx");
+  assert.match(surface, /const \[draws, setDraws\] = useState\(gradientDrawsNow\);\n\s+useEffect\(\(\) => \(draws \? watchGradientFailure\(\(\) => setDraws\(false\)\) : undefined\), \[draws\]\);/);
+  assert.match(surface, /if \(!useGradientDraws\(\)\) return <StripedGradient /);
+});
