@@ -20,6 +20,7 @@ import { checks as menuChecks } from "./menus";
 import { checks as motionChecks } from "./motion";
 import { checks as pagePictureChecks } from "./pagePicture";
 import { checks as pagerChecks } from "./pager";
+import { registeredChecks } from "./registered";
 import { checks as shellChecks } from "./shell";
 import { checks as storageChecks } from "./storage";
 import { checks as symbolChecks } from "./symbol";
@@ -37,7 +38,7 @@ export async function runSelfCheck() {
   let passed = 0;
   let failed = 0;
   const only = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().test.selfCheckOnly;
-  for (const check of areas.flat().filter((each) => !only || each.name.startsWith(only))) {
+  for (const check of [...areas.flat(), ...registeredChecks()].filter((each) => !only || each.name.startsWith(only))) {
     try {
       await check.run();
       passed += 1;
