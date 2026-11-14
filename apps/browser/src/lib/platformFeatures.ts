@@ -22,6 +22,10 @@ export type PlatformFeatures = {
   thinScrollBars: boolean;
   haptics: boolean;
   launchLoad: boolean;
+  quitsWithLastWindow: boolean;
+  keepsNewTabLinksInLittleArdia: boolean;
+  commandScrollZoom: boolean;
+  passwordAutofillSwitch: boolean;
 };
 
-export const PLATFORM_FEATURES: PlatformFeatures = { dock: true, appIcon: true, menuBar: true, memoryPressure: true, escapeClosesDownloads: false, dictation: true, findsBrowsersBy: "appBundle", hiddenBrowserSources: [], splitView: true, setsDefaultBrowser: true, exportsBookmarksAndPasswords: true, sync: true, calendar: true, webKit: true, contentBlocker: true, trackpadGestures: true, videoUpscaling: true, thinScrollBars: true, haptics: true, launchLoad: true, sharesFiles: true, syncsWithPhone: true, syncsPasswords: true };
+export const PLATFORM_FEATURES: PlatformFeatures = { dock: true, appIcon: true, menuBar: true, memoryPressure: true, escapeClosesDownloads: false, dictation: true, findsBrowsersBy: "appBundle", hiddenBrowserSources: [], splitView: true, setsDefaultBrowser: true, exportsBookmarksAndPasswords: true, sync: true, calendar: true, webKit: true, contentBlocker: true, trackpadGestures: true, videoUpscaling: true, thinScrollBars: true, haptics: true, launchLoad: true, sharesFiles: true, syncsWithPhone: true, syncsPasswords: true, quitsWithLastWindow: false, keepsNewTabLinksInLittleArdia: true, commandScrollZoom: true, passwordAutofillSwitch: true };
