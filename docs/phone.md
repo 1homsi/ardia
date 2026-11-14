@@ -213,6 +213,41 @@ and again only when that status changes.
     `adb shell am broadcast -a com.ardia.phone.A11Y_DUMP -p com.ardia.browser.android` and
     `adb logcat -d -s PAGELAB | grep "PAGELAB a11y"`. The lines between `begin` and `end` are what TalkBack can
     reach; the surface behind a cover should not be among them.
+24. **Look:** the lab's Look section. Look plum/green/orange/incognito: the deck backdrop's blobs move (still
+    with Reduce motion), incognito draws dark even in Light; the middle tile with Fades out goes from the backdrop
+    at the top to the plain system background by 80% of its height; each Frost variant shows the blobs blurred
+    behind it.
+25. **Frost over a page:** in the Look section, scroll the Wikipedia page under "Sheet frost over the page" and
+    watch `adb logcat -s PAGELAB | grep "look frost"`. The line `path=live (page under the frost, redrawn every
+    frame)` means the blur is drawn from the page: the frost should show the page blurred and follow the scroll.
+    If it is black, grey or frozen, tap Probe frost (one line with the frost's mean brightness and near-black
+    share), then Page frost solid: the line says `path=solid` and the frost turns the sheet's plain colour. Report
+    which one the phone needed.
+26. **Telemetry, nothing while off:** watch `adb logcat -s PAGELAB | grep telemetry`. With sharing off (a fresh
+    install starts off), use the app for a minute, background it and come back: no `PAGELAB telemetry posted`
+    line. Turn on "Share anonymous usage stats" in Settings, background the app: lines appear
+    (`POST ardia.dev/otel/v1/logs -> 200`). Turn it off: no more lines. The same switch is on onboarding's last
+    steps (Settings › Show Onboarding). Settings › What’s Sent lists what is counted. A lab release build sends to
+    ardia.dev with environment test.
+27. **Memory after tabs close:** `adb shell am broadcast -a com.ardia.phone.MEMORY -p com.ardia.browser.android`
+    and `adb logcat -d -s PAGELAB | grep "PAGELAB memory"` (or System › Memory) at four points, after a
+    force-stop and cold start each time you start over: with one tab; after opening nine tabs and visiting each;
+    after closing eight of them; and after `adb shell am broadcast -a com.ardia.phone.TRIM -p
+    com.ardia.browser.android` (System › Trim, the same clear Android's low-memory signal does). Report the four
+    lines; the image cache's MB should fall when tabs close.
+28. **Scanner without a camera:** Scanner section with the camera allowed: Feed a phrase code gives
+    `code: … 24 words, valid true`, Feed another code gives `rejected`; no recovery phrase in
+    `adb logcat -d | grep -i -E "abandon|zoo|^[a-z]+( [a-z]+){23}$"` or anywhere else. After an "Only this time"
+    camera grant expires, Ask for camera shows Android's prompt again, not Allow Camera Access.
+29. **Swipe over a carousel:** as in step 21 with Swipe anywhere, a sideways drag that starts on a carousel that can
+    scroll that way scrolls it (logcat: `PAGELAB swipe left to the page`), and only a drag the carousel cannot
+    take navigates.
+30. **No replayed link:** open the Voice Search shortcut, leave the app in the background, then
+    `adb shell am start -W -a android.intent.action.VIEW -d https://example.com/ --activity-clear-task -n $P`: the
+    app opens example.com, not the voice screen.
+31. **Widgets in both modes, quickly:** with both widgets on the home screen, switch dark, light and dark again
+    within 20 s: each switch updates the whole widget (panel, pill, text, icons) together within a few seconds,
+    and the Search pill shows its icon and label in both modes.
 
 ## Telemetry
 
