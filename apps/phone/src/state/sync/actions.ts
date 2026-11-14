@@ -10,7 +10,8 @@ import { settled } from "../pages/store";
 import { applySearchEngine, feedSources } from "../search/store";
 import type { ColorChoice } from "../settings/preferences";
 import { setPreference } from "../settings/store";
-import { historyCuts } from "../tabs/received";
+import { historyCuts, withoutOwnTabs } from "../tabs/received";
+import { labTrace } from "../../platform/lab";
 import { currentTabs, openNewTab, receiveSentTabs, setIncognito, useTabs } from "../tabs/store";
 import { isSyncableUrl, type BrowserTab } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
@@ -63,7 +64,12 @@ export async function applyInbox(): Promise<number> {
       again = false;
       const entries = await settled(() => sync.inbox(), []);
       if (!entries.length) continue;
-      const opened = receiveSentTabs(entries.flatMap((entry) => entry.received));
+      const { kept, own } = withoutOwnTabs(
+        entries.flatMap((entry) => entry.received),
+        sync.deviceId(),
+      );
+      for (const tab of own) labTrace(`PAGELAB tab dropped as the phone's own: received key ${tab.key} from device ${tab.fromDeviceId}`);
+      const opened = receiveSentTabs(kept);
       for (const removal of entries.flatMap((entry) => entry.removals)) {
         for (const cut of historyCuts(removal)) history().removeVisits(cut.urls, cut.profileSyncId);
       }

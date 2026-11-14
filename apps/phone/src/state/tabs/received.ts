@@ -47,3 +47,11 @@ export function historyCuts(removal: HistoryCut): { urls: readonly string[]; pro
   if (removal.includesUnassigned && removal.profileSyncId !== null) cuts.push({ urls: removal.urls, profileSyncId: null });
   return cuts;
 }
+
+export function withoutOwnTabs<T extends { fromDeviceId?: string }>(tabs: readonly T[], ownDeviceId: string | null): { kept: T[]; own: T[] } {
+  if (!ownDeviceId) return { kept: [...tabs], own: [] };
+  const kept: T[] = [];
+  const own: T[] = [];
+  for (const tab of tabs) (tab.fromDeviceId === ownDeviceId ? own : kept).push(tab);
+  return { kept, own };
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { historyCuts, receiveTabs, type IncomingTab } from "./received.ts";
+import { historyCuts, receiveTabs, withoutOwnTabs, type IncomingTab } from "./received.ts";
 import { emptyTabs, openTab } from "./tabsState.ts";
 
 const incoming = (key: string, url: string, sentAt: number): IncomingTab => ({ key, url, title: `Sent ${key}`, fromDevice: "Mac Studio", sentAt, profileSyncId: "work" });
@@ -39,4 +39,10 @@ test("history the Mac removed is cut from its profile, and from unassigned visit
     { urls: ["https://a/"], profileSyncId: null },
   ]);
   assert.deepEqual(historyCuts({ profileSyncId: null, urls: ["https://a/"], includesUnassigned: true }), [{ urls: ["https://a/"], profileSyncId: null }]);
+});
+
+test("a received tab this phone sent itself is set aside, and every tab is kept while the phone's own id is unknown", () => {
+  const tabs = [{ key: "a", fromDeviceId: "phone-1" }, { key: "b", fromDeviceId: "mac-1" }, { key: "c" }];
+  assert.deepEqual(withoutOwnTabs(tabs, "phone-1"), { kept: [tabs[1], tabs[2]], own: [tabs[0]] });
+  assert.deepEqual(withoutOwnTabs(tabs, null), { kept: tabs, own: [] });
 });
