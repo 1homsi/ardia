@@ -21,7 +21,7 @@ const synchronousDefaults: Record<string, Record<string, unknown>> = {
 
 const synchronousMethods: Record<string, Record<string, unknown>> = {
   ArdiaGlassEffect: { isLiquidGlass: false },
-  ArdiaCli: { installedVersion: null },
+  ArdiaCli: { installedVersion: null, canInstallUnattended: false },
   ArdiaConfig: { readFile: { status: "missing" } },
   ArdiaAutomation: { reply: undefined, broadcast: undefined },
 };

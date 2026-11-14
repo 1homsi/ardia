@@ -82,6 +82,8 @@ export const LINUX_WINDOW_CORNER_RADIUS = 19;
 
 const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
   windowCornerRadius: () => LINUX_WINDOW_CORNER_RADIUS,
+  frameCornerRadius: () => Promise.resolve(LINUX_WINDOW_CORNER_RADIUS),
+  updateMenu: resolved,
   watchSidebarEdge: (id: string, on: boolean, hold = 0, right = false) => {
     watchSidebarEdge(id, on, hold, right);
     return Promise.resolve();
