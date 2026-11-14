@@ -43,7 +43,7 @@ export type LegacyUnusableReason = "schema" | "corrupt" | "locked" | "io";
 export type LegacySource =
   | { kind: "none" }
   | { kind: "pending"; counts: LegacyCounts }
-  | { kind: "done" }
+  | { kind: "done"; outcome?: "imported" | "startedFresh" }
   | { kind: "unusable"; reason: LegacyUnusableReason };
 
 export type LegacyRead = {
@@ -66,6 +66,7 @@ type LegacyNative = {
   applyNativeSettings?(): Promise<void>;
   markImportedWith?(receipt: LegacyReceipt): Promise<void>;
   startFresh?(): Promise<void>;
+  labSetUnusable?(on: boolean): void;
   available?(): Promise<boolean>;
   imported?(): Promise<boolean>;
   markImported?(): Promise<void>;
@@ -86,6 +87,14 @@ const asPreferenceStrings = (values: Record<string, unknown>): Record<string, st
       typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? [[key, String(value)]] : [],
     ),
   );
+
+export const legacyLab = {
+  setUnusable: (on: boolean): boolean => {
+    if (!native?.labSetUnusable) return false;
+    native.labSetUnusable(on);
+    return true;
+  },
+};
 
 export const legacyImport = {
   source: async (): Promise<LegacySource> => {

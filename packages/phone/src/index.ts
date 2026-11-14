@@ -4,6 +4,7 @@ export { downloads } from "./downloads";
 export {
   legacy,
   legacyImport,
+  legacyLab,
   type LegacyCounts,
   type LegacyData,
   type LegacyRead,

@@ -1,4 +1,4 @@
-import { legacyImport } from "@ardia/phone-native";
+import { legacyImport, legacyLab } from "@ardia/phone-native";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -66,11 +66,13 @@ export function UpgradeLab({ note }: { note: (line: string) => void }) {
 
   return (
     <View style={styles.panel}>
-      <Text style={styles.title}>Upgrade import (reads only)</Text>
+      <Text style={styles.title}>Upgrade import (reads only, plus a failure switch)</Text>
       <Text style={styles.line}>{lines.length ? lines.join("\n") : "nothing read yet"}</Text>
       <View style={styles.row}>
         <Button label="Read source" onPress={readSource} />
         <Button label="Read everything" onPress={() => void readAll()} />
+        <Button label="Make source unusable" onPress={() => say(legacyLab.setUnusable(true) ? "source reports unusable (io) until made usable again; Compose files untouched" : "not in this build")} />
+        <Button label="Make source usable" onPress={() => say(legacyLab.setUnusable(false) ? "source reads the old app's data again" : "not in this build")} />
       </View>
     </View>
   );

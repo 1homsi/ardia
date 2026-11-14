@@ -360,7 +360,7 @@ class PhoneLegacyTest {
         assertEquals(1, syncs)
         assertEquals(receipt, UpgradeGate.marker(app))
         assertFalse(UpgradeGate.pending(app))
-        assertEquals(mapOf("kind" to "done"), legacy().source())
+        assertEquals(mapOf("kind" to "done", "outcome" to "imported"), legacy().source())
         assertFalse(File(app.noBackupFilesDir, "PhoneSync/LegacySnapshot").exists())
         UpgradeGate.forgetForTests()
         assertFalse("a relaunch doesn't import again", UpgradeGate.pending(app))
@@ -406,7 +406,7 @@ class PhoneLegacyTest {
         assertEquals(listOf("https://held.example/"), heard)
         assertEquals(UpgradeGate.Completion.StartedFresh, UpgradeGate.completion(app))
         assertNull("starting fresh is not an import", UpgradeGate.marker(app))
-        assertEquals(mapOf("kind" to "done"), legacy().source())
+        assertEquals(mapOf("kind" to "done", "outcome" to "startedFresh"), legacy().source())
         assertEquals(before, sourceFingerprint())
         assertEquals(emptyMap<String, Any?>(), app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE).all)
         UpgradeGate.forgetForTests()
@@ -420,6 +420,20 @@ class PhoneLegacyTest {
         assertEquals(false, app.getSharedPreferences(PhoneBlocking.PREFERENCES, Context.MODE_PRIVATE).getBoolean("blocking.ads", true))
         legacy().startFresh { syncs += 1 }
         assertEquals("starting fresh never undoes an import", UpgradeGate.Completion.Imported(receipt), UpgradeGate.completion(app))
+    }
+
+    @Test
+    fun theLabCanMakeTheSourceUnusableWithoutTouchingComposeAndOnlyInALabBuild() {
+        composeApp()
+        val before = sourceFingerprint()
+        PhoneLegacy(app, lab = true).setLabUnusable(true)
+        assertEquals(mapOf("kind" to "unusable", "reason" to "io"), PhoneLegacy(app, lab = true).source())
+        assertEquals("pending", PhoneLegacy(app, lab = false).source()["kind"])
+        assertThrows(IllegalStateException::class.java) { PhoneLegacy(app, lab = false).setLabUnusable(true) }
+        PhoneLegacy(app, lab = true).setLabUnusable(false)
+        assertEquals("pending", PhoneLegacy(app, lab = true).source()["kind"])
+        assertEquals(before, sourceFingerprint())
+        assertTrue(UpgradeGate.pending(app))
     }
 
     @Test

@@ -53,6 +53,7 @@ class PhoneLegacy(
     private val context: Context,
     private val openDatabase: (File) -> LegacyDatabase = ::AndroidLegacyDatabase,
     private val reached: (String) -> Unit = {},
+    private val lab: Boolean = PhoneLab.isOn,
 ) {
     private val app: Context = context.applicationContext ?: context
     private val dataDir: File get() = UpgradeGate.dataDir(app)
@@ -61,12 +62,28 @@ class PhoneLegacy(
     private val snapshotFolder: File get() = File(File(app.noBackupFilesDir, "PhoneSync"), "LegacySnapshot")
     private val oldThumbnails: File get() = File(app.cacheDir, "TabSnapshots")
     private val newThumbnails: File get() = File(app.filesDir, "PageSnapshots")
+    private val labUnusableFlag: File get() = File(File(app.noBackupFilesDir, "PhoneSync"), "lab-legacy-unusable")
+
+    fun setLabUnusable(on: Boolean) {
+        check(lab) { "making the old app's data unusable is a lab switch" }
+        if (on) {
+            labUnusableFlag.parentFile?.mkdirs()
+            labUnusableFlag.writeText("io")
+        } else {
+            labUnusableFlag.delete()
+        }
+    }
 
     private fun preferences(name: String): Map<String, Any> = LegacyPreferencesFile.read(File(dataDir, "shared_prefs/$name.xml"))
 
     fun source(): Map<String, Any?> = synchronized(LOCK) {
-        if (UpgradeGate.completion(app) != null) return mapOf("kind" to "done")
+        when (UpgradeGate.completion(app)) {
+            is UpgradeGate.Completion.Imported -> return mapOf("kind" to "done", "outcome" to "imported")
+            UpgradeGate.Completion.StartedFresh -> return mapOf("kind" to "done", "outcome" to "startedFresh")
+            null -> Unit
+        }
         if (!UpgradeGate.composeSourceExists(app)) return mapOf("kind" to "none")
+        if (lab && labUnusableFlag.isFile) return mapOf("kind" to "unusable", "reason" to "io")
         try {
             PREFERENCE_FILES.forEach(::preferences)
             val counts = if (sourceDatabase.exists()) withDatabase(::counts) else Triple(0L, 0L, 0L)

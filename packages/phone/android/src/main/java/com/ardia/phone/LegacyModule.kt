@@ -26,6 +26,8 @@ class LegacyModule : Module() {
 
         AsyncFunction("applyNativeSettings") { -> reading { PhoneLegacy(context).applyNativeSettings() } }
 
+        Function("labSetUnusable") { on: Boolean -> PhoneLegacy(context).setLabUnusable(on) }
+
         AsyncFunction("startFresh") { ->
             val app = context
             reading { PhoneLegacy(app).startFresh { PhoneSync.controller(app).localDidChange() } }

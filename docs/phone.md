@@ -327,8 +327,12 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
     on the phone, Try Again. After a second failure it also offers Start Without Them, which records
     `legacy.startedFresh` (not a receipt), leaves the old data alone so a later version can still bring it over,
     and starts the app. Links that arrive while the screen is up run once, after the app starts.
-  - Start Without Them calls `legacyImport.startFresh()` when the native module has it. Neither phone has it yet,
-    so on Android the gate stays closed after that choice (no sync, no blocking or site settings, links held).
+  - Start Without Them calls `legacyImport.startFresh()`. On Android (248b3f68a) it writes the marker with outcome
+    `startedFresh` and no receipt, opens the gate, delivers held links and starts sync once, and touches no Compose
+    file; `source()` then answers `done` with `outcome: "startedFresh"` (an import gives `outcome: "imported"`). A
+    later `markImported` still imports over it.
+  - Per-site settings (1b33e2c47): a host's Desktop Site applies when a page enters that host, and hosts with
+    blockers off join Trusted Sites.
 - **Signing.** Android installs an update only when both apps have the same signing key and the new versionCode is
   not lower. The Compose debug build is signed with the building machine's `~/.android/debug.keystore`. The Expo
   app signs with `apps/phone/android/app/debug.keystore`, so for an upgrade it is re-signed with the Compose key
@@ -338,10 +342,12 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
 #### Upgrade tester script
 
 Use the Compose APK and the Expo upgrade APK built for this run (same key). Watch
-`adb logcat -s ArdiaJS PAGELAB` throughout, and `adb logcat -b crash` for crashes. `P=com.ardia.browser.android`.
+`adb logcat -s ReactNativeJS:I ArdiaJS PAGELAB` throughout, and `adb logcat -b crash` for crashes.
+`P=com.ardia.browser.android`. The lab is `adb shell am start -n $P/.MainActivity --ez com.ardia.phone.PAGE_LAB true`,
+then Upgrade; opening the lab never runs the import.
 
 1. **Start clean.** `adb uninstall $P`. An earlier Expo build has a different key and can't be updated in place.
-2. **Set up the Compose app as a tester has it.** `adb install ardia-compose-upgrade9.apk`, finish onboarding,
+2. **Set up the Compose app as a tester has it.** `adb install ardia-compose-upgrade10.apk`, finish onboarding,
    then:
    - Open at least eight tabs. Give one back history three pages deep and scroll it halfway down a long page.
      Open the deck so each tab gets a thumbnail.
@@ -354,44 +360,55 @@ Use the Compose APK and the Expo upgrade APK built for this run (same key). Watc
    - Change blocking: turn off cookie banners, add a trusted site, add a line to My Filters, turn one filter list off.
    - Connect sync to the Mac and send one tab each way.
 3. **Write down the state.** Do this before anything else:
-   - Screenshot the deck, the Archive, History, every settings page you changed, and the Mac's device list.
+   - Screenshot the deck, the Archive, History, every settings page you changed, and the Mac's device list
+     (Settings › Sync on the Mac, with the phone's device id in its detail).
    - Run `adb shell am force-stop $P`.
    - Run `adb shell run-as $P sh -c 'sha256sum databases/* shared_prefs/ardia.*.xml cache/TabSnapshots/*'`
-     and save the output.
-4. **Install the Expo app over it.** `adb install -r ardia-phone-upgrade9.apk`.
-   - **Reader check, before the app itself runs.** Open the lab
-     (`adb shell am start -n $P/.MainActivity --ez com.ardia.phone.PAGE_LAB true`), tap Upgrade, then Read source
-     and Read everything (`adb logcat -s ReactNativeJS:I | grep "PAGELAB upgrade"`).
+     and save the output. (`run-as` works only on the Compose debug build; the Expo build can't be inspected so.)
+4. **Install the Expo app over it.** `adb install -r ardia-phone-upgrade10.apk`. Don't open the app yet.
+5. **Reader check.** In the lab, tap Read source and Read everything (`grep "PAGELAB upgrade"`):
    - The source is `pending`, with the tab, Archive and visit counts from step 2.
    - `read` shows every tab and both Archive entries, `states` at least the deep tab and the archived one,
      `thumbnails` one per card that had a picture, and `selected` the tab that was open.
    - `preferences` lists the keys you changed, and `visits` matches the source's visit count.
-   - The lab only reads: the page part of the lab reports `ERR_IMPORT_PENDING` while the import waits. Force-stop.
-   - Then send the app a link before it opens:
-     `adb shell am start -a android.intent.action.VIEW -d https://example.com/upgrade -n $P/.MainActivity`.
-   - **Failure screen.** Before the app first opens, make the source unreadable:
-     `adb shell run-as $P chmod 000 shared_prefs/ardia.browser.xml`. Open the app: the "Couldn’t Bring Over Your
-     Tabs" screen shows in place of the deck, and logcat has `ardia-legacy failed reason=unusable_io`. Tap Try
-     Again: the same screen, now with Start Without Them and its note under it. Don't tap it. Run
-     `adb shell run-as $P chmod 660 shared_prefs/ardia.browser.xml` and tap Try Again: the deck appears with the
-     import, and `example.com/upgrade` opens once.
-5. **Check every item** against step 3:
+   - The page part of the lab reports `ERR_IMPORT_PENDING` while the import waits.
+6. **Failure screen.** In the lab, tap Make source unusable (`source reports unusable (io)`; no Compose file is
+   touched), then `adb shell am force-stop $P`. Send a link before the app opens:
+   `adb shell am start -a android.intent.action.VIEW -d https://example.com/upgrade -n $P/.MainActivity`.
+   - The "Couldn’t Bring Over Your Tabs" screen shows in place of the deck, and logcat has
+     `ardia-legacy failed reason=unusable_io`. example.com does not open.
+   - Tap Try Again: the same screen, now with Start Without Them and its note under it. Don't tap it.
+   - Open the lab, tap Make source usable, then force-stop.
+7. **A kill in the middle of the import.** Run each of these once, then wait 3 s:
+   `adb shell "am start -n $P/.MainActivity; sleep 0.3; am force-stop $P"`, then the same with `sleep 0.8` and
+   `sleep 1.5`. Report the `ardia-legacy` lines from each.
+8. **The import.** Open the app normally. The deck appears with the import (`ardia-legacy imported …`), and
+   `example.com/upgrade` opens once, after the deck. Then check every item against step 3:
    - The deck has every tab in the same order, the same tab is selected, and each card shows its thumbnail.
    - The deep tab goes Back through its three pages and opens at its scroll position.
    - The Archive has both entries, and restoring the one with history keeps it.
-   - History has all the visits and search finds old ones.
-   - Every setting you changed holds, including the site and blocking settings, My Filters, the trusted site and
-     the list you turned off.
+   - History has all the visits and search finds old ones, with no visit twice.
+   - Every setting you changed holds: Night Shade, search engine and suggestions, swipe, auto-archive, bottom bar,
+     the color, Open App Links In, the Reader's size, serif and theme, each site's zoom, Night Shade and app
+     links, cookie banners, the trusted site, My Filters and the list you turned off.
    - Onboarding doesn't show (it does when the Compose app's onboarding wasn't finished).
-   - `example.com/upgrade` opens once, after the deck appears, and not again.
-6. **The device the Mac sees.** On the Mac, the phone appears once, under the same name and device id as before.
+   - In the lab, Read source gives `done` with `outcome imported`.
+9. **The device the Mac sees.** On the Mac, the phone appears once, under the same name and device id as in step 3.
    It is not a second, new device. A tab sent from the Mac arrives, and one sent from the phone reaches the Mac.
-7. **Relaunch with no second import.** `adb shell am force-stop $P`, then open the app twice. Each time, the deck
-   and the Archive have the same counts as step 5 (nothing doubled), and logcat shows no import running again.
-8. **Install the Compose app back.** `adb install -r -d ardia-compose-upgrade9.apk`. It opens with the tabs,
-   Archive, History and settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3
-   again: every line matches.
-
+10. **Relaunch with no second import.** `adb shell am force-stop $P`, then open the app twice. Each time, the deck,
+    the Archive and History have the same counts as step 8 (nothing doubled), and logcat shows no
+    `ardia-legacy imported` line.
+11. **Install the Compose app back.** `adb install -r -d ardia-compose-upgrade10.apk`. It opens with the tabs,
+    Archive, History and settings from step 2, as if the Expo app had never run. Run the `sha256sum` from step 3
+    again: every line matches.
+12. **Start Without Them** (a second, short pass). `adb uninstall $P`, install the Compose APK, open two tabs and
+    turn search suggestions off, force-stop, install the Expo APK. In the lab, Make source unusable; force-stop;
+    open the app, Try Again, then tap Start Without Them.
+    - The app starts with no imported tabs, and logcat has the started-fresh line. Sync's page in Settings shows
+      the Mac (sync runs), and a link sent now opens.
+    - In the lab, Read source gives `done` with `outcome startedFresh`. Make source usable, force-stop and open
+      the app twice: it stays started fresh, with no failure screen and no import.
+    - `adb install -r -d ardia-compose-upgrade10.apk`: the Compose app still has its two tabs and the setting.
 ## Telemetry
 
 Off until the user chooses, in Settings (Share anonymous usage stats, with What's Sent) or on onboarding's last step. The consent model is the Mac's: nothing is sent, queued or counted while sharing is off, turning it off drops the queue, the day's counts and any request in flight at once, and an install ID is made only the first time sharing is turned on. Unlike the Mac, the phone sends no `daily_active` ping while sharing is off.
