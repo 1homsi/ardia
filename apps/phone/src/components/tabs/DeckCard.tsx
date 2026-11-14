@@ -11,7 +11,36 @@ import { FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, t
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
+const UNSHOWN_TAB_FIELDS = new Set<keyof BrowserTab>(["lastActive"]);
+
+function sameCardTab(a: BrowserTab, b: BrowserTab): boolean {
+  if (a === b) return true;
+  for (const key of Object.keys(a) as (keyof BrowserTab)[]) if (!UNSHOWN_TAB_FIELDS.has(key) && a[key] !== b[key]) return false;
+  return Object.keys(a).length === Object.keys(b).length;
+}
+
+function sameCard(a: Props, b: Props): boolean {
+  for (const key of Object.keys(a) as (keyof Props)[]) {
+    if (key === "tab" ? !sameCardTab(a.tab, b.tab) : a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
+export const DECK_PHASE = { settled: 0, opening: 1, closing: 2 } as const;
+
+export function deckRole(phase: number, expanded: number, index: number): DeckRole {
+  "worklet";
+  if (phase === DECK_PHASE.settled || expanded < 0) return "stay";
+  if (index === expanded) return "expanded";
+  if (phase === DECK_PHASE.opening) return index < expanded ? "launcher" : "slideRight";
+  return index < expanded ? "slideLeft" : "slideRight";
+}
+
+const EXPANDED_Z = 100_000;
+
 export type DeckMotion = {
+  phase: SharedValue<number>;
+  expandedIndex: SharedValue<number>;
   scroll: SharedValue<number>;
   scaleProgress: SharedValue<number>;
   positionProgress: SharedValue<number>;
@@ -26,7 +55,6 @@ type Props = {
   tab: BrowserTab;
   index: number;
   isLast: boolean;
-  role: DeckRole;
   geometry: DeckGeometry;
   motion: DeckMotion;
   shift: { by: number; generation: number };
@@ -71,7 +99,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
   return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift };
 }
 
-export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
+export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
   countRender("DeckCard");
   const theme = useTheme();
   const tone = usePageTone(tab.id);
@@ -86,18 +114,20 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
     slot.value = reduceMotion ? withTiming(0, { duration: tabsMotion.fade }) : withSpring(0, tabsMotion.gapClose);
   }, [index, shift.generation, shift.by, slot]);
 
-  const { scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
+  const { phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
 
   const placed = useDerivedValue(() => {
+    const role = deckRole(phase.value, expandedIndex.value, index);
     const flying = flyIndex.value === index;
     const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
     const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
     const top = p.y - (g.cardHeight * p.scale) / 2 - tabsLayout.headerGap - tabsLayout.headerHeight;
-    return { pose: p, top, place: deckHeaderPlacement(p.x - (g.cardWidth * p.scale) / 2, p.visible) };
-  }, [g, role, index, isLast]);
+    return { pose: p, top, place: deckHeaderPlacement(p.x - (g.cardWidth * p.scale) / 2, p.visible), z: index * 2 + (role === "expanded" ? EXPANDED_Z : 0), expanded: role === "expanded" };
+  }, [g, index, isLast]);
   const cardStyle = useAnimatedStyle(() => {
     const p = placed.value.pose;
     return {
+      zIndex: placed.value.z,
       opacity: p.opacity,
       borderRadius: p.corner / Math.max(p.scale, 0.01),
       transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
@@ -107,6 +137,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
   const headerStyle = useAnimatedStyle(() => {
     const { pose: p, top, place } = placed.value;
     return {
+      zIndex: placed.value.z + 1,
       opacity: p.header * deckHeaderIconReveal(place.available, tabsLayout.faviconSize),
       transform: [{ translateX: place.left + place.available - g.cardWidth }, { translateY: top }],
     };
@@ -114,6 +145,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
   const reachStyle = useAnimatedStyle(() => {
     const p = placed.value.pose;
     return {
+      zIndex: placed.value.z + 1,
       transform: [
         { translateX: p.x - (g.cardWidth * p.scale) / 2 },
         { translateY: p.y - (g.cardHeight * p.scale) / 2 },
@@ -127,11 +159,10 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
     return { transform: [{ translateX: g.cardWidth - available + deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
   });
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(placed.value.place.available) }));
-  const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: role === "expanded" ? deckStatusStrip(g, scaleProgress.value) : 0 }] }), [g, role]);
+  const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: placed.value.expanded ? deckStatusStrip(g, scaleProgress.value) : 0 }] }), [g]);
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
-  const z = index * 2 + (role === "expanded" ? 100_000 : 0);
   return (
     <>
       <Animated.View
@@ -140,7 +171,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
         importantForAccessibility="no-hide-descendants"
         style={[
           styles.card,
-          { width: g.cardWidth, height: g.cardHeight, zIndex: z, borderColor: theme.cardEdge, backgroundColor: tone?.top ?? theme.surface },
+          { width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone?.top ?? theme.surface },
           cardStyle,
         ]}
       >
@@ -160,9 +191,9 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
           { name: "close", label: "Close Tab", run: () => onCloseNow(index) },
         ])}
         pointerEvents="none"
-        style={[styles.reach, { width: g.cardWidth, height: g.cardHeight, zIndex: z + 1 }, reachStyle]}
+        style={[styles.reach, { width: g.cardWidth, height: g.cardHeight }, reachStyle]}
       />
-      <Animated.View style={[styles.header, { width: g.cardWidth, zIndex: z + 1 }, headerStyle]} pointerEvents="none">
+      <Animated.View style={[styles.header, { width: g.cardWidth }, headerStyle]} pointerEvents="none">
         <FadeView testID="deckHeaderFade" trailing={{ length: DECK_HEADER.trailingFade }} style={StyleSheet.absoluteFill}>
           <Animated.View style={[styles.headerRow, rowStyle]}>
             {tab.isPrivate ? (
@@ -188,7 +219,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, role, geome
       </Animated.View>
     </>
   );
-});
+}, sameCard);
 
 const CARD_ELEVATION = 14;
 const HEADER_ROW_ROOM = 2000;

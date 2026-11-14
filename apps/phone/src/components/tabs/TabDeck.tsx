@@ -53,22 +53,13 @@ import { useSyncEnabled } from "../../state/sync/hooks";
 import { pinToMac, sendTab, sendTargetsFor } from "../../state/sync/actions";
 import { currentTabs } from "../../state/tabs/store";
 import { DeckBar } from "./DeckBar";
-import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
+import { DECK_PHASE, DeckCard, type DeckMotion } from "./DeckCard";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
 import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
 import { ArchiveIntervalCard } from "./ArchiveIntervalCard";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
 
 type Phase = { kind: "opening" | "settled" | "closing"; id: string | null };
-
-function roleOf(phase: Phase, id: string, index: number, order: readonly string[]): DeckRole {
-  if (phase.kind === "settled" || !phase.id) return "stay";
-  const expanded = order.indexOf(phase.id);
-  if (expanded < 0) return "stay";
-  if (id === phase.id) return "expanded";
-  if (phase.kind === "opening") return index < expanded ? "launcher" : "slideRight";
-  return index < expanded ? "slideLeft" : "slideRight";
-}
 
 export function TabDeck() {
   countRender("TabDeck");
@@ -105,6 +96,18 @@ export function TabDeck() {
   }, [phase.kind]);
   useEffect(() => () => void hideArchiveCard(), []);
   const hidden = useRef(new Set<string>());
+  const deckPhase = useSharedValue<number>(DECK_PHASE.settled);
+  const expandedIndex = useSharedValue(-1);
+  const enterPhase = (next: Phase, at: readonly string[] = order) => {
+    deckPhase.value = DECK_PHASE[next.kind];
+    expandedIndex.value = next.id ? at.indexOf(next.id) : -1;
+    setPhase(next);
+  };
+  const settlePhase = () => {
+    "worklet";
+    deckPhase.value = DECK_PHASE.settled;
+    expandedIndex.value = -1;
+  };
   const scroll = useSharedValue(initialDeckScroll(order.length));
   const scaleProgress = useSharedValue(1);
   const positionProgress = useSharedValue(1);
@@ -114,8 +117,8 @@ export function TabDeck() {
   const flyLift = useSharedValue(0);
   const flyVanish = useSharedValue(0);
   const motion = useMemo<DeckMotion>(
-    () => ({ scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
-    [scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
+    () => ({ phase: deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
+    [deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
   const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
@@ -138,12 +141,14 @@ export function TabDeck() {
     scroll.value = openingDeckScroll(index, order.length);
     setAnchor(Math.round(scroll.value));
     beginInteraction("deck open", INTERACTION_WINDOW_MS.deckOpen);
-    setPhase({ kind: "opening", id: entrance });
+    enterPhase({ kind: "opening", id: entrance });
     scaleProgress.value = 0;
     positionProgress.value = 0;
     scaleProgress.value = withSpring(1, tabsMotion.openScale);
     positionProgress.value = withSpring(1, tabsMotion.openPosition, (finished) => {
-      if (finished) runOnJS(setPhase)({ kind: "settled", id: null });
+      if (!finished) return;
+      settlePhase();
+      runOnJS(setPhase)({ kind: "settled", id: null });
     });
   }, []);
 
@@ -167,6 +172,7 @@ export function TabDeck() {
     scroll.value = after;
     setAnchor(Math.round(after));
     setShift((s) => ({ by: after - before, generation: s.generation + 1 }));
+    if (phase.id) expandedIndex.value = next.indexOf(phase.id);
     setOrder(next);
   }, [live]);
 
@@ -204,7 +210,7 @@ export function TabDeck() {
       return;
     }
     setMenu(null);
-    setPhase({ kind: "closing", id });
+    enterPhase({ kind: "closing", id });
     beginOpeningTab(id);
     scaleProgress.value = withSpring(0, tabsMotion.expand);
     positionProgress.value = withSpring(0, tabsMotion.expand, (finished) => {
@@ -444,7 +450,6 @@ export function TabDeck() {
                     tab={tab}
                     index={index}
                     isLast={index === count - 1}
-                    role={roleOf(phase, id, index, order)}
                     geometry={g}
                     motion={motion}
                     shift={shift}
