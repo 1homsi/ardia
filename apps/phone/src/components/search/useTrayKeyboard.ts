@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Keyboard, Platform } from "react-native";
 import { KeyboardState, runOnJS, useAnimatedKeyboard, useAnimatedReaction, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { keyboardIsUp, TRAY_LIFT } from "../../lib/trayMotion";
+import { keyboardTargets } from "../../platform/keyboard";
 
 let knownFull = 0;
 
@@ -17,6 +18,15 @@ export function useTrayKeyboard(): TrayKeyboard {
     full.value = height;
   };
   useEffect(() => {
+    if (Platform.OS === "android" && keyboardTargets.isAvailable()) {
+      const now = keyboardTargets.current();
+      if (now && now.height > TRAY_LIFT.keyboardThreshold) remember(now.height);
+      const willChange = keyboardTargets.addWillChangeListener((change) => {
+        remember(change.target);
+        setTarget(change.target > TRAY_LIFT.keyboardThreshold ? change.target : 0);
+      });
+      return () => willChange.remove();
+    }
     const shows = Platform.OS === "ios" ? ["keyboardWillShow", "keyboardWillChangeFrame"] : ["keyboardDidShow"];
     const hides = Platform.OS === "ios" ? ["keyboardWillHide"] : ["keyboardDidHide"];
     const subscriptions = [
