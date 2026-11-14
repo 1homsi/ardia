@@ -2,6 +2,7 @@ package com.ardia.browser.android
 
 import android.app.Application
 import android.content.res.Configuration
+import com.ardia.phone.PhoneLab
 import com.ardia.phone.PhoneSync
 import com.ardia.phone.UpgradeGate
 import com.ardia.sync.SyncController
@@ -46,6 +47,9 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
         DefaultNewArchitectureEntryPoint.releaseLevel = runCatching {
             ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
         }.getOrDefault(ReleaseLevel.STABLE)
+        if (PhoneLab.isOn) {
+            android.util.Log.i("PAGELAB", "PAGELAB build ${getString(R.string.ardia_build_commit)} dirty: ${getString(R.string.ardia_build_dirty)}")
+        }
         UpgradeGate.install(this)
         LabNetworkLog.install(this)
         loadReactNative(this)

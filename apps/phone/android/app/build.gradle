@@ -22,7 +22,31 @@ def ardiaLab = findProperty('ardiaLab') == 'true'
 if (ardiaLab != (System.getenv('EXPO_PUBLIC_ARDIA_LAB') == 'true')) {
     throw new GradleException("-PardiaLab and EXPO_PUBLIC_ARDIA_LAB disagree: build through apps/phone/scripts/gradle-locked, or set both or neither")
 }
-tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAssets') }.configureEach { inputs.property('ardiaLab', ardiaLab) }
+def repoRoot = new File(projectRoot).getParentFile().getParentFile()
+def bundleGuard = "${projectRoot}/scripts/bundle-guard.ts"
+def runBundleGuard = { List<String> arguments ->
+    def process = new ProcessBuilder((["node", "--no-warnings", bundleGuard] + arguments + ["--root", repoRoot.absolutePath]).collect { it.toString() }).directory(repoRoot).redirectErrorStream(true).start()
+    def output = process.inputStream.text.trim()
+    [process.waitFor(), output]
+}
+def ardiaCommit = ["git", "rev-parse", "HEAD"].execute(null, repoRoot).text.trim()
+def ardiaDirty = runBundleGuard(["dirty"])[1] == "no" ? "no" : "yes"
+def bundleGuardState = new File(buildDir, "bundle-guard/state.json")
+tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAssets') }.configureEach { task ->
+    inputs.property('ardiaLab', ardiaLab)
+    inputs.property('ardiaCommit', ardiaCommit)
+    outputs.upToDateWhen { false }
+    doFirst {
+        def (status, output) = runBundleGuard(["before", "--state", bundleGuardState.absolutePath, "--expect", ardiaCommit])
+        logger.lifecycle(output)
+        if (status != 0) throw new GradleException(output)
+    }
+    doLast {
+        def (status, output) = runBundleGuard(["after", "--state", bundleGuardState.absolutePath])
+        logger.lifecycle(output)
+        if (status != 0) throw new GradleException(output)
+    }
+}
 
 def composeApp = "${projectRoot}/../android/app/src/main"
 def composeSystemInThisApp = ['ArdiaWidgets.kt', 'SystemSnapshot.kt', 'SystemSnapshots.kt', 'SearchTileService.kt', 'ShortcutActivity.kt', 'WidgetColors.kt']
@@ -46,6 +70,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2
         versionName "0.1.0"
+        resValue "string", "ardia_build_commit", ardiaCommit
+        resValue "string", "ardia_build_dirty", ardiaDirty
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {
