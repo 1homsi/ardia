@@ -49,6 +49,8 @@ export {
   type LookColors,
   type ProfileBackdropProps,
 } from "./look";
+export { lookBudget, useLookBudgetProbe } from "./lookBudget";
+export { type BudgetState, type FrameSample, type LookMode, type SystemLook } from "./lookBudgetRules";
 export { favicons, type FaviconLook, type FaviconTone } from "./favicons";
 export { network, type NetworkEvent } from "./network";
 export { canUseSpeech, speech, type SpeechAccess, type SpeechEvent, type SpeechProblem } from "./voice";

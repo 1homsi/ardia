@@ -110,6 +110,14 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
 
     protected val lookIsOff: Boolean get() = LookSwitch.isOff(context)
 
+    protected var budgetDegraded: Boolean = false
+        private set
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        budgetDegraded = LookBudget.isDegraded(context)
+    }
+
     init {
         setWillNotDraw(false)
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -184,7 +192,11 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }.toTypedArray()
     }
 
-    internal val isAnimating: Boolean get() = isShown && !lookIsOff && !reduceMotion && !reduceTransparency
+    private val still: Boolean get() = reduceMotion || budgetDegraded
+
+    private val noBlobs: Boolean get() = reduceTransparency || budgetDegraded
+
+    internal val isAnimating: Boolean get() = isShown && !lookIsOff && !still && !noBlobs
 
     internal fun forgetPaint() {
         paintedLook = null
@@ -209,13 +221,13 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     }
 
     internal fun firstBlobCentre(): Pair<Float, Float> {
-        val angle = if (reduceMotion) 0f else angle(0, SystemClock.uptimeMillis())
+        val angle = if (still) 0f else angle(0, SystemClock.uptimeMillis())
         return LookRules.blobCenter(0, angle, width.toFloat(), height.toFloat())
     }
 
     internal fun describe(): String =
-        "${width}x$height, ${frames} frames, ${framesPerSecond} fps, ${if (reduceMotion) "still" else "moving"}, ${if (isDark) "dark" else "light"}, " +
-            "transparency ${if (reduceTransparency) "reduced" else "on"}, mesh centre ${LookProbeText.hex(meshCentre())}"
+        "${width}x$height, ${frames} frames, ${framesPerSecond} fps, ${if (still) "still" else "moving"}, ${if (isDark) "dark" else "light"}, " +
+            "transparency ${if (noBlobs) "reduced" else "on"}${if (budgetDegraded) " (look budget: degraded)" else ""}, mesh centre ${LookProbeText.hex(meshCentre())}"
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -236,7 +248,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         val dark = isDark
         val look = look
         val drawn = "${if (dark) "dark" else "light"}, look $look, ${width}x$height, " +
-            "${if (reduceMotion) "still (reduce motion)" else "moving"}, ${if (reduceTransparency) "no blobs (reduce transparency)" else "blobs"}, " +
+            "${if (reduceMotion) "still (reduce motion)" else if (budgetDegraded) "still (look budget)" else "moving"}, " +
+            "${if (reduceTransparency) "no blobs (reduce transparency)" else if (budgetDegraded) "no blobs (look budget)" else "blobs"}, " +
             if (lookIsOff) "look switched off in the lab: flat colour" else "look on"
         if (drawn != drawnMode) {
             drawnMode = drawn
@@ -247,7 +260,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }
         if (frames == 0L) {
             firstFrameAt = SystemClock.uptimeMillis()
-            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck first frame ${width}x$height ${if (dark) "dark" else "light"} ${if (reduceMotion) "still" else "moving"}")
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck first frame ${width}x$height ${if (dark) "dark" else "light"} ${if (still) "still" else "moving"}")
         }
         frames += 1
         if (lookIsOff) {
@@ -262,8 +275,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         source.set(0, 0, meshBitmap.width, meshBitmap.height)
         target.set(0, 0, width + 1, height + 1)
         canvas.drawBitmap(meshBitmap, source, target, meshPaint)
-        if (reduceTransparency) return
-        val animated = !reduceMotion
+        if (noBlobs) return
+        val animated = !still
         val now = SystemClock.uptimeMillis()
         blobPaint.alpha = (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt()
         for (index in blobShaders.indices) {
@@ -483,6 +496,7 @@ internal object FrostPage {
     fun choose(
         blurSupported: Boolean,
         reduceTransparency: Boolean,
+        budgetDegraded: Boolean = false,
         hasSource: Boolean,
         sourceHasContent: Boolean,
         hardware: Boolean,
@@ -494,6 +508,7 @@ internal object FrostPage {
         lookOff -> Choice(Path.Fallback, "look turned off in the lab")
         !blurSupported -> Choice(Path.Fallback, "below Android 12")
         reduceTransparency -> Choice(Path.Fallback, "reduce transparency")
+        budgetDegraded -> Choice(Path.Fallback, "look budget: this phone measured over budget")
         !hasSource -> Choice(Path.Fallback, "no source")
         !hardware -> Choice(Path.Fallback, "software canvas")
         insideSource -> Choice(Path.Fallback, "inside its own source")
@@ -595,7 +610,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
     }
 
     internal fun canBlur(): Boolean =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Frosting.isBlurSupported && !reduceTransparency && !lookIsOff
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Frosting.isBlurSupported && !reduceTransparency && !lookIsOff && !budgetDegraded
 
     internal val holdsLayer: Boolean get() = blurNode != null
 
@@ -633,6 +648,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         val choice = FrostPage.choose(
             blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Frosting.isBlurSupported,
             reduceTransparency = reduceTransparency,
+            budgetDegraded = budgetDegraded,
             hasSource = from != null,
             sourceHasContent = from?.hasContent == true,
             hardware = canvas.isHardwareAccelerated,

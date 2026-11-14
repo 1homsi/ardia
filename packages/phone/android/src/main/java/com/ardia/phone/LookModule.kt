@@ -1,5 +1,7 @@
 package com.ardia.phone
 
+import expo.modules.kotlin.Promise
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -22,6 +24,33 @@ class LookModule : Module() {
             FrostSources.allSources().forEach { it.invalidate() }
             off
         }
+
+        Function("lookBudget") {
+            val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
+            mapOf("state" to LookBudget.state(context), "version" to LookBudget.version(context), "forced" to LookBudget.forced(context))
+        }
+
+        Function("setLookBudget") { state: String ->
+            val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
+            LookBudget.save(context, state)
+        }
+
+        Function("forceLookBudget") { applied: String? ->
+            val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
+            LookBudget.force(context, applied?.takeIf { it == "full" || it == "degraded" })
+            android.util.Log.i("PAGELAB", "PAGELAB look budget ${applied?.let { "forced $it" } ?: "measured again, not forced"} (from the next time the deck is built)")
+        }
+
+        AsyncFunction("sampleFrames") { millis: Double, promise: Promise ->
+            val activity = appContext.currentActivity
+            if (activity == null) {
+                promise.resolve(null)
+                return@AsyncFunction
+            }
+            FrameSampler.sample(activity, millis.toLong().coerceIn(100L, 10_000L)) { sample ->
+                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines) })
+            }
+        }.runOnQueue(Queues.MAIN)
 
         Function("lookCounts") {
             val counts = LookMemory.counts()

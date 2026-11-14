@@ -1,4 +1,4 @@
-import { DeckBackdrop, FilmGrain, Frost, FrostSource, INCOGNITO_LOOK, labLog, lookIsNative, lookLab, PageView, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
+import { DeckBackdrop, FilmGrain, Frost, FrostSource, INCOGNITO_LOOK, labLog, lookBudget, lookIsNative, lookLab, PageView, ProfileBackdrop, type FrostVariant } from "@ardia/phone-native";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -33,6 +33,13 @@ export function LookLab() {
   const [faded, setFaded] = useState(false);
   const [lookOff, setLookOff] = useState(() => lookLab.lookIsOff());
   const [blobRate, setBlobRate] = useState(() => lookLab.blobFramesPerSecond());
+  const [budget, setBudget] = useState(() => lookBudget.describe());
+  const budgetAction = (run: () => void) => {
+    run();
+    const now = lookBudget.describe();
+    labLog(`PAGELAB look budget ${now}`);
+    setBudget(now);
+  };
   const look = LOOKS[lookIndex]!;
   const alwaysDark = look.color === INCOGNITO_LOOK;
   const drawsDark = dark || alwaysDark;
@@ -65,6 +72,13 @@ export function LookLab() {
           onPress={() => setBlobRate(lookLab.setBlobFramesPerSecond(BLOB_RATES[(BLOB_RATES.indexOf(blobRate) + 1) % BLOB_RATES.length]!) ?? blobRate)}
         />
       </View>
+      <Text style={styles.caption}>Look budget: {budget}. A change applies from the next time the deck is built.</Text>
+      <View style={styles.row}>
+        <Button label="Budget: force full" onPress={() => budgetAction(() => lookBudget.force("full"))} />
+        <Button label="Budget: force degraded" onPress={() => budgetAction(() => lookBudget.force("degraded"))} />
+        <Button label="Budget: measured" onPress={() => budgetAction(() => lookBudget.force(null))} />
+        <Button label="Budget: reset" onPress={() => budgetAction(() => lookBudget.reset())} />
+      </View>
       <View style={styles.stage}>
         <FrostSource name="lab" style={StyleSheet.absoluteFill}>
           <DeckBackdrop style={StyleSheet.absoluteFill} color={look.color} themeColors={look.themeColors} dark={dark} reduceMotion={still} />
@@ -96,6 +110,7 @@ const styles = StyleSheet.create({
   panel: { backgroundColor: "#eeeae2", padding: 6, borderRadius: 6, gap: 6 },
   title: { fontSize: 13, fontWeight: "700", color: "#1d1a17" },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  caption: { fontSize: 12, color: "#555" },
   button: { backgroundColor: "#ddd6c9", paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6 },
   buttonText: { fontSize: 13, color: "#1d1a17" },
   stage: { height: 220, borderRadius: 10, overflow: "hidden" },

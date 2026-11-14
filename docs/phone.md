@@ -429,6 +429,13 @@ off in the lab`.
     blobs every frame, at 30 fps and at 20 fps, the idle deck, and the Compose baseline if Compose is installed),
     then step 37 with the look on and off, the frost megabytes from each Memory line, and the Home plus
     `UI_HIDDEN` trim.
+51. **The look's budget** (from the build that has it): on a fresh install, open the deck and leave it idle for 4 s,
+    twice, closing it in between. Each time logcat has `PAGELAB look budget over|within …` with the frames, the
+    median against the deadline and the share missed. On the M3 report both lines and what the lab's Look says
+    about the next build; force-stop and reopen: if two samples were over, the deck stands still and the frosts
+    are fills, and the Memory line says 0 recording, 0 layers, 0 animating. On the F4 the same, expecting
+    `within`. Then in the lab: Budget: force degraded, force-stop, reopen (still and solid), Budget: measured,
+    Budget: reset. Turn on Remove animations and check the deck stands still whatever the lab's verdict says.
 
 ## Upgrade from the Compose app on Android
 
@@ -691,6 +698,50 @@ Run it once with the look off (lab › Look) and once with it on, at animator sc
 4. Reset gfxinfo. Tray open: from a page, tap +, wait 1.5 s, Back, wait 1.5 s. Repeat five times. Save gfxinfo as `tray-<look>.txt`.
 5. `adb logcat -d -s PAGELAB | grep "PAGELAB perf" > perf-<look>.txt`.
 6. Report from each gfxinfo file: janky frames %, 50th and 90th percentiles, GPU 50th percentile, "Number Slow UI thread" and "Number Slow issue draw commands". From the perf lines, the median js and ui p50 per interaction and the renders.
+
+## The look's budget
+
+The look (the deck's moving blobs and the frosts) must cost a phone no more than it can carry. A phone measures
+it once and turns the look down if it can't; the system settings always come first.
+
+- **What is measured.** The first time the deck is built after an install or an update, `useLookBudgetProbe`
+  (called by the deck with whether it is idle) skips the deck's first second, then takes 2 s of the app's own
+  frame times while the deck stays idle (no scroll, drag, sheet, menu, tray or card opening). An idle deck with
+  the look off draws no frames at all, so every frame in the sample is the look's own. A sample that overlaps
+  anything else is dropped, and one deck open gives at most one measurement.
+- **The verdict.** A sample is over budget when its median frame misses the frame's deadline or more than a
+  quarter of its frames do, and decides nothing under 20 frames. Two over-budget samples on separate deck opens
+  degrade the phone; one good sample between them starts the agreement over.
+- **What degraded means.** Frosts become their fills and the deck stands still, by the same paths Reduce
+  Transparency and Reduce Motion take, which leave nothing behind (no recording, no blur layer, no redraws). Reduce
+  Motion and Reduce Transparency always turn their half off whatever was measured; the measurement can only take
+  the look away.
+- **Never in front of the user.** A verdict is stored at once but each look view reads it when it is built, so it
+  shows the next time the deck (or a sheet with a frost) is built, never mid-session.
+- **A second chance.** A passing phone is measured again after an app update; a degraded one after an update or
+  30 days, by showing it the full look for the next builds until two samples agree again.
+- **Telemetry.** One enum, `look_mode` (`full`, `no_blur`, `no_motion`, `neither`, from `lookBudget.mode()`), on
+  `app_launched`: the look this launch shows, system settings included. No frame time leaves the phone. Still to
+  add, by the screens agent with the deck's call to `useLookBudgetProbe`: the field in the schema, What's Sent
+  and the tables under Telemetry.
+- **The lab.** Look shows the verdict, the next build's look and the last sample (frames, median against
+  deadline, share missed) and can force full, force degraded, go back to measured, or reset. Lab builds log
+  `PAGELAB look budget over|within|inconclusive: …` for each sample.
+
+Shared and per-phone parts:
+- Shared, in TypeScript (`packages/phone/src/lookBudgetRules.ts`): judging a sample, the two-sample agreement,
+  the verdict per version, the re-measure, the system settings, the telemetry enum and the probe's timing (skip,
+  idle only, one per open). `lookBudget.ts` keeps the state and gives the hook and the lab their calls.
+- Each phone supplies four calls on `ArdiaPhoneLook`, and makes its look views read the stored `apply`
+  ("full" or "degraded") when they are built:
+  - `sampleFrames(ms)`: resolves `{ totals, deadlines }`, one entry per frame the app drew in that window, in
+    milliseconds (Android: `Window.OnFrameMetricsAvailableListener`, `TOTAL_DURATION` against `DEADLINE`, or
+    the refresh interval before Android 12; iPhone: a `CADisplayLink`'s frame times against its target time);
+  - `lookBudget()`: `{ state, version, forced }`, the stored state as JSON text, the app's version (with the
+    build commit, so a lab build counts as an update) and a lab force or null;
+  - `setLookBudget(state)` stores the JSON;
+  - `forceLookBudget("full" | "degraded" | null)`, lab builds only.
+  Android has all of it (`LookBudget.kt`); the iPhone half is not built yet.
 
 ## Telemetry
 
