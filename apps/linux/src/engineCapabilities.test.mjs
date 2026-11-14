@@ -30,6 +30,7 @@ const ENGINE = {
   hiddenElements: listed("ac_linux_site_controls.cc", "kBlockerCalls").filter((name) => /^contentBlocker\.(hiddenElements|hideElements|restoreElements)$/.test(name)),
   appendedByName: [appended("profiles.deleteData"), appended("ArdiaShell.fetchBangList")],
   wheelZoom: listed("ac_linux_page_messages.h", "kLinuxPageMessageRoutes").filter((route) => route === "webView.setCommandScrollZoom"),
+  blockAutoplay: listed("ac_linux_page_messages.h", "kLinuxPageMessageRoutes").filter((route) => route === "webView.setBlockAutoplayEverywhere"),
 };
 const ALL = Object.values(ENGINE).flat();
 
@@ -81,6 +82,7 @@ test("the engine advertises the names the shell gates on, spelled the same", () 
   assert.deepEqual(ENGINE.report, ["report.files", "report.send"]);
   assert.deepEqual(ENGINE.hiddenElements, ["contentBlocker.hiddenElements", "contentBlocker.hideElements", "contentBlocker.restoreElements"]);
   assert.deepEqual(ENGINE.wheelZoom, ["webView.setCommandScrollZoom"]);
+  assert.deepEqual(ENGINE.blockAutoplay, ["webView.setBlockAutoplayEverywhere"]);
 });
 
 test("with every new capability on, each Settings row the engine unlocks is shown and searchable", () => {

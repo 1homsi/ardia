@@ -213,6 +213,10 @@ void LinuxPageMessageBudget::Reset() {
   *this = LinuxPageMessageBudget();
 }
 
+bool LinuxAutoplayDecision(bool site_blocks, bool site_is_default, bool block_everywhere) {
+  return site_blocks || (block_everywhere && site_is_default);
+}
+
 bool LinuxPageOptions::SetPeek(std::string_view modifier) {
   std::string next = OneOf(modifier, {"alt", "shift"}) ? std::string(modifier) : "off";
   if (next == peek) return false;

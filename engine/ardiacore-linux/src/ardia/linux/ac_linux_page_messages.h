@@ -21,7 +21,7 @@ inline constexpr size_t kLinuxSelectionTextMax = 4000;
 inline constexpr std::string_view kLinuxOtherSiteKey = "site";
 inline constexpr const char* kLinuxPageMessageRoutes[] = {
     "webView.setPeekModifier", "webView.setSplitLinkModifier", "webView.setSelectionPopover",
-    "webView.setCommandScrollZoom"};
+    "webView.setCommandScrollZoom", "webView.setBlockAutoplayEverywhere"};
 
 enum class LinuxPageMessageKind {
   kHello,
@@ -53,6 +53,7 @@ bool LinuxPageMessageEnvelopeFits(std::string_view kind, std::string_view json);
 bool LinuxPageSenderAccepted(LinuxPageMessageKind kind, const LinuxPageSender& sender);
 std::optional<LinuxPageMessage> NormalizeLinuxPageMessage(LinuxPageMessageKind kind, const base::Value& value);
 bool IsLinuxPageHttpUrl(std::string_view url);
+bool LinuxAutoplayDecision(bool site_blocks, bool site_is_default, bool block_everywhere);
 std::string LinuxNowPlayingReport(bool present, bool has_video, std::string_view playback_state);
 
 class LinuxPageMessageBudget {

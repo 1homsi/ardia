@@ -78,7 +78,11 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   `setLittleArdiaOpensNewTabLinks`). While a host doesn't advertise one, the shell settles that call itself with
   `null` (`PAGE_OPTION_CALLS` in `hostModules.ts`) instead of sending it to be refused with `ERR_UNKNOWN_CALL`; its
   Settings row is hidden by the same capability. A host that advertises the call gets it. The current host
-  advertises `setCommandScrollZoom`, `setPeekOtherSiteTabs` and `setLittleArdiaOpensNewTabLinks`.
+  advertises `setCommandScrollZoom`, `setPeekOtherSiteTabs`, `setLittleArdiaOpensNewTabLinks` and
+  `setBlockAutoplayEverywhere`.
+- **Block autoplay on every site.** As on macOS, a page's autoplay is blocked when its site's autoplay setting is Block,
+  or when `webView.setBlockAutoplayEverywhere` is on and the site has no exception of its own (`ac_linux_autoplay.cc`).
+  Turning it on or off re-sends the config to open pages and updates Chromium's own autoplay policy for them.
 - **Theme swatches.** `ThemeSwatch` (the Mac's `ThemeSwatchView`: the anonymous-ID avatar, the theme editor's
   swatches, preview and colour pad) is drawn by the shell (`shims/shaders.tsx`, `shims/web/gl/themeSwatch.ts`): the
   same 17 Oklab samples and start and end points as `ArcGradientLayer`, the third colour's overlay, the hue pad, and

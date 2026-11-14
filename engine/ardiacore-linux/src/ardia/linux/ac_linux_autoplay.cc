@@ -1,8 +1,11 @@
 #include "ardia/linux/ac_linux_autoplay.h"
 
+#include <set>
 #include <utility>
 
+#include "ardia/linux/ac_linux_page_messages.h"
 #include "base/memory/raw_ptr.h"
+#include "base/no_destructor.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/content_settings/core/browser/content_settings_observer.h"
@@ -23,6 +26,15 @@ extern bool (*g_ardia_linux_autoplay_blocked)(content::WebContents* contents);
 namespace ardiacore {
 namespace {
 
+bool g_block_everywhere = false;
+
+class LinuxAutoplayFollower;
+
+std::set<LinuxAutoplayFollower*>& Followers() {
+  static base::NoDestructor<std::set<LinuxAutoplayFollower*>> followers;
+  return *followers;
+}
+
 HostContentSettingsMap* SettingsFor(content::BrowserContext* context) {
   return context ? HostContentSettingsMapFactory::GetForProfile(Profile::FromBrowserContext(context)) : nullptr;
 }
@@ -33,7 +45,19 @@ class LinuxAutoplayFollower : public content::WebContentsObserver,
  public:
   LinuxAutoplayFollower(const LinuxAutoplayFollower&) = delete;
   LinuxAutoplayFollower& operator=(const LinuxAutoplayFollower&) = delete;
-  ~LinuxAutoplayFollower() override { Stop(); }
+  ~LinuxAutoplayFollower() override {
+    Followers().erase(this);
+    Stop();
+  }
+
+  void Recheck() {
+    if (!web_contents()) return;
+    const bool blocked = Blocked();
+    if (blocked == blocked_) return;
+    blocked_ = blocked;
+    web_contents()->OnWebPreferencesChanged();
+    changed_.Run();
+  }
 
  private:
   friend class content::WebContentsUserData<LinuxAutoplayFollower>;
@@ -44,6 +68,7 @@ class LinuxAutoplayFollower : public content::WebContentsObserver,
         settings_(SettingsFor(contents->GetBrowserContext())),
         blocked_(Blocked()) {
     if (settings_) settings_->AddObserver(this);
+    Followers().insert(this);
   }
 
   bool Blocked() {
@@ -53,12 +78,8 @@ class LinuxAutoplayFollower : public content::WebContentsObserver,
 
   void OnContentSettingChanged(const ContentSettingsPattern&, const ContentSettingsPattern&,
                                ContentSettingsTypeSet types) override {
-    if (!types.Contains(ContentSettingsType::AUTOPLAY) || !web_contents()) return;
-    const bool blocked = Blocked();
-    if (blocked == blocked_) return;
-    blocked_ = blocked;
-    web_contents()->OnWebPreferencesChanged();
-    changed_.Run();
+    if (!types.Contains(ContentSettingsType::AUTOPLAY)) return;
+    Recheck();
   }
 
   void PrimaryPageChanged(content::Page&) override { blocked_ = Blocked(); }
@@ -83,7 +104,19 @@ WEB_CONTENTS_USER_DATA_KEY_IMPL(LinuxAutoplayFollower);
 bool LinuxAutoplayBlocked(const GURL& url, content::BrowserContext* context) {
   if (!url.SchemeIsHTTPOrHTTPS()) return false;
   HostContentSettingsMap* settings = SettingsFor(context);
-  return settings && settings->GetContentSetting(url, url, ContentSettingsType::AUTOPLAY) == CONTENT_SETTING_BLOCK;
+  if (!settings) return false;
+  content_settings::SettingInfo info;
+  const ContentSetting value = settings->GetContentSetting(url, url, ContentSettingsType::AUTOPLAY, &info);
+  return LinuxAutoplayDecision(value == CONTENT_SETTING_BLOCK, info.primary_pattern.MatchesAllHosts(), g_block_everywhere);
+}
+
+bool SetLinuxBlockAutoplayEverywhere(bool enabled) {
+  if (g_block_everywhere == enabled) return false;
+  g_block_everywhere = enabled;
+  for (LinuxAutoplayFollower* follower : std::set<LinuxAutoplayFollower*>(Followers())) {
+    if (Followers().contains(follower)) follower->Recheck();
+  }
+  return true;
 }
 
 void InstallLinuxAutoplayPolicy() {

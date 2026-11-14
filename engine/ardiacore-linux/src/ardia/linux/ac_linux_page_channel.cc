@@ -674,6 +674,12 @@ bool SetLinuxPageOption(const std::string& route, const base::DictValue& input, 
     g_ardia_linux_wheel_zoom_off = !*enabled;
     return true;
   }
+  if (route == "webView.setBlockAutoplayEverywhere") {
+    const auto enabled = input.FindBool("enabled");
+    if (!enabled) return *error = "A boolean block autoplay setting is required", false;
+    SetLinuxBlockAutoplayEverywhere(*enabled);
+    return true;
+  }
   if (route == "webView.setSelectionPopover") {
     const auto enabled = input.FindBool("enabled");
     if (!enabled) return *error = "A boolean selection popover setting is required", false;

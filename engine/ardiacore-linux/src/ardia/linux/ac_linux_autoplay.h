@@ -13,6 +13,7 @@ class WebContents;
 namespace ardiacore {
 
 bool LinuxAutoplayBlocked(const GURL& url, content::BrowserContext* context);
+bool SetLinuxBlockAutoplayEverywhere(bool enabled);
 void InstallLinuxAutoplayPolicy();
 void FollowLinuxAutoplay(content::WebContents* contents, base::RepeatingCallback<void()> changed);
 

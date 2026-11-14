@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -169,6 +170,13 @@ void Options() {
   Expect(!main.Find("blockAutoplay") && !child.Find("blockAutoplay"), "autoplay allowed by default");
   Expect(options.PageConfig(true, true).FindBool("blockAutoplay") == true, "blocked autoplay reaches the main frame");
   Expect(options.PageConfig(false, true).FindBool("blockAutoplay") == true, "blocked autoplay reaches subframes");
+  Expect(LinuxAutoplayDecision(true, false, false) && LinuxAutoplayDecision(true, true, true), "a site that blocks autoplay always blocks");
+  Expect(!LinuxAutoplayDecision(false, true, false), "a default site plays when blocking everywhere is off");
+  Expect(LinuxAutoplayDecision(false, true, true), "blocking everywhere covers a site left at the default");
+  Expect(!LinuxAutoplayDecision(false, false, true), "a site allowed by hand keeps playing when blocking everywhere is on");
+  Expect(std::find(std::begin(kLinuxPageMessageRoutes), std::end(kLinuxPageMessageRoutes),
+                   std::string_view("webView.setBlockAutoplayEverywhere")) != std::end(kLinuxPageMessageRoutes),
+         "the host routes and advertises block autoplay everywhere");
   Expect(!options.PageConfig(true, true).Find("displayMediaPicker"), "Chromium's own capture picker stays");
 }
 
