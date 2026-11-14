@@ -7,9 +7,37 @@ const FAVICON_SIZE = 20;
 
 const LEADING: Record<TrayRow["kind"], SymbolName> = { query: "magnifyingglass", page: "globe", calc: "equalCircleFill", paste: "docOnDoc" };
 
-type Props = { row: TrayRow; typed: string; roles: ColorRoles; onActivate: (row: TrayRow) => void; onRefine: (row: TrayRow) => void; onMenu: (row: TrayRow, y: number) => void };
+type Props = {
+  row: TrayRow;
+  typed: string;
+  roles: ColorRoles;
+  interactive?: boolean;
+  onActivate: (row: TrayRow) => void;
+  onRefine: (row: TrayRow) => void;
+  onMenu: (row: TrayRow, y: number) => void;
+};
 
-export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, onActivate, onRefine, onMenu }: Props) {
+export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, interactive = true, onActivate, onRefine, onMenu }: Props) {
+  const content = <RowContent row={row} typed={typed} roles={roles} interactive={interactive} onRefine={onRefine} />;
+  if (!interactive) {
+    const actions = [{ name: "activate" }, ...(row.kind === "query" ? [{ name: "refine", label: `Refine ${row.title}` }] : []), { name: "longpress", label: "More Actions" }];
+    return (
+      <View
+        accessible
+        accessibilityRole="button"
+        accessibilityActions={actions}
+        onAccessibilityAction={(event) => {
+          const name = event.nativeEvent.actionName;
+          if (name === "refine") onRefine(row);
+          else if (name === "longpress") onMenu(row, 0);
+          else onActivate(row);
+        }}
+        style={styles.row}
+      >
+        {content}
+      </View>
+    );
+  }
   return (
     <Pressable
       accessibilityRole="button"
@@ -19,6 +47,14 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, on
       onAccessibilityAction={() => onMenu(row, 0)}
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? roles.rowHighlight : undefined }]}
     >
+      {content}
+    </Pressable>
+  );
+});
+
+function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow; typed: string; roles: ColorRoles; interactive: boolean; onRefine: (row: TrayRow) => void }) {
+  return (
+    <>
       <View style={styles.leading}>
         {row.kind === "page" ? <Favicon iconUrl={row.favicon} pageUrl={row.url} size={FAVICON_SIZE} /> : <Symbol name={row.kind === "paste" && row.offer === "link" ? "link" : LEADING[row.kind]} size={19} color={roles.rowIcon} />}
       </View>
@@ -40,15 +76,23 @@ export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, on
         )}
       </View>
       {row.kind === "query" ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Refine ${row.title}`} onPress={() => onRefine(row)} style={styles.refine}>
-          <View style={styles.refineGlyph}>
-            <Symbol name="arrowUpForward" size={15} color={roles.rowIcon} />
+        interactive ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Refine ${row.title}`} onPress={() => onRefine(row)} style={styles.refine}>
+            <View style={styles.refineGlyph}>
+              <Symbol name="arrowUpForward" size={15} color={roles.rowIcon} />
+            </View>
+          </Pressable>
+        ) : (
+          <View style={styles.refine}>
+            <View style={styles.refineGlyph}>
+              <Symbol name="arrowUpForward" size={15} color={roles.rowIcon} />
+            </View>
           </View>
-        </Pressable>
+        )
       ) : null}
-    </Pressable>
+    </>
   );
-});
+}
 
 function QueryTitle({ title, typed, roles }: { title: string; typed: string; roles: ColorRoles }) {
   const prefix = queryPrefixLength(title, typed);

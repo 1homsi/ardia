@@ -11,11 +11,13 @@ import { initialPresence, presenceSettled, presenceShown, presenceTarget } from 
 import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayDragDismisses, trayDragOffset, trayDragReleasesKeyboard, trayMaxHeight, trayOffset } from "../../lib/trayMotion";
 import { useOnboarding } from "../../state/onboarding/store";
 import { useVoice } from "../../state/voice/store";
+import { idleScrub, releaseRefines, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
 import { wholeRowsHeight } from "../../lib/trayRows";
+import { confirmHaptic, selectionHaptic } from "../../platform/system";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, trayMotion, trayShadow, useTheme } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
 
@@ -391,6 +393,29 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
       </GestureDetector>
     );
   }
+  const menuView = menu ? (
+    <FloatingMenu
+      items={trayRowActions(menu.row).map((action) => ({ label: action.label, icon: action.icon, onPress: action.run }))}
+      place={{
+        top: Math.max(space.l, Math.min(menu.y, window.height - tabsLayout.cardMenuHeight)),
+        left: space.xl,
+        width: Math.min(tabsLayout.menuWidth, window.width - space.xl * 2),
+      }}
+      onDismiss={() => setMenu(null)}
+    />
+  ) : null;
+  const measure = (index: number, layout: { y: number; height: number }) => {
+    const bottom = layout.y + layout.height;
+    setBottoms((known) => (known[index] === bottom ? known : Object.assign([...known], { [index]: bottom })));
+  };
+  if (window.fontScale <= LARGE_FONT_SCALE) {
+    return (
+      <View style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
+        <ScrubbedRows rows={rows} typed={typed} budget={shown ?? room} onMeasure={measure} onRefine={refine} onMenu={showMenu} />
+        {menuView}
+      </View>
+    );
+  }
   return (
     <View style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
       <ScrollView
@@ -400,29 +425,148 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
         keyboardDismissMode="none"
       >
         {rows.map((row, index) => (
-          <View
-            key={index}
-            onLayout={(event) => {
-              const bottom = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
-              setBottoms((known) => (known[index] === bottom ? known : Object.assign([...known], { [index]: bottom })));
-            }}
-          >
+          <View key={index} onLayout={(event) => measure(index, event.nativeEvent.layout)}>
             <SuggestionRow row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} onMenu={showMenu} />
           </View>
         ))}
       </ScrollView>
-      {menu ? (
-        <FloatingMenu
-          items={trayRowActions(menu.row).map((action) => ({ label: action.label, icon: action.icon, onPress: action.run }))}
-          place={{
-            top: Math.max(space.l, Math.min(menu.y, window.height - tabsLayout.cardMenuHeight)),
-            left: space.xl,
-            width: Math.min(tabsLayout.menuWidth, window.width - space.xl * 2),
-          }}
-          onDismiss={() => setMenu(null)}
-        />
-      ) : null}
+      {menuView}
     </View>
+  );
+}
+
+type ScrubbedProps = {
+  rows: readonly TrayRow[];
+  typed: string;
+  budget: number;
+  onMeasure: (index: number, layout: { y: number; height: number }) => void;
+  onRefine: (row: TrayRow) => void;
+  onMenu: (row: TrayRow, y: number) => void;
+};
+
+function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: ScrubbedProps) {
+  const theme = useTrayTheme();
+  const list = useRef<View>(null);
+  const latest = useRef({ rows, onRefine, onMenu });
+  latest.current = { rows, onRefine, onMenu };
+  const frames = useSharedValue<(RowFrame | null)[]>([]);
+  const refinable = useSharedValue<boolean[]>([]);
+  const visible = useSharedValue(budget);
+  const scrub = useSharedValue<ScrubState>(idleScrub);
+  const press = useSharedValue(0);
+  const menuTaken = useSharedValue(false);
+  const drawn = useSharedValue(-1);
+  const alpha = useSharedValue(0);
+  useEffect(() => {
+    visible.value = budget;
+  }, [budget]);
+  useEffect(() => {
+    frames.value = frames.value.slice(0, rows.length);
+    refinable.value = rows.map((row) => row.kind === "query");
+  }, [rows]);
+
+  const armLongPress = (touch: number) => {
+    setTimeout(() => {
+      const state = scrub.value;
+      if (press.value !== touch || state.scrubbing || state.highlighted < 0) return;
+      const index = state.highlighted;
+      menuTaken.value = true;
+      scrub.value = idleScrub;
+      const row = latest.current.rows[index];
+      const frame = frames.value[index];
+      if (!row || !frame) return;
+      list.current?.measureInWindow((_x, y) => latest.current.onMenu(row, y + frame.bottom));
+    }, tabsMotion.longPress);
+  };
+  const release = (index: number, wasScrubbing: boolean, refine: boolean) => {
+    const row = latest.current.rows[index];
+    if (!row) return;
+    if (wasScrubbing) void confirmHaptic().catch(() => undefined);
+    if (refine) latest.current.onRefine(row);
+    else activateRow(row);
+  };
+  const tick = () => void selectionHaptic().catch(() => undefined);
+
+  const gesture = useMemo(
+    () =>
+      Gesture.Manual()
+        .onTouchesDown((event, manager) => {
+          const touch = event.allTouches[0];
+          if (!touch || event.numberOfTouches > 1) {
+            manager.fail();
+            return;
+          }
+          scrub.value = scrubBegin(frames.value, touch.x, touch.y, visible.value);
+          menuTaken.value = false;
+          press.value += 1;
+          manager.activate();
+          runOnJS(armLongPress)(press.value);
+        })
+        .onTouchesMove((event) => {
+          const touch = event.allTouches[0];
+          if (!touch || menuTaken.value) return;
+          const moved = scrubMove(scrub.value, frames.value, touch.x, touch.y, visible.value);
+          scrub.value = moved.state;
+          if (moved.ticks) runOnJS(tick)();
+        })
+        .onTouchesUp((event, manager) => {
+          const touch = event.changedTouches[0];
+          press.value += 1;
+          const state = scrub.value;
+          scrub.value = idleScrub;
+          manager.end();
+          if (!touch || menuTaken.value) return;
+          const ended = scrubEnd(state, frames.value, touch.x, touch.y, visible.value);
+          if (ended.kind !== "activate") return;
+          runOnJS(release)(ended.index, ended.wasScrubbing, releaseRefines(ended, frames.value, touch.x, refinable.value[ended.index] ?? false));
+        })
+        .onTouchesCancelled((_event, manager) => {
+          press.value += 1;
+          scrub.value = idleScrub;
+          manager.fail();
+        }),
+    [],
+  );
+
+  useAnimatedReaction(
+    () => scrub.value.highlighted,
+    (index, previous) => {
+      if (index === previous) return;
+      if (index >= 0) {
+        const appearing = drawn.value < 0 || alpha.value < 0.01;
+        drawn.value = index;
+        alpha.value = appearing ? withSpring(1, trayMotion.press) : 1;
+        return;
+      }
+      alpha.value = withSpring(0, trayMotion.press, (finished) => {
+        if (finished) drawn.value = -1;
+      });
+    },
+  );
+  const highlightStyle = useAnimatedStyle(() => {
+    const frame = drawn.value >= 0 ? frames.value[drawn.value] : null;
+    if (!frame) return { opacity: 0 };
+    return { opacity: alpha.value, top: frame.top, left: frame.left, width: frame.right - frame.left, height: frame.bottom - frame.top };
+  });
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <View ref={list} style={[styles.rowsContent, { height: budget > 0 ? budget : undefined, overflow: "hidden" }]} collapsable={false}>
+        <Animated.View pointerEvents="none" style={[styles.highlight, { backgroundColor: theme.rowHighlight }, highlightStyle]} />
+        {rows.map((row, index) => (
+          <View
+            key={index}
+            onLayout={(event) => {
+              const { x, y, width, height } = event.nativeEvent.layout;
+              frames.value = Object.assign([...frames.value], { [index]: { left: x, top: y, right: x + width, bottom: y + height } });
+              onMeasure(index, event.nativeEvent.layout);
+            }}
+          >
+            <SuggestionRow row={row} typed={typed} roles={theme} interactive={false} onActivate={activateRow} onRefine={onRefine} onMenu={onMenu} />
+          </View>
+        ))}
+      </View>
+    </GestureDetector>
   );
 }
 
@@ -462,4 +606,5 @@ const styles = StyleSheet.create({
   incognitoNote: { alignItems: "center", paddingTop: space.huge },
   medium: { fontWeight: "500" },
   rowsContent: { paddingHorizontal: space.s, paddingBottom: space.s },
+  highlight: { position: "absolute", borderRadius: radius.row },
 });
