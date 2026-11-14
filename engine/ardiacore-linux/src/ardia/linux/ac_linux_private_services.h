@@ -51,6 +51,16 @@ inline linux_profiles::ProfileError RoutePrivateCall(std::string_view name, cons
   return ProfileError::kNone;
 }
 
+inline constexpr linux_profiles::ProfileError RouteProfileRelease(bool private_page, bool hosts_requested,
+                                                                  bool live_elsewhere) {
+  const bool refused = private_page ? !hosts_requested : live_elsewhere;
+  return refused ? linux_profiles::ProfileError::kWindowMismatch : linux_profiles::ProfileError::kNone;
+}
+
+inline constexpr linux_profiles::ProfileError RouteCliControlChange(bool private_page) {
+  return private_page ? linux_profiles::ProfileError::kPrivateService : linux_profiles::ProfileError::kNone;
+}
+
 struct Failure {
   std::string code;
   std::string message;

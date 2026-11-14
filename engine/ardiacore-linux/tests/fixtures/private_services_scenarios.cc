@@ -39,5 +39,14 @@ int main() {
   assert(!PrivateRequest(false, ProfileKind::kDefault));
   assert(!PrivateRequest(false, ProfileKind::kIsolated));
   static_assert(PrivateRequest(true, ProfileKind::kDefault) && !PrivateRequest(false, ProfileKind::kDefault));
+  assert(RouteProfileRelease(true, true, false) == ProfileError::kNone);
+  assert(RouteProfileRelease(true, true, true) == ProfileError::kNone);
+  assert(RouteProfileRelease(true, false, true) == ProfileError::kWindowMismatch);
+  assert(RouteProfileRelease(true, false, false) == ProfileError::kWindowMismatch);
+  assert(RouteProfileRelease(false, false, false) == ProfileError::kNone);
+  assert(RouteProfileRelease(false, true, false) == ProfileError::kNone);
+  assert(RouteProfileRelease(false, false, true) == ProfileError::kWindowMismatch);
+  assert(RouteCliControlChange(false) == ProfileError::kNone);
+  assert(RouteCliControlChange(true) == ProfileError::kPrivateService);
   std::puts("private services scenarios passed");
 }

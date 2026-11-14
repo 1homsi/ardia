@@ -1941,15 +1941,26 @@ class HostMessageHandler : public content::WebUIMessageHandler,
         return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kInvalid);
       }
       Profile* window_profile = host_->page_profile();
-      const bool private_request = ardiacore::linux_private_services::PrivateRequest(
-          host_->private_window() || (window_profile && window_profile->IsOffTheRecord()), profile_name->kind);
+      const bool private_page = host_->private_window() || (window_profile && window_profile->IsOffTheRecord());
+      const bool private_request = ardiacore::linux_private_services::PrivateRequest(private_page, profile_name->kind);
       if (host_->private_window() && !window_profile) {
         return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kPrivateEnding);
       }
       if (std::find(std::begin(kCliControlCalls), std::end(kCliControlCalls), name) != std::end(kCliControlCalls)) {
+        if (name == "engine.setCliControl") {
+          const auto refused = ardiacore::linux_private_services::RouteCliControlChange(private_page);
+          if (refused != ardiacore::linux_profiles::ProfileError::kNone) return ProfileFail(id, refused);
+        }
         return CliControlCall(id, name, args.Find("args"));
       }
       if (name == "profiles.release") {
+        bool live_elsewhere = false;
+        for (const auto& [window, other] : Hosts()) {
+          if (other != host_.get() && other->HostsProfile(profile)) live_elsewhere = true;
+        }
+        const auto refused = ardiacore::linux_private_services::RouteProfileRelease(
+            private_page, host_->HostsProfile(profile), live_elsewhere);
+        if (refused != ardiacore::linux_profiles::ProfileError::kNone) return ProfileFail(id, refused);
         ardiacore::ReleaseLinuxProfile(profile);
         return Resolve(id, base::Value());
       }
