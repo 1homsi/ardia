@@ -50,6 +50,9 @@ class ShellHostView;
 struct HostMessageHandler {};
 namespace ardiacore { struct LinuxPageChannel { int detached = 0; static std::map<const content::WebContents*, LinuxPageChannel>& All() { static std::map<const content::WebContents*, LinuxPageChannel> all; return all; } static LinuxPageChannel* FromWebContents(content::WebContents* contents) { return &All()[contents]; } void Detach() { ++detached; } }; inline void TrackLinuxAutofillFocus(content::WebContents*) {} inline void RedeliverLinuxPermissionPrompts(content::WebContents*) {} }
 namespace ardia::linux_pip { inline void ClearIntent(content::WebContents*) {} }
+namespace base { template<class F, class... Args> auto BindOnce(F function, Args... args) { return [=]() { function(args...); }; } }
+namespace ardiacore { template<class Depart> void DepartWhenLinuxPageHidden(content::WebContents*, Depart depart) { depart(); } inline void ReturnBeforeLinuxPageHidden(content::WebContents*) {} }
+void TellAutoPictureInPictureDeparted(base::WeakPtr<content::WebContents>) {}
 struct AutoPictureInPictureTabHelper {
   static AutoPictureInPictureTabHelper* FromWebContents(content::WebContents*) { return nullptr; }
   void OnTabActivatedChanged(bool) {}
