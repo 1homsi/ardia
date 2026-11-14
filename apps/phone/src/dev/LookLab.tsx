@@ -29,6 +29,7 @@ export function LookLab() {
   const [pageFrost, setPageFrost] = useState<"live" | "solid">("live");
   const [faded, setFaded] = useState(false);
   const look = LOOKS[lookIndex]!;
+  const ink = dark || look.color === INCOGNITO_LOOK ? "#fff" : "#1d1a17";
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Look (native {String(lookIsNative())})</Text>
@@ -47,7 +48,7 @@ export function LookLab() {
       </View>
       <FrostSource name="lab" style={styles.stage}>
         <DeckBackdrop style={StyleSheet.absoluteFill} color={look.color} themeColors={look.themeColors} dark={dark} reduceMotion={still} />
-        <Text style={[styles.stageText, { color: dark ? "#fff" : "#1d1a17" }]}>The deck's mesh, blobs and grain. The frost below blurs this.</Text>
+        <Text style={[styles.stageText, { color: ink }]}>The deck's mesh, blobs and grain. The frost below blurs this.</Text>
       </FrostSource>
       <View style={styles.pair}>
         <ProfileBackdrop style={styles.tile} color={look.color} themeColors={look.themeColors} dark={dark} themed />
@@ -55,15 +56,17 @@ export function LookLab() {
         <FilmGrain style={[styles.tile, { backgroundColor: dark ? "#2a2a2c" : "#e8e4f0" }]} opacity={0.2} />
       </View>
       <Frost source="lab" variant={VARIANTS[variant]} color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.frost}>
-        <Text style={{ color: dark ? "#fff" : "#1d1a17" }}>Frosted {VARIANTS[variant]}</Text>
+        <Text style={{ color: ink }}>Frosted {VARIANTS[variant]}</Text>
       </Frost>
       <Text style={styles.note}>A sheet frost over a live page: scroll the page; the frost should follow it, not stay black or frozen.</Text>
-      <FrostSource name="lab-page" style={styles.pageStage}>
-        <PageView style={StyleSheet.absoluteFill} pageId="lab-look-page" initialUrl={PAGE_URL} />
+      <View style={styles.pageStage}>
+        <FrostSource name="lab-page" style={StyleSheet.absoluteFill}>
+          <PageView style={StyleSheet.absoluteFill} pageId="lab-look-page" initialUrl={PAGE_URL} />
+        </FrostSource>
         <Frost source="lab-page" variant="sheet" color={look.color} themeColors={look.themeColors} dark={dark} cornerRadius={14} style={styles.pageFrost} pointerEvents="none">
-          <Text style={{ color: dark ? "#fff" : "#1d1a17" }}>Sheet frost over the page</Text>
+          <Text style={{ color: ink }}>Sheet frost over the page</Text>
         </Frost>
-      </FrostSource>
+      </View>
     </View>
   );
 }

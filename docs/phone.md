@@ -255,6 +255,11 @@ and again only when that status changes.
     while moving, 0 more frames while still), and three `probe pixel` lines. The centre pixel is close to the
     `mesh centre` colour, and the blob 1 pixel is lighter than it in light mode. `PAGELAB look deck size` and
     `first frame` lines appear once per deck.
+33. **Frost:** open the tray over the deck in dark mode. Behind the suggestion rows, the deck bar's three buttons
+    show only as soft smudges, never as sharp icons. In the lab's Look, the frosted bar over the stage is the
+    stage's colours blurred in every look (green: blurred green and blue, not flat lavender), and over incognito
+    its label is white. The sheet frost over the page follows the page as it scrolls. Probe frost logs
+    `path live` for both lab frosts, never `inside its own source`, each with its frost and source sizes.
 
 ## Upgrade from the Compose app on Android
 

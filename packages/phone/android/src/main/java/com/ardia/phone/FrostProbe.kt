@@ -36,13 +36,15 @@ object FrostProbe {
             val region = Rect(location[0], location[1], location[0] + frost.width, location[1] + frost.height)
             val bitmap = Bitmap.createBitmap(frost.width, frost.height, Bitmap.Config.ARGB_8888)
             val choice = frost.lastChoice
-            val page = FrostSources.find(frost.source)?.holdsPage == true
+            val from = FrostSources.find(frost.source)
+            val page = from?.holdsPage == true
+            val sourceSize = from?.let { "${it.width}x${it.height}" } ?: "missing"
             runCatching {
                 PixelCopy.request(activity.window, region, bitmap, { result ->
                     if (result == PixelCopy.SUCCESS) {
                         val pixels = IntArray(bitmap.width * bitmap.height).also { bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height) }
                         val reading = read(pixels)
-                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.source ?: "-"}: path ${choice?.path?.name?.lowercase() ?: "none"}, page $page, mean luma ${reading.meanLuma}, near-black ${reading.nearBlackShare}%")
+                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.source ?: "-"}: path ${choice?.path?.name?.lowercase() ?: "none"}, frost ${frost.width}x${frost.height}, source $sourceSize, page $page, mean luma ${reading.meanLuma}, near-black ${reading.nearBlackShare}%")
                     } else {
                         Log.i("PAGELAB", "PAGELAB look frost probe ${frost.source ?: "-"}: copy failed ($result)")
                     }
