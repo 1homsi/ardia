@@ -25,6 +25,7 @@ import {
   resetMessage,
   updatedText,
   filterListAddress,
+  listUpdatedAt,
   FILTER_LIST_ADDRESS,
   websiteDataKinds,
 } from "./settingsRules.ts";
@@ -172,4 +173,9 @@ test("an update of the filter lists fails when the phone is offline or an enable
   assert.equal(listsUpdateFailed({ isOffline: false, lists: [{ isEnabled: true, state: "ready" }, { isEnabled: false, state: "failed" }] }), false);
   assert.equal(listsUpdateFailed({ isOffline: true, lists: [] }), true);
   assert.equal(listsUpdateFailed({ isOffline: false, lists: [{ isEnabled: true, state: "failed" }] }), true);
+});
+
+test("a list's Last Updated is a date and time, as both apps show it", () => {
+  const shown = listUpdatedAt(new Date(2026, 10, 14, 15, 30).getTime(), "en-US");
+  assert.match(shown, /^Nov 14, 2026, 3:30\s?PM$/u);
 });

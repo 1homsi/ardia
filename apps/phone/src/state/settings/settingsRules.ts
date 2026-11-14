@@ -236,3 +236,6 @@ export const frontSheet = (settingsOpen: boolean, browseSheet: "archive" | "spac
 
 export const listsUpdateFailed = (state: { isOffline: boolean; lists: readonly { isEnabled: boolean; state: string }[] }): boolean =>
   state.isOffline || state.lists.some((list) => list.isEnabled && list.state === "failed");
+
+export const listUpdatedAt = (at: number, locale?: string): string =>
+  new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(at));

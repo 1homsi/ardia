@@ -7,7 +7,6 @@ import { CapsuleButton } from "../sync/SyncPage";
 import { openFromSettings,
   addList,
   applyMyFilters,
-  openOutside,
   removeList,
   resetLists,
   setListEnabled,
@@ -29,7 +28,7 @@ import {
   myFiltersSummary,
   resetMessage,
   rulesText,
-  updatedText,
+  listUpdatedAt,
   filterListAddress,
   FILTER_LIST_ADDRESS,
 } from "../../state/settings/settingsRules";
@@ -127,7 +126,9 @@ function ListRow({ list, now, divider }: { list: FilterListInfo; now: number; di
 }
 
 export function FilterListDetailPage({ id }: { id: string }) {
+  const theme = useTheme();
   const list = useBlocking((s) => s.state?.lists.find((item) => item.id === id) ?? null);
+  const updating = useBlocking((s) => s.busy || Boolean(s.state?.isUpdating));
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   if (!list)
     return (
@@ -141,20 +142,25 @@ export function FilterListDetailPage({ id }: { id: string }) {
         <ToggleRow title="Use This List" value={list.isEnabled} onChange={(on) => setListEnabled(list.id, on)} />
       </Group>
       {list.state === "failed" ? (
-        <Group footer={list.failure}>
-          <ButtonRow title="Try Again" onPress={() => void updateLists()} />
+        <Group>
+          <View testID="listFailure" style={styles.failure}>
+            <Symbol name="exclamationmarkTriangle" size={22} color={theme.destructive} />
+            <Text style={[font.body, styles.fill, { color: theme.label }]}>{list.failure ?? "This list couldn’t be updated."}</Text>
+          </View>
+          <Divider />
+          <ButtonRow title="Try Again" enabled={!updating} onPress={() => void updateLists()} />
         </Group>
       ) : null}
       <Group footer={list.skippedCount > 0 ? copy().filterRulesUnsupported : null}>
         <ValueRow title="Status" value={listStatus(list)} divider />
-        <ValueRow title="Last Updated" value={list.updatedAt ? updatedText(list.updatedAt, Date.now()).replace(/^Updated /, "") : "Never"} divider />
+        <ValueRow title="Last Updated" value={list.updatedAt ? listUpdatedAt(list.updatedAt) : "Never"} divider />
         <ValueRow title="Rules" value={formatNumber(list.ruleCount)} divider />
         <ValueRow title="Skipped" value={formatNumber(list.skippedCount)} />
       </Group>
       {list.sourceUrl || list.supportUrl ? (
         <Group header="Source">
-          {list.sourceUrl ? <ValueRow title={list.sourceUrl.replace(/^https:\/\//, "")} value="" divider={Boolean(list.supportUrl)} /> : null}
-          {list.supportUrl ? <ButtonRow title="Visit the List’s Website" onPress={() => openOutside(list.supportUrl!)} /> : null}
+          {list.sourceUrl ? <LinkRow text={list.sourceUrl} small divider={Boolean(list.supportUrl)} onPress={() => openFromSettings(list.sourceUrl!)} /> : null}
+          {list.supportUrl ? <LinkRow text="Visit the List’s Website" onPress={() => openFromSettings(list.supportUrl!)} /> : null}
         </Group>
       ) : null}
       {list.isCustom ? (
@@ -178,6 +184,25 @@ export function FilterListDetailPage({ id }: { id: string }) {
       ) : null}
       {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}
     </SettingsPage>
+  );
+}
+
+function LinkRow({ text, small = false, divider = false, onPress }: { text: string; small?: boolean; divider?: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <View>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityHint="Opens the link in a new tab"
+        onPress={onPress}
+        style={({ pressed }) => [styles.linkRow, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+      >
+        <Text style={[small ? font.subheadline : font.body, { color: theme.formAccent }]} numberOfLines={2} ellipsizeMode="middle">
+          {text}
+        </Text>
+      </Pressable>
+      {divider ? <Divider /> : null}
+    </View>
   );
 }
 
@@ -349,6 +374,8 @@ const styles = StyleSheet.create({
   bold: { fontWeight: "600" },
   fill: { flex: 1 },
   listRow: { flexDirection: "row", alignItems: "center", gap: space.m, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
+  failure: { flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s, minHeight: settingsLayout.rowMinHeight },
+  linkRow: { minHeight: settingsLayout.rowMinHeight, justifyContent: "center", paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
   sheetBar: { flexDirection: "row", alignItems: "center", minHeight: settingsLayout.topBar, paddingHorizontal: space.xs },
   sheetSide: { flex: 1, flexDirection: "row" },
   sheetEnd: { justifyContent: "flex-end", paddingRight: space.s },

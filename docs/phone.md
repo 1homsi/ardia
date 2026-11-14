@@ -631,7 +631,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Filter list detail: Last Updated is relative (both apps: date and time), a failure is only footer text, Try Again stays enabled while updating, the source can't be tapped, and the list's website opens outside the app (Compose: an Ardia tab). `FilterListDetailPage` in `BlockingPages.kt`, `FilterListDetailPage.swift`. Small.
 - My Filters: Back loses unapplied edits (Compose blocks Back, SwiftUI hides it); Apply has no spinner or double-tap guard and leaves the keyboard up; the editor is a 240-high box instead of filling the page. `BlockingPages.kt` `MyFiltersEditor`, `MyFiltersEditor.swift`. Small.
 - Trusted Sites: remove buttons always showing and removal not animated; both apps use Edit/Done (SwiftUI also swipe to delete) and a globe per row. `TrustedSitesPage` in `BlockingPages.kt`, `TrustedSitesPage.swift`. Small.
 - Search Engine: the picker can list the Mac's custom engines and "Custom"; the From Your Mac row has no laptop icon. `SearchEngineNames.kt`, `GeneralPages.kt`, `SearchEnginePage.swift`. Small.
