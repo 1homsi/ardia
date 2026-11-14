@@ -1,5 +1,5 @@
 import { capture as send } from "./client";
-import { takeDownloadsPanelCounts } from "./downloadsPanelCounts";
+import { takeDownloadsPanelCauses } from "./downloadsPanelCauses";
 import { takeExportCounts } from "./exportCounts";
 import { takeDialogPageCounts } from "./dialogPageCounts";
 import { takeExternalAppCounts } from "./externalAppCounts";
@@ -16,7 +16,7 @@ export { watchPlatformCounts };
 
 export const USAGE_COUNTS_EVENT = "usage_counts";
 
-export const takeHourlyExtras = () => ({ ...takePlatformCounts(), ...takeImportRuns(), ...takeProfileDataCounts(), ...takeExportCounts(), ...takeInlineCompletionCounts(), ...takeFirstRunCounts(), ...takeMemoryTrimCounts(), ...takeDownloadsPanelCounts(), ...takeExternalAppCounts(), ...takeDialogPageCounts(), ...takeFindCounts(), ...takeSyncFileCounts() });
+export const takeHourlyExtras = () => ({ ...takePlatformCounts(), ...takeImportRuns(), ...takeProfileDataCounts(), ...takeExportCounts(), ...takeInlineCompletionCounts(), ...takeFirstRunCounts(), ...takeMemoryTrimCounts(), ...takeDownloadsPanelCauses(), ...takeExternalAppCounts(), ...takeDialogPageCounts(), ...takeFindCounts(), ...takeSyncFileCounts() });
 
 type Send = typeof send;
 
