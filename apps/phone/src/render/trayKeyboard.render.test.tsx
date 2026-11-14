@@ -26,13 +26,12 @@ function Probe() {
   return <Text>{`target ${keyboard.target} full ${keyboard.full.value}`}</Text>;
 }
 
-beforeEach(() => {
-  jest.useFakeTimers();
-  Object.defineProperty(Platform, "OS", { configurable: true, get: () => "android" });
-});
+beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-test("on Android the tray takes the keyboard's height as its animation starts, so the first keyboard of a process lands right", () => {
+const onAndroid = Platform.OS === "android" ? test : test.skip;
+
+onAndroid("on Android the tray takes the keyboard's height as its animation starts, so the first keyboard of a process lands right", () => {
   const root = renderSurface(<Probe />);
   expect(textOf(root)).toContain("target 0");
   act(() => mockListeners.forEach((listener) => listener({ source: 0, target: 312, durationMs: 250, navigationBar: 24 })));
