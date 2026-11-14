@@ -142,6 +142,10 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   - In the engine: Chromium's launcher loads the library on its UI thread and calls `ArdiaAppStart` with its API table.
     The app sets up and returns; Chromium runs the loop, hands each message to `ArdiaAppPreTranslateMessage` first, and
     calls `ArdiaAppStop` when the loop ends. Quitting asks the engine (`app.quit`) instead of ending the loop.
+    Pending telemetry and documents are written while stopping (`ShutDown` in `Ardia.cpp`), while their worker
+    threads still run. Nothing in the library may wait on another thread from an exit handler or a static destructor:
+    those run during `ExitProcess`, after Windows has ended every other thread, so such a wait only ends on its
+    timeout and the process outlives the quit (#1706: 30 s, which made the installer give up with exit 5).
   - `ArdiaEngineHost` (`EngineHostModule.h`) is the bridge: `available()`, `hostCall`, `engineCall`, and the engine's
     events as `ArdiaEngineHost:event`. Other native code reaches the engine through `Host::Engine()`.
   - What belongs to the app comes from the library (`AppImage.h`: the bundle folder, dialogs, window classes, the
@@ -592,8 +596,13 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   denied schemes, with the request's user gesture). For a tab the host keeps, `ardia/win/external_apps.cc` sends the
   `externalApp` tab event (`id`, `url`, `origin` or null, `userGesture`, `offTheRecord`) to `domains/externalApps.ts`
   and keeps the asking document. The `externalAppAlive` page call answers `{ alive: true }` once per request while
-  that document lives (a request with no page origin, from the browser or an extension, only needs its tab), as the
-  Mac's `ResolveExternalApp` checks. The engine keeps a page's 8 newest asks at most, and the app tells it
+  that document lives, as the Mac's `ResolveExternalApp` checks. Every request with an initiating origin that isn't an
+  extension's counts as a page's, opaque origins included: a `data:` page or a sandboxed frame needs its document
+  alive too. Only a request with no initiating origin (the browser) or an extension's needs just its tab. The prompt
+  shows an origin only when it isn't opaque; otherwise it says "This page wants to open this application." and never
+  borrows another page's name. A cross-site navigation drops the page's prompt (`state/tabs/pageEvents.ts`
+  `leftPage`, as on the Mac); after a same-site navigation or a reload the prompt can stay, and Open then launches
+  nothing because the asking document is gone. The engine keeps a page's 8 newest asks at most, and the app tells it
   (`externalAppForget`) whenever it drops one without launching: a no, no handler, a closed page or a forgotten
   profile. `mailto` never asks: Chromium allows it by default and opens the mail app itself,
   as on the Mac.
@@ -605,7 +614,10 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
     executable, so its prompt shows no icon. Like Chromium, it knows only
     schemes whose `HKCR` key carries `URL Protocol`, so a file type's ProgID can't pose as a link scheme, and it
     refuses one-letter schemes (drive letters).
-  - **Prompt:** the Mac's prompt shows in the Mac's words. "Always allow" is offered only for an https or loopback
+  - **Prompt:** the Mac's prompt shows in the Mac's words. Like every page prompt it ignores input for half a second
+    after it appears and after an Ardia window becomes active; the window becoming active again because the user
+    clicked from one of its own page windows back into it doesn't count (`WindowManager.h` marks that `focus` event
+    `fromPage`, and `state/site/promptGuard.ts` skips it), so the first click on the prompt works. "Always allow" is offered only for an https or loopback
     site, outside private windows, and kept per profile in `external-app-allowances.json`; deleting a profile
     forgets them. A remembered site opens the app without asking only when the request had a user gesture.
   - **Lifetime:** an ask belongs to its page and is dropped when the page closes. Before any launch the engine must
