@@ -5,7 +5,7 @@ import type { AppWindowsModule, EngineHostModule } from "../nativeModuleTypes";
 import { engineAvailable, engineCallJson, hostCall, onEngineTopic, removeProfileFolder } from "../engine/host";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
-import { pagePopupCheck } from "./enginePopups";
+import { pagePopupCheck, pagePopupShowLoop } from "./enginePopups";
 import { comparable } from "./engineCalls";
 import { fieldFocusedIn } from "../appKeyboard";
 import { textFocusForCheck } from "../textFocus";
@@ -344,6 +344,7 @@ const withEngine: Check[] = [
     },
   },
   pagePopupCheck(PAGE_KEY),
+  pagePopupShowLoop(PAGE_KEY),
   {
     name: "engine: a key closed while its page still runs its unload handlers can be used again at once",
     async run() {

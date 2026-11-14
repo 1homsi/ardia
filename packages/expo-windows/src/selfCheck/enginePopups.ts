@@ -1,4 +1,5 @@
 import { hostCall, onEngineTopic } from "../engine/host";
+import { showStepsOf, traceShowsOf } from "../engine/showTrace";
 import { expectEqual, type Check } from "./check";
 
 export const pagePopupCheck = (pageKey: string): Check => ({
@@ -48,5 +49,52 @@ export const pagePopupCheck = (pageKey: string): Check => ({
     } finally {
       await evaluate(`const w = window.open("", "${popupName}"); if (w) w.close(); post("result", "null");`).catch(() => null);
     }
+  },
+});
+
+type ListedTab = { key?: unknown; shown?: unknown; windowVisible?: unknown };
+const LOOP_ROUNDS = 20;
+const SHOW_MS = 4000;
+const GONE_MS = 3000;
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const listedTabs = async () => (await hostCall<{ tabs?: ListedTab[] }>("tabs.list")).tabs ?? [];
+const popupTabs = async () => (await listedTabs()).filter((tab): tab is ListedTab & { key: string } => typeof tab.key === "string" && tab.key.startsWith("popup:"));
+
+async function evaluateIn(pageKey: string, code: string, userGesture = false) {
+  const reply = await hostCall<{ result?: unknown }>("tab.call", { key: pageKey, method: "evaluate", userGesture, code });
+  return typeof reply.result === "string" ? (JSON.parse(reply.result) as unknown) : null;
+}
+
+async function newPopupTab(seen: Set<string>, by: number) {
+  for (;;) {
+    const tab = (await popupTabs()).find((listed) => !seen.has(listed.key));
+    if (tab && ((tab.shown === true && tab.windowVisible === true) || Date.now() >= by)) return tab;
+    if (!tab && Date.now() >= by) return null;
+    await pause(100);
+  }
+}
+
+export const pagePopupShowLoop = (pageKey: string): Check => ({
+  name: `engine: a page's pop-up shows its page in the app's pop-up window, ${LOOP_ROUNDS} times in a row`,
+  async run() {
+    const seen = new Set((await popupTabs()).map((tab) => tab.key));
+    const failures: string[] = [];
+    traceShowsOf((key) => key.startsWith("popup:"));
+    try {
+      for (let round = 0; round < LOOP_ROUNDS; round++) {
+        const name = `ardia-self-check-loop-${round}`;
+        await evaluateIn(pageKey, `post("result", JSON.stringify(!!window.open("about:blank", "${name}", "width=360,height=280,left=220,top=160")));`, true);
+        const tab = await newPopupTab(seen, Date.now() + SHOW_MS);
+        if (!tab) failures.push(`round ${round}: no pop-up tab within ${SHOW_MS} ms`);
+        else if (tab.shown !== true || tab.windowVisible !== true) failures.push(`round ${round}: ${tab.key} ${JSON.stringify(tab)}; steps: ${showStepsOf(tab.key).join(" | ")}`);
+        if (tab) seen.add(tab.key);
+        await evaluateIn(pageKey, `const w = window.open("", "${name}"); if (w) w.close(); post("result", "null");`);
+        const goneBy = Date.now() + GONE_MS;
+        while (tab && (await popupTabs()).some((listed) => listed.key === tab.key) && Date.now() < goneBy) await pause(100);
+      }
+    } finally {
+      traceShowsOf(null);
+    }
+    expectEqual(failures, [], `pop-ups whose page never showed in ${LOOP_ROUNDS} rounds`);
   },
 });

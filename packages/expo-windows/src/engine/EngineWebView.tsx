@@ -7,6 +7,7 @@ import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
 import { coversIn, hiddenByFullScreen, holesFor, onCoversChange, pageRadiusIn, setFullScreenPage } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
+import { noteShowStep } from "./showTrace";
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
@@ -56,8 +57,6 @@ const ANSWERS: Record<string, unknown> = {
   takeControlPress: false,
 };
 const SETTLE_MS = [0, 50, 200, 500];
-const UNMEASURED_RETRY_MS = 100;
-const UNMEASURED_RETRIES = 50;
 const PICTURE_DEADLINE_MS = 1000;
 
 type Picture = Awaited<ReturnType<WebViewHandle["capturePicture"]>>;
@@ -99,31 +98,20 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   const visible = props.visible !== false;
   const shown = useRef<Shown>({ visible: false, placed: "", shows: 0 });
   const fullScreen = useRef(false);
-  const unmeasured = useRef<{ tries: number; timer: ReturnType<typeof setTimeout> | null }>({ tries: 0, timer: null });
 
   const place = useCallback(() => {
     const wanted = latest.current.visible !== false && !hiddenByFullScreen(windowId, key);
     if (!wanted) {
+      noteShowStep(key, latest.current.visible === false ? "place: not visible" : "place: hidden by full screen");
       if (shown.current.visible) {
         shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
         showPage(key, false, null);
       }
       return;
     }
+    if (!view.current) noteShowStep(key, "place: no view");
     view.current?.measureInWindow((x, y, width, height) => {
-      if (latest.current.visible === false || hiddenByFullScreen(windowId, key)) return;
-      const retry = unmeasured.current;
-      if (!(width > 0) || !(height > 0)) {
-        if (retry.timer || retry.tries >= UNMEASURED_RETRIES) return;
-        retry.tries += 1;
-        if (retry.tries === UNMEASURED_RETRIES) console.warn(`[ardia windows] the page ${key} in ${windowId} still measures ${width} by ${height}; it stays hidden until its view is laid out`);
-        retry.timer = setTimeout(() => {
-          retry.timer = null;
-          place();
-        }, UNMEASURED_RETRY_MS);
-        return;
-      }
-      retry.tries = 0;
+      if (latest.current.visible === false || hiddenByFullScreen(windowId, key) || !(width > 0) || !(height > 0)) return noteShowStep(key, `place: measured ${width}x${height}, visible ${latest.current.visible !== false}`);
       const page = { x, y, width, height };
       const shape: PageShape = fullScreen.current
         ? { ...page, radius: 0, holes: [] }
@@ -133,7 +121,8 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
             holes: holesFor(page, coversIn(windowId, above.current), latest.current.temporary === true),
           };
       const placed = JSON.stringify(shape);
-      if (shown.current.visible && shown.current.placed === placed) return;
+      if (shown.current.visible && shown.current.placed === placed) return noteShowStep(key, "place: deduped");
+      noteShowStep(key, `place: show ${width}x${height}`);
       shown.current = { visible: true, placed, shows: shown.current.shows + 1 };
       showPage(key, true, shape);
     });
@@ -141,20 +130,16 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
 
   useEffect(() => onCoversChange((changed) => changed === windowId && place()), [windowId, place]);
 
-  useEffect(
-    () => () => {
-      const pending = unmeasured.current.timer;
-      if (pending) clearTimeout(pending);
-    },
-    [],
-  );
-
   useEffect(() => followMotion(place), [place]);
 
   useEffect(() => {
     const first = latest.current;
+    noteShowStep(key, `mount in ${windowId}`);
     const unmount = mountPage(key, { url: first.url, profile: first.profile, adopt: first.adoptId, windowId }, (name, data) => {
-      if (name === "ready") place();
+      if (name === "ready") {
+        noteShowStep(key, "ready");
+        place();
+      }
       if (name === "fullscreen") {
         const on = !!(data as { fullscreen?: unknown } | null)?.fullscreen;
         if (on !== fullScreen.current) {

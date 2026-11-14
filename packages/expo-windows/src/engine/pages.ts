@@ -6,6 +6,7 @@ import { privateSessionOpened } from "./privateWindows";
 import type { ExternalAppRequest, NavigationState, OpenWindowRequest } from "@ardia/ardiacore";
 import type { CoverRect } from "./covers";
 import { notePageAsked, notePageSettled } from "./dialogPages";
+import { noteShowStep } from "./showTrace";
 import { popupFeatures } from "./popupPlacement";
 import { isPopupWindowId, onPopupWindowClosed, openPopupWindow, popupOpenerKey, type PopupWindowInfo } from "./popupWindows";
 
@@ -221,11 +222,11 @@ function tellReady(page: Page, listener: PageListener) {
 
 function sendShow(page: Page): Promise<unknown> | undefined {
   const args = page.show;
-  if (!args || args === page.showSent || page.closed) return undefined;
+  if (!args || args === page.showSent || page.closed) return void noteShowStep(page.key, `sendShow: ${!args ? "nothing" : page.closed ? "closed" : "already sent"}`);
   page.showSent = args;
+  noteShowStep(page.key, `sendShow: ${args.visible ? "shown" : "hidden"}`);
   return hostCall("tab.show", args, page.windowId).catch((error: unknown) => {
-    console.warn(`[ardia windows] the page ${page.key} could not show: ${String((error as Error)?.message ?? error)}`);
-    throw error;
+    throw (console.warn(`[ardia windows] the page ${page.key} could not show: ${String((error as Error)?.message ?? error)}`), error);
   });
 }
 
@@ -235,7 +236,7 @@ function askShow(page: Page, args: ShowArgs) {
   page.show = args;
   quietly(
     page.ready.then((opened) => {
-      if (!opened || page.show !== args) return;
+      if (!opened || page.show !== args) return noteShowStep(page.key, opened ? "askShow: superseded" : "askShow: not opened");
       const sent = sendShow(page);
       if (!args.visible || !focusWaits(page)) return sent;
       page.focusAsked = 0;
@@ -280,6 +281,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       page.focusAsked = Date.now();
     }
   } else if (page.windowId !== from.windowId) {
+    noteShowStep(key, `mount: window ${page.windowId} to ${from.windowId}`);
     page.windowId = from.windowId;
     page.from = from;
     page.profile = from.profile ?? "";
@@ -327,7 +329,7 @@ function closePage(page: Page) {
 
 export function showPage(key: string, visible: boolean, shape: PageShape | null) {
   const page = pages.get(key);
-  if (!page || page.closed) return;
+  if (!page || page.closed) return noteShowStep(key, page ? "showPage: closed" : "showPage: no page");
   askShow(page, visible && shape ? { key, visible: true, ...shape } : { key, visible: false });
 }
 
