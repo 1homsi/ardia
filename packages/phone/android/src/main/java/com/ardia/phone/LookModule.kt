@@ -70,6 +70,7 @@ class LookModule : Module() {
         View(FrostView::class) {
             Name("Frost")
             Prop("source") { view: FrostView, value: String? -> view.source = value }
+            Prop("name") { view: FrostView, value: String? -> view.name = value }
             Prop("variant") { view: FrostView, value: String? -> view.variant = value }
             Prop("cornerRadius") { view: FrostView, value: Float? -> view.cornerRadius = value ?: 0f }
             Prop("color") { view: FrostView, value: String? -> view.color = value }

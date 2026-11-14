@@ -44,9 +44,9 @@ object FrostProbe {
                     if (result == PixelCopy.SUCCESS) {
                         val pixels = IntArray(bitmap.width * bitmap.height).also { bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height) }
                         val reading = read(pixels)
-                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.source ?: "-"}: path ${choice?.path?.name?.lowercase() ?: "none"}, frost ${frost.width}x${frost.height}, source $sourceSize, page $page, mean luma ${reading.meanLuma}, near-black ${reading.nearBlackShare}%")
+                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.logLabel}: path ${choice?.path?.name?.lowercase() ?: "none"}, frost ${frost.width}x${frost.height}, source $sourceSize, page $page, mean luma ${reading.meanLuma}, near-black ${reading.nearBlackShare}%")
                     } else {
-                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.source ?: "-"}: copy failed ($result)")
+                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.logLabel}: copy failed ($result)")
                     }
                     bitmap.recycle()
                 }, Handler(Looper.getMainLooper()))

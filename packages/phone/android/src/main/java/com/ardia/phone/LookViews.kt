@@ -406,9 +406,40 @@ internal object FrostPage {
     }
 }
 
+internal object FrostRefresh {
+    const val IDLE_MILLIS = 250L
+    const val AFTER_SCROLL_MILLIS = 300L
+
+    fun next(holdsPage: Boolean, millisSinceScroll: Long): Long? = when {
+        !holdsPage -> null
+        millisSinceScroll < AFTER_SCROLL_MILLIS -> 0L
+        else -> IDLE_MILLIS
+    }
+
+    fun label(name: String?, source: String?, variant: String?, number: Int): String =
+        name?.takeIf { it.isNotBlank() } ?: "${source ?: "-"}/${variant ?: "bar"} #$number"
+
+    private var made = 0
+
+    fun nextNumber(): Int = synchronized(this) { ++made }
+}
+
 class FrostView(context: Context, appContext: AppContext) : LookView(context, appContext) {
     var source: String? = null
+    var name: String? = null
     var variant: String? = null
+
+    private val number = FrostRefresh.nextNumber()
+
+    internal val logLabel: String get() = FrostRefresh.label(name, source, variant, number)
+    private var scrolledAt = 0L
+    private val refresh = Runnable { invalidate() }
+    private val scrolled = ViewTreeObserver.OnScrollChangedListener {
+        if (FrostSources.find(source)?.holdsPage == true) {
+            scrolledAt = SystemClock.uptimeMillis()
+            invalidate()
+        }
+    }
     var cornerRadius: Float = 0f
     var reduceTransparency: Boolean = false
 
@@ -437,19 +468,24 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         viewTreeObserver.addOnPreDrawListener(moved)
+        viewTreeObserver.addOnScrollChangedListener(scrolled)
         FrostSources.attach(this)
     }
 
     override fun onDetachedFromWindow() {
         FrostSources.detach(this)
         viewTreeObserver.removeOnPreDrawListener(moved)
+        viewTreeObserver.removeOnScrollChangedListener(scrolled)
+        removeCallbacks(refresh)
         super.onDetachedFromWindow()
     }
 
     private fun report(choice: FrostPage.Choice) {
         if (choice == lastChoice) return
         lastChoice = choice
-        if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look frost ${source ?: "-"} path=${choice.path.name.lowercase()} (${choice.reason})")
+        if (PhoneLab.isOn) {
+            android.util.Log.i("PAGELAB", "PAGELAB look frost $logLabel ${width}x$height path=${choice.path.name.lowercase()} (${choice.reason})")
+        }
     }
 
     override fun drawLook(canvas: Canvas) {
@@ -473,7 +509,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         )
         report(choice)
         if (choice.path == FrostPage.Path.Live && from != null) {
-            if (from.holdsPage && isShown) postInvalidateOnAnimation()
+            if (isShown) scheduleRefresh(from.holdsPage)
             val blur = style.blurRadius.value * density
             applyEffect(blur, style.saturation)
             val margin = ceil(blur * 2)
@@ -507,6 +543,15 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             paint.strokeWidth = style.edgeWidth.value * density
             paint.color = edge.resolve(dark).toArgb()
             canvas.drawPath(clip, paint)
+        }
+    }
+
+    private fun scheduleRefresh(holdsPage: Boolean) {
+        removeCallbacks(refresh)
+        when (val delay = FrostRefresh.next(holdsPage, SystemClock.uptimeMillis() - scrolledAt)) {
+            null -> Unit
+            0L -> postInvalidateOnAnimation()
+            else -> postDelayed(refresh, delay)
         }
     }
 

@@ -17,7 +17,7 @@ export type FrostSourceProps = ViewProps & { name: string; children?: ReactNode 
 export type FrostVariant = "bar" | "sheet" | "glass" | "thin";
 
 export type FrostProps = ViewProps &
-  LookColors & { source: string; variant?: FrostVariant; cornerRadius?: number; dark?: boolean; reduceTransparency?: boolean; children?: ReactNode };
+  LookColors & { source: string; name?: string; variant?: FrostVariant; cornerRadius?: number; dark?: boolean; reduceTransparency?: boolean; children?: ReactNode };
 
 type LookNative = { setPageFrost?: (mode: "live" | "solid") => string; probeFrosts?: () => void; setLookOff?: (off: boolean) => boolean; lookIsOff?: () => boolean };
 

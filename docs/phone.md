@@ -270,6 +270,9 @@ and again only when that status changes.
     stage's colours blurred in every look (green: blurred green and blue, not flat lavender), and over incognito
     its label is white. The sheet frost over the page follows the page as it scrolls. Probe frost logs
     `path live` for both lab frosts, never `inside its own source`, each with its frost and source sizes.
+    Every frost logs `PAGELAB look frost <name or source/variant #n> WxH path=… (reason)` whenever its path
+    changes, so a button without glass shows why. Over a still page the tray's frost redraws a few times a
+    second, and every frame only while the page scrolls; measure with the look on and off as in step 38.
 34. **Voice screen in light mode:** the backdrop is the dark profile backdrop, with the white "Listening…", X and
     stop button readable on it, the same as in dark mode.
 35. **Swipe over a carousel, both ways:** with Swipe anywhere, on a page with back history and a sideways
