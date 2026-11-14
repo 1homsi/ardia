@@ -111,11 +111,29 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     private fun show(view: View?) {
         if (view != null && view.parent === host && host.childCount == 1) return
+        val hadView = host.childCount > 0
         host.removeAllViews()
-        if (view == null) return
-        (view.parent as? ViewGroup)?.removeView(view)
+        if (view == null) {
+            if (hadView) lab { "page view ${page?.id ?: pageId} lost its WebView (the page released it), ${width}x$height" }
+            return
+        }
+        val owner = view.parent as? ViewGroup
+        owner?.removeView(view)
         host.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         layOutChildren()
+        lab {
+            val from = if (owner != null) ", taken from another view (${owner.javaClass.simpleName}${(owner.parent as? PageView)?.let { " of page view ${it.pageId}" } ?: ""})" else ""
+            "page view ${page?.id ?: pageId} shows its WebView at ${width}x$height, ${if (isShown) "shown" else "not shown"}$from"
+        }
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        lab { "page view ${page?.id ?: pageId} size ${oldw}x$oldh -> ${w}x$h" }
+    }
+
+    private inline fun lab(line: () -> String) {
+        if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB ${line()}")
     }
 
     private val layOutAgain = Runnable { layOutChildren() }

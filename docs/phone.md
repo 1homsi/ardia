@@ -285,7 +285,9 @@ and again only when that status changes.
 36. **Offline page:** load a page, turn on airplane mode, then open a new page and reload the first. Each tab keeps
     its last real title, or shows the address's host when it never loaded: on the deck, in the Archive, in the page
     menu and in History, never "Web page not available". The deck card keeps the page's last good snapshot (or
-    the placeholder), never the WebView's white error page. In dark mode the bottom bar stays dark over the
+    the placeholder), never the WebView's white error page. Also open three heavy pages one after another (Wikipedia, github.com, bbc.com/news): each
+    draws within a few seconds. If one stays pink or white, report the `PAGELAB page view …` lines from opening it
+    (`shows its WebView at WxH`, `taken from another view`, `lost its WebView`, size changes). In dark mode the bottom bar stays dark over the
     offline view. Turn airplane mode off and tap Try Again: the real title, colours and a new snapshot come back.
 37. **Memory after closing tabs:** as in step 27 (one tab, nine tabs, close eight), tap Memory after each stage. The
     image cache line now reads `X MB in N images (shown A MB in a, kept B MB in b)`. Each close logs
