@@ -41,5 +41,6 @@ jobs:
         run: >-
           node scripts/ci/prune-caches.mjs $DRY_RUN
           --newest-only xcode-cas-release-
+          --newest-only xcode-cas-ios-
           --newest-only swiftpm-xcode-
           --newest-only turbo- | tee -a "$GITHUB_STEP_SUMMARY"
