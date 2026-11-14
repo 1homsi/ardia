@@ -109,7 +109,7 @@ const report = `
     devices: u.devices.map((d) => ({ id: d.id, name: d.name, kind: d.kind, current: d.current })),
     tabsOnDevices: remote.map((d) => ({ id: d.deviceId, name: d.name, tabs: d.tabs.map((t) => t.url) })),
     sendTargets: profileId ? acSync.menu.sendTabMenuItem({ id: "", url: "https://example.com", profileId }) : null,
-    macTabs: Object.values(s.tabs).map((t) => t.url),
+    macTabs: Object.values(s.tabs).map((t) => t.url).filter(Boolean),
   };
 `;
 

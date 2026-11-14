@@ -429,13 +429,39 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
 
 #### A Mac for a phone without one
 
-`apps/phone/scripts/phone-sync-mac.mjs` (its `--help` has the build and Metro steps) runs a hidden Ardia for Mac
-instance on a folder on this Mac and mirrors that folder over adb, both ways, to `/sdcard/Documents/Ardia Sync` on
-the phone. It writes the recovery phrase to `<work>/phrase.txt` and prints the device list the Mac sees whenever it
-changes. To give an upgrade a connected phone: run it with the phone attached, connect the Compose app's sync to
-Documents › Ardia Sync with that phrase, note the phone's id in the printed list, then upgrade. After the import
-the list still has that id and no new one. The Mac half was checked on this Mac (sync on, phrase, device list,
-files written); the adb mirror has not yet run against a phone.
+The phones are on corex; the Mac is a hidden Ardia for Mac on shiv. `apps/phone/scripts/phone-sync-mac.mjs` runs on
+shiv (a hidden instance with its own data folder and a sync folder in its work folder), and
+`apps/phone/scripts/phone-sync-relay.mjs` runs on corex, where it keeps that folder and the phone's
+`Documents/Ardia Sync` the same over ssh and the phone's own adb. Each has `start`, `status`, `sync` and `stop`
+(`--help` on either). On corex, per phone:
+
+```sh
+S=<serial>; R=/Users/shivam-mini/.t3/worktrees/ardia/t3-ffb1082e-c9e4c64b1897b325; W=/tmp/ardia-upgrade-mac-$S
+mac() { ssh shiv "cd $R && node apps/phone/scripts/phone-sync-mac.mjs $* --work $W"; }
+relay() { node ~/phone-sync-relay.mjs "$@" --serial $S; }
+scp shiv:$R/apps/phone/scripts/phone-sync-relay.mjs ~/phone-sync-relay.mjs
+mac start                          # prints the phrase, the folder and the Mac's own device id
+relay start --mac shiv:$W/folder   # checks the phone's folder with a probe file, then mirrors every 3 s
+```
+
+- `mac status` (or `mac sync` to sync first) prints every device the Mac sees with its id, name and kind, each
+  device's open tabs, and the Mac's own tabs. `mac send https://example.com/x` sends a tab to the phone.
+- `relay status` shows the last pass and the latest copies and deletions; `relay sync` runs a pass now.
+- Connect the phone (Compose or Expo app): Settings › Sync With Mac › Connect to Your Mac. Step 1, Enter Words: put
+  the cursor in the first word's field, then
+  `adb -s $S shell input text "$(ssh shiv cat $W/phrase.txt | sed 's/ /%s/g')"`, or type the 24 words. Step 2,
+  Choose Folder…: in the system picker open Documents › Ardia Sync, then Use This Folder and Allow.
+- When done: `relay stop`, then `mac stop` (it quits the instance and deletes `$W`), then
+  `adb -s $S shell rm -rf "/sdcard/Documents/Ardia Sync"`.
+
+Checked without a phone: the Mac side started with the AGENTS.md rules (a Debug build, never the installed app,
+`open -g -n`, `ARDIA_BACKGROUND=1`, a throwaway data folder), turned sync on, printed its phrase and devices, and
+stopped cleanly. The relay ran on corex against shiv's folder with a stand-in for adb: copies, an idle pass,
+deletions both ways and the loop. On shiv, a second hidden instance joined through the relayed folder with the
+phrase; the Mac listed its id and its tab, and a tab sent from the Mac arrived once. Not yet run against a phone:
+adb `exec-in`/`exec-out` and toybox `stat`/`find` on MIUI (the start probe checks them and stops before copying
+anything), the app picking a folder the shell created and reading files the shell wrote, and typing the phrase
+with `input text`.
 
 #### Upgrade tester script
 
@@ -463,18 +489,19 @@ back), pass B (step 11: the failure screen, then an import) and pass C (step 12:
    - In Site Settings: Night Shade (Automatic), swipe navigation, collapse bottom bar; zoom on one site and Night
      Shade on another; blocking: cookie banners off, a trusted site, a line in My Filters, one list off.
    - The Reader's size, serif and theme.
-   - Connect sync. With no Mac of the tester's own, use this Mac's helper ("A Mac for a phone without one"): run
-     `node apps/phone/scripts/phone-sync-mac.mjs --app <Debug Ardia.app> --work /tmp/ardia-upgrade-mac --metro-port 8099`
-     with the phone on adb and leave it running for the whole pass. In the Compose app, connect sync to
-     Documents › Ardia Sync with the phrase from `/tmp/ardia-upgrade-mac/phrase.txt`. Within a minute the helper
-     prints `devices the Mac sees:` with the phone's id and name, and the Compose app lists the helper's Mac.
+   - Connect sync. With no Mac of the tester's own, start the Mac on shiv and the relay as in "A Mac for a phone
+     without one" (`mac start`, `relay start`) and leave both running for the whole pass. In the Compose app, connect
+     with that phrase and Documents › Ardia Sync. Within a minute `mac sync` lists a `phone` device with the phone's
+     name and an id, and its open tabs; the Compose app's Sync page lists the Mac. Send one tab each way:
+     `mac send https://example.com/before-upgrade` arrives on the phone once, and a page opened on the phone shows
+     under the phone's tabs in `mac sync`.
    - Not carried, because the Compose app doesn't store it: per-site Desktop Site (shown in the page menu but never
      written to disk) and open-in-app per site (there is no such control).
    Passes B and C need only a few tabs, one archived tab, a trusted site and a My Filters line.
 3. **Write down the state.** Do this before anything else:
    - Screenshot the deck, the Archive, search results for an old visit, every settings page you changed, and the
-     Mac's device list (Settings › Sync on the Mac, with the phone's device id in its detail; with the helper, copy
-     its last `devices the Mac sees:` line instead).
+     Mac's device list (Settings › Sync on the Mac, with the phone's device id in its detail; with the helper, save
+     the output of `mac sync`, which has the phone's id and its tabs).
    - Run `adb shell am force-stop $P`.
    - Run `adb shell "run-as $P sh -c 'sha256sum databases/* shared_prefs/ardia.*.xml cache/TabSnapshots/*'"`
      and save the output. (`run-as` works only on the Compose debug build; the Expo build can't be inspected so.)
@@ -500,7 +527,8 @@ Pass A
    - The same with `afterSettings`, killing at `paused at settingsDone`. This launch finds the receipt, so it only
      applies the native settings (no `ardia-legacy imported` line).
    - The same with `beforeMarker`, killing at `paused at beforeMarker`.
-   Report the `ardia-legacy` and `PAGELAB upgrade` lines from each.
+   Report the `ardia-legacy` and `PAGELAB upgrade` lines from each. With the helper, run `mac sync` after each
+   kill: still only the step-3 phone id (a held import never makes a second device).
 7. **The import.** Open the app normally. The import finishes from the receipt, nothing is imported twice, and
    `example.com/held-a` opens once, after the deck. Then check every item against step 3:
    - The deck has every tab in the same order, the same tab is selected, and each card shows its thumbnail.
@@ -514,9 +542,15 @@ Pass A
    - In the lab, Read source gives `done` with `outcome imported`.
 8. **The device the Mac sees.** On the Mac, the phone appears once, under the same name and device id as in step 3.
    It is not a second, new device. A tab sent from the Mac arrives, and one sent from the phone reaches the Mac.
-   With the helper, its next `devices the Mac sees:` line after the import has the step-3 id and no new one, and
-   Settings › Sync on the phone shows it connected and lists the helper's Mac, with no folder picker and no phrase
-   asked for. Report the helper's lines from the whole pass.
+   With the helper, after the import:
+   - `mac sync` lists the phone under the step-3 id and no other phone, with the phone's tabs.
+   - `mac send https://example.com/after-upgrade` arrives on the phone once (not twice, not again after a
+     force-stop and relaunch).
+   - A page opened on the phone (`https://example.com/opened-after-upgrade`) shows under the phone's tabs in the
+     next `mac sync`.
+   - Settings › Sync With Mac on the phone shows it connected to the Mac, with no folder picker and no phrase
+     asked for.
+   Report the `mac sync` output from step 3, after the import, and after step 9, and the `relay status` lines.
 9. **Relaunch with no second import.** `adb shell am force-stop $P`, then open the app twice. Each time, the deck,
    the Archive and History have the same counts as step 7 (nothing doubled), no `ardia-legacy imported` line, and
    `example.com/held-a` does not open again.
