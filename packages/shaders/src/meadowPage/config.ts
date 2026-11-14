@@ -17,7 +17,7 @@ export type MeadowPageConfig = {
 
 export type MeadowPageState =
   | { state: "ready"; at: number }
-  | { state: "failed" }
+  | { state: "failed"; detail?: string }
   | { state: "tone"; tone: string; halo: number }
   | { state: "skip" }
   | { state: "mute"; muted: boolean };

@@ -209,8 +209,20 @@ function start(config: MeadowPageConfig): Controls {
   };
 }
 
+function failureDetail(warning: string): string {
+  const webgl2 = !!document.createElement("canvas").getContext("webgl2");
+  return `${warning || "no warning"}; webgl2 ${webgl2 ? "available" : "unavailable"}`.slice(0, 240);
+}
+
 function hostMessages(canvas: () => Element | null) {
+  let warning = "";
+  const warn = console.warn.bind(console);
+  console.warn = (...parts: unknown[]) => {
+    warning = parts.map((part) => (part instanceof Error ? part.message : String(part))).join(" ");
+    warn(...parts);
+  };
   const postMessage = (message: MeadowPageState) => {
+    if (message.state === "failed") message = { state: "failed", detail: failureDetail(warning) };
     if (message.state === "ready" && !readyAt) {
       readyAt = performance.now();
       canvas()?.classList.add("shown");

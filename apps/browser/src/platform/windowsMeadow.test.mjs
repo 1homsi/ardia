@@ -337,3 +337,11 @@ test("a mute set before the page's scripts are in reaches the page once they are
   session.setMuted(true);
   assert.equal(page.ran.filter((code) => code.includes("muted(")).length, 1, "a mute the page already has is not sent again");
 });
+
+test("a scene that fails says why in the launch log", async () => {
+  const { page, deps } = fakePage();
+  startMeadowSession(startedNow, false, URL_OF_PAGE, deps);
+  page.report([{ state: "failed", detail: "WebGL2 unavailable; webgl2 unavailable" }]);
+  await page.advance(MEADOW_POLL_MS);
+  assert.ok(page.logs.some((line) => line === "[ardia windows] meadow fell back: the scene failed (WebGL2 unavailable; webgl2 unavailable)"), page.logs.join("\n"));
+});

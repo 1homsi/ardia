@@ -135,7 +135,7 @@ export function startMeadowSession(intro: MeadowIntro, night: boolean, url: stri
       sendNight();
       closeAt(intro.startedAt + intro.motion.exit.delay + intro.motion.holds.exit, "finished");
     } else if (state.state === "tone" && isTone(state.tone)) deps.tone({ tone: state.tone, halo: typeof state.halo === "number" ? state.halo : 0 });
-    else if (state.state === "failed") fallBack("the scene failed");
+    else if (state.state === "failed") fallBack(typeof state.detail === "string" ? `the scene failed (${state.detail})` : "the scene failed");
     else if (state.state === "skip" && (phase === "live" || phase === "opening")) {
       stopDeadline();
       deps.tell({ kind: "skip" });
