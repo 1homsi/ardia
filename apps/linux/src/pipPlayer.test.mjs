@@ -3,7 +3,7 @@ import test from "node:test";
 import { clampInto, cornerRect, flingTarget, frameOf, handleAt, parseFrame, placeFrame, resizeFrom, springSettled, springStep, PLAYER_INSET } from "./pipGeometry.ts";
 import { nextFrameRunner, planHoles } from "./playerHoles.ts";
 import { floatingPieces, holeClipPath } from "./pageHoles.ts";
-import { positionAt, readPlayerEvent } from "./pipPlayer.ts";
+import { clickSkip, positionAt, readPlayerEvent } from "./pipPlayer.ts";
 
 const area = { x: 200, y: 50, width: 1000, height: 700 };
 const aspect = 16 / 9;
@@ -202,4 +202,19 @@ test("the progress bar extrapolates playback from the last engine position", () 
   assert.equal(positionAt(position, false, 3000), 10);
   assert.equal(positionAt(position, true, 100000), 20);
   assert.equal(positionAt(null, true, 0), null);
+});
+
+test("a click on the left or right of the player skips 10 seconds, the play button's column and a drag do not", () => {
+  assert.equal(clickSkip(10, 320, 0), -10);
+  assert.equal(clickSkip(310, 320, 0), 10);
+  assert.equal(clickSkip(160, 320, 0), 0);
+  assert.equal(clickSkip(160 - 40, 320, 0), 0);
+  assert.equal(clickSkip(160 + 40, 320, 0), 0);
+  assert.equal(clickSkip(160 - 41, 320, 0), -10);
+  assert.equal(clickSkip(160 + 41, 320, 0), 10);
+  assert.equal(clickSkip(10, 320, 2.9), -10);
+  assert.equal(clickSkip(10, 320, 3), 0);
+  assert.equal(clickSkip(-1, 320, 0), 0);
+  assert.equal(clickSkip(321, 320, 0), 0);
+  assert.equal(clickSkip(10, 0, 0), 0);
 });

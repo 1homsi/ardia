@@ -641,7 +641,10 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     Ask) is declined before the page is asked. Automatic document PiP (video calls) is refused, since it would map a
     toplevel; explicit document PiP is unchanged.
   - Shell (`InWindowPlayer.tsx`, `pipPlayer.ts`, `pipGeometry.ts`): Dia's PiP controls and timings (the hover scrim,
-    back to tab, close, play/pause, ±10 s, the progress bar), plus a pop-out button. Drags move it inside the
+    back to tab, close, play/pause, ±10 s, the progress bar), plus a pop-out button. A click that travels under
+    3 px on the video's left or right side skips back or ahead 10 s through the same `seekBy` command, as on the Mac;
+    the play button's column (40 px either side of the centre) does nothing, and each click of a double click skips
+    again (`usage_counts.pip_click_skips_back` and `pip_click_skips_ahead`). Drags move it inside the
     content card, a fling throws it to a corner with Dia's spring, the edges resize it at the video's aspect, and
     its corner, offset and width are remembered in `pip-player.json`. Its messages carry the player's generation, so
     a late reply can't move or close a newer player.

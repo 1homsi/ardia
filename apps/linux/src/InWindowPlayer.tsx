@@ -21,14 +21,14 @@ import {
   type Rect,
   type SpringAxis,
 } from "./pipGeometry.ts";
-import { positionAt, savePlayerFrame, sendPlayerCommand, sendPlayerViewport, usePipPlayer, type PlayerState } from "./pipPlayer.ts";
+import { notePictureInPictureClickSkip } from "../../browser/src/state/telemetry/pictureInPictureCounts";
+import { clickSkip, positionAt, savePlayerFrame, sendPlayerCommand, sendPlayerViewport, SKIP_SECONDS, usePipPlayer, type PlayerState } from "./pipPlayer.ts";
 
 const CONTROLS_IDLE_MS = 2500;
-const SEEK_SECONDS = 10;
 const VELOCITY_WINDOW_MS = 100;
 
 type Gesture =
-  | { kind: "drag"; pointer: number; start: Point; rect: Rect; samples: { at: number; x: number; y: number }[] }
+  | { kind: "drag"; pointer: number; start: Point; rect: Rect; travel: number; samples: { at: number; x: number; y: number }[] }
   | { kind: "resize"; pointer: number; start: Point; rect: Rect; handle: Handle }
   | { kind: "seek"; pointer: number };
 
@@ -267,7 +267,7 @@ function PlayerFrame({ state, rect, area, hole, fade, onRect, interacting }: {
     interacting.current = true;
     gesture.current = handle
       ? { kind: "resize", pointer: event.pointerId, start: point, rect, handle }
-      : { kind: "drag", pointer: event.pointerId, start: point, rect, samples: [{ at: event.timeStamp, ...point }] };
+      : { kind: "drag", pointer: event.pointerId, start: point, rect, travel: 0, samples: [{ at: event.timeStamp, ...point }] };
     wake();
   };
 
@@ -294,6 +294,7 @@ function PlayerFrame({ state, rect, area, hole, fade, onRect, interacting }: {
       }, ardiaHost);
       return;
     }
+    current.travel = Math.max(current.travel, Math.hypot(point.x - current.start.x, point.y - current.start.y));
     current.samples.push({ at: event.timeStamp, ...point });
     while (current.samples.length > 2 && event.timeStamp - (current.samples[0]?.at ?? event.timeStamp) > VELOCITY_WINDOW_MS) current.samples.shift();
     onRect(clampInto({ ...current.rect, x: current.rect.x + point.x - current.start.x, y: current.rect.y + point.y - current.start.y }, area));
@@ -306,6 +307,14 @@ function PlayerFrame({ state, rect, area, hole, fade, onRect, interacting }: {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     if (current.kind === "drag") {
       const point = local(event);
+      const travel = Math.max(current.travel, Math.hypot(point.x - current.start.x, point.y - current.start.y));
+      const skip = clickSkip(current.start.x - current.rect.x, current.rect.width, travel);
+      if (skip) {
+        interacting.current = false;
+        notePictureInPictureClickSkip(skip);
+        command("seekBy", { seconds: skip });
+        return;
+      }
       const first = current.samples[0] ?? { at: event.timeStamp, ...point };
       const elapsed = Math.max(1, event.timeStamp - first.at) / 1000;
       const velocity = { x: (point.x - first.x) / elapsed, y: (point.y - first.y) / elapsed };
@@ -389,9 +398,9 @@ function PlayerFrame({ state, rect, area, hole, fade, onRect, interacting }: {
               : <svg width="36" height="42" viewBox="0 0 36 42" aria-hidden><path d="M4 4.5C4 2 6.7 0.5 8.9 1.8L33 18.6C35 19.9 35 22.1 33 23.4L8.9 40.2C6.7 41.5 4 40 4 37.5Z" /></svg>,
             { left: rect.width / 2 - 24, top: rect.height / 2 - 23.5, width: 48, height: 48 })}
         {state.playPause && !compact && duration !== null &&
-          button("replay", "Back 10 seconds", () => command("seekBy", { seconds: -SEEK_SECONDS }), <SeekGlyph forward={false} />, { left: rect.width / 2 - 76 - 20, top: rect.height / 2 - 20, width: 40, height: 40 })}
+          button("replay", "Back 10 seconds", () => command("seekBy", { seconds: -SKIP_SECONDS }), <SeekGlyph forward={false} />, { left: rect.width / 2 - 76 - 20, top: rect.height / 2 - 20, width: 40, height: 40 })}
         {state.playPause && !compact && duration !== null &&
-          button("forward", "Forward 10 seconds", () => command("seekBy", { seconds: SEEK_SECONDS }), <SeekGlyph forward />, { left: rect.width / 2 + 76 - 20, top: rect.height / 2 - 20, width: 40, height: 40 })}
+          button("forward", "Forward 10 seconds", () => command("seekBy", { seconds: SKIP_SECONDS }), <SeekGlyph forward />, { left: rect.width / 2 + 76 - 20, top: rect.height / 2 - 20, width: 40, height: 40 })}
         {duration !== null && (
           <div
             className="ardia-pip-progress"

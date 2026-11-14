@@ -6,6 +6,10 @@ export const PIP_ATTACH = "pip.attach";
 export const PIP_VIEWPORT = "pip.viewport";
 export const PIP_COMMAND = "pip.command";
 export const PIP_FRAME_DOCUMENT = "pip-player.json";
+export const SKIP_SECONDS = 10;
+
+const SKIP_DEAD_BAND_HALF_WIDTH = 40;
+const CLICK_SLOP = 3;
 
 export type PlayerPosition = { current: number; duration: number | null; rate: number; at: number };
 export type PlayerState = {
@@ -50,6 +54,13 @@ export function positionAt(position: PlayerPosition | null, playing: boolean, no
   const elapsed = playing ? ((now - position.at) / 1000) * position.rate : 0;
   const current = position.current + elapsed;
   return position.duration === null ? current : Math.min(Math.max(0, current), position.duration);
+}
+
+export function clickSkip(x: number, width: number, travel: number) {
+  if (!(width > 0) || x < 0 || x > width || !(travel < CLICK_SLOP)) return 0;
+  const fromCentre = x - width / 2;
+  if (Math.abs(fromCentre) <= SKIP_DEAD_BAND_HALF_WIDTH) return 0;
+  return fromCentre < 0 ? -SKIP_SECONDS : SKIP_SECONDS;
 }
 
 export function startPipPlayer(host: ArdiaHost, now: () => number = () => performance.now()) {
