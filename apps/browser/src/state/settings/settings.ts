@@ -94,6 +94,7 @@ export const SETTING_SPECS = {
   reuseEmptyNewTab: flag(false, SYNCED),
   newTabUrl: text("", SYNCED),
   warnBeforeClosingLastTab: flag(true, SYNCED),
+  keepTopAppsRunning: flag(false, SYNCED),
   undoReopensClosedTab: flag(false, SYNCED),
   warnBeforeMovingTabsToProfile: flag(true, SYNCED),
   shareTabsAcrossWindows: flag(false),
