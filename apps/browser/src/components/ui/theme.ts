@@ -8,12 +8,13 @@ import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { WINDOW_CHROME } from "../../lib/windowChrome";
 import { arcSelectedFill, colorRoles, HIGH_CONTRAST_INK, ink, INCOGNITO_TINT, withAlpha, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
 import type { BasePalette } from "../../lib/themeFile";
-import { visibleSelection } from "../../lib/selectionContrast";
+import { visibleLine, visibleSelection } from "../../lib/selectionContrast";
 
 export { PROFILE_COLORS } from "./tokens";
 
 export type Theme = ColorRoles & {
   rowSelectedText: string;
+  pinnedDivider: string;
   adaptiveInk: boolean;
   highContrastText: boolean;
   profileColor: ProfileColor | "incognito";
@@ -131,6 +132,7 @@ export function themeFor(key: string, palette?: BasePalette | null): Theme {
     theme = {
       ...base,
       rowSelectedText: base.tabSelectedText,
+      pinnedDivider: base.divider,
       adaptiveInk: false,
       highContrastText: false,
       profileColor: color,
@@ -179,6 +181,7 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
     theme = {
       ...preset,
       ...arcSelectionRoles(dark ? preset.palettes.dark : preset.palettes.light, windowTint, adaptiveInk),
+      pinnedDivider: visibleLine(preset.divider, inkOn(windowTint, dark), windowTint),
       adaptiveInk,
       profileColor: nearestPreset(accent),
       backdrop: {
