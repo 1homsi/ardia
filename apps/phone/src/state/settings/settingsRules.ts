@@ -239,3 +239,19 @@ export const listsUpdateFailed = (state: { isOffline: boolean; lists: readonly {
 
 export const listUpdatedAt = (at: number, locale?: string): string =>
   new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(at));
+
+export const FALLBACK_ENGINES: readonly { id: string; name: string }[] = [
+  { id: "google", name: "Google" },
+  { id: "bing", name: "Bing" },
+  { id: "duckduckgo", name: "DuckDuckGo" },
+  { id: "ecosia", name: "Ecosia" },
+  { id: "brave", name: "Brave Search" },
+  { id: "kagi", name: "Kagi" },
+  { id: "startpage", name: "Startpage" },
+  { id: "yahoo", name: "Yahoo" },
+];
+
+export function pickerEngines(loaded: readonly { id: string; name: string; custom: boolean }[]): { id: string; name: string }[] {
+  const builtIn = loaded.filter((engine) => !engine.custom).map(({ id, name }) => ({ id, name }));
+  return builtIn.length ? builtIn : [...FALLBACK_ENGINES];
+}

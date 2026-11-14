@@ -4,7 +4,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { popSettings, pushSettings, type SettingsRoute } from "../../state/settings/nav";
 import { formatNumber } from "../../state/settings/settingsRules";
 import { font, settingsLayout, settingsTint, Symbol, useTheme } from "../ui";
-import { Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
+import { Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
 import { useSyncEnabled, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName } from "../../state/sync/syncRules";
 
@@ -30,7 +30,11 @@ export function SearchEnginePage() {
     return (
       <SettingsPage title="Search Engine" onBack={popSettings}>
         <Group footer="Set on your Mac.">
-          <ValueRow title="From Your Mac" value={syncedEngineName(synced, engines)} />
+          <View testID="engineFromMac" accessible accessibilityLabel="From Your Mac" accessibilityValue={{ text: syncedEngineName(synced, engines) }} style={[styles.row, styles.labelled]}>
+            <Symbol name="laptop" size={22} color={theme.formAccent} />
+            <Text style={[font.body, styles.fill, { color: theme.label }]}>From Your Mac</Text>
+            <Text style={[font.body, { color: theme.secondaryLabel }]}>{syncedEngineName(synced, engines)}</Text>
+          </View>
         </Group>
       </SettingsPage>
     );
@@ -114,4 +118,5 @@ export function SiteSettingsGroups({ openRoute }: { openRoute: (route: SettingsR
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset },
   fill: { flex: 1 },
+  labelled: { gap: settingsLayout.labelGap },
 });

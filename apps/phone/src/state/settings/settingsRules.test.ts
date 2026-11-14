@@ -25,6 +25,8 @@ import {
   resetMessage,
   updatedText,
   filterListAddress,
+  FALLBACK_ENGINES,
+  pickerEngines,
   listUpdatedAt,
   FILTER_LIST_ADDRESS,
   websiteDataKinds,
@@ -178,4 +180,16 @@ test("an update of the filter lists fails when the phone is offline or an enable
 test("a list's Last Updated is a date and time, as both apps show it", () => {
   const shown = listUpdatedAt(new Date(2026, 10, 14, 15, 30).getTime(), "en-US");
   assert.match(shown, /^Nov 14, 2026, 3:30\s?PM$/u);
+});
+
+test("the engine picker lists only built-in engines, never the Mac's custom ones or Custom, and falls back to Compose's list", () => {
+  assert.deepEqual(
+    pickerEngines([
+      { id: "google", name: "Google", custom: false },
+      { id: "custom", name: "Custom", custom: true },
+      { id: "mac-wiki", name: "Wiki", custom: true },
+    ]),
+    [{ id: "google", name: "Google" }],
+  );
+  assert.deepEqual(pickerEngines([]), FALLBACK_ENGINES);
 });

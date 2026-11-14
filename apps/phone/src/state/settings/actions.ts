@@ -14,7 +14,7 @@ import { clearArchivedTabs, currentTabs, setAutoArchiveInterval } from "../tabs/
 import type { AutoArchiveInterval } from "../tabs/tabModels";
 import { closeSettings } from "./nav";
 import type { ColorChoice, NightShadeMode, Preferences, SwipeNavigationMode } from "./preferences";
-import { clearSince, exportableUrls, FILTER_LIST_ADDRESS, listsUpdateFailed, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
+import { clearSince, exportableUrls, FALLBACK_ENGINES, FILTER_LIST_ADDRESS, pickerEngines, listsUpdateFailed, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
 import { currentPreferences, setPreference } from "./store";
 
 export type { BlockingState };
@@ -54,7 +54,7 @@ export async function refreshSettings() {
   const [state, shade, engines, opensApps] = await Promise.all([
     settled(() => blocking.state(), null),
     settled(() => pages.nightShade(null, false), null),
-    settled(async () => searchEngines(), [] as { id: string; name: string }[]),
+    settled(async () => pickerEngines(searchEngines()), [...FALLBACK_ENGINES]),
     settled(() => pages.appLinksDefault(), false),
   ]);
   if (state) useBlocking.setState({ state });
