@@ -1,7 +1,8 @@
-import { AppState, Linking, Platform } from "react-native";
+import { AppState, Dimensions, Linking, Platform, StyleSheet } from "react-native";
 import { act } from "react-test-renderer";
 import "../platform/copy";
 import { DefaultBrowserPage, DefaultBrowserSteps } from "../components/settings/DefaultBrowserPage";
+import { AppIcon } from "../components/ui";
 import { defaultBrowser } from "../platform/defaultBrowser";
 import { useDefaultBrowser } from "../state/settings/defaultBrowser";
 import { pressButton, renderSurface, textOf, unmount } from "../../test/render/harness";
@@ -75,5 +76,44 @@ onAndroid("on Android nothing changed: without the role on offer the button open
   comeBack();
   await settle();
   expect(textOf(root)).toContain("Ardia is your default browser");
+  unmount(root);
+});
+
+test("the title is 28 points bold, and the last step's picture is the app icon, as both apps draw it", async () => {
+  const root = renderSurface(<DefaultBrowserPage />);
+  await settle();
+  const title = root.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "header" && /your default browser/i.test(textOf({ root: node } as never)))[0]!;
+  const style = StyleSheet.flatten(title.props.style);
+  expect(style.fontSize).toBe(28);
+  expect(style.fontWeight).toBe("700");
+  expect(root.root.findAll((node) => node.type === AppIcon)).toHaveLength(1);
+  unmount(root);
+});
+
+test("at accessibility text sizes the steps are a plain numbered list instead of the card", async () => {
+  const window = Dimensions.get("window");
+  Dimensions.set({ window: { ...window, fontScale: 1.6 }, screen: { ...window, fontScale: 1.6 } });
+  const root = renderSurface(<DefaultBrowserPage />);
+  await settle();
+  const list = root.root.findAll((node) => node.props.testID === "defaultBrowserList" && typeof node.type === "string");
+  expect(list).toHaveLength(1);
+  expect(textOf({ root: list[0]! } as never)).toMatch(/^1\. /);
+  expect(root.root.findAll((node) => node.type === AppIcon)).toHaveLength(0);
+  Dimensions.set({ window, screen: window });
+  unmount(root);
+});
+
+onAndroid("on Android, when nothing on the phone can take the request, onboarding moves on as Compose does", async () => {
+  jest.spyOn(defaultBrowser, "openDefaultAppsSettings").mockImplementation(async () => {
+    throw new Error("No activity found");
+  });
+  const later = jest.fn();
+  const done = jest.fn();
+  const root = renderSurface(<DefaultBrowserSteps onLater={later} onDone={done} />);
+  await settle();
+  await pressButton(root, "Open Default Apps");
+  await settle();
+  expect(later).toHaveBeenCalledTimes(1);
+  expect(done).not.toHaveBeenCalled();
   unmount(root);
 });

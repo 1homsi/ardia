@@ -1,14 +1,15 @@
 import { useEffect } from "react";
-import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { askForDefaultBrowser, refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { popSettings } from "../../state/settings/nav";
 import { defaultBrowserCopy } from "../../state/settings/settingsRules";
-import { ArdiaLogo, font, PrimaryButton, radius, settingsLayout, settingsTint, space, spacesLayout, Symbol, useTheme } from "../ui";
+import { AppIcon, font, ink, PrimaryButton, radius, settingsLayout, settingsTint, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { SettingsPage } from "./SettingsKit";
 
 export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void; onDone?: () => void }) {
   const theme = useTheme();
   const status = useDefaultBrowser((s) => s.status);
+  const { fontScale } = useWindowDimensions();
   useEffect(() => {
     void refreshDefaultBrowser();
     const returns = AppState.addEventListener("change", (next) => {
@@ -18,20 +19,29 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
   }, []);
   if (!status) return null;
   const copy = defaultBrowserCopy(status);
+  const listsSteps = fontScale >= settingsLayout.accessibilityFontScale;
   const ask = async () => {
     if (copy.inSettings) onDone?.();
     const after = await askForDefaultBrowser(copy.does);
-    if (!copy.inSettings && after?.isDefault) onDone?.();
+    if (copy.inSettings) return;
+    if (after.unavailable) onLater?.();
+    else if (after.status?.isDefault) onDone?.();
   };
   return (
     <View style={styles.column}>
       <View style={styles.words}>
-        <Text accessibilityRole="header" style={[font.largeTitle, styles.heavy, { color: theme.label }]}>
+        <Text accessibilityRole="header" style={[font.title, styles.heavy, { color: theme.label }]}>
           {copy.title}
         </Text>
         <Text style={[font.body, styles.centered, { color: theme.secondaryLabel }]}>{copy.subtitle}</Text>
       </View>
-      {copy.steps.length ? (
+      {copy.steps.length && listsSteps ? (
+        <View testID="defaultBrowserList" style={styles.list}>
+          {copy.steps.map((step, index) => (
+            <Text key={step} style={[font.body, { color: theme.label }]}>{`${index + 1}. ${step}`}</Text>
+          ))}
+        </View>
+      ) : copy.steps.length ? (
         <View style={[styles.card, { backgroundColor: theme.groupFill }]}>
           {copy.steps.map((step, index) => (
             <View key={step}>
@@ -62,24 +72,24 @@ export function DefaultBrowserSteps({ onLater, onDone }: { onLater?: () => void;
 
 function StepIcon({ index, count, inSettings }: { index: number; count: number; inSettings: boolean }) {
   const theme = useTheme();
-  if (index === count - 1) return <ArdiaLogo width={settingsLayout.tile} />;
+  if (index === count - 1) return <AppIcon side={settingsLayout.tile} />;
   if (inSettings && index === 0) {
     return (
       <View style={[styles.tile, { backgroundColor: settingsTint.neutral }]}>
-        <Symbol name="gearshape" size={17} color={theme.groupFill} />
+        <Symbol name="gearshape" size={17} color={ink.white} />
       </View>
     );
   }
   if (inSettings) {
     return (
       <View style={styles.tile}>
-        <Symbol name="handRaised" size={18} color={theme.secondaryLabel} />
+        <Symbol name="handPointUpLeftFill" size={18} color={theme.secondaryLabel} />
       </View>
     );
   }
   return (
-    <View style={[styles.tile, { backgroundColor: settingsTint.sync }]}>
-      <Symbol name="arrowUpForward" size={16} color={theme.groupFill} />
+    <View style={[styles.tile, { backgroundColor: settingsTint.defaultBrowser }]}>
+      <Symbol name="handPointUpLeftFill" size={18} color={ink.white} />
     </View>
   );
 }
@@ -95,7 +105,8 @@ export function DefaultBrowserPage() {
 const styles = StyleSheet.create({
   column: { gap: space.xxl, paddingHorizontal: space.l + 4, paddingTop: space.l },
   words: { gap: space.s, alignItems: "center" },
-  heavy: { fontWeight: "700", textAlign: "center" },
+  heavy: { fontWeight: "700", textAlign: "center", ...(Platform.OS === "ios" ? { fontFamily: "ui-rounded" } : null) },
+  list: { gap: space.m },
   centered: { textAlign: "center" },
   bold: { fontWeight: "600" },
   fill: { flex: 1 },

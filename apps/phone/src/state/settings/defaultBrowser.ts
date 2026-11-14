@@ -13,8 +13,15 @@ export async function refreshDefaultBrowser(): Promise<DefaultBrowserStatus | nu
   return status;
 }
 
-export async function askForDefaultBrowser(does: DefaultBrowserAction | null): Promise<DefaultBrowserStatus | null> {
-  if (does === "askForRole") await settled(() => defaultBrowser.requestRole(), false);
-  else if (does === "openDefaultApps") await settled(() => defaultBrowser.openDefaultAppsSettings(), undefined);
-  return refreshDefaultBrowser();
+export type DefaultBrowserAnswer = { status: DefaultBrowserStatus | null; unavailable: boolean };
+
+export async function askForDefaultBrowser(does: DefaultBrowserAction | null): Promise<DefaultBrowserAnswer> {
+  let unavailable = false;
+  try {
+    if (does === "askForRole") await defaultBrowser.requestRole();
+    else if (does === "openDefaultApps") await defaultBrowser.openDefaultAppsSettings();
+  } catch {
+    unavailable = true;
+  }
+  return { status: await refreshDefaultBrowser(), unavailable };
 }

@@ -26,6 +26,8 @@ const HAND =
   "M11 11V5a1.5 1.5 0 0 1 3 0v6" +
   "M14 11V6.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L3.2 15a1.5 1.5 0 0 1 2.3-1.9L8 15.5";
 
+const POINTING = { turn: -35, x: 1.328, y: 0.212 } as const;
+
 const SHIELD = "M12 2.8l7.5 2.9v5.6c0 4.8-3.1 8.6-7.5 10-4.4-1.4-7.5-5.2-7.5-10V5.7z";
 
 function sparkle(cx: number, cy: number, r: number): string {
@@ -110,6 +112,10 @@ export const SYMBOLS = {
   ],
   desktop: [{ d: "M4 4.5h16a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 15V6A1.5 1.5 0 0 1 4 4.5zM12 16.5v3.5M8 20h8", stroke: STROKE }],
   handRaised: [{ d: HAND, stroke: STROKE }],
+  handPointUpLeftFill: [
+    { d: roundRect(9.9 - POINTING.x, 1.5 + POINTING.y, 2.7, 11, 1.35) + roundRect(9.6 - POINTING.x, 9.4 + POINTING.y, 9.8, 12, 4), fill: true, rotate: POINTING.turn },
+    { d: roundRect(6.2 - POINTING.x, 12 + POINTING.y, 5, 2.5, 1.25), fill: true, rotate: POINTING.turn },
+  ],
   handRaisedSlash: [{ d: HAND + "M3 3l18 18", stroke: STROKE }],
   plusSquareOnSquare: [{ d: "M8 3.5h10.5a2 2 0 0 1 2 2V16M5.5 7.5h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM10 11v6M7 14h6", stroke: STROKE }],
   arrowDownCircle: [{ d: "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18zM12 7.5v8.5M8.5 12.5L12 16l3.5-3.5", stroke: STROKE }],
