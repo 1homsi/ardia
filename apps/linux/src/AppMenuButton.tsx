@@ -6,6 +6,7 @@ import { useTheme } from "../../browser/src/components/ui/theme";
 import { menuButtonPresses, showMenu } from "./menus";
 import { linuxMenuShortcuts } from "./shortcuts";
 import { appMenuChoice, appMenuItems } from "./appMenu";
+import { minimizeAllWindows } from "./windowMenu";
 import { currentEditMenu, currentEditTarget, runEdit } from "./editTargets";
 import { hostModuleMethod, reportHostError } from "./host";
 import { linuxCapabilities, unavailableCommands } from "./hostCapabilities";
@@ -47,6 +48,7 @@ export async function openAppMenu(windowId: string, button: HTMLElement) {
   if (choice.kind === "edit") return runEdit(windowId, choice.action, editTarget).catch(reportHostError);
   if (choice.kind === "command") return emitCommand({ command: choice.command, arg: choice.arg, windowId });
   if (choice.action === "close") return void closeWindow(windowId).catch(reportHostError);
+  if (choice.action === "minimizeAll") return void minimizeAllWindows(useBrowser.getState().windowOrder);
   void hostModuleMethod("ArdiaShell", choice.action === "minimize" ? "minimizeWindow" : "toggleMaximizeWindow")(windowId).catch(reportHostError);
 }
 

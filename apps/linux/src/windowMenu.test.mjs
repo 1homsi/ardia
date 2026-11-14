@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWindowMenu, mergeableWindows, windowMenuItems, windowMenuWindows } from "./windowMenu.ts";
+import { createWindowMenu, mergeableWindows, minimizeAllWindows, windowMenuItems, windowMenuWindows } from "./windowMenu.ts";
 
 const settle = () => new Promise(setImmediate);
 
@@ -53,7 +53,7 @@ test("a regular window lists itself, the other regular windows by title and priv
     { id: "second", title: "Default — News & 2 Tabs" },
   ]);
   const items = windowMenuItems({ windowId: "main", windows, privateWindows: [{ id: "w-p1", title: "Bank", url: "https://bank.test/" }, { id: "w-p2" }], taskManager: true, canMerge: true });
-  assert.deepEqual(ids(items), ["minimize", "maximize", "---", "command:downloads", "command:taskManager", "command:mergeAllWindows", "---", "focus:main", "focus:second", "focus:w-p1", "focus:w-p2"]);
+  assert.deepEqual(ids(items), ["minimize", "minimizeAll", "maximize", "---", "command:downloads", "command:taskManager", "command:mergeAllWindows", "---", "focus:main", "focus:second", "focus:w-p1", "focus:w-p2"]);
   const entries = items.filter((item) => "id" in item && item.id.startsWith("focus:"));
   assert.deepEqual(entries.map((item) => [item.title, item.checked === true]), [
     ["Default — Inbox", true],
@@ -69,7 +69,7 @@ test("merge needs two regular windows and the Task Manager entry follows the hos
   assert.equal(mergeableWindows(state, utility), true);
   assert.equal(mergeableWindows({ ...state, windowOrder: ["main", "little", "w-p-own", "settings"] }, utility), false);
   const alone = windowMenuItems({ windowId: "main", windows: [{ id: "main", title: "A", current: true }], privateWindows: [], taskManager: false, canMerge: false });
-  assert.deepEqual(ids(alone), ["minimize", "maximize", "---", "command:downloads", "command:mergeAllWindows", "---", "focus:main"]);
+  assert.deepEqual(ids(alone), ["minimize", "minimizeAll", "maximize", "---", "command:downloads", "command:mergeAllWindows", "---", "focus:main"]);
   assert.equal(alone.find((item) => item.id === "command:mergeAllWindows").enabled, false);
 });
 
@@ -120,4 +120,20 @@ test("utility windows and windows of another renderer get no menu", async () => 
   assert.equal(await f.menu.open("second"), false);
   assert.equal(f.shown.length, 0);
   assert.equal(await f.menu.open("main"), true);
+});
+
+test("Minimize All, shown with Alt held, minimizes every window of this renderer and carries on past one the host refuses", async () => {
+  const items = windowMenuItems({ windowId: "main", windows: [{ id: "main", title: "A", current: true }], privateWindows: [], taskManager: false, canMerge: false });
+  assert.deepEqual(items.find((item) => item.id === "minimizeAll"), { id: "minimizeAll", title: "Minimize All", modifiers: ["option"], alternate: true });
+  const f = fixture({ show: async () => "minimizeAll" });
+  await f.menu.open("main");
+  assert.deepEqual(f.invoked.filter(([method]) => method !== "ArdiaShell.privateWindows"), state.windowOrder.map((id) => ["ArdiaShell.minimizeWindow", { args: [id] }]));
+  const asked = [];
+  const refusing = { bootstrap: { windowId: "main", profileId: "default" }, invoke: async (method, { args }) => {
+    asked.push(args[0]);
+    if (args[0] === "second") throw new Error("No such native window");
+    return null;
+  } };
+  assert.equal(await minimizeAllWindows(["main", "second", "little"], refusing), undefined);
+  assert.deepEqual(asked, ["main", "second", "little"]);
 });

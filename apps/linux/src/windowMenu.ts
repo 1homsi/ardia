@@ -33,6 +33,7 @@ export function windowMenuItems(input: { windowId: string; windows: WindowMenuWi
   const privateWindows = privateWindowEntries(input.privateWindows, input.windowId).filter((w) => !listed.has(w.id));
   return [
     { id: "minimize", title: "Minimize" },
+    { id: "minimizeAll", title: "Minimize All", modifiers: ["option"], alternate: true },
     { id: "maximize", title: "Maximize" },
     { separator: true },
     { id: "command:downloads", title: "Downloads" },
@@ -42,6 +43,10 @@ export function windowMenuItems(input: { windowId: string; windows: WindowMenuWi
     ...input.windows.map((w) => ({ id: `focus:${w.id}`, title: w.title, ...(w.current ? { checked: true } : {}) })),
     ...privateWindows.map((w) => ({ id: `focus:${w.id}`, title: w.title })),
   ];
+}
+
+export function minimizeAllWindows(windowIds: readonly string[], host?: ArdiaHost): Promise<void> {
+  return Promise.allSettled(windowIds.map((id) => invokeHost("ArdiaShell.minimizeWindow", { args: [id] }, host))).then(() => undefined);
 }
 
 export type WindowMenuDeps<S extends WindowMenuState> = {
@@ -71,6 +76,7 @@ export function createWindowMenu<S extends WindowMenuState>(host: ArdiaHost, dep
       const chosen = items.find((item) => "id" in item && item.id === choice && item.enabled !== false);
       if (!chosen || !("id" in chosen)) return true;
       if (chosen.id === "minimize") await call("minimizeWindow", windowId);
+      else if (chosen.id === "minimizeAll") await minimizeAllWindows(state.windowOrder, host);
       else if (chosen.id === "maximize") await call("toggleMaximizeWindow", windowId);
       else if (chosen.id.startsWith("focus:")) await call("focusWindow", chosen.id.slice("focus:".length));
       else if (chosen.id.startsWith("command:")) deps.command({ command: chosen.id.slice("command:".length) as CommandEvent["command"], arg: null, windowId });

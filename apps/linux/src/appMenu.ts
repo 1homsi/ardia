@@ -5,11 +5,13 @@ import { EDIT_ITEMS, editActionOf, type EditAction, type EditMenu } from "./edit
 type MenuModifier = "command" | "shift" | "option" | "control";
 export type AppMenuShortcuts = ReadonlyMap<string, { key: string; modifiers: readonly ShortcutModifier[] }>;
 export type AppMenuChoice =
-  | { kind: "window"; action: "minimize" | "maximize" | "close" }
+  | { kind: "window"; action: WindowAction }
   | { kind: "about" }
   | { kind: "edit"; action: EditAction }
   | { kind: "command"; command: BrowserCommand; arg: string | null };
 
+type WindowAction = "minimize" | "minimizeAll" | "maximize" | "close";
+const WINDOW_ACTIONS: readonly string[] = ["minimize", "minimizeAll", "maximize", "close"] satisfies WindowAction[];
 const WINDOW_ACTION_PREFIX = "window:";
 const ABOUT = "about";
 const QUIT = "std:quit:";
@@ -200,6 +202,7 @@ export function appMenuItems(state: MenuState, shortcuts: AppMenuShortcuts = new
       cmd("bookmarkPage", undefined, state.titles.bookmarkPage ?? "Bookmark This Page"),
       cmd("bookmarkAllTabs"),
       cmd("manageBookmarks"),
+      cmd("exportBookmarks"),
       separator,
       ...(state.recentBookmarks.length ? [header("Recent Bookmarks"), ...state.recentBookmarks.map((node) => bookmark(node)), separator] : []),
       folder("Bookmarks Bar", state.bookmarksBar, undefined, true),
@@ -222,6 +225,7 @@ export function appMenuItems(state: MenuState, shortcuts: AppMenuShortcuts = new
     ]),
     sub("Window", [
       windowAction("minimize", "Minimize"),
+      { ...windowAction("minimizeAll", "Minimize All"), modifiers: ["option"], alternate: true },
       windowAction("maximize", "Maximize"),
       separator,
       cmd("downloads"),
@@ -251,7 +255,7 @@ export function appMenuItems(state: MenuState, shortcuts: AppMenuShortcuts = new
 export function appMenuChoice(id: string): AppMenuChoice | null {
   if (id.startsWith(WINDOW_ACTION_PREFIX)) {
     const action = id.slice(WINDOW_ACTION_PREFIX.length);
-    return action === "minimize" || action === "maximize" || action === "close" ? { kind: "window", action } : null;
+    return WINDOW_ACTIONS.includes(action) ? { kind: "window", action: action as WindowAction } : null;
   }
   if (id === ABOUT) return { kind: "about" };
   const edit = editActionOf(id);

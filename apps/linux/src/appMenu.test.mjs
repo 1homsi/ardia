@@ -133,3 +133,15 @@ test("Edit shows the standard editing entries in the Mac's order only while some
     assert.deepEqual(appMenuChoice(id), { kind: "edit", action });
   assert.equal(appMenuChoice("std:delete:"), null);
 });
+
+test("the Bookmarks menu exports bookmarks and the Window menu minimizes every window with Alt held, as on the Mac", () => {
+  const items = appMenuItems(state());
+  const bookmarks = top(items, "Bookmarks").children.map((item) => item.id);
+  assert.deepEqual(bookmarks.slice(0, 4), ["bookmarkPage", "bookmarkAllTabs", "manageBookmarks", "exportBookmarks"]);
+  assert.equal(find(items, "exportBookmarks").title, "Export Bookmarks…");
+  assert.deepEqual(appMenuChoice("exportBookmarks"), { kind: "command", command: "exportBookmarks", arg: null });
+  const windowMenu = top(items, "Window").children;
+  assert.deepEqual(windowMenu.slice(0, 3).map((item) => item.id), ["window:minimize", "window:minimizeAll", "window:maximize"]);
+  assert.deepEqual(find(items, "window:minimizeAll"), { id: "window:minimizeAll", title: "Minimize All", modifiers: ["option"], alternate: true });
+  assert.deepEqual(appMenuChoice("window:minimizeAll"), { kind: "window", action: "minimizeAll" });
+});

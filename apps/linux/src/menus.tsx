@@ -21,6 +21,7 @@ export function alternateShown(primary: MenuItem | undefined, alternate: MenuIte
 
 let open: OpenMenu | null = null;
 export const menuShown = () => open !== null;
+export const shownMenu = () => open && { items: open.items, x: open.x, y: open.y };
 
 export const hasSymbolColumn = (items: readonly MenuItem[]) => items.some((item) => !("separator" in item) && !!item.symbol);
 const watchers = new Set<() => void>();
@@ -54,12 +55,17 @@ if (typeof window !== "undefined") {
   for (const type of ["keydown", "keyup"] as const) window.addEventListener(type, (e) => (held = heldModifiers(e)), true);
 }
 
-export function showMenu(items: MenuItem[], onKeepOpenPick?: (id: string) => MenuItem[], at: { x: number; y: number } = pointer): Promise<string | null> {
+type MenuPoint = { x: number; y: number };
+type KeepOpenPick = (id: string) => MenuItem[];
+
+export function showMenu(items: MenuItem[], pickOrPoint?: KeepOpenPick | MenuPoint, point?: MenuPoint): Promise<string | null> {
+  const onKeepOpenPick = typeof pickOrPoint === "function" ? pickOrPoint : undefined;
+  const at = (typeof pickOrPoint === "object" && pickOrPoint) || point || pointer;
   open?.resolve(null);
   return new Promise((resolve) => publish({ items: withShareMenus(items), x: at.x, y: at.y, resolve, onKeepOpenPick }));
 }
 
-const pick = (id: string, keepOpen?: boolean) => {
+export const pickMenuItem = (id: string, keepOpen?: boolean) => {
   if (keepOpen && open?.onKeepOpenPick) publish({ ...open, items: withShareMenus(open.onKeepOpenPick(id)) });
   else close(id);
 };
@@ -148,7 +154,7 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
             key={item.id + i}
             className={`ardia-menu-item${enabled ? "" : " disabled"}${sameItem(sub?.item, item) ? " expanded" : ""}`}
             onPointerEnter={(e) => setSub(enabled && item.children ? { item, row: e.currentTarget } : null)}
-            onClick={() => enabled && !item.children && pick(item.id, item.keepOpen)}
+            onClick={() => enabled && !item.children && pickMenuItem(item.id, item.keepOpen)}
           >
             <span className="ardia-menu-check">{item.checked ? "✓" : ""}</span>
             {item.symbol ? <Symbol name={item.symbol} size={12} color="currentColor" style={{ width: 16, height: 16, marginRight: 6 }} /> : symbols && !item.swatch ? <span className="ardia-menu-symbol-gap" style={{ width: 16, marginRight: 6, flex: "none" }} /> : null}
