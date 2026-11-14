@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { copyTable } from "../../lib/platformCopy.ts";
 import {
+  listsUpdateFailed,
   frontSheet,
   pageSwipe,
   clearChoice,
@@ -158,4 +159,10 @@ test("onboarding comes back on the step it was on when the activity was recreate
   assert.equal(restoredOnboardingStep("sync"), "sync");
   assert.equal(restoredOnboardingStep("defaultBrowser"), "defaultBrowser");
   for (const raw of [null, "", "nonsense", "constructor"]) assert.equal(restoredOnboardingStep(raw), "welcome", String(raw));
+});
+
+test("an update of the filter lists fails when the phone is offline or an enabled list failed, as Compose's FilterListsPage", () => {
+  assert.equal(listsUpdateFailed({ isOffline: false, lists: [{ isEnabled: true, state: "ready" }, { isEnabled: false, state: "failed" }] }), false);
+  assert.equal(listsUpdateFailed({ isOffline: true, lists: [] }), true);
+  assert.equal(listsUpdateFailed({ isOffline: false, lists: [{ isEnabled: true, state: "failed" }] }), true);
 });

@@ -199,3 +199,9 @@ export function pinAnnouncement(outcome: PinOutcome, inPageMenu: boolean, copy: 
   if (outcome === "failed") return { where: "toast", text: COULD_NOT_PIN_TOAST, icon: "warning" };
   return { where: "toast", text: outcome === "pinned" ? PINNED_TOAST : copy.alreadyPinnedToast, icon: "star" };
 }
+
+export function syncNowFeedback(phase: SyncPhase): "success" | "error" | null {
+  if (phase === "updated") return "success";
+  if (phase === "stalled" || phase === "offline" || phase === "needsFolderAccess" || phase === "locked" || phase === "reset") return "error";
+  return null;
+}

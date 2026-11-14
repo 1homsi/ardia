@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { acknowledgeSyncReset, changeSyncFolder, setDeviceName, stopSyncing, syncNow } from "../../state/sync/actions";
 import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
-import { connectMessage, deviceIcon, inboxNotice, shownProfile, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
+import { haptics } from "../../state/app/haptics";
+import { useSync } from "../../state/sync/store";
+import { syncNowFeedback, connectMessage, deviceIcon, inboxNotice, shownProfile, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { capsule, ConfirmDialog, font, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { copy } from "../../lib/platformCopy";
@@ -122,6 +124,8 @@ export function SyncPage() {
     setSyncing(true);
     await syncNow();
     setSyncing(false);
+    const feedback = syncNowFeedback(useSync.getState().status.phase);
+    if (feedback) haptics[feedback]();
   };
   const confirmStop = () =>
     setConfirmation({
@@ -129,6 +133,7 @@ export function SyncPage() {
       message: "To sync again, you’ll need your Mac’s code or your recovery phrase.",
       action: "Stop Syncing",
       run: async () => {
+        haptics.warning();
         setStopping(true);
         await stopSyncing();
         setStopping(false);

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { appVersion } from "../../platform/appInfo";
+import { haptics } from "../app/haptics";
 import { blocking, type BlockingCategory, type BlockingState } from "../../platform/blocking";
 import { pages } from "../../platform/pages";
 import { openExternal, shareText } from "../../platform/system";
@@ -13,7 +14,7 @@ import { clearArchivedTabs, currentTabs, setAutoArchiveInterval } from "../tabs/
 import type { AutoArchiveInterval } from "../tabs/tabModels";
 import { closeSettings } from "./nav";
 import type { ColorChoice, NightShadeMode, Preferences, SwipeNavigationMode } from "./preferences";
-import { clearSince, exportableUrls, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
+import { clearSince, exportableUrls, listsUpdateFailed, websiteDataKinds, type ClearChoice, type ClearRange } from "./settingsRules";
 import { currentPreferences, setPreference } from "./store";
 
 export type { BlockingState };
@@ -97,6 +98,8 @@ export function updateLists() {
     await settled(() => blocking.updateLists(), undefined);
     const state = await blocking.state();
     useBlocking.setState({ state, busy: false });
+    if (listsUpdateFailed(state)) haptics.error();
+    else haptics.success();
   });
 }
 
@@ -104,6 +107,8 @@ export async function addList(url: string): Promise<boolean> {
   const id = await settled(() => blocking.addCustomList(url), null);
   const state = await settled(() => blocking.state(), null);
   if (state) useBlocking.setState({ state });
+  if (id !== null) haptics.success();
+  else haptics.error();
   return id !== null;
 }
 
@@ -111,6 +116,7 @@ export async function applyMyFilters(text: string) {
   const result = await settled(() => blocking.setMyFilters(text), null);
   const state = await settled(() => blocking.state(), null);
   if (state) useBlocking.setState({ state });
+  haptics.success();
   return result;
 }
 

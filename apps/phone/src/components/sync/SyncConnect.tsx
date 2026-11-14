@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { canPickSyncFolderFirst, checkPhrase, connectSync, pastedText, syncConnectSession } from "../../state/sync/actions";
 import { IDLE_CONNECT, type ConnectState } from "../../state/sync/connectSession";
+import { haptics } from "../../state/app/haptics";
 import { chooseFolderTitle, setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
 import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, useTheme } from "../ui";
 import { BarButton, Group, SettingsPage } from "../settings/SettingsKit";
@@ -27,7 +28,12 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const busy = connecting || picked.connecting;
 
   const finished = (result: ConnectResult | null) => {
-    if (result?.result !== "connected") return;
+    if (!result) return;
+    if (result.result !== "connected") {
+      haptics.error();
+      return;
+    }
+    haptics.success();
     setPhrase("");
     onConnected();
   };
@@ -57,15 +63,20 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
     setConnecting(false);
     setLastResult(result.result);
     if (result.result === "connected") {
+      haptics.success();
       setPhrase("");
       onConnected();
-    } else setFailure(connectMessage(result));
+    } else {
+      haptics.error();
+      setFailure(connectMessage(result));
+    }
   };
 
   if (scanning) {
     return (
       <SyncScan
         onScan={(text) => {
+          if (!picked.folder) haptics.success();
           setPhrase(text);
           setFailure(null);
           setScanning(false);
@@ -198,6 +209,9 @@ function PhraseEntry({ initial, onUse, onBack }: { initial: string; onUse: (phra
   const [draft, setDraft] = useState(initial);
   const check = checkPhrase(draft);
   const footer = phraseFooter(check);
+  useEffect(() => {
+    if (check.isValid) haptics.success();
+  }, [check.isValid]);
   const footerInk = footer.tone === "problem" ? theme.destructive : footer.tone === "good" ? theme.switchOn : theme.secondaryLabel;
   const use = () => {
     if (check.isValid) onUse(draft);

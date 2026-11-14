@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { haptics } from "../../state/app/haptics";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { appVersion, clearBrowsingData, openFromSettings } from "../../state/settings/actions";
 import { popSettings, pushSettings } from "../../state/settings/nav";
@@ -18,6 +19,7 @@ export function ClearDataPage() {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const choice = clearChoice(history, cache, cookies, archive, range);
   const clear = async () => {
+    haptics.warning();
     setClearing(true);
     await clearBrowsingData(choice, range);
     setClearing(false);

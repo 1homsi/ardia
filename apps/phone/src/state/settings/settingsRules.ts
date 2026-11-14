@@ -223,3 +223,6 @@ export const pageSwipe = (mode: "anywhere" | "screenEdges" | "disabled"): PageSw
 export type FrontSheet = "settings" | "archive" | "spaces";
 
 export const frontSheet = (settingsOpen: boolean, browseSheet: "archive" | "spaces" | null): FrontSheet | null => (settingsOpen ? "settings" : browseSheet);
+
+export const listsUpdateFailed = (state: { isOffline: boolean; lists: readonly { isEnabled: boolean; state: string }[] }): boolean =>
+  state.isOffline || state.lists.some((list) => list.isEnabled && list.state === "failed");

@@ -3,6 +3,7 @@ import test from "node:test";
 import { NOW, status, view } from "../../../test/syncFixture.ts";
 import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsOnTheirWay, pinsStillOnTheirWay, mergeSyncedHistory, spaceGroupColor, spaceRows, syncedBookmarks } from "./spaces.ts";
 import {
+  syncNowFeedback,
   chooseFolderTitle,
   pinAnnouncement,
   connectMessage,
@@ -251,4 +252,10 @@ test("pinning from the iPhone page menu answers in its title; elsewhere, and on 
   assert.deepEqual(pinAnnouncement("failed", true, ios), { where: "toast", text: "Couldn’t Pin to Your Mac", icon: "warning" });
   assert.deepEqual(pinAnnouncement("pinned", true, android), { where: "toast", text: "Pinned to Your Mac", icon: "star" });
   assert.deepEqual(pinAnnouncement("alreadyPinned", true, android), { where: "toast", text: "Pinned to Your Mac", icon: "star" });
+});
+
+test("Sync Now answers with a success tap once updated and an error tap when it stalls, goes offline or needs the user, as Compose's SyncPage", () => {
+  assert.equal(syncNowFeedback("updated"), "success");
+  for (const phase of ["stalled", "offline", "needsFolderAccess", "locked", "reset"] as const) assert.equal(syncNowFeedback(phase), "error");
+  for (const phase of ["off", "starting", "updating"] as const) assert.equal(syncNowFeedback(phase), null);
 });

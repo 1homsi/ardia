@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cameraErrorAccess, makeScanJudge, openCameraSettings, prepareCamera, type CameraAccess } from "../../state/sync/scan";
+import { haptics } from "../../state/app/haptics";
 import { SCAN_REJECTED } from "../../state/sync/syncRules";
 import { copy } from "../../lib/platformCopy";
 import { capsule, CodeCamera, font, ink, scanInk, scanLayout, space, Symbol, useTheme } from "../ui";
@@ -39,7 +40,10 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
       done.current = true;
       const phrase = verdict.phrase;
       leave(() => onScan(phrase));
-    } else if (verdict.kind === "reject") setRejected(true);
+    } else if (verdict.kind === "reject") {
+      haptics.error();
+      setRejected(true);
+    }
   };
   return (
     <View style={styles.screen}>
