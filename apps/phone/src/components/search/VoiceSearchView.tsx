@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { copy } from "../../lib/platformCopy";
 import { PROBLEM_TEXT, voiceControl, type Dictation } from "../../state/voice/dictation";
@@ -74,12 +74,14 @@ function Transcript({ dictation }: { dictation: Dictation }) {
   }
   const empty = !dictation.transcript;
   return (
-    <Text
-      accessibilityLiveRegion="polite"
-      style={[font.title2, styles.bold, styles.centered, styles.transcript, { color: empty ? voiceInk.quiet : voiceInk.label }]}
-    >
-      {empty ? "Listening…" : dictation.transcript}
-    </Text>
+    <Animated.View key={dictation.transcript} entering={TRANSCRIPT_IN} exiting={TRANSCRIPT_OUT}>
+      <Text
+        accessibilityLiveRegion="polite"
+        style={[font.title2, styles.bold, styles.centered, styles.transcript, { color: empty ? voiceInk.quiet : voiceInk.label }]}
+      >
+        {empty ? "Listening…" : dictation.transcript}
+      </Text>
+    </Animated.View>
   );
 }
 
@@ -88,10 +90,23 @@ function Waveform({ listening }: { listening: boolean }) {
   return (
     <View style={[styles.wave, { opacity: listening ? 1 : 0 }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {levels.map((level, index) => (
-        <View key={index} style={[styles.bar, { height: Math.min(voiceLayout.waveHeight, voiceLayout.barMin + level * voiceLayout.barRange) }]} />
+        <WaveBar key={index} height={Math.min(voiceLayout.waveHeight, voiceLayout.barMin + level * voiceLayout.barRange)} />
       ))}
     </View>
   );
+}
+
+const TRANSCRIPT_IN = FadeIn.duration(150);
+const TRANSCRIPT_OUT = FadeOut.duration(150);
+const WAVE_EASE_MS = 100;
+
+function WaveBar({ height }: { height: number }) {
+  const shown = useSharedValue(height);
+  useEffect(() => {
+    shown.value = Platform.OS === "ios" ? withTiming(height, { duration: WAVE_EASE_MS, easing: Easing.out(Easing.quad) }) : height;
+  }, [height]);
+  const style = useAnimatedStyle(() => ({ height: shown.value }));
+  return <Animated.View style={[styles.bar, style]} />;
 }
 
 function Controls({ dictation }: { dictation: Dictation }) {
@@ -124,7 +139,14 @@ const styles = StyleSheet.create({
   bold: { fontWeight: "600" },
   medium: { fontWeight: "500" },
   centered: { textAlign: "center" },
-  logo: { width: voiceLayout.logo, height: voiceLayout.logo, alignItems: "center", justifyContent: "center" },
+  logo: {
+    width: voiceLayout.logo,
+    height: voiceLayout.logo,
+    borderRadius: voiceLayout.logo / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.15)",
+  },
   message: { alignItems: "center", gap: space.m, alignSelf: "stretch" },
   transcript: { backgroundColor: voiceInk.transcript, borderRadius: voiceLayout.transcriptRadius, paddingHorizontal: space.xl, paddingVertical: space.m, overflow: "hidden" },
   wave: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: voiceLayout.barGap, height: voiceLayout.waveHeight, alignSelf: "stretch" },
