@@ -48,7 +48,7 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
             ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
         }.getOrDefault(ReleaseLevel.STABLE)
         if (PhoneLab.isOn) {
-            android.util.Log.i("PAGELAB", "PAGELAB build ${getString(R.string.ardia_build_commit)} dirty: ${getString(R.string.ardia_build_dirty)}")
+            android.util.Log.i("PAGELAB", "PAGELAB build ${getString(R.string.ardia_build_commit)} dirty: ${getString(R.string.ardia_build_dirty)} from the ${getString(R.string.ardia_build_source)}; native ${getString(R.string.ardia_build_native)}")
         }
         UpgradeGate.install(this)
         LabNetworkLog.install(this)

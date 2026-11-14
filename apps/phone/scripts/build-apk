@@ -1,27 +1,34 @@
 #!/bin/bash
-# Builds a release APK of the committed tree and stamps it with its commit.
+# Builds a release APK whose JavaScript is one commit, and stamps it with that commit and the native tree's state.
 #
-#   apps/phone/scripts/build-apk <name> [--compose-key] [--store]
+#   apps/phone/scripts/build-apk <name> [--commit REV] [--compose-key] [--store] [--direct]
 #
-# Writes $ARDIA_APK_DIR/<name>.apk (default /tmp/ardia-phone) and <name>.txt beside it with the commit, the
-# dirty flag, the signer and sha256, the commit and flag read back from the APK itself. --compose-key re-signs it
-# with the Compose app's key (~/.android/debug.keystore) for the upgrade test; --store builds without the lab
-# switch. The bundle guard in Gradle refuses a tree with uncommitted changes Metro would read.
+# The bundle comes from an export of REV (default HEAD at start, see bundle-export.ts), so edits and commits in the
+# working tree during the build don't reach it; the export is deleted afterwards. Kotlin, resources and the native
+# module still build from the working tree, and the stamp says at which commit and whether that tree was clean or
+# written during the build. --direct bundles the working tree instead, behind the bundle guard. Writes
+# $ARDIA_APK_DIR/<name>.apk (default /tmp/ardia-phone) and <name>.txt beside it. --compose-key re-signs it with the
+# Compose app's key (~/.android/debug.keystore) for the upgrade test; --store builds without the lab switch.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && exit 0 || exit 64
 fi
 name="$1"
 shift
 composeKey=0
 lab=1
-for argument in "$@"; do
-  case "$argument" in
+direct=0
+rev=HEAD
+while [ $# -gt 0 ]; do
+  case "$1" in
     --compose-key) composeKey=1 ;;
     --store) lab=0 ;;
-    *) echo "unknown option $argument" >&2; exit 64 ;;
+    --direct) direct=1 ;;
+    --commit) rev="$2"; shift ;;
+    *) echo "unknown option $1" >&2; exit 64 ;;
   esac
+  shift
 done
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../../.." && pwd)"
@@ -32,9 +39,30 @@ if [ "$free" -lt 10 ]; then
   echo "only ${free} GB free on the data volume: not building" >&2
   exit 1
 fi
-node --no-warnings "$here/bundle-guard.ts" check --root "$root"
-commit="$(git -C "$root" rev-parse HEAD)"
-ARDIA_LAB=$lab "$here/gradle-locked" :app:assembleRelease --max-workers=4 --console=plain -q
+started=$(node -e 'console.log(Date.now())')
+gradleArgs=()
+exportDir=""
+removeExport() {
+  if [ -n "$exportDir" ]; then
+    node --no-warnings "$here/bundle-export.ts" remove "$exportDir" || echo "could not remove the bundle export $exportDir" >&2
+  fi
+}
+trap removeExport EXIT
+if [ "$direct" = "1" ]; then
+  [ "$rev" = "HEAD" ] || { echo "--direct bundles the working tree, so it takes no --commit" >&2; exit 64; }
+  node --no-warnings "$here/bundle-guard.ts" check --root "$root"
+  commit="$(git -C "$root" rev-parse HEAD)"
+  source="working tree"
+else
+  made="$(node --no-warnings "$here/bundle-export.ts" create --commit "$rev" --root "$root")"
+  exportDir="$(printf '%s' "$made" | node -e 'console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).dir)')"
+  commit="$(printf '%s' "$made" | node -e 'console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).commit)')"
+  gradleArgs=(-PardiaBundleExport="$exportDir")
+  source="export of the commit"
+fi
+echo "bundling $commit from the $source"
+ARDIA_LAB=$lab "$here/gradle-locked" :app:assembleRelease ${gradleArgs[@]+"${gradleArgs[@]}"} --max-workers=4 --console=plain -q
+nativeAfter="$(node --no-warnings "$here/bundle-guard.ts" native --since "$started" --root "$root")"
 mkdir -p "$out"
 built="$out/$name.building.apk"
 cp "$root/apps/phone/android/app/build/outputs/apk/release/app-release.apk" "$built"
@@ -42,11 +70,14 @@ if [ "$composeKey" = "1" ]; then
   "$tools/apksigner" sign --v4-signing-enabled false --ks "$HOME/.android/debug.keystore" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android "$built"
 fi
 resources="$("$tools/aapt2" dump resources "$built")"
-stamped="$(printf '%s\n' "$resources" | grep -A1 'string/ardia_build_commit' | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)"
-dirty="$(printf '%s\n' "$resources" | grep -A1 'string/ardia_build_dirty' | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)"
-if [ "$stamped" != "$commit" ] || [ "$dirty" != "no" ]; then
+stamp() { printf '%s\n' "$resources" | grep -A1 "string/$1" | sed -n 's/.*"\(.*\)".*/\1/p' | head -1; }
+stamped="$(stamp ardia_build_commit)"
+dirty="$(stamp ardia_build_dirty)"
+stampedSource="$(stamp ardia_build_source)"
+nativeStamp="$(stamp ardia_build_native)"
+if [ "$stamped" != "$commit" ] || [ "$dirty" != "no" ] || [ "$stampedSource" != "$source" ]; then
   mv "$built" "$out/$name.rejected.apk"
-  echo "the APK says commit ${stamped:-none}, dirty: ${dirty:-unknown}, but the build started at $commit: kept as $name.rejected.apk, not shipped" >&2
+  echo "the APK says ${stamped:-no commit}, dirty: ${dirty:-unknown}, from the ${stampedSource:-unknown}, but this build bundled $commit from the $source: kept as $name.rejected.apk, not shipped" >&2
   exit 1
 fi
 apk="$out/$name.apk"
@@ -58,6 +89,9 @@ sum="$(shasum -a 256 "$apk" | cut -d' ' -f1)"
   echo "apk: $name.apk"
   echo "commit: $commit"
   echo "dirty: $dirty"
+  echo "bundle: from the $source"
+  echo "native at configuration: $nativeStamp"
+  echo "native after the build: $nativeAfter"
   echo "lab: $([ "$lab" = "1" ] && echo on || echo off)"
   echo "versionCode: $version"
   echo "signer sha256: $signer"

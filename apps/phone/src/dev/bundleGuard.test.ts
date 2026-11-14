@@ -3,14 +3,19 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { test } from "node:test";
+import { after as afterAll, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { after, before, BundleRefused, check } from "../../scripts/bundle-guard.ts";
 
 const guardScript = fileURLToPath(new URL("../../scripts/bundle-guard.ts", import.meta.url));
 
+
+const made: string[] = [];
+afterAll(() => made.forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));
+
 function repo(): { root: string; state: string; write: (file: string, text: string) => void; git: (...args: string[]) => string } {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bundle-guard-"));
+  made.push(root);
   const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" });
   const write = (file: string, text: string) => {
     fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });

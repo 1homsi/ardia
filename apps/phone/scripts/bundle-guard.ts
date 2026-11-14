@@ -5,11 +5,14 @@
 //   node apps/phone/scripts/bundle-guard.ts dirty  [--root REPO]
 //   node apps/phone/scripts/bundle-guard.ts before --state FILE [--expect COMMIT] [--root REPO]
 //   node apps/phone/scripts/bundle-guard.ts after  --state FILE [--root REPO]
+//   node apps/phone/scripts/bundle-guard.ts native [--since EPOCH_MS] [--root REPO]
 //
 // check refuses (exit 1) when git shows any change, staged, unstaged or untracked, under the files Metro reads,
 // and prints them. dirty prints yes or no. before runs check, then records HEAD, a hash of those files and the
 // start time in FILE. after fails when HEAD or the hash moved, or when any of those files was written after the
-// start, which also catches an edit that was reverted before the bundle finished.
+// start, which also catches an edit that was reverted before the bundle finished. native prints HEAD and whether
+// the native trees a build compiles from the working tree are clean, and with --since which of them were written
+// after that moment.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -30,7 +33,26 @@ export const watchedPaths = [
   "pnpm-lock.yaml",
 ];
 
+export const nativePaths = [
+  "apps/phone/android",
+  "apps/phone/app.json",
+  "packages/phone/android",
+  "packages/phone/expo-module.config.json",
+  "apps/android/app/src/main",
+  "pnpm-lock.yaml",
+  "patches",
+];
+
 export class BundleRefused extends Error {}
+
+export function nativeState(root: string, since?: number, paths: string[] = nativePaths): string {
+  const commit = headCommit(root);
+  const changed = changedPaths(root, paths);
+  const touched = since === undefined ? [] : fingerprint(root, paths).files.filter(({ mtimeMs }) => mtimeMs >= since).map(({ file }) => file);
+  const parts = [commit, changed.length === 0 ? "clean" : `dirty (${changed.length}: ${changed.map((line) => line.slice(3)).join(", ")})`];
+  if (touched.length > 0) parts.push(`written during the build (${touched.length}: ${touched.join(", ")})`);
+  return parts.join(", ");
+}
 
 type GuardState = { commit: string; hash: string; startedAt: number };
 
@@ -133,6 +155,10 @@ function main(argv: string[]): number {
   try {
     if (command === "check") check(root);
     else if (command === "dirty") console.log(changedPaths(root).length > 0 ? "yes" : "no");
+    else if (command === "native") {
+      const since = option(argv, "--since");
+      console.log(nativeState(root, since === undefined ? undefined : Number(since)));
+    }
     else if (command === "before" && stateFile) {
       const state = before(root, stateFile, option(argv, "--expect"));
       console.log(`bundle-guard: bundling ${state.commit}, dirty: no`);
