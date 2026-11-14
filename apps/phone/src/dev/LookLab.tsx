@@ -30,13 +30,22 @@ export function LookLab() {
   const [faded, setFaded] = useState(false);
   const [lookOff, setLookOff] = useState(() => lookLab.lookIsOff());
   const look = LOOKS[lookIndex]!;
-  const ink = dark || look.color === INCOGNITO_LOOK ? "#fff" : "#1d1a17";
+  const alwaysDark = look.color === INCOGNITO_LOOK;
+  const drawsDark = dark || alwaysDark;
+  const ink = drawsDark ? "#fff" : "#1d1a17";
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Look (native {String(lookIsNative())})</Text>
       <View style={styles.row}>
         <Button label={`Look ${look.color}`} onPress={() => setLookIndex((index) => (index + 1) % LOOKS.length)} />
-        <Button label={dark ? "Dark" : "Light"} onPress={() => setDark((on) => !on)} />
+        <Button
+          label={alwaysDark ? `Dark (incognito; asked ${dark ? "dark" : "light"})` : dark ? "Dark" : "Light"}
+          onPress={() => {
+            const next = !dark;
+            console.log(`PAGELAB look lab asked ${next ? "dark" : "light"}, ${next || alwaysDark ? "dark" : "light"} will be drawn (look ${look.color})`);
+            setDark(next);
+          }}
+        />
         <Button label={still ? "Reduce motion" : "Moving"} onPress={() => setStill((on) => !on)} />
         <Button label={`Frost ${VARIANTS[variant]}`} onPress={() => setVariant((index) => (index + 1) % VARIANTS.length)} />
         <Button label={faded ? "Fades out" : "No fade"} onPress={() => setFaded((on) => !on)} />

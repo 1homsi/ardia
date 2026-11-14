@@ -112,6 +112,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
 
     internal var frames = 0L
         private set
+    private var drawnMode: String? = null
     private var firstFrameAt = 0L
 
     internal val framesPerSecond: Int
@@ -152,6 +153,14 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     override fun onDraw(canvas: Canvas) {
         val dark = isDark
         val look = look
+        val drawn = "${if (dark) "dark" else "light"}, look $look"
+        if (drawn != drawnMode) {
+            drawnMode = drawn
+            if (PhoneLab.isOn) {
+                val asked = this.dark?.let { if (it) "dark" else "light" } ?: "the system's mode"
+                android.util.Log.i("PAGELAB", "PAGELAB look deck draws $drawn (asked $asked${if (lookOrNull?.isAlwaysDark == true) ", this look is always dark" else ""})")
+            }
+        }
         if (frames == 0L) {
             firstFrameAt = SystemClock.uptimeMillis()
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck first frame ${width}x$height ${if (dark) "dark" else "light"} ${if (reduceMotion) "still" else "moving"}")
