@@ -100,7 +100,7 @@ test("the Mac keeps every pane, row and the engine switch", () => {
 
 const PANES_DIR = new URL("./panes/", import.meta.url);
 const HIDDEN_ON_WINDOWS = new Set(["Calendar.tsx", "Engines.tsx", "HiddenElementsSection.tsx"]);
-const MAC_ONLY_STATES = [["General.tsx", "requiresApproval"]];
+const MAC_ONLY_STATES = [["General.tsx", "requiresApproval"], ["Privacy.tsx", 'title="Content blocking"']];
 const MAC_WORDS = /macOS|Touch ID|Keychain|this Mac|their Mac|View ›|Apple silicon|System Settings/;
 
 test("the Settings panes Windows shows write no Mac word outside PLATFORM_TERMS or a Mac-only state", () => {

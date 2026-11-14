@@ -25,7 +25,7 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 72 rows, 49 work, 8 work with a difference, 1 is broken, 4 do nothing, 6 are not offered
+who and on which build. Of the 73 rows, 49 work, 8 work with a difference, 1 is broken, 4 do nothing, 7 are not offered
 and 4 were not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
@@ -106,6 +106,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | ardia://extensions | Works | |
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
 | Hide anything (Hide Element) | Not offered; hidden: its rules are kept by the content blocker, which Windows lacks | #1425 |
+| Block autoplay on every site | Not offered; hidden: the engine call behind the setting is missing on Windows | #1425 |
 | Bookmark export | Works: Windows' Save As, then the HTML file is written | #1551 |
 | Password export | Works up to Windows' own sign-in prompt over the app window; the walk cancelled it there (the VM account's password is not typed in a test), so the file was not written | #1551 |
 
