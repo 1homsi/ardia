@@ -2,14 +2,22 @@ import SwiftUI
 
 public struct TabsBackdrop: View {
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+  @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
 
   private let look: ProfileLook
+  private let reduceMotionOverride: Bool?
+  private let reduceTransparencyOverride: Bool?
 
-  public init(look: ProfileLook = .plum) {
+  public init(look: ProfileLook = .plum, reduceMotion: Bool? = nil, reduceTransparency: Bool? = nil) {
     self.look = look
+    reduceMotionOverride = reduceMotion
+    reduceTransparencyOverride = reduceTransparency
   }
+
+  private var reduceMotion: Bool { reduceMotionOverride ?? systemReduceMotion }
+
+  private var reduceTransparency: Bool { reduceTransparencyOverride ?? systemReduceTransparency }
 
   public var body: some View {
     ZStack {

@@ -4,17 +4,38 @@ public struct ProfileBackdrop: View {
   private let look: ProfileLook?
   private let themed: Bool
   private let softened: Bool
+  private let fadesOut: Bool
 
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.profileLook) private var ambientLook
 
-  public init(look: ProfileLook? = nil, themed: Bool = false, softened: Bool = false) {
+  public init(look: ProfileLook? = nil, themed: Bool = false, softened: Bool = false, fadesOut: Bool = false) {
     self.look = look
     self.themed = themed
     self.softened = softened
+    self.fadesOut = fadesOut
   }
 
   public var body: some View {
+    if fadesOut {
+      ZStack {
+        #if canImport(UIKit)
+        Color(uiColor: .systemBackground)
+        #else
+        Color(nsColor: .windowBackgroundColor)
+        #endif
+        backdrop(softened: true)
+          .mask {
+            LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.6), location: 0.45), .init(color: .clear, location: 0.8)], startPoint: .top, endPoint: .bottom)
+          }
+      }
+    } else {
+      backdrop(softened: softened)
+    }
+  }
+
+  @ViewBuilder
+  private func backdrop(softened: Bool) -> some View {
     let look = look ?? ambientLook
     let dark = colorScheme == .dark
     let showsTheme = look.showsTheme(dark: dark, themed: themed)
@@ -29,6 +50,56 @@ public struct ProfileBackdrop: View {
       }
     }
     .overlay { FilmGrain(opacity: dark ? 0.03 : 0.06) }
+    .accessibilityHidden(true)
+  }
+}
+
+public struct LookFrost: View {
+  public enum Variant: String, Sendable {
+    case bar
+    case sheet
+    case glass
+    case thin
+  }
+
+  private let variant: Variant
+  private let look: ProfileLook
+  private let cornerRadius: Double
+  private let reduceTransparencyOverride: Bool?
+
+  @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
+
+  public init(variant: Variant, look: ProfileLook, cornerRadius: Double = 0, reduceTransparency: Bool? = nil) {
+    self.variant = variant
+    self.look = look
+    self.cornerRadius = cornerRadius
+    reduceTransparencyOverride = reduceTransparency
+  }
+
+  public var body: some View {
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    let solid = reduceTransparencyOverride ?? systemReduceTransparency
+    ZStack {
+      if look == .incognito, variant == .sheet || variant == .bar {
+        shape.fill(BrowsePalette.incognitoSheet)
+      } else if solid {
+        shape.fill(look.surface)
+      } else {
+        switch variant {
+        case .bar:
+          shape.fill(.bar)
+          shape.fill(look.surface.opacity(BrowseLayout.sheetTintShare))
+        case .sheet:
+          shape.fill(.regularMaterial)
+          shape.fill(look.surface.opacity(BrowseLayout.sheetTintShare))
+        case .glass:
+          Color.clear.glassEffect(.regular, in: shape)
+        case .thin:
+          shape.fill(.ultraThinMaterial)
+        }
+      }
+    }
+    .allowsHitTesting(false)
     .accessibilityHidden(true)
   }
 }
