@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { haptics } from "../../state/app/haptics";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { appVersion, clearBrowsingData, openFromSettings } from "../../state/settings/actions";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { CLEAR_RANGES, clearChoice, clearFooter, clearIsEmpty, clearMessage, clearTitle, type ClearRange } from "../../state/settings/settingsRules";
-import { ArdiaLogo, ConfirmDialog, font, settingsLayout, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
+import { AppIcon, appIconLayout, ConfirmDialog, font, settingsLayout, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { copy } from "../../lib/platformCopy";
-import { LIBRARY_CREDITS } from "../../state/settings/libraryCredits";
+import { libraryCredits } from "../../state/settings/libraryCredits";
 import { ButtonRow, Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow, ValueRow } from "./SettingsKit";
 
 export function ClearDataPage() {
@@ -69,9 +69,13 @@ export function AboutPage() {
   return (
     <SettingsPage title="About Ardia" onBack={popSettings}>
       <View style={styles.hero}>
-        <ArdiaLogo width={settingsLayout.heroTile * 1.4} />
-        <Text style={[font.title3, styles.bold, { color: theme.label }]}>Ardia</Text>
-        <Text style={[font.subheadline, { color: theme.secondaryLabel }]}>{appVersion()}</Text>
+        <AppIcon side={appIconLayout.about} shadow />
+        <View style={styles.heroText}>
+          <Text accessibilityRole="header" style={[font.title, styles.heavy, styles.rounded, { color: theme.label }]}>
+            Ardia
+          </Text>
+          <Text style={[font.subheadline, { color: theme.secondaryLabel }]}>{appVersion()}</Text>
+        </View>
       </View>
       <Group footer={copy().privacy}>
         <LinkRow title="ardia.dev" icon="globe" url="https://ardia.dev" divider />
@@ -92,6 +96,8 @@ const DATA_CREDITS = [
   { name: "Fanboy’s Cookie Monster List", use: "The list behind Block Cookie Banners.", license: "CC BY-SA 3.0 or GPLv3", url: "https://secure.fanboy.co.nz" },
   { name: "Public Suffix List", use: "Tells which part of an address is the site.", license: "Mozilla Public License 2.0", url: "https://publicsuffix.org" },
 ];
+
+const LIBRARY_CREDITS = libraryCredits(Platform.OS);
 
 export function LicensesPage() {
   const theme = useTheme();
@@ -143,6 +149,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: space.m, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
   fill: { flex: 1 },
   hero: { alignItems: "center", gap: space.s },
+  heroText: { alignItems: "center", gap: space.hair },
+  heavy: { fontWeight: "700" },
+  rounded: { fontFamily: Platform.select({ ios: "ui-rounded", default: undefined }) },
   bold: { fontWeight: "600" },
   library: { flexDirection: "row", alignItems: "center", gap: space.m, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
   credit: { paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m, gap: space.xs },

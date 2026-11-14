@@ -290,9 +290,12 @@ export const radius = { row: 14, field: 16, card: 20, sheet: 40 } as const;
 
 export const capsule = (height: number) => height / 2;
 
+export const appIconLayout = { maxScale: 1.4, corner: 0.225, fill: "#FFFFFF", edge: 0.5, edgeAlpha: 0.08, shadow: "0px 4px 20px rgba(0, 0, 0, 0.12)", about: 72, welcome: 104 } as const;
+
 export const font = {
   hero: { fontSize: 40, lineHeight: 46 },
   largeTitle: { fontSize: 34, lineHeight: 41 },
+  title: { fontSize: 28, lineHeight: 34 },
   title2: { fontSize: 22, lineHeight: 28 },
   title3: { fontSize: 20, lineHeight: 25 },
   body: { fontSize: 17, lineHeight: 22 },

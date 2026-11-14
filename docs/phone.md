@@ -632,7 +632,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 ### Needs only JavaScript
 
 - Default Browser: at accessibility sizes both apps show a numbered list instead of the card; title weight, step icons and the iPhone button differ; on Android, when nothing can take the role request, Compose moves onboarding on. `DefaultBrowserPage.kt`, `DefaultBrowserPage.swift`. Small.
-- About: the hero is the logo, not the 72 pt app icon with a shadow and bold title; the iPhone licences list Android-only libraries and miss the iPhone's own native code. `AboutPage` in `GeneralPages.kt`, `AboutPage.swift`, `apps/phone/test/credits.ts`. Small.
 - Onboarding: the welcome icon isn't the 104 pt app icon on white (the app has no image of its icon to draw; needs one in the bundle). `OnboardingWelcomeStep.swift`, `OnboardingView.kt`. Small.
 - Onboarding sync step: a symbol instead of the Mac-and-phone QR picture; the connect screen pops in (Compose slides it up, SwiftUI a sheet) and "Connected." doesn't crossfade. `SyncScanIllustration.kt`/`.swift`, `OnboardingSteps.swift`. Half a day.
 - Sync: warnings are red (both apps orange); the scanner draws inside the sheet (both apps full screen) with a full rounded border instead of corner arms, wrong "can't scan" icons and a popping "Not an Ardia sync code". `SettingsComponents.kt` `warningInk`, `SyncCodeScanner.kt`/`.swift`, `SyncConnectPage.swift`. Small.
