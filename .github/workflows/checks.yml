@@ -29,10 +29,21 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  javascript:
+  check:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    steps: &install
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "typecheck and tests", part: rest }
+          - { name: "browser tests, share 1 of 4", part: browser, shard: 1 }
+          - { name: "browser tests, share 2 of 4", part: browser, shard: 2 }
+          - { name: "browser tests, share 3 of 4", part: browser, shard: 3 }
+          - { name: "browser tests, share 4 of 4", part: browser, shard: 4 }
+          - { name: "Mac bundle", part: bundle }
+    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -43,29 +54,33 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Typecheck
-        if: ${{ !matrix.shard }}
+        if: matrix.part == 'rest'
         run: pnpm typecheck
       - name: Tests that need no Mac, the browser's aside
-        if: ${{ !cancelled() && !matrix.shard }}
+        if: ${{ !cancelled() && matrix.part == 'rest' }}
         run: pnpm run test:portable:packages --filter=!@ardia/browser
       - name: Repository tests
-        if: ${{ !cancelled() && !matrix.shard }}
+        if: ${{ !cancelled() && matrix.part == 'rest' }}
         run: pnpm run test:root
       - name: Vouch tests
-        if: ${{ !cancelled() && !matrix.shard }}
+        if: ${{ !cancelled() && matrix.part == 'rest' }}
         run: node --test .github/vouch/vouch.test.cjs
       - name: This share of the browser's tests
-        if: ${{ matrix.shard }}
+        if: matrix.part == 'browser'
         env:
           NODE_OPTIONS: --test-shard=${{ matrix.shard }}/4
         run: pnpm --filter @ardia/browser test
-
-  browser:
-    name: browser tests, share ${{ matrix.shard }} of 4
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps: *install
+      - name: Bundle the Mac app's JavaScript as a release build does
+        if: matrix.part == 'bundle'
+        working-directory: apps/browser
+        run: |
+          npx react-native bundle --platform macos --entry-file index.js --dev false --minify false --reset-cache --bundle-output "$RUNNER_TEMP/main.jsbundle" --assets-dest "$RUNNER_TEMP/assets"
+          ls -l "$RUNNER_TEMP/main.jsbundle"
+      - name: Compile the bundle with Hermes
+        if: matrix.part == 'bundle'
+        run: |
+          hermesc=$(find node_modules -path '*linux64-bin/hermesc' -type f | head -1)
+          [ -n "$hermesc" ] || { echo "::error::no Linux hermesc under node_modules"; exit 1; }
+          echo "compiling with $hermesc"
+          "$hermesc" -emit-binary -O -out "$RUNNER_TEMP/main.hbc" "$RUNNER_TEMP/main.jsbundle"
+          ls -l "$RUNNER_TEMP/main.hbc"
