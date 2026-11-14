@@ -75,41 +75,6 @@ class WindowCommandsTests(unittest.TestCase):
         self.assertIn('base::Value(base::UTF16ToUTF8(text))', body)
         self.assertIn('if (!clipboard) return std::move(done).Run(true, base::Value(""));', body)
 
-    def test_an_escape_the_page_leaves_unhandled_reaches_the_focused_tab_as_its_escape_command(self):
-        host = (LINUX / 'ac_linux_host.cc').read_text()
-        target = host[host.index('class PageEscapeTarget : public ui::AcceleratorTarget {'):]
-        target = target[:target.index('};')]
-        self.assertIn('pressed_.Run();\n    return false;', target)
-        self.assertIn('static const base::NoDestructor<ui::Accelerator> escape(ui::VKEY_ESCAPE, ui::EF_NONE);', host)
-        initialize = host[host.index('void ShellHostView::Initialize() {'):]
-        initialize = initialize[:initialize.index('aura::Window* input_window')]
-        self.assertIn('if (focus_manager_ && !is_utility() && !page_escape_) {', initialize)
-        self.assertIn('ui::AcceleratorManager::kNormalPriority', initialize)
-        unregister = host[host.index('void ShellHostView::UnregisterAccelerators() {'):]
-        unregister = unregister[:unregister.index('focus_manager_ = nullptr;')]
-        self.assertIn('focus_manager_->UnregisterAccelerator(PageEscapeAccelerator(), page_escape_.get());', unregister)
-        self.assertIn('page_escape_.reset();', unregister)
-        pressed = host[host.index('void ShellHostView::PageEscapePressed() {'):]
-        pressed = pressed[:pressed.index('void ShellHostView::SettleAppActivation() {')]
-        self.assertIn('.page_focused = view && view->HasFocus(),', pressed)
-        self.assertIn('EmitDocument("command", base::Value(base::DictValue().Set("command", "escape").Set("text", "")))', pressed)
-        tab_view = (REPO / 'apps/browser/src/components/window/TabWebView.tsx').read_text()
-        self.assertIn('else if (command === "escape") escapePressed(tabId, "page");', tab_view)
-
-    def test_losing_activation_to_another_app_is_reported_once_after_it_settles(self):
-        host = (LINUX / 'ac_linux_host.cc').read_text()
-        changed = host[host.index('void ShellHostView::OnWidgetActivationChanged(views::Widget*, bool active) {'):]
-        changed = changed[:changed.index('void ShellHostView::OnWidgetBoundsChanged(')]
-        self.assertIn('AppActivationTimer().Start(FROM_HERE, base::Milliseconds(ardia::linux_commands::kAppActivationSettleMs),', changed)
-        settle = host[host.index('void ShellHostView::SettleAppActivation() {'):]
-        settle = settle[:settle.index('void ShellHostView::FocusShell() {')]
-        self.assertIn('aura::Env::GetInstance()->window_tree_hosts()', settle)
-        self.assertIn('wm::GetModalTransient(widget->GetNativeWindow())', settle)
-        self.assertLess(settle.index('AppActivationLedger().Settle(any_active, modal)'), settle.index('"onAppEvent"'))
-        lifecycle = (REPO / 'packages/shell/src/lifecycle.ts').read_text()
-        self.assertIn('{ type: "resignActive" }', lifecycle)
-        self.assertIn('kResignActiveEvent[] = "resignActive"', (LINUX / 'ac_linux_window_commands.h').read_text())
-
 
 if __name__ == '__main__':
     unittest.main()

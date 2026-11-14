@@ -155,7 +155,14 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   - **Reveal.** The content shows once the page has loaded and stopped resizing (best effort, 600 ms at most) and the
     shell has painted the decoration of its current frame. It then fades in and reports `shown`. A focus asked for
     earlier is handed over only after that, and whatever had focus before a popup or side panel took it gets it back
-    when the surface hides or closes. With no room at all, the popup and its panel hide until there is room again.
+    when the surface hides or closes.
+  - **Focus in an inactive window.** A popup or side panel takes focus only while its window is active
+    (`SurfaceFocusFor`). In an inactive one it is only remembered as the view to focus at the next activation. Views
+    activates an inactive window when one of its views asks for focus (`FocusManager::SetFocusedViewWithReason`), and
+    `BrowserView` answers a window's first activation, and any activation after a tab switch made while inactive, by
+    focusing the active tab's page. That page then reported `focus` and the shell closed the popup: the first click
+    on a pinned extension in a background or headless instance opened its popup for half a second. A window the user
+    clicks in is already active, so this never showed on a desktop, but an inactive window raised itself. With no room at all, the popup and its panel hide until there is room again.
   - **Side panels** sit with the pages below the shell. The shell sizes them (`extensionView.viewport`), rounded
     inward like the page input regions, with the corner radii of the card that clips them.
 - **Split panes.** Each pane keeps its own stored focus. A click in the inactive pane activates it.
@@ -183,7 +190,11 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   window, on its command bar when its tab is blank. Once the native window has opened, the opener forgets its copy
   without closing the window, so the window lives in one store only and a tab it moves to the main window
   (Open in Ardia) arrives through the session like any other. The opener also sends the Mac's frame: the saved
-  Little Ardia size, at least 420 by 300, centred and lifted 5%.
+  Little Ardia size, at least 420 by 300, centred and lifted 5%. With an engine that advertises
+  `ArdiaShell.smallWindows` the shell does neither: the opener passes the same window and tab as `smallWindow` in the
+  `openWindow` options and no frame, and the new renderer reads `windowKind` and `smallWindow` from its bootstrap
+  (a relayed window has no 60 s limit). A bootstrap whose `windowKind` isn't `"small"` takes no seed at all. See
+  Small windows below.
 - **Private data.** Private and transient state never reaches a persisted snapshot. `ValidLinuxSession` rejects a
   session that carries private data.
 - **Closing the last window.** When the native close ends the session, the window stays in the saved session and comes
@@ -552,22 +563,20 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   - **Paste and Go** and the address bar's paste read the clipboard through the host's `ArdiaShell.readText`
     (`ui::Clipboard`, plain text from the copy and paste buffer, as the Mac reads `NSPasteboard`). An older engine
     without it leaves the shell's `navigator.clipboard.readText()`, which answers empty in `chrome://ardia`.
-  - **Escape in a page.** An Escape the page leaves unhandled reaches the focused tab as its `command` event
-    `{command: "escape", text: ""}`, as on the Mac, so Peek and Little Ardia close from a focused page. The host
-    registers a plain Escape with the window's focus manager below Chromium's page dispatch, so it fires only after
-    the page declines it, and it answers unhandled, so Chromium's Escape (stop loading) still runs.
   - **Back and forward swipes over a page.** A two-finger horizontal touchpad scroll the page doesn't consume
     (`ac_linux_page_swipe.h`, from the page channel's gesture acks) is sent to the shell as
     `ArdiaShell`/`onPageSwipe` and drives the same swipe overlay as a swipe over the shell
     (`shims/web/motion/swipe.ts`). Chromium's own overscroll navigation is off in every bound tab. A swipe the page
     starts by scrolling stays with the page, and the momentum after the fingers lift ends the swipe. Untested on
     real touchpad hardware.
-- **Report a Problem.** Help › Report a Problem… (and the New Tab check-in, the command bar and automation) opens a
-  new GitHub issue in a tab, its body a short template and Copy Diagnostics' report (`reportProblem.ts`, swapped in
-  for the shared report actions under `appCommands.ts`). The shared report sheet posts to ardia.dev and uploads files
-  through the native `ArdiaReport` module; the shell's `connect-src 'none'` stops the post, and recording, gzip and
-  upload need native code, so Linux never opens the sheet. `ArdiaReport` answers unavailable or empty values
-  (`appModuleFallbacks.ts`). A host `feedbackURL` with `%s` replaces the GitHub page.
+- **Report a Problem.** Help › Report a Problem… (and the New Tab check-in, the command bar and automation) goes
+  through `reportProblem.ts`, swapped in for the shared report actions under `appCommands.ts`. It decides when the
+  command runs:
+  - With an engine that advertises both `report.files` and `report.send` it opens the Mac's report sheet (Problem
+    reports below).
+  - Otherwise, or when the host sets a `feedbackURL` with `%s`, it opens a new issue in a tab (GitHub's, or that
+    page), its body a short template and Copy Diagnostics' report. The shell's `connect-src 'none'` stops the sheet's
+    own post, and `ArdiaReport` answers unavailable or empty values (`appModuleFallbacks.ts`).
 - **Favicon accents.** `ArdiaDockSelection.iconAccent` (the command bar's scope pulse) runs in the shell: a port of
   the Mac's dominant-hue pick over a 32 px canvas copy of a `data:` or `blob:` favicon (`iconAccent.ts`). Other URLs
   answer no accent.
@@ -620,8 +629,12 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     window, and treating that exit as leaving made the strip flicker at the top corner. Leaving through the top corner
     never reveals a hidden strip.
   - Switching the sidebar's side re-evaluates the last pointer position and drops a pending 90 ms settle.
-  - The watch takes the shared arguments (window id, on, hold, right, whilePressed; whilePressed is ignored, see Known
-    gaps) and reports the shared `sidebarEdge` window event, so the shared UI calls it directly.
+  - The watch takes the shared arguments (window id, on, hold, right, whilePressed) and reports the shared
+    `sidebarEdge` window event, so the shared UI calls it directly. As on macOS, while a mouse button is held the
+    edge isn't over unless the watch passed `whilePressed` (the shared UI passes it while the peek is held or a tab
+    is dragged): a drag that crosses the edge doesn't reveal the sidebar, a held peek closes, and a pointer that
+    leaves the window with a button down doesn't start the 90 ms settle. The buttons are read from each event; a
+    release no longer counts its own button.
   - Older engines: one with only `ArdiaShell.watchLeftEdge` keeps the native watcher for a left sidebar and the
     shell-side watcher (`shims/web/motion/sidebarEdge.ts`) for a right one; its `leftEdge` events are renamed to
     `sidebarEdge`. An engine with neither uses the shell-side watcher on both sides.
@@ -1260,6 +1273,81 @@ Both are ports of the Mac's native code (`ArdiaWebView+Peek.mm`, `ArdiaWebView+T
   cross-document commit in the main frame, 0 before the first) and `httpStatus` when that document had a response
   status. The `ardia` command's page events (`page.error`, the held navigations) use them.
 
+### Pointer hand-off, Escape, app activation and small windows
+
+- **The pointer over a page.** Aura sends the shell's page a mouse-leave whenever a real pointer move lands on a
+  page view (`WindowEventDispatcher` moves its mouse-moved handler and exits the old one), so hover cards, tooltips
+  and CSS `:hover` in the shell end as they do when the pointer leaves a window, and `motion/pointer.ts` sees the
+  `mouseout`. Two things hid that. Input sent through DevTools (`Input.dispatchMouseEvent`, which the headless
+  suites use) goes straight to one renderer and never produces the leave. And new input regions arriving under a
+  pointer that doesn't move left the shell hovered until the next move, for example when an overlay under the
+  pointer closed. After every `shell.inputRegions` the host now checks that case (`ShellHoverIsStale`,
+  `ac_linux_pointer_regions.h`: the shell's view is Aura's hovered window, no button is down and the last pointer
+  position is in a pass-through rectangle) and sends Aura one synthesized move at that position, the event Aura
+  itself sends after a window changes, so the shell gets its leave and the page its enter. There is no new event
+  and nothing for the shell to wire.
+- **Escape a page leaves unhandled.** `chromium-linux-unhandled-key.patch` hands a key a tab's page left unhandled to
+  the host before the window gets it. For a key-down of Escape without Ctrl, Alt or Super, in a tab the window
+  shows, the host sends that tab's page the Mac's `command` event `{command: "escape", text: ""}`
+  (`ac_linux_page_keys.h`), which closes Peek and a Little Ardia window while the page has focus. Chromium still
+  gets the key afterwards (it stops a loading page). An Escape that leaves full screen or a page that handles Escape
+  never gets here. Advertised as `tab.unhandledEscape`.
+- **App activation.** When an Ardia window loses activation and no other Ardia window (a Settings or Import window
+  included) has it 150 ms later, every window's shell gets `ArdiaShell` `onAppEvent` `{type: "resignActive"}`, as
+  the Mac sends from `didResignActive` (`AppActivation`, `ac_linux_app_activation.h`). A switch between Ardia
+  windows sends nothing, and neither does a window closing while another takes over. While a native dialog of
+  Ardia's is open the event is held back, as the Mac holds it during a modal or a sheet. The other half is the
+  `focus` window event the host already sends when a browser window becomes active, which is what the shared UI
+  listens for. Advertised as `ArdiaShell.resignActive`.
+- **Small windows.** `ArdiaShell.openWindow` with `kind: "small"` and no `frame` now opens at `size` (`[width,
+  height]`, 900 by 640 without one), at least 420 by 300 and at most the work area of the opener's display, centred
+  and lifted 5% where the desktop has global coordinates (`RequestedSmallFrame`). A window that is small has the
+  Mac's minimum size, 420 by 300, through `chromium-linux-window-minimum-size.patch`
+  (`BrowserView::GetMinimumSize` asks the host). The new window's bootstrap carries `windowKind` (`"small"`,
+  `"browser"`, or `"settings"`/`"import"`), and, when the opener passed a `smallWindow` object in the options (up
+  to 1 MiB, refused for a private window), the same object as `smallWindow`, the way `privateWindow` travels. The
+  shell uses both (`hostSmallWindows.ts`, `hostWindowProfiles.ts`) and keeps the `localStorage` handoff for older
+  engines. Advertised as `ArdiaShell.smallWindows`.
+
+### Problem reports
+
+The engine serves the part of the Mac's `ArdiaReport` that needs no recording (`ac_linux_report.cc`, rules in
+`ac_linux_report_core.cc`). It advertises `report.files` (drafts and gzip) and `report.send` (the requests), not
+the method names: the shell sends a module method straight to a host that advertises it by name, and four of these
+answer at once on the Mac and with a promise here, so the shell has to opt in.
+
+- **The shell's side.** `hostReport.ts` sends the eight calls to the engine, each behind its capability
+  (`appModuleFallbacks.ts` keeps the old answers without it), and `reportProblem.ts` opens the sheet. The shared code
+  takes both kinds of answer through `platform/report.ts`, whose defaults are the Mac's: `removeReportFile` and
+  `cancelUploads` ignore a promise's failure, `fileSize` answers -1 when the size isn't known at once (the size the
+  draft recorded stands), `ensureDraftDir` awaits a promised folder, and `setReportPlatform` replaces the sheet's
+  `fetch` with `ArdiaReport.post` and turns recording off, which hides the Record section (and with it the trace
+  and the page choice). `ArdiaTelemetryLocal.exportForReport` gzips the last seven days of the IndexedDB copy into
+  one draft folder with `gzipText`; the folder's path is kept in `localStorage` (`ardia.report.exportFolder`) and
+  reused, so there is one export file at a time as on the Mac. The sheet's copy drops recordings and crash reports
+  (`linuxWording.ts`).
+
+- **Drafts.** `draftDirectory()` makes `<profile>/Ardia/Report Drafts/<uuid>` (mode 0700) and answers its path.
+  Every other path a call names must lie inside one of those folders, as given and again after symbolic links are
+  resolved; anything else is refused. `fileSize(path)` answers the size, or -1; `removeFile(path)` removes a file or
+  a draft folder.
+- **Gzip.** `gzipFile(source, destination, removeSource)` and `gzipText(text, destination)` write the same gzip
+  stream as the Mac (zlib, level 6) and answer the bytes written. Text is capped at 64 MiB.
+- **Sending.** The shell can't reach the network, so the JSON requests the Mac sends with `fetch` are a native call
+  too: `post(url, body, headers)` for `https://ardia.dev/api/feedback` and `…/<id>/complete`, with a body of at most
+  128 KiB. `upload(id, url, method, headers, path)` sends one draft file with `PUT` to
+  `…/<id>/files/<name>`, where the name and its size cap are the service's (`recording.mp4` 100 MiB,
+  `trace.json.gz` 50 MiB, `local-events.jsonl.gz`, `crash-<n>.ips` and `attachment-<n>.<ext>` 10 MiB), and
+  reports progress as the `onReport` event `{type: "upload", id, sent, total}`. Only `X-Ardia-Key`,
+  `Authorization: Bearer …` and `Content-Type` are sent. No other URL, method or header is accepted, requests carry
+  no cookies and follow no redirect, and at most four run at once. Both answer the Mac's `{status, body, error}`: a
+  refusal or a network failure is status 0 with the reason in `error`, and `cancelUploads()` ends every transfer
+  with `error: "cancelled"`. A background instance sends nothing.
+- **Not served.** Recording (`startRecording`, `stopRecording`, `cancelRecording`, `isRecording`,
+  `recordingThumbnail`), `ArdiaApp.crashReports` and `ArdiaApp.diagnosticsSample`. The shell answers no crash
+  reports and an empty sample, so a report's `footprint_mb` and `free_disk_gb` are null: the shell can read neither
+  the app's memory footprint nor free disk space (`navigator.storage.estimate()` reports a quota, not free space).
+
 ### Ardia's notifications
 
 `ArdiaApp.notificationPermission`, `requestNotificationPermission`, `postNotification` and `removeNotifications`
@@ -1472,13 +1560,28 @@ These were open at the time of the PR.
   a link comes to the front on Wayland depends on the launch's activation token reaching `ArdiaShell.focusWindow`,
   which hasn't been checked on a real desktop. Links that arrive while a window exists but its shell never listens
   (a shell that failed to load) wait until one does.
-- **Little Ardia.** The native window has no minimum size of its own (the Mac's is 420 by 300; the shell only
-  opens it at least that large). Escape closes the window from its blank command bar and when nothing in the shell
-  has focus (the shell sends itself the Mac's `unclaimedEscape`). Pinch and swipe to close have no Linux gesture.
-- **Meeting notifications.** Calendar › Show alerts › Always posts only while Ardia isn't active. The host sends
-  `ArdiaShell`/`onAppEvent` `{type: "resignActive"}` once no Ardia toplevel (browser window, PiP, dialog) is active
-  once an activation change settles (`kAppActivationSettleMs`), and not while a window shows a modal dialog, as the Mac skips it during a sheet.
-  Coming back is the window `focus` event, as on the Mac. Neither has run on a real desktop yet.
+- **Not compiled yet.** The pointer hand-off, the unhandled Escape, app activation, small windows, the extension
+  popup's focus and the problem report calls (the two sections above Ardia's notifications) are written against
+  the Chromium 157 headers with fixture tests and have not run in a built engine.
+- **Little Ardia.** With an engine older than `ArdiaShell.smallWindows` the native window has no minimum size of
+  its own, and with one older than `tab.unhandledEscape` Escape closes the window only from its blank command bar
+  and when nothing in the shell has focus, not while the page has focus (Peek's Escape too). Pinch
+  and swipe to close have no Linux gesture.
+- **Meeting notifications.** Calendar › Show alerts › Always posts only while Ardia isn't active. With an engine
+  older than `ArdiaShell.resignActive` the shell is never told, and only the in-window alert appears. Any focused
+  Ardia toplevel (a browser window, a PiP window, a dialog) counts as Ardia being active. Coming back
+  to Ardia through a Settings or Import window sends no `focus` window event, so the shell counts Ardia as inactive
+  until a browser window is active again.
+- **Problem reports.** The sheet opens only with an engine that advertises `report.files` and `report.send`, and
+  has no recording, trace or crash reports. The engine only accepts `https://ardia.dev/api/feedback`:
+  there is no override for a local feedback server, and a background instance sends nothing, so the sheet can't be
+  exercised end to end from a hidden instance yet. Crash reports need more than the list Chromium keeps
+  (`crash_reporter::GetReports` gives an id and a time): the Mac's fields come from parsed `.ips` files, so Linux
+  would have to read each minidump for the process type and frames, and frames of a stripped `chrome` are module
+  offsets, not names. The handler (`chrome_crashpad_handler`) ships, its folder is `Crash Reports` beside the
+  default user data folder (`chrome::DIR_CRASH_DUMPS`), and a build without Google's branding never has consent to
+  upload (`ChromeCrashReporterClient::GetCollectStatsConsent`); whether dumps are written there at all without
+  consent hasn't been checked in a built engine.
 - **Ardia's notifications.** A desktop without a notification service falls back to Chromium's own popups, as sites'
   notifications do. A click activates the window through the same Wayland activation path as above.
 - **Launch at login** starts Ardia as any launch does; it doesn't start hidden. A system-wide
@@ -1499,6 +1602,8 @@ These were open at the time of the PR.
 - **Hardware details.** The GPU name and the hardware decoders are empty until Chromium's GPU process has reported,
   and a software renderer reports none. The chip is `/proc/cpuinfo`'s `model name`, which some ARM kernels leave out.
 - **Small UI bugs.**
+  - A sidebar hover card stays open when a test moves the pointer from the sidebar into the page with DevTools
+    input, which never tells the shell the pointer left (Pointer hand-off). A real pointer closes it.
   - A played video removed from the DOM keeps its media entry until the element is collected.
 - **Not available on Linux:**
   - casting (Cast shows a toast);
@@ -1506,8 +1611,8 @@ These were open at the time of the PR.
   - video upscaling;
   - the updater;
   - crash reports;
-  - sending problem reports (the shell CSP blocks it), so `ArdiaTelemetryLocal.exportForReport` answers null;
-  - the sidebar edge's `whilePressed`: the native edge watcher still peeks during any pressed drag;
+  - sending problem reports from the sheet with an engine older than `report.files` and `report.send` (see Problem
+    reports), where `ArdiaTelemetryLocal.exportForReport` answers null;
   - `engine.cliTabTargets`, so `windows` from the control socket has no DevTools target ids;
   - notification icons, and a notification settings page to open (`openNotificationSettings`);
   - the share sheet;
