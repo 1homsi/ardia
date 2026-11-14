@@ -21,6 +21,7 @@
 #include "ardia/linux/ac_linux_sidebar_edge.h"
 #include "ardia/linux/ac_linux_status_geometry.h"
 #include "ardia/linux/ac_linux_auto_pip_service.h"
+#include "ardia/linux/ac_linux_capture.h"
 #include "ardia/linux/ac_linux_autoplay.h"
 #include "ardia/linux/ac_linux_web_store.h"
 #include "ardia/linux/ac_linux_background_dialogs.h"
@@ -2065,6 +2066,29 @@ class HostMessageHandler : public content::WebUIMessageHandler,
           return Fail(id, "ERR_ENGINE", "autofill.showSuggestions requires {tabId, passwords} for a tab of this window");
         return Resolve(id, base::Value(ardiacore::ShowLinuxAutofillSuggestions(binding->contents(), *passwords)));
       }
+      if (name == ardiacore::linux_capture::kChangeCaptureSourceCall ||
+          name == ardiacore::linux_capture::kStopCaptureCall) {
+        const auto request = ardiacore::linux_capture::ParseCaptureRequest(
+            name, input.FindString("capturer"), input.FindString("target"), input.FindString("tabId"), input.size());
+        if (!request) return Fail(id, "ERR_ENGINE", name + " requires {capturer, target} or {tabId}");
+        content::WebContents* capturer = nullptr;
+        for (const auto& [window, other] : Hosts()) {
+          TabBinding* binding = other->BindingForKey(request->capturer);
+          if (!binding || !binding->contents()) continue;
+          if (ardiacore::linux_capture::ReachesTab(private_page,
+                                                   binding->contents()->GetBrowserContext()->IsOffTheRecord())) {
+            capturer = binding->contents();
+          }
+          break;
+        }
+        if (!capturer) return Resolve(id, base::Value(false));
+        if (request->kind == ardiacore::linux_capture::Kind::kStop) {
+          return Resolve(id, base::Value(ardiacore::StopLinuxCapture(capturer)));
+        }
+        TabBinding* target = host_->BindingForKey(request->target);
+        return Resolve(id, base::Value(target && target->contents() &&
+                                       ardiacore::ShareLinuxTabInstead(capturer, target->contents())));
+      }
       if (name == ardiacore::kLinuxPeekOtherSiteTabsRoute) {
         auto tabs = ardiacore::LinuxPeekSiteTabIds(input);
         if (!tabs) return Fail(id, "ERR_ENGINE", "webView.setPeekOtherSiteTabs requires {tabIds} as a list of tab ids");
@@ -2898,6 +2922,7 @@ base::DictValue ShellHostView::Bootstrap() const {
     for (const char* capability : ardia::linux_open_urls::kOpenUrlCapabilities) capabilities.Append(capability);
   }
   for (const char* capability : ardia::linux_commands::kWindowCommandCapabilities) capabilities.Append(capability);
+  for (const char* capability : ardiacore::linux_capture::kCaptureCapabilities) capabilities.Append(capability);
   for (const char* capability : ardia::linux_notifications::kNotificationCapabilities) capabilities.Append(capability);
   capabilities.Append("ArdiaShell.fetchBangList");
   base::DictValue native_modules;

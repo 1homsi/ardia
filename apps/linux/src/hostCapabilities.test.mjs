@@ -344,8 +344,17 @@ test("casting answers with an explicit unavailable state instead of a silent rej
   assert.equal(useToasts.getState().toasts[windowId]?.title, CAST_UNAVAILABLE_TITLE);
   assert.equal(await linuxMediaCall("watchCastRoutes", JSON.stringify({ profile: "" })), "null");
   for (const verb of ["startCasting", "stopCasting", "closeCastDialog", "terminateCastRoute", "changeCaptureSource", "stopCapture"]) {
-    await assert.rejects(linuxMediaCall(verb, "{}"), (error) => error.code === "ERR_UNAVAILABLE", verb);
+    await assert.rejects(linuxMediaCall(verb, "{}", () => false), (error) => error.code === "ERR_UNAVAILABLE", verb);
   }
+});
+
+test("switching the shared tab and stopping a capture reach a host that advertises them, and casting never does", async () => {
+  const advertised = (method) => method === "media.changeCaptureSource" || method === "media.stopCapture" || method === "media.startCasting";
+  assert.equal(linuxMediaCall("changeCaptureSource", JSON.stringify({ capturer: "a", target: "b" }), advertised), undefined);
+  assert.equal(linuxMediaCall("stopCapture", JSON.stringify({ tabId: "a" }), advertised), undefined);
+  await assert.rejects(linuxMediaCall("startCasting", "{}", advertised), (error) => error.code === "ERR_UNAVAILABLE");
+  const onlyStop = (method) => method === "media.stopCapture";
+  await assert.rejects(linuxMediaCall("changeCaptureSource", "{}", onlyStop), (error) => error.code === "ERR_UNAVAILABLE");
 });
 
 test("the media domain keeps reaching the host for everything but casting", async () => {

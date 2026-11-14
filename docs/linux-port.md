@@ -710,6 +710,15 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   - It writes no rules or config and changes no focus.
   - Without compatible IPC, the compositor keeps control. Other compositors, X11 and macOS are unchanged.
 
+### Screen sharing
+
+- **The shared-tab bar's Switch and Stop** (`media.changeCaptureSource`, `media.stopCapture`) are served by
+  `ac_linux_capture.cc`. Switch presses Chromium's own "Share this tab instead" on the target tab's tab-sharing
+  infobar for that capturer, so it answers false when Chromium offers no such button (a window or screen capture, a
+  capture of a different kind). Stop ends the capturer's display capture through Chromium's capture indicator. Both
+  reach only tabs of the caller's own kind of session, regular or private. With an older engine the shell refuses
+  them as before (`hostCast.ts`). Neither has run against a real capture on Linux yet.
+
 ### Page prompts
 
 - **What reaches Ardia's UI.** Permission requests, password save and update offers, save-address,

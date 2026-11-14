@@ -1,4 +1,5 @@
 import { unavailableError } from "./hostCapabilities.ts";
+import { hostSupports } from "./host.ts";
 
 export const CAST_UNAVAILABLE_TITLE = "Casting Isn't Available";
 const CAST_UNAVAILABLE_MESSAGE = "Ardia for Linux can't cast tabs yet.";
@@ -25,9 +26,12 @@ async function noticeCastUnavailable(args: string) {
   if (windowId) showToast(windowId, CAST_UNAVAILABLE_TITLE, CAST_UNAVAILABLE_MESSAGE, { icon: "tv.and.mediabox" });
 }
 
-export function linuxMediaCall(verb: string, args: string): Promise<string> | undefined {
+const HOST_CAPTURE_VERBS = new Set(["changeCaptureSource", "stopCapture"]);
+
+export function linuxMediaCall(verb: string, args: string, supports: (method: string) => boolean = (method) => hostSupports(method)): Promise<string> | undefined {
   if (verb === "showCastDialog") return noticeCastUnavailable(args).then(() => "false", () => "false");
   if (verb === "watchCastRoutes") return Promise.resolve("null");
+  if (HOST_CAPTURE_VERBS.has(verb) && supports(`media.${verb}`)) return undefined;
   const feature = UNAVAILABLE[verb];
   return feature ? Promise.reject(unavailableError(feature)) : undefined;
 }
