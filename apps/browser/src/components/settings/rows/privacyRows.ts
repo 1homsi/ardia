@@ -118,7 +118,7 @@ export const privacyRows = {
         suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] },
         commandBarHistory: {
           title: "Suggest pages from history",
-          description: "Pages you visited show in the command bar as you type and complete the address for you. Off, it suggests open tabs, bookmarks, searches and actions only; your history stays in History, ⌘Y.",
+          description: `Pages you visited show in the command bar as you type and complete the address for you. Off, it suggests open tabs, bookmarks, searches and actions only; your history stays in History, ${keyText("⌘Y")}.`,
           keywords: ["history", "visited pages", "browsing history", "hide history", "autocomplete", "autofill", "inline completion", "recent pages", "command bar", "omnibox"],
         },
       },
