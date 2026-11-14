@@ -1,17 +1,24 @@
 import { useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
 import { FloatingMenu, LookBackdrop, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 
-type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean };
+type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown> };
 
-export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true }: PageProps) {
+export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh }: PageProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const list = useRef<ScrollView>(null);
   const restored = useRef(false);
   const frame = useSheetFrame();
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = onRefresh
+    ? () => {
+        setRefreshing(true);
+        void onRefresh().finally(() => setRefreshing(false));
+      }
+    : null;
   return (
     <View style={StyleSheet.absoluteFill}>
       <LookBackdrop />
@@ -42,7 +49,8 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
           onScrollEndDrag={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           onMomentumScrollEnd={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           keyboardShouldPersistTaps="handled"
-          {...frame?.list(false)}
+          refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} /> : undefined}
+          {...frame?.list(refresh !== null)}
         >
           {children}
         </ScrollView>

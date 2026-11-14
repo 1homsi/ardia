@@ -631,7 +631,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Sync page: no pull to run a sync cycle (Compose). `SyncPages.kt`. Small.
 - Profile colour: the swatch ring doesn't animate to the picked colour. `ColorChoice.kt`. Small.
 - Filter Lists: no pull to refresh; a downloading list's switch is disabled with no spinner; status and facts lines swap without a fade; the top bar repeats the hero title (Compose shows it once the hero scrolls away). `BlockingPages.kt` `FilterListsPage`/`FilterListRow`, `FilterListsPage.swift`. Small.
 - Add a List: a centred dialog with Add always enabled and one generic error; both apps use a bottom sheet whose field takes focus, adds on Done, offers Paste while empty, validates the address with its own message and guards a double add. `BlockingPages.kt` `AddFilterListSheet`, `FilterLists.kt`, `AddFilterListSheet.swift`. Small.
