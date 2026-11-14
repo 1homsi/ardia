@@ -32,6 +32,7 @@ export const PAGE_OPTION_CALLS = [
   "webView.setDisplayMediaPicker",
   "webView.setPeekOtherSiteTabs",
   "webView.setLittleArdiaOpensNewTabLinks",
+  "webView.setBlockAutoplayEverywhere",
 ] as const;
 const pageOptionCalls: ReadonlySet<string> = new Set(PAGE_OPTION_CALLS);
 

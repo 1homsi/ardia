@@ -22,6 +22,7 @@ export type LinuxCapabilities = {
   pageEdits: boolean;
   unloadIdleProfiles: boolean;
   hiddenElements: boolean;
+  blockAutoplayEverywhere: boolean;
 };
 
 export const CLI_CONTROL_METHODS = [
@@ -44,6 +45,7 @@ export const FULL_SCREEN_METHOD = "ArdiaShell.toggleFullScreen";
 export const FULL_SCREEN_ITEM = "std:toggleFullScreen:";
 export const PAGE_EDIT_COMMAND = "tab.edit";
 export const UNLOAD_IDLE_PROFILES_CALL = "profiles.unloadIdle";
+export const BLOCK_AUTOPLAY_EVERYWHERE_CALL = "webView.setBlockAutoplayEverywhere";
 export const HIDDEN_ELEMENTS_CALLS = ["contentBlocker.hiddenElements", "contentBlocker.hideElements", "contentBlocker.restoreElements"] as const;
 
 export function linuxCapabilities(host: ArdiaHost | undefined = ardiaHost): LinuxCapabilities {
@@ -70,6 +72,7 @@ export function linuxCapabilities(host: ArdiaHost | undefined = ardiaHost): Linu
     pageEdits: has(PAGE_EDIT_COMMAND),
     unloadIdleProfiles: has(UNLOAD_IDLE_PROFILES_CALL),
     hiddenElements: has(...HIDDEN_ELEMENTS_CALLS),
+    blockAutoplayEverywhere: has(BLOCK_AUTOPLAY_EVERYWHERE_CALL),
   };
 }
 
@@ -86,6 +89,7 @@ export function unavailableSettingIds(capabilities: LinuxCapabilities, settingId
   if (!capabilities.peekOtherSites) ids.add("tabs.peekLinksToOtherSites");
   if (!capabilities.haptics) ids.add("tabs.tabReorderHaptics");
   if (!capabilities.unloadIdleProfiles) ids.add("advanced.unloadProfilesAfter");
+  if (!capabilities.blockAutoplayEverywhere) ids.add("privacy.blockAutoplayEverywhere");
   if (!capabilities.linksFromOtherApps) for (const id of ["general.openLinksInLittleArdia", "tabs.appLinksFirst"]) ids.add(id);
   if (!capabilities.webkit) for (const id of settingIds) if (id.startsWith("engines.")) ids.add(id);
   return ids;
