@@ -29,6 +29,26 @@ class SyncModule : Module() {
 
     private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "The app context is gone", null)
 
+    private val folderPicks: FolderPicks by lazy {
+        val app = context.applicationContext
+        val resolver = app.contentResolver
+        FolderPicks(
+            java.io.File(java.io.File(app.noBackupFilesDir, "PhoneSync"), "folder-picks.json"),
+            object : FolderPicks.Grants {
+                override fun take(tree: String): Boolean = runCatching {
+                    resolver.takePersistableUriPermission(android.net.Uri.parse(tree), com.ardia.sync.AndroidSyncFolderAccess.READ_AND_WRITE)
+                }.isSuccess
+
+                override fun release(tree: String) {
+                    runCatching { resolver.releasePersistableUriPermission(android.net.Uri.parse(tree), com.ardia.sync.AndroidSyncFolderAccess.READ_AND_WRITE) }
+                }
+
+                override fun connected(): String? =
+                    (com.ardia.sync.SyncFiles(java.io.File(app.noBackupFilesDir, "Sync")).loadMeta().folder as? com.ardia.sync.SyncFolderLocation.Tree)?.treeUri
+            },
+        )
+    }
+
     private var watched: SyncController? = null
     private var route: SyncEventRoute? = null
 
@@ -51,6 +71,7 @@ class SyncModule : Module() {
         Events("onSyncEvent")
 
         OnCreate {
+            appContext.backgroundCoroutineScope.launch { runCatching { folderPicks.sweep() } }
             route = SyncEventRoute(PhoneSync.inbox(context), { event -> sendEvent("onSyncEvent", event) }) { problem ->
                 PhoneSync.current()?.let { sync -> SyncPayloads.status(sync.state.value, problem) }
             }
@@ -95,6 +116,23 @@ class SyncModule : Module() {
                 SyncPayloads.connect(tree?.let { controller.connect(phrase, SyncFolderPick.Tree(it)) })
             }
         }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("pickFolder") { promise: Promise ->
+            requestTree(onBusy = { promise.resolve(null) }) { tree ->
+                appContext.backgroundCoroutineScope.launch {
+                    val picked = tree?.takeIf { folderPicks.picked(it) }
+                    promise.resolve(picked?.let { mapOf("folder" to it, "name" to FolderNames.of(context.contentResolver, it)) })
+                }
+            }
+        }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("connectWithFolder") Coroutine { phrase: String, folder: String ->
+            val result = controller.connect(phrase, SyncFolderPick.Tree(folder))
+            if (result == ConnectResult.Connected) folderPicks.connected(folder)
+            SyncPayloads.connect(result)
+        }
+
+        AsyncFunction("forgetFolder") Coroutine { folder: String -> folderPicks.forget(folder) }
 
         AsyncFunction("changeFolder") { promise: Promise ->
             pickFolder(promise) { tree ->
@@ -182,24 +220,27 @@ class SyncModule : Module() {
         }
     }
 
-    private fun pickFolder(promise: Promise, then: suspend (String?) -> Map<String, Any?>) {
-        val activity = appContext.currentActivity
-        if (activity == null || picking != null) {
-            promise.resolve(SyncPayloads.connect(ConnectResult.Busy))
-            return
-        }
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        picking = { tree ->
+    private fun pickFolder(promise: Promise, then: suspend (String?) -> Map<String, Any?>) =
+        requestTree(onBusy = { promise.resolve(SyncPayloads.connect(ConnectResult.Busy)) }, onMissing = { promise.resolve(SyncPayloads.connect(ConnectResult.FolderUnavailable)) }) { tree ->
             appContext.backgroundCoroutineScope.launch {
                 runCatching { then(tree) }.fold(promise::resolve) { error -> promise.reject(SyncFailure.forScript(error)) }
             }
         }
+
+    private fun requestTree(onBusy: () -> Unit, onMissing: () -> Unit = { onBusy() }, picked: (String?) -> Unit) {
+        val activity = appContext.currentActivity
+        if (activity == null || picking != null) {
+            onBusy()
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        picking = picked
         try {
             activity.startActivityForResult(intent, PICK_FOLDER_REQUEST)
         } catch (missing: ActivityNotFoundException) {
             picking = null
-            promise.resolve(SyncPayloads.connect(ConnectResult.FolderUnavailable))
+            onMissing()
         }
     }
 
