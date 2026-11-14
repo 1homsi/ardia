@@ -32,6 +32,15 @@ export const pagePopupCheck = (pageKey: string): Check => ({
         "the pop-up's tab.opened",
       );
       expectEqual((await hostCall<{ popupBrowsers?: unknown }>("host.info")).popupBrowsers, 0, "Chromium pop-up windows");
+      type Listed = { key?: unknown; shown?: unknown; windowVisible?: unknown; width?: unknown; height?: unknown };
+      const inPopupWindow = async () => (await hostCall<{ tabs?: Listed[] }>("tabs.list")).tabs?.find((tab) => typeof tab.key === "string" && tab.key.startsWith("popup:"));
+      const by = Date.now() + 8000;
+      let listed = await inPopupWindow();
+      while (!(listed?.shown === true && listed.windowVisible === true) && Date.now() < by) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        listed = await inPopupWindow();
+      }
+      expectEqual({ shown: listed?.shown, windowVisible: listed?.windowVisible }, { shown: true, windowVisible: true }, `the pop-up's page in the app's pop-up window (listed: ${JSON.stringify(listed ?? null)})`);
       const linked = await evaluate(
         `const w = window.open("", "${popupName}"); const linked = !!w && w.opener === window; if (w) w.close(); setTimeout(() => post("result", JSON.stringify({ linked, closed: !!w && w.closed })), 1500);`,
       );

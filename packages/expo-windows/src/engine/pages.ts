@@ -223,7 +223,10 @@ function sendShow(page: Page): Promise<unknown> | undefined {
   const args = page.show;
   if (!args || args === page.showSent || page.closed) return undefined;
   page.showSent = args;
-  return hostCall("tab.show", args, page.windowId);
+  return hostCall("tab.show", args, page.windowId).catch((error: unknown) => {
+    console.warn(`[ardia windows] the page ${page.key} could not show: ${String((error as Error)?.message ?? error)}`);
+    throw error;
+  });
 }
 
 const focusWaits = (page: Page) => lastAskedToFocus === page && page.focusAsked > 0 && Date.now() - page.focusAsked < FOCUS_WAITS_FOR_SHOW_MS;
