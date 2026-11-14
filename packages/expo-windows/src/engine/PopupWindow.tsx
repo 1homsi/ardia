@@ -1,5 +1,6 @@
 import { createElement, useCallback, useEffect, useState, type ComponentType, type ReactNode } from "react";
-import { Pressable, Text, View, type ViewStyle } from "react-native";
+import { Pressable, Text, View, type NativeSyntheticEvent, type ViewStyle } from "react-native";
+import type { PageEvent } from "@ardia/ardiacore";
 import type { CaptionRegion, SymbolProps, WindowEvent, WindowControlsNative } from "@ardia/shell";
 import type { EventSubscription } from "../events";
 import { requireNativeModule } from "../modules";
@@ -8,7 +9,7 @@ import { useAppDark } from "../views/appearance";
 import { EngineWebView } from "./EngineWebView";
 import { callPage, pageOpened } from "./pages";
 import { POPUP_CAPTION_HEIGHT, POPUP_ORIGIN_STRIP_HEIGHT, popupOriginText, popupSecurity, popupTitle, type PopupSecurity } from "./popupPlacement";
-import { closePopupWindow, popupWindowInfo, setPopupWindowTitle, type PopupWindowInfo } from "./popupWindows";
+import { closePopupWindow, popupWindowInfo, requestPopupClose, setPopupWindowTitle, type PopupWindowInfo } from "./popupWindows";
 
 type Controls = WindowControlsNative & { addListener(name: "onWindowEvent", listener: (event: WindowEvent) => void): EventSubscription };
 
@@ -140,7 +141,7 @@ function PopupControls({ windowId, palette }: { windowId: string; palette: Palet
     },
     createElement(ControlButton, { kind: "minimize", palette, onPress: () => void controls().minimizeWindow(windowId) }),
     createElement(ControlButton, { kind: maximized ? "restore" : "maximize", palette, onPress: () => void controls().toggleMaximizeWindow(windowId) }),
-    createElement(ControlButton, { kind: "close", palette, onPress: () => closePopupWindow(windowId) }),
+    createElement(ControlButton, { kind: "close", palette, onPress: () => requestPopupClose(windowId) }),
   );
 }
 
@@ -176,8 +177,6 @@ function OriginStrip({ url, level, palette }: { url: string; level: string | nul
   );
 }
 
-type PageEvent = { nativeEvent: { name: string; data: unknown } };
-
 function PopupContent({ popup }: { popup: PopupWindowInfo }) {
   const palette = useAppDark() ? PALETTE.dark : PALETTE.light;
   const [page, setPage] = useState({ url: popup.url, title: "" });
@@ -207,7 +206,7 @@ function PopupContent({ popup }: { popup: PopupWindowInfo }) {
   }, [windowId, pageKey]);
 
   const onPageEvent = useCallback(
-    ({ nativeEvent: { name, data } }: PageEvent) => {
+    ({ nativeEvent: { name, data } }: Pick<NativeSyntheticEvent<PageEvent>, "nativeEvent">) => {
       const fields = (data ?? {}) as { url?: unknown; title?: unknown; level?: unknown };
       if (name === "ready") {
         void callPage<{ level?: unknown }>(pageKey, "getSecurityInfo").then((info) => {
@@ -215,7 +214,7 @@ function PopupContent({ popup }: { popup: PopupWindowInfo }) {
         });
         return void (popup.focused ? callPage(pageKey, "focus", { follow: true }) : undefined);
       }
-      if (name === "windowClose") return closePopupWindow(windowId);
+      if (name === "windowClose") return requestPopupClose(windowId);
       if (name === "security") return setLevel(typeof fields.level === "string" ? fields.level : null);
       if (name !== "navigation") return;
       setPage((shown) => ({

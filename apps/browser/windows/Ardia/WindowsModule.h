@@ -41,6 +41,11 @@ struct WindowsModule {
     OnUI(promise, [id]() noexcept { WindowManager::Shared().Close(id); });
   }
 
+  REACT_METHOD(requestClose)
+  void requestClose(std::string id, Promise promise) noexcept {
+    OnUI(promise, [id]() noexcept { WindowManager::Shared().RequestClose(id); });
+  }
+
   REACT_METHOD(animateWindowClose)
   void animateWindowClose(std::string id, JSValue after, Promise promise) noexcept {
     std::optional<std::string> replacement;

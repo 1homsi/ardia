@@ -15,8 +15,11 @@ turboModules.ArdiaEngineHost = {
   engineCall: async () => "{}",
 };
 
+const closeRequests = [];
+
 turboModules.ArdiaAppWindows = {
   openWindow: async (id) => void openIds.add(id),
+  requestClose: async (id) => void closeRequests.push(id),
   closeWindow: async (id) => {
     openIds.delete(id);
     DeviceEventEmitter.emit("ArdiaAppWindows:onWindowEvent", { type: "close", id });
@@ -108,7 +111,7 @@ test("an app shortcut in a pop-up is refused: nothing runs and the main window n
   unmountMain();
 });
 
-test("close tab in a pop-up closes the pop-up, and commands for other windows and menu picks pass through", async () => {
+test("close tab in a pop-up asks to close the pop-up as a window close does, and commands for other windows and menu picks pass through", async () => {
   const unmountMain = mountPage("main-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, () => {});
   await settle();
   const popup = await openPopup("ardiacore:42");
@@ -120,6 +123,9 @@ test("close tab in a pop-up closes the pop-up, and commands for other windows an
   listener({ command: "closeTab", arg: null, windowId: popup.windowId, focusGeneration: null });
   await settle();
   assert.deepEqual(reached, ["reload", "menu.pick", "reload"]);
+  assert.deepEqual(closeRequests, [popup.windowId], "the pop-up's close goes through the same request as its close button, so the quit question can be asked");
+  await turboModules.ArdiaAppWindows.closeWindow(popup.windowId);
+  await settle();
   assert.equal(popupWindowInfo(popup.windowId), null, "the pop-up closed");
   const other = [];
   const untouched = (event) => other.push(event);

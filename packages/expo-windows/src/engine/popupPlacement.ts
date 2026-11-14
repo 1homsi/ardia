@@ -1,5 +1,6 @@
 export type PopupFeatures = { x?: number; y?: number; width?: number; height?: number };
-export type PopupFrame = [x: number, y: number, width: number, height: number];
+import type { Rect4 } from "@ardia/shell";
+
 
 export const POPUP_CAPTION_HEIGHT = 32;
 export const POPUP_ORIGIN_STRIP_HEIGHT = 28;
@@ -26,7 +27,7 @@ export function popupSize(features: PopupFeatures): [width: number, height: numb
   return [Math.round(width), Math.round(page + POPUP_CHROME_HEIGHT)];
 }
 
-export function popupFrame(features: PopupFeatures, opener: PopupFrame | null): PopupFrame | null {
+export function popupFrame(features: PopupFeatures, opener: Rect4 | null): Rect4 | null {
   const [width, height] = popupSize(features);
   if (!opener && features.x === undefined && features.y === undefined) return null;
   const centred = opener ? opener[0] + (opener[2] - width) / 2 : 0;

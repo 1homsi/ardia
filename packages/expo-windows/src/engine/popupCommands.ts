@@ -1,5 +1,5 @@
 import { callPage } from "./pages";
-import { closePopupWindow, isPopupWindowId, popupWindowInfo } from "./popupWindows";
+import { isPopupWindowId, popupWindowInfo, requestPopupClose } from "./popupWindows";
 
 type Listener = (payload: unknown) => void;
 type PageCall = { method: string; args?: Record<string, unknown> };
@@ -29,7 +29,7 @@ const settled = new WeakSet<object>();
 function runInPopup(windowId: string, command: unknown) {
   const popup = popupWindowInfo(windowId);
   if (!popup || typeof command !== "string") return;
-  if (command === "closeTab") return closePopupWindow(windowId);
+  if (command === "closeTab") return requestPopupClose(windowId);
   const call = Object.hasOwn(PAGE_CALLS, command) ? PAGE_CALLS[command] : undefined;
   if (call) void callPage(popup.pageKey, call.method, call.args ?? {}).catch(() => {});
 }

@@ -4,8 +4,9 @@ import { addNativeListener, type EventSubscription } from "../events";
 import type { AppWindowsModule } from "../nativeModuleTypes";
 import { popupFrame, popupSize, popupTitle, type PopupFeatures } from "./popupPlacement";
 import { privatePopupShown } from "./privateWindows";
+import { isPopupWindowId, POPUP_WINDOW_PREFIX } from "@ardia/shell/src/windows.ts";
 
-export const POPUP_WINDOW_PREFIX = "popup:";
+export { isPopupWindowId, POPUP_WINDOW_PREFIX };
 
 export type PopupWindowInfo = {
   windowId: string;
@@ -30,7 +31,7 @@ export type PopupWindowAsk = {
 type PopupWindowOptions = OpenWindowOptions & { focusWhenFront: string; focusWhenPage: string };
 
 type PopupWindows = TurboModule &
-  Pick<AppWindowsModule, "closeWindow" | "windowFrame" | "windowIds" | "setWindowTitle"> & { openWindow(id: string, options: PopupWindowOptions): Promise<void> };
+  Pick<AppWindowsModule, "closeWindow" | "requestClose" | "windowFrame" | "windowIds" | "setWindowTitle"> & { openWindow(id: string, options: PopupWindowOptions): Promise<void> };
 
 const WINDOWS_MODULE = "ArdiaAppWindows";
 
@@ -48,7 +49,6 @@ const closedListeners = new Set<(popup: PopupWindowInfo) => void>();
 let closes: EventSubscription | null = null;
 let made = 0;
 
-export const isPopupWindowId = (windowId: string | null | undefined) => typeof windowId === "string" && windowId.startsWith(POPUP_WINDOW_PREFIX);
 
 export const popupWindowInfo = (windowId: string): PopupWindowInfo | null => popups.get(windowId) ?? null;
 
@@ -120,6 +120,11 @@ export async function openPopupWindow(ask: PopupWindowAsk): Promise<PopupWindowO
   popups.delete(windowId);
   letGoOfPrivateSession(windowId);
   return "failed";
+}
+
+export function requestPopupClose(windowId: string) {
+  if (!popups.has(windowId)) return;
+  void Promise.resolve(windows().requestClose(windowId)).catch(() => {});
 }
 
 export function closePopupWindow(windowId: string) {

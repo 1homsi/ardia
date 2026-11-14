@@ -252,6 +252,10 @@ struct WindowManager {
     }
   }
 
+  void RequestClose(std::string_view id) noexcept {
+    if (HWND hwnd = Hwnd(id)) PostMessageW(hwnd, WM_CLOSE, 0, 0);
+  }
+
   void AnimateClose(std::string const &id, std::optional<std::string> const &replacement, std::function<void()> done) noexcept {
     ManagedWindow *entry = Find(id);
     if (!entry) {
@@ -701,7 +705,7 @@ struct WindowManager {
     entry.closing = entry.appWindow.Closing(
         [this, id](winrt::Microsoft::UI::Windowing::AppWindow const &, winrt::Microsoft::UI::Windowing::AppWindowClosingEventArgs const &args) noexcept {
           ManagedWindow *found = Find(id);
-          if (!found || !found->IsBrowser() || !m_context || m_quitting) return;
+          if (!found || !(found->IsBrowser() || found->IsPopup()) || !m_context || m_quitting) return;
           try {
             args.Cancel(true);
           } catch (...) {
@@ -764,18 +768,11 @@ struct WindowManager {
     for (auto &exit : exits) exit();
     for (auto &waiter : revealWaiters) waiter();
     After(std::chrono::milliseconds(1), [closedWindow]() noexcept {});
-    if (OnlyPopupsLeft() && !m_quitting) {
+    if (m_windows.empty() && !m_quitting) {
       After(std::chrono::milliseconds(400), [this]() noexcept {
-        if (OnlyPopupsLeft()) Quit();
+        if (m_windows.empty()) Quit();
       });
     }
-  }
-
-  bool OnlyPopupsLeft() const noexcept {
-    for (auto const &[id, entry] : m_windows) {
-      if (!entry.IsPopup()) return false;
-    }
-    return true;
   }
 
   static bool OwnPageWindow(HWND hwnd, HWND page) noexcept {

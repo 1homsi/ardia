@@ -203,7 +203,9 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     without a reply; a no cancels the quit.
   - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance
     isn't hidden, and no other window stays open: `windowIds()` less the browser windows the UI has closed or is
-    closing (Settings and Import count while listed). Little Ardia's own closes (Ctrl+W, Escape) and Ctrl+W on a
+    closing (Settings, Import and pop-up windows count while listed). A pop-up keeps Ardia running like any window:
+    closing the last browser window with a pop-up open neither asks nor quits, and the pop-up's own close (its button,
+    Alt+F4, Ctrl+W, the page's `window.close()`) is the one that quits and asks. Little Ardia's own closes (Ctrl+W, Escape) and Ctrl+W on a
     window's last tab ask the same way; when the last-tab confirm asks, it stands in for the quit question.
     Windows has no Quit command, so these are the only places it asks; the Mac asks on ⌘Q and never on a window's
     close. It asks before the window closes, so a Cancel leaves the window and the app as they were and no quit
