@@ -18,7 +18,8 @@ results; a cold run spends most of its time in `swift test`'s first build. Each 
 `apps/browser` runs its TypeScript under plain Node, with the real `@ardia/shell` and `@ardia/ardiacore` code:
 `src/test-loader.mjs` swaps only the native side. `expo-modules-core` becomes `src/test-native/expo.ts`, which hands
 each package the fake of every native module it asks for (`src/test-native/shell.ts`, `src/test-native/ardiacore.ts`),
-and `react-native` a few inert views; the packages' `.tsx` files are transpiled with TypeScript on the way in (cached in
+and `react-native` inert views: `View` renders its children and every `Pressable` a render passes is kept in
+`pressables` so a test can press it (rendered with `react-dom/server`, `src/components/site/siteExtensionsManage.test.mjs`); the packages' `.tsx` files are transpiled with TypeScript on the way in (cached in
 `node_modules/.cache/ardia-test-tsx`). The native surface is listed once per package, in `src/nativeModules.ts`
 (`ShellNativeModules`, `ArdiaCoreNativeModules`), and the packages can only ask for modules listed there. Each fake is
 typed against that list, so `pnpm -C apps/browser typecheck` fails when a native method is added, removed or changed
@@ -36,6 +37,7 @@ holds the rest.
 | Shortcuts | `node apps/browser/scripts/shortcuts-test.mjs <Debug app>` | Every shortcut in every focus (0.2.8: ⌘1–9 were swallowed outside a page) |
 | Profile swipes | `node apps/browser/scripts/profile-swipe-test.mjs <Debug app>` | The native pager's races (0.2.14–0.2.18 fixes) |
 | Tab dragging | `node apps/browser/scripts/tab-drag-test.mjs <Debug app>` | Dragging in the top tab strip moves the tab, never the window (0.2.18); the empty strip moves it over its whole height and a double-click zooms (0.2.25); the empty sidebar under the rows moves it too, and a double-click there still opens a tab; a chip click whose pointer drifts up to 9 pt still opens the tab, a split pane's too (#947); a tab's hover card shows under the strip after 0.5 s, moves to the next tab at once, takes no presses and leaves the tabs beside it untouched |
+| Title-bar drag regions | `node apps/browser/scripts/drag-region-test.mjs <Debug app>` (`--every-mount` runs the `dragRegionEveryMount` experiment and prints its rebuild count) | A window's drag region is rebuilt lazily (#1682): a change the pointer wasn't over leaves it stale, and it is rebuilt when the pointer reaches the title bar, when the window moves under a still pointer, or 2 s later; a change with the pointer in the title bar rebuilds at once. After a tab added, the sidebar resized, hidden and shown, and a title change, the region the pointer's arrival leaves equals a full rebuild's (`devDragRegionRects` against `devDragBlockedRects`), the empty title bar is the window server's to drag, and no drag region point is blocked; 40 title changes in 6 s cost at most 5 rebuilds |
 | Windowing | `node apps/browser/scripts/windowing-test.mjs <Debug app>` | Window frames and what the screen shows in passing |
 | ⌘-scroll | `node apps/browser/scripts/zoom-scroll-test.mjs <Debug app>` | Trackpad scrolls, mouse zooms (regressed in 0.1.4 and 0.2.12) |
 | Hidden panes | `node apps/browser/scripts/hidden-pane-test.mjs <Release app>` (a Debug app fails five `shown:` checks) | What changes while a tab is hidden (URL, title, loading, zoom, find bar, a permission prompt) is on screen the moment it is shown |

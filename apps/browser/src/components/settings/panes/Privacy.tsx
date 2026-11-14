@@ -19,9 +19,10 @@ import { useEffect, useState } from "react";
 import { Image, ScrollView, View } from "react-native";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { useSettings } from "../../../state/browser/hooks";
+import { effectiveSettingValue } from "../../../state/site/siteControls";
 import { Button, Checkbox, DialogActions, DialogTitle, PopUp, Sheet, space, Text, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
+import { Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
 import { setting, type SettingId } from "../settingsIndex";
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
@@ -31,9 +32,9 @@ import { updateSettings } from "../../../state/settings/actions";
 import { blockerAvailable, categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { noteContentBlockerUnavailable, noteContentBlockerWriteFailure } from "../../../state/telemetry/usage";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
+import { HiddenElementsSection } from "./HiddenElementsSection";
 import { UI_LOCALE } from "../../../lib/uiLocale";
 import { PLATFORM_FEATURES } from "../../../lib/platformFeatures";
-import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 
 const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
   { id: "ads", section: "Ad blockers", anchor: "privacy.blockAds" },
@@ -104,7 +105,7 @@ export function PrivacyPane({ profileId, site }: { profileId: string | null; sit
     <View>
       {PLATFORM_FEATURES.contentBlocker && (
         <>
-          <SectionHeader title="Content blocking" description={`Built on EasyList and EasyPrivacy. Blocking happens on this ${PLATFORM_TERMS.computer}.`} />
+          <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
           <Group>
             {CATEGORIES.filter((c) => c.anchor).map((c) => (
               <Row key={c.id} anchor={c.anchor}>
@@ -139,6 +140,7 @@ export function PrivacyPane({ profileId, site }: { profileId: string | null; sit
         </>
       )}
 
+      {PLATFORM_FEATURES.contentBlocker && <HiddenElementsSection />}
       <SitePermissions shownProfileId={profileId} site={site} />
       <AppLinks />
       <SectionHeader anchor="privacy.commandScrollZoom" description={null} />
@@ -273,6 +275,10 @@ function SitePermissions({ shownProfileId, site }: { shownProfileId: string | nu
 
   return (
     <>
+      <SectionHeader title="All sites" description="These apply in every profile." />
+      <Group>
+        <SettingToggle anchor="privacy.blockAutoplayEverywhere" />
+      </Group>
       <SectionHeader
         anchor="privacy.sitePermissions"
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
@@ -338,6 +344,7 @@ function SiteSheet({ profileId, origin, onChanged, onClose }: { profileId: strin
   const profile = currentEngineProfile(profileId);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [status, setStatus] = useState("");
+  useSettings((s) => s.blockAutoplayEverywhere);
   const load = () => void getSiteSettings(profile, origin).catch((): SiteSettings => ({}) as SiteSettings).then(setSettings).catch(() => {});
   useEffect(load, []);
   const set = async (type: SiteSettingType, value: SiteSettingValue) => {
@@ -351,7 +358,7 @@ function SiteSheet({ profileId, origin, onChanged, onClose }: { profileId: strin
       <ScrollView style={SITE_LIST}>
         <Group>
           {SETTING_LABELS.filter(([type]) => settings?.[type]).map(([type, label]) => (
-            <Row key={type} title={label} description={settings![type].isDefault ? `Default (${settings![type].value})` : undefined}>
+            <Row key={type} title={label} description={settings![type].isDefault ? `Default (${effectiveSettingValue(type, settings)})` : undefined}>
               <PopUp
                 value={settings![type].isDefault ? "default" : settings![type].value}
                 options={VALUE_OPTIONS}
