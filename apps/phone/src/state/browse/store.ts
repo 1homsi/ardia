@@ -39,9 +39,11 @@ import {
   restoreArchivedTab,
   selectTabById,
   setIncognito,
+  rewriteTab,
   updateTabById,
   useTabs,
 } from "../tabs/store";
+import { pictureCaptured, pictureLanded } from "../tabs/pictures";
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
 import { copyText, pasteText } from "../../platform/system";
@@ -376,6 +378,7 @@ function pageEvent(event: PageEngineEvent) {
   if (event.name === "page.visited") pageVisited(event.pageId, event.url, event.title, event.kind);
   else if (event.name === "page.state" && currentTabs().selectedId !== event.pageId) backgroundPageState(event.pageId, event.state);
   else if (event.name === "page.closeRequested") closeTabById(event.pageId);
+  else if (event.name === "page.snapshotLanded") snapshotLanded(event.pageId, event.uri, event.generation);
 }
 
 const loading = new Map<string, boolean>();
@@ -399,7 +402,19 @@ export async function captureSnapshot(id: string) {
   if (!snapshotAllowed(id)) return;
   const snapshot = await snapshotPage(id);
   if (snapshot?.frame) noteSnapshotPageTop(snapshot.uri, snapshot.frame.y);
-  if (snapshot && findTab(currentTabs(), id)) updateTabById(id, { snapshotFileName: snapshot.uri });
+  const tab = snapshot ? findTab(currentTabs(), id) : null;
+  if (!snapshot || !tab) return;
+  const step = pictureCaptured(tab, snapshot.uri, snapshot.durable !== false, snapshot.generation);
+  if (step && tab.snapshotFileName !== step.show) updateTabById(id, { snapshotFileName: step.show });
+}
+
+function snapshotLanded(id: string, uri: string, generation: number) {
+  const tab = findTab(currentTabs(), id);
+  if (!tab) return;
+  const landed = pictureLanded(tab, uri, generation);
+  if (!landed) return;
+  if (landed === "shown" && tab.snapshotFileName !== uri) updateTabById(id, { snapshotFileName: uri });
+  else rewriteTab(id);
 }
 
 function snapshotAllowed(id: string) {

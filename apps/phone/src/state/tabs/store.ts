@@ -15,6 +15,7 @@ import {
   writeTabs,
 } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
+import { forgetPictures, forTheDatabase } from "./pictures";
 import { receiveTabs, type IncomingTab } from "./received";
 import type { AutoArchiveInterval, BrowserTab, TabPatch } from "./tabModels";
 import { countUsage } from "../telemetry/telemetry";
@@ -27,6 +28,7 @@ import {
   closeTab,
   deleteArchived,
   emptyTabs,
+  findTab,
   launchTabs,
   openTab,
   reopenLastClosed,
@@ -63,7 +65,8 @@ export const setTabProfile = (profileSyncId: string | null) => {
 function apply(change: TabsChange) {
   const db = browserDatabase();
   const hadPrivate = useTabs.getState().privates.length > 0;
-  writeTabs(db, change.put, change.remove);
+  writeTabs(db, change.put.map(forTheDatabase), change.remove);
+  forgetPictures(change.remove);
   const cleared = change.clearArchived ? deleteArchivedTabs(db) : [];
   const listed = change.put.some((t) => !t.isPrivate) || change.remove.length > 0;
   useTabs.setState((s) => ({ ...change.data, listing: listed ? s.listing + 1 : s.listing }));
@@ -144,6 +147,11 @@ export function reopenClosedTab(): BrowserTab | null {
 }
 
 export const updateTabById = (id: string, patch: TabPatch) => apply(updateTab(data(), id, patch));
+
+export function rewriteTab(id: string) {
+  const tab = findTab(data(), id);
+  if (tab) writeTabs(browserDatabase(), [forTheDatabase(tab)], []);
+}
 
 export const archiveDueTabs = () => apply(runAutoArchive(data(), currentPreferences().autoArchiveInterval, now()));
 
