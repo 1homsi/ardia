@@ -563,8 +563,16 @@ function Invoke-SelfCheckStage([string]$Stage) {
 
 if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")) {
   $secondLogin = "https://ardia-self-check-two.example%"
+  $otherKinds = "CREATE TEMP TABLE ardia_kinds AS SELECT * FROM logins WHERE signon_realm LIKE 'https://ardia-self-check-one.example%';" +
+    " UPDATE ardia_kinds SET id = NULL, signon_realm = 'https://ardia-self-check-never.example/', origin_url = 'https://ardia-self-check-never.example/', username_value = '', password_value = X'', blacklisted_by_user = 1;" +
+    " INSERT INTO logins SELECT * FROM ardia_kinds;" +
+    " UPDATE ardia_kinds SET signon_realm = 'https://ardia-self-check-federated.example/', origin_url = 'https://ardia-self-check-federated.example/', username_value = 'federated', blacklisted_by_user = 0, federation_url = 'https://ardia-self-check-idp.example';" +
+    " INSERT INTO logins SELECT * FROM ardia_kinds;" +
+    " DROP TABLE ardia_kinds;"
   foreach ($step in @(
+      @{ Sql = $otherKinds; Stage = "blocklistedAndFederated" },
       @{ Sql = "UPDATE logins SET password_value = X'763130' || randomblob(40) WHERE signon_realm LIKE '$secondLogin'"; Stage = "undecryptableLogin" },
+      @{ Sql = "UPDATE logins SET password_value = X'' WHERE signon_realm LIKE '$secondLogin'"; Stage = "emptyPasswordLogin" },
       @{ Sql = "DELETE FROM logins WHERE signon_realm LIKE '$secondLogin'"; Stage = "undecryptableRemoved" })) {
     $problem = Invoke-LoginData $step.Sql
     if (-not $problem) { $problem = Invoke-SelfCheckStage $step.Stage }
