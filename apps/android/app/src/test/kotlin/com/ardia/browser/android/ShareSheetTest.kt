@@ -72,6 +72,16 @@ class ShareSheetTest {
     }
 
     @Test
+    fun aBuildThatDoesNotOfferSyncNeverOffersSendOrTheSyncHint() {
+        val page = SharedPage.from("https://example.com", null)
+        val hidden = { snapshot: SystemSnapshot -> ShareSheetModel(page, snapshot, TestScope(), { true }, { _, _ -> true }, {}, {}, syncOffered = false) }
+        assertTrue("a connected phone still gets no Send to Your Mac", hidden(synced).sendTargets.isEmpty())
+        assertFalse(hidden(synced).offersSyncHint)
+        assertFalse("nor the hint to turn sync on", hidden(SystemSnapshot.empty).offersSyncHint)
+        assertTrue("Open in Ardia stays", hidden(synced).opensPage)
+    }
+
+    @Test
     fun nothingSharedHasNoContent() {
         val page = SharedPage.from("   ", null)
         assertNull(page.url)

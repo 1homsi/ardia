@@ -29,6 +29,7 @@ type SystemNative = {
   setWidgetColorChoice?(choice: string | null): void;
   takePendingCounts?(): Record<string, number>;
   peekPendingCounts?(): Record<string, number>;
+  syncOffered?(): boolean;
   usageConsent?(): { sharing: boolean; generation: number } | null;
   setUsageConsent?(sharing: boolean): void;
 };
@@ -47,6 +48,7 @@ export const system = {
   setWidgetColorChoice: (choice: string | null): void => native?.setWidgetColorChoice?.(choice),
   takePendingCounts: (): Record<string, number> => native?.takePendingCounts?.() ?? {},
   peekPendingCounts: (): Record<string, number> => native?.peekPendingCounts?.() ?? {},
+  syncOffered: (): boolean | null => native?.syncOffered?.() ?? null,
   usageConsent: (): { sharing: boolean; generation: number } | null => native?.usageConsent?.() ?? null,
   setUsageConsent: (sharing: boolean): void => native?.setUsageConsent?.(sharing),
   setHidesFromRecents: async (hidden: boolean): Promise<boolean> => (native?.setHidesFromRecents ? native.setHidesFromRecents(hidden) : false),

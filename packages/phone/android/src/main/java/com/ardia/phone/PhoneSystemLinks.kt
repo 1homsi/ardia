@@ -134,7 +134,7 @@ object PhoneSystemLinks {
         if (scheme != SystemLink.SCHEME) return null
         val source = if (declaredSource == "shortcut") "shortcut" else "system"
         if (uri.host?.lowercase() == INBOX_HOST) return mapOf("kind" to "inbox", "source" to source)
-        return SystemLink.parse(uri.toString())?.let { payload(it, source) }
+        return SystemLink.parse(uri.toString())?.takeIf(SyncOffer::allows)?.let { payload(it, source) }
     }
 
     private fun words(text: String?, source: String): Map<String, Any?>? {

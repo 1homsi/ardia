@@ -61,7 +61,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
+                android:resource="@xml/phone_shortcuts" />
         </activity>
 
         <activity
@@ -124,6 +124,7 @@
 
         <receiver
             android:name=".system.MacTabsWidgetReceiver"
+            android:enabled="@bool/ardia_sync_offered"
             android:exported="true"
             android:label="@string/widget_mac_tabs_name">
             <intent-filter>

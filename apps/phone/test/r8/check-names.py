@@ -4,6 +4,7 @@
 # receivers and providers, App Startup initializers, each module in packages/phone/expo-module.config.json, the
 # native names the JavaScript asks for (a name absent from the baseline too is reported as not built for Android),
 # Room's WorkDatabase_Impl with its no-argument constructor, and Expo's generated package list. Exits 1 on a loss.
+# Components switched on or off by the build's ardia_sync_offered value are listed with it; their classes are still checked.
 # check-names.py --self-test checks the constructor match on fixed dexdump records.
 import json, re, subprocess, sys, zipfile, pathlib
 
@@ -20,7 +21,7 @@ if len(sys.argv) > 1 and sys.argv[1] == '--self-test':
     sys.exit(0)
 
 if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):
-    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:7]))
+    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:8]))
     sys.exit(0 if len(sys.argv) > 1 else 64)
 apk = sys.argv[1]
 baseline = sys.argv[2] if len(sys.argv) > 2 else None
@@ -52,6 +53,21 @@ for line in manifest.splitlines():
     if target:
         components.append(('targetActivity', target.group(1) if not target.group(1).startswith('.') else package + target.group(1)))
 
+values = subprocess.run([str(aapt2), 'dump', 'resources', apk], capture_output=True, text=True).stdout
+offered_id = re.search(r'resource (0x[0-9a-f]+) bool/ardia_sync_offered', values)
+if offered_id:
+    offered = re.search(r'bool/ardia_sync_offered[^\n]*\n\s*\(\)\s*(true|false)', values)
+    switched = []
+    owner = None
+    for line in manifest.splitlines():
+        if re.match(r'\s*E: (activity-alias|activity|service|receiver|provider)\b', line):
+            owner = None
+        name = re.search(r'android:name\(0x01010003\)="([^"]+)"', line)
+        if name and owner is None:
+            owner = name.group(1)
+        if re.search(r'android:enabled\(0x0101000e\)=@' + offered_id.group(1) + r'\b', line):
+            switched.append(owner or '?')
+    print(f'components switched by ardia_sync_offered ({offered.group(1) if offered else "unknown"} in this build): ' + (', '.join(item.rsplit('.', 1)[-1] for item in switched) or 'none'))
 missing = [(kind, name) for kind, name in components if name not in classes]
 print(f'manifest: {len(components)} named classes, {len(missing)} missing')
 for kind, name in missing:

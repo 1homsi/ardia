@@ -45,6 +45,7 @@ class ShareSheetModel(
     private val send: suspend (SharedPage, SystemDevice) -> Boolean,
     private val finish: () -> Unit,
     val cancel: () -> Unit,
+    private val syncOffered: Boolean = true,
 ) {
     sealed interface Phase {
         data object Ready : Phase
@@ -74,9 +75,9 @@ class ShareSheetModel(
     val opensPage: Boolean get() = page.url != null
 
     val sendTargets: List<SystemDevice>
-        get() = if (snapshot.isSyncEnabled && page.url != null) snapshot.sendTargets else emptyList()
+        get() = if (syncOffered && snapshot.isSyncEnabled && page.url != null) snapshot.sendTargets else emptyList()
 
-    val offersSyncHint: Boolean get() = page.url != null && !snapshot.isSyncEnabled
+    val offersSyncHint: Boolean get() = syncOffered && page.url != null && !snapshot.isSyncEnabled
 
     val sendsOnlyToMacs: Boolean get() = sendTargets.all { it.isMac }
 

@@ -161,6 +161,21 @@ The Expo app has the Compose app's entry points (`docs/android.md`), from its ow
 - The R8 name check finds Room's `WorkDatabase_Impl` constructor as one `<init>` method record with a `()V`
   descriptor (998f62979).
 
+- **Sync is not offered in Android release builds** (the first Android release ships without it; lab builds keep
+  it). One value, `SyncOffer.isOffered` in `packages/phone` (true in a lab build, false in a release build), decides
+  every native entry point; JavaScript reads the same through `system.syncOffered()`. In a release build:
+  - the share sheet offers Open in Ardia and Search in Ardia only, no Send to Your Mac and no hint to turn sync on;
+  - the Your Mac's Tabs widget is not in the widget picker: its receiver is disabled by the build's
+    `@bool/ardia_sync_offered`. A Your Mac's Tabs widget placed by a Compose tester build loses its provider, and
+    the launcher shows that it can't be loaded until it is removed; no released build ever placed one;
+  - the Your Mac's Tabs launcher shortcut is disabled the same way, and an `ardia://mac-tabs` link does nothing;
+  - no sync controller is made, so nothing syncs, in front or in the background. Sync work a Compose tester left
+    queued (`ardia-sync`, `ardia-sync-flush`) is cancelled at start, and a worker that runs anyway holds;
+  - the sync code scanner reports the camera as unsupported and never opens it;
+  - a Compose tester who had sync connected keeps the sync identity on disk untouched and unused; nothing is reset,
+    so a later build that offers sync finds it as it was.
+  `apps/phone/test/r8/check-names.py` lists the components the value switches and its value in the build.
+
 #### Entry points tester script (lab build)
 
 Before any run, prove the phone has the build you were sent:

@@ -35,7 +35,7 @@ class LegacyModule : Module() {
 
         AsyncFunction("startFresh") { ->
             val app = context
-            reading { PhoneLegacy(app).startFresh { PhoneSync.controller(app).localDidChange() } }
+            reading { PhoneLegacy(app).startFresh { if (SyncOffer.isOffered) PhoneSync.controller(app).localDidChange() } }
         }
 
         AsyncFunction("markImportedWith") { receipt: Map<String, Any?> ->
@@ -43,7 +43,7 @@ class LegacyModule : Module() {
                 ?: throw CodedException("ERR_LEGACY_RECEIPT", "The import receipt is not valid", null)
             val app = context
             reading {
-                pausing(app).markImported(parsed) { PhoneSync.controller(app).localDidChange() }
+                pausing(app).markImported(parsed) { if (SyncOffer.isOffered) PhoneSync.controller(app).localDidChange() }
             }
         }
     }

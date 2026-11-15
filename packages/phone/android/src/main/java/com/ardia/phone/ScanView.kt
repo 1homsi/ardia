@@ -58,6 +58,7 @@ class ScanView(context: Context, appContext: AppContext) : ExpoView(context, app
     private fun start() {
         if (session != null) return
         val problem = when {
+            !SyncOffer.isOffered -> "unsupported"
             !CameraAccessCheck.hasCamera(context) -> "unsupported"
             !CameraAccessCheck.isGranted(context) -> "permission"
             appContext.currentActivity !is LifecycleOwner -> "camera"

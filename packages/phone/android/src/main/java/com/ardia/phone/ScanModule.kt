@@ -44,7 +44,7 @@ class ScanModule : Module() {
     private fun reply(promise: Promise, answer: ScanAccess.Answer) = promise.resolve(mapOf("status" to answer.status, "canAskAgain" to answer.canAskAgain))
 
     private fun answer(promise: Promise, ask: Boolean) {
-        if (!CameraAccessCheck.hasCamera(context)) {
+        if (!SyncOffer.isOffered || !CameraAccessCheck.hasCamera(context)) {
             reply(promise, ScanAccess.Answer("unsupported", false))
             return
         }

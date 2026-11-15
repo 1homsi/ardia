@@ -18,6 +18,7 @@ import com.ardia.browser.android.system.SystemStore
 import com.ardia.design.ArdiaTheme
 import com.ardia.phone.PhoneBrowsingSource
 import com.ardia.phone.ShareSends
+import com.ardia.phone.SyncOffer
 import com.ardia.phone.UsageConsent
 import java.lang.ref.WeakReference
 import java.util.UUID
@@ -47,6 +48,7 @@ class PhoneShareActivity : ComponentActivity() {
             send = { shared, device -> PhoneShare.send(app, session.key, shared, device) },
             finish = { session.shown?.get()?.finish() },
             cancel = { session.shown?.get()?.finish() },
+            syncOffered = SyncOffer.isOffered,
         ).also { session.model = it }
         setContent {
             ArdiaTheme(darkTheme = isSystemInDarkTheme(), look = snapshot.look) {

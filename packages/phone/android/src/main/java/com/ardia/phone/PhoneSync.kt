@@ -58,6 +58,7 @@ object PhoneSync {
     }
 
     fun controller(context: Context, demo: Boolean? = null): SyncController = synchronized(this) {
+        if (!SyncOffer.isOffered) throw SyncOffer.NotOffered()
         if (UpgradeGate.pending(context)) throw UpgradeGate.Pending()
         val current = made
         val app = context.applicationContext ?: context

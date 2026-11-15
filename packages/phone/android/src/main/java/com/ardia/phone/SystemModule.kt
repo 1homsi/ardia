@@ -21,6 +21,8 @@ class SystemModule : Module() {
             UsageConsent.set(context, sharing)
         }
 
+        Function("syncOffered") { SyncOffer.isOffered }
+
         Function("peekPendingCounts") {
             val context = appContext.reactContext ?: return@Function emptyMap<String, Int>()
             PendingCounts.peek(context)

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.res.Configuration
 import com.ardia.phone.PhoneLab
 import com.ardia.phone.PhoneSync
+import com.ardia.phone.SyncOffer
 import com.ardia.phone.UpgradeGate
 import com.ardia.sync.SyncController
 import com.ardia.sync.SyncControllerOwner
@@ -37,7 +38,7 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
         get() = PhoneSync.controller(this)
 
     override val isSyncReady: Boolean
-        get() = !UpgradeGate.pending(this)
+        get() = SyncOffer.isOffered && !UpgradeGate.pending(this)
 
     override val reactHost: ReactHost
         get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)
@@ -51,6 +52,7 @@ class MainApplication : Application(), ReactApplication, SyncControllerOwner {
             android.util.Log.i("PAGELAB", "PAGELAB build ${getString(R.string.ardia_build_commit)} dirty: ${getString(R.string.ardia_build_dirty)} from the ${getString(R.string.ardia_build_source)}; native ${getString(R.string.ardia_build_native)}")
         }
         UpgradeGate.install(this)
+        SyncOffer.retireBackground(this)
         LabNetworkLog.install(this)
         loadReactNative(this)
         ApplicationLifecycleDispatcher.onApplicationCreate(this)

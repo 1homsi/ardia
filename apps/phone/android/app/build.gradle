@@ -93,6 +93,7 @@ android {
         resValue "string", "ardia_build_dirty", ardiaDirty
         resValue "string", "ardia_build_source", ardiaBundleSource
         resValue "string", "ardia_build_native", ardiaNative
+        resValue "bool", "ardia_sync_offered", ardiaLab ? "true" : "false"
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {
