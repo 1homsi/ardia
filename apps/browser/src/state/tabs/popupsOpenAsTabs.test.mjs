@@ -51,22 +51,36 @@ test("a pop-up from a Peek keeps the Peek's page as a tab, opens in front of it,
   assert.equal(S().windows[w].activeTabIds.default, peek);
 });
 
-test("a pop-up from a Peek that waits on the opening gate keeps its opener when you switch tabs meanwhile", async () => {
-  const { w, page, ref } = windowWithTab();
-  const other = S().newTab(w, { url: "https://b.example/", background: true });
-  const peek = S().openPeek(page, "https://signin.example/start");
-  let allow;
-  setOpeningGate(() => new Promise((resolve) => (allow = resolve)));
+async function openThroughGate(w, peek, ref, answer, meanwhile = () => {}) {
+  let settle;
+  setOpeningGate(() => new Promise((resolve) => (settle = resolve)));
   try {
     openFromPage({ url: "https://signin.example/popup", disposition: "foreground", popup: true }, ref(peek));
-    S().activate(other);
-    allow(null);
+    meanwhile();
+    settle(answer);
     await new Promise((resolve) => setTimeout(resolve, 0));
   } finally {
     setOpeningGate(null);
   }
+}
+
+test("a pop-up from a Peek that an opening rule cancels leaves the Peek a Peek", async () => {
+  const { w, page, ref } = windowWithTab();
+  const peek = S().openPeek(page, "https://signin.example/start");
+  const tabs = [...S().windows[w].tabIds];
+  await openThroughGate(w, peek, ref, { cancel: true });
+  assert.equal(popupTabOf("https://signin.example/popup"), undefined);
+  assert.equal(S().peeks[w]?.tabId, peek);
+  assert.deepEqual(S().windows[w].tabIds, tabs);
+});
+
+test("a pop-up whose Peek you close while the opening rule decides still opens in front", async () => {
+  const { w, page, ref } = windowWithTab();
+  const other = S().newTab(w, { url: "https://b.example/", background: true });
+  const peek = S().openPeek(page, "https://signin.example/start");
+  await openThroughGate(w, peek, ref, null, () => S().activate(other));
   const popup = popupTabOf("https://signin.example/popup");
   assert.ok(popup);
-  assert.ok(S().tabs[peek], "the page that opened the pop-up is still open");
-  assert.equal(S().tabs[popup].openerId, peek);
+  assert.equal(S().tabs[peek], undefined);
+  assert.equal(S().windows[w].activeTabIds.default, popup);
 });
