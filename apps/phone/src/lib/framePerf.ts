@@ -21,7 +21,26 @@ const ms = (value: number) => value.toFixed(1);
 const frameText = (thread: string, summary: FrameSummary) =>
   `${thread} ${summary.frames} frames p50 ${ms(summary.p50)} p90 ${ms(summary.p90)} max ${ms(summary.max)} slow ${summary.overBudget}`;
 
-export type LookActivity = { recording: number; holdingLayers: number; animating: number };
+export type LookTotals = { backdropFrames: number; sourceRecordings: number; blurLayerRenders: number; retints: number };
+
+export type LookActivity = { recording: number; holdingLayers: number; animating: number; during?: LookTotals | null };
+
+export function lookTotalsBetween(start: LookTotals | null, end: LookTotals | null): LookTotals | null {
+  if (!start || !end) return null;
+  return {
+    backdropFrames: Math.max(0, end.backdropFrames - start.backdropFrames),
+    sourceRecordings: Math.max(0, end.sourceRecordings - start.sourceRecordings),
+    blurLayerRenders: Math.max(0, end.blurLayerRenders - start.blurLayerRenders),
+    retints: Math.max(0, end.retints - start.retints),
+  };
+}
+
+const lookText = (look: LookActivity) => {
+  const end = `at end recording ${look.recording} holding ${look.holdingLayers} animating ${look.animating}`;
+  const during = look.during;
+  if (!during) return `look ${end}`;
+  return `look drew backdrop ${during.backdropFrames}, recorded ${during.sourceRecordings}, blurred ${during.blurLayerRenders}, retinted ${during.retints}; ${end}`;
+};
 
 export function interactionLine(name: string, windowMs: number, js: FrameSummary, ui: FrameSummary | null, renders: ReadonlyMap<string, number>, look: LookActivity | null = null): string {
   const counted = [...renders.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([component, count]) => `${component}=${count}`);
@@ -31,6 +50,6 @@ export function interactionLine(name: string, windowMs: number, js: FrameSummary
     frameText("js", js),
     ui ? frameText("ui", ui) : "ui unmeasured",
     `renders ${total}${counted.length ? ` (${counted.join(" ")})` : ""}`,
-    look ? `look recording ${look.recording} holding ${look.holdingLayers} animating ${look.animating}` : "look unmeasured",
+    look ? lookText(look) : "look unmeasured",
   ].join(" | ");
 }

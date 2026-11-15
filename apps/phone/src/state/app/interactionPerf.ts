@@ -1,11 +1,11 @@
-import { interactionLine, summarizeFrames } from "../../lib/framePerf";
-import { isLabBuild, labLog, lookActivity } from "../../platform/lab";
+import { interactionLine, lookTotalsBetween, summarizeFrames, type LookTotals } from "../../lib/framePerf";
+import { isLabBuild, labLog, lookActivity, lookTotals } from "../../platform/lab";
 
 export type UiFrameRecorder = { start: () => void; stop: () => number[] };
 
 export const INTERACTION_WINDOW_MS = { deckScroll: 1200, deckOpen: 900, cardOpen: 900, trayOpen: 800 } as const;
 
-type Session = { name: string; windowMs: number; js: number[]; lastFrame: number | null; renders: Map<string, number>; frame: number | null; timer: ReturnType<typeof setTimeout> | null };
+type Session = { name: string; windowMs: number; lookAtStart: LookTotals | null; js: number[]; lastFrame: number | null; renders: Map<string, number>; frame: number | null; timer: ReturnType<typeof setTimeout> | null };
 
 let enabled = isLabBuild;
 let session: Session | null = null;
@@ -39,7 +39,7 @@ function nextFrame(now: number) {
 export function beginInteraction(name: string, windowMs: number) {
   if (!enabled) return;
   finishInteraction();
-  session = { name, windowMs, js: [], lastFrame: null, renders: new Map(), frame: null, timer: null };
+  session = { name, windowMs, lookAtStart: lookTotals(), js: [], lastFrame: null, renders: new Map(), frame: null, timer: null };
   uiRecorder?.start();
   session.frame = requestAnimationFrame(nextFrame);
   session.timer = setTimeout(finishInteraction, windowMs);
@@ -52,5 +52,6 @@ export function finishInteraction() {
   if (done.frame !== null) cancelAnimationFrame(done.frame);
   if (done.timer) clearTimeout(done.timer);
   const ui = uiRecorder ? uiRecorder.stop() : null;
-  report(interactionLine(done.name, done.windowMs, summarizeFrames(done.js), ui ? summarizeFrames(ui) : null, done.renders, lookActivity()));
+  const look = lookActivity();
+  report(interactionLine(done.name, done.windowMs, summarizeFrames(done.js), ui ? summarizeFrames(ui) : null, done.renders, look ? { ...look, during: lookTotalsBetween(done.lookAtStart, lookTotals()) } : null));
 }

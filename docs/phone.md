@@ -530,13 +530,13 @@ off in the lab`.
     - start `adb shell am broadcast -a com.ardia.phone.FRAMES -p $P --ei seconds 5` just before the first swipe.
       During the scroll, `redrawn:` should list the cards and not `DeckBackdropView`, or only once or twice
       when the scroll starts and stops: the backdrop holds still while anything else draws;
-    - from the `PAGELAB perf deck scroll` lines, check the look field reads `recording 0 holding 0 animating 0`
-      (sync13 read `1 3 1`);
-    - the look field must read 0 / 0 / 0 on every `PAGELAB perf` line for a scroll, a card open, a deck open and a
+    - from the `PAGELAB perf deck scroll` lines, check the look field reads `look drew backdrop 0, recorded 0,
+      blurred 0, retinted 0` (sync13's older field read `1 3 1`);
+    - the `look drew …` counts must be 0 on every `PAGELAB perf` line for a scroll, a card open, a deck open and a
       tray open, in every run of every step. Treat any non-zero as a bug and report the line with the step and the
-      time. The field is the look's state when the window ends, so a window that outlasts the motion (a short
-      swipe in a 1.2 s window) can catch the backdrop moving again after it held still. Note when the motion
-      ended against the window, so a true cost and a late snapshot can be told apart;
+      time. They are what the look did during the window (its running totals at the end less those at the start);
+      the `at end recording … holding … animating …` part after them is only its state when the window closed, so
+      a short swipe in a 1.2 s window can show `animating 1` there without being a cost;
     - report, per run, the janky share, the 50th, 90th and 99th percentiles, and the slow issue-draw commands.
       Look on should now be within a point or two of look off. If it is not, the FRAMES line names what is still
       being redrawn.
