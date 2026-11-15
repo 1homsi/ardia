@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Debug
 import android.util.Log
@@ -24,6 +25,29 @@ object ImageMemory {
         runCatching { Fresco.getImagePipeline().evictFromMemoryCache(Uri.parse("file://${file.absolutePath}")) }
         return dropped
     }
+
+    fun decodedKey(uri: String): com.facebook.cache.common.CacheKey =
+        com.facebook.imagepipeline.cache.DefaultCacheKeyFactory.getInstance().getBitmapCacheKey(
+            com.facebook.imagepipeline.request.ImageRequestBuilder.newBuilderWithSource(Uri.parse(uri)).setAutoRotateEnabled(true).build(),
+            null,
+        )
+
+    fun holdDecoded(uri: String, bitmap: Bitmap): Boolean = runCatching {
+        if (!Fresco.hasBeenInitialized()) return false
+        val image: com.facebook.imagepipeline.image.CloseableImage = com.facebook.imagepipeline.image.CloseableStaticBitmap.of(
+            bitmap,
+            com.facebook.imagepipeline.bitmaps.SimpleBitmapReleaser.getInstance(),
+            com.facebook.imagepipeline.image.ImmutableQualityInfo.FULL_QUALITY,
+            0,
+        )
+        val reference = com.facebook.common.references.CloseableReference.of(image)
+        try {
+            Fresco.getImagePipeline().bitmapMemoryCache.cache(decodedKey(uri), reference)?.close()
+        } finally {
+            reference.close()
+        }
+        true
+    }.getOrDefault(false)
 
     data class Cache(val bytes: Int, val count: Int, val inUseBytes: Int, val keptBytes: Int, val keptCount: Int)
 

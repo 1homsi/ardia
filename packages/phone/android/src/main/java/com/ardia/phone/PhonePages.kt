@@ -200,10 +200,26 @@ object PhonePages {
         val insets = covered ?: views[pageId]?.get()?.toneInsets
         val picture = if (route == CaptureRoute.WindowCopy && web != null && web.width > 0 && insets != null) withoutCovered(drawn, web.width, web.resources.displayMetrics.density, insets) else drawn
         val frame = kotlinx.coroutines.withContext(Dispatchers.Main.immediate) { views[pageId]?.get()?.let(::frameInWindow) }
-        val written = snapshots.write(pageId, picture, page.isPrivate, quality) ?: return null
+        val decoded = picture.copy(Bitmap.Config.ARGB_8888, false)
+        val writeStarted = android.os.SystemClock.uptimeMillis()
+        val written = snapshots.writeAhead(pageId, picture, page.isPrivate, quality, scope) { file, ok ->
+            if (ok) scope.launch {
+                if (shared?.existing(pageId) == null) {
+                    file.delete()
+                    ImageMemory.forget(file)
+                }
+            }
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${if (ok) "written" else "NOT written"} in ${android.os.SystemClock.uptimeMillis() - writeStarted} ms in the background: ${file.name}")
+        }
+        if (written == null) {
+            decoded?.recycle()
+            return null
+        }
+        val held = written["kept"] != true && decoded != null && ImageMemory.holdDecoded(written["uri"] as String, decoded)
+        if (!held) decoded?.recycle()
         if (PhoneLab.isOn) {
             val done = android.os.SystemClock.uptimeMillis()
-            android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${picture.width}x${picture.height} by ${if (route == CaptureRoute.WindowCopy) "window copy" else "view draw"}, captured in ${captured - started} ms, written in ${done - captured} ms, page view in window ${frame ?: "unknown"} (dp), top inset cropped ${insets?.first ?: 0.0} dp")
+            android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${picture.width}x${picture.height} by ${if (route == CaptureRoute.WindowCopy) "window copy" else "view draw"}, captured in ${captured - started} ms, ${if (held) "decoded picture held in the image cache" else "not held"} and resolved ${done - captured} ms later (the JPEG is written after), page view in window ${frame ?: "unknown"} (dp), top inset cropped ${insets?.first ?: 0.0} dp")
         }
         return written + ("route" to if (route == CaptureRoute.WindowCopy) "windowCopy" else "draw") + ("frame" to frame)
     }

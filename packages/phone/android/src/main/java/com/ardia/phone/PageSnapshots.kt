@@ -5,7 +5,9 @@ import android.graphics.Bitmap
 import com.ardia.browser.PageCapture
 import java.io.File
 import java.security.MessageDigest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class PageSnapshots(context: Context, private val onRemoved: (File) -> Int = { 0 }) {
@@ -37,6 +39,39 @@ class PageSnapshots(context: Context, private val onRemoved: (File) -> Int = { 0
         older(folder, stem, keep = target).forEach { remove(it) }
         mapOf("path" to target.absolutePath, "uri" to "file://${target.absolutePath}", "width" to width, "height" to height, "bytes" to target.length().toDouble())
     }
+
+    suspend fun writeAhead(pageId: String, bitmap: Bitmap, isPrivate: Boolean, quality: Int, scope: CoroutineScope, written: (File, Boolean) -> Unit = { _, _ -> }): Map<String, Any?>? = withContext(Dispatchers.IO) {
+        val folder = if (isPrivate) private else saved
+        if (!folder.isDirectory && !folder.mkdirs()) return@withContext null
+        val stem = fileStem(pageId)
+        val previous = older(folder, stem, keep = null).maxByOrNull { it.lastModified() }
+        if (previous != null && looksBlank(bitmap)) {
+            bitmap.recycle()
+            return@withContext describe(previous) + ("kept" to true)
+        }
+        val stamp = System.currentTimeMillis()
+        val width = bitmap.width
+        val height = bitmap.height
+        val target = File(folder, "$stem-$stamp-${width}x$height.jpg")
+        scope.launch(Dispatchers.IO) { written(target, finishWrite(folder, stem, stamp, target, bitmap, quality)) }
+        mapOf("path" to target.absolutePath, "uri" to "file://${target.absolutePath}", "width" to width, "height" to height, "bytes" to 0.0, "writing" to true)
+    }
+
+    private fun finishWrite(folder: File, stem: String, stamp: Long, target: File, bitmap: Bitmap, quality: Int): Boolean {
+        val staging = File(folder, "${target.name}.partial")
+        val done = runCatching {
+            staging.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, quality.coerceIn(1, 100), it) }
+        }.getOrDefault(false)
+        bitmap.recycle()
+        if (!done || !staging.renameTo(target)) {
+            staging.delete()
+            return false
+        }
+        older(folder, stem, keep = target).filter { (stampOf(it, stem) ?: Long.MAX_VALUE) < stamp }.forEach { remove(it) }
+        return true
+    }
+
+    private fun stampOf(file: File, stem: String): Long? = file.name.removePrefix("$stem-").substringBefore('-').toLongOrNull()
 
     private fun looksBlank(bitmap: Bitmap): Boolean = PageCapture.isBlank(bitmap, blackIsBlank = true) || PageCapture.isNearlyUniform(bitmap)
 
