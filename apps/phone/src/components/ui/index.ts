@@ -22,7 +22,7 @@ export { Symbol } from "./Symbol";
 export { placeholderTint, TabFace, tabFill } from "./TabFace";
 export { isSymbolName, type SymbolName } from "./symbolPaths";
 export { DEFAULT_PROFILE_COLOR, PROFILE_PRESETS, ProfileLookContext, rolesFor, useProfileLook, useTheme, type StartBackdrop, type Theme } from "./theme";
-export { appIconLayout, browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayout, pageInk, readerInk, readerLayout, settingsLayout, settingsTint, PROFILE_COLORS, scanInk, scanLayout, shadowRadius, spacesLayout, syncInk, tabsInk, voiceInk, voiceLayout, failureLayout, archiveCardLayout, onboardingArt, tabsLayout, toastLayout, trayShadow, type ColorRoles, type ProfileColor } from "./tokens";
+export { appIconLayout, browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayout, pageInk, readerInk, readerLayout, settingsLayout, settingsTint, PROFILE_COLORS, scanInk, scanLayout, shadowRadius, spacesLayout, syncInk, tabsInk, voiceInk, voiceLayout, failureLayout, archiveCardLayout, onboardingArt, syncSketch, tabsLayout, toastLayout, trayShadow, type ColorRoles, type ProfileColor } from "./tokens";
 export { useCoverFocus } from "./coverFocus";
 export { FullSheet, SheetBackground, useSheetFrame } from "./FullSheet";
 export { SwipeToDelete } from "./SwipeToDelete";

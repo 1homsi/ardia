@@ -885,7 +885,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 ### Needs only JavaScript
 
-- Onboarding sync step: a symbol instead of the Mac-and-phone QR picture; the connect screen pops in (Compose slides it up, SwiftUI a sheet) and "Connected." doesn't crossfade. `SyncScanIllustration.kt`/`.swift`, `OnboardingSteps.swift`. Half a day.
 
 ### Needs native code on Android
 

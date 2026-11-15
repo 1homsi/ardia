@@ -1,16 +1,61 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import {
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
-import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { AppIcon, appIconLayout, PrimaryButton, LookBackdrop, onboardingArt, font, radius, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
-import { ToggleRow } from "../settings/SettingsKit";
+import {
+  advanceOnboarding,
+  finishOnboarding,
+  useOnboarding,
+} from "../../state/onboarding/hooks";
+import {
+  refreshSettings,
+  setBlockingCategory,
+  useBlocking,
+} from "../../state/settings/actions";
+import {
+  AppIcon,
+  appIconLayout,
+  PrimaryButton,
+  LookBackdrop,
+  onboardingArt,
+  font,
+  radius,
+  settingsTint,
+  shadowRadius,
+  space,
+  spring,
+  Symbol,
+  tabsMotion,
+  useTheme,
+  type SymbolName,
+} from "../ui";
+import { CrossfadeText, ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
 import { LinkBubble } from "./LinkBubble";
+import { SyncScanIllustration } from "./SyncScanIllustration";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
-import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
+import {
+  setUsageSharing,
+  useUsageSharing,
+} from "../../state/telemetry/telemetry";
 import { useSyncConnected } from "../../state/sync/hooks";
 
 const welcomeSpring = spring(0.7, 0.7);
@@ -26,8 +71,14 @@ const REDUCED_OUT = FadeOut.duration(tabsMotion.fade);
 const stepIn = (direction: 1 | -1) => () => {
   "worklet";
   return {
-    initialValues: { opacity: 0, transform: [{ translateX: direction * STEP_SHIFT }] },
-    animations: { opacity: withSpring(1, smooth), transform: [{ translateX: withSpring(0, smooth) }] },
+    initialValues: {
+      opacity: 0,
+      transform: [{ translateX: direction * STEP_SHIFT }],
+    },
+    animations: {
+      opacity: withSpring(1, smooth),
+      transform: [{ translateX: withSpring(0, smooth) }],
+    },
   };
 };
 
@@ -35,10 +86,35 @@ const stepOut = (direction: 1 | -1) => () => {
   "worklet";
   return {
     initialValues: { opacity: 1, transform: [{ translateX: 0 }] },
-    animations: { opacity: withSpring(0, smooth), transform: [{ translateX: withSpring(-direction * STEP_SHIFT, smooth) }] },
+    animations: {
+      opacity: withSpring(0, smooth),
+      transform: [{ translateX: withSpring(-direction * STEP_SHIFT, smooth) }],
+    },
   };
 };
 const WELCOME_DELAY_MS = 100;
+
+const slideUp = (height: number) => () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 0, transform: [{ translateY: height }] },
+    animations: {
+      opacity: withSpring(1, smooth),
+      transform: [{ translateY: withSpring(0, smooth) }],
+    },
+  };
+};
+
+const slideDown = (height: number) => () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 1, transform: [{ translateY: 0 }] },
+    animations: {
+      opacity: withSpring(0, smooth),
+      transform: [{ translateY: withSpring(height, smooth) }],
+    },
+  };
+};
 
 export function OnboardingView() {
   const theme = useTheme();
@@ -54,20 +130,47 @@ export function OnboardingView() {
   useEffect(() => Keyboard.dismiss(), [step]);
   if (!showing) return null;
   const welcome = step === "welcome";
-  const content = step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : step === "defaultBrowser" ? <DefaultBrowserStep /> : <AllSet />;
+  const content =
+    step === "welcome" ? (
+      <Welcome />
+    ) : step === "blocking" ? (
+      <Blocking />
+    ) : step === "sync" ? (
+      <SyncStep />
+    ) : step === "defaultBrowser" ? (
+      <DefaultBrowserStep />
+    ) : (
+      <AllSet />
+    );
   return (
-    <Animated.View exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <Animated.View key={welcome ? "welcome" : "steps"} entering={BACKDROP_IN} exiting={BACKDROP_OUT} style={StyleSheet.absoluteFill}>
+    <Animated.View
+      exiting={FadeOut.duration(tabsMotion.surfaceFade)}
+      style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}
+    >
+      <Animated.View
+        key={welcome ? "welcome" : "steps"}
+        entering={BACKDROP_IN}
+        exiting={BACKDROP_OUT}
+        style={StyleSheet.absoluteFill}
+      >
         <LookBackdrop softened={!welcome} fadesOut={!welcome} />
       </Animated.View>
       <Animated.View
         key={step}
         entering={reduceMotion ? REDUCED_IN : forward ? stepIn(1) : stepIn(-1)}
-        exiting={reduceMotion ? REDUCED_OUT : forward ? stepOut(1) : stepOut(-1)}
-        style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        exiting={
+          reduceMotion ? REDUCED_OUT : forward ? stepOut(1) : stepOut(-1)
+        }
+        style={[
+          StyleSheet.absoluteFill,
+          { paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}
       >
         {fontScale > LARGE_TEXT ? (
-          <ScrollView contentContainerStyle={styles.scrolled} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.scrolled}
+            keyboardShouldPersistTaps="handled"
+          >
             {content}
           </ScrollView>
         ) : (
@@ -85,8 +188,16 @@ function DefaultBrowserStep() {
       <View style={[styles.fill, styles.art]}>
         <LinkBubble />
       </View>
-      <View style={[styles.browserSheet, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
-        <DefaultBrowserSteps onLater={advanceOnboarding} onDone={advanceOnboarding} />
+      <View
+        style={[
+          styles.browserSheet,
+          { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow },
+        ]}
+      >
+        <DefaultBrowserSteps
+          onLater={advanceOnboarding}
+          onDone={advanceOnboarding}
+        />
       </View>
     </View>
   );
@@ -96,34 +207,49 @@ function SyncStep() {
   const theme = useTheme();
   const connected = useSyncConnected();
   const [connecting, setConnecting] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const { height } = useWindowDimensions();
   return (
     <>
       <Page
         title={
           <>
-            Every tab, <Text style={{ color: theme.formAccent }}>anywhere</Text>.
+            Every tab, <Text style={{ color: theme.formAccent }}>anywhere</Text>
+            .
           </>
         }
-        subtitle={connected ? "Connected." : "Your Mac’s tabs, right here. End-to-end encrypted."}
-        illustration={
-          <View style={[styles.card, styles.syncArt, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
-            <Symbol name={connected ? "checkmarkCircle" : "macAndPhone"} size={64} color={connected ? theme.switchOn : theme.formAccent} />
-          </View>
+        subtitle={
+          connected
+            ? "Connected."
+            : "Your Mac’s tabs, right here. End-to-end encrypted."
         }
+        illustration={<SyncScanIllustration connected={connected} />}
       >
         {connected ? (
           <Primary title="Continue" onPress={advanceOnboarding} />
         ) : (
           <>
-            <Primary title="Connect to Your Mac" onPress={() => setConnecting(true)} />
+            <Primary
+              title="Connect to Your Mac"
+              onPress={() => setConnecting(true)}
+            />
             <Secondary title="Not Now" onPress={advanceOnboarding} />
           </>
         )}
       </Page>
       {connecting ? (
-        <View style={StyleSheet.absoluteFill}>
-          <SyncConnect closes onClose={() => setConnecting(false)} onConnected={() => setConnecting(false)} />
-        </View>
+        <Animated.View
+          testID="onboardingConnect"
+          entering={reduceMotion ? REDUCED_IN : slideUp(height)}
+          exiting={reduceMotion ? REDUCED_OUT : slideDown(height)}
+          style={StyleSheet.absoluteFill}
+        >
+          <SyncConnect
+            closes
+            onClose={() => setConnecting(false)}
+            onConnected={() => setConnecting(false)}
+          />
+        </Animated.View>
       ) : null}
     </>
   );
@@ -132,8 +258,14 @@ function SyncStep() {
 function Secondary({ title, onPress }: { title: string; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.secondary}>
-      <Text style={[font.body, styles.bold, { color: theme.label }]}>{title}</Text>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={styles.secondary}
+    >
+      <Text style={[font.body, styles.bold, { color: theme.label }]}>
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -145,20 +277,30 @@ function Welcome() {
   const reduceMotion = useReducedMotion();
   const appear = useSharedValue(0);
   useEffect(() => {
-    appear.value = reduceMotion ? withTiming(1, { duration: tabsMotion.fade }) : withDelay(WELCOME_DELAY_MS, withSpring(1, welcomeSpring));
+    appear.value = reduceMotion
+      ? withTiming(1, { duration: tabsMotion.fade })
+      : withDelay(WELCOME_DELAY_MS, withSpring(1, welcomeSpring));
   }, [appear]);
   const logo = useAnimatedStyle(
     () => ({
       opacity: Math.min(Math.max(appear.value, 0), 1),
-      transform: [{ rotate: `${reduceMotion ? -6 : -18 + 12 * appear.value}deg` }, { scale: reduceMotion ? 1 : 0.7 + 0.3 * appear.value }],
+      transform: [
+        { rotate: `${reduceMotion ? -6 : -18 + 12 * appear.value}deg` },
+        { scale: reduceMotion ? 1 : 0.7 + 0.3 * appear.value },
+      ],
     }),
     [reduceMotion],
   );
   const words = useAnimatedStyle(
-    () => ({ opacity: Math.min(Math.max(appear.value, 0), 1), transform: [{ translateY: reduceMotion ? 0 : (1 - appear.value) * 16 }] }),
+    () => ({
+      opacity: Math.min(Math.max(appear.value, 0), 1),
+      transform: [{ translateY: reduceMotion ? 0 : (1 - appear.value) * 16 }],
+    }),
     [reduceMotion],
   );
-  const start = useAnimatedStyle(() => ({ opacity: Math.min(Math.max(appear.value, 0), 1) }));
+  const start = useAnimatedStyle(() => ({
+    opacity: Math.min(Math.max(appear.value, 0), 1),
+  }));
   return (
     <View style={styles.column}>
       <View style={styles.fill} />
@@ -166,10 +308,21 @@ function Welcome() {
         <AppIcon side={appIconLayout.welcome} scalesWithText={false} />
       </Animated.View>
       <Animated.View style={[styles.words, words]}>
-        <Text accessibilityRole="header" style={[font.hero, styles.heavy, { color: theme.label }]}>
+        <Text
+          accessibilityRole="header"
+          style={[font.hero, styles.heavy, { color: theme.label }]}
+        >
           Meet your new favorite browser
         </Text>
-        <Text style={[font.title3, styles.centered, { color: theme.secondaryLabel }]}>Get what you want twice as fast.</Text>
+        <Text
+          style={[
+            font.title3,
+            styles.centered,
+            { color: theme.secondaryLabel },
+          ]}
+        >
+          Get what you want twice as fast.
+        </Text>
       </Animated.View>
       <View style={styles.fill} />
       <Animated.View style={[styles.actions, start]}>
@@ -179,16 +332,33 @@ function Welcome() {
   );
 }
 
-function Page({ title, subtitle, illustration, children }: { title: ReactNode; subtitle: string; illustration: ReactNode; children: ReactNode }) {
+function Page({
+  title,
+  subtitle,
+  illustration,
+  children,
+}: {
+  title: ReactNode;
+  subtitle: string;
+  illustration: ReactNode;
+  children: ReactNode;
+}) {
   const theme = useTheme();
   return (
     <View style={styles.column}>
       <View style={styles.illustration}>{illustration}</View>
       <View style={styles.words}>
-        <Text accessibilityRole="header" style={[font.largeTitle, styles.heavy, { color: theme.label }]}>
+        <Text
+          accessibilityRole="header"
+          style={[font.largeTitle, styles.heavy, { color: theme.label }]}
+        >
           {title}
         </Text>
-        <Text style={[font.body, styles.centered, { color: theme.secondaryLabel }]}>{subtitle}</Text>
+        <CrossfadeText
+          testID="onboardingSubtitle"
+          text={subtitle}
+          style={[font.body, styles.centered, { color: theme.secondaryLabel }]}
+        />
       </View>
       <View style={styles.actions}>{children}</View>
     </View>
@@ -207,10 +377,35 @@ function Blocking() {
       }
       subtitle="Trackers and cookie banners too."
       illustration={
-        <View style={[styles.card, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
-          <ToggleRow title="Block Ads" icon="handRaised" tint={settingsTint.ads} value={state?.blocksAds ?? true} divider onChange={(on) => setBlockingCategory("ads", on)} />
-          <ToggleRow title="Block Trackers" icon="eyeglasses" tint={settingsTint.trackers} value={state?.blocksTrackers ?? true} divider onChange={(on) => setBlockingCategory("trackers", on)} />
-          <ToggleRow title="Block Cookie Banners" icon="listBulletFill" tint={settingsTint.cookies} value={state?.hidesCookieBanners ?? true} onChange={(on) => setBlockingCategory("cookieBanners", on)} />
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow },
+          ]}
+        >
+          <ToggleRow
+            title="Block Ads"
+            icon="handRaised"
+            tint={settingsTint.ads}
+            value={state?.blocksAds ?? true}
+            divider
+            onChange={(on) => setBlockingCategory("ads", on)}
+          />
+          <ToggleRow
+            title="Block Trackers"
+            icon="eyeglasses"
+            tint={settingsTint.trackers}
+            value={state?.blocksTrackers ?? true}
+            divider
+            onChange={(on) => setBlockingCategory("trackers", on)}
+          />
+          <ToggleRow
+            title="Block Cookie Banners"
+            icon="listBulletFill"
+            tint={settingsTint.cookies}
+            value={state?.hidesCookieBanners ?? true}
+            onChange={(on) => setBlockingCategory("cookieBanners", on)}
+          />
         </View>
       }
     >
@@ -233,13 +428,22 @@ function AllSet() {
       title="You’re all set!"
       subtitle="Happy browsing."
       illustration={
-        <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} style={[styles.card, styles.tips, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
+        <Animated.View
+          entering={FadeIn.duration(tabsMotion.surfaceFade)}
+          style={[
+            styles.card,
+            styles.tips,
+            { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow },
+          ]}
+        >
           {TIPS.map((tip) => (
             <View key={tip.text} style={styles.tip}>
               <View style={styles.tipIcon}>
                 <Symbol name={tip.icon} size={20} color={theme.formAccent} />
               </View>
-              <Text style={[font.subheadline, { color: theme.label }]}>{tip.text}</Text>
+              <Text style={[font.subheadline, { color: theme.label }]}>
+                {tip.text}
+              </Text>
             </View>
           ))}
         </Animated.View>
@@ -257,9 +461,23 @@ function SharingChoice() {
   return (
     <View style={styles.sharing}>
       <View style={[styles.sharingCard, { backgroundColor: theme.groupFill }]}>
-        <ToggleRow title={PHONE_SHARING_COPY.toggle} icon="checkmarkShield" tint={settingsTint.neutral} value={sharing} onChange={(on) => setUsageSharing(on, "onboarding")} />
+        <ToggleRow
+          title={PHONE_SHARING_COPY.toggle}
+          icon="checkmarkShield"
+          tint={settingsTint.neutral}
+          value={sharing}
+          onChange={(on) => setUsageSharing(on, "onboarding")}
+        />
       </View>
-      <Text style={[font.footnote, styles.centered, { color: theme.secondaryLabel }]}>{PHONE_SHARING_COPY.onboardingNote}</Text>
+      <Text
+        style={[
+          font.footnote,
+          styles.centered,
+          { color: theme.secondaryLabel },
+        ]}
+      >
+        {PHONE_SHARING_COPY.onboardingNote}
+      </Text>
     </View>
   );
 }
@@ -273,7 +491,8 @@ const styles = StyleSheet.create({
   logo: {
     alignSelf: "center",
     padding: appIconLayout.welcomeFrame,
-    borderRadius: appIconLayout.welcome * appIconLayout.corner + appIconLayout.welcomeFrame,
+    borderRadius:
+      appIconLayout.welcome * appIconLayout.corner + appIconLayout.welcomeFrame,
     backgroundColor: appIconLayout.fill,
     boxShadow: appIconLayout.welcomeShadow,
   },
@@ -281,10 +500,28 @@ const styles = StyleSheet.create({
   heavy: { fontWeight: "700", textAlign: "center" },
   centered: { textAlign: "center" },
   bold: { fontWeight: "600" },
-  actions: { paddingHorizontal: space.xxl, paddingBottom: space.m, gap: space.s },
-  illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
-  card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: shadowRadius.card },
-  art: { alignItems: "center", justifyContent: "center", paddingHorizontal: space.huge },
+  actions: {
+    paddingHorizontal: space.xxl,
+    paddingBottom: space.m,
+    gap: space.s,
+  },
+  illustration: {
+    flex: 1,
+    justifyContent: "flex-end",
+    paddingHorizontal: space.l,
+  },
+  card: {
+    borderRadius: radius.card,
+    paddingVertical: space.xs,
+    elevation: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: shadowRadius.card,
+  },
+  art: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: space.huge,
+  },
   browserSheet: {
     borderTopLeftRadius: onboardingArt.sheetRadius,
     borderTopRightRadius: onboardingArt.sheetRadius,
@@ -294,9 +531,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: shadowRadius.card,
   },
-  syncArt: { alignSelf: "center", padding: space.huge, alignItems: "center" },
   secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
-  tips: { paddingHorizontal: space.xl, paddingVertical: space.xl, gap: space.xl },
+  tips: {
+    paddingHorizontal: space.xl,
+    paddingVertical: space.xl,
+    gap: space.xl,
+  },
   tip: { flexDirection: "row", alignItems: "center", gap: space.m },
   tipIcon: { width: 28, alignItems: "center" },
 });
