@@ -30,6 +30,8 @@ export type LaunchArgumentValue = string | number | boolean;
 
 export type LaunchOptions = { pageLab: boolean; syncDemo: boolean; lab: boolean; arguments: Record<string, LaunchArgumentValue> };
 
+export type AppRelease = { releaseVersion: string; build: string; receiptName: string | null };
+
 
 export type SitePermissionKind = "camera" | "microphone" | "location";
 
@@ -42,6 +44,7 @@ type PagesNative = {
   addListener(eventName: "onPageEngineEvent", listener: (event: PageEngineEvent) => void): Subscription;
   capabilities(): PageEngineCapabilities;
   launchOptions(): { pageLab: boolean; syncDemo?: boolean; lab?: boolean; arguments?: Record<string, LaunchArgumentValue> } | null;
+  appRelease?(): AppRelease | null;
   openPage(pageId: string, setup: PageSetup): Promise<void>;
   closePage(pageId: string): Promise<void>;
   pageIds(): Promise<string[]>;
@@ -101,6 +104,7 @@ export const pages = {
       return { ...NOT_READY, engineName: `not ready: ${error instanceof Error ? error.message : "refused"}` };
     }
   },
+  appRelease: (): AppRelease | null => native().appRelease?.() ?? null,
   launchOptions: (): LaunchOptions | null => {
     const options = native().launchOptions();
     return options ? { pageLab: options.pageLab, syncDemo: options.syncDemo ?? false, lab: options.lab ?? false, arguments: options.arguments ?? {} } : null;

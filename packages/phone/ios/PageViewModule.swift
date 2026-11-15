@@ -52,6 +52,15 @@ public final class PageViewModule: Module {
       ]
     }
 
+    Function("appRelease") { () -> [String: Any?] in
+      let info = Bundle.main.infoDictionary
+      return [
+        "releaseVersion": info?["ArdiaReleaseVersion"] as? String ?? "",
+        "build": info?["CFBundleVersion"] as? String ?? "1",
+        "receiptName": Bundle.main.appStoreReceiptURL?.lastPathComponent,
+      ]
+    }
+
     Function("launchOptions") { () -> [String: Any] in
       ["lab": PhoneTestBuild.isOn, "pageLab": PhoneTestBuild.flag("ArdiaPageLab"), "syncDemo": PhoneTestBuild.isDemo, "arguments": PhoneTestBuild.launchArguments]
     }
