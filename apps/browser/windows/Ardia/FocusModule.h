@@ -114,6 +114,14 @@ struct FocusModule {
     });
   }
 
+  REACT_METHOD(typeAheadCancel)
+  void typeAheadCancel(std::string windowId, DonePromise promise) noexcept {
+    RunOnUI(m_context, [windowId, promise]() noexcept {
+      Menus::MenuKeyboard::Shared().TypeAheadCancel(windowId);
+      promise.Resolve();
+    });
+  }
+
   REACT_SYNC_METHOD(textInputFocused)
   bool textInputFocused() noexcept {
     return Menus::MenuKeyboard::Shared().textInputFocused.load();

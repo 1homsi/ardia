@@ -1,1 +1,1 @@
-export { fieldTookFocus } from "../../platform/typeAhead";
+export { fieldTookFocus, fieldWontTakeFocus } from "../../platform/typeAhead";

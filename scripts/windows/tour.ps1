@@ -821,7 +821,6 @@ function Send-HumanText([string]$Text, $Reads) {
     if ($character -eq '.') { $key = 0xBE }
     Send-Key $key 0
     Send-Key $key 2
-    $Reads.Add("$($clock.ElapsedMilliseconds)ms '$(Read-FocusedText)'")
     $left = 30 - ($clock.ElapsedMilliseconds - $began)
     if ($left -gt 0) { Start-Sleep -Milliseconds $left }
   }
@@ -911,11 +910,18 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
         $stop.Facts.Add("no text box showed within 3 s; typed into whatever had focus")
       }
     }
-    Send-HumanText "example.com" $reads
-    Start-Sleep -Milliseconds 250
+    Send-HumanText "example.com" $null
+    $settle = [System.Diagnostics.Stopwatch]::StartNew()
     $typed = Read-FocusedText
+    $reads.Add("0ms '$typed'")
+    while ($typed -ne "example.com" -and $settle.ElapsedMilliseconds -lt 3000) {
+      Start-Sleep -Milliseconds 100
+      $now = Read-FocusedText
+      if ($now -ne $typed) { $reads.Add("$($settle.ElapsedMilliseconds)ms '$now'") }
+      $typed = $now
+    }
     Save-Shot $stop $Session.Main | Out-Null
-    $stop.Facts.Add("the field after each key: $($reads -join ', ')")
+    $stop.Facts.Add("the field after the last key, as it settled: $($reads -join ', ')")
     $stop.Facts.Add("the field before $($Submit): '$typed'")
     if ($Submit -eq "Go") {
       $clicked = Click-Named $Session "Go"
@@ -955,6 +961,46 @@ function Start-Hogs([string]$Folder) {
   return $jobs
 }
 
+function Read-WindowTexts([IntPtr]$Window) {
+  if (-not (Initialize-Uia)) { return @() }
+  $texts = @()
+  try {
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle($Window)
+    foreach ($element in $root.FindAll([System.Windows.Automation.TreeScope]::Subtree, [System.Windows.Automation.Condition]::TrueCondition)) {
+      try {
+        $pattern = $null
+        if ($element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) { $texts += [string]$pattern.Current.Value; continue }
+        if ($element.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$pattern)) { $texts += [string]$pattern.DocumentRange.GetText(4096) }
+      } catch { }
+    }
+  } catch { }
+  return @($texts | Where-Object { $_ })
+}
+
+function Invoke-LeakStop($Session, [string]$Slug, [string]$Title, [string]$Did, [string]$Typed, [scriptblock]$After, [scriptblock]$Texts) {
+  $stop = Invoke-Stop $Session $Slug $Title {
+    param($stop)
+    $stop.Did = $Did
+    $stop.Expected = "the letters typed before the new field was ready land nowhere but that field: no other window, field or page gets '$Typed'."
+    if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
+    Focus-Window $Session $Session.Main $stop | Out-Null
+    Start-Sleep -Milliseconds 300
+    $mark = Get-LogCount $Session
+    Send-QuickChord @(0x11) 0x54
+    Send-HumanText $Typed $null
+    & $After $stop
+    Start-Sleep -Milliseconds 3000
+    Save-Shot $stop $Session.Main | Out-Null
+    $seen = @(& $Texts)
+    $leaked = @($seen | Where-Object { $_ -like "*$Typed*" })
+    $stop.Facts.Add("texts read where the keys must not go: $(($seen | ForEach-Object { "'$_'" }) -join ', ')")
+    $around = @(Get-LinesSince $Session $mark "keys |command" | Select-Object -First 12)
+    if ($around.Count) { $stop.Facts.Add("log from the press on: $($around -join ' / ')") }
+    Set-Seen $stop ($leaked.Count -eq 0)
+  }
+  if ($stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
+}
+
 function Invoke-FirstRunLaunch([string]$Name, [string]$Exe, [scriptblock]$Body) {
   $saved = $script:App
   if ($Exe) { $script:App = $Exe }
@@ -973,6 +1019,7 @@ function Invoke-FirstRunLaunch([string]$Name, [string]$Exe, [scriptblock]$Body) 
       $stop.Expected = "a window within $LaunchSeconds s."
       $stop.Seen = "no"
     } | Out-Null
+    $script:Required.Add("First run ($Name): no usable window")
   }
   Stop-Ardia $session
 }
@@ -1020,6 +1067,55 @@ function Invoke-FirstRunTour {
     param($session)
     $walk = Walk-OnboardingToOutro $session
     Invoke-TypeStop $session "human-go" "First run: Ctrl+T within 100 ms of Get Started, typing at once, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com at once, then clicked Go." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" -Required | Out-Null
+  }
+
+  Invoke-FirstRunLaunch "escape" "" {
+    param($session)
+    $walk = Walk-OnboardingToOutro $session -SkipEach
+    $clicked = Click-Named $session "Get Started"
+    Start-Sleep -Milliseconds 100
+    Invoke-LeakStop $session "escape" "First run: Ctrl+T, typing at once, then Escape before the new field is ready" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started (clicked: $clicked), pressed Ctrl+T 100 ms later, typed qzx at once and pressed Escape straight after, then went back to the first tab with Ctrl+1 to read its bar." "qzx" { param($stop) Send-QuickChord @() 0x1B } { Send-Chord @(0x11) 0x31; Start-Sleep -Milliseconds 1200; Read-WindowTexts $session.Main } | Out-Null
+  }
+
+  $hogs = Start-Hogs (Join-Path $Out "hog-switch")
+  try {
+    Invoke-FirstRunLaunch "switch-away" "" {
+      param($session)
+      $walk = Walk-OnboardingToOutro $session -SkipEach
+      Click-Named $session "Get Started" | Out-Null
+      Start-Sleep -Milliseconds 2000
+      $notepad = $null
+      try { $notepad = Start-Process -FilePath "notepad.exe" -PassThru } catch { }
+      $pad = [IntPtr]::Zero
+      if ($notepad) {
+        for ($i = 0; $i -lt 40 -and $pad -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 250; $notepad.Refresh(); $pad = $notepad.MainWindowHandle }
+      }
+      if ($pad -ne [IntPtr]::Zero) {
+        [ArdiaTour]::SetWindowPos($pad, [IntPtr](-1), 620, 120, 380, 300, 0x0040) | Out-Null
+        Invoke-LeakStop $session "switch-to-notepad" "First run under load: Ctrl+T, typing at once, then a click on another program" "With CPU and disk hogs running, pressed Ctrl+T in Ardia, typed wqz at once and clicked into Notepad (always on top at the right) straight after." "wqz" { param($stop) Send-Click 810 270 } { Read-WindowTexts $pad } | Out-Null
+        Stop-Process -Id $notepad.Id -Force -ErrorAction SilentlyContinue
+      } else {
+        Write-Host "[tour] Notepad could not be started; the switch-to-another-program stop is skipped"
+      }
+      $before = @(Get-BigWindows $session)
+      Focus-Window $session $session.Main $null | Out-Null
+      Send-QuickChord @(0x11) 0x4E
+      Start-Sleep -Milliseconds 3000
+      $second = @(Get-NewWindows $session $before) | Select-Object -First 1
+      if ($second) {
+        [ArdiaTour]::SetWindowPos($session.Main, [IntPtr]::Zero, 0, 0, 512, 720, 0x0040) | Out-Null
+        [ArdiaTour]::SetWindowPos($second.Handle, [IntPtr]::Zero, 512, 0, 512, 720, 0x0040) | Out-Null
+        Start-Sleep -Milliseconds 800
+        Invoke-LeakStop $session "switch-to-our-window" "First run under load: Ctrl+T, typing at once, then a click on our other window" "With CPU and disk hogs running, pressed Ctrl+T in the left window, typed vqz at once and clicked into the right window straight after." "vqz" { param($stop) Send-Click 768 330 } { Read-WindowTexts $second.Handle } | Out-Null
+      } else {
+        Write-Host "[tour] no second window opened; the switch-to-our-window stop is skipped"
+        $script:Required.Add("switch-to-our-window: Ctrl+N opened no second window")
+      }
+    }
+  } finally {
+    $hogs | Stop-Job -ErrorAction SilentlyContinue
+    $hogs | Remove-Job -Force -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $Out "hog-switch")
   }
 }
 

@@ -1,3 +1,5 @@
-export type FieldTookFocus = (windowId: string) => void;
+export type TypeAheadSignal = (windowId: string) => void;
 
-export const fieldTookFocus: FieldTookFocus = () => {};
+export const fieldTookFocus: TypeAheadSignal = () => {};
+
+export const fieldWontTakeFocus: TypeAheadSignal = () => {};

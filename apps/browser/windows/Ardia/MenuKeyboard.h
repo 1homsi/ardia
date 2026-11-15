@@ -35,6 +35,37 @@ inline ActiveWindow ActiveArdiaWindow() noexcept {
   return {};
 }
 
+struct HeldKey {
+  WORD virtualKey;
+  WORD scan;
+  DWORD flags;
+};
+
+struct TypeAheadHold {
+  std::string windowId;
+  HWND root = nullptr;
+  HWND foreground = nullptr;
+  HWND focus = nullptr;
+  unsigned startModifiers = 0;
+  unsigned modifiers = 0;
+  ULONGLONG startedAt = 0;
+  ULONGLONG readyAt = 0;
+  std::vector<HeldKey> keys;
+  std::set<UINT> down;
+};
+
+inline HWND RootOf(HWND window) noexcept {
+  return window ? GetAncestor(window, GA_ROOT) : nullptr;
+}
+
+inline unsigned PhysicalModifiers() noexcept {
+  unsigned modifiers = 0;
+  if (GetAsyncKeyState(VK_CONTROL) & 0x8000) modifiers |= ModifierControl;
+  if (GetAsyncKeyState(VK_MENU) & 0x8000) modifiers |= ModifierOption;
+  if (GetAsyncKeyState(VK_SHIFT) & 0x8000) modifiers |= ModifierShift;
+  return modifiers;
+}
+
 inline HWND MenuOwnerWindow() noexcept {
   if (HWND active = ActiveArdiaWindow().hwnd) return active;
   return WindowManager::Shared().ActiveHwnd();
@@ -50,10 +81,9 @@ struct MenuKeyboard {
   bool escapeCaptured = false;
   bool switcherCaptured = false;
   bool capturedWHeld = false;
-  std::string typeAheadWindow;
-  std::vector<INPUT> typeAhead;
-  UINT_PTR typeAheadTimer = 0;
-  ULONGLONG typeAheadReadyAt = 0;
+  std::optional<TypeAheadHold> hold;
+  UINT_PTR holdTimer = 0;
+  HHOOK holdMouseHook = nullptr;
   std::atomic<bool> textInputFocused{false};
   std::set<UINT> swallowedKeyUps;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
@@ -128,91 +158,170 @@ struct MenuKeyboard {
     return true;
   }
 
-  static constexpr UINT kTypeAheadMs = 2000;
+  static constexpr UINT kHoldMs = 2000;
+  static constexpr ULONGLONG kMostHoldMs = 3000;
   static constexpr UINT kQueueCheckMs = 15;
-  static constexpr ULONGLONG kQueueWaitMs = 500;
+  static constexpr size_t kMostHeldKeys = 256;
 
-  static void AddKey(std::vector<INPUT> &keys, WORD virtualKey, WORD scan, DWORD flags) noexcept {
-    INPUT down{};
-    down.type = INPUT_KEYBOARD;
-    down.ki.wVk = virtualKey;
-    down.ki.wScan = scan;
-    down.ki.dwFlags = flags;
-    INPUT up = down;
-    up.ki.dwFlags |= KEYEVENTF_KEYUP;
-    keys.push_back(down);
-    keys.push_back(up);
+  void SetHoldTimer(UINT ms, TIMERPROC done) noexcept {
+    if (holdTimer) KillTimer(nullptr, holdTimer);
+    holdTimer = SetTimer(nullptr, 0, ms, done);
   }
 
-  void StartTypeAheadTimer(UINT ms, TIMERPROC done) noexcept {
-    if (typeAheadTimer) KillTimer(nullptr, typeAheadTimer);
-    typeAheadTimer = SetTimer(nullptr, 0, ms, done);
+  void StartHold(ActiveWindow const &window) noexcept {
+    DropHold(L"a new command started");
+    if (WindowManager::Background() || !window.hwnd) return;
+    hold.emplace();
+    hold->windowId = window.id;
+    hold->root = RootOf(window.hwnd);
+    hold->foreground = GetForegroundWindow();
+    hold->focus = GetFocus();
+    hold->startModifiers = hold->modifiers = HeldModifiers();
+    hold->startedAt = GetTickCount64();
+    SetHoldTimer(kHoldMs, &MenuKeyboard::HoldTimedOut);
+    if (!holdMouseHook) holdMouseHook = SetWindowsHookExW(WH_MOUSE, &MenuKeyboard::HoldMouseProc, nullptr, GetCurrentThreadId());
   }
 
-  void HoldTypeAhead(std::string const &windowId) noexcept {
-    ReleaseTypeAhead(L"a new hold");
-    typeAheadWindow = windowId;
-    typeAheadReadyAt = 0;
-    StartTypeAheadTimer(kTypeAheadMs, &MenuKeyboard::TypeAheadTimedOut);
+  void EndHold() noexcept {
+    if (holdTimer) {
+      KillTimer(nullptr, holdTimer);
+      holdTimer = 0;
+    }
+    if (holdMouseHook) {
+      UnhookWindowsHookEx(holdMouseHook);
+      holdMouseHook = nullptr;
+    }
+    hold.reset();
   }
 
-  static void CALLBACK TypeAheadTimedOut(HWND, UINT, UINT_PTR, DWORD) noexcept {
-    Shared().ReleaseTypeAhead(L"no field took focus in time");
+  void DropHold(const wchar_t *why) noexcept {
+    if (!hold) return;
+    size_t held = hold->keys.size();
+    EndHold();
+    if (held) LaunchLog::Write(L"keys", L"dropped " + std::to_wstring(held) + L" held key events: " + why);
   }
 
-  static void CALLBACK TypeAheadQueueCheck(HWND, UINT, UINT_PTR, DWORD) noexcept {
-    Shared().ReleaseWhenQueueEmpty();
+  static void CALLBACK HoldTimedOut(HWND, UINT, UINT_PTR, DWORD) noexcept {
+    Shared().ReplayHold(false);
+  }
+
+  static void CALLBACK HoldQueueCheck(HWND, UINT, UINT_PTR, DWORD) noexcept {
+    Shared().ReplayWhenQueueEmpty();
+  }
+
+  static LRESULT CALLBACK HoldMouseProc(int code, WPARAM wParam, LPARAM lParam) noexcept {
+    MenuKeyboard &keyboard = Shared();
+    if (code == HC_ACTION) {
+      switch (wParam) {
+        case WM_LBUTTONDOWN:
+        case WM_RBUTTONDOWN:
+        case WM_MBUTTONDOWN:
+        case WM_XBUTTONDOWN:
+        case WM_NCLBUTTONDOWN:
+        case WM_NCRBUTTONDOWN:
+        case WM_NCMBUTTONDOWN:
+        case WM_NCXBUTTONDOWN:
+          keyboard.DropHold(L"a mouse press");
+          break;
+        default:
+          break;
+      }
+    }
+    return CallNextHookEx(keyboard.holdMouseHook, code, wParam, lParam);
   }
 
   void TypeAheadReady(std::string const &windowId) noexcept {
-    if (typeAheadWindow.empty() || windowId != typeAheadWindow || typeAheadReadyAt) return;
-    typeAheadReadyAt = GetTickCount64();
-    ReleaseWhenQueueEmpty();
+    if (!hold || hold->windowId != windowId || hold->readyAt) return;
+    hold->readyAt = GetTickCount64();
+    ReplayWhenQueueEmpty();
   }
 
-  void ReleaseWhenQueueEmpty() noexcept {
-    if (typeAheadWindow.empty() || !typeAheadReadyAt) return;
-    bool keysWaiting = (HIWORD(GetQueueStatus(QS_KEY)) & QS_KEY) != 0;
-    if (keysWaiting && GetTickCount64() - typeAheadReadyAt < kQueueWaitMs) return StartTypeAheadTimer(kQueueCheckMs, &MenuKeyboard::TypeAheadQueueCheck);
-    ReleaseTypeAhead(keysWaiting ? L"the field took focus and keys kept coming" : L"the field took focus");
+  void TypeAheadCancel(std::string const &windowId) noexcept {
+    if (hold && hold->windowId == windowId) DropHold(L"the command opens no field");
   }
 
-  void ReleaseTypeAhead(const wchar_t *why) noexcept {
-    if (typeAheadTimer) {
-      KillTimer(nullptr, typeAheadTimer);
-      typeAheadTimer = 0;
+  void ReplayWhenQueueEmpty() noexcept {
+    if (!hold || !hold->readyAt) return;
+    if (!(HIWORD(GetQueueStatus(QS_KEY)) & QS_KEY)) return ReplayHold(true);
+    if (GetTickCount64() - hold->startedAt >= kMostHoldMs) return DropHold(L"keys kept coming past the longest hold");
+    SetHoldTimer(kQueueCheckMs, &MenuKeyboard::HoldQueueCheck);
+  }
+
+  bool HoldStillOurs(bool fieldAsked) noexcept {
+    if (!IsWindow(hold->root)) return false;
+    HWND foreground = GetForegroundWindow();
+    HWND focus = GetFocus();
+    if (!fieldAsked) return foreground == hold->foreground && focus == hold->focus;
+    return RootOf(foreground) == hold->root && focus && RootOf(focus) == hold->root;
+  }
+
+  static void AddKey(std::vector<INPUT> &inputs, WORD virtualKey, WORD scan, DWORD flags) noexcept {
+    INPUT input{};
+    input.type = INPUT_KEYBOARD;
+    input.ki.wVk = virtualKey;
+    input.ki.wScan = scan;
+    input.ki.dwFlags = flags;
+    inputs.push_back(input);
+  }
+
+  static void AddModifierChanges(std::vector<INPUT> &inputs, unsigned from, unsigned to) noexcept {
+    std::pair<unsigned, WORD> const keys[] = {{ModifierShift, VK_SHIFT}, {ModifierControl, VK_CONTROL}, {ModifierOption, VK_MENU}};
+    for (auto const &[modifier, virtualKey] : keys) {
+      if ((from & modifier) == (to & modifier)) continue;
+      AddKey(inputs, virtualKey, static_cast<WORD>(MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC)), (to & modifier) ? 0 : KEYEVENTF_KEYUP);
     }
-    if (typeAheadWindow.empty()) return;
-    typeAheadWindow.clear();
-    typeAheadReadyAt = 0;
-    std::vector<INPUT> keys;
-    keys.swap(typeAhead);
-    if (keys.empty()) return;
-    UINT sent = SendInput(static_cast<UINT>(keys.size()), keys.data(), sizeof(INPUT));
-    LaunchLog::Write(L"keys", L"replayed " + std::to_wstring(keys.size() / 2) + L" keys typed before the field took focus, " + why + (sent == keys.size() ? L"" : L" (some not sent)"));
   }
 
-  bool HoldTypedKey(KeyPress const &press, UINT virtualKey, LPARAM flags, ActiveWindow const &window) noexcept {
-    if (typeAheadWindow.empty()) return false;
+  void ReplayHold(bool fieldAsked) noexcept {
+    if (!hold) return;
+    if (!HoldStillOurs(fieldAsked)) return DropHold(fieldAsked ? L"the keyboard left the window that asked" : L"no field took focus and the keyboard moved");
+    std::vector<INPUT> inputs;
+    AddModifierChanges(inputs, HeldModifiers(), hold->startModifiers);
+    for (HeldKey const &key : hold->keys) AddKey(inputs, key.virtualKey, key.scan, key.flags);
+    AddModifierChanges(inputs, hold->modifiers, PhysicalModifiers());
+    size_t held = hold->keys.size();
+    EndHold();
+    if (!held) return;
+    UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+    LaunchLog::Write(L"keys", L"replayed " + std::to_wstring(held) + L" key events typed before the field took focus" + (fieldAsked ? L"" : L", with no field asking") + (sent == inputs.size() ? L"" : L" (some not sent)"));
+  }
+
+  int HoldKey(UINT virtualKey, LPARAM flags, bool keyUp) noexcept {
+    ActiveWindow window = ActiveArdiaWindow();
+    if (window.id != hold->windowId) return DropHold(L"another window took the keyboard"), -1;
+    switch (virtualKey) {
+      case VK_PACKET:
+      case VK_PROCESSKEY:
+      case VK_CAPITAL:
+      case VK_NUMLOCK:
+      case VK_SCROLL:
+      case VK_LWIN:
+      case VK_RWIN:
+        return DropHold(L"a key that can't be replayed as typed"), -1;
+      default:
+        break;
+    }
     WORD scan = static_cast<WORD>((flags >> 16) & 0xFF);
-    DWORD extended = (flags & (1 << 24)) ? KEYEVENTF_EXTENDEDKEY : 0;
-    bool plain = window.id == typeAheadWindow && (press.modifiers & (ModifierControl | ModifierOption | ModifierCommand)) == 0;
-    wchar_t typed = virtualKey == VK_SPACE ? L' ' : (press.modifiers & ModifierShift) ? press.shifted : press.base;
-    if (plain && typed) {
-      AddKey(typeAhead, 0, static_cast<WORD>(typed), KEYEVENTF_UNICODE);
-      return true;
+    DWORD flagsOut = ((flags & (1 << 24)) ? KEYEVENTF_EXTENDEDKEY : 0) | (keyUp ? KEYEVENTF_KEYUP : 0);
+    if (unsigned modifier = ModifierOfKey(virtualKey)) {
+      if (hold->keys.size() >= kMostHeldKeys) return DropHold(L"too many held keys"), -1;
+      hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
+      hold->modifiers = keyUp ? (hold->modifiers & ~modifier) : (hold->modifiers | modifier);
+      return -1;
     }
-    if (plain && (virtualKey == VK_RETURN || virtualKey == VK_BACK)) {
-      AddKey(typeAhead, static_cast<WORD>(virtualKey), scan, extended);
-      return true;
+    if (keyUp) {
+      if (!hold->down.erase(virtualKey)) return -1;
+      hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
+      return 1;
     }
-    if (typeAhead.empty()) {
-      ReleaseTypeAhead(L"another key came first");
-      return false;
-    }
-    AddKey(typeAhead, static_cast<WORD>(virtualKey), scan, extended);
-    ReleaseTypeAhead(L"another key followed them");
-    return true;
+    if (virtualKey == VK_ESCAPE) return DropHold(L"Escape"), -1;
+    KeyPress press = ReadKeyPress(virtualKey, flags);
+    if (press.windowsKey) return DropHold(L"the Windows key"), -1;
+    if (!press.altGraph && MenuStore::Shared().Match(press)) return DropHold(L"another shortcut"), -1;
+    if (hold->keys.size() >= kMostHeldKeys) return DropHold(L"too many held keys"), -1;
+    hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
+    hold->down.insert(virtualKey);
+    return 1;
   }
 
   static bool PlainUndo(KeyPress const &press) noexcept {
@@ -336,7 +445,7 @@ struct MenuKeyboard {
     if (!WindowManager::Shared().IsPopupWindow(window.id) && !store.EntryEnabled(*entry)) return false;
     Emit(entry->command, entry->arg, window.id);
     if (entry->command == "tabSwitcher") OpenedSwitcher(*entry, press);
-    if (entry->command == "newTab" || entry->command == "focusCommandBar") HoldTypeAhead(window.id);
+    if (entry->command == "newTab" || entry->command == "focusCommandBar") StartHold(window);
     return true;
   }
 
@@ -382,6 +491,10 @@ struct MenuKeyboard {
 
   bool HandleKey(UINT virtualKey, LPARAM flags) noexcept {
     bool keyUp = (flags & (1u << 31)) != 0;
+    if (hold && !recording && !trackingMenu) {
+      int held = HoldKey(virtualKey, flags, keyUp);
+      if (held == 1) return true;
+    }
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));
@@ -392,7 +505,7 @@ struct MenuKeyboard {
       }
       return false;
     }
-    if (IsModifierKey(virtualKey) || virtualKey == VK_PACKET) return false;
+    if (IsModifierKey(virtualKey)) return false;
     if (capturedWHeld && virtualKey == 'W') {
       if (flags & (1u << 30)) return true;
       capturedWHeld = false;
@@ -406,8 +519,7 @@ struct MenuKeyboard {
     } else {
       ActiveWindow window = ActiveArdiaWindow();
       if (!window.hwnd) return false;
-      if (HoldTypedKey(press, virtualKey, flags, window)) handled = true;
-      else if (switcherCaptured) handled = CaptureSwitcherKey(press, (flags & (1u << 30)) != 0);
+      if (switcherCaptured) handled = CaptureSwitcherKey(press, (flags & (1u << 30)) != 0);
       else if (escapeCaptured && BareEscape(press)) handled = CaptureEscape();
       else if (UndoReopensClosedTab(press, window)) handled = ReopenClosedTab(window);
       else handled = Dispatch(press);

@@ -30,6 +30,7 @@ import { focusSettingsSearch } from "../settings/searchState";
 import { closePanelToHeroBar, focusHeroBar } from "../omnibox/barState";
 import { closeNewTabBar, isEmptyCardTab, showNewTabBar, toggleNewTabBar } from "../omnibox/newTabBar";
 import { NEW_TAB_BAR_POLICY } from "../omnibox/newTabBarPolicy";
+import { noteFieldCommand } from "../omnibox/fieldCommands";
 import { addressBarInSidebar } from "../windows/layout";
 import { commandKeyPlacement } from "../omnibox/barPlacement";
 import { addFolderToSidebar, restoreArcFolders } from "../bookmarks/bookmarkGroups";
@@ -156,10 +157,10 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
   if (page && (runHidingCommand(command, page.id) || runReaderCommand(command, page.id))) return;
   if (!targeted && runSidebarCommand(command, arg, windowId)) return;
 
+  noteFieldCommand(s, windowId, command, !!page);
   switch (command) {
     case "newTab":
-      if (toggleNewTabBar(windowId)) return;
-      return void s.newTab(windowId, { newTabCommand: true });
+      return void (toggleNewTabBar(windowId) || s.newTab(windowId, { newTabCommand: true }));
     case "reopenClosedTab":
       return s.reopenClosed(windowId);
     case "restoreClosed":
