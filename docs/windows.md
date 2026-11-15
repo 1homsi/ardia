@@ -298,15 +298,20 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   shortcut still runs. The launch log says `keys escape capture on|off` and
   `keys escape sent to the open popover or drag`. The Mac's Downloads popover does not close on Escape yet
   (`PLATFORM_FEATURES.escapeClosesDownloads` is off there).
-- Keys typed right after Ctrl+T reach the new tab's bar (#2059). Ctrl+T makes a new tab, and its New Tab page's bar
-  took focus only on its first layout. On Windows that came 60 to 300 ms after the command, longer on a slow machine,
-  and the letters typed before it went to the bar that had focus, on a first launch the hidden first tab's. With
-  `PLATFORM_FEATURES.newTabBarFirst` (Windows only), a fresh New Tab page commits its bar alone and mounts the rest
-  (the logo mark, the intro glow, the bar's shadows, `NewTabExtras`) a frame after the bar lays out. So the bar takes
-  focus before the heavier parts mount. The launch log marks each step with `new tab bar page|committed|focused|rest
-  <tab>` (`platform/newTabMarks.windows.ts`), and the `first-run` part of `scripts/windows/tour.ps1` types at 30 ms a key
-  right after Ctrl+T in five fresh launches, then reports the gap from the `newTab` command to each mark. Those
-  launches cover Get Started, the tool tour, CPU and disk load, the Go button and the New Tab page's own box.
+- The new tab's bar takes the keyboard about 50 ms after Ctrl+T (#2098). It used to take it only on its first layout,
+  60 to 280 ms after the command on CI's runner, after the whole New Tab page had mounted, and the letters typed
+  before then went to the previous tab's hidden bar.
+  - **The change:** with `PLATFORM_FEATURES.newTabBarFirst` (Windows only; the Mac and Linux keep today's order), a
+    fresh New Tab page commits its bar alone, and the bar focuses in its commit's layout effect, with the layout event
+    as the fallback. The rest of the page (the logo mark, the intro glow, the bar's shadows, `NewTabExtras`) mounts a
+    frame after the bar lays out.
+  - **Launch log:** `new tab bar page|committed|focused|rest <tab>` (`platform/newTabMarks.windows.ts`).
+  - **Tour:** the `first-run` part of `scripts/windows/tour.ps1` types at a person's pace, the first key 100 ms after
+    Ctrl+T, then 30 ms a key. It does so in fresh launches after Get Started, during and after the tool tour, under
+    CPU and disk load, and with the Go button, and reports the gap from the `newTab` command to each mark. A
+    report-only stop types from 15 ms after Ctrl+T.
+  - **Not covered:** a JS thread that stalls for hundreds of ms, as on a slow first launch (#2059). That needs the
+    native key hold the Mac has (#2099).
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
   `MenuKeyboard.h` sends `reopenClosedTab` for a plain Ctrl+Z in a browser window (Little Ardia included, Settings and
   Import not) when Reopen isn't disabled, no command is bound to Ctrl+Z, the window itself is the active one (not a

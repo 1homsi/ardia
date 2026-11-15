@@ -888,17 +888,25 @@ function Click-Named($Session, [string]$Name) {
 function Get-BarGaps($Session, [int]$Mark) {
   $lines = @(Get-LinesSince $Session $Mark "^(command \d+ newTab|\w+ \d+ \[ardia windows\] new tab bar )")
   $command = $null
+  $tab = $null
   $found = [ordered]@{}
   foreach ($line in $lines) {
     if ($line -match "^command (\d+) newTab") { if ($null -eq $command) { $command = [int64]$Matches[1] }; continue }
-    if ($line -match "^\w+ (\d+) \[ardia windows\] new tab bar (\w+) ") { if (-not $found.Contains($Matches[2])) { $found[$Matches[2]] = [int64]$Matches[1] } }
+    if ($null -eq $command -or $line -notmatch "^\w+ (\d+) \[ardia windows\] new tab bar (\w+) (\S+)") { continue }
+    $at = [int64]$Matches[1]
+    $stage = $Matches[2]
+    $id = $Matches[3]
+    if ($null -eq $tab -and $stage -eq "page") { $tab = $id }
+    if ($id -ne $tab -and $null -ne $tab) { continue }
+    if (-not $found.Contains("$id $stage")) { $found["$id $stage"] = $at }
   }
   if ($null -eq $command) { return "no newTab command in the log" }
-  $parts = @(foreach ($stage in "page", "committed", "focused", "rest") { if ($found.Contains($stage)) { "$stage +$($found[$stage] - $command) ms" } else { "$stage not logged" } })
-  return $parts -join ", "
+  if ($null -eq $tab) { return "no new tab page after the command" }
+  $parts = @(foreach ($stage in "page", "committed", "focused", "rest") { if ($found.Contains("$tab $stage")) { "$stage +$($found["$tab $stage"] - $command) ms" } else { "$stage not logged" } })
+  return "$tab " + ($parts -join ", ")
 }
 
-function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [switch]$Required) {
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [switch]$Required, [int]$FirstKeyMs = 100) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = $Did
@@ -911,8 +919,11 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     if ($Before) { & $Before $stop }
     $stop.Facts.Add("onboarding.json at the press: $(Format-OnboardingNow $Session)")
     if ($Into -eq "ctrl+t") {
+      $chord = [System.Diagnostics.Stopwatch]::StartNew()
       Send-QuickChord @(0x11) 0x54
-      $stop.Facts.Add("Ctrl+T sent $($clock.ElapsedMilliseconds) ms after the step began")
+      $left = $FirstKeyMs - $chord.ElapsedMilliseconds
+      if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+      $stop.Facts.Add("Ctrl+T sent $($clock.ElapsedMilliseconds - $chord.ElapsedMilliseconds) ms after the step began; first key $($chord.ElapsedMilliseconds) ms after it")
     } elseif ($Into -eq "box") {
       $box = $null
       while (-not $box -and $clock.ElapsedMilliseconds -lt 3000) { $box = @(Find-Edits $Session.Main) | Select-Object -First 1; if (-not $box) { Start-Sleep -Milliseconds 40 } }
@@ -1002,7 +1013,7 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-ctrl-t" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
-    Invoke-TypeStop $session "human-ctrl-t" "First run: Ctrl+T within 100 ms of Get Started, typing at once, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com at once, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
+    Invoke-TypeStop $session "human-ctrl-t" "First run: Ctrl+T within 100 ms of Get Started, the first key 100 ms after it, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
   }
 
   Invoke-FirstRunLaunch "human-box" "" {
@@ -1014,8 +1025,8 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "tool-tour" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
-    Invoke-TypeStop $session "tool-tour-up" "First run: Ctrl+T while the tool tour is up at its first stop" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Take the Tour, waited 1.5 s for its first stop, pressed Ctrl+T and typed example.com at once, then pressed Enter." { param($stop) $clicked = Click-Named $session "Take the Tour"; $stop.Facts.Add("Take the Tour clicked: $clicked"); Start-Sleep -Milliseconds 1500; $stop.Facts.Add("tour buttons showing: Next $(@(Find-Named $session.Main 'Next').Count), Skip Tour $(@(Find-Named $session.Main 'Skip Tour').Count)") } "ctrl+t" "Enter" -Required | Out-Null
-    Invoke-TypeStop $session "tool-tour-ended" "First run: Ctrl+T right after ending the tool tour" "Ended the tool tour with Skip Tour (or Escape), then about 100 ms later pressed Ctrl+T and typed example.com at once, then pressed Enter." { param($stop) $clicked = Click-Named $session "Skip Tour"; if (-not $clicked) { Send-Escape }; $stop.Facts.Add("Skip Tour clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
+    Invoke-TypeStop $session "tool-tour-up" "First run: Ctrl+T while the tool tour is up at its first stop" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Take the Tour, waited 1.5 s for its first stop, pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Take the Tour"; $stop.Facts.Add("Take the Tour clicked: $clicked"); Start-Sleep -Milliseconds 1500; $stop.Facts.Add("tour buttons showing: Next $(@(Find-Named $session.Main 'Next').Count), Skip Tour $(@(Find-Named $session.Main 'Skip Tour').Count)") } "ctrl+t" "Enter" -Required | Out-Null
+    Invoke-TypeStop $session "tool-tour-ended" "First run: Ctrl+T right after ending the tool tour" "Ended the tool tour with Skip Tour (or Escape), then about 100 ms later pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Skip Tour"; if (-not $clicked) { Send-Escape }; $stop.Facts.Add("Skip Tour clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
   }
 
   $cold = Join-Path $Out "cold-app"
@@ -1029,7 +1040,7 @@ function Invoke-FirstRunTour {
       $engineMs = @(Read-LogLines $session.Log | Where-Object { $_ -match "engine" } | Select-Object -First 3)
       Write-Host "[tour] slow launch, first engine lines: $($engineMs -join ' / ')"
       $walk = Walk-OnboardingToOutro $session -SkipEach
-      Invoke-TypeStop $session "slow-engine" "First run under load from a cold copy: Ctrl+T within 100 ms of Get Started, then Enter" "With CPU and disk hogs running and the app copied to a fresh folder (first window $($session.FirstWindowMs) ms after start), skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com at once, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
+      Invoke-TypeStop $session "slow-engine" "First run under load from a cold copy: Ctrl+T within 100 ms of Get Started, then Enter" "With CPU and disk hogs running and the app copied to a fresh folder (first window $($session.FirstWindowMs) ms after start), skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
     }
   } finally {
     $hogs | Stop-Job -ErrorAction SilentlyContinue
@@ -1040,7 +1051,13 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-go" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session
-    Invoke-TypeStop $session "human-go" "First run: Ctrl+T within 100 ms of Get Started, typing at once, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com at once, then clicked Go." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" -Required | Out-Null
+    Invoke-TypeStop $session "human-go" "First run: Ctrl+T within 100 ms of Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then clicked Go." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" -Required | Out-Null
+  }
+
+  Invoke-FirstRunLaunch "faster-than-a-person" "" {
+    param($session)
+    $walk = Walk-OnboardingToOutro $session -SkipEach
+    Invoke-TypeStop $session "faster-than-a-person" "Report only: Ctrl+T with the first key 15 ms after it" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 15 ms after it, 30 ms a key, then pressed Enter. Faster than a person types; this stop never fails the run and shows how much of the window the bar still misses." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -FirstKeyMs 15 | Out-Null
   }
 }
 

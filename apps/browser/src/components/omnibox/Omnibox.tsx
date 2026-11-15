@@ -36,6 +36,7 @@ import { useBarItems } from "./useBarItems";
 import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
 import { markNewTabBar } from "../../state/omnibox/newTabMarks";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { usePreviewSelection } from "./usePreviewSelection";
 
 export { PANEL_TEXT_LEFT } from "./tokens";
@@ -224,6 +225,7 @@ export function Omnibox({
   useLayoutEffect(() => {
     journeyBarCommitted(tabId);
     if (hero) markNewTabBar("committed", tabId);
+    if (hero && PLATFORM_FEATURES.newTabBarFirst) input.current?.focus();
   }, []);
   useLayoutEffect(() => {
     if (items.length) journeySuggestions(tabId);
