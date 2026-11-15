@@ -245,6 +245,7 @@
       m.pause();
       return;
     }
+    if (e.type === "emptied") timeline?.mediaTimes.delete(m);
     if (e.type === "play" || e.type === "playing") {
       active = m;
       watchRemoval(m);
@@ -352,6 +353,7 @@
   };
   const mediaTimesOf = (media) => new WeakMap(media.map((m) => [m, m.currentTime]));
   const anchorStartedMedia = (timeline, m, followed, now) => {
+    if (oneShot(m)) return null;
     const started = timeline.started;
     timeline.started = true;
     const followedAdvance = followed === m ? null : mediaAdvanceOf(followed, timeline);
@@ -360,7 +362,7 @@
     timeline.mediaTimes.set(m, m.currentTime - (position - timeline.position));
     return position;
   };
-  const mediaAdvanceOf = (el, timeline) => (el && timeline.mediaTimes.has(el) ? el.currentTime - timeline.mediaTimes.get(el) : null);
+  const mediaAdvanceOf = (el, timeline) => (el && !oneShot(el) && timeline.mediaTimes.has(el) ? el.currentTime - timeline.mediaTimes.get(el) : null);
   const timelineReport = (timeline, el, now) => {
     const mediaAdvance = mediaAdvanceOf(el, timeline);
     return { position: timelineNow(timeline, mediaAdvance, now).position, playbackRate: mediaAdvance == null ? timeline.playbackRate : el.playbackRate };
