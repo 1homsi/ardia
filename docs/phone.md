@@ -1766,6 +1766,38 @@ What 0.88 leaves to fix, from these numbers:
   phone, and an Instruments allocation trace of the app process.
 - **Size** grew by 14 MB with the upgrade and ExpoUI; a device download is thinned and compressed, so measure the
   App Store Connect size when the internal build goes up.
+
+**Memory split** (2026-11-16, 773ee4ded, nine local pages each, the two apps one after the other on the same
+simulator, `footprint` and `vmmap --summary`):
+
+| | App | WebKit | Total |
+| --- | --- | --- | --- |
+| Expo | 189 MB | 225 MB | 414 MB |
+| Main | 158 MB | 260 MB | 418 MB |
+
+These totals are level. Between runs, though, the same build moves by 30 to 70 MB: main's WebKit read 189–264 MB on
+the same nine pages. So the 0.88 table's "higher" is within the noise, and the split is the useful part.
+
+Inside the app process, dirty plus compressed:
+
+| Region | Expo | Main | What it is |
+| --- | --- | --- | --- |
+| Malloc small | 78 MB | 51 MB | Native objects: React's Fabric trees and the views behind them, Expo's modules, Expo UI's hosting. About 28 MB of React Native and Expo that main doesn't have. |
+| Untagged anonymous | 39 MB | none | Hermes V1's heap, the JavaScript state. |
+| CG raster data | 27 MB | 27 MB | Decoded page pictures. The same, so the kept-mounted deck costs no more than main's. |
+| Image IO | 13 MB | none | ImageIO's cache of decoded images behind React Native's Image. |
+| WebKit's allocator in the app | 3 MB | 48 MB | WebKit's UI-process state. Main keeps far more of it in its own process. |
+| Loaded code's data | 15 MB | 15 MB | The same. |
+
+Two things stand out:
+- **Each WebContent process** is 33 MB in Expo and 40 MB in main, about 35 MB less over nine pages.
+- **What's plainly ours to release** is the Image IO cache: 13 MB of decoded copies of pictures that are already on
+  screen as raster data. React Native's Image keeps them for reuse. A memory-warning or background purge, or drawing
+  the deck's pictures without RN's image cache, would free most of it.
+- **Hermes's 39 MB** is the cost of running JavaScript. It can be checked for growth with
+  `HermesInternal.getInstrumentedStats()` over a long session, but not removed.
+- **Neither Hermes V1's known regression** (fixed by Expo 57.0.17, and this is 58.0.25) nor Expo UI shows as a
+  region of its own here.
 - **The search panel's lift** no longer holds: with the departure in MotionView (773ee4ded) it starts at Go. The hold
   itself (the app's frames not reaching the screen while a new page view comes in) is still there underneath, so
   any other motion that overlaps a page arriving should run in Core Animation too.
