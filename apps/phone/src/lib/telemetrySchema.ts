@@ -147,6 +147,18 @@ export const COUNTED = ["tabs_opened", "searches", "pins_to_mac", "tabs_sent", "
 
 export type Counted = (typeof COUNTED)[number];
 
+const MOST_PENDING_PER_FIELD = 1000;
+
+export function pendingUsage(pending: Record<string, unknown>): Counted[] {
+  const counted: Counted[] = [];
+  for (const field of COUNTED) {
+    const times = pending[field];
+    if (typeof times !== "number" || !Number.isInteger(times) || times <= 0) continue;
+    for (let i = 0; i < Math.min(times, MOST_PENDING_PER_FIELD); i++) counted.push(field);
+  }
+  return counted;
+}
+
 export type DailyCounts = { day: string } & Record<Counted, number>;
 
 export const utcDay = (at: number) => new Date(at).toISOString().slice(0, 10);

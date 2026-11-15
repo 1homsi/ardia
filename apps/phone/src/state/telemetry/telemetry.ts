@@ -2,8 +2,8 @@ import { AppState } from "react-native";
 import { lookBudget, systemLook } from "../../platform/look";
 import { create } from "zustand";
 import { createGate, type SharingSource } from "../../lib/telemetryGate";
-import { launchProps, legacyImportOutcome, type Counted } from "../../lib/telemetrySchema";
-import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt } from "../../platform/telemetry";
+import { launchProps, legacyImportOutcome, pendingUsage, type Counted } from "../../lib/telemetrySchema";
+import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt, takePendingCounts } from "../../platform/telemetry";
 import { useBoot } from "../app/bootState";
 import { readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
@@ -29,15 +29,22 @@ const gate = createGate({
 
 let started = false;
 
+function countPendingUsage() {
+  for (const field of pendingUsage(takePendingCounts())) gate.count(field);
+}
+
 export function startTelemetry() {
   if (started) return;
   started = true;
   gate.load();
   useUsageSharing.setState({ sharing: gate.isSharing() });
   gate.rollDaily();
+  countPendingUsage();
   AppState.addEventListener("change", (next) => {
-    if (next === "active") gate.rollDaily();
-    else gate.flushNow();
+    if (next === "active") {
+      gate.rollDaily();
+      countPendingUsage();
+    } else gate.flushNow();
   });
   setInterval(() => gate.rollDaily(), DAILY_CHECK_MS);
 }

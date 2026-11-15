@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { requireOptionalNativeModule, uuid } from "expo-modules-core";
 import { Platform } from "react-native";
 import { appVersionOf, osVersionOf, type DeviceFacts } from "../lib/telemetrySchema";
+import { system } from "@ardia/phone-native";
 
 const LOGS_URL = "https://ardia.dev/otel/v1/logs";
 
@@ -40,3 +41,5 @@ export async function postTelemetry(body: string, signal: AbortSignal): Promise<
   const response = await fetch(LOGS_URL, { method: "POST", headers: { "Content-Type": "application/json", [INGEST_KEY_HEADER]: APP_INGEST_KEY }, body, signal });
   return response.status;
 }
+
+export const takePendingCounts = (): Record<string, unknown> => system.takePendingCounts();
