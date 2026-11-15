@@ -11,8 +11,9 @@ const define = (name, pattern, uses = {}) => {
 const clockPosition = define("clockPosition", /const clockPosition = (\(rate, clock, now\) => \{[\s\S]*?\n {2}\});\n/);
 const timelineNow = define("timelineNow", /const timelineNow = (\(reported, mediaAdvance, now\) => \{[\s\S]*?\n {2}\});\n/, { clockPosition });
 const oneShot = define("oneShot", /const oneShot = (\(m\) => .*);\n/);
-const mediaAdvanceOf = define("mediaAdvanceOf", /const mediaAdvanceOf = (\(el, timeline\) => .*);\n/, { oneShot });
-const anchorStartedMedia = define("anchorStartedMedia", /const anchorStartedMedia = (\(timeline, m, followed, now\) => \{[\s\S]*?\n {2}\});\n/, { oneShot, timelineNow, mediaAdvanceOf });
+const incidentalSound = define("incidentalSound", /const incidentalSound = (\(m, timeline\) => .*);\n/, { oneShot });
+const mediaAdvanceOf = define("mediaAdvanceOf", /const mediaAdvanceOf = (\(el, timeline\) => .*);\n/, { incidentalSound });
+const anchorStartedMedia = define("anchorStartedMedia", /const anchorStartedMedia = (\(timeline, m, followed, now\) => \{[\s\S]*?\n {2}\});\n/, { incidentalSound, timelineNow, mediaAdvanceOf });
 const timelineReport = define("timelineReport", /const timelineReport = (\(timeline, el, now\) => \{[\s\S]*?\n {2}\});\n/, { mediaAdvanceOf, timelineNow });
 
 const video = (currentTime, playbackRate = 1) => ({ currentTime, playbackRate });
@@ -98,4 +99,11 @@ test("a short sound the page plays meanwhile stays off the site's timeline, so i
   assert.equal(timelineReport(timeline, ding, 2_500).position, 50, "reported while it plays, the paused site stays put");
   assert.equal(anchorStartedMedia(timeline, main, ding, 2_500), null, "the main player resumes on its own anchor");
   assert.equal(timelineReport(timeline, main, 2_500).position, 50);
+});
+
+test("a short clip that is the site's own media stays on its timeline", () => {
+  const clip = { ...video(0), duration: 4 };
+  const timeline = { ...setAt(0, { playing: false, media: [[clip, 0]] }), duration: 4 };
+  clip.currentTime = 3;
+  assert.equal(timelineReport(timeline, clip, 0).position, 3, "a seek in the clip moves the card");
 });

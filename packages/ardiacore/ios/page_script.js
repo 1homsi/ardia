@@ -352,8 +352,9 @@
     return { position: Math.max(0, Math.min(reported.duration, position)), duration: reported.duration };
   };
   const mediaTimesOf = (media) => new WeakMap(media.map((m) => [m, m.currentTime]));
+  const incidentalSound = (m, timeline) => oneShot(m) && m.duration * 2 < timeline.duration;
   const anchorStartedMedia = (timeline, m, followed, now) => {
-    if (oneShot(m)) return null;
+    if (incidentalSound(m, timeline)) return null;
     const started = timeline.started;
     timeline.started = true;
     const followedAdvance = followed === m ? null : mediaAdvanceOf(followed, timeline);
@@ -362,7 +363,7 @@
     timeline.mediaTimes.set(m, m.currentTime - (position - timeline.position));
     return position;
   };
-  const mediaAdvanceOf = (el, timeline) => (el && !oneShot(el) && timeline.mediaTimes.has(el) ? el.currentTime - timeline.mediaTimes.get(el) : null);
+  const mediaAdvanceOf = (el, timeline) => (el && !incidentalSound(el, timeline) && timeline.mediaTimes.has(el) ? el.currentTime - timeline.mediaTimes.get(el) : null);
   const timelineReport = (timeline, el, now) => {
     const mediaAdvance = mediaAdvanceOf(el, timeline);
     return { position: timelineNow(timeline, mediaAdvance, now).position, playbackRate: mediaAdvance == null ? timeline.playbackRate : el.playbackRate };
