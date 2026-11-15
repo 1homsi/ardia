@@ -1219,6 +1219,52 @@ titles and phrases that post links instead.
   (`ARDIA_LEGACY` lines) and `-ArdiaLegacyRestore YES` also opens the first saved tab, for checking an import;
   `-ArdiaLogSystemLinks YES` logs each link (`ARDIA_SYSTEM_LINK`). These need a test build (below).
 
+#### Seeing a change on an iPhone simulator, beside main's SwiftUI app
+
+Watch your own frames before you hand a change on. The loop, for any agent:
+
+1. **Build.** `apps/phone/scripts/build-sim-app <name> [--commit REV]` makes `/tmp/ardia-phone/<name>.app` (Release,
+   simulator, lab on) and `<name>.txt` beside it.
+   - The JavaScript is bundled from a `git archive` export of REV (default HEAD), never the working tree.
+   - The native app is built from the working tree once and cached under a hash of its inputs (`apps/phone/ios`
+     with its Podfile.lock, `packages/phone/ios`, ArdiaKit, `app.json`, the module config, the lockfile, `patches`).
+   - When those didn't change, only the bundle is rebuilt into a copy of the cached app, which is then re-signed ad
+     hoc: about 25 seconds, against about 2 to 2.5 minutes for a full native build (504a9db41).
+   - It refuses below 10 GB free, runs one at a time, and cleans its own scratch.
+   - The `.txt` carries the commit, dirty, the bundle source, the native state, whether the native app was built or
+     reused, and the bundle's sha256. The app logs the same at launch as `ARDIA build <commit> dirty: … from the …;
+     native …`.
+2. **Simulator.** In T3, `device_open` with host `simlock` and an id like `simlock:ios:iPhone 17 Pro` leases a booted
+   simulator and returns its `agent-device` command; every tap, screenshot and launch goes through that command. The
+   lease is wiped when it ends: close it with `device_close` (`shutdown: true`). Its udid, for `simctl`'s logs and
+   recordings: `xcrun simctl --set ~/.simlock/devices/ios list devices booted`.
+3. **Install and launch,** from the repo root (the lease accepts installs only from this checkout):
+   `<agent-device> install com.ardia.browser.ios /tmp/ardia-phone/<name>.app`, then
+   `<agent-device> open com.ardia.browser.ios --relaunch --launch-args -ArdiaDemo --launch-args YES`. Add
+   `--launch-args -BrowseDeck --launch-args YES` to open on the deck. Confirm the build:
+   `xcrun simctl --set ~/.simlock/devices/ios spawn <udid> log show --last 2m --style compact --predicate 'eventMessage CONTAINS "ARDIA build"'`.
+4. **Record.** Start `xcrun simctl --set ~/.simlock/devices/ios io <udid> recordVideo --codec h264 --force run.mp4` in
+   the background, act through `agent-device`, then `kill -INT` the recorder; `agent-device record` comes back empty
+   under load. A still at device resolution: `<agent-device> screenshot shot.png --pixel-density 3` (3 px = 1 pt).
+5. **Frames.**
+   - Find the event by frame difference: `ffmpeg -i run.mp4 -vf "fps=60,scale=201:437,signalstats,metadata=print:key=lavfi.signalstats.YDIF" -f null - 2>&1 | grep YDIF`.
+   - Pull 60 fps frames: `ffmpeg -i run.mp4 -vf fps=60 frames/f%04d.png`.
+   - Or a sheet: `-vf "fps=60,select='between(n,START,END)',scale=134:291,tile=18x2" -frames:v 1 sheet.png`.
+   - Measure positions, sizes and opacity from the pixels, not by eye.
+6. **Main's SwiftUI app,** the reference for the iPhone redesign.
+   - It has the same bundle id, so uninstall one app before installing the other
+     (`xcrun simctl --set ~/.simlock/devices/ios uninstall <udid> com.ardia.browser.ios`).
+   - A staged Release build is `/tmp/ardia-phone/swiftui-main.app`, with `swiftui-main.txt` saying from which commit.
+     To make a fresh one (about 50 s), build `apps/ios/Ardia.xcodeproj` and copy out its `Ardia.app`:
+     `scripts/agent/locked xcodebuild -- xcodebuild -project apps/ios/Ardia.xcodeproj -scheme Ardia -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath <your dir> ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build`.
+   - Its launch arguments: `-ArdiaDemo YES`, `-ArdiaDeck deck`, `-ArdiaInterfaceStyle classic`,
+     `-ArdiaColorScheme dark`, `-ArdiaOpenSheet history`, `-ArdiaSpace <syncId>` (all in `SettingsLaunchHooks.swift`).
+   - Record both apps doing the same thing in the same state, light and dark, and compare the same crop.
+7. **Traps.**
+   - A fresh lease's first keyboard shows the "Type English and Hindi" tip over the keys. Press its Continue, which
+     appears in a plain `snapshot` (not `snapshot -i`), before typing, or a Go press does nothing.
+   - In zsh, `$var:a…` is a modifier; write `${var}:path`.
+
 #### Sync on iPhone
 
 `ArdiaPhoneSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
