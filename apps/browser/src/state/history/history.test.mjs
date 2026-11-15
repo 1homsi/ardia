@@ -4,7 +4,7 @@ import { test } from "node:test";
 globalThis.__DEV__ = false;
 
 const { applyHistoryChanges } = await import("./engineSync.ts");
-const { MAX_HISTORY, MAX_VISIT_TIMES } = await import("./history.ts");
+const { MAX_HISTORY, MAX_VISIT_TIMES, SUGGESTION_HISTORY, suggestionHistory } = await import("./history.ts");
 
 const applyHistoryChange = (list, change) => applyHistoryChanges(list, [change]);
 
@@ -200,6 +200,17 @@ test("the view keeps more than the 5,000 URLs the app first held, so imported ye
   const next = applyHistoryChange(list, change);
   assert.equal(next.length, 5001);
   assert.equal(next.at(-1).url, list.at(-1).url, "the oldest URL is still there");
+});
+
+test("command bar suggestions search the newest SUGGESTION_HISTORY pages of a longer list, one copy per list", () => {
+  const list = view(SUGGESTION_HISTORY + 300);
+  const newest = suggestionHistory(list);
+  assert.equal(newest.length, SUGGESTION_HISTORY);
+  assert.equal(newest[0], list[0]);
+  assert.equal(newest.at(-1), list[SUGGESTION_HISTORY - 1]);
+  assert.equal(suggestionHistory(list), newest, "the same list gives the same copy, so the suggestion caches hold");
+  const short = view(10);
+  assert.equal(suggestionHistory(short), short);
 });
 
 test("an old visit lands in order among the entries by last visit", () => {
