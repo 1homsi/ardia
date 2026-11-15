@@ -236,6 +236,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   const NSRect rect = NSMakeRect(frame[0].doubleValue, frame[1].doubleValue, frame[2].doubleValue, frame[3].doubleValue);
   if (NSWidth(rect) < 300 || NSHeight(rect) < 200) return NO;
   NSWindow *window = [ArdiaChromeWindowHost makeWindowForProfile:profile ?: @""];
+  if (gLittleLayout) [ArdiaChromeWindowHost floatForWindowManagers:window];
   ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window];
   NSView *host = controller.coreWindow.hostView;
   if (!window || !host) {
@@ -328,9 +329,8 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
     [CATransaction setDisableActions:YES];
     [page removeFromSuperview];
     page.frame = s.pageRect;
-    const BOOL restoring = [tab noteInShownSlot];
-    page.hidden = restoring;
-    if (restoring) [tab whenSizeRestored:^(NSString *proof) { page.hidden = NO; }];
+    [tab noteInShownSlot];
+    page.hidden = NO;
     [s.cover addSubview:page];
     [CATransaction commit];
     s.tab = tab;
