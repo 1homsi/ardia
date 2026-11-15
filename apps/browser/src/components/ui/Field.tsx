@@ -1,5 +1,6 @@
 import { OutsidePressArea, showMenu, type MenuItem } from "@ardia/shell";
 import { withIconNames } from "../../lib/activeLook";
+import { POP_UP_CHROME } from "../../lib/platformChrome";
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";
 import { Symbol } from "./Symbol";
 import { useEffect, useRef, type Ref } from "react";
@@ -226,18 +227,25 @@ export function PopUp<T extends string>({
               scaleStyle,
             ]}
           >
-            <Text numberOfLines={1} style={{ flex: 1, ...typeScale.body, color: theme.textPrimary }}>
+            <Text numberOfLines={1} style={[POP_UP_TITLE, typeScale.body, { color: theme.textPrimary }]}>
               {current?.title ?? ""}
             </Text>
-            <View style={{ width: 16, height: 16, borderRadius: radius.control, backgroundColor: theme.formAccent, alignItems: "center", justifyContent: "center" }}>
-              <Symbol name="chevron.up.chevron.down" size={8} weight="bold" color={theme.onAccent} style={{ width: 16, height: 16 }} />
-            </View>
+            {POP_UP_CHROME.indicator === "chevronDown" ? (
+              <Symbol name="chevron.down" size={8} weight="bold" color={theme.textSecondary} style={POP_UP_INDICATOR} />
+            ) : (
+              <View style={{ ...POP_UP_INDICATOR, borderRadius: radius.control, backgroundColor: theme.formAccent, alignItems: "center", justifyContent: "center" }}>
+                <Symbol name="chevron.up.chevron.down" size={8} weight="bold" color={theme.onAccent} style={POP_UP_INDICATOR} />
+              </View>
+            )}
           </Animated.View>
         )}
       </Pressable>
     </View>
   );
 }
+
+const POP_UP_INDICATOR = { width: 16, height: 16 } as const;
+const POP_UP_TITLE = POP_UP_CHROME.growsToItsTitle ? ({ flexGrow: 1, flexShrink: 1 } as const) : ({ flex: 1 } as const);
 
 const CLEAR_GLYPH = { width: 16, height: 16 } as const;
 
