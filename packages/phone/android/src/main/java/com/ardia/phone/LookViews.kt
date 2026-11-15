@@ -255,10 +255,24 @@ internal object DeckLayers {
 internal class ForeignDraws(private val dirty: (View) -> Boolean = View::isDirty) {
     private val placed = java.util.WeakHashMap<View, Int>()
 
-    private fun placement(view: View): Int = arrayOf<Any>(
-        view.left, view.top, view.right, view.bottom, view.scrollX, view.scrollY, view.translationX, view.translationY, view.translationZ,
-        view.scaleX, view.scaleY, view.rotation, view.rotationX, view.rotationY, view.alpha, view.visibility,
-    ).contentHashCode()
+    private fun placement(view: View): Int {
+        var hash = view.left
+        hash = hash * 31 + view.top
+        hash = hash * 31 + view.right
+        hash = hash * 31 + view.bottom
+        hash = hash * 31 + view.scrollX
+        hash = hash * 31 + view.scrollY
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.translationX)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.translationY)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.translationZ)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.scaleX)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.scaleY)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.rotation)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.rotationX)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.rotationY)
+        hash = hash * 31 + java.lang.Float.floatToRawIntBits(view.alpha)
+        return hash * 31 + view.visibility
+    }
 
     private fun moved(view: View): Boolean {
         val now = placement(view)
@@ -337,6 +351,16 @@ internal object DrawOrder {
         val zy = y.z
         if (zx != zy) return zx < zy
         return parent.indexOfChild(x) < parent.indexOfChild(y)
+    }
+}
+
+internal class NamedRunnable(private val label: String, private val body: () -> Unit) : Runnable {
+    override fun run() = body()
+
+    override fun toString(): String = "$PREFIX$label"
+
+    companion object {
+        const val PREFIX = "ardia "
     }
 }
 
@@ -491,6 +515,9 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         sceneInFlight = false
         sceneBuffers.clear()
         previousScene = null
+        fadeFrom = null
+        fadeTo = null
+        fadeRetired = null
         paintedLook = null
         mesh = null
         blobShaders = emptyArray()
@@ -558,6 +585,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     internal fun stopMotion() {
         sceneGeneration += 1
         sceneInFlight = false
+        fadeTo = null
         removeCallbacks(tick)
         ownDrawPending = false
         releaseResting()
@@ -610,7 +638,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     }
 
     private var paceMillis = 40L
-    private val tick = Runnable { advanceBlobs() }
+    private val tick = NamedRunnable("deck tick") { advanceBlobs() }
 
     internal fun advanceBlobs() {
         if (!isAnimating) return stopMotion()
@@ -622,11 +650,87 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }
         val started = SystemClock.elapsedRealtimeNanos()
         moveOn(now)
-        if (!requestScene(clock(now))) {
-            sceneFresh = renderScene(clock(now))
+        val at = clock(now)
+        if (fades) {
+            stepFade(at)
+        } else if (!requestScene(at, listOf(scene, previousScene)) { made, look, dark ->
+                previousScene = scene
+                scene = made
+                sceneAt = at
+                sceneLook = look
+                sceneDark = dark
+                sceneFresh = true
+                showScene()
+            }
+        ) {
+            sceneFresh = renderScene(at)
             showScene()
         }
         LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - started
+    }
+
+    private val fades: Boolean get() = !still && LookSwitch.blobFramesPerSecond(context) == LookRules.PACED
+
+    private var fadeFrom: Bitmap? = null
+    private var fadeFromAt = 0L
+    private var fadeTo: Bitmap? = null
+    private var fadeToAt = 0L
+    private var fadeRetired: Bitmap? = null
+    private var fadeLook: ProfileLook? = null
+    private var fadeDark = false
+
+    internal val fadeScenes: Pair<Bitmap?, Bitmap?> get() = fadeFrom to fadeTo
+
+    internal fun clockForTests(): Long = clock(SystemClock.uptimeMillis())
+
+    private fun fadeIsStale(): Boolean {
+        val from = fadeFrom ?: return true
+        return fadeLook !== look || fadeDark != isDark || from.width != (width / SCENE_SCALE).coerceAtLeast(1) || from.height != (height / SCENE_SCALE).coerceAtLeast(1)
+    }
+
+    private fun resetFade() {
+        sceneGeneration += 1
+        sceneInFlight = false
+        fadeFrom = null
+        fadeTo = null
+        fadeRetired = null
+    }
+
+    private fun startFade(at: Long): Boolean {
+        resetFade()
+        scene = null
+        if (!renderScene(at)) return false
+        fadeFrom = scene
+        fadeFromAt = at
+        fadeLook = look
+        fadeDark = isDark
+        return true
+    }
+
+    private fun stepFade(at: Long) {
+        if (fadeIsStale() && !startFade(at)) return
+        val to = fadeTo
+        if (to != null && at >= fadeToAt) {
+            fadeRetired = fadeFrom
+            fadeFrom = to
+            fadeFromAt = fadeToAt
+            fadeTo = null
+            scene = to
+        }
+        if (fadeTo == null && !sceneInFlight) {
+            val target = fadeFromAt + LookRules.FADE_SCENE_MILLIS
+            requestScene(target, listOf(fadeFrom, fadeRetired)) { made, look, dark ->
+                if (look !== fadeLook || dark != fadeDark) return@requestScene
+                fadeTo = made
+                fadeToAt = target
+            }
+        }
+        showScene()
+    }
+
+    internal fun fadeShare(at: Long): Float {
+        if (fadeTo == null || fadeToAt <= fadeFromAt) return 0f
+        return ((at - fadeFromAt).toFloat() / (fadeToAt - fadeFromAt)).coerceIn(0f, 1f)
     }
 
     private val sceneRenderer = SceneRenderer()
@@ -635,7 +739,29 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     private var previousScene: Bitmap? = null
     private val sceneBuffers = ArrayList<Bitmap>(3)
 
-    private fun requestScene(at: Long): Boolean {
+    private fun sceneRequest(at: Long, inUse: List<Bitmap?>): SceneRequest? {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val dark = isDark
+        val radius = LookRules.blobRadius(w, h)
+        prepare(look, dark, radius)
+        val meshBitmap = mesh ?: return null
+        val sceneWidth = (width / SCENE_SCALE).coerceAtLeast(1)
+        val sceneHeight = (height / SCENE_SCALE).coerceAtLeast(1)
+        val shaders = blobShaders
+        val centres = FloatArray(shaders.size * 2)
+        for (index in shaders.indices) {
+            LookRules.blobCenterInto(index, if (still) 0f else angle(index, at), w, h, centre)
+            centres[index * 2] = centre[0]
+            centres[index * 2 + 1] = centre[1]
+        }
+        val free = sceneBuffers.firstOrNull { buffer -> inUse.none { it === buffer } && buffer.width == sceneWidth && buffer.height == sceneHeight }
+        return SceneRequest(sceneWidth, sceneHeight, w, h, meshBitmap, shaders, centres, radius, (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt(), true, free)
+    }
+
+    internal fun sceneForTests(at: Long): Bitmap? = sceneRequest(at, emptyList())?.let { SceneRenderer().render(SceneRequest(it.width, it.height, it.viewWidth, it.viewHeight, it.mesh, it.shaders, it.centres, it.radius, it.blobAlpha, it.blobs, null)) }
+
+    private fun requestScene(at: Long, inUse: List<Bitmap?>, apply: (Bitmap, ProfileLook, Boolean) -> Unit): Boolean {
         if (width <= 0 || height <= 0 || lookIsOff || noBlobs) return false
         if (sceneInFlight) return true
         val w = width.toFloat()
@@ -654,9 +780,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             centres[index * 2] = centre[0]
             centres[index * 2 + 1] = centre[1]
         }
-        val shown = scene
-        val previous = previousScene
-        val free = sceneBuffers.firstOrNull { it !== shown && it !== previous && it.width == sceneWidth && it.height == sceneHeight }
+        val free = sceneBuffers.firstOrNull { buffer -> inUse.none { it === buffer } && buffer.width == sceneWidth && buffer.height == sceneHeight }
         val request = SceneRequest(sceneWidth, sceneHeight, w, h, meshBitmap, shaders, centres, radius, (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt(), true, free)
         val generation = sceneGeneration
         val work = SceneWork.current
@@ -666,22 +790,16 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             val started = SystemClock.elapsedRealtimeNanos()
             val made = runCatching { renderer.render(request) }.getOrNull()
             LookActivity.sceneWorkerNanos += SystemClock.elapsedRealtimeNanos() - started
-            work.toMain(Runnable {
+            work.toMain(NamedRunnable("deck scene hand-back") {
                 val applied = SystemClock.elapsedRealtimeNanos()
                 sceneInFlight = false
-                if (made == null || generation != sceneGeneration || !isAnimating) return@Runnable
+                if (made == null || generation != sceneGeneration || !isAnimating) return@NamedRunnable
                 if (sceneBuffers.none { it === made }) {
                     sceneBuffers.removeAll { it.width != sceneWidth || it.height != sceneHeight }
                     sceneBuffers += made
                 }
-                previousScene = scene
-                scene = made
-                sceneAt = at
-                sceneLook = look
-                sceneDark = dark
-                sceneFresh = true
                 LookActivity.scenesOffMain += 1
-                showScene()
+                apply(made, look, dark)
                 LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - applied
             })
         })
@@ -765,7 +883,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (!animated || !isShown) {
             stopMotionAfterDraw()
         } else {
-            when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
+            when (val delay = if (fades) LookRules.FADE_FRAME_MILLIS else LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
                 0L -> {
                     ownDrawPending = true
                     postInvalidateOnAnimation()
@@ -792,7 +910,20 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
                 canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
                 if (!fresh) renderScene(at)
             }
-            LookSwitch.BackdropDraw.Small, LookSwitch.BackdropDraw.SmallNoGrain -> {
+            LookSwitch.BackdropDraw.Small, LookSwitch.BackdropDraw.SmallNoGrain -> if (fades) {
+                if (fadeIsStale() && !startFade(at)) return false
+                val from = fadeFrom ?: return false
+                sceneTarget.set(0f, 0f, w, h)
+                canvas.drawBitmap(from, null, sceneTarget, scenePaint)
+                val to = fadeTo
+                val share = fadeShare(at)
+                if (to != null && share > 0f) {
+                    scenePaint.alpha = (share * 255f).toInt().coerceIn(0, 255)
+                    canvas.drawBitmap(to, null, sceneTarget, scenePaint)
+                    scenePaint.alpha = 255
+                }
+                if (mode == LookSwitch.BackdropDraw.Small) drawGrain(canvas, dark)
+            } else {
                 val shown = scene
                 val stale = shown == null || sceneLook !== look || sceneDark != dark || shown.width != (width / SCENE_SCALE).coerceAtLeast(1) || shown.height != (height / SCENE_SCALE).coerceAtLeast(1)
                 if (!fresh && (stale || still) && !renderScene(at)) return false

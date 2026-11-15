@@ -93,13 +93,13 @@ test("fixed frame stats always give the same two shares: work plus other main-th
   assert.deepEqual(again, judged);
 });
 
-test("the backdrop's scenes drawn off the main thread are reported beside the share and never counted in it", () => {
+test("the backdrop's scenes drawn off the main thread are the look's work too: reported and counted in the share", () => {
   const totals = [12.4, 13.1, 11.8, 15.2, 12.9, 13.6, 12.2, 14.0, 12.7, 13.3];
   const waits = [6.1, 7.0, 5.2, 8.4, 6.6, 7.3, 5.9, 7.7, 6.4, 6.8];
   const without = judge({ totals, deadlines: Array(10).fill(11.7), waits, windowMs: 1000, mainThreadMs: 21.5, tickMs: 0.4 });
   const withWorker = judge({ totals, deadlines: Array(10).fill(11.7), waits, windowMs: 1000, mainThreadMs: 21.5, tickMs: 0.4, sceneWorkerMs: 95 });
   assert.equal(withWorker.sceneWorkerMs, 95);
-  assert.equal(withWorker.busyShare, without.busyShare);
+  assert.equal(Math.round((withWorker.busyShare! - without.busyShare!) * 1000) / 1000, 0.095, "95 ms of a second core's work in a 1000 ms window adds 9.5%");
   assert.equal(without.sceneWorkerMs, undefined);
 });
 

@@ -1048,6 +1048,19 @@ it once and turns the look down if it can't; the system settings always come fir
   F4's 19 to 30% and the M3's 29%. From sync21 the lab's line breaks the other main-thread work down: how many
   messages, the backdrop's ticks against the rest, and the three longest messages by their handler and callback
   (`… other main-thread work 241.7 ms in 412 message(s): backdrop ticks 3.2 ms, the rest 238.5 ms; longest …`).
+  Our own callbacks are named whatever R8 does (`ardia deck tick`, `ardia deck scene hand-back`). Other messages
+  keep their full class names, which on a shrunk build read like `j6.s what 3`; `retrace` with the build's
+  `mapping.txt` gives the real ones.
+- **How busy is formed** (from sync22). Busy = (Σ each frame's work + the main thread's other messages + the
+  backdrop's scenes drawn on the worker thread) / the window. The worker's time is the look's work on another
+  core and counts the same as the main thread's; the line prints it as `… scenes drawn off the main thread in N ms
+  (counted)`.
+- **How often a scene is drawn** (from sync22). With the blobs paced (the default), the worker draws a scene every
+  400 ms, one interval ahead. The deck redraws every 100 ms, cross-fading on the GPU from the older scene to the
+  newer one across the interval. A blend halfway between two scenes 400 ms apart is 0.042/255 a channel from the
+  true scene at that moment, less than one old 43 ms frame step changed it (0.047, SceneOffMainTest on this
+  machine). The lab's fixed blob rates (`Blobs N fps`, `every frame`) keep the old way, one scene per frame, to
+  compare against.
   The verdict uses busy, against the same 33%. It decides nothing under 20 frames unless those few frames are already over.
   Why a duty cycle: an idle deck's paced frames, drawn between vsyncs while nothing else moves, make nothing
   stutter that a person can see. What they cost is battery and heat, and that is the share of time the GPU

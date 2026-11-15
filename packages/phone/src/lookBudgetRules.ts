@@ -83,7 +83,8 @@ export function judge(sample: FrameSample): Judgement {
   const missed = totals.filter((total, index) => total > deadlines[index]!).length;
   const missedShare = frames === 0 ? 0 : missed / frames;
   const windowMs = sample.windowMs !== undefined && sample.windowMs > 0 ? sample.windowMs : LOOK_BUDGET.sampleMs;
-  const busyShare = (work.reduce((sum, spent) => sum + spent, 0) + betweenFrames) / windowMs;
+  const sceneWorkerMs = sample.sceneWorkerMs !== undefined && sample.sceneWorkerMs > 0 ? sample.sceneWorkerMs : 0;
+  const busyShare = (work.reduce((sum, spent) => sum + spent, 0) + betweenFrames + sceneWorkerMs) / windowMs;
   const wholeFrameBusyShare = totals.reduce((sum, total) => sum + total, 0) / windowMs;
   const paceMs = frames === 0 ? windowMs : windowMs / frames;
   const keepsUp = medianMs <= paceMs;
@@ -92,7 +93,7 @@ export function judge(sample: FrameSample): Judgement {
   const droppedReports = sample.droppedReports ?? 0;
   const conclusive = foreignFrames === 0 && droppedReports === 0 && (frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp)));
   const over = conclusive && (tooBusy || !keepsUp);
-  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}), ...(sample.sceneWorkerMs !== undefined && sample.sceneWorkerMs > 0 ? { sceneWorkerMs: sample.sceneWorkerMs } : {}), ...(sample.mainThreadMessages !== undefined ? { mainThreadMessages: sample.mainThreadMessages } : {}), ...(sample.longestMessages?.length ? { longestMessages: sample.longestMessages.slice(0, 3) } : {}) };
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}), ...(sceneWorkerMs > 0 ? { sceneWorkerMs } : {}), ...(sample.mainThreadMessages !== undefined ? { mainThreadMessages: sample.mainThreadMessages } : {}), ...(sample.longestMessages?.length ? { longestMessages: sample.longestMessages.slice(0, 3) } : {}) };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });

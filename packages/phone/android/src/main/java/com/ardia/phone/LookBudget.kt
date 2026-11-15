@@ -98,16 +98,17 @@ internal class MainThreadWork(private val clock: () -> Long = System::nanoTime) 
 
         fun isFrame(line: String): Boolean = line.contains("Choreographer\$FrameDisplayEventReceiver") || line.contains("Choreographer\$FrameHandler")
 
-        private fun short(token: String): String = token.substringBefore('@').substringAfterLast('.')
+        private fun plain(token: String): String = token.substringBefore('@')
 
         fun name(line: String): String {
             val body = line.removePrefix(">>>>> Dispatching to ").trim()
-            val target = Regex("""^Handler \(([^)]+)\)""").find(body)?.groupValues?.get(1) ?: body.substringBefore(' ')
             val rest = body.substringAfter('}', "").trim()
             val callback = rest.substringBeforeLast(':').trim()
+            if (callback.startsWith(NamedRunnable.PREFIX)) return callback
+            val target = Regex("""^Handler \(([^)]+)\)""").find(body)?.groupValues?.get(1) ?: body.substringBefore(' ')
             val what = rest.substringAfterLast(':', "").trim()
-            val named = if (callback.isEmpty() || callback == "null") "what $what" else short(callback)
-            return "${short(target)} $named"
+            val named = if (callback.isEmpty() || callback == "null") "what $what" else plain(callback)
+            return "${plain(target)} $named"
         }
     }
 }

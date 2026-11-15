@@ -30,7 +30,7 @@ class MainThreadWorkTest {
             now += lasting
             work.println("<<<<< Finished to " + line.removePrefix(">>>>> Dispatching to "))
         }
-        message(">>>>> Dispatching to Handler (android.view.ViewRootImpl\$ViewRootHandler) {4a1} com.ardia.phone.DeckBackdropView\$\$ExternalSyntheticLambda3@9f2: 0", 400_000)
+        message(">>>>> Dispatching to Handler (android.view.ViewRootImpl\$ViewRootHandler) {4a1} ${NamedRunnable("deck tick") {}}: 0", 400_000)
         message(">>>>> Dispatching to Handler (com.facebook.react.bridge.queue.MessageQueueThreadHandler) {77c} null: 0", 6_200_000)
         message(">>>>> Dispatching to Handler (android.os.Handler) {12} android.widget.Editor\$Blink@3b: 0", 900_000)
         message(">>>>> Dispatching to Handler (android.view.Choreographer\$FrameHandler) {c} android.view.Choreographer\$FrameDisplayEventReceiver@9: 0", 9_000_000)
@@ -38,9 +38,11 @@ class MainThreadWorkTest {
         assertEquals("the frame is not one of the counted messages", 4L, work.messages)
         assertEquals(7_600_000L, work.nanos)
         assertEquals(
-            listOf("MessageQueueThreadHandler what 0", "Handler Editor\$Blink", "ViewRootImpl\$ViewRootHandler DeckBackdropView\$\$ExternalSyntheticLambda3"),
+            listOf("com.facebook.react.bridge.queue.MessageQueueThreadHandler what 0", "android.os.Handler android.widget.Editor\$Blink", "ardia deck tick"),
             work.longestMessages.map { it.name },
         )
         assertEquals(listOf(6_200_000L, 900_000L, 400_000L), work.longestMessages.map { it.nanos })
+        assertEquals("a shrunk build's names stay whole, so the mapping can read them", "j6.s what 3", MainThreadWork.name(">>>>> Dispatching to Handler (j6.s) {77c} null: 3"))
+        assertEquals("a8.q b3.d", MainThreadWork.name(">>>>> Dispatching to Handler (a8.q) {12} b3.d@3b: 0"))
     }
 }
