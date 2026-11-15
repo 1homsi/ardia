@@ -1,5 +1,6 @@
 import type { AppNative } from "@ardia/shell";
 import { engineAvailable, engineCallJson } from "../engine/host";
+import { isFields, type Fields } from "../engine/domains/calling";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
@@ -11,16 +12,12 @@ type Reply = { error?: unknown; logins?: unknown; passwords?: unknown };
 
 const call = async (name: string, args: object = {}) => JSON.parse(await engineCallJson(name, "", JSON.stringify(args))) as Reply;
 
-type Entry = Record<string, unknown>;
-
-const isEntry = (entry: unknown): entry is Entry => typeof entry === "object" && entry !== null;
-
 const nameOf = (realm: unknown) => new RegExp(`${OURS}([a-z]+)\\.`).exec(String(realm ?? ""))?.[1];
 
-const entries = (list: unknown, origin: "realm" | "origin", label: (entry: Entry, name: string) => string = (_, name) => name) =>
+const entries = (list: unknown, origin: "realm" | "origin", label: (entry: Fields, name: string) => string = (_, name) => name) =>
   Array.isArray(list)
     ? list
-        .filter(isEntry)
+        .filter(isFields)
         .flatMap((entry) => {
           const name = nameOf(entry[origin]);
           return name === undefined ? [] : [label(entry, name)];
@@ -28,7 +25,7 @@ const entries = (list: unknown, origin: "realm" | "origin", label: (entry: Entry
         .sort()
     : null;
 
-const loginLabel = (entry: Entry, name: string) => {
+const loginLabel = (entry: Fields, name: string) => {
   if (entry.passwordless === true && !("password" in entry)) return `${name}, passwordless`;
   return typeof entry.password === "string" && entry.password.length > 0 ? name : `${name}, malformed`;
 };
