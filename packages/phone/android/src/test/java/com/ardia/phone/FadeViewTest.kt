@@ -54,16 +54,19 @@ class FadeViewTest {
     @Test
     fun theFourEdgePropsTakeWhatReactNativeSendsAndTheViewBecomesALayerOnlyWhileItFades() {
         val field = ViewManagerDefinition::class.java.getDeclaredField("props").apply { isAccessible = true }
-        val props = FadeModule().definition().viewManagerDefinitions.values.map { field.get(it) as Map<String, AnyViewProp> }.first { "trailing" in it }
+        val props = FadeModule().definition().viewManagerDefinitions.values.map { field.get(it) as Map<String, AnyViewProp> }.first { "trailingFade" in it }
+        for (layout in listOf("top", "bottom", "left", "right", "start", "end", "width", "height")) {
+            assertFalse("$layout is a layout style prop the new architecture hands every view by that name, a number, never a fade edge", layout in props)
+        }
         val view = FadeView(activity, appContext)
-        props.getValue("trailing").set(DynamicFromObject(JavaOnlyMap.of("length", 14.0)), view, appContext)
-        props.getValue("top").set(DynamicFromObject(JavaOnlyMap.of("length", 8.0, "floor", 0.4)), view, appContext)
+        props.getValue("trailingFade").set(DynamicFromObject(JavaOnlyMap.of("length", 14.0)), view, appContext)
+        props.getValue("topFade").set(DynamicFromObject(JavaOnlyMap.of("length", 8.0, "floor", 0.4)), view, appContext)
         view.update()
         assertEquals(FadeRamps.Edge(14f, 0f), view.trailing)
         assertEquals(FadeRamps.Edge(8f, 0.4f), view.top)
         assertEquals(View.LAYER_TYPE_HARDWARE, view.layerType)
-        props.getValue("trailing").set(DynamicFromObject(null), view, appContext)
-        props.getValue("top").set(DynamicFromObject(null), view, appContext)
+        props.getValue("trailingFade").set(DynamicFromObject(null), view, appContext)
+        props.getValue("topFade").set(DynamicFromObject(null), view, appContext)
         view.update()
         assertFalse(view.fades)
         assertEquals(View.LAYER_TYPE_NONE, view.layerType)

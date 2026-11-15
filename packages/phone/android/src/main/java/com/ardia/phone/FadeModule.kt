@@ -10,10 +10,10 @@ class FadeModule : Module() {
         Name("ArdiaPhoneFade")
 
         View(FadeView::class) {
-            Prop("top") { view: FadeView, edge: FadeEdge? -> view.top = edge.edge() }
-            Prop("bottom") { view: FadeView, edge: FadeEdge? -> view.bottom = edge.edge() }
-            Prop("leading") { view: FadeView, edge: FadeEdge? -> view.leading = edge.edge() }
-            Prop("trailing") { view: FadeView, edge: FadeEdge? -> view.trailing = edge.edge() }
+            Prop("topFade") { view: FadeView, edge: FadeEdge? -> view.top = edge.edge() }
+            Prop("bottomFade") { view: FadeView, edge: FadeEdge? -> view.bottom = edge.edge() }
+            Prop("leadingFade") { view: FadeView, edge: FadeEdge? -> view.leading = edge.edge() }
+            Prop("trailingFade") { view: FadeView, edge: FadeEdge? -> view.trailing = edge.edge() }
             OnViewDidUpdateProps { view -> view.update() }
         }
     }
