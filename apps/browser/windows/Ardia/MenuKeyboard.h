@@ -8,7 +8,6 @@
 
 #include "Events.h"
 #include "LaunchLog.h"
-#include "KeyProbe.h"
 #include "MenuKeys.h"
 #include "MenuPopup.h"
 #include "MenuStore.h"
@@ -290,7 +289,6 @@ struct MenuKeyboard {
 
   bool HandleKey(UINT virtualKey, LPARAM flags) noexcept {
     bool keyUp = (flags & (1u << 31)) != 0;
-    if (KeyProbe::Shared().Handle(virtualKey, keyUp)) return true;
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));

@@ -298,6 +298,15 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   shortcut still runs. The launch log says `keys escape capture on|off` and
   `keys escape sent to the open popover or drag`. The Mac's Downloads popover does not close on Escape yet
   (`PLATFORM_FEATURES.escapeClosesDownloads` is off there).
+- Keys typed right after Ctrl+T reach the new tab's bar (#2059). Ctrl+T makes a new tab, and its New Tab page's bar
+  took focus only on its first layout. On Windows that came 60 to 300 ms after the command, longer on a slow machine,
+  and the letters typed before it went to the bar that had focus, on a first launch the hidden first tab's. With
+  `PLATFORM_FEATURES.newTabBarFirst` (Windows only), a fresh New Tab page commits its bar alone and mounts the rest
+  (the logo mark, the intro glow, the bar's shadows, `NewTabExtras`) a frame after the bar lays out. So the bar takes
+  focus before the heavier parts mount. The launch log marks each step with `new tab bar page|committed|focused|rest
+  <tab>` (`platform/newTabMarks.windows.ts`), and the `first-run` part of `scripts/windows/tour.ps1` types at 30 ms a key
+  right after Ctrl+T in five fresh launches, then reports the gap from the `newTab` command to each mark. Those
+  launches cover Get Started, the tool tour, CPU and disk load, the Go button and the New Tab page's own box.
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
   `MenuKeyboard.h` sends `reopenClosedTab` for a plain Ctrl+Z in a browser window (Little Ardia included, Settings and
   Import not) when Reopen isn't disabled, no command is bound to Ctrl+Z, the window itself is the active one (not a

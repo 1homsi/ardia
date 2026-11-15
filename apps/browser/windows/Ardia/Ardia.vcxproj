@@ -116,7 +116,6 @@
     <ClInclude Include="EngineApi.h" />
     <ClInclude Include="EngineHostModule.h" />
     <ClInclude Include="CommandTable.h" />
-    <ClInclude Include="KeyProbe.h" />
     <ClInclude Include="MenuKeyboard.h" />
     <ClInclude Include="MenuKeys.h" />
     <ClInclude Include="MenuPopup.h" />
