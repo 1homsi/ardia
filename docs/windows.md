@@ -191,9 +191,12 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     answers what the app window answers at that point when that is its top edge or a top corner (so the band's size,
     and no band while maximized or full screen, are the app window's own), and the page's content everywhere else.
     Chromium would take the press that follows as a page press, so the engine's message hook (`PreTranslate` in
-    `ardia/win/main.cc`, called before Chromium's pump dispatches) takes a hosted page's non-client press, double click
-    and move with those codes: the press becomes the app window's own size command, the double click the app window's,
-    and a move sets the resize cursor. Chromium never sees them. `HTTOP` alone (Chromium handles the press) and
+    `ardia/win/main.cc`, called before Chromium's pump dispatches) takes a hosted page's non-client press and double
+    click with those codes: the press becomes the app window's own size command, the double click the app window's.
+    A move in the band sets the resize cursor (Chromium's page child window answers WM_SETCURSOR with nothing) and still
+    reaches Chromium, which re-arms its leave tracking from it, so a page's hover ends when the pointer leaves through
+    the band. Touch and pen can't resize from the top edge over a page: their contact arrives as WM_NCPOINTERDOWN,
+    which Chromium handles (untried without a touch device). `HTTOP` alone (Chromium handles the press) and
     `HTTRANSPARENT` (a child window's transparency doesn't reach another top-level window) both left the window
     unresized in a real drag. `launch-smoke.ps1` drags the band over a page in Minimalism with the sidebar on the
     right and expects the window to resize from the top; the `tab.hitTest` host verb answers the page's and the app

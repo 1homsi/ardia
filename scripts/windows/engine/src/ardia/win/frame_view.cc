@@ -66,7 +66,7 @@ bool TakeTopEdgePress(const MSG& msg) {
   }
   if (msg.message == WM_NCMOUSEMOVE) {
     ::SetCursor(::LoadCursorW(nullptr, ResizeCursor(msg.wParam)));
-    return true;
+    return false;
   }
   ::ReleaseCapture();
   if (msg.message == WM_NCLBUTTONDBLCLK) {
