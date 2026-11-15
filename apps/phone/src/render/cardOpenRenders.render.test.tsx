@@ -61,12 +61,11 @@ test("a card grows with no page mounted, then the page and its cover mount once 
   unmount(root);
 });
 
-test("while a card opens, the cards' container reaches the screen's bottom, so the full-size card isn't cut off above the bar and the navigation strip", () => {
+test("the cards' container always reaches the screen's bottom, so a full-size card isn't cut off above the bar and nothing about it changes when a card opens or the deck settles", () => {
   const root = renderSurface(<Surfaces />);
   const container = () => StyleSheet.flatten(root.root.findAll((node) => node.props.testID === "deckCards" && typeof node.type === "string")[0]!.props.style);
-  const settled = container().height as number;
+  expect(container().height).toBe(873);
   act(() => sendDeckCommand({ kind: "openFocused" }));
   expect(container().height).toBe(873);
-  expect(settled).toBeLessThan(873);
   unmount(root);
 });

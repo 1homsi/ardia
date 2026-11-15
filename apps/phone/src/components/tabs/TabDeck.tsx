@@ -486,8 +486,10 @@ export const TabDeck = memo(function TabDeck() {
   const vertical = useSharedValue(false);
   const touchDown = useSharedValue({ x: 0, y: 0, absoluteX: 0, absoluteY: 0 });
   const scrollFrom = useSharedValue(0);
+  const barBand = { bottom: g.barCenterY - tabsLayout.barTouchClearance - g.height };
   const pan = Gesture.Pan()
     .withTestId("deckPan")
+    .hitSlop(barBand)
     .minDistance(10)
     .onBegin((e) => {
       touchDown.value = { x: e.x, y: e.y, absoluteX: e.absoluteX, absoluteY: e.absoluteY };
@@ -554,6 +556,7 @@ export const TabDeck = memo(function TabDeck() {
   };
   const longPress = Gesture.LongPress()
     .withTestId("deckLongPress")
+    .hitSlop(barBand)
     .minDuration(tabsMotion.longPress)
     .onStart((e) => {
       const card = deckCardAt(g, count, scroll.value, e.x, e.y);
@@ -561,6 +564,7 @@ export const TabDeck = memo(function TabDeck() {
     });
   const tapFrom = useSharedValue({ x: 0, y: 0 });
   const tap = Gesture.Manual()
+    .hitSlop(barBand)
     .onTouchesDown((e) => {
       const touch = e.allTouches[0];
       if (touch) tapFrom.value = { x: touch.x, y: touch.y };
@@ -684,7 +688,7 @@ export const TabDeck = memo(function TabDeck() {
           }}
         >
           <GestureDetector gesture={shown ? Gesture.Race(pan, longPress, tap) : Gesture.Race(Gesture.Manual().enabled(false).onTouchesDown(ignoreTouch))}>
-            <Animated.View testID="deckCards" style={[styles.touch, { height: phase.kind === "settled" ? g.barCenterY - tabsLayout.barTouchClearance : g.height }, cardsStyle]} collapsable={false}>
+            <Animated.View testID="deckCards" style={[styles.touch, { height: g.height }, cardsStyle]} collapsable={false}>
               {order.map((id, index) => {
                 const tab = tabs.get(id);
                 if (!tab || hidden.current.has(id) || !deckCardMounted(index, anchor)) return null;
