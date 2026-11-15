@@ -217,6 +217,10 @@ internal object LookActivity {
     var foreignTraversals = 0L
     @Volatile
     var tickNanos = 0L
+    @Volatile
+    var sceneWorkerNanos = 0L
+    @Volatile
+    var scenesOffMain = 0L
 }
 
 internal object DeckLayers {
@@ -336,6 +340,93 @@ internal object DrawOrder {
     }
 }
 
+internal interface SceneWork {
+    fun render(job: Runnable)
+    fun toMain(job: Runnable)
+
+    companion object {
+        private val thread by lazy { android.os.HandlerThread("ardia-look-scene", android.os.Process.THREAD_PRIORITY_DISPLAY).apply { start() } }
+        private val worker by lazy { android.os.Handler(thread.looper) }
+        private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+        val background: SceneWork = object : SceneWork {
+            override fun render(job: Runnable) {
+                worker.post(job)
+            }
+
+            override fun toMain(job: Runnable) {
+                main.post(job)
+            }
+        }
+
+        val inline: SceneWork = object : SceneWork {
+            override fun render(job: Runnable) = job.run()
+
+            override fun toMain(job: Runnable) = job.run()
+        }
+
+        @Volatile
+        var current: SceneWork = background
+    }
+}
+
+internal class SceneRequest(
+    val width: Int,
+    val height: Int,
+    val viewWidth: Float,
+    val viewHeight: Float,
+    val mesh: Bitmap,
+    val shaders: Array<Shader>,
+    val centres: FloatArray,
+    val radius: Float,
+    val blobAlpha: Int,
+    val blobs: Boolean,
+    val target: Bitmap?,
+)
+
+internal class SceneRenderer {
+    private val meshPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val blobPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val source = Rect()
+    private val target = RectF()
+    private var base: Bitmap? = null
+    private var baseMesh: Bitmap? = null
+
+    private fun base(request: SceneRequest): Bitmap {
+        val kept = base?.takeIf { it.width == request.width && it.height == request.height && baseMesh === request.mesh }
+        if (kept != null) return kept
+        val made = base?.takeIf { it.width == request.width && it.height == request.height } ?: Bitmap.createBitmap(request.width, request.height, Bitmap.Config.RGBA_F16)
+        val canvas = Canvas(made)
+        source.set(0, 0, request.mesh.width, request.mesh.height)
+        target.set(0f, 0f, request.width.toFloat() * (request.viewWidth + 1) / request.viewWidth, request.height.toFloat() * (request.viewHeight + 1) / request.viewHeight)
+        canvas.drawBitmap(request.mesh, source, target, meshPaint)
+        made.setHasAlpha(false)
+        base = made
+        baseMesh = request.mesh
+        return made
+    }
+
+    fun render(request: SceneRequest): Bitmap {
+        val bitmap = request.target?.takeIf { it.width == request.width && it.height == request.height && it.isMutable }
+            ?: Bitmap.createBitmap(request.width, request.height, Bitmap.Config.RGBA_F16)
+        val canvas = Canvas(bitmap)
+        canvas.drawBitmap(base(request), 0f, 0f, null)
+        if (request.blobs) {
+            canvas.scale(request.width / request.viewWidth, request.height / request.viewHeight)
+            blobPaint.alpha = request.blobAlpha
+            for (index in request.shaders.indices) {
+                blobPaint.shader = request.shaders[index]
+                val saved = canvas.save()
+                canvas.translate(request.centres[index * 2], request.centres[index * 2 + 1])
+                canvas.drawCircle(0f, 0f, request.radius, blobPaint)
+                canvas.restoreToCount(saved)
+            }
+        }
+        bitmap.setHasAlpha(false)
+        return bitmap
+    }
+}
+
 internal object AttachedLookViews {
     private val attached = java.util.WeakHashMap<LookView, Unit>()
 
@@ -396,6 +487,10 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     internal val isAnimating: Boolean get() = isShown && !lookIsOff && !still && !noBlobs
 
     internal fun forgetPaint() {
+        sceneGeneration += 1
+        sceneInFlight = false
+        sceneBuffers.clear()
+        previousScene = null
         paintedLook = null
         mesh = null
         blobShaders = emptyArray()
@@ -461,6 +556,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     internal val holdsRestingLayers: Boolean get() = layered.isNotEmpty()
 
     internal fun stopMotion() {
+        sceneGeneration += 1
+        sceneInFlight = false
         removeCallbacks(tick)
         ownDrawPending = false
         releaseResting()
@@ -525,12 +622,77 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }
         val started = SystemClock.elapsedRealtimeNanos()
         moveOn(now)
-        sceneFresh = renderScene(clock(now))
+        if (!requestScene(clock(now))) {
+            sceneFresh = renderScene(clock(now))
+            showScene()
+        }
+        LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - started
+    }
+
+    private val sceneRenderer = SceneRenderer()
+    private var sceneInFlight = false
+    private var sceneGeneration = 0
+    private var previousScene: Bitmap? = null
+    private val sceneBuffers = ArrayList<Bitmap>(3)
+
+    private fun requestScene(at: Long): Boolean {
+        if (width <= 0 || height <= 0 || lookIsOff || noBlobs) return false
+        if (sceneInFlight) return true
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val look = look
+        val dark = isDark
+        val radius = LookRules.blobRadius(w, h)
+        prepare(look, dark, radius)
+        val meshBitmap = mesh ?: return false
+        val sceneWidth = (width / SCENE_SCALE).coerceAtLeast(1)
+        val sceneHeight = (height / SCENE_SCALE).coerceAtLeast(1)
+        val shaders = blobShaders
+        val centres = FloatArray(shaders.size * 2)
+        for (index in shaders.indices) {
+            LookRules.blobCenterInto(index, if (still) 0f else angle(index, at), w, h, centre)
+            centres[index * 2] = centre[0]
+            centres[index * 2 + 1] = centre[1]
+        }
+        val shown = scene
+        val previous = previousScene
+        val free = sceneBuffers.firstOrNull { it !== shown && it !== previous && it.width == sceneWidth && it.height == sceneHeight }
+        val request = SceneRequest(sceneWidth, sceneHeight, w, h, meshBitmap, shaders, centres, radius, (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt(), true, free)
+        val generation = sceneGeneration
+        val work = SceneWork.current
+        val renderer = sceneRenderer
+        sceneInFlight = true
+        work.render(Runnable {
+            val started = SystemClock.elapsedRealtimeNanos()
+            val made = runCatching { renderer.render(request) }.getOrNull()
+            LookActivity.sceneWorkerNanos += SystemClock.elapsedRealtimeNanos() - started
+            work.toMain(Runnable {
+                val applied = SystemClock.elapsedRealtimeNanos()
+                sceneInFlight = false
+                if (made == null || generation != sceneGeneration || !isAnimating) return@Runnable
+                if (sceneBuffers.none { it === made }) {
+                    sceneBuffers.removeAll { it.width != sceneWidth || it.height != sceneHeight }
+                    sceneBuffers += made
+                }
+                previousScene = scene
+                scene = made
+                sceneAt = at
+                sceneLook = look
+                sceneDark = dark
+                sceneFresh = true
+                LookActivity.scenesOffMain += 1
+                showScene()
+                LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - applied
+            })
+        })
+        return true
+    }
+
+    private fun showScene() {
         ownDrawPending = true
         holdRestingOnLayers()
         invalidate()
         enclosingSource()?.let(FrostSources::retintFrostsOf)
-        LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - started
     }
 
     override fun onAttachedToWindow() {
@@ -631,7 +793,9 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
                 if (!fresh) renderScene(at)
             }
             LookSwitch.BackdropDraw.Small, LookSwitch.BackdropDraw.SmallNoGrain -> {
-                if (!fresh && !renderScene(at)) return false
+                val shown = scene
+                val stale = shown == null || sceneLook !== look || sceneDark != dark || shown.width != (width / SCENE_SCALE).coerceAtLeast(1) || shown.height != (height / SCENE_SCALE).coerceAtLeast(1)
+                if (!fresh && (stale || still) && !renderScene(at)) return false
                 val small = scene ?: return false
                 sceneTarget.set(0f, 0f, w, h)
                 canvas.drawBitmap(small, null, sceneTarget, scenePaint)
@@ -713,6 +877,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     private var grainKey: String? = null
 
     internal val sceneSize: Pair<Int, Int>? get() = scene?.let { it.width to it.height }
+
+    internal val shownScene: Bitmap? get() = scene
 
     private fun renderScene(at: Long): Boolean {
         if (width <= 0 || height <= 0 || lookIsOff) return false

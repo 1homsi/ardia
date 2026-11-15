@@ -124,6 +124,7 @@ internal class SampleSession(
     private var started = 0L
     private var foreignBefore = 0L
     private var ticksBefore = 0L
+    private var workerBefore = 0L
     private var finished = false
 
     fun start(): Boolean {
@@ -131,6 +132,7 @@ internal class SampleSession(
             started = clock()
             foreignBefore = LookActivity.foreignTraversals
             ticksBefore = LookActivity.tickNanos
+            workerBefore = LookActivity.sceneWorkerNanos
             previous = logging.current()
             val chained = ChainedPrinter(work, previous)
             logging.set(chained)
@@ -163,8 +165,9 @@ internal class SampleSession(
         val window = (clock() - started).toDouble()
         val foreign = LookActivity.foreignTraversals - foreignBefore
         val ticks = (LookActivity.tickNanos - ticksBefore) / 1_000_000.0
+        val worker = (LookActivity.sceneWorkerNanos - workerBefore) / 1_000_000.0
         val sample = synchronized(this) {
-            FrameSampler.Sample(totals.toList(), deadlines.toList(), refreshMillis, window, foreign, waits.toList(), ticks, work.nanos / 1_000_000.0, dropped)
+            FrameSampler.Sample(totals.toList(), deadlines.toList(), refreshMillis, window, foreign, waits.toList(), ticks, work.nanos / 1_000_000.0, dropped, worker)
         }
         close(sample)
     }
@@ -184,7 +187,7 @@ internal class SampleSession(
 }
 
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double, val droppedReports: Long = 0L)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double, val droppedReports: Long = 0L, val sceneWorkerMillis: Double = 0.0)
 
     private var active: SampleSession? = null
     private val main = Handler(Looper.getMainLooper())

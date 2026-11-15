@@ -32,7 +32,15 @@ class ForeignDrawsTest {
     }
 
     @org.junit.Before
-    fun reactFlags() = com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests.setUp()
+    fun reactFlags() {
+        com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests.setUp()
+        SceneWork.current = SceneWork.inline
+    }
+
+    @org.junit.After
+    fun backgroundScenes() {
+        SceneWork.current = SceneWork.background
+    }
 
     private val root = FrameLayout(activity)
     private val deck = DeckBackdropView(activity, appContext).apply { color = "#B04A7A" }

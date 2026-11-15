@@ -10,7 +10,7 @@ export const LOOK_BUDGET = {
   retryAfterMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
-export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number; waits?: number[]; tickMs?: number; mainThreadMs?: number; droppedReports?: number };
+export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number; waits?: number[]; tickMs?: number; mainThreadMs?: number; droppedReports?: number; sceneWorkerMs?: number };
 
 export type Judgement = {
   conclusive: boolean;
@@ -31,6 +31,7 @@ export type Judgement = {
   mainThreadMs?: number;
   wholeFrameBusyShare?: number;
   droppedReports?: number;
+  sceneWorkerMs?: number;
 };
 
 export type BudgetVerdict = "unknown" | "pass" | "fail";
@@ -89,7 +90,7 @@ export function judge(sample: FrameSample): Judgement {
   const droppedReports = sample.droppedReports ?? 0;
   const conclusive = foreignFrames === 0 && droppedReports === 0 && (frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp)));
   const over = conclusive && (tooBusy || !keepsUp);
-  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}) };
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}), ...(sample.sceneWorkerMs !== undefined && sample.sceneWorkerMs > 0 ? { sceneWorkerMs: sample.sceneWorkerMs } : {}) };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });
