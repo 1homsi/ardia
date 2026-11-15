@@ -22,6 +22,7 @@ import { SyncLab } from "./SyncLab";
 import { LookLab } from "./LookLab";
 import { ScanLab } from "./ScanLab";
 import { SystemLab } from "./SystemLab";
+import { TelemetryLab } from "./TelemetryLab";
 import { UpgradeLab } from "./UpgradeLab";
 import { CompletionLab } from "./CompletionLab";
 import { VoiceLab } from "./VoiceLab";
@@ -91,6 +92,7 @@ function Lab() {
   const [showView, setShowView] = useState(true);
   const [showSync, setShowSync] = useState(false);
   const [showSystem, setShowSystem] = useState(false);
+  const [showTelemetry, setShowTelemetry] = useState(false);
   const [showScan, setShowScan] = useState(false);
   const [swipeNavigation, setSwipeNavigation] = useState<"anywhere" | "edges" | "off">("anywhere");
   const [pullToRefresh, setPullToRefresh] = useState(true);
@@ -287,6 +289,7 @@ function Lab() {
       <ScrollView style={styles.controls} contentContainerStyle={styles.controlsContent}>
         {showSync && <SyncLab note={note} />}
         {showSystem && <SystemLab note={note} />}
+        {showTelemetry && <TelemetryLab note={note} />}
         {showScan && <ScanLab note={note} />}
         {showVoice && <VoiceLab note={note} />}
         {showLook && <LookLab />}
@@ -334,6 +337,7 @@ function Lab() {
           <Button label="Clear results" onPress={() => setResults([])} />
           <Button label={showSync ? "Hide sync" : "Sync"} active={showSync} onPress={() => setShowSync((shown) => !shown)} />
           <Button label={showSystem ? "Hide system" : "System"} active={showSystem} onPress={() => setShowSystem((shown) => !shown)} />
+          <Button label={showTelemetry ? "Hide telemetry" : "Telemetry"} active={showTelemetry} onPress={() => setShowTelemetry((shown) => !shown)} />
           <Button label={`Swipe ${swipeNavigation}`} onPress={() => setSwipeNavigation((mode) => (mode === "anywhere" ? "edges" : mode === "edges" ? "off" : "anywhere"))} />
           <Button label={pullToRefresh ? "Pull on" : "Pull off"} active={pullToRefresh} onPress={() => setPullToRefresh((on) => !on)} />
           <Button label={showScan ? "Hide scanner" : "Scanner"} active={showScan} onPress={() => setShowScan((shown) => !shown)} />
