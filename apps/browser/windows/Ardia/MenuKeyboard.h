@@ -53,6 +53,7 @@ struct MenuKeyboard {
   std::string typeAheadWindow;
   std::vector<INPUT> typeAhead;
   UINT_PTR typeAheadTimer = 0;
+  ULONGLONG typeAheadReadyAt = 0;
   std::atomic<bool> textInputFocused{false};
   std::set<UINT> swallowedKeyUps;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
@@ -128,6 +129,8 @@ struct MenuKeyboard {
   }
 
   static constexpr UINT kTypeAheadMs = 2000;
+  static constexpr UINT kQueueCheckMs = 15;
+  static constexpr ULONGLONG kQueueWaitMs = 500;
 
   static void AddKey(std::vector<INPUT> &keys, WORD virtualKey, WORD scan, DWORD flags) noexcept {
     INPUT down{};
@@ -141,18 +144,37 @@ struct MenuKeyboard {
     keys.push_back(up);
   }
 
+  void StartTypeAheadTimer(UINT ms, TIMERPROC done) noexcept {
+    if (typeAheadTimer) KillTimer(nullptr, typeAheadTimer);
+    typeAheadTimer = SetTimer(nullptr, 0, ms, done);
+  }
+
   void HoldTypeAhead(std::string const &windowId) noexcept {
     ReleaseTypeAhead(L"a new hold");
     typeAheadWindow = windowId;
-    typeAheadTimer = SetTimer(nullptr, 0, kTypeAheadMs, &MenuKeyboard::TypeAheadTimedOut);
+    typeAheadReadyAt = 0;
+    StartTypeAheadTimer(kTypeAheadMs, &MenuKeyboard::TypeAheadTimedOut);
   }
 
   static void CALLBACK TypeAheadTimedOut(HWND, UINT, UINT_PTR, DWORD) noexcept {
     Shared().ReleaseTypeAhead(L"no field took focus in time");
   }
 
+  static void CALLBACK TypeAheadQueueCheck(HWND, UINT, UINT_PTR, DWORD) noexcept {
+    Shared().ReleaseWhenQueueEmpty();
+  }
+
   void TypeAheadReady(std::string const &windowId) noexcept {
-    if (!typeAheadWindow.empty() && windowId == typeAheadWindow) ReleaseTypeAhead(L"the field took focus");
+    if (typeAheadWindow.empty() || windowId != typeAheadWindow || typeAheadReadyAt) return;
+    typeAheadReadyAt = GetTickCount64();
+    ReleaseWhenQueueEmpty();
+  }
+
+  void ReleaseWhenQueueEmpty() noexcept {
+    if (typeAheadWindow.empty() || !typeAheadReadyAt) return;
+    bool keysWaiting = (HIWORD(GetQueueStatus(QS_KEY)) & QS_KEY) != 0;
+    if (keysWaiting && GetTickCount64() - typeAheadReadyAt < kQueueWaitMs) return StartTypeAheadTimer(kQueueCheckMs, &MenuKeyboard::TypeAheadQueueCheck);
+    ReleaseTypeAhead(keysWaiting ? L"the field took focus and keys kept coming" : L"the field took focus");
   }
 
   void ReleaseTypeAhead(const wchar_t *why) noexcept {
@@ -162,6 +184,7 @@ struct MenuKeyboard {
     }
     if (typeAheadWindow.empty()) return;
     typeAheadWindow.clear();
+    typeAheadReadyAt = 0;
     std::vector<INPUT> keys;
     keys.swap(typeAhead);
     if (keys.empty()) return;
