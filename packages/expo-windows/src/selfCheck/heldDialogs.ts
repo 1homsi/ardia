@@ -99,7 +99,7 @@ async function heldFileDialogCancels(save: boolean, when: CancelWhen) {
     dialogs().devReleaseDialogs();
     const took = await closesWithin(CANCELLED_WITHIN_MS);
     expectTrue(took !== null, `the ${kind} was still open ${CANCELLED_WITHIN_MS} ms after its cancel`);
-    console.info(`[ardia windows] held ${kind}, ${shownAtCancel ? "its window shown" : "still starting"} at its cancel${shownAfter === null ? "" : ` (seen shown ${shownAfter} ms after its thread started)`}, closed ${took} ms after it`);
+    console.info(`[ardia windows] held ${kind}, ${shownAtCancel ? "its window shown" : "still starting"} at its cancel${shownAfter === null ? "" : ` (seen shown ${shownAfter} ms after the check saw its thread start)`}, closed ${took} ms after it`);
     expectTrue(dialogs().shownCount() === 0, `the ${kind}'s window is still recorded as shown after it closed`);
     expectTrue((await held) === false, "the cancelled dialog reported a pick");
   } finally {
