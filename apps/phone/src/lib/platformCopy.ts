@@ -31,6 +31,8 @@ export type PlatformCopy = {
   devicesShowLastSeen: boolean;
   devicesNameMacModels: boolean;
   stopSyncAsActionSheet: boolean;
+  menuRowTogglesSwitch: boolean;
+  menuLargeTextScale: number;
   pinFeedbackInMenu: boolean;
   findWaitsForMenu: boolean;
   menuTitleBelowAtLargeText: boolean;
@@ -70,6 +72,8 @@ const ANDROID: PlatformCopy = {
   devicesShowLastSeen: true,
   devicesNameMacModels: false,
   stopSyncAsActionSheet: false,
+  menuRowTogglesSwitch: true,
+  menuLargeTextScale: 1.3,
   pinFeedbackInMenu: false,
   findWaitsForMenu: false,
   menuTitleBelowAtLargeText: false,
@@ -114,6 +118,8 @@ const IOS: PlatformCopy = {
   devicesShowLastSeen: false,
   devicesNameMacModels: true,
   stopSyncAsActionSheet: true,
+  menuRowTogglesSwitch: false,
+  menuLargeTextScale: 1.6,
   pinFeedbackInMenu: true,
   findWaitsForMenu: true,
   menuTitleBelowAtLargeText: true,
