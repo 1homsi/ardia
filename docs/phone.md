@@ -1545,6 +1545,81 @@ bundletool compresses its dex.
 line, to the app's own UI) and the first deck open against the stored build, with each one's installed size. Every
 R8 build has to pass `check-names.py`.
 
+### Size on iPhone
+
+What an iPhone downloads and installs, measured 2026-11-16 without uploading anything. Each app was archived for a
+generic iOS device, Release, with code signing off: Expo 58 / React Native 0.88 at 773ee4ded, against main's SwiftUI
+app. Nothing touched the Apple developer account. An unsigned archive can't be exported, so there is no Xcode
+thinning report.
+
+- **Installed:** the archived `.app`, arm64 only.
+- **Download:** the payload zipped at level 9, close to an `.ipa`. App Store Connect's own report will be the real
+  figure: the App Store encrypts the executables, which then compress less, and thins the asset catalog.
+- **Simulator:** the simulator builds measure 86.4 and 46.4 MB, because they keep debug symbols and simulator-only
+  code. Don't quote those for a phone.
+
+| Build | Installed | Download (zip -9) |
+| --- | --- | --- |
+| Expo 58, as archived today | 60.0 MB | 26.9 MB |
+| Expo 58 with React Native's prebuilt frameworks stripped of symbols | 50.8 MB | 26.0 MB |
+| main's SwiftUI app | 27.7 MB | 16.8 MB |
+| Both, after the App Store drops the iPad copies of the app icon (estimate) | about 4.3 MB less each | about 4.3 MB less each |
+
+By part, installed (deflated):
+
+| Part | Expo 58 | SwiftUI |
+| --- | --- | --- |
+| App binary | 12.7 MB (4.7) | 5.9 MB (2.4) |
+| React Native's frameworks: React 11.6, hermesvm 6.1, ReactNativeDependencies 1.2, ExpoModulesJSI 1.2 | 20.1 MB as shipped, 10.8 stripped (3.9) | none |
+| JS bundle (Hermes bytecode) | 5.4 MB (2.2) | none |
+| The three extensions (Share, Open in Ardia, Widgets) | 11.2 MB (4.4) | 11.2 MB (4.4) |
+| Asset catalog | 9.4 MB (9.3) | 9.5 MB (9.4) |
+| ArdiaKit's resource bundles | 1.0 MB | 0.9 MB |
+
+**Where the Expo binary's 11.5 MB of linked code goes** (from its link map):
+- our native module with ArdiaKit linked in: 3.2 MB;
+- Expo UI: 2.2;
+- Expo's modules core: 1.3;
+- expo-sqlite: 1.2;
+- Reanimated: 1.0;
+- SVG: 0.5;
+- worklets: 0.4;
+- expo-file-system: 0.4;
+- then React Native's codegen, Gesture Handler, Expo's other modules and the linker's own.
+
+The SwiftUI app's 5.9 MB binary is ArdiaKit plus its SwiftUI screens.
+
+**The asset catalog is the largest part of both downloads, and it is the app icon.** The Icon Composer icon is stored
+as 1024 px renditions (any, dark, tinted), each once for iPhone and once for iPad: 8.6 of its 9.4 MB. It barely
+compresses. The App Store's thinning sends an iPhone only its own copies, about 4.3 MB less. Both apps carry the same
+icon, so it doesn't change the difference between them.
+
+**What could go without losing anything:**
+1. **The symbols in React Native's prebuilt frameworks.**
+   - Xcode strips what it builds, but these four come prebuilt and are copied in with their symbols.
+   - Stripping them (`strip -x -S` after they're embedded, keeping the archive's dSYMs) saves 9.2 MB installed but
+     only 0.9 MB of download, since symbols compress well.
+   - That's worth doing, as a build step after CocoaPods' "Embed Pods Frameworks". The app binary itself is already
+     stripped.
+2. **Nothing else:**
+   - Expo UI draws the Settings screens; expo-sqlite is the app's store; SVG draws the logo and the sync pictures;
+     Reanimated and worklets carry the motion.
+   - The extensions are the same in both apps.
+
+**Recommendation:** strip the four frameworks in the Release build. Read the real per-device download and install
+sizes from App Store Connect when the internal TestFlight build goes up.
+
+**Estimate for an iPhone after stripping and thinning:**
+
+| | Expo | SwiftUI |
+| --- | --- | --- |
+| Installed | about 46 MB | about 23 MB |
+| Download | about 22 MB | about 12.5 MB |
+
+The App Store's encryption of the executables can add a few megabytes to both downloads. So on an iPhone the Expo
+app is about twice the SwiftUI app. React Native itself (React, Hermes, Expo's modules) and the JS bundle are the
+difference, as on Android.
+
 ### iPhone
 
 ```
