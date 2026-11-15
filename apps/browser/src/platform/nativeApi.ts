@@ -1,3 +1,4 @@
+import type { WindowsNative } from "@ardia/shell";
 import { requireNativeModule, requireOptionalNativeModule } from "expo-modules-core";
 import { DEV_EVAL_RESULT, watchDevEval } from "../lib/devEval";
 
@@ -16,13 +17,17 @@ export const nativeApiSkew =
     : `Native API skew: this JS bundle needs native API ${needed}, but the app was built with ` +
       `${built || "none (a build from before the check)"}. Rebuild the app from this checkout.`;
 
-type Windows = { openWindow(id: string, options: { kind: string; title: string; focus: boolean }): Promise<void> };
+type Windows = Pick<WindowsNative, "openWindow" | "closeWindow"> & Partial<Pick<WindowsNative, "addListener">>;
 type Documents = { readDocument(name: string): string | null; writeDocument(name: string, contents: string): void };
 
 const skewedModule = <Module,>(name: string) => requireOptionalNativeModule<Module>(name) ?? requireNativeModule<Module>("ArdiaShell");
 
 export function openSkewWindow() {
-  void skewedModule<Windows>("ArdiaAppWindows").openWindow("native-api-skew", { kind: "settings", title: "Ardia", focus: false });
+  const windows = skewedModule<Windows>("ArdiaAppWindows");
+  windows.addListener?.("onWindowEvent", (event) => {
+    if (event.type === "closeRequest") void windows.closeWindow(event.id);
+  });
+  void windows.openWindow("native-api-skew", { kind: "settings", title: "Ardia", focus: false });
 }
 
 export function answerWithSkew(message: string) {
