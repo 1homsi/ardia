@@ -1,4 +1,4 @@
-import { clipboard, type ClipboardOffer } from "@ardia/phone-native";
+import { clipboard, system as nativeSystem, type ClipboardOffer } from "@ardia/phone-native";
 import { getStringAsync, hasStringAsync, setStringAsync } from "expo-clipboard";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { AndroidHaptics, impactAsync, ImpactFeedbackStyle, notificationAsync, NotificationFeedbackType, performAndroidHapticsAsync, selectionAsync } from "expo-haptics";
@@ -57,3 +57,5 @@ export async function clipboardOffer(): Promise<ClipboardOffer | null> {
 }
 
 export const prefetchImage = (uri: string): Promise<boolean> => Image.prefetch(uri);
+
+export const displayCornerRadius = (): number | null => nativeSystem.displayCornerRadius();

@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { incomingPose, outgoingPose, PAGER, resolvedOffset, snapTarget } from "../../lib/pagerPhysics";
+import { screenCornerRadius } from "../../state/app/displayCorner";
 import { haptics } from "../../state/app/haptics";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
@@ -94,7 +95,7 @@ export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }
 
   const outgoing = useAnimatedStyle(() => {
     const pose = outgoingPose(offset.value, span.value, hasLeft.value, hasRight.value, reduceMotion);
-    return { transform: [{ translateX: pose.x }, { scale: pose.scale }], borderRadius: active.value ? tabsLayout.displayCornerRadius : 0 };
+    return { transform: [{ translateX: pose.x }, { scale: pose.scale }], borderRadius: active.value ? cornerRadius : 0 };
   });
   const dim = useAnimatedStyle(() => ({ opacity: outgoingPose(offset.value, span.value, hasLeft.value, hasRight.value, reduceMotion).dim }));
 
@@ -120,7 +121,7 @@ export function PagerNeighbour({ pager, tab, side, width, statusHeight, hasLeft,
   const edge = side < 0 ? { left: width, experimental_backgroundImage: EDGE_SHADOW_TRAILING } : { left: -tabsLayout.pagerEdgeShadow, experimental_backgroundImage: EDGE_SHADOW_LEADING };
   return (
     <>
-      <Animated.View testID="pagerEdgeShadow" pointerEvents="none" style={[styles.edge, { top: tabsLayout.displayCornerRadius * 0.6, bottom: tabsLayout.displayCornerRadius * 0.6 }, edge, shadowStyle]} />
+      <Animated.View testID="pagerEdgeShadow" pointerEvents="none" style={[styles.edge, { top: cornerRadius * 0.6, bottom: cornerRadius * 0.6 }, edge, shadowStyle]} />
       <Animated.View style={[StyleSheet.absoluteFill, styles.card, { backgroundColor: theme.surface }, style]} pointerEvents="none">
         <View style={{ height: statusHeight, backgroundColor: tone?.top ?? theme.surface }} />
         <View style={styles.body}>
@@ -139,4 +140,6 @@ export function PagerBlack() {
   return <View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }]} />;
 }
 
-const styles = StyleSheet.create({ card: { overflow: "hidden", borderRadius: tabsLayout.displayCornerRadius }, edge: { position: "absolute", width: tabsLayout.pagerEdgeShadow }, body: { flex: 1 } });
+const cornerRadius = screenCornerRadius(tabsLayout.displayCornerRadius);
+
+const styles = StyleSheet.create({ card: { overflow: "hidden", borderRadius: cornerRadius }, edge: { position: "absolute", width: tabsLayout.pagerEdgeShadow }, body: { flex: 1 } });
