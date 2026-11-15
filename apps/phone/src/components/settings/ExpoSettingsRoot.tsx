@@ -15,7 +15,7 @@ import { closeSettings, settingsRouteKey, type SettingsRoute } from "../../state
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
-import { modifierList, pressableStyle, PROFILE_COLORS, settingsChrome, SettingsIconTile, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
+import { contentMargins, modifierList, pressableStyle, PROFILE_COLORS, settingsChrome, SettingsIconTile, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
 import { ExpoRowLabel } from "./ExpoRowLabel";
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
@@ -48,7 +48,7 @@ export function ExpoSettingsRoot() {
   const appearance = useAppearanceSummary(colorName);
   return (
     <Toolbar>
-      <Form modifiers={modifierList(navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome())}>
+      <Form modifiers={modifierList(navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome(), contentMargins({ edges: "top", length: 12 }))}>
         <Section modifiers={[listSectionSpacing(TOP_SECTION_SPACING)]}>
           <NavigationLink value={link({ page: "sync" })}>
             <SyncRow />

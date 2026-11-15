@@ -1,4 +1,4 @@
-export { closePage, pages } from "@ardia/phone-native";
+export { closePage, pages, type SitePermissionGrant, type SitePermissionKind } from "@ardia/phone-native";
 export type {
   FindResult,
   NightShadeMode,

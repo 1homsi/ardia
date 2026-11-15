@@ -6,7 +6,7 @@ import { setColorChoice, setInterfaceStyle, setSchemeChoice } from "../../state/
 import { usePreferences } from "../../state/settings/hooks";
 import { matchMyMac } from "../../state/sync/actions";
 import { useSyncEnabled } from "../../state/sync/hooks";
-import { CheckmarkLabel, ColorSwatch, modifierList, PROFILE_COLORS, settingsChrome, settingsSwitchStyle, settingsUIAvailable, useProfileLook, type ProfileColor } from "../ui";
+import { CheckmarkLabel, ColorSwatch, contentMargins, modifierList, PROFILE_COLORS, settingsChrome, settingsSwitchStyle, settingsUIAvailable, useProfileLook, type ProfileColor } from "../ui";
 
 const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
 const FILL = Number.MAX_SAFE_INTEGER;
@@ -18,7 +18,7 @@ export function ExpoAppearancePage() {
   const chosen = usePreferences((p) => p.colorChoice);
   const look = useProfileLook();
   return (
-    <Form modifiers={modifierList(navigationTitle("Appearance"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome())}>
+    <Form modifiers={modifierList(navigationTitle("Appearance"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome(), contentMargins({ edges: "top", length: 12 }))}>
       <Section>
         <VStack alignment="leading" spacing={12}>
           <Text>Color</Text>

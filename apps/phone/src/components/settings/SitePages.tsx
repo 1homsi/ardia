@@ -8,13 +8,13 @@ import { Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow } from "./Se
 import { useSyncEnabled, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName } from "../../state/sync/syncRules";
 
-const SWIPE_NAVIGATION = [
+export const SWIPE_NAVIGATION = [
   { id: "anywhere" as const, title: "From Anywhere" },
   { id: "screenEdges" as const, title: "From Screen Edges" },
   { id: "disabled" as const, title: "Off" },
 ];
 
-const NIGHT_SHADE = [
+export const NIGHT_SHADE = [
   { id: "disabled" as const, title: "Off" },
   { id: "automatic" as const, title: "Automatic" },
   { id: "always" as const, title: "Always" },

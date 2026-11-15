@@ -10,11 +10,12 @@ import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { LookBackdrop, modifierList, profileLook, settingsUIAvailable, useProfileLook, usesGlass } from "../ui";
 import { useChromeStyle } from "../../state/settings/appearance";
 import { ExpoAppearancePage } from "./ExpoAppearancePage";
+import { ExpoSiteSettingsPage } from "./ExpoSiteSettingsPage";
 import { ExpoSettingsRoot } from "./ExpoSettingsRoot";
 import { SettingsHostedContext } from "./SettingsKit";
 import { SettingsPageFor } from "./SettingsView";
 
-const CONVERTED: Partial<Record<SettingsRoute["page"], () => React.JSX.Element>> = { appearance: ExpoAppearancePage };
+const CONVERTED: Partial<Record<SettingsRoute["page"], () => React.JSX.Element>> = { appearance: ExpoAppearancePage, siteSettings: ExpoSiteSettingsPage };
 
 const TITLES: Record<SettingsRoute["page"], string> = {
   root: "Settings",
