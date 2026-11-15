@@ -102,7 +102,7 @@ object PhoneSync {
         labBuild = PhoneLab.isOn
     }
 
-    private fun connectedOnDisk(app: Context): Boolean = SyncFiles(File(app.noBackupFilesDir, "Sync")).loadMeta().enabled
+    internal fun connectedOnDisk(app: Context): Boolean = SyncFiles(File(app.noBackupFilesDir, "Sync")).loadMeta().enabled
 
     fun ownDeviceId(context: Context): String? {
         if (isDemo) return null
