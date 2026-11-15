@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { appProblems } from "../scripts/phone-sync-mac.mjs";
+import { appProblems, seedProfile } from "../scripts/phone-sync-mac.mjs";
 
 function world() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "phone-sync-mac-check-"));
@@ -47,4 +47,21 @@ test("Pods behind Podfile.lock are named, so pod install runs before the build",
   fs.writeFileSync(w.files.pods.lock, "PODS: b");
   assert.match(appProblems(w.app, w.files).join("\n"), /Pods are behind/);
   w.cleanup();
+});
+
+test("a seeded copy keeps the profile and drops every sync file, so it never resumes the old identity", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "seed-"));
+  const seed = path.join(root, "copy");
+  const data = path.join(root, "mac");
+  fs.mkdirSync(path.join(seed, "Chromium", "Default"), { recursive: true });
+  for (const name of ["session.json", "sync.json", "sync-state.nns", "sync-journal.nns", "sync-snapshot.nns", "sync-key-abc", ".sync-key-staging", "Chromium/Default/History"]) fs.writeFileSync(path.join(seed, name), name);
+  seedProfile(seed, data);
+  assert.deepEqual(fs.readdirSync(data).sort(), ["Chromium", "session.json"]);
+  assert.equal(fs.readFileSync(path.join(data, "Chromium/Default/History"), "utf8"), "Chromium/Default/History");
+  assert.ok(fs.existsSync(path.join(seed, "sync-key-abc")), "the copy it was given is left alone");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("--seed refuses a live profile path", () => {
+  assert.throws(() => seedProfile(path.join(os.homedir(), "Library/Application Support/Ardia"), "/tmp/never"), /never the live one|no profile copy/);
 });

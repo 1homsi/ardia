@@ -14,7 +14,7 @@
 // once against <work>/folder, writes the recovery phrase only to <work>/phrase.txt (mode 0600, never printed; the
 // relay's type-phrase puts it into the phone without it passing through a command line) and prints the folder and the
 // devices. --seed copies a copy of a real profile into <work>/mac first (only while <work>/mac doesn't exist yet), less
-// its sync.json, so the Mac starts with that profile's spaces and tabs and syncs only to <work>/folder; it refuses a
+// its sync files (sync.json, the sync state, journal and snapshot, and any sync key), so the Mac starts with that profile's spaces and tabs and syncs only to <work>/folder; it refuses a
 // path under Library/Application Support or Library/Containers, so it is never pointed at a live profile. status prints the devices the Mac sees (id, name, kind), each one's open tabs, and the tabs open on the
 // Mac, where a tab sent from the phone arrives; sync syncs now and prints the same. send opens URL in a background
 // tab on the Mac and sends it to the phone (the only device it can send to, or --to). stop quits the instance and
@@ -165,7 +165,9 @@ function printReport(state) {
   say(`tabs open on this Mac: ${state.macTabs.length}${state.macTabs.length ? `\n    ${state.macTabs.join("\n    ")}` : ""}`);
 }
 
-function seedProfile(seed, data) {
+export const isSyncFile = (name) => name === "sync.json" || name.startsWith("sync-state") || name.startsWith("sync-journal") || name.startsWith("sync-snapshot") || name.startsWith("sync-key-") || name.startsWith(".sync-key-");
+
+export function seedProfile(seed, data) {
   if (!fs.existsSync(seed)) throw new Error(`no profile copy at ${seed}`);
   if (/\/Library\/Application Support\//.test(seed) || /\/Library\/Containers\//.test(seed)) throw new Error("--seed takes a copy of a profile, never the live one");
   if (fs.existsSync(data)) {
@@ -173,8 +175,9 @@ function seedProfile(seed, data) {
     return;
   }
   fs.cpSync(seed, data, { recursive: true });
-  for (const name of ["sync.json"]) fs.rmSync(path.join(data, name), { force: true });
-  say(`seeded ${data} from ${seed}, without its sync file`);
+  const dropped = fs.readdirSync(data).filter(isSyncFile);
+  for (const name of dropped) fs.rmSync(path.join(data, name), { force: true });
+  say(`seeded ${data} from ${seed}, without its sync files (${dropped.join(", ") || "none"})`);
 }
 
 async function start(opts) {
