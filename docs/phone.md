@@ -1741,7 +1741,12 @@ Watch your own frames before you hand a change on. The loop, for any agent:
      (`xcrun simctl --set ~/.simlock/devices/ios uninstall <udid> com.ardia.browser.ios`).
    - A staged Release build is `/tmp/ardia-phone/swiftui-main.app`, with `swiftui-main.txt` saying from which commit.
      To make a fresh one (about 50 s), build `apps/ios/Ardia.xcodeproj` and copy out its `Ardia.app`:
-     `scripts/agent/locked xcodebuild -- xcodebuild -project apps/ios/Ardia.xcodeproj -scheme Ardia -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath <your dir> ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build`.
+     `scripts/agent/locked xcodebuild -- xcodebuild -project apps/ios/Ardia.xcodeproj -scheme Ardia -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath <your dir> ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= build`.
+     Sign it ad hoc like this, never with `CODE_SIGNING_ALLOWED=NO`. The ad hoc build carries simulated entitlements
+     (`application-identifier` `FAKETEAMID.com.ardia.browser.ios` and the app group), the same as `build-sim-app`'s
+     Expo builds. Without them the app has no Keychain: Sync With Mac stops at "Couldn't save the sync key in your
+     Keychain", and an upgrade can't carry the key over. Check with
+     `otool -l <app>/Ardia | grep -c 'sectname __entitlements'` (1).
    - Its launch arguments: `-ArdiaDemo YES`, `-ArdiaDeck deck`, `-ArdiaInterfaceStyle classic`,
      `-ArdiaColorScheme dark`, `-ArdiaOpenSheet history`, `-ArdiaSpace <syncId>` (all in `SettingsLaunchHooks.swift`).
    - Record both apps doing the same thing in the same state, light and dark, and compare the same crop.
@@ -2181,6 +2186,38 @@ build.
    - a tab sent from the Mac arrives once, and a page opened on the phone appears under its tabs on the Mac.
 7. **Kill and relaunch twice:** no second import line, the same counts, still connected.
 8. **Clean up:** `mac stop` deletes the scratch Mac and its folder; release the lease; delete the copy of the profile.
+
+**How the simulator half is wired** (worked out on the stand-in run, 2026-11-16):
+- **One folder for both sides, no relay.** The leased simulator's "On My iPhone" is the `File Provider Storage` of
+  its `group.com.apple.FileProvider.LocalStorage` app group container under
+  `~/.simlock/devices/ios/<udid>/data/Containers/Shared/AppGroup/` (read each container's
+  `.com.apple.mobile_container_manager.metadata.plist` for `MCMMetadataIdentifier`). Make `Ardia Sync` there, and
+  before `mac start` make `<work>/folder` a symlink to it. The Mac writes into it, and the phone's picker shows it as
+  On My iPhone › Ardia Sync.
+- **The phrase without a screen read:** on Enter Words, take one snapshot while the field is empty, to get the
+  field's ref and the Use Phrase button. Then `<agent-device> fill <field ref> --text-stdin < <work>/phrase.txt`,
+  which keeps the words out of argv and output, and press Use Phrase by its coordinates. Read the screen again only
+  once it shows "Step 1, done".
+- **The folder:** Choose Folder… › Browse › On My iPhone › Ardia Sync, then Open from inside the folder.
+- **Main's app must be the ad hoc build** (the simulator section above). A `CODE_SIGNING_ALLOWED=NO` build connects
+  but can't save the key.
+- **Expect Appearance to change once connected:** Match My Mac follows the Mac profile, so a profile set to dark turns
+  the phone dark.
+
+**The stand-in run (not the proof).** The owner's profile isn't on this Mac, and copying it is his to allow. So the
+tooling ran on a stand-in made through the app: `/tmp/ardia-phone-seed/standin-profile`, with its counts and recipe
+in `MANIFEST.md` beside it. It has 4 spaces with 40 tabs, 7 pins, a pinned folder, a split, 613 URLs and 3,025 visits
+over 79 days, ten settings off their defaults, and its own test sync identity. Chrome expires visits after 90 days,
+so no real profile holds more history than that. How far it got:
+- `mac start --seed` dropped the copy's `sync.json`, sync state and old key (1c83ccd5d) and came up with a new
+  device id, the 40 tabs, and sync on against the linked folder.
+- Main's app, the ad hoc build, onboarded and connected through the steps above. `mac sync` listed one `iPhone` phone
+  device, and the phone listed the Mac "shiv" with "Updated just now". Appearance turned dark from the Mac's
+  setting.
+- Then Simlock dropped the lease under a load of 63 and refused the device command ("too old to use through a
+  gateway"), so the simulator and its data were gone. "Before", the upgrade and "after" (steps 2 to 7) still have
+  to run. Opening tabs through the search field was also unreliable on main's app. Next time, open them from the
+  deck's New Tab and confirm each page loaded before the next.
 
 #### Sync on iPhone
 
