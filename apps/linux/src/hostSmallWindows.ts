@@ -141,9 +141,8 @@ export function smallWindowFrame(size: unknown, screen: ScreenArea): Frame | und
   if (!(screen.availWidth > 0) || !(screen.availHeight > 0)) return undefined;
   const width = Math.round(Math.min(Math.max(wanted, SMALL_WINDOW_MIN_SIZE[0]), screen.availWidth));
   const height = Math.round(Math.min(Math.max(tall, SMALL_WINDOW_MIN_SIZE[1]), screen.availHeight));
-  const lift = Math.min(screen.availHeight * 0.05, (screen.availHeight - height) / 2);
   const left = Math.round(screen.availLeft + (screen.availWidth - width) / 2);
-  const top = Math.round(screen.availTop + (screen.availHeight - height) / 2 - lift);
+  const top = Math.round(screen.availTop + (screen.availHeight - height) / 2);
   return [left, screen.height - (top + height), width, height];
 }
 

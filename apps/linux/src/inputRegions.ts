@@ -65,6 +65,7 @@ export function createInputRegions(deps: RegionDeps) {
   let frameQueued = false;
   let sentKey = "";
   let pagesKey = "";
+  let pageSlots: readonly Element[] = [];
   let sentFrame = Number.NaN;
   let inFlight = false;
   let stillFrames = 0;
@@ -167,8 +168,9 @@ export function createInputRegions(deps: RegionDeps) {
     const areas = measurePages();
     const pageRects = areas.map((page) => page.rect);
     const key = JSON.stringify(areas.map((page) => [page.rect, page.radii ?? null]));
-    if (key !== pagesKey) {
+    if (key !== pagesKey || areas.length !== pageSlots.length || areas.some((page, index) => page.slot !== pageSlots[index])) {
       pagesKey = key;
+      pageSlots = areas.map((page) => page.slot);
       deps.pagesChanged?.(areas);
     }
     let urgent = false;

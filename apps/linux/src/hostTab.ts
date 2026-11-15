@@ -17,6 +17,7 @@ export type HostPageFactory = (claim: string, nativeId: () => number | undefined
 export type TabViewport = { rect: { x: number; y: number; width: number; height: number }; visible: boolean };
 
 const claims = new WeakMap<ArdiaHost, Map<string, HostTab>>();
+const CREATING_LOAD_MS = 2_000;
 const ADOPTED_LIVE = ["tab", "ardiacore"];
 const ADOPTED_AS_COPIES = ["restore", "clone"];
 
@@ -42,9 +43,14 @@ export class HostTab {
   releaseScheduled = false;
   page: HostPageReceiver | undefined;
 
-  constructor(host: ArdiaHost, options: HostTabOptions, onEvent: (event: HostTabEvent) => void, page?: HostPageFactory) {
+  creating: { url: string; at: number } | null;
+  now: () => number;
+
+  constructor(host: ArdiaHost, options: HostTabOptions, onEvent: (event: HostTabEvent) => void, page?: HostPageFactory, now: () => number = Date.now) {
     this.host = host;
     this.key = options.key;
+    this.now = now;
+    this.creating = { url: options.url ?? "about:blank", at: now() };
     this.page = page?.(this.claim, () => this.identity?.browserId, (identity) => {
       if (this.disposed || !this.identity || claims.get(host)?.get(this.key) !== this) return;
       this.identity = { ...this.identity, browserId: identity.browserId, chromeTabId: identity.chromeTabId };
@@ -102,6 +108,13 @@ export class HostTab {
     });
   }
 
+  repeatsCreate(url: string) {
+    const creating = this.creating;
+    this.creating = null;
+    return !!creating && creating.url === url && this.now() - creating.at < CREATING_LOAD_MS;
+  }
+
+
   async command<T = unknown>(command: string, args: unknown[] = []): Promise<T> {
     await this.ready;
     const send = async () => {
@@ -140,6 +153,16 @@ export class HostTab {
     });
   }
 
+  shownViewport(): TabViewport | undefined {
+    if (!this.lastViewport || this.nextViewport || this.viewportSend) return undefined;
+    const viewport = JSON.parse(this.lastViewport) as TabViewport;
+    return viewport.visible ? viewport : undefined;
+  }
+
+  presentsNow() {
+    return !this.disposed && !!this.identity && !this.viewportSend && claims.get(this.host)?.get(this.key) === this;
+  }
+
   detach() {
     if (this.releaseScheduled) return;
     this.releaseScheduled = true;
@@ -160,4 +183,25 @@ export class HostTab {
     this.unsubscribe();
     this.detach();
   }
+}
+
+export function showInPlaceOf(from: HostTab, to: HostTab): boolean {
+  const viewport = from.shownViewport();
+  if (!viewport || from.host !== to.host || !from.presentsNow() || !to.presentsNow() || to.shownViewport()) return false;
+  const shown: TabViewport = { rect: viewport.rect, visible: true };
+  const hidden: TabViewport = { rect: viewport.rect, visible: false };
+  const send = (method: string, args: Record<string, unknown>, undo: () => void) => {
+    void new Promise((resolve) => resolve(to.host.invoke(method, args))).catch((error: unknown) => {
+      undo();
+      console.error("[ardia host] early tab switch failed", error);
+    });
+  };
+  to.lastViewport = JSON.stringify(shown);
+  from.lastViewport = JSON.stringify(hidden);
+  const toId = to.identity!.browserId;
+  const fromId = from.identity!.browserId;
+  send("tab.presentations", { tabs: [{ id: toId, claim: to.claim, visible: true }, { id: fromId, claim: from.claim, visible: false }] }, () => {});
+  send("tab.viewport", { id: toId, claim: to.claim, ...shown }, () => { if (to.lastViewport === JSON.stringify(shown)) to.lastViewport = ""; });
+  send("tab.viewport", { id: fromId, claim: from.claim, ...hidden }, () => { if (from.lastViewport === JSON.stringify(hidden)) from.lastViewport = ""; });
+  return true;
 }

@@ -31,6 +31,7 @@ import { linuxCapabilities } from "./hostCapabilities";
 import { useExtensions } from "../../browser/src/state/extensions/store";
 import { openExtensionFromMenu } from "../../browser/src/state/extensions/bridge";
 import { ardiaHost, invokeHost } from "./host";
+import { watchTabSwitches } from "./tabSwitchAhead";
 import { emitNativeEvent, setSharedCommands } from "./shims/expo-modules-core";
 import { configRestoreSession, startConfigFiles } from "../../browser/src/state/config/configFiles";
 import { colorRoles } from "../../browser/src/components/ui/tokens";
@@ -121,6 +122,7 @@ async function start() {
     startHostTabLifecycle(ardiaHost, useBrowser);
     startShellAbove(ardiaHost);
     startPipPlayer(ardiaHost);
+    watchTabSwitches(useBrowser);
     setPopupDismissal({ popup: () => useExtensions.getState().popup, windowOf: (tabId) => useBrowser.getState().tabs[tabId]?.windowId, close: () => useExtensions.setState({ popup: null }) });
     startEditTargets();
     startNotificationResponses();

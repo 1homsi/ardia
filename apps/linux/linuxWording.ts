@@ -132,6 +132,7 @@ export const LINUX_WORDING: readonly Wording[] = [
       ["How many times ⌘T kept a New Tab bar", "How many times Ctrl+T kept a New Tab bar"],
       ["How many times ⌥↩ in the command bar", "How many times Alt+Enter in the command bar"],
       ["how often the ⌃Tab switcher opens", "how often the Ctrl+Tab switcher opens"],
+      ["how many tabs were closed from it with ⌃W", "how many tabs were closed from it with Ctrl+W"],
       ["because the Touch ID or password request before it was declined", "because the system password request before it was declined"],
       ["How many times ⌘W closed several", "How many times Ctrl+W closed several"],
       ["Bringing your last window back from the Dock or at launch", "Bringing your last window back from the taskbar or at launch"],

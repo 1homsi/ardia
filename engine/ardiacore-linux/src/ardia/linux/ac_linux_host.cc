@@ -74,6 +74,8 @@
 #include "ardia/linux/ac_linux_tab_sleep.h"
 #include "ardia/linux/ac_linux_idle_profile_engine.h"
 #include "ardia/linux/ac_linux_idle_profiles.h"
+#include "ardia/linux/ac_linux_saved_history.h"
+#include "ardia/linux/ac_linux_saved_history_engine.h"
 #include "chrome/browser/ardia/ac_tab_restore.h"
 #include "ardia/linux/ac_linux_launch_steps.h"
 #include "ardia/linux/ac_linux_launch_urls.h"
@@ -1557,6 +1559,8 @@ class ShellHostView : public views::View,
                  base::OnceCallback<void(bool, base::Value)> done);
   void CreateTabIn(Profile* profile, const base::DictValue& args,
                    base::OnceCallback<void(bool, base::Value)> done);
+  void CreateTabFromSavedHistory(Profile* profile, const base::DictValue& args,
+                                 base::OnceCallback<void(bool, base::Value)> done);
   void CreateTabFromCopy(Profile* profile, const base::DictValue& args, const std::string& kind,
                          const std::string& source, base::OnceCallback<void(bool, base::Value)> done);
   void CreateTabAdopting(Profile* profile, base::DictValue args, content::WebContents* inserted,
@@ -5252,6 +5256,32 @@ void ShellHostView::CreateTab(
       }, GetWeakPtr(), renderer_generation_, args.Clone(), std::move(done)));
 }
 
+void ShellHostView::CreateTabFromSavedHistory(Profile* profile, const base::DictValue& args,
+                                              base::OnceCallback<void(bool, base::Value)> done) {
+  base::DictValue plain = args.Clone();
+  plain.Set(ardiacore::linux_saved_history::kReadArg, true);
+  const std::string key = String(args, "key");
+  const uint64_t ticket = ++restore_tickets_;
+  pending_restores_[key] = ticket;
+  ardiacore::ReadLinuxSavedTabHistory(profile, key, String(args, "url"), base::BindOnce(
+      [](base::WeakPtr<ShellHostView> host, uint64_t generation, base::WeakPtr<Profile> profile, std::string key,
+         uint64_t ticket, base::DictValue args, base::OnceCallback<void(bool, base::Value)> done, std::string state) {
+        if (!host) return std::move(done).Run(false, base::Value("The window closed while the tab's history was read"));
+        const auto pending = host->pending_restores_.find(key);
+        if (pending == host->pending_restores_.end() || pending->second != ticket) {
+          return std::move(done).Run(false, base::Value("The tab closed while its history was read"));
+        }
+        host->pending_restores_.erase(pending);
+        if (!host->browser_ || !host->handler_ || host->renderer_generation_ != generation || !profile ||
+            profile->ShutdownStarted()) {
+          return std::move(done).Run(false, base::Value("The window changed while the tab's history was read"));
+        }
+        content::WebContents* restored = state.empty() ? nullptr : host->InsertRestored(profile.get(), state);
+        host->CreateTabAdopting(profile.get(), std::move(args), restored, std::move(done));
+      },
+      GetWeakPtr(), renderer_generation_, profile->GetWeakPtr(), key, ticket, std::move(plain), std::move(done)));
+}
+
 void ShellHostView::CreateTabFromCopy(Profile* profile, const base::DictValue& args, const std::string& kind,
                                       const std::string& source, base::OnceCallback<void(bool, base::Value)> done) {
   base::DictValue plain = args.Clone();
@@ -5345,13 +5375,26 @@ void ShellHostView::CreateTabIn(
   const std::string adoption = String(args, "adoptId");
   const size_t adoption_colon = adoption.find(':');
   const std::string adoption_kind = adoption_colon == std::string::npos ? std::string() : adoption.substr(0, adoption_colon);
-  if (adoption_kind == "restore" || adoption_kind == "clone") {
-    bool held = false;
+  const auto key_held = [&key] {
     for (const auto& [window, host] : Hosts()) {
       TabBinding* existing = host->BindingForKey(key);
-      held = held || (existing && existing->contents());
+      if (existing && existing->contents()) return true;
     }
-    if (!held) return CreateTabFromCopy(profile, args, adoption_kind, adoption.substr(adoption_colon + 1), std::move(done));
+    return false;
+  };
+  if (adoption_kind == "restore" || adoption_kind == "clone") {
+    if (!key_held()) return CreateTabFromCopy(profile, args, adoption_kind, adoption.substr(adoption_colon + 1), std::move(done));
+  }
+  if (ardiacore::linux_saved_history::ReadsSavedHistory({
+          .off_the_record = profile->IsOffTheRecord(),
+          .temporary = args.FindBool("temporary").value_or(false),
+          .user_initiated = args.FindBool("userInitiated").value_or(false),
+          .already_read = args.FindBool(ardiacore::linux_saved_history::kReadArg).value_or(false),
+          .key = key,
+          .adoption = adoption,
+          .url = url.spec()}) &&
+      !key_held()) {
+    return CreateTabFromSavedHistory(profile, args, std::move(done));
   }
   TabBinding* binding = BindingForKey(key);
   if (binding && !ardiacore::linux_contract::CanReclaim(binding->claim, String(args, "previousClaim"))) {

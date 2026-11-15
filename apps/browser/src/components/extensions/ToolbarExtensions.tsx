@@ -10,7 +10,7 @@ import { usePages } from "../../state/tabs/pageState";
 import { ink, opacity } from "../ui/tokens";
 import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 import { BADGE_FALLBACK_FILL, TOOLBAR_DRAG_START } from "./tokens";
-import { useSlide } from "../bookmarks/barMotion";
+import { SLIDE } from "../tabstrip/tokens";
 import { isLight } from "../../lib/color";
 import { dropToolbarAnchor, setToolbarAnchor } from "../../state/extensions/toolbarAnchors";
 import {
@@ -92,9 +92,9 @@ function TabToolbarExtensions({
         drag,
         move: (id, from, dx) => setDrag({ id, from, dx }),
         drop: (id, from, dx) => {
-          setDrag(null);
           const to = dropIndex(from, dx, pitch, pinned.length);
           if (to !== from) void moveToolbarExtension(windowId, id, to);
+          setDrag(null);
         },
         cancel: () => setDrag(null),
       }
@@ -102,9 +102,13 @@ function TabToolbarExtensions({
   return (
     <View style={{ position: "absolute", top, right, flexDirection: "row", gap: GAP }}>
       {routes.length ? <CastButton windowId={windowId} tabId={tabId} routes={routes} palette={palette} /> : null}
-      {pinned.map((ext, index) => (
-        <ExtensionButton key={ext.id} ext={ext} index={index} reorder={reorder} windowId={windowId} tabId={tabId} ready={ready} palette={palette} onActivate={onActivate} />
-      ))}
+      {pinned.length ? (
+        <View style={{ width: pinned.length * pitch - GAP, height: pitch - GAP }}>
+          {paintOrder(pinned, drag?.id).map(({ ext, index }) => (
+            <ExtensionButton key={ext.id} ext={ext} index={index} pitch={pitch} reorder={reorder} windowId={windowId} tabId={tabId} ready={ready} palette={palette} onActivate={onActivate} />
+          ))}
+        </View>
+      ) : null}
       {overflow && <OverflowButton windowId={windowId} tabId={tabId} palette={palette} onActivate={onActivate} />}
     </View>
   );
@@ -147,6 +151,22 @@ function useAnchor(windowId: string, tabId: string, slot: string) {
   return { ref, measure };
 }
 
+const paintOrder = (pinned: InstalledExtension[], dragging: string | undefined) =>
+  pinned.map((ext, index) => ({ ext, index })).sort((a, b) => Number(a.ext.id === dragging) - Number(b.ext.id === dragging));
+
+function useSlotLeft(target: number, following: boolean, onSettled: () => void) {
+  const left = useRef(new Animated.Value(target)).current;
+  const settled = useRef(onSettled);
+  settled.current = onSettled;
+  useEffect(() => {
+    if (following) return left.setValue(target);
+    const slide = Animated.spring(left, { toValue: target, ...SLIDE });
+    slide.start(({ finished }) => finished && settled.current());
+    return () => slide.stop();
+  }, [target, following]);
+  return left;
+}
+
 type Reorder = {
   count: number;
   pitch: number;
@@ -172,7 +192,7 @@ function useReorderResponder(id: string, index: number, reorder: Reorder | undef
   );
 }
 
-function ExtensionButton({ ext, index, reorder, windowId, tabId, ready, palette, onActivate }: { ext: InstalledExtension; index: number; reorder?: Reorder; windowId: string; tabId: string; ready: boolean; palette: ToolbarPalette; onActivate?: () => void }) {
+function ExtensionButton({ ext, index, pitch, reorder, windowId, tabId, ready, palette, onActivate }: { ext: InstalledExtension; index: number; pitch: number; reorder?: Reorder; windowId: string; tabId: string; ready: boolean; palette: ToolbarPalette; onActivate?: () => void }) {
   const fetched = useExtensions((e) => (ready ? e.actions[tabId] : undefined));
   const held = useRef<ActionState | undefined>(undefined);
   if (fetched) held.current = fetched[ext.id];
@@ -187,22 +207,24 @@ function ExtensionButton({ ext, index, reorder, windowId, tabId, ready, palette,
   const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
   const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const responder = useReorderResponder(ext.id, index, reorder);
-  const dragging = reorder?.drag?.id === ext.id;
-  const slide = useSlide(reorder ? makeRoomShift(index, reorder.drag, reorder.pitch, reorder.count) : 0);
-  const dragX = dragging ? Math.max(-index * reorder!.pitch, Math.min((reorder!.count - 1 - index) * reorder!.pitch, reorder!.drag!.dx)) : 0;
+  const drag = reorder?.drag ?? null;
+  const dragging = drag?.id === ext.id;
+  const target = dragging ? Math.max(0, Math.min((reorder!.count - 1) * pitch, index * pitch + drag!.dx)) : index * pitch + makeRoomShift(index, drag, pitch, reorder?.count ?? 0);
+  const left = useSlotLeft(target, dragging, () => void measure());
+  const shownPalette = useMemo(() => (drag && !dragging ? { ...palette, hover: ink.clear } : palette), [palette, drag && !dragging]);
   return (
     <Animated.View
       ref={ref}
       collapsable={false}
       {...responder.panHandlers}
-      onLayout={() => void measure()}
-      style={{ zIndex: dragging ? 1 : 0, transform: [{ translateX: dragging ? dragX : slide }] }}
+      onLayout={() => void (drag ? undefined : measure())}
+      style={{ position: "absolute", top: 0, left }}
     >
       <ContextMenuArea onContextMenu={() => void showExtensionMenu(windowId, ext)}>
         <Button
           variant="icon"
           look="extension"
-          palette={palette}
+          palette={shownPalette}
           active={open}
           tooltip={title}
           onPressIn={pressMotion.onPressIn}

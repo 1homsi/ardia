@@ -59,7 +59,7 @@ test("a Little Ardia window's own renderer starts as that small window, with its
   const store = storage();
   const host = fakeHost();
   await opener(host, store)(id, { kind: "small", size: [900, 640], profile: "", frame: null });
-  assert.deepEqual(host.calls[0][1].args[1].frame, [510, 274, 900, 640], "it opens at the Little Ardia size, centred and lifted as on the Mac");
+  assert.deepEqual(host.calls[0][1].args[1].frame, [510, 220, 900, 640], "it opens at the Little Ardia size, centred as on the Mac");
   assert.ok(store.items.has(SMALL_WINDOW_SEED_PREFIX + id));
   const session = withSmallWindow({ bootstrap: { windowId: id, profileId: "default", pageProfile: "", startup: false } }, saved, store);
   assert.equal(session.windows[id].kind, "small");
@@ -152,12 +152,12 @@ test("seeds are checked before they are used", () => {
   assert.equal(secondRenderer(id, saved, undefined, now).windows[id].kind, "main", "without a seed the window is an ordinary one");
 });
 
-test("the Little Ardia frame is the Mac's: the saved size, at least 420 by 300, centred and lifted 5%", () => {
-  assert.deepEqual(smallWindowFrame([900, 640], SCREEN), [510, 274, 900, 640]);
-  assert.deepEqual(smallWindowFrame(undefined, SCREEN), [510, 274, 900, 640]);
-  assert.deepEqual(smallWindowFrame([100, 100], SCREEN), [750, 444, 420, 300]);
+test("the Little Ardia frame is the Mac's: the saved size, at least 420 by 300, centred in the work area", () => {
+  assert.deepEqual(smallWindowFrame([900, 640], SCREEN), [510, 220, 900, 640]);
+  assert.deepEqual(smallWindowFrame(undefined, SCREEN), [510, 220, 900, 640]);
+  assert.deepEqual(smallWindowFrame([100, 100], SCREEN), [750, 390, 420, 300]);
   assert.deepEqual(smallWindowFrame([4000, 4000], SCREEN), [0, 0, 1920, 1080]);
-  assert.deepEqual(smallWindowFrame([900, 1060], SCREEN), [510, 20, 900, 1060], "the lift never pushes it off the top");
+  assert.deepEqual(smallWindowFrame([900, 1060], SCREEN), [510, 10, 900, 1060], "a tall window stays centred on the screen");
   assert.equal(smallWindowFrame([900, 640], { ...SCREEN, availWidth: 0 }), undefined);
 });
 

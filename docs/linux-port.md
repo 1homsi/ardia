@@ -213,7 +213,7 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   window, on its command bar when its tab is blank. Once the native window has opened, the opener forgets its copy
   without closing the window, so the window lives in one store only and a tab it moves to the main window
   (Open in Ardia) arrives through the session like any other. The opener also sends the Mac's frame: the saved
-  Little Ardia size, at least 420 by 300, centred and lifted 5%. With an engine that advertises
+  Little Ardia size, at least 420 by 300, centred in the work area. With an engine that advertises
   `ArdiaShell.smallWindows` the shell does neither: the opener passes the same window and tab as `smallWindow` in the
   `openWindow` options and no frame, and the new renderer reads `windowKind` and `smallWindow` from its bootstrap
   (a relayed window has no 60 s limit). A bootstrap whose `windowKind` isn't `"small"` takes no seed at all. See
@@ -305,7 +305,10 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 - **Unloading idle profiles.** Settings › Advanced › Performance › Unload inactive profiles works as on macOS: the
   shared `state/profiles/profileUnloading.ts` calls `profiles.unloadIdle` for a profile no window shows. Only the
   window holding the tab-policy lock runs it (`startLinuxTabPolicies` in `hostPolicies.ts`), and only when the host
-  answers the call, so one renderer checks every minute instead of each window racing the others. The host
+  answers the call, so one renderer checks every minute instead of each window racing the others. The host reports
+  each tab it closes for the unload as the page's `windowClose`, before its reply, so the shell ignores that event
+  for a profile whose `profiles.unloadIdle` call is in flight and for a tab it put to sleep for the unload
+  (`closedByUnload`, checked by `pageAskedToClose`); the tabs stay in the sidebar and load again with their history. The host
   (`ac_linux_idle_profiles.cc`, Chrome glue in `ac_linux_idle_profile_engine.cc`) answers `busy` with `heldBy` when a
   tab of that profile has no binding (`tab`) or is visible, in its own window, capturing, in picture in picture or has
   DevTools open; when the profile is the app profile, has a private profile or a download (`profile`, `private`,
@@ -315,7 +318,15 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   saved, then closes each tab keeping its history (`KeepTabHistoryWhenClosed`, no closed-tab entry), closes the empty
   companions, drops the profile's first-window keep-alive and answers `released` (the profile is gone) or `pending`,
   with the unloaded tabs' keys in `tabs`. A profile that isn't loaded answers `released`. Test:
-  `engine/ardiacore-linux/tests/test_idle_profiles.py`.
+  `engine/ardiacore-linux/tests/test_idle_profiles.py`. When the profile opens again, `tab.create` for a tab of a
+  regular profile with no adoption id reads the history the engine kept for its key (`Ardia Tab History/<hex key>`)
+  on a background thread and recreates the tab from it when the file is version 1, its URL or virtual URL is the
+  tab's (fragment aside) and its generation is the profile's (`ac_tab_history_generation`, else the
+  `Ardia Tab History Cleared` marker), as macOS's `RestoreSavedHistory` does; otherwise the URL loads. Private
+  profiles, temporary views and user navigations never read it (`ac_linux_saved_history.cc`, Chrome glue in
+  `ac_linux_saved_history_engine.cc`). Test: `engine/ardiacore-linux/tests/test_saved_history.py`. As macOS's
+  `loadURL:` does, the shell drops the first `loadUrl` of the URL a tab was created with when it comes within 2 s
+  (`HostTab.repeatsCreate`), so it doesn't add a second entry after the restored ones.
 - **The window's active engine profile.** The Linux shell tells the host which engine profile the window shows
   (`ArdiaShell.setActiveProfile`, sent by `watchActiveProfile` in `hostWindowProfiles.ts` whenever the window's engine
   profile changes, with a sequence number so a late reply can't win). The extension toolbar, popups, side panels and
@@ -1413,7 +1424,7 @@ Both are ports of the Mac's native code (`ArdiaWebView+Peek.mm`, `ArdiaWebView+T
   listens for. Advertised as `ArdiaShell.resignActive`.
 - **Small windows.** `ArdiaShell.openWindow` with `kind: "small"` and no `frame` now opens at `size` (`[width,
   height]`, 900 by 640 without one), at least 420 by 300 and at most the work area of the opener's display, centred
-  and lifted 5% where the desktop has global coordinates (`RequestedSmallFrame`). A window that is small has the
+  in it where the desktop has global coordinates (`RequestedSmallFrame`). A window that is small has the
   Mac's minimum size, 420 by 300, through `chromium-linux-window-minimum-size.patch`
   (`BrowserView::GetMinimumSize` asks the host). The new window's bootstrap carries `windowKind` (`"small"`,
   `"browser"`, or `"settings"`/`"import"`), and, when the opener passed a `smallWindow` object in the options (up

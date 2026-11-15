@@ -16,6 +16,7 @@ import type { InputRegionsRegistry } from "../../inputRegions";
 import type { CornerRadii } from "../../hostExtensionView";
 import { notePageFocusRequest, notingPageFocus } from "../../pageFocus";
 import { withPopupDismissal } from "../../popupDismissal";
+import { registerSwitchView } from "../../tabSwitchAhead";
 
 export const HostWebView = forwardRef<WebViewHandle, WebViewProps>(function HostWebView(props, ref) {
   return props.extensionHost && extensionViewsSupported(ardiaHost) ? <HostExtensionWebView ref={ref} {...props} /> : <HostTabWebView ref={ref} {...props} />;
@@ -67,7 +68,10 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
       return async (...args: unknown[]) => {
         const current = tab.current;
         if (!current) throw new Error("Ardia tab is not mounted");
-        if (property === "loadUrl") args[0] = toEngineUrl(args[0] as string);
+        if (property === "loadUrl") {
+          args[0] = toEngineUrl(args[0] as string);
+          if (current.repeatsCreate(args[0] as string)) return undefined;
+        }
         if (property === "focus") notePageFocusRequest();
         if (property === "getSecurityInfo") return current.pageResult(property, args);
         const script = hostPageScript(property, args);
@@ -92,7 +96,12 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
     const node = element.current;
     const regions = inputRegions();
     if (!node || !regions) return;
-    return watchPageBelowShell(node, regions, () => latest.current.visible !== false, () => tab.current);
+    const stop = watchPageBelowShell(node, regions, () => latest.current.visible !== false, () => tab.current);
+    const unregister = props.tabId ? registerSwitchView(props.tabId, { tab: () => tab.current, slot: node, regions }) : () => {};
+    return () => {
+      unregister();
+      stop();
+    };
   }, []);
 
   return <View style={[props.style, { backgroundColor: "transparent" }]}><div ref={element} data-ardia-native-tab={key.current} style={{ position: "absolute", inset: 0 }} /></View>;

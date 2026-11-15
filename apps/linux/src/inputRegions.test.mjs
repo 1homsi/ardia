@@ -120,6 +120,20 @@ test("a slot registered with its corner radii hands them to the hole painter, wh
   assert.deepEqual(h.areasSeen.at(-1)[1].radii, radii);
 });
 
+test("a tab swapped for another in the same place reaches the hole painter, so the new slot's own backgrounds open", async () => {
+  const h = harness({ send: false });
+  const first = node({ x: 200, y: 50, width: 700, height: 700 });
+  const second = node({ x: 200, y: 50, width: 700, height: 700 });
+  h.registry.setPage(first, true);
+  await h.settle();
+  const seen = h.areasSeen.length;
+  h.registry.setPage(second, true);
+  h.registry.setPage(first, false);
+  await h.settle();
+  assert.equal(h.areasSeen.length, seen + 1);
+  assert.equal(h.areasSeen.at(-1)[0].slot, second);
+});
+
 test("without the host capability nothing is sent or hidden, but page areas still reach the hole painter", async () => {
   const h = harness({ send: false });
   h.registry.setPage(page, true);
