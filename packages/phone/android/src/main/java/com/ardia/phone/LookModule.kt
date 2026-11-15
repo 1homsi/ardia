@@ -6,8 +6,29 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class LookModule : Module() {
+    private val systemLook = SystemLookWatch(read = { appContext.reactContext?.let(SystemMotion::read) ?: SystemMotion.unknown }) { now ->
+        if (SystemMotion.note(now)) AttachedLookViews.all().forEach { it.invalidate() }
+        if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look system settings changed while running: reduce motion ${now["reduceMotion"]}, reduce transparency ${now["reduceTransparency"]}")
+        runCatching { sendEvent(SYSTEM_LOOK_CHANGED, now) }
+    }
+    private var systemLookObserver: SystemLookObserver? = null
+
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhoneLook")
+
+        Events(SYSTEM_LOOK_CHANGED)
+
+        Function("systemLook") { systemLook.check() }
+
+        OnCreate {
+            val context = appContext.reactContext ?: return@OnCreate
+            SystemMotion.note(systemLook.seed())
+            systemLookObserver = SystemLookObserver(context.applicationContext) { systemLook.check() }.also { it.start() }
+        }
+
+        OnActivityEntersForeground { systemLook.check() }
+
+        OnDestroy { systemLookObserver?.stop() }
 
         Function("setPageFrost") { mode: String ->
             check(PhoneLab.isOn) { "the page frost mode is a lab switch" }
@@ -198,5 +219,9 @@ class LookModule : Module() {
             Prop("reduceTransparency") { view: FrostView, value: Boolean? -> view.reduceTransparency = value == true }
             OnViewDidUpdateProps { view -> view.update() }
         }
+    }
+
+    companion object {
+        private const val SYSTEM_LOOK_CHANGED = "onSystemLookChange"
     }
 }

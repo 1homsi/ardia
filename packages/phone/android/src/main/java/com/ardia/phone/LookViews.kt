@@ -334,7 +334,9 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }.toTypedArray()
     }
 
-    private val still: Boolean get() = reduceMotion || budgetDegraded
+    private val systemStill: Boolean get() = reduceMotion || SystemMotion.reducedNow
+
+    private val still: Boolean get() = systemStill || budgetDegraded
 
     private val noBlobs: Boolean get() = reduceTransparency || budgetDegraded
 
@@ -511,7 +513,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         val dark = isDark
         val look = look
         val drawn = "${if (dark) "dark" else "light"}, look $look, ${width}x$height, " +
-            "${if (reduceMotion) "still (reduce motion)" else if (budgetDegraded) "still (look budget)" else "moving"}, " +
+            "${if (systemStill) "still (reduce motion${if (!reduceMotion) ", read natively" else ""})" else if (budgetDegraded) "still (look budget)" else "moving"}, " +
             "${if (reduceTransparency) "no blobs (reduce transparency)" else if (budgetDegraded) "no blobs (look budget)" else "blobs"}, " +
             (if (lookIsOff) "look switched off in the lab: flat colour" else "look on") +
             ", backdrop drawn as ${LookSwitch.backdropDraw(context).label} (scene ${(width / SCENE_SCALE).coerceAtLeast(1)}x${(height / SCENE_SCALE).coerceAtLeast(1)})"
