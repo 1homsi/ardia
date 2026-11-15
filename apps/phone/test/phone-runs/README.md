@@ -1,22 +1,37 @@
 # Phone runs: fixed-clock input and measurement
 
-The testers' tooling for measuring the Android app on a real phone the same way every run (sync11 and sync12 on
+The testers' tooling for measuring the Android app on a real phone the same way every run (sync11 to sync14 on
 the POCO M3 Pro), kept here so a run does not rebuild it. Evidence from each run stays under
 `/tmp/ardia-phone-shots/<build>-<phone>/`; nothing here writes there by itself.
 
-## The touch jar (not yet in the repo)
+## The touch jar
 
-`ardia-touch.jar` (class `agentd.ArdiaTouch`, run with `app_process`) replays a schedule of taps and swipes at fixed
-offsets, built from agent-os's own Hid/Input classes, so every mode gets identical input regardless of how fast the
-app settles. It lives on the phones in `/data/local/tmp/ardia-sync12/` and its source was not saved. The next tester
-who builds it should add its source and a build script to this folder. sync13's M3 tester rebuilt it from agent-os's uhid `Hid.java` (a report every 8 ms, taps held 50 ms); the sync14 tester saves the jar and its source under `touch-jar/` in its output, from which it moves here.
+`touch-jar/` holds the source of `ardia-touch.jar` (class `agentd.ArdiaTouch`, run with `app_process`). It replays a
+schedule of taps and swipes at fixed offsets through its own uhid touchscreen (`Hid.java`, agent-os be261a5a's file,
+whose input Xiaomi doesn't block as injected), so every mode gets identical input however fast the app settles.
+A stroke sends one report every 8 ms, a tap is held 50 ms, and the clock starts when it prints `ready`, once the
+device shows up in InputManager. It refuses anything but portrait.
+
+Build it with `touch-jar/build.sh [out.jar]` (javac `--release 11` against the SDK's `android.jar`, then `d8
+--min-api 33`), push it to the run's folder on the phone, and run
+`CLASSPATH=<folder>/ardia-touch.jar app_process /system/bin agentd.ArdiaTouch <schedule>` (`timed.sh` does this). It
+prints `done N ms; planned->started: …` with each step's planned and actual start. The sync13 and sync14 testers
+built it from this source against agent-os's stubs with agent-os's r8.jar (sync14's jar: sha256
+d0b5d083ee703e0c14201341e272435f31b5a856ac94481054fae27c4c52caba). This script's jar has the same classes but a
+different hash, so record the hash a run used.
 
 ## Schedules
 
 `sched-*.txt`: one action per line, `offset_ms action args`, where action is `tap x y` or `swipe x1 y1 x2 y2 ms`.
 Coordinates are for a 1080 × 2400 phone. `sched-expo13.txt` is the 37 s step-38 script for sync13 and later, whose bar puts New Tab at y 2184 (sync13 on the M3); `sched-expo.txt` is the same script for sync11 and sync12 (New Tab at y 1945);
 `sched-ds-*.txt` are the "Deck speed" windows (open, pre-position, scroll, tray); `sched-tray*.txt` open and close the
-tray over a page.
+tray over a page. For the layout from sync13 on (Tabs at 114,2200, New Tab at 540,2184, the focused card the right-hand
+one), from the sync14 M3 run:
+- `sched-scroll.txt`: the Deck speed script's step 2 from an open deck, five swipes 860 to 220 (300 ms) 1.5 s apart,
+  then five back;
+- `sched-deckcard.txt`: from a page, open the deck (Tabs), then the focused card, five times;
+- `sched-cardopen.txt`: from the deck, open the focused card, then the deck again, five times;
+- `sched-close7.txt` and `sched-close8.txt`: flick the focused card up to close it, seven or eight times, 1.5 s apart.
 
 ## Scripts
 
