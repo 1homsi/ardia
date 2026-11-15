@@ -39,7 +39,6 @@ final class TrayStageController: UIViewController {
     dim.alpha = 0
     dim.isUserInteractionEnabled = false
     tray.isHidden = true
-    tray.layer.anchorPoint = CGPoint(x: 0.5, y: 0)
     keyboardSentinel.isHidden = true
     host.safeAreaRegions = []
     host.sizingOptions = .preferredContentSize
@@ -69,7 +68,8 @@ final class TrayStageController: UIViewController {
     dim.frame = bounds
     let height = host.rootView == nil ? 0 : host.sizeThatFits(in: CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
     tray.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: height)
-    tray.center = CGPoint(x: bounds.midX, y: commandTop ?? bounds.maxY - height)
+    tray.layer.anchorPoint = CGPoint(x: 0.5, y: commandTop == nil ? 1 : 0)
+    tray.center = CGPoint(x: bounds.midX, y: commandTop ?? bounds.maxY)
     host.view.frame = tray.bounds
     trayHeight = height
     let space = [height, bounds.width, bounds.height, view.window?.safeAreaInsets.bottom ?? 0]

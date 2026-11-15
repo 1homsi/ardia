@@ -26,6 +26,7 @@ struct SearchTrayHost: View {
         commandTop: command.map { proxy.safeAreaInsets.top + $0.top }
       )
       .ignoresSafeArea()
+      .accessibilityAddTraits(shown == nil ? [] : .isModal)
     }
     .ignoresSafeArea(.keyboard)
     .onAppear { motion.startTrackingKeyboard() }
