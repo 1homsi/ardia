@@ -259,7 +259,7 @@ struct ModalOverWindow {
     if (pages.Count()) LaunchLog::Write(L"info", Paths::Wide(std::string{kind} + " holds " + std::to_string(pages.Count()) + " page window(s) until it closes"));
     ModalWatch::OnTick([this] {
       pages.Refresh();
-      parent.KeepDialogAboveOwner();
+      if (!ModalWatch::Cancelled()) parent.KeepDialogAboveOwner();
     });
   }
   ~ModalOverWindow() noexcept {

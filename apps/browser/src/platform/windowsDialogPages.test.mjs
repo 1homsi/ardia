@@ -55,7 +55,7 @@ test("every native modal runs through RunModal off the UI thread, and the app st
       for (const [, parent] of source.matchAll(call)) assert.ok(parent.startsWith("modal"), `${file} gives ${parent} to a dialog: a window on another thread must never own it`);
     }
   }
-  assert.match(module, /ModalWatch::OnTick\(\[this\] \{\n      pages\.Refresh\(\);\n      parent\.KeepDialogAboveOwner\(\);\n    \}\);/);
+  assert.match(module, /ModalWatch::OnTick\(\[this\] \{\n      pages\.Refresh\(\);\n      if \(!ModalWatch::Cancelled\(\)\) parent\.KeepDialogAboveOwner\(\);\n    \}\);/);
   assert.match(native("ModalThread.h"), /SetThreadDpiAwarenessContext\(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2\);/);
   const windows = native("WindowManager.h");
   assert.match(windows, /if \(message == WM_ACTIVATE && LOWORD\(wParam\) != WA_INACTIVE && DialogParts::BringModalForward\(hwnd\)\) return 0;/);
@@ -76,17 +76,18 @@ test("a file dialog cancelled at quit closes through Close and, if still open, t
   const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
   const dialogs = native("NativeDialogs.h");
-  assert.match(dialogs, /NoteCancel\(timing\.kind, L"cancelled \(Close: " \+ HexResult\(dialog->Close\(HRESULT_FROM_WIN32\(ERROR_CANCELLED\)\)\) \+ L"\)"\);\n\s+ModalWatch::OnStubborn\(/);
-  assert.match(dialogs, /timing\.byWindow = window && PostMessageW\(window, WM_COMMAND, IDCANCEL, 0\);/);
+  assert.match(dialogs, /NoteCancel\(timing\.kind, L"cancelled \(Close: " \+ HexResult\(dialog->Close\(HRESULT_FROM_WIN32\(ERROR_CANCELLED\)\)\) \+ L"\)"\);\n\s+CancelThroughWindow\(dialog\);\n\s+ModalWatch::OnStubborn\(\[this, dialog\] \{ CancelThroughWindow\(dialog\); \}\);/, "Close and the window's Cancel go together, and the Cancel is sent again until the dialog returns");
+  assert.match(dialogs, /if \(!PostMessageW\(window, WM_COMMAND, IDCANCEL, 0\)\) return;/);
   assert.match(dialogs, /L"closed " \+ std::to_wstring\(GetTickCount64\(\) - cancelledAt\) \+ L" ms after its cancel"/);
   for (const [file, kind] of [["NativeDialogs.h", "file picker"], ["NativeDialogs.h", "folder picker"], ["SaveDialog.h", "save panel"]]) assert.ok(native(file).includes(`FileDialogWatch watch(dialog.get(), "${kind}");`), kind);
   const thread = native("ModalThread.h");
-  assert.match(thread, /abandon\(\);\n\s+if \(state\.stubborn && !state\.stubbornTimer\) state\.stubbornTimer = SetTimer\(nullptr, 0, StubbornAfterMs, &AfterAbandon\);/);
+  assert.match(thread, /abandon\(\);\n\s+if \(state\.stubborn && !state\.stubbornTimer\) state\.stubbornTimer = SetTimer\(nullptr, 0, StubbornEveryMs, &AfterAbandon\);/);
   assert.match(thread, /if \(state\.stubbornTimer\) KillTimer\(nullptr, state\.stubbornTimer\);/);
   assert.match(dialogs, /~FileDialogWatch\(\) noexcept \{\n\s+ModalWatch::Disarm\(\);\n\s+if \(m_events\) m_dialog->Unadvise\(m_events\);/);
   assert.match(source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts") , /await Promise\.race\(\[held, settled\(GIVE_UP_MS\)\]\);/);
   const held = source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts");
-  assert.match(held, /if \(when === "shown"\) expectTrue\(await dialogWindowShown\(SHOWN_MS\), /, "the shown case waits for the dialog's own window, not only for the dialog thread to start");
+  assert.match(held, /const shownAfter = when === "shown" \? await dialogWindowShown\(SHOWN_ON_A_COLD_RUNNER_MS\) : null;/, "the shown case waits for the dialog's own window, not only for the dialog thread to start");
+  assert.match(held, /const SHOWN_ON_A_COLD_RUNNER_MS = 15000;/, "a cold runner's first dialog was seen still starting after 5 s (#1956)");
   assert.match(held, /run: \(\) => heldFileDialogCancels\(false, "atOnce"\),/);
   assert.doesNotMatch(held, /while it is still starting/, "no check claims a cancel during startup it can't force");
   assert.match(held, /\$\{shownAtCancel \? "its window shown" : "still starting"\} at its cancel/);
@@ -110,4 +111,18 @@ test("every dialog's thread logs when it started, when its window showed, when a
   assert.ok(native("DialogsModule.h").includes("watch(owner, kind)"), "each dialog's watch knows its kind");
   const smoke = readFileSync(new URL("../../../../scripts/windows/launch-smoke.ps1", import.meta.url), "utf8");
   assert.ok(smoke.includes('-Pattern "self-check|webgl2 probe|^dialog |^(js-error|fatal|error) "'), "CI prints the dialog lines beside the self-check's");
+});
+
+test("a cancel reaches each dialog's thread at once, not at its next 250 ms check, and a cancelled dialog is no longer brought forward", () => {
+  const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
+  const thread = native("ModalThread.h");
+  assert.match(thread, /registry\.stopping = true;\n\s+registry\.freed\.notify_all\(\);\n\s+WakeModals\(\);/, "a quit wakes every dialog thread");
+  assert.match(thread, /ModalRegistry::Shared\(\)\.releases\+\+;\n\s+WakeModals\(\);/, "so does the self-check's release");
+  assert.match(thread, /for \(HWND parent : registry\.parents\) PostMessageW\(parent, ModalCancelMessage, 0, 0\);/);
+  assert.match(thread, /if \(message != ModalCancelMessage\) return DefWindowProcW\(window, message, wParam, lParam\);\n\s+WatchOwner\(nullptr, 0, 0, 0\);/, "the dialog thread's own parent window runs the same check as its timer");
+  assert.match(thread, /type\.lpfnWndProc = ModalParentProcedure;/);
+  assert.match(thread, /if \(m_window\) Listed\(true\);/);
+  assert.match(thread, /Listed\(false\);\n\s+DestroyWindow\(m_window\);/, "a parent leaves the list before its window goes");
+  assert.match(thread, /inline void CALLBACK AfterAbandon\(HWND, UINT, UINT_PTR, DWORD\) noexcept \{\n\s+std::function<void\(\)> stubborn = WatchState\(\)\.stubborn;/, "the window Cancel repeats until the dialog returns and Disarm stops it");
+  assert.match(native("DialogsModule.h"), /if \(!ModalWatch::Cancelled\(\)\) parent\.KeepDialogAboveOwner\(\);/);
 });

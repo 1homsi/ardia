@@ -89,13 +89,30 @@ struct FileDialogWatch {
     ModalWatch::OnAbandon([this, dialog] {
       timing.cancelledAt = GetTickCount64();
       NoteCancel(timing.kind, L"cancelled (Close: " + HexResult(dialog->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED))) + L")");
-      ModalWatch::OnStubborn([this, dialog] {
-        HWND window = FileDialogWindow(dialog);
-        bool visible = window && IsWindowVisible(window);
-        timing.byWindow = window && PostMessageW(window, WM_COMMAND, IDCANCEL, 0);
-        NoteCancel(timing.kind, timing.byWindow ? L"still open " + std::to_wstring(StubbornAfterMs) + L" ms after Close: sent Cancel to its window" + (visible ? L"" : L", not shown yet") : std::wstring{L"still open after Close, and no window to send Cancel to"});
-      });
+      CancelThroughWindow(dialog);
+      ModalWatch::OnStubborn([this, dialog] { CancelThroughWindow(dialog); });
     });
+  }
+
+  void CancelThroughWindow(IFileDialog *dialog) noexcept {
+    ULONGLONG now = GetTickCount64();
+    std::wstring since = std::to_wstring(now - timing.cancelledAt) + L" ms after Close";
+    HWND window = FileDialogWindow(dialog);
+    if (!window) {
+      if (!m_saidNoWindow) NoteCancel(timing.kind, L"has no window yet " + since + L": its Cancel waits for one");
+      m_saidNoWindow = true;
+      return;
+    }
+    bool visible = IsWindowVisible(window) != FALSE;
+    if (!PostMessageW(window, WM_COMMAND, IDCANCEL, 0)) return;
+    if (!timing.byWindow) {
+      timing.byWindow = true;
+      m_saidAt = now;
+      NoteCancel(timing.kind, L"sent Cancel to its window " + since + (visible ? L"" : L", not shown yet"));
+    } else if (now - m_saidAt >= StillOpenNoteMs) {
+      m_saidAt = now;
+      NoteCancel(timing.kind, L"still open " + since + L", its thread running: sent Cancel to its window again");
+    }
   }
   ~FileDialogWatch() noexcept {
     ModalWatch::Disarm();
@@ -107,8 +124,12 @@ struct FileDialogWatch {
   CancelTiming timing;
 
  private:
+  static constexpr ULONGLONG StillOpenNoteMs = 500;
+
   IFileDialog *m_dialog;
   DWORD m_events = 0;
+  bool m_saidNoWindow = false;
+  ULONGLONG m_saidAt = 0;
 };
 
 inline HRESULT CALLBACK ConfirmEvents(HWND dialog, UINT notification, WPARAM, LPARAM, LONG_PTR data) noexcept {

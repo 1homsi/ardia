@@ -8,6 +8,7 @@ import type { TabEvent } from "./engineHost";
 const LOAD_MS = 8000;
 const STALLED_MS = 3000;
 const SHOWN_MS = 4000;
+const SHOWN_ON_A_COLD_RUNNER_MS = 15000;
 const CANCELLED_WITHIN_MS = 1000;
 const GIVE_UP_MS = 3000;
 
@@ -75,11 +76,12 @@ async function closesWithin(withinMs: number) {
 }
 
 async function dialogWindowShown(withinMs: number) {
-  for (let waited = 0; waited < withinMs; waited += 50) {
-    if (dialogs().shownCount() > 0) return true;
+  const began = Date.now();
+  while (Date.now() - began < withinMs) {
+    if (dialogs().shownCount() > 0) return Date.now() - began;
     await settled(50);
   }
-  return false;
+  return null;
 }
 
 type CancelWhen = "shown" | "atOnce";
@@ -91,12 +93,13 @@ async function heldFileDialogCancels(save: boolean, when: CancelWhen) {
   const held = dialogs().devHoldFileDialog(windowId, save);
   try {
     expectTrue(await heldConfirmShown(), `the held ${kind} never started`);
-    if (when === "shown") expectTrue(await dialogWindowShown(SHOWN_MS), `the held ${kind} never showed its window`);
+    const shownAfter = when === "shown" ? await dialogWindowShown(SHOWN_ON_A_COLD_RUNNER_MS) : null;
+    if (when === "shown") expectTrue(shownAfter !== null, `the held ${kind} never showed its window in ${SHOWN_ON_A_COLD_RUNNER_MS} ms`);
     const shownAtCancel = dialogs().shownCount() > 0;
     dialogs().devReleaseDialogs();
     const took = await closesWithin(CANCELLED_WITHIN_MS);
     expectTrue(took !== null, `the ${kind} was still open ${CANCELLED_WITHIN_MS} ms after its cancel`);
-    console.info(`[ardia windows] held ${kind}, ${shownAtCancel ? "its window shown" : "still starting"} at its cancel, closed ${took} ms after it`);
+    console.info(`[ardia windows] held ${kind}, ${shownAtCancel ? "its window shown" : "still starting"} at its cancel${shownAfter === null ? "" : ` (seen shown ${shownAfter} ms after its thread started)`}, closed ${took} ms after it`);
     expectTrue(dialogs().shownCount() === 0, `the ${kind}'s window is still recorded as shown after it closed`);
     expectTrue((await held) === false, "the cancelled dialog reported a pick");
   } finally {
