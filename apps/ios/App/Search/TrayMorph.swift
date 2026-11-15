@@ -18,7 +18,15 @@ struct BarTarget {
 struct BarArrival {
   let owner: BarOwner
   let size: CGSize
-  let face: UIView
+  let image: UIImage
+
+  @MainActor
+  func makeFace() -> UIView {
+    let face = UIImageView(image: image)
+    face.frame = CGRect(origin: .zero, size: size)
+    face.isUserInteractionEnabled = false
+    return face
+  }
 
   func fits(_ target: BarTarget) -> Bool {
     owner == target.owner && abs(size.width - target.frame.width) < 1 && abs(size.height - target.frame.height) < 1
@@ -29,30 +37,38 @@ struct BarArrival {
 final class TrayMorph {
   let view = TrayMorphView()
   private var flight: UIViewPropertyAnimator?
+  private var folding: [UIViewPropertyAnimator] = []
   private var destination: CGRect?
   private var fades: [UIViewPropertyAnimator] = []
   private(set) var hasFlown = false
 
-  static let contentFade = Motion.fadeCurve
-  static let tintFade = MotionCurve.easeOut(duration: 0.28)
-  static let handoff = Motion.fadeCurve
+  static let contentFade = MotionCurve.easeOut(duration: 0.035)
+  static let tintFade = MotionCurve(0.42, 0, 0.58, 1, duration: 0.16)
+  static let handoff = Motion.trayHandOff
   static let flightSpring = Motion.smoothSpring
-  static let arrival: CGFloat = 2
-  static let arrivalFade = MotionCurve.easeOut(duration: 0.15)
-  static let arrivalDelay: TimeInterval = 0.12
+  static let arrival: CGFloat = 0.17
+  static let arrivalFade = MotionCurve.easeOut(duration: 0.1)
+  static let arrivalDelay: TimeInterval = 0.02
 
   struct Start {
     var frame: CGRect
     var radius: CGFloat
   }
 
-  init(card: CGRect, of tray: UIView, in stage: UIView, look: TrayMorphLook, from start: Start? = nil) {
+  init(card: CGRect, fieldCenter: CGFloat, of tray: UIView, in stage: UIView, look: TrayMorphLook, from start: Start? = nil) {
     let cardFrame = tray.convert(card, to: stage).offsetBy(dx: 0, dy: Self.unfinishedTravel(of: tray))
-    let frame = start?.frame ?? cardFrame
-    view.configure(look: look, contents: tray.resizableSnapshotView(from: card, afterScreenUpdates: false, withCapInsets: .zero))
-    view.shape(to: frame, radius: start?.radius ?? BrowseLayout.panelRadius)
-    view.contents.subviews.first?.frame.origin = CGPoint(x: cardFrame.minX - frame.minX, y: cardFrame.minY - frame.minY)
+    let snapshot = tray.resizableSnapshotView(from: card, afterScreenUpdates: false, withCapInsets: .zero)
+    view.configure(look: look, contents: snapshot, cardSize: card.size, fieldCenter: fieldCenter)
+    view.shape(to: start?.frame ?? cardFrame, radius: start?.radius ?? BrowseLayout.panelRadius)
+    view.isHidden = true
     stage.addSubview(view)
+  }
+
+  private func appear() {
+    UIView.performWithoutAnimation { view.isHidden = false }
+  }
+
+  private func startFades() {
     fades = [
       Self.run(Self.contentFade) { [view] in view.contents.alpha = 0 },
       Self.run(Self.tintFade) { [view] in view.tint.alpha = 0 },
@@ -62,7 +78,7 @@ final class TrayMorph {
   var hasDestination: Bool { destination != nil }
 
   var isMoving: Bool {
-    guard let flight, flight.isRunning else { return false }
+    guard let flight, flight.isRunning || folding.contains(where: \.isRunning) else { return false }
     guard let destination, let shown = view.layer.presentation()?.frame else { return true }
     return Self.gap(between: shown, and: destination) > Self.arrival
   }
@@ -80,31 +96,61 @@ final class TrayMorph {
     guard !hasFlown else { return }
     hasFlown = true
     destination = target.frame
+    appear()
+    startFades()
     if let arrival, arrival.fits(target) {
-      view.carry(arrival.face)
+      UIView.performWithoutAnimation { view.carry(arrival.makeFace()) }
       fades.append(Self.run(Self.arrivalFade, after: Self.arrivalDelay) { [view] in view.arrival.alpha = 1 })
     }
-    let animator = UIViewPropertyAnimator(duration: duration, timingParameters: timing)
-    animator.addAnimations { [view] in
-      view.shape(to: target.frame, radius: target.frame.height / 2)
+    let start = view.frame
+    let radius = view.radius
+    let dropped = CGRect(x: start.minX, y: target.frame.midY - start.height / 2, width: start.width, height: start.height)
+    let folded = CGRect(x: start.minX, y: target.frame.midY - target.frame.height / 2, width: start.width, height: target.frame.height)
+    let travel = UIViewPropertyAnimator(duration: duration, timingParameters: timing)
+    travel.addAnimations { [view] in
+      view.shape(to: dropped, radius: radius)
       view.settle(style: target.style)
     }
-    animator.startAnimation()
-    flight = animator
+    let fold = UIViewPropertyAnimator(duration: Motion.trayFold.settlingDuration, timingParameters: Self.critical(Motion.trayFold))
+    fold.addAnimations { [view] in view.shape(to: folded, radius: target.frame.height / 2) }
+    let narrow = UIViewPropertyAnimator(duration: Motion.trayWiden.settlingDuration, timingParameters: Self.critical(Motion.trayWiden))
+    narrow.addAnimations { [view] in view.shape(to: target.frame, radius: target.frame.height / 2) }
+    travel.startAnimation()
+    fold.startAnimation(afterDelay: Motion.trayFoldLag)
+    narrow.startAnimation(afterDelay: Motion.trayFoldLag + Motion.trayFold.time(toReach: Motion.trayFoldBeforeNarrowing))
+    flight = travel
+    folding = [fold, narrow]
+  }
+
+  private static func critical(_ spring: Spring) -> UISpringTimingParameters {
+    UISpringTimingParameters(duration: spring.duration, bounce: spring.bounce)
   }
 
   func vanish() {
     guard !hasFlown else { return }
     hasFlown = true
+    appear()
+    startFades()
     flight = Self.run(Self.handoff) { [view] in view.alpha = 0 }
   }
 
   func handOff() {
+    if let destination {
+      flight?.stopAnimation(true)
+      folding.forEach { $0.stopAnimation(true) }
+      UIView.performWithoutAnimation {
+        view.shape(to: destination, radius: destination.height / 2)
+        view.alpha = 0
+      }
+      DispatchQueue.main.async { self.remove() }
+      return
+    }
     let fade = Self.run(Self.handoff) { [view] in view.alpha = 0 }
     fade.addCompletion { _ in self.remove() }
   }
 
   func remove() {
+    folding.forEach { $0.stopAnimation(true) }
     flight?.stopAnimation(true)
     fades.forEach { $0.stopAnimation(true) }
     view.removeFromSuperview()
@@ -124,6 +170,9 @@ final class TrayMorphView: UIView {
   let contents = UIView()
   let arrival = UIView()
   private var classicFill: UIColor?
+  private var cardSize = CGSize.zero
+  private var fieldCenter: CGFloat = 0
+
 
   init() {
     super.init(frame: .zero)
@@ -132,22 +181,25 @@ final class TrayMorphView: UIView {
     contents.clipsToBounds = true
     contents.layer.cornerCurve = .continuous
     arrival.alpha = 0
-    arrival.clipsToBounds = true
-    arrival.layer.cornerCurve = .continuous
   }
 
   func carry(_ face: UIView) {
     arrival.subviews.forEach { $0.removeFromSuperview() }
     arrival.bounds = CGRect(origin: .zero, size: face.bounds.size)
-    arrival.layer.cornerRadius = face.bounds.height / 2
     arrival.center = CGPoint(x: bounds.midX, y: bounds.midY)
     face.frame.origin = .zero
     arrival.addSubview(face)
   }
 
+  private var fieldAnchor: CGPoint {
+    CGPoint(x: bounds.midX, y: min(fieldCenter, bounds.height / 2))
+  }
+
   required init?(coder: NSCoder) { nil }
 
-  func configure(look: TrayMorphLook, contents snapshot: UIView?) {
+  func configure(look: TrayMorphLook, contents snapshot: UIView?, cardSize: CGSize, fieldCenter: CGFloat) {
+    self.cardSize = cardSize
+    self.fieldCenter = fieldCenter
     if look.usesGlass {
       surface = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
     } else {
@@ -162,14 +214,17 @@ final class TrayMorphView: UIView {
     tint.overrideUserInterfaceStyle = look.panelStyle
     tint.layer.cornerCurve = .continuous
     tint.clipsToBounds = true
-    [surface, tint, contents, arrival].forEach(addSubview)
+    [tint, surface, contents, arrival].forEach(addSubview)
     if let snapshot {
-      snapshot.frame.origin = .zero
+      snapshot.frame = CGRect(origin: .zero, size: cardSize)
       contents.addSubview(snapshot)
     }
   }
 
+  private(set) var radius: CGFloat = 0
+
   func shape(to frame: CGRect, radius: CGFloat) {
+    self.radius = radius
     self.frame = frame
     let bounds = CGRect(origin: .zero, size: frame.size)
     for piece in [surface, tint, contents] {
@@ -182,7 +237,12 @@ final class TrayMorphView: UIView {
     }
     tint.layer.cornerRadius = radius
     contents.layer.cornerRadius = radius
+    let anchor = fieldAnchor
     arrival.center = CGPoint(x: bounds.midX, y: bounds.midY)
+    guard let snapshot = contents.subviews.first, cardSize.width > 0 else { return }
+    let scale = frame.width / cardSize.width
+    snapshot.transform = CGAffineTransform(scaleX: scale, y: scale)
+    snapshot.center = CGPoint(x: anchor.x, y: anchor.y + (cardSize.height / 2 - fieldCenter) * scale)
   }
 
   func settle(style: UIUserInterfaceStyle) {

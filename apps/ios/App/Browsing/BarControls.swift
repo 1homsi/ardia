@@ -107,6 +107,7 @@ struct BarMenuButton: View {
 struct BarAddressLabel: View {
   let address: BarAddress
   var compact = false
+  var favicon: FaviconImage.Prepared?
 
   @ScaledMetric(relativeTo: .subheadline) private var iconSize: CGFloat = 16
   @ScaledMetric(relativeTo: .subheadline) private var compactIconSize: CGFloat = 13
@@ -143,7 +144,7 @@ struct BarAddressLabel: View {
         .foregroundStyle(BrowsePalette.foregroundSecondary)
         .accessibilityHidden(true)
     } else if address.pageURL != nil {
-      FaviconImage(iconURL: address.iconURL, pageURL: address.pageURL, size: size)
+      FaviconImage(iconURL: address.iconURL, pageURL: address.pageURL, size: size, prepared: favicon)
         .accessibilityHidden(true)
     }
   }

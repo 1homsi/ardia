@@ -29,7 +29,7 @@ struct StartBar: View {
         .barReturn(.leading, isShown: sidesShown)
       Spacer(minLength: TabsLayout.barGap)
       PlusButton(actions: plus, width: TabsLayout.barPlus.width)
-        .reportsBarAnchor(.start)
+        .reportsBarAnchor(.start, face: .plus)
         .barReturn(.centre, isShown: centreShown)
       Spacer(minLength: TabsLayout.barGap)
       GlassCircleButton(symbol: "gearshape", label: "Settings", action: settings)

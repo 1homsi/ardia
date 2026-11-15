@@ -79,6 +79,31 @@ public enum BrowseLayout {
   public static let toolbarTile: CGFloat = 78
 }
 
+#if canImport(UIKit)
+  public extension UIView {
+    func fade(to opacity: Float, after delay: CFTimeInterval, from base: CFTimeInterval, curve: MotionCurve) {
+      let from = (layer.presentation() ?? layer).opacity
+      UIView.performWithoutAnimation {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.removeAllAnimations()
+        layer.opacity = opacity
+        CATransaction.commit()
+      }
+      let fade = CABasicAnimation(keyPath: "opacity")
+      fade.fromValue = from
+      fade.toValue = opacity
+      fade.beginTime = base + delay
+      fade.duration = curve.duration
+      fade.fillMode = .backwards
+      fade.timingFunction = CAMediaTimingFunction(
+        controlPoints: Float(curve.start.x), Float(curve.start.y), Float(curve.end.x), Float(curve.end.y)
+      )
+      layer.add(fade, forKey: "fade")
+    }
+  }
+#endif
+
 public extension Motion {
   static let searchRise = rise
   static let surfaceSwap = Animation.easeOut(duration: 0.18)
@@ -92,6 +117,20 @@ public extension Motion {
   static let barReturn = smooth
   static let barReturnDelay: Double = 0.12
   static let barReturnFade = fade
+  static let barLeave = Animation.easeOut(duration: 0.1)
+  static let trayWiden = Spring(response: 0.18, dampingRatio: 1)
+  static let trayDeepen = Spring(response: 0.24, dampingRatio: 1)
+  static let trayOpenWiden = Spring(response: 0.12, dampingRatio: 1)
+  static let trayFold = Spring(response: 0.1, dampingRatio: 1)
+  static let trayFoldBeforeNarrowing: CGFloat = 0.8
+  static let trayFaceFade = MotionCurve.easeOut(duration: 0.06)
+  static let trayShadowIn = MotionCurve.easeOut(duration: 0.15)
+  static let trayFoldLag: Double = 1.0 / 60
+  static let trayHandOff = MotionCurve.easeOut(duration: 0.1)
+  static let trayRevealCurve = MotionCurve.easeOut(duration: 0.12)
+  static let trayRevealFieldDelay: Double = 0.06
+  static let trayRevealField = trayRevealCurve.animation.delay(trayRevealFieldDelay)
+  static let trayRevealRows = trayRevealCurve.animation.delay(0.09)
   static let resultsIn = Animation.easeOut(duration: 0.1)
   static let pager = smooth
   static let press = Animation.spring(response: 0.16, dampingFraction: 1)

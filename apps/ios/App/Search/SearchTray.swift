@@ -7,6 +7,8 @@ struct SearchTray<Drag: Gesture>: View {
   @Binding var isFocused: Bool
   let maxHeight: CGFloat
   let dismissDrag: Drag
+  var revealsContents = true
+  var onReveal: (CFTimeInterval) -> Void = { _ in }
 
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -38,6 +40,8 @@ struct SearchTray<Drag: Gesture>: View {
         .frame(maxWidth: .infinity)
         .frame(height: rowsBudget, alignment: .top)
         .clipped()
+        .opacity(revealsContents ? 1 : 0)
+        .animation(revealsContents ? Motion.trayRevealRows : nil, value: revealsContents)
     }
     .frame(maxWidth: .infinity)
     .background { panelShape.fill(panelTint) }
@@ -89,6 +93,8 @@ struct SearchTray<Drag: Gesture>: View {
         placeholder: String(localized: "Search..."),
         isIncognito: isIncognito,
         selectsAllOnFocus: request.selectsAll,
+        isRevealed: revealsContents,
+        onReveal: onReveal,
         onSubmit: submit
       )
       .frame(maxWidth: .infinity)
@@ -102,12 +108,16 @@ struct SearchTray<Drag: Gesture>: View {
             .padding(.leading, CompletingTextField.horizontalInset)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+            .opacity(revealsContents ? 1 : 0)
+            .animation(revealsContents ? Motion.trayRevealField : nil, value: revealsContents)
         }
       }
       .layoutPriority(1)
       fieldAccessories
         .fixedSize()
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .opacity(revealsContents ? 1 : 0)
+        .animation(revealsContents ? Motion.trayRevealField : nil, value: revealsContents)
     }
     .padding(.leading, 18)
     .padding(.trailing, 10)

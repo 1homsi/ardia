@@ -7,6 +7,7 @@ import UIKit
 @Observable
 final class TrayMotion {
   private(set) var lift: CGFloat = 0
+  private(set) var revealsContents = true
   var isFocused = false
   @ObservationIgnored var reduceMotion = false
   @ObservationIgnored var releaseVelocity: CGFloat = 0
@@ -31,6 +32,7 @@ final class TrayMotion {
   @ObservationIgnored private var rise: UIViewPropertyAnimator?
   @ObservationIgnored private var releaseTask: Task<Void, Never>?
   @ObservationIgnored var barTarget: () -> BarTarget? = { nil }
+  @ObservationIgnored var fieldCenter = BrowseLayout.panelFieldInset + BrowseLayout.searchFieldHeight / 2
   @ObservationIgnored private var morph: TrayMorph?
   @ObservationIgnored private var fadingMorph: TrayMorph?
   @ObservationIgnored private var arrival: BarArrival?
@@ -42,7 +44,7 @@ final class TrayMotion {
   static let keyboardThreshold: CGFloat = 120
   static let keyboardWait: Duration = .milliseconds(220)
   static let reducedMotion = MotionCurve.easeOut(duration: 0.2)
-  static let keyboardGrace: Duration = .milliseconds(120)
+  static let keyboardGrace: Duration = .milliseconds(50)
 
   enum Curve {
     case immediate
@@ -91,18 +93,19 @@ final class TrayMotion {
     }
   }
 
-  func rememberBar(_ target: BarTarget?) {
-    guard let target, let face = controller.view.window?.resizableSnapshotView(from: target.frame, afterScreenUpdates: false, withCapInsets: .zero) else {
+  func rememberBar(_ target: BarTarget?, face: UIImage?) {
+    guard let target, let face else {
       arrival = nil
       return
     }
-    arrival = BarArrival(owner: target.owner, size: target.frame.size, face: face)
+    arrival = BarArrival(owner: target.owner, size: target.frame.size, image: face)
   }
 
-  func emerge(from target: BarTarget?, fieldCenter: CGFloat) {
+  func emerge(from target: BarTarget?) {
     endEmergence()
-    guard let target, !keyboardUp, !isCommandBar, let window = controller.view.window else { return }
-    let face = window.resizableSnapshotView(from: target.frame, afterScreenUpdates: false, withCapInsets: .zero)
+    guard let target, !keyboardUp, !isCommandBar else { return }
+    let face = arrival.flatMap { $0.fits(target) ? $0.makeFace() : nil }
+    revealsContents = false
     emergence = TrayEmergence(pill: controller.view.convert(target.frame, from: nil), fieldCenter: fieldCenter, face: face, on: controller.tray)
   }
 
@@ -207,7 +210,7 @@ final class TrayMotion {
   }
 
   private func beginMorph(look: TrayMorphLook, from shownSurface: TrayMorph.Start?) {
-    morph = TrayMorph(card: card, of: controller.tray, in: controller.view, look: look, from: shownSurface)
+    morph = TrayMorph(card: card, fieldCenter: fieldCenter, of: controller.tray, in: controller.view, look: look, from: shownSurface)
     let velocity = releaseVelocity
     move(.immediate) { [self] in isClosing = true }
     awaitedFlight = velocity
@@ -234,6 +237,7 @@ final class TrayMotion {
     guard let morph else { return }
     guard var target = barTarget() else {
       morph.vanish()
+      hideTrayUnderMorph()
       return
     }
     target.frame = controller.view.convert(target.frame, from: nil)
@@ -249,6 +253,11 @@ final class TrayMotion {
       )
       morph.fly(to: target, carrying: arrival, timing: timing, duration: spring.settlingDuration)
     }
+    hideTrayUnderMorph()
+  }
+
+  private func hideTrayUnderMorph() {
+    UIView.performWithoutAnimation { controller.tray.alpha = 0 }
   }
 
   private func handOffMorph() {
@@ -272,11 +281,25 @@ final class TrayMotion {
     }
   }
 
+  private func revealContentsNextTurn() {
+    guard !revealsContents else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self, !self.revealsContents else { return }
+      self.revealsContents = true
+    }
+  }
+
+  func fieldDidReveal(at base: CFTimeInterval) {
+    emergence?.fadeFace(from: base)
+  }
+
   private func endEmergence() {
     emergenceTask?.cancel()
     emergenceTask = nil
+    emergence?.fadeFace(from: CACurrentMediaTime())
     emergence?.end(on: controller.tray)
     emergence = nil
+    if !revealsContents { revealsContents = true }
   }
 
   private func dropMorph() {
@@ -350,10 +373,13 @@ final class TrayMotion {
     let scale: CGFloat = isCommandBar && !isUp && !reduceMotion ? 0.96 : 1
     tray.isHidden = !isShown
     tray.transform = CGAffineTransform(translationX: 0, y: trayOffset).scaledBy(x: scale, y: scale)
-    tray.alpha = isDeparting || morph != nil ? 0 : isUp || (!reduceMotion && !isCommandBar) ? 1 : 0
+    tray.alpha = isDeparting || morph?.hasFlown == true ? 0 : isUp || (!reduceMotion && !isCommandBar) ? 1 : 0
     if let emergence {
       emergence.place(on: tray, in: controller.view, card: card, isOpen: isUp)
-      if isUp { awaitEmergence() }
+      if isUp {
+        awaitEmergence()
+        revealContentsNextTurn()
+      }
     }
     let isUnrevealed = emergence != nil && !isUp
     tray.takesTouches = isShown && !isClosing && !isUnrevealed

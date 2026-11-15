@@ -10,6 +10,8 @@ struct OmniboxTextField: UIViewRepresentable {
   var placeholder: String
   var isIncognito: Bool
   var selectsAllOnFocus: Bool
+  var isRevealed = true
+  var onReveal: (CFTimeInterval) -> Void = { _ in }
   var onSubmit: (String) -> Void
 
   func makeCoordinator() -> Coordinator {
@@ -36,13 +38,28 @@ struct OmniboxTextField: UIViewRepresentable {
     field.addTarget(context.coordinator, action: #selector(Coordinator.editingChanged(_:)), for: .editingChanged)
     field.accessibilityLabel = String(localized: "Search or Enter Address")
     field.text = text
+    field.alpha = isRevealed ? 1 : 0
+    context.coordinator.isRevealed = isRevealed
     apply(to: field)
     return field
+  }
+
+  private func reveal(_ field: UIView, coordinator: Coordinator) {
+    guard coordinator.isRevealed != isRevealed else { return }
+    coordinator.isRevealed = isRevealed
+    guard isRevealed else {
+      field.alpha = 0
+      return
+    }
+    let base = CACurrentMediaTime()
+    field.fade(to: 1, after: Motion.trayRevealFieldDelay, from: base, curve: Motion.trayRevealCurve)
+    onReveal(base)
   }
 
   func updateUIView(_ field: CompletingTextField, context: Context) {
     let coordinator = context.coordinator
     coordinator.parent = self
+    reveal(field, coordinator: coordinator)
     apply(to: field)
     if field.markedTextRange == nil, coordinator.echo.isExternal(text, current: field.editor.typed) {
       field.reset(to: text)
@@ -81,6 +98,7 @@ struct OmniboxTextField: UIViewRepresentable {
   final class Coordinator: NSObject, UITextFieldDelegate {
     var parent: OmniboxTextField
     var echo = BindingEchoFilter()
+    var isRevealed = true
     private var didSelectAllOnFocus = false
 
     init(parent: OmniboxTextField) {

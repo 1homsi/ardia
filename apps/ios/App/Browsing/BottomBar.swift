@@ -35,7 +35,7 @@ struct BottomBar: View {
     ZStack(alignment: .bottom) {
       if isCollapsed {
         BarCollapsedPill(address: address, action: actions.onExpand)
-          .reportsBarAnchor(.page)
+          .reportsBarAnchor(.page, face: .collapsedAddress(address))
           .barReturn(.centre, isShown: centreShown)
           .transition(.scale(scale: reduceMotion ? 1 : 1 / BrowseLayout.barCollapsedScale, anchor: .bottom).combined(with: .opacity))
       } else {
@@ -55,7 +55,7 @@ struct BottomBar: View {
         BarTabsButton(actions: actions)
           .barReturn(.leading, isShown: sidesShown)
         BarAddressField(address: address, onAddress: actions.onAddress, onMore: actions.onMore)
-          .reportsBarAnchor(.page)
+          .reportsBarAnchor(.page, face: .address(address))
           .barReturn(.centre, isShown: centreShown)
         BarPlusButton(action: actions.onPlus)
           .barReturn(.trailing, isShown: sidesShown)

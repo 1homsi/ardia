@@ -28,6 +28,7 @@ final class BrowseSession {
   var isBarLanding = false
   @ObservationIgnored var trayMorphsIntoBar = false
   @ObservationIgnored var barAnchors: [BarOwner: BarAnchor] = [:]
+  var barAnchorRevision = 0
   var isToolbarPresented = false
   var readerTabID: UUID?
   var titleFeedback: String?
