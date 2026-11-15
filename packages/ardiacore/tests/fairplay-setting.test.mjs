@@ -67,3 +67,135 @@ test("turning it off stops the playing track: the page hears it was taken away a
   assert.match(setter, /deliver:@\{@"event" : @"stolen", @"gen" : @\(shared->_generation\)\} to:owner frame:shared->_frame\]/);
   assert.ok(setter.trimEnd().endsWith("[shared stop];"));
 });
+
+const protectedVideo = read("../ios/ArdiaProtectedVideo.mm");
+const protectedVideoParts = read("../ios/ArdiaProtectedVideoInternal.h");
+const hostEngine = read("../ios/ArdiaHostEngineDelegate.mm");
+const embed = read("../scripts/embed.sh");
+const extensionRules = JSON.parse(read("../extensions/protected-video-ua/rules.json"));
+
+test("the protected video sites are FairPlay sites, named the same by the native side and the page script", () => {
+  const native = quoted(between(protectedVideo, "NSSet<NSString *> *ProtectedVideoOrigins() {", "\n}\n"), /\[NSMutableSet setWithArray:@\[([^\]]*)\]\];/);
+  const page = quoted(pageScript, /const PROTECTED_VIDEO_ORIGINS = \[([^\]]*)\];/);
+  const fairPlaySites = quoted(engines, /export const FAIRPLAY_IN_CHROMIUM_ORIGINS: readonly string\[\] = \[([^\]]*)\]/);
+  assert.deepEqual(native, ["https://www.netflix.com", "https://www.disneyplus.com"]);
+  assert.deepEqual(page, native);
+  for (const origin of native) assert.ok(fairPlaySites.includes(origin), origin);
+  assert.match(pageScript, /isTop && FAIRPLAY_ORIGINS\.includes\(location\.origin\) && !PROTECTED_VIDEO_ORIGINS\.includes\(location\.origin\)/);
+  assert.match(pageScript, /isTop && PROTECTED_VIDEO_ON && PROTECTED_VIDEO_ORIGINS\.includes\(location\.origin\)/);
+});
+
+test("protected video is baked out of the page script until the setting turns it on", () => {
+  assert.equal(pageScript.split("const PROTECTED_VIDEO_ON = false;").length, 2);
+  assert.ok(!pageScript.includes("const PROTECTED_VIDEO_ON = true;"));
+  assert.match(protectedVideo, /^BOOL gEnabled = NO;$/m);
+  assert.match(protectedVideo, /kScriptOff = @"const PROTECTED_VIDEO_ON = false;"/);
+  assert.match(protectedVideo, /kScriptOn = @"const PROTECTED_VIDEO_ON = true;"/);
+  assert.match(hostEngine, /engine\.pageScript = \[ArdiaProtectedVideo pageScriptFrom:script\];/);
+  const setter = between(messages, "+ (void)setFairPlayInChromium:(BOOL)enabled {", "\n}\n");
+  assert.match(setter, /ArdiaProtectedVideo\.enabled = enabled;/);
+  const entry = between(protectedVideo, "+ (void)tab:(ArdiaCoreTab *)tab frame:", "\n}\n");
+  assert.match(entry, /if \(!gEnabled \|\| !frameId\.length\) return;/);
+  assert.match(messages, /\[kind isEqualToString:@"protectedVideo"\] && main && dict && \[ArdiaProtectedVideo servesOrigin:VerifiedOrigin\(verifiedOrigin\)\]/);
+});
+
+test("a page that started with the bridge baked the other way is reloaded once the setting is known", () => {
+  assert.match(pageScript, /send\("hello", \{ top: isTop, url: location\.href, protectedVideo: PROTECTED_VIDEO_ON \}\);/);
+  assert.match(messages, /if \(main\) \[ArdiaProtectedVideo helloFromTab:tab origin:VerifiedOrigin\(verifiedOrigin\) bridged:Flag\(dict, @"protectedVideo"\)\];/);
+  const hello = between(protectedVideo, "+ (void)helloFromTab:(ArdiaCoreTab *)tab origin:", "\n}\n");
+  assert.match(hello, /if \(!tab \|\| bridged == gEnabled \|\| !\[self servesOrigin:origin\]\) return;/);
+  assert.match(hello, /-last\.timeIntervalSinceNow < kReloadGap\) return;/);
+});
+
+test("the local test origin is honoured only from a test instance, only on 127.0.0.1, and is spliced into the baked origins", () => {
+  const launchConfig = read("../ios/ArdiaLaunchConfig.mm");
+  assert.match(between(launchConfig, "NSArray<NSString *> *AppTestKeys() {", "\n}\n"), /@"protectedVideoOrigin"/);
+  assert.match(protectedVideo, /\[ArdiaLaunchConfig\.shared testValue:@"protectedVideoOrigin"\]/);
+  assert.match(protectedVideo, /kTestOriginPrefix = @"http:\/\/127\.0\.0\.1:"/);
+  const line = protectedVideo.match(/kOriginsOff = @"(.*)";/)[1].replaceAll('\\"', '"');
+  assert.equal(pageScript.split(line).length, 2);
+  assert.match(between(protectedVideo, "+ (NSString *)bakedScript {", "\n}\n"), /if \(!gEnabled\) return gOriginalScript;/);
+});
+
+const sessionCore = read("../ios/ArdiaPVSession.mm");
+const playback = read("../ios/ArdiaPVSession+Playback.mm");
+const pictureInPicture = read("../ios/ArdiaPVSession+PictureInPicture.mm");
+const keys = read("../ios/ArdiaPVSession+Keys.mm");
+const media = read("../ios/ArdiaProtectedVideoMedia.mm");
+const podspec = read("../ios/ArdiaCore.podspec");
+
+test("protected video is parsed into sample buffers and rendered on one synchronizer, with no local HLS server", () => {
+  assert.throws(() => read("../ios/ArdiaPVSession+Server.mm"), /ENOENT/);
+  assert.doesNotMatch(protectedVideoParts, /nw_listener_t|AVPlayer \*|m3u8/);
+  assert.doesNotMatch(podspec, /'Network'/);
+  assert.match(media, /_parser = \[NSClassFromString\(@"AVStreamDataParser"\) new\];/);
+  assert.match(media, /\[_parser appendStreamData:unit\];\n {2}\[_parser providePendingMediaData\];/);
+  const renderers = between(playback, "- (void)setUpRenderers {", "\n}\n");
+  assert.match(renderers, /\[_sync addRenderer:_display\];\n {2}\[_sync addRenderer:_audio\];/);
+  assert.match(renderers, /_display\.backgroundColor = NSColor\.blackColor\.CGColor;/);
+  assert.match(between(playback, "- (double)position {", "\n}\n"), /CMTimeGetSeconds\(_sync\.currentTime\)/);
+});
+
+test("samples are enqueued only while a renderer asks for more, and a rendition switch is just the next sample's format", () => {
+  const feed = between(playback, "- (void)feed:(ArdiaPVLane *)lane {", "\n}\n");
+  assert.match(feed, /requestMediaDataWhenReadyOnQueue:dispatch_get_main_queue\(\)/);
+  const pump = between(playback, "- (void)pump:(ArdiaPVLane *)lane {", "\n}\n");
+  assert.match(pump, /while \(lane->_requesting && lane->_renderer\.readyForMoreMediaData\)/);
+  assert.match(pump, /ArdiaPVSegment \*next = \[lane following:segment\];/);
+  const append = between(sessionCore, "- (void)append:(NSDictionary *)message {", "\n}\n");
+  assert.match(append, /if \(\[track->_init isEqualToData:unit\]\) return;/);
+  assert.doesNotMatch(append, /DISCONTINUITY|stopRun|restart/);
+});
+
+test("a seek inside stored media keeps the last picture and hides the frames decoded before the target", () => {
+  const halt = between(playback, "- (void)halt:(ArdiaPVLane *)lane {", "\n}\n");
+  assert.match(halt, /flushWithRemovalOfDisplayedImage:NO/);
+  assert.match(between(playback, "- (void)pump:(ArdiaPVLane *)lane {", "\n}\n"), /if \(EndOf\(sample\) <= lane->_from \+ 1e-4\) \{\n {6}if \(!lane->_video\) continue;\n {6}hidden = HiddenCopy\(sample\);/);
+  assert.match(media, /kCMSampleAttachmentKey_DoNotDisplay, kCFBooleanTrue/);
+  const cue = between(media, "- (void)cueAt:(double)time {", "\n}\n");
+  assert.match(cue, /IsSync\(sample\) && StartOf\(sample\) <= time \+ 1e-4/);
+  const seek = between(playback, "- (void)seekTo:(double)time {", "\n}\n");
+  assert.match(seek, /if \(\[self canStartAt:time\]\) return \[self startAt:time\];/);
+  assert.match(seek, /_pendingTarget = time;/);
+});
+
+test("encrypted samples wait for their licensed key, which reaches the renderers as key recipients", () => {
+  const pump = between(playback, "- (void)pump:(ArdiaPVLane *)lane {", "\n}\n");
+  assert.match(pump, /id key = segment->_kid \? _contentKeys\[segment->_kid\] : nil;/);
+  assert.match(pump, /lane->_blocked = YES;\n {6}return \[self idle:lane\];/);
+  assert.doesNotMatch(pump, /AVSampleBufferAttachContentKey/);
+  assert.match(playback, /\[self addRenderersAsKeyRecipients\];/);
+  const succeeded = between(keys, "contentKeyRequestDidSucceed:(AVContentKeyRequest *)keyRequest {", "\n}\n");
+  assert.match(succeeded, /self->_contentKeys\[kid\] = contentKey \?: \(id\)NSNull\.null;\n {6}\[self keysChanged\];/);
+  assert.match(between(keys, "- (void)addRenderersAsKeyRecipients {", "\n}\n"), /\[_keys addContentKeyRecipient:renderer\]/);
+  assert.match(keys, /processContentKeyRequestWithIdentifier:nil initializationData:/);
+});
+
+test("the page tells the native side the MediaSource duration whenever it changes", () => {
+  const send = between(pageScript, "const sendDuration = (b) => {", "\n      };\n");
+  assert.match(send, /const known = isFinite\(duration\) && duration > 0 \? duration : 0;\n {8}if \(known === b\.sentDuration\) return;/);
+  assert.match(send, /send\("protectedVideo", \{ op: "duration", media: b\.id, duration: known \}\);/);
+  assert.match(between(pageScript, "const progress = (b) => {", "\n      };\n"), /sendDuration\(b\);/);
+  assert.match(between(pageScript, "SourceProto.endOfStream = asNative(", "\n      });\n"), /sendDuration\(b\);/);
+  assert.match(pageScript, /defineProperty\(SourceProto, "duration", \{[\s\S]{0,300}if \(b && bridgeOf\.get\(b\.el\) === b\) sendDuration\(b\);/);
+  assert.match(sessionCore, /if \(!Bounded\(message, @"duration", 0, 1e8, &duration\) \|\| duration == _duration\) return;/);
+});
+
+test("picture in picture runs on the sample buffer layer, and its skip and play buttons reach the page as real events", () => {
+  assert.match(pictureInPicture, /initWithSampleBufferDisplayLayer:_display/);
+  assert.match(pictureInPicture, /addObserver:self forKeyPath:@"pictureInPicturePossible"/);
+  assert.doesNotMatch(pictureInPicture, /300 \* NSEC_PER_MSEC/);
+  assert.match(between(pictureInPicture, "skipByInterval:(CMTime)skipInterval", "\n}\n"), /@"event" : @"seekBy", @"media" : @\(_media\), @"delta" : @\(delta\)/);
+  assert.match(between(pictureInPicture, "setPlaying:(BOOL)playing {", "\n}\n"), /@"event" : @"paused", @"media" : @\(_media\), @"paused" : @\(!playing\)/);
+  assert.match(between(pictureInPicture, "pictureInPictureControllerTimeRangeForPlayback:", "\n}\n"), /_duration > 0 \? _duration : \[self bufferedEnd\]/);
+  assert.match(pageScript, /m\.event === "seekBy"\) \{\n {10}if \(typeof m\.delta === "number" && isFinite\(m\.delta\) && b\.metadata\) b\.el\.currentTime = positionOf\(b\) \+ m\.delta;/);
+});
+test("the user agent extension only gives Netflix and YouTube Safari's face, and ships in the app", () => {
+  assert.equal(extensionRules.length, 1);
+  assert.deepEqual(extensionRules[0].condition.requestDomains, ["netflix.com", "www.youtube.com"]);
+  assert.ok(extensionRules[0].condition.resourceTypes.includes("main_frame"));
+  const agent = extensionRules[0].action.requestHeaders.find((h) => h.header === "user-agent");
+  assert.ok(pageScript.includes(`const SAFARI_UA = "${agent.value}";`));
+  assert.match(embed, /rsync -a --delete "\$repo\/packages\/ardiacore\/extensions\/protected-video-ua\/" "\$extensions\/protected-video-ua\/"/);
+  assert.match(protectedVideo, /kExtensionName = @"protected-video-ua"/);
+});

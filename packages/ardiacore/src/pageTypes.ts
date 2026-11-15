@@ -164,7 +164,7 @@ export type ExtensionActionResult = "none" | "popup" | "sidePanel";
 export type PageSelection = { text: string; rect: { x: number; y: number; width: number; height: number } };
 export type ScrollState = "down" | "up" | "top";
 export type ProtectedMediaRequest = { keySystem: string; main: boolean };
-export type FairPlayReport = { event: "played" | "failed"; step?: "license" | "playback" | "player" };
+export type FairPlayReport = { event: "played" | "failed" | "mirrored" | "mirrorResync"; step?: "license" | "playback" | "player"; video?: boolean; site?: "youtube" };
 
 export type WebViewProps = ViewProps & {
   engine?: PageEngine;

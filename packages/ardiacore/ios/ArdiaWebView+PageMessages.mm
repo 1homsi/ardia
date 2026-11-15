@@ -2,10 +2,13 @@
 #import "ArdiaRuntime.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaFairPlay.h"
+#import "ArdiaProtectedVideo.h"
+#import "ArdiaHLSVideo.h"
 #import "ArdiaFieldTiming.h"
 #import "ArdiaHost.h"
 #import "ArdiaPictureInPicture.h"
 #import "ArdiaServices.h"
+#import "ArdiaVideoMirror.h"
 
 #import <objc/runtime.h>
 
@@ -115,6 +118,10 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   if (enabled == ArdiaFairPlay.enabled) return;
   ArdiaFairPlay.enabled = enabled;
   for (ArdiaWebView *view in LiveViews().allObjects) [view pushFairPlay];
+  ArdiaProtectedVideo.enabled = enabled;
+  ArdiaHLSVideo.enabled = enabled;
+  for (ArdiaWebView *view in LiveViews().allObjects)
+    if (view->_tab && ([ArdiaProtectedVideo servesOrigin:OriginOf(view->_tab.url)] || [ArdiaHLSVideo servesOrigin:OriginOf(view->_tab.url)])) [view->_tab reload];
 }
 
 + (void)setSelectionPopoverEnabled:(BOOL)enabled {
@@ -140,6 +147,9 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     [self noteScriptFrame:frameId main:main];
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON(self)];
     AnswerHello(tab, _profile, frameId, main, verifiedOrigin);
+    if (main) [ArdiaVideoMirror helloFromTab:tab frame:frameId];
+    if (main) [ArdiaProtectedVideo helloFromTab:tab origin:VerifiedOrigin(verifiedOrigin) bridged:Flag(dict, @"protectedVideo")];
+    if (main) [ArdiaHLSVideo helloFromTab:tab origin:VerifiedOrigin(verifiedOrigin) bridged:Flag(dict, @"protectedVideo")];
     if (main && _littlePage.held) [self callFrame:frameId kind:@"firstPaint" json:@"{}"];
   } else if ([kind isEqualToString:@"displayMediaHello"]) {
     [self callFrame:frameId kind:@"config" json:gDisplayMediaPicker ? @"{\"displayMediaPicker\":true}" : @"{}"];
@@ -194,6 +204,12 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     [self emit:@"protectedMedia" payload:@{@"keySystem" : Text(dict, @"keySystem", 64) ?: @"", @"main" : @(main)}];
   } else if ([kind isEqualToString:@"fairPlay"] && main && dict && [ArdiaFairPlay servesOrigin:VerifiedOrigin(verifiedOrigin)]) {
     [ArdiaFairPlay tab:tab frame:frameId message:dict];
+  } else if ([kind isEqualToString:@"protectedVideo"] && main && dict && [ArdiaProtectedVideo servesOrigin:VerifiedOrigin(verifiedOrigin)]) {
+    [ArdiaProtectedVideo tab:tab frame:frameId message:dict];
+  } else if ([kind isEqualToString:@"hlsVideo"] && main && dict && [ArdiaHLSVideo servesOrigin:VerifiedOrigin(verifiedOrigin)]) {
+    [ArdiaHLSVideo tab:tab frame:frameId message:dict];
+  } else if ([kind isEqualToString:@"videoMirror"] && main && dict && [ArdiaVideoMirror acceptsOrigin:VerifiedOrigin(verifiedOrigin)]) {
+    [ArdiaVideoMirror tab:tab frame:frameId message:dict];
   } else if ([kind isEqualToString:@"nowPlaying"]) {
     if (!_reports.nowPlaying) _reports.nowPlaying = [ArdiaNowPlaying new];
     NSDictionary *state = [_reports.nowPlaying noteFrame:frameId page:dict main:main];
@@ -303,6 +319,9 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 - (void)resetPageMedia {
   [ArdiaFairPlay pageGoneFromTab:_tab];
+  [ArdiaProtectedVideo pageGoneFromTab:_tab];
+  [ArdiaHLSVideo pageGoneFromTab:_tab];
+  [ArdiaVideoMirror pageGoneFromTab:_tab];
   if ([_reports.nowPlaying reset]) [self emit:@"nowPlaying" payload:@{@"state" : NSNull.null}];
   [self autoPictureInPictureInputsChanged];
 }

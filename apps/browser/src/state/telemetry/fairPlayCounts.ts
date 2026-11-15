@@ -1,22 +1,45 @@
 import type { FairPlayReport } from "../../platform/tabs";
 
 type FairPlayStep = NonNullable<FairPlayReport["step"]>;
+type FairPlayCounts = { played: number; failed: Record<FairPlayStep, number>; mirrored: number; mirrorResyncs: number };
 
 const FAIRPLAY_STEPS: readonly FairPlayStep[] = ["license", "playback", "player"];
 
-let played = 0;
-const failed: Record<FairPlayStep, number> = { license: 0, playback: 0, player: 0 };
+const emptyCounts = (): FairPlayCounts => ({ played: 0, failed: { license: 0, playback: 0, player: 0 }, mirrored: 0, mirrorResyncs: 0 });
+
+let tracks = emptyCounts();
+let videos = emptyCounts();
+let youtube = emptyCounts();
 
 const isFairPlayStep = (step: unknown): step is FairPlayStep => FAIRPLAY_STEPS.includes(step as FairPlayStep);
 
 export function noteFairPlay(report: FairPlayReport) {
-  if (report?.event === "played") played++;
-  else if (report?.event === "failed" && isFairPlayStep(report.step)) failed[report.step]++;
+  const counts = report?.site === "youtube" ? youtube : report?.video === true ? videos : tracks;
+  if (report?.event === "played") counts.played++;
+  else if (report?.event === "failed" && isFairPlayStep(report.step)) counts.failed[report.step]++;
+  else if (report?.event === "mirrored" && report.video === true) videos.mirrored++;
+  else if (report?.event === "mirrorResync" && report.video === true) videos.mirrorResyncs++;
 }
 
 export function takeFairPlayCounts() {
-  const taken = { fairplay_played: played, fairplay_failed_license: failed.license, fairplay_failed_playback: failed.playback, fairplay_failed_player: failed.player };
-  played = 0;
-  for (const step of FAIRPLAY_STEPS) failed[step] = 0;
+  const taken = {
+    fairplay_played: tracks.played,
+    fairplay_failed_license: tracks.failed.license,
+    fairplay_failed_playback: tracks.failed.playback,
+    fairplay_failed_player: tracks.failed.player,
+    fairplay_video_played: videos.played,
+    fairplay_video_failed_license: videos.failed.license,
+    fairplay_video_failed_playback: videos.failed.playback,
+    fairplay_video_failed_player: videos.failed.player,
+    fairplay_video_mirrored: videos.mirrored,
+    fairplay_video_mirror_resyncs: videos.mirrorResyncs,
+    fairplay_youtube_played: youtube.played,
+    fairplay_youtube_failed_license: youtube.failed.license,
+    fairplay_youtube_failed_playback: youtube.failed.playback,
+    fairplay_youtube_failed_player: youtube.failed.player,
+  };
+  tracks = emptyCounts();
+  videos = emptyCounts();
+  youtube = emptyCounts();
   return taken;
 }
