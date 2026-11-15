@@ -17,7 +17,7 @@ export {
   type LegacyVisitPage,
 } from "./legacy";
 export { closePage, pageObscuresInsets, PageView } from "./PageView";
-export { pages, type LaunchArgumentValue, type LaunchOptions } from "./pages";
+export { pages, type LaunchArgumentValue, type LaunchOptions, type SitePermissionGrant, type SitePermissionKind } from "./pages";
 export { keyboard, type KeyboardDidChange, type KeyboardWillChange } from "./keyboard";
 export { CompletingField, completingFieldIsNative, type CompletingFieldHandle, type CompletingFieldProps, type CompletionOffer } from "./completingField";
 export { ScrollActions, type ScrollActionDirection, type ScrollActionsProps } from "./accessibility";

@@ -31,7 +31,14 @@ export type LaunchArgumentValue = string | number | boolean;
 export type LaunchOptions = { pageLab: boolean; syncDemo: boolean; lab: boolean; arguments: Record<string, LaunchArgumentValue> };
 
 
+export type SitePermissionKind = "camera" | "microphone" | "location";
+
+export type SitePermissionGrant = { origin: string; host: string; permissions: SitePermissionKind[]; grantedAt: number };
+
 type PagesNative = {
+  remembersSitePermissions?: boolean;
+  sitePermissions?(): Promise<SitePermissionGrant[]>;
+  revokeSitePermission?(origin: string, permission: SitePermissionKind | null): Promise<boolean>;
   addListener(eventName: "onPageEngineEvent", listener: (event: PageEngineEvent) => void): Subscription;
   capabilities(): PageEngineCapabilities;
   launchOptions(): { pageLab: boolean; syncDemo?: boolean; lab?: boolean; arguments?: Record<string, LaunchArgumentValue> } | null;
@@ -118,6 +125,11 @@ export const pages = {
   setDesktopSite: (pageId: string, enabled: boolean) => native().setDesktopSite(pageId, enabled),
   download: (pageId: string, url: string) => native().download(pageId, url),
   readableContent: (pageId: string) => native().readableContent(pageId),
+  listsSitePermissions: (): boolean => typeof native().sitePermissions === "function",
+  remembersSitePermissions: (): boolean => native().remembersSitePermissions === true,
+  sitePermissions: (): Promise<SitePermissionGrant[]> => native().sitePermissions?.() ?? Promise.resolve([]),
+  revokeSitePermission: (origin: string, permission?: SitePermissionKind): Promise<boolean> =>
+    native().revokeSitePermission?.(origin, permission ?? null) ?? Promise.resolve(false),
   print: (pageId: string): Promise<boolean> => native().print?.(pageId) ?? Promise.resolve(false),
   canPrint: (): boolean => typeof native().print === "function",
   snapshot: (pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: PageToneInsets } = {}) =>

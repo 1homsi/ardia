@@ -207,6 +207,37 @@ public final class PageViewModule: Module {
       MainActor.assumeIsolated { PhonePages.shared.saveState(pageID) }
     }.runOnQueue(.main)
 
+    Constant("remembersSitePermissions") { PhonePages.remembersSitePermissions }
+
+    AsyncFunction("sitePermissions") { () -> [[String: Any]] in
+      MainActor.assumeIsolated {
+        PhonePages.shared.engine.preferences.sitePermissions.grants.map { grant in
+          [
+            "origin": grant.origin,
+            "host": grant.host,
+            "permissions": grant.permissions.sorted().map(\.rawValue),
+            "grantedAt": grant.grantedAt.timeIntervalSince1970 * 1000,
+          ]
+        }
+      }
+    }.runOnQueue(.main)
+
+    AsyncFunction("revokeSitePermission") { (origin: String, permission: String?) -> Bool in
+      MainActor.assumeIsolated {
+        let engine = PhonePages.shared.engine
+        guard let grant = engine.preferences.sitePermissions.grants.first(where: { $0.origin == origin }) else { return false }
+        let revoked: Set<SitePermission>
+        if let permission {
+          guard let one = SitePermission(rawValue: permission), grant.permissions.contains(one) else { return false }
+          revoked = [one]
+        } else {
+          revoked = grant.permissions
+        }
+        engine.revokeCapture(revoked, origin: origin)
+        return true
+      }
+    }.runOnQueue(.main)
+
     AsyncFunction("answerRequest") { (pageID: String, requestID: String, answer: RequestAnswerRecord) -> Bool in
       try MainActor.assumeIsolated {
         let parsed = try PagePayloads.answer(type: answer.type, text: answer.text, user: answer.user, password: answer.password)
