@@ -8,7 +8,7 @@ find_package(hermes-engine REQUIRED CONFIG)
 find_package(fbjni REQUIRED CONFIG)
 find_package(ReactAndroid REQUIRED CONFIG)
 
-add_library(ardiahermes SHARED ${ARDIA_SCRIPT_SHIM})
+add_library(ardiahermes SHARED ${ARDIA_SCRIPT_SHIM} src/main/cpp/ardia_js_profiler.cpp)
 if(NOT ARDIA_SCRIPT_LOGS)
   target_compile_definitions(ardiahermes PRIVATE ARDIA_SCRIPT_QUIET)
 endif()

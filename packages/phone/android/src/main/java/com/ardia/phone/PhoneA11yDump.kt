@@ -74,6 +74,7 @@ object PhoneA11yDump {
                             else -> Log.i(TAG, DeckParts.apply(shown, part))
                         }
                     }
+                    JsProfiler.ACTION -> JsProfiler.profile(context, intent.getIntExtra("seconds", 10).coerceIn(1, 60), intent.getIntExtra("hz", 1000).coerceIn(10, 5000).toDouble())
                     else -> dump(activity())
                 }
             }
@@ -83,6 +84,7 @@ object PhoneA11yDump {
             addAction(TRIM_ACTION)
             addAction(FRAMES_ACTION)
             addAction(DECK_PARTS_ACTION)
+            addAction(JsProfiler.ACTION)
         }
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
         registered = context to receiver

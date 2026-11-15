@@ -10,7 +10,8 @@
 # written during the build. --direct bundles the working tree instead, behind the bundle guard. Writes
 # $ARDIA_APK_DIR/<name>.apk (default /tmp/ardia-phone) and <name>.txt beside it. --compose-key re-signs it with the
 # Compose app's key (~/.android/debug.keystore) for the upgrade test; --store builds without the lab switch.
-# The release is shrunk with R8, and its reports (mapping, usage, seeds, configuration, missing rules) are kept
+# The release is shrunk with R8, and its reports (mapping, usage, seeds, configuration, missing rules) and the JS
+# bundle's composed source map are kept
 # in <name>-r8/ beside the APK, and check-names.py must pass on it. --no-r8 builds the unshrunk control.
 # Only arm64-v8a is built unless --abi names others (--abi arm64-v8a,x86_64 for an x86_64 emulator).
 # --compress stores the native libraries, the dex or both compressed, for a smaller direct download; the JS
@@ -18,7 +19,7 @@
 # names on the universal APK made from it, kept as <name>-universal.apk.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && exit 0 || exit 64
 fi
 name="$1"
@@ -136,6 +137,7 @@ mv "$built" "$apk"
 if [ "$r8" = "1" ]; then
   mkdir -p "$out/$name-r8"
   cp "$outputs/mapping/release/"*.txt "$out/$name-r8/" 2>/dev/null || true
+  cp "$root/apps/phone/android/app/build/generated/sourcemaps/react/release/index.android.bundle.map" "$out/$name-r8/" 2>/dev/null || true
 fi
 packaging="$(python3 -c '
 import sys, zipfile
