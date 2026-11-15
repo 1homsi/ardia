@@ -5,10 +5,10 @@
 #include <set>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "Events.h"
 #include "LaunchLog.h"
+#include "KeyHold.h"
 #include "MenuKeys.h"
 #include "MenuPopup.h"
 #include "MenuStore.h"
@@ -33,37 +33,6 @@ inline ActiveWindow ActiveArdiaWindow() noexcept {
     if (hwnd && GetAncestor(hwnd, GA_ROOT) == root) return {hwnd, id};
   }
   return {};
-}
-
-struct HeldKey {
-  WORD virtualKey;
-  WORD scan;
-  DWORD flags;
-};
-
-struct TypeAheadHold {
-  std::string windowId;
-  HWND root = nullptr;
-  HWND foreground = nullptr;
-  HWND focus = nullptr;
-  unsigned startModifiers = 0;
-  unsigned modifiers = 0;
-  ULONGLONG startedAt = 0;
-  ULONGLONG readyAt = 0;
-  std::vector<HeldKey> keys;
-  std::set<UINT> down;
-};
-
-inline HWND RootOf(HWND window) noexcept {
-  return window ? GetAncestor(window, GA_ROOT) : nullptr;
-}
-
-inline unsigned PhysicalModifiers() noexcept {
-  unsigned modifiers = 0;
-  if (GetAsyncKeyState(VK_CONTROL) & 0x8000) modifiers |= ModifierControl;
-  if (GetAsyncKeyState(VK_MENU) & 0x8000) modifiers |= ModifierOption;
-  if (GetAsyncKeyState(VK_SHIFT) & 0x8000) modifiers |= ModifierShift;
-  return modifiers;
 }
 
 inline HWND MenuOwnerWindow() noexcept {
@@ -159,9 +128,9 @@ struct MenuKeyboard {
   }
 
   static constexpr UINT kHoldMs = 2000;
-  static constexpr ULONGLONG kMostHoldMs = 3000;
-  static constexpr UINT kQueueCheckMs = 15;
+  static constexpr UINT kReplayMs = 500;
   static constexpr size_t kMostHeldKeys = 256;
+  static constexpr ULONG_PTR kReplayMark = 0xA4D1A7E5;
 
   void SetHoldTimer(UINT ms, TIMERPROC done) noexcept {
     if (holdTimer) KillTimer(nullptr, holdTimer);
@@ -174,12 +143,11 @@ struct MenuKeyboard {
     hold.emplace();
     hold->windowId = window.id;
     hold->root = RootOf(window.hwnd);
-    hold->foreground = GetForegroundWindow();
-    hold->focus = GetFocus();
-    hold->startModifiers = hold->modifiers = HeldModifiers();
+    hold->startSides = hold->sides = ThreadSides();
     hold->startedAt = GetTickCount64();
     SetHoldTimer(kHoldMs, &MenuKeyboard::HoldTimedOut);
     if (!holdMouseHook) holdMouseHook = SetWindowsHookExW(WH_MOUSE, &MenuKeyboard::HoldMouseProc, nullptr, GetCurrentThreadId());
+    LaunchLog::Write(L"keys", L"holding typed keys for the field the command opens");
   }
 
   void EndHold() noexcept {
@@ -194,24 +162,47 @@ struct MenuKeyboard {
     hold.reset();
   }
 
+  static void AddKey(std::vector<INPUT> &inputs, WORD virtualKey, WORD scan, DWORD flags) noexcept {
+    INPUT input{};
+    input.type = INPUT_KEYBOARD;
+    input.ki.wVk = virtualKey;
+    input.ki.wScan = scan;
+    input.ki.dwFlags = flags;
+    input.ki.dwExtraInfo = kReplayMark;
+    inputs.push_back(input);
+  }
+
+  static void AddSideChanges(std::vector<INPUT> &inputs, unsigned from, unsigned to) noexcept {
+    for (SideKey const &key : kSideKeys) {
+      if ((from & key.side) == (to & key.side)) continue;
+      DWORD flags = (key.extended ? KEYEVENTF_EXTENDEDKEY : 0) | ((to & key.side) ? 0 : KEYEVENTF_KEYUP);
+      AddKey(inputs, key.virtualKey, static_cast<WORD>(MapVirtualKeyW(key.virtualKey, MAPVK_VK_TO_VSC)), flags);
+    }
+  }
+
+  static UINT Inject(std::vector<INPUT> &inputs) noexcept {
+    return inputs.empty() ? 0 : SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+  }
+
   void DropHold(const wchar_t *why) noexcept {
     if (!hold) return;
     size_t held = hold->keys.size();
     EndHold();
+    std::vector<INPUT> resync;
+    AddSideChanges(resync, ThreadSides(), PhysicalSides());
+    Inject(resync);
     if (held) LaunchLog::Write(L"keys", L"dropped " + std::to_wstring(held) + L" held key events: " + why);
   }
 
   static void CALLBACK HoldTimedOut(HWND, UINT, UINT_PTR, DWORD) noexcept {
-    Shared().ReplayHold(false);
-  }
-
-  static void CALLBACK HoldQueueCheck(HWND, UINT, UINT_PTR, DWORD) noexcept {
-    Shared().ReplayWhenQueueEmpty();
+    MenuKeyboard &keyboard = Shared();
+    if (keyboard.hold && keyboard.hold->replaying) return keyboard.DropHold(L"the replay did not come back in time");
+    keyboard.DropHold(L"no field took focus in time");
   }
 
   static LRESULT CALLBACK HoldMouseProc(int code, WPARAM wParam, LPARAM lParam) noexcept {
     MenuKeyboard &keyboard = Shared();
-    if (code == HC_ACTION) {
+    if (code == HC_ACTION && keyboard.hold && !keyboard.hold->replaying) {
       switch (wParam) {
         case WM_LBUTTONDOWN:
         case WM_RBUTTONDOWN:
@@ -227,68 +218,57 @@ struct MenuKeyboard {
           break;
       }
     }
-    return CallNextHookEx(keyboard.holdMouseHook, code, wParam, lParam);
-  }
-
-  void TypeAheadReady(std::string const &windowId) noexcept {
-    if (!hold || hold->windowId != windowId || hold->readyAt) return;
-    hold->readyAt = GetTickCount64();
-    ReplayWhenQueueEmpty();
+    return CallNextHookEx(nullptr, code, wParam, lParam);
   }
 
   void TypeAheadCancel(std::string const &windowId) noexcept {
-    if (hold && hold->windowId == windowId) DropHold(L"the command opens no field");
+    if (hold && !hold->replaying && hold->windowId == windowId) DropHold(L"the command opens no field");
   }
 
-  void ReplayWhenQueueEmpty() noexcept {
-    if (!hold || !hold->readyAt) return;
-    if (!(HIWORD(GetQueueStatus(QS_KEY)) & QS_KEY)) return ReplayHold(true);
-    if (GetTickCount64() - hold->startedAt >= kMostHoldMs) return DropHold(L"keys kept coming past the longest hold");
-    SetHoldTimer(kQueueCheckMs, &MenuKeyboard::HoldQueueCheck);
-  }
-
-  bool HoldStillOurs(bool fieldAsked) noexcept {
-    if (!IsWindow(hold->root)) return false;
+  void TypeAheadReady(std::string const &windowId) noexcept {
+    if (!hold || hold->replaying || hold->windowId != windowId) return;
     HWND foreground = GetForegroundWindow();
     HWND focus = GetFocus();
-    if (!fieldAsked) return foreground == hold->foreground && focus == hold->focus;
-    return RootOf(foreground) == hold->root && focus && RootOf(focus) == hold->root;
-  }
-
-  static void AddKey(std::vector<INPUT> &inputs, WORD virtualKey, WORD scan, DWORD flags) noexcept {
-    INPUT input{};
-    input.type = INPUT_KEYBOARD;
-    input.ki.wVk = virtualKey;
-    input.ki.wScan = scan;
-    input.ki.dwFlags = flags;
-    inputs.push_back(input);
-  }
-
-  static void AddModifierChanges(std::vector<INPUT> &inputs, unsigned from, unsigned to) noexcept {
-    std::pair<unsigned, WORD> const keys[] = {{ModifierShift, VK_SHIFT}, {ModifierControl, VK_CONTROL}, {ModifierOption, VK_MENU}};
-    for (auto const &[modifier, virtualKey] : keys) {
-      if ((from & modifier) == (to & modifier)) continue;
-      AddKey(inputs, virtualKey, static_cast<WORD>(MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC)), (to & modifier) ? 0 : KEYEVENTF_KEYUP);
-    }
-  }
-
-  void ReplayHold(bool fieldAsked) noexcept {
-    if (!hold) return;
-    if (!HoldStillOurs(fieldAsked)) return DropHold(fieldAsked ? L"the keyboard left the window that asked" : L"no field took focus and the keyboard moved");
+    if (!IsWindow(hold->root) || RootOf(foreground) != hold->root || !focus || RootOf(focus) != hold->root) return DropHold(L"the keyboard left the window that asked");
     std::vector<INPUT> inputs;
-    AddModifierChanges(inputs, HeldModifiers(), hold->startModifiers);
+    AddSideChanges(inputs, ThreadSides(), hold->startSides);
     for (HeldKey const &key : hold->keys) AddKey(inputs, key.virtualKey, key.scan, key.flags);
-    AddModifierChanges(inputs, hold->modifiers, PhysicalModifiers());
+    AddSideChanges(inputs, hold->sides, PhysicalSides());
     size_t held = hold->keys.size();
-    EndHold();
-    if (!held) return;
-    UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
-    LaunchLog::Write(L"keys", L"replayed " + std::to_wstring(held) + L" key events typed before the field took focus" + (fieldAsked ? L"" : L", with no field asking") + (sent == inputs.size() ? L"" : L" (some not sent)"));
+    hold->keys.clear();
+    hold->sides = PhysicalSides();
+    if (inputs.empty()) return EndHold();
+    hold->replaying = true;
+    hold->outstanding = inputs.size();
+    SetHoldTimer(kReplayMs, &MenuKeyboard::HoldTimedOut);
+    UINT sent = Inject(inputs);
+    LaunchLog::Write(L"keys", L"replayed " + std::to_wstring(held) + L" key events typed before the field took focus" + (sent == inputs.size() ? L"" : L" (some not sent)"));
+    if (sent != inputs.size()) DropHold(L"the replay could not be sent");
   }
 
-  int HoldKey(UINT virtualKey, LPARAM flags, bool keyUp) noexcept {
-    ActiveWindow window = ActiveArdiaWindow();
-    if (window.id != hold->windowId) return DropHold(L"another window took the keyboard"), -1;
+  void NoteReplayedKey() noexcept {
+    if (!hold || !hold->replaying || !hold->outstanding || --hold->outstanding) return;
+    if (hold->keys.empty()) return EndHold();
+    std::vector<INPUT> tail;
+    for (HeldKey const &key : hold->keys) AddKey(tail, key.virtualKey, key.scan, key.flags);
+    hold->keys.clear();
+    hold->outstanding = tail.size();
+    SetHoldTimer(kReplayMs, &MenuKeyboard::HoldTimedOut);
+    if (Inject(tail) != tail.size()) DropHold(L"the keys typed during the replay could not be sent");
+  }
+
+  bool RecordHeld(UINT virtualKey, LPARAM flags, bool keyUp, UINT times = 1) noexcept {
+    if (hold->keys.size() + times > kMostHeldKeys) return DropHold(L"too many held keys"), false;
+    WORD scan = static_cast<WORD>((flags >> 16) & 0xFF);
+    DWORD flagsOut = ((flags & (1 << 24)) ? KEYEVENTF_EXTENDEDKEY : 0) | (keyUp ? KEYEVENTF_KEYUP : 0);
+    for (UINT time = 0; time < times; time++) hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
+    return true;
+  }
+
+  bool HoldKey(UINT virtualKey, LPARAM flags, bool keyUp) noexcept {
+    if (ActiveArdiaWindow().id != hold->windowId) return DropHold(L"another window took the keyboard"), false;
+    UINT times = keyUp ? 1 : std::max<UINT>(1, static_cast<UINT>(flags & 0xFFFF));
+    if (hold->replaying) return RecordHeld(virtualKey, flags, keyUp, times);
     switch (virtualKey) {
       case VK_PACKET:
       case VK_PROCESSKEY:
@@ -297,31 +277,28 @@ struct MenuKeyboard {
       case VK_SCROLL:
       case VK_LWIN:
       case VK_RWIN:
-        return DropHold(L"a key that can't be replayed as typed"), -1;
+        return DropHold(L"a key that can't be replayed as typed"), false;
       default:
         break;
     }
-    WORD scan = static_cast<WORD>((flags >> 16) & 0xFF);
-    DWORD flagsOut = ((flags & (1 << 24)) ? KEYEVENTF_EXTENDEDKEY : 0) | (keyUp ? KEYEVENTF_KEYUP : 0);
-    if (unsigned modifier = ModifierOfKey(virtualKey)) {
-      if (hold->keys.size() >= kMostHeldKeys) return DropHold(L"too many held keys"), -1;
-      hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
-      hold->modifiers = keyUp ? (hold->modifiers & ~modifier) : (hold->modifiers | modifier);
-      return -1;
+    if (unsigned side = SideOfKey(virtualKey, flags)) {
+      if (!RecordHeld(virtualKey, flags, keyUp)) return false;
+      hold->sides = keyUp ? (hold->sides & ~side) : (hold->sides | side);
+      return true;
     }
     if (keyUp) {
-      if (!hold->down.erase(virtualKey)) return -1;
-      hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
-      return 1;
+      if (!hold->down.erase(virtualKey)) return false;
+      swallowedKeyUps.erase(virtualKey);
+      return RecordHeld(virtualKey, flags, true);
     }
-    if (virtualKey == VK_ESCAPE) return DropHold(L"Escape"), -1;
+    if (virtualKey == VK_ESCAPE) return DropHold(L"Escape"), false;
     KeyPress press = ReadKeyPress(virtualKey, flags);
-    if (press.windowsKey) return DropHold(L"the Windows key"), -1;
-    if (!press.altGraph && MenuStore::Shared().Match(press)) return DropHold(L"another shortcut"), -1;
-    if (hold->keys.size() >= kMostHeldKeys) return DropHold(L"too many held keys"), -1;
-    hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
+    press.modifiers = ModifiersOfSides(hold->sides);
+    press.altGraph = (hold->sides & RightAlt) && (hold->sides & LeftControl);
+    if (!press.altGraph && MenuStore::Shared().Match(press)) return DropHold(L"another shortcut"), false;
+    if (!RecordHeld(virtualKey, flags, false, times)) return false;
     hold->down.insert(virtualKey);
-    return 1;
+    return true;
   }
 
   static bool PlainUndo(KeyPress const &press) noexcept {
@@ -491,10 +468,11 @@ struct MenuKeyboard {
 
   bool HandleKey(UINT virtualKey, LPARAM flags) noexcept {
     bool keyUp = (flags & (1u << 31)) != 0;
-    if (hold && !recording && !trackingMenu) {
-      int held = HoldKey(virtualKey, flags, keyUp);
-      if (held == 1) return true;
+    if (static_cast<ULONG_PTR>(GetMessageExtraInfo()) == kReplayMark) {
+      NoteReplayedKey();
+      return false;
     }
+    if (hold && !recording && !trackingMenu && HoldKey(virtualKey, flags, keyUp)) return true;
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));
