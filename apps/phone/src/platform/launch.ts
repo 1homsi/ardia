@@ -9,3 +9,11 @@ export function launchValues(): Record<string, LaunchValue> {
     return {};
   }
 }
+
+export function launchedForSyncDemo(): boolean {
+  try {
+    return pages.launchOptions()?.syncDemo === true;
+  } catch {
+    return false;
+  }
+}

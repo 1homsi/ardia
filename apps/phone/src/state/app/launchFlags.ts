@@ -1,8 +1,9 @@
 import { NO_LAUNCH_ARGUMENTS, parseLaunchArguments, type LaunchArguments } from "../../lib/launchArguments";
-import { launchValues } from "../../platform/launch";
+import { launchedForSyncDemo, launchValues } from "../../platform/launch";
 
 let launch: LaunchArguments = NO_LAUNCH_ARGUMENTS;
 let read = false;
+let demoSession: boolean | null = null;
 
 export function launchArguments(): LaunchArguments {
   if (!read) {
@@ -11,3 +12,5 @@ export function launchArguments(): LaunchArguments {
   }
   return launch;
 }
+
+export const isDemoSession = (): boolean => (demoSession ??= launchArguments().isDemo || launchedForSyncDemo());

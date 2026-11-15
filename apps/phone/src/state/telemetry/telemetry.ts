@@ -6,6 +6,7 @@ import { COUNTED, launchProps, legacyImportOutcome, parseDaily, pendingUsage, ty
 import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt, setUsageConsent, takePendingCounts } from "../../platform/telemetry";
 import { appearanceTelemetry } from "../../lib/appearance";
 import { useBoot } from "../app/bootState";
+import { isDemoSession } from "../app/launchFlags";
 import { currentPreferences } from "../settings/store";
 import { readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
@@ -57,9 +58,11 @@ export function startTelemetry() {
 
 export const setUsageSharing = (on: boolean, source: SharingSource) => gate.setSharing(on, source);
 
-export const countUsage = (field: Counted) => gate.count(field);
+export function countUsage(field: Counted) {
+  if (!isDemoSession()) gate.count(field);
+}
 
-export const usageCountingWindow = () => gate.countingWindow();
+export const usageCountingWindow = (): ((field: Counted) => void) => (isDemoSession() ? () => undefined : gate.countingWindow());
 
 let reported = false;
 

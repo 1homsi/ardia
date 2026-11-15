@@ -2,13 +2,15 @@ import type { SqlDatabase } from "../../lib/sqlDatabase";
 import { openMemoryDatabase, openSqlDatabase } from "../../platform/database";
 import { newUuid } from "../../lib/ids";
 import { demoSeed } from "../app/demoSeed";
-import { launchArguments } from "../app/launchFlags";
+import { isDemoSession, launchArguments } from "../app/launchFlags";
 import { writeImport } from "./browserDatabase";
 import { DATABASE_FILE, migrate } from "./schema";
 
 const DEMO_MARKER = "demo.seeded";
 
 let opened: SqlDatabase | null = null;
+let demo: SqlDatabase | null = null;
+let tabs: SqlDatabase | null = null;
 let durable = false;
 
 export const browserDatabaseIsDurable = () => {
@@ -16,13 +18,19 @@ export const browserDatabaseIsDurable = () => {
   return durable;
 };
 
+function demoDatabase(): SqlDatabase {
+  if (demo) return demo;
+  const seeded = openMemoryDatabase();
+  migrate(seeded);
+  writeImport(seeded, demoSeed(Date.now(), newUuid), DEMO_MARKER, "1");
+  demo = seeded;
+  return demo;
+}
+
 export function browserDatabase(): SqlDatabase {
   if (opened) return opened;
   if (launchArguments().isDemo) {
-    const demo = openMemoryDatabase();
-    migrate(demo);
-    writeImport(demo, demoSeed(Date.now(), newUuid), DEMO_MARKER, "1");
-    opened = demo;
+    opened = demoDatabase();
     return opened;
   }
   const file = openSqlDatabase(DATABASE_FILE);
@@ -36,3 +44,5 @@ export function browserDatabase(): SqlDatabase {
   }
   return opened;
 }
+
+export const tabDatabase = (): SqlDatabase => (tabs ??= isDemoSession() ? demoDatabase() : browserDatabase());

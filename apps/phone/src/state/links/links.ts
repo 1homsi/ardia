@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { addLinkListener, initialLink, type SystemLink } from "../../platform/links";
 import { openPage, openSpaces, openTab, reopenArchived, searchFor, showDeck, useBrowse } from "../browse/store";
-import { readArchivedTab, readPreferences, writePreference } from "../store/browserDatabase";
+import { readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
 import { useOnboarding } from "../onboarding/store";
 import { closeFind, closePageMenu, closeReader } from "../page/actions";
@@ -11,7 +11,7 @@ import { closeSettings, openSettings } from "../settings/nav";
 import { applyInbox } from "../sync/actions";
 import { syncData } from "../sync/store";
 import { canSearchByVoice, closeVoiceSearch, presentVoiceSearch } from "../voice/store";
-import { currentTabs, setIncognito, useTabs } from "../tabs/store";
+import { archivedTabById, currentTabs, setIncognito, useTabs } from "../tabs/store";
 import { findTab } from "../tabs/tabsState";
 import { serialQueue } from "../../lib/serialQueue";
 import { countUsage } from "../telemetry/telemetry";
@@ -44,7 +44,7 @@ async function run(link: IncomingLink, expired: () => boolean = () => false) {
     tabKind: (id) => {
       const open = findTab(currentTabs(), id);
       if (open) return open.isPrivate ? "private" : "open";
-      return readArchivedTab(browserDatabase(), id) ? "archived" : null;
+      return archivedTabById(id) ? "archived" : null;
     },
   });
   close(coversToClose(action));
@@ -76,7 +76,7 @@ async function run(link: IncomingLink, expired: () => boolean = () => false) {
       openTab(action.id);
       return;
     case "restoreTab": {
-      const tab = readArchivedTab(browserDatabase(), action.id);
+      const tab = archivedTabById(action.id);
       if (tab) reopenArchived(tab);
       return;
     }

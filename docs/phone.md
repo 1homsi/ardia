@@ -219,7 +219,10 @@ and again only when that status changes.
     wikipedia.org and bbc.com. The `PAGELAB desktop` lines should show `switched on`, then `pageFinished` at
     the tag's scale (visualViewport.scale about 0.38, not 1.0000) with no visible jump, and each page fitting
     the width. GitHub at 980 px shows its narrow layout, as Chrome's desktop mode does on phones.
-15. **Sync, demo mode:** Stop Syncing turns the demo off (the card and the deck show the disconnected state);
+15. **Sync, demo mode:** Before the demo launch, note the deck's real tabs. The demo shows its own eight tabs (Sintra
+    selected), four archived and its own history; open, close, archive and move tabs freely, then relaunch without the
+    demo: the real tabs, their pictures and scroll positions are exactly as before, and tabs a Mac sent during the demo
+    arrive then. Stop Syncing turns the demo off (the card and the deck show the disconnected state);
     the next demo launch is on again. A rename shows in the devices list; Pin to Mac fills the star. Damage inbox
     in the Sync section sets the status's `inboxProblem` (the Sync section's status lines show it) and the app
     shows its notice; after a force-stop and relaunch the notice is still there, until sync next writes the
@@ -1171,7 +1174,7 @@ iPhone follows the SwiftUI app on main since the merge of main (8203d0b3c, 2026-
 ### Decided by the owner (2026-11-15)
 
 - One design on both phones: Android takes main's iPhone redesign too ("the same look on Android and iPhone … keep one design, not two"). Plan: flip Android to the redesign, run both suites and an Android phone pass, then delete the classic design and its tests in one commit, so there is never a third state. Where a platform has a native element it uses its own: on iPhone the system context menus with lift and blur and the action sheets, on Android their native equivalents, behind one JavaScript component; the drawn menus go once both are in. Android's native needs for the redesign (the page under the bar, `Glass` with Classic, Print, the Downloads list, the sync-cycle flag, the site permissions list and revoke) are with the Android agent.
-- The sync demo gets tabs of its own, kept in memory, and never touches the tester's real tabs (being built, with store tests that a demo leaves the real tab store byte for byte unchanged).
+- The sync demo gets tabs of its own, kept in memory, and never touches the tester's real tabs. Built: a launch with `ArdiaDemo`, `com.ardia.phone.SYNC_DEMO` or `-ArdiaSyncDemo` runs on an in-memory store seeded from `demoSeed` (eight open tabs with Sintra selected, four archived, seven visits), chosen in one place (`tabDatabase()`). Every tab change goes there: open, close, select, archive, page updates, pictures, scroll positions, received tabs, Move to Space, Close All, remembered page tones and history. It never touches the real tabs, saved states, archive or history, never deletes a real tab's picture or saved page, and doesn't apply the Mac's inbox, so sent tabs wait for the next real launch; usage counts aren't kept. At the next launch without the demo the real tabs are exactly as they were (`render/demoTabs.render.test.tsx` checks it byte for byte). Still shared with the real app in a sync-demo launch: settings, kept links, the telemetry consent, and the engine's website data (Clear Browsing Data in the demo clears it).
 - Default Browser: Apple's web-browser entitlement is requested; the iPhone code stays ready to switch on when it is granted. On Android, Default Browser is offered by default (the role prompt), in onboarding and Settings.
 
 ### Waiting on the owner
@@ -1394,7 +1397,7 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 - Labs and the sync demo are gated by the build (`ARDIA_LAB`, `ARDIA_TEST_BUILD`), not by a debuggable build as in Compose (4f474ff95).
 - The Sync page's inbox-problem notice exists only in the Expo app (d9b85412f).
 - Licences are generated from the shipped code, not a hand-written list (aa44da003); the iPhone list's content is the gap above.
-- The sync demo over the real tab store (76dcdde8a), Reset › Connect Again acknowledging the reset first, and Bookmarks in iPhone Spaces (253515009) are the owner's choices, in "Waiting on the owner".
+- The sync demo keeps its tabs in memory (the owner's decision, "Decided by the owner"); Reset › Connect Again acknowledging the reset first and Bookmarks in iPhone Spaces (253515009) are the owner's choices, in "Waiting on the owner".
 - The tray's rows end at the last whole row and don't scroll at normal text sizes, so no partial row is drawn for a fade mask (992441306, 7287c72fd); both apps clip with a fade instead.
 - Matches both apps, not a gap: a cold start opens on the start page, never on the last page, and with Auto-Open Keyboard on raises the launch tray there, with the start page's logo and bar faded out behind it. Compose and SwiftUI both start on `Surface.Search`/`.search` and raise the tray when the start page appears (`SearchHomeView.kt` `openTrayIfWanted`, `SearchHomeView.swift`'s `.task`); neither brings back the page after a kill or a long absence. Back then closes the tray onto the selected tab's page, as Compose's `cancelSearch` (M3 sync12 item 6, checked 2026-11-15).
 - Matches Compose, not a gap: with the on-screen keyboard up, the first Back only drops the keyboard and the tray stays, with the start page's logo hidden behind it, because the keyboard takes that Back in both apps (F4 sync12, the owner's call on 2026-11-15).

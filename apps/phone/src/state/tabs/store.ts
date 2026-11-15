@@ -7,6 +7,7 @@ import {
   deleteArchivedTabs,
   expiredArchivedIds,
   knownReceivedKeys,
+  readArchivedTab,
   readArchivedTabs,
   readOpenTabs,
   readTabState,
@@ -14,7 +15,7 @@ import {
   writeTabState,
   writeTabs,
 } from "../store/browserDatabase";
-import { browserDatabase } from "../store/database";
+import { tabDatabase } from "../store/database";
 import { forgetPictures, forTheDatabase } from "./pictures";
 import { receiveTabs, type IncomingTab } from "./received";
 import type { AutoArchiveInterval, BrowserTab, TabPatch } from "./tabModels";
@@ -66,7 +67,7 @@ export const setTabProfile = (profileSyncId: string | null) => {
 };
 
 function apply(change: TabsChange) {
-  const db = browserDatabase();
+  const db = tabDatabase();
   const hadPrivate = useTabs.getState().privates.length > 0;
   writeTabs(db, change.put.map(forTheDatabase), change.remove);
   forgetPictures(change.remove);
@@ -83,13 +84,13 @@ function apply(change: TabsChange) {
 
 async function saveAndEnd(id: string) {
   const saved = await savePageState(id);
-  if (saved) writeTabState(browserDatabase(), id, saved);
+  if (saved) writeTabState(tabDatabase(), id, saved);
   const { open, privates } = data();
   if (!open.some((t) => t.id === id) && !privates.some((t) => t.id === id)) endPages([id]);
 }
 
 export function tabSavedState(id: string): string | null {
-  return privateStates.get(id) ?? (data().privates.some((t) => t.id === id) ? null : readTabState(browserDatabase(), id));
+  return privateStates.get(id) ?? (data().privates.some((t) => t.id === id) ? null : readTabState(tabDatabase(), id));
 }
 
 export function saveTabState(id: string, saved: string | null) {
@@ -98,18 +99,18 @@ export function saveTabState(id: string, saved: string | null) {
     else privateStates.delete(id);
     return;
   }
-  if (data().open.some((t) => t.id === id)) writeTabState(browserDatabase(), id, saved);
+  if (data().open.some((t) => t.id === id)) writeTabState(tabDatabase(), id, saved);
 }
 
 export function pruneExpiredArchive() {
-  const db = browserDatabase();
+  const db = tabDatabase();
   const expired = expiredArchivedIds(db, now() - ARCHIVE_RETENTION_MS, ARCHIVE_LIMIT);
   if (expired.length) writeTabs(db, [], expired);
   return expired.length;
 }
 
 export function loadTabs() {
-  const db = browserDatabase();
+  const db = tabDatabase();
   pruneExpiredArchive();
   useTabs.setState({ ...withSpaces(launchTabs(readOpenTabs(db), countArchivedTabs(db)), data().spaces), incognito: false, listing: 0 });
 }
@@ -167,7 +168,7 @@ export const updateTabById = (id: string, patch: TabPatch) => apply(updateTab(da
 
 export function rewriteTab(id: string) {
   const tab = findTab(data(), id);
-  if (tab) writeTabs(browserDatabase(), [forTheDatabase(tab)], []);
+  if (tab) writeTabs(tabDatabase(), [forTheDatabase(tab)], []);
 }
 
 export const archiveDueTabs = () => apply(runAutoArchive(data(), currentPreferences().autoArchiveInterval, now()));
@@ -179,13 +180,15 @@ export function setAutoArchiveInterval(interval: AutoArchiveInterval) {
 
 export const setIncognito = (incognito: boolean) => useTabs.setState({ incognito });
 
-export const loadArchive = () => useTabs.setState(withArchive(data(), readArchivedTabs(browserDatabase(), ARCHIVE_LIMIT)));
+export const archivedTabById = (id: string): BrowserTab | null => readArchivedTab(tabDatabase(), id);
+
+export const loadArchive = () => useTabs.setState(withArchive(data(), readArchivedTabs(tabDatabase(), ARCHIVE_LIMIT)));
 
 export function searchArchive(text: string): BrowserTab[] {
   const query = text.trim();
   const archive = data().archive;
   if (!query && archive) return archive;
-  return query ? searchArchivedTabs(browserDatabase(), query, ARCHIVE_SEARCH_LIMIT) : readArchivedTabs(browserDatabase(), ARCHIVE_SEARCH_LIMIT);
+  return query ? searchArchivedTabs(tabDatabase(), query, ARCHIVE_SEARCH_LIMIT) : readArchivedTabs(tabDatabase(), ARCHIVE_SEARCH_LIMIT);
 }
 
 export const restoreArchivedTab = (tab: BrowserTab) => apply(restoreArchived(data(), tab, now()));
@@ -198,7 +201,7 @@ export const archiveTabById = (id: string) => apply(archiveTabs(data(), [id], tr
 
 export function receiveSentTabs(incoming: readonly IncomingTab[]): BrowserTab[] {
   if (!incoming.length) return [];
-  const known = knownReceivedKeys(browserDatabase(), incoming.map((tab) => tab.key));
+  const known = knownReceivedKeys(tabDatabase(), incoming.map((tab) => tab.key));
   const { change, opened } = receiveTabs(data(), incoming, known, now(), newUuid);
   if (opened.length) apply(change);
   for (const tab of opened) labTrace(`PAGELAB tab opened #${++tabsOpenedThisRun} origin received-from-mac id ${tab.id} open ${useTabs.getState().open.length}`);

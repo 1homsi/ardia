@@ -1,5 +1,6 @@
 import { createConnectSession } from "./connectSession";
 import { haptics } from "../app/haptics";
+import { isDemoSession } from "../app/launchFlags";
 import { sync, type ConnectResult, type PhraseCheck, type SyncedDevice } from "../../platform/sync";
 import { choiceAfterMatchToggle, type ProfileLook } from "../../lib/profileLook";
 import { pasteText } from "../../platform/system";
@@ -54,6 +55,7 @@ function announce(opened: BrowserTab[]) {
 }
 
 export async function applyInbox(): Promise<number> {
+  if (isDemoSession()) return 0;
   if (applying) {
     again = true;
     return 0;
