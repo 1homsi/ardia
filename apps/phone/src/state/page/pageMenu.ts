@@ -26,6 +26,7 @@ export type MenuModel = {
   reloadEnabled: boolean;
   tiles: boolean;
   find: boolean;
+  print: boolean;
   pageRows: boolean;
   translate: boolean;
   nightShadeOn: boolean;
@@ -60,6 +61,7 @@ export function menuModel(input: MenuInput): MenuModel {
     reloadEnabled: input.isLoading || isWebPage,
     tiles: isWebPage,
     find: isWebPage,
+    print: web,
     pageRows: input.hasPage,
     translate: web,
     nightShadeOn: nightShadeIsOn(input.nightShade, input.systemDark),

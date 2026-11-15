@@ -17,6 +17,7 @@ import {
   sendCurrentTab,
   openSiteSettings,
   openSiteSettingsRoute,
+  pageMenuHidden,
   setBlockersOn,
   setDesktopSite,
   setNightShadeOn,
@@ -32,25 +33,36 @@ import { useMenuModel, useMenuPage, useMenuTitle, useTitleFeedback } from "../..
 import { SiteSettingsGroups } from "../settings/SitePages";
 import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
-import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, tabsMotion, Toggle, useTheme, type SymbolName } from "../ui";
+import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, tabsMotion, Toggle, useDesign, useTheme, type SymbolName } from "../ui";
+import { PageMenuWords, usePageMenuInk } from "./PageMenuWords";
 
 export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boolean; onHidden: () => void }) {
   const model = useMenuModel(tabId);
   const [confirmsTranslation, setConfirmsTranslation] = useState(false);
   const page = useMenuPage();
+  const redesigned = useDesign() === "redesigned";
+  const ink = usePageMenuInk();
+  const hidden = () => {
+    onHidden();
+    pageMenuHidden();
+  };
   return (
-    <Sheet open={open} onDismiss={closePageMenu} onHidden={onHidden}>
+    <Sheet open={open} onDismiss={closePageMenu} onHidden={hidden} fill={redesigned ? ink.sheet : undefined}>
       {confirmsTranslation ? (
         <ConfirmDialog
           confirmation={{ title: "Translate with Google?", message: "Google will see this page’s address.", action: "Translate", destructive: false, run: translatePage }}
           onClose={() => setConfirmsTranslation(false)}
         />
       ) : null}
-      <LayoutAnimationConfig skipEntering>
-        <Animated.View key={page} entering={FadeIn.duration(tabsMotion.surfaceFade)} exiting={FadeOut.duration(tabsMotion.surfaceFade)}>
-          {page === "siteSettings" ? <MenuSiteSettings /> : <MenuMain tabId={tabId} model={model} onTranslate={() => setConfirmsTranslation(true)} />}
-        </Animated.View>
-      </LayoutAnimationConfig>
+      {redesigned ? (
+        <PageMenuWords tabId={tabId} model={model} onTranslate={() => setConfirmsTranslation(true)} />
+      ) : (
+        <LayoutAnimationConfig skipEntering>
+          <Animated.View key={page} entering={FadeIn.duration(tabsMotion.surfaceFade)} exiting={FadeOut.duration(tabsMotion.surfaceFade)}>
+            {page === "siteSettings" ? <MenuSiteSettings /> : <MenuMain tabId={tabId} model={model} onTranslate={() => setConfirmsTranslation(true)} />}
+          </Animated.View>
+        </LayoutAnimationConfig>
+      )}
     </Sheet>
   );
 }

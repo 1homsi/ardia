@@ -121,6 +121,13 @@ export const menuLayout = {
   sheetTopGap: 24,
 } as const;
 
+export const pageMenuLayout = { barSpacing: 8, groupSpacing: 16, zoomHeight: 32, zoomButtonWidth: 40, zoomReset: 48, rowInset: 16, accessibilityBottom: 24, accessibilityTextScale: 1.6, pressedScale: 0.94 } as const;
+
+export const pageMenuInk = {
+  light: { sheet: "#FFFFFF", group: "#FFFFFF", rowPressed: "rgba(120,120,128,0.2)" },
+  dark: { sheet: "#000000", group: "#171717", rowPressed: "rgba(120,120,128,0.36)" },
+} as const;
+
 export const toastLayout = { minHeight: 44, verticalPadding: 11, iconSize: 17, barClearance: 64, sideInset: 32, shadowRadius: 14, shadowY: 6 } as const;
 
 export const pageInk = { findError: "#C93333" } as const;

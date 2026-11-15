@@ -41,10 +41,11 @@ type Props = {
   open: boolean;
   onDismiss: () => void;
   onHidden: () => void;
+  fill?: string;
   children: ReactNode;
 };
 
-export function Sheet({ open, onDismiss, onHidden, children }: Props) {
+export function Sheet({ open, onDismiss, onHidden, fill, children }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -148,7 +149,7 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
             slide,
           ]}
         >
-          <LookBackdrop />
+          {fill ? <View testID="sheetFill" style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} /> : <LookBackdrop />}
           {children}
         </Animated.View>
       </GestureDetector>

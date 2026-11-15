@@ -1,5 +1,6 @@
 import { act } from "react-test-renderer";
 import { PageMenu } from "../components/browsing/PageMenu";
+import { DesignProvider } from "../components/ui";
 import { handleSystemBack, openPageMenu } from "../state/page/actions";
 import { usePageUi } from "../state/page/store";
 import { usePages } from "../state/pages/store";
@@ -26,7 +27,11 @@ async function openMenu() {
   await act(async () => {
     await openPageMenu();
   });
-  return renderSurface(<PageMenu tabId={selectedTab(useTabs.getState())!.id} open onHidden={() => undefined} />);
+  return renderSurface(
+    <DesignProvider design="original">
+      <PageMenu tabId={selectedTab(useTabs.getState())!.id} open onHidden={() => undefined} />
+    </DesignProvider>,
+  );
 }
 
 test("Site Settings opens inside the menu with a Back button, and Back returns to the menu", async () => {

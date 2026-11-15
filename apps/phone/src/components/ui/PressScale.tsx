@@ -15,16 +15,18 @@ type Props = {
   onPressIn?: () => void;
   disabled?: boolean;
   grow?: boolean;
+  pressedScale?: number;
+  pressSpring?: { stiffness: number; damping: number; mass: number };
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 };
 
-export function PressScale({ label, hint, value, longPressLabel, actions, onPress, onLongPress, onPressIn, disabled, grow, style, children }: Props) {
+export function PressScale({ label, hint, value, longPressLabel, actions, onPress, onLongPress, onPressIn, disabled, grow, pressedScale = browseLayout.barControlScale, pressSpring = springs.barPress, style, children }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
   const exposed = actions
     ? screenReaderActions([{ name: "activate", run: onPress }, ...(onLongPress ? [{ name: "longpress", label: longPressLabel, run: onLongPress }] : []), ...actions])
     : {};
-  const to = (value: number) => Animated.spring(scale, { toValue: value, ...springs.barPress, useNativeDriver: true }).start();
+  const to = (value: number) => Animated.spring(scale, { toValue: value, ...pressSpring, useNativeDriver: true }).start();
   return (
     <Pressable
       accessibilityRole="button"
@@ -39,7 +41,7 @@ export function PressScale({ label, hint, value, longPressLabel, actions, onPres
       onLongPress={onLongPress}
       onPressIn={() => {
         onPressIn?.();
-        to(browseLayout.barControlScale);
+        to(pressedScale);
       }}
       onPressOut={() => to(1)}
     >

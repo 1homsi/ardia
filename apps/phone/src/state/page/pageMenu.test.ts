@@ -65,6 +65,13 @@ test("a non-web page disables what needs a web page", () => {
 test("without a live page the page rows are hidden", () => {
   assert.equal(menuModel(input({ hasPage: false })).pageRows, false);
   assert.equal(menuModel(input({ hasPage: false })).translate, false);
+  assert.equal(menuModel(input({ hasPage: false })).print, false);
+});
+
+test("Print needs a live web page, as main's menu enables it", () => {
+  assert.equal(menuModel(input()).print, true);
+  assert.equal(menuModel(input({ url: "about:blank" })).print, false);
+  assert.equal(menuModel(input({ url: "http://example.com/" })).print, true);
 });
 
 test("night shade, zoom text, translation and blocker toasts read as on Android", () => {
