@@ -71,6 +71,8 @@ public final class LookModule: Module {
       Prop("surface") { (view: GlassView, value: String?) in view.surface = GlassView.Surface(rawValue: value ?? "") ?? .glass }
       Prop("tinted") { (view: GlassView, value: Bool?) in view.tinted = value == true }
       Prop("barShadow") { (view: GlassView, value: Bool?) in view.barShadow = value == true }
+      Prop("shown") { (view: GlassView, value: Bool?) in view.shown = value ?? true }
+      Prop("shownMs") { (view: GlassView, value: Double?) in view.shownDuration = max(0, value ?? 200) / 1000 }
       Prop("color") { (view: GlassView, value: String?) in view.colors.color = value }
       Prop("themeColors") { (view: GlassView, value: [String]?) in view.colors.themeColors = value }
       Prop("darkThemeColors") { (view: GlassView, value: [String]?) in view.colors.darkThemeColors = value }
@@ -238,10 +240,12 @@ final class GlassView: ExpoView {
   var surface: Surface = .glass
   var tinted = false
   var barShadow = false
+  var shown = true
+  var shownDuration: TimeInterval = 0.2
   var colors = LookColors()
 
   private let effectView = UIVisualEffectView()
-  private var applied: (tint: UIColor?, interactive: Bool, classic: Bool, tinted: Bool, colors: LookColors)?
+  private var applied: (tint: UIColor?, interactive: Bool, classic: Bool, tinted: Bool, shown: Bool, colors: LookColors)?
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -273,20 +277,30 @@ final class GlassView: ExpoView {
   func render() {
     overrideUserInterfaceStyle = dark.map { $0 ? .dark : .light } ?? .unspecified
     let classic = isSolid
-    if let applied, applied.tint == tint, applied.interactive == interactive, applied.classic == classic, applied.tinted == tinted, applied.colors == colors {
+    if let applied, applied.tint == tint, applied.interactive == interactive, applied.classic == classic, applied.tinted == tinted, applied.shown == shown, applied.colors == colors {
       applyShape()
       return
     }
-    applied = (tint, interactive, classic, tinted, colors)
-    if classic {
-      effectView.effect = nil
-      effectView.backgroundColor = tinted ? UIColor(colors.look.surface) : .systemBackground
+    let appearing = applied?.shown == false && shown
+    applied = (tint, interactive, classic, tinted, shown, colors)
+    let surface = { [self] in
+      if classic {
+        effectView.effect = nil
+        effectView.backgroundColor = tinted ? UIColor(colors.look.surface) : .systemBackground
+        effectView.alpha = shown ? 1 : 0
+      } else {
+        let glass = UIGlassEffect(style: .regular)
+        glass.isInteractive = interactive
+        glass.tintColor = tint
+        effectView.backgroundColor = .clear
+        effectView.alpha = 1
+        effectView.effect = shown ? glass : nil
+      }
+    }
+    if appearing, window != nil, shownDuration > 0, !UIAccessibility.isReduceMotionEnabled {
+      UIView.animate(withDuration: shownDuration, delay: 0, options: [.curveEaseOut, .beginFromCurrentState], animations: surface)
     } else {
-      let glass = UIGlassEffect(style: .regular)
-      glass.isInteractive = interactive
-      glass.tintColor = tint
-      effectView.backgroundColor = .clear
-      effectView.effect = glass
+      surface()
     }
     applyShape()
   }
