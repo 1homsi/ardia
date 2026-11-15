@@ -2217,10 +2217,41 @@ so no real profile holds more history than that. How far it got:
 - Main's app, the ad hoc build, onboarded and connected through the steps above. `mac sync` listed one `iPhone` phone
   device, and the phone listed the Mac "shiv" with "Updated just now". Appearance turned dark from the Mac's
   setting.
-- Then Simlock dropped the lease under a load of 63 and refused the device command ("too old to use through a
-  gateway"), so the simulator and its data were gone. "Before", the upgrade and "after" (steps 2 to 7) still have
-  to run. Opening tabs through the search field was also unreliable on main's app. Next time, open them from the
-  deck's New Tab and confirm each page loaded before the next.
+- The first attempt lost its simulator to Simlock under load, and the second to a double lease (the screens agent's
+  install wiped main's app). The third ran to the end on lease f04ed0f4 (udid 97D6E59E), 2026-11-16 04:17–04:44.
+  Evidence, with both stores, the Preferences plist, screenshots, trees and `mac sync` output:
+  `/tmp/ardia-phone-shots/iphone-standin-upgrade/`.
+
+**The stand-in run's before and after** (the real run reads the same things the same way):
+
+| Check | Before: main's SwiftUI app | After: the Expo build (a987eb84b) |
+| --- | --- | --- |
+| Open tabs, in order | 21, from `ZBROWSERTAB` in the app group's `Browser.store` | the same 21 URLs in the same order (`tabs` in `Documents/SQLite/browser.db`, diffed) |
+| Archive | 2 (Hacker News, Pride and Prejudice) | the same 2 |
+| History | 23 visits | the same 23 URLs (`visits`, diffed) |
+| Saved page state | 20 tabs with interaction state | 23 `tab_state` rows |
+| Settings | Search Suggestions off, Auto-Open Keyboard off, archive after 7 days, app links in App, Appearance Green and Classic with Match My Mac off | the same, in `preferences`; Settings reads the same rows |
+| Synced from the Mac | Search Engine DuckDuckGo, the Personal space's pins | the same pins on the start page, four spaces |
+| Import | none | `legacy.receipt` `{"tabs":21,"archive":2,"visits":23,"preferences":7}`, all records accounted for |
+| Sync With Mac | connected: Mac "shiv", "This iPhone", folder Ardia Sync | opens on the connected page with the same devices and folder; no Connect step |
+| The Mac's view (`mac sync`) | one phone, ckl2z6gj…, 21 tabs | the same one phone, the same id, 21 tabs |
+| Mac to phone | | a tab sent from the Mac arrived once, marked from "shiv" |
+| Phone to Mac | | a page opened on the phone appeared under its tabs on the Mac |
+| Kill and relaunch twice | | the same counts each time and the same receipt, still connected |
+
+Notes for the real run:
+- **Read the import's result from the database, not the log.** A Release build's JavaScript `console.log` doesn't
+  reach the system log, so the `ardia-legacy imported` line never shows. `legacy.receipt` in `preferences` holds the
+  same counts.
+- **The data container moves on install.** It gets a new UUID path, with main's files inside, so look it up again with
+  `get_app_container` after installing. Main's store lives in the app group container, not the app's own.
+- **Main's search opens a new tab for each submitted address,** so each tab has a one-page back history. To check back
+  history, follow links within one tab instead.
+- **Not exercised on the stand-in:** Site Settings, blocking (a trusted site, a My Filters line, a list off) and the
+  Reader's settings. The real run should set those too.
+- **Private tabs aren't stored,** so they don't carry over, by design.
+- **Tooling:** the run is the scripted pieces above plus agent-device steps. The real run is the same steps with
+  `--seed <the owner's copy>`.
 
 #### Sync on iPhone
 
