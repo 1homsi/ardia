@@ -14,14 +14,13 @@ import {
   viewTabIds,
   without,
 } from "../browser/model";
-import { restoringGroup } from "../pins/closedTabs";
+import { MAX_CLOSED_WINDOWS, restoringGroup } from "../pins/closedTabs";
 import { markPinned } from "../pins/pinChoices";
 import { hasLoadedPage, hasPage, IDLE, isAsleep, loadedPage, withWake } from "../tabs/pageSession";
 import { adoptParkedPins, parkWindowPins } from "../pins/parkedPins";
 import { settleMovedPins } from "../pins/pinMirror";
 import { holderOf, returnSharedPages, swapPinPage } from "../pins/pinShare";
 import { isTopApp, topAppsShared } from "../pins/topApps";
-import { MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { joinedWithCurrent, newTabPlacement } from "../tabs/openers";
 import { handOverTabs, tabsClosedWithWindow } from "../tabs/sharedWindowClose";
 import { isLastRegularWindow, isOpenRegularWindow, isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
@@ -30,7 +29,8 @@ import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, Wind
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
 import { newTabHome } from "../tabs/newTabHome";
 import { noteAutoHideTabsChosen, noteTornOffWindowKeptAutoHide } from "../telemetry/autoHideTabsChoices";
-import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow } from "./reopenClosed";
+import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow, withoutRecentlyClosed } from "./reopenClosed";
+import { noteRecentlyClosedCleared } from "../telemetry/recentlyClosedCounts";
 import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves";
 import { commonGroup, orderSections } from "../groups/groups";
 import { groupOf } from "../pins/tabGrouping";
@@ -47,8 +47,7 @@ export type CreateWindowOptions = {
   linkPointer?: [number, number];
   linkApp?: string;
   background?: boolean;
-  chromeWindow?: string;
-  opensBehind?: string;
+  chromeWindow?: string; opensBehind?: string;
 };
 
 export type CloseWindowOptions = { keepsLastWindow?: boolean };
@@ -77,6 +76,7 @@ export type WindowsSlice = {
   reopenClosedTab(windowId?: string | null): void;
   reopenClosedWindow(): void;
   restoreClosed(entryId: string, windowId?: string | null): void;
+  clearRecentlyClosed(windowId?: string | null): void;
 };
 
 function lastProfileAfterClosing(s: BrowserState, id: string): string | null {
@@ -198,15 +198,13 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     if (!small) next = adoptParkedPins(next, id, next.tabs[shown]!.profileId);
     next = apply(next, activated(next, shown));
     const focused = focusedWindowOf(s);
-    if (o.opensBehind && kind === "main") {
-      next = { ...next, ui: { ...next.ui, focusOrder: s.ui.focusOrder, lastProfileId: s.ui.lastProfileId } };
-    } else if (o.background && focused && s.windows[focused]) {
+    if (o.background && focused && s.windows[focused]) {
       next = {
         ...next,
         ui: { ...next.ui, focusOrder: [focused, id, ...s.ui.focusOrder.filter((w) => w !== focused)], lastProfileId: s.ui.lastProfileId },
       };
     }
-    set(next);
+    set(o.opensBehind && kind === "main" ? { ...next, ui: { ...next.ui, focusOrder: s.ui.focusOrder, lastProfileId: s.ui.lastProfileId } } : next);
     home?.settle(first, get, () => {});
     return id;
   },
@@ -390,5 +388,13 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     if (closedWindow) return set(restoreWindow(s, closedWindow));
     const closedGroup = s.closedGroups.find((c) => c.id === entryId) ?? s.deletedGroups.find((c) => c.id === entryId);
     if (closedGroup) set(restoringGroup(s, closedGroup, windowId));
+  },
+
+  clearRecentlyClosed(windowId) {
+    const s = get();
+    const cleared = withoutRecentlyClosed(s, resolveWindowId(s, windowId));
+    if (!cleared) return;
+    noteRecentlyClosedCleared(cleared.cleared);
+    set(cleared.next);
   },
 });

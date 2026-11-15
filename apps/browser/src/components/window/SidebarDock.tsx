@@ -7,7 +7,7 @@ import { curve, useGated } from "../ui/motion";
 import { Panel, reduceMotion, WindowBackdrop, WindowDragRegion } from "../ui";
 import { useSettings, useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
-import { useCardTopInset, useToolbarLightsCenter } from "../../state/windows/layout";
+import { useCardTopInset, useSidebarControlsRowIn, useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
 import { ResizeHandle } from "../sidebar/ResizeHandle";
 import { dismissHoverIn } from "../../state/sidebar/hover";
@@ -198,6 +198,7 @@ function SidebarDock({
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
+  const controlsRow = useSidebarControlsRowIn(windowId);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
   const revealOnHover = useSettings((s) => s.revealTabsOnHover);
   const draggingTab = useTabDrag((d) => d.phase === "tab" && d.windowId === windowId);
@@ -358,7 +359,7 @@ function SidebarDock({
               )}
             </Animated.View>
           )}
-          <View style={[{ flex: 1 }, peeking ? { borderRadius: peekAt.radius, overflow: "hidden" } : null]}>{sidebar}</View>
+          <View style={[{ flex: 1, paddingTop: controlsRow }, peeking ? { borderRadius: peekAt.radius, overflow: "hidden" } : null]}>{sidebar}</View>
           <ResizeHandle windowId={windowId} />
         </Animated.View>
       </Animated.View>

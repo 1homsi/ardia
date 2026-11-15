@@ -919,7 +919,7 @@ struct WindowManager {
       bool finite = std::isfinite(region[0]) && std::isfinite(region[1]) && std::isfinite(region[2]) && std::isfinite(region[3]);
       if (!finite) continue;
       int32_t left = across(region[0] >= 0 ? region[0] * scale : client.Width + region[0] * scale);
-      int32_t right = across(client.Width - region[2] * scale);
+      int32_t right = across(region[2] >= 0 ? client.Width - region[2] * scale : left - region[2] * scale);
       int32_t top = down(region[1] * scale);
       int32_t bottom = down((region[1] + region[3]) * scale);
       if (right > left && bottom > top) rects.push_back({left, top, right - left, bottom - top});
