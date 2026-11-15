@@ -210,6 +210,20 @@ internal object LookActivity {
 }
 
 internal object DeckLayers {
+    fun layerable(backdrop: View): List<View> = restingContent(backdrop).flatMap(::withoutFrosts)
+
+    private fun holdsFrost(view: View): Boolean =
+        view is FrostView || (view is android.view.ViewGroup && (0 until view.childCount).any { holdsFrost(view.getChildAt(it)) })
+
+    private fun withoutFrosts(view: View): List<View> = when {
+        view is FrostView -> emptyList()
+        !holdsFrost(view) -> listOf(view)
+        view is android.view.ViewGroup -> (0 until view.childCount).map(view::getChildAt)
+            .filter { it.visibility == View.VISIBLE && it.width > 0 && it.height > 0 }
+            .flatMap(::withoutFrosts)
+        else -> emptyList()
+    }
+
     fun restingContent(backdrop: View): List<View> {
         var child: View = backdrop
         var parent = child.parent as? android.view.ViewGroup
@@ -324,7 +338,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
 
     private fun holdRestingOnLayers() {
         if (layered.isNotEmpty() || !LookSwitch.deckLayers(context)) return
-        for (view in DeckLayers.restingContent(this)) {
+        for (view in DeckLayers.layerable(this)) {
             if (view.layerType == LAYER_TYPE_HARDWARE) continue
             layered += view to view.layerType
             view.setLayerType(LAYER_TYPE_HARDWARE, null)

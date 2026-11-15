@@ -131,6 +131,19 @@ class FrostTintTest {
         root.addView(bar)
         root.addView(gone)
         assertEquals("the cards and the bar, not the base under the backdrop or a gone view", listOf<android.view.View>(cards, bar), DeckLayers.restingContent(backdrop))
+        val plate = FrameLayout(activity).at(0, 0, 160, 160)
+        val frost = FrostView(activity, appContext).at(0, 0, 160, 160)
+        val icon = android.view.View(activity).at(40, 40, 80, 80)
+        plate.addView(frost)
+        plate.addView(icon)
+        val label = TextView(activity).at(200, 0, 300, 160)
+        bar.addView(plate)
+        bar.addView(label)
+        assertEquals(
+            "a frost's retint must not re-raster a full-screen layer: layers go only on subtrees without a frost",
+            listOf<android.view.View>(cards, icon, label),
+            DeckLayers.layerable(backdrop),
+        )
     }
 
     @Test
