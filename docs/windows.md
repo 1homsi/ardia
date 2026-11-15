@@ -63,7 +63,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
 | Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works. The pale box once left over the page's top-left came from visiting a second profile, not from Ctrl+S: the next profile's sidebar page, parked beside the sidebar, cut a hole in the page. Gone on d83398e1f, on a full-width tab and a split pane. With tabs across the top (72901e27a), the open and recently closed tabs button and New Tab stay clear of the caption buttons down to the narrowest window (600 px), where tabs scroll instead, and a right-click on the empty strip opens the tab menu | #1673, #1583 |
-| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; the top edge does not resize where the page reaches it (sidebar right), because the page window sits above the caption region | #1831, #1888 |
+| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; where the page reaches the top edge (sidebar right), the band resizes the window (#1888; a real drag in CI, the cursor and double click untried in the VM) | #1831, #1888 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
@@ -186,6 +186,22 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   - With no lights on the left, a sidebar header with nothing in it collapses to the page frame on Windows
     (`sidebarHeaderCollapsed`), so the tabs start at the top; the downloads button then sits in the sidebar's footer.
     The header stays for a profile indicator, an incognito window, the address row, and a right sidebar.
+  - Resizing from the top edge over a page: Windows keeps the top resize band inside the client area, and the page is
+    its own window above it. The page window's hit test (`HostedFrameView::NonClientHitTest` in `ardia/win/frame_view.cc`)
+    answers what the app window answers at that point when that is its top edge or a top corner (so the band's size,
+    and no band while maximized or full screen, are the app window's own), and the page's content everywhere else.
+    Chromium would take the press that follows as a page press, so the engine's message hook (`PreTranslate` in
+    `ardia/win/main.cc`, called before Chromium's pump dispatches) takes a hosted page's non-client press and double
+    click with those codes: the press becomes the app window's own size command, the double click the app window's.
+    A move in the band sets the resize cursor (Chromium's page child window answers WM_SETCURSOR with nothing) and still
+    reaches Chromium. Chromium arms its non-client leave tracking on the page's top-level window, which never sees the
+    pointer leave from over its child, so the hook arms it on the child itself and, when the child reports the pointer
+    left the page, sends the page window WM_MOUSELEAVE: a page's hover ends when the pointer leaves through the band. Touch and pen can't resize from the top edge over a page: their contact arrives as WM_NCPOINTERDOWN,
+    which Chromium handles (untried without a touch device). `HTTOP` alone (Chromium handles the press) and
+    `HTTRANSPARENT` (a child window's transparency doesn't reach another top-level window) both left the window
+    unresized in a real drag. `launch-smoke.ps1` drags the band over a page in Minimalism with the sidebar on the
+    right and expects the window to resize from the top; the `tab.hitTest` host verb answers the page's and the app
+    window's hit for the self-check.
   - Moving the window: a drag region is a view that moves the window when the UI's own hit-testing gives it the press,
     so a control on top of it still clicks, and the app moves the window while the button is down (Escape puts it
     back, a maximized window restores under the pointer, a release at the top edge maximizes). The UI also marks
@@ -1066,7 +1082,8 @@ App side, an agent can do these now:
    the cause is seen on Windows.
 3. A private pop-up left as the only window closes the tabs it opens at once, where a regular one gets a browser window
    back (#1910): the app can't open a window on the pop-up's private session yet. S.
-4. The window's top edge doesn't resize where the page reaches it, as in Minimalism mode (#1888). S, in the engine.
+4. The top edge over a page that reaches it (#1888): a real drag in CI resizes the window from the top; the cursor, a
+   double click and a maximized window are untried in the VM. S.
 5. The theme's grain draws nothing, and the sidebar and toolbar don't blur what is behind them (#1921). M.
 6. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise
    trimmed as on the Mac since #1811). S.
@@ -1076,9 +1093,8 @@ App side, an agent can do these now:
    pop-up's window (not yet seen in the VM).
 8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
-10. Dragging a pinned extension to reorder the toolbar (main's #1935) doesn't keep its new place until the Windows
-    engine is rebuilt with `pinnedIndex` in `ac_extensions.cc` (by reading; not tried on Windows). S, the next engine
-    build.
+10. Dragging a pinned extension to reorder the toolbar (main's #1935): the engine takes `pinnedIndex` since
+    `windows-engine-20261115-3`; that the new order sticks, and the drag itself, are untried on Windows. S.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - password sync on Windows: the engine's login read is ready (#1918); Sync still has to handle its errors before
