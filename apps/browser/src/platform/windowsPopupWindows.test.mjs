@@ -271,8 +271,13 @@ test("a pop-up whose page closed itself closes its window at once, without the c
 });
 
 const { answerExternalAppsWith } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
-const reopens = [];
-DeviceEventEmitter.addListener("ArdiaShell:onAppEvent", (event) => event?.type === "reopen" && reopens.push(event));
+const { addNativeListener } = await import("../../../../packages/expo-windows/src/events.ts");
+const { tabCalls } = await import("../../../../packages/expo-windows/src/engine/domains/tabs.ts");
+const { readArgs } = await import("../../../../packages/expo-windows/src/engine/domains/calling.ts");
+const linksOpened = [];
+addNativeListener("ArdiaShell", "onOpenURLs", (event) => linksOpened.push(event));
+const routeLinkTabs = async (urls) => JSON.parse(await tabCalls.routeLinkTabs(readArgs("", JSON.stringify({ urls }))));
+const discarded = (adopt) => calls.some((call) => call.verb === "tab.discard" && call.args.adopt === adopt);
 
 async function lonePopup(adopt, profile = "p-work") {
   const unmountOpener = mountPage(`opener-${adopt}`, { url: "https://app.example/", profile, windowId: "main" }, () => {});
@@ -300,64 +305,55 @@ test("an app-link ask from a pop-up left without its opener's window, with no br
   await popup.done();
 });
 
-test("a tab a lone pop-up opens asks for a browser window, as a second launch does, and goes to it", async () => {
+test("a tab a lone pop-up opens reaches the app as a link with its own tab, so an empty command-bar window of its profile takes it", async () => {
   const popup = await lonePopup("ardiacore:71");
-  const before = reopens.length;
+  const before = linksOpened.length;
   emitTopic("tab.opened", { adopt: "ardiacore:72", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
   await settle();
-  assert.equal(reopens.length, before + 1, "a browser window is asked for");
-  assert.ok(!calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:72"), "the tab waits instead of being thrown away");
-  const events = [];
-  const unmountRestored = mountPage("restored-page", { url: "https://app.example/", profile: "p-work", windowId: "main-again" }, (name, data) => events.push([name, data]));
+  assert.deepEqual(linksOpened.slice(before), [{ urls: ["https://help.example/"] }], "the app hears it as a link, which opens in a browser window of the profile with or without a page");
+  assert.deepEqual(await routeLinkTabs(["https://help.example/"]), { profile: "p-work", adoptIds: ["ardiacore:72"] }, "the app's link path adopts the pop-up's own tab");
+  assert.deepEqual(await routeLinkTabs(["https://help.example/"]), {}, "the tab is handed out once");
+  const adopted = mountPage("command-bar-window-tab", { url: "https://help.example/", profile: "p-work", adopt: "ardiacore:72", windowId: "empty-window" }, () => {});
   await settle();
-  const handed = events.filter(([name]) => name === "openWindow").map(([, data]) => data);
-  assert.equal(handed.at(-1)?.adoptId, "ardiacore:72", "the restored window's page takes the tab");
-  unmountRestored();
+  assert.ok(!discarded("ardiacore:72"), "the adopted tab is kept");
+  adopted();
   await popup.done();
 });
 
-test("a link a lone pop-up opens in a new window waits for the browser window too", async () => {
+test("a link a lone pop-up opens in a new window reaches the app as a link in the pop-up's profile", async () => {
   const popup = await lonePopup("ardiacore:73");
-  const before = reopens.length;
+  const before = linksOpened.length;
   emitTopic("tab", { key: popup.info.pageKey, name: "openWindow", data: { url: "https://help.example/split", disposition: "window", userGesture: true } });
   await settle();
-  assert.equal(reopens.length, before + 1);
-  const events = [];
-  const unmountRestored = mountPage("restored-page-2", { url: "https://app.example/", profile: "p-work", windowId: "main-again" }, (name, data) => events.push([name, data]));
-  await settle();
-  assert.equal(events.filter(([name]) => name === "openWindow").at(-1)?.[1]?.url, "https://help.example/split");
-  unmountRestored();
+  assert.deepEqual(linksOpened.slice(before), [{ urls: ["https://help.example/split"] }]);
+  assert.deepEqual(await routeLinkTabs(["https://help.example/split"]), { profile: "p-work", adoptIds: [null] }, "no engine tab to adopt, but the app opens it in the pop-up's profile");
   await popup.done();
 });
 
-test("a tab a lone private pop-up opens is closed at once: no window of its private session can be asked for", async () => {
+test("a tab a lone private pop-up opens is closed at once: no window of its private session can take it", async () => {
   const popup = await lonePopup("ardiacore:74", "p-work@private-9");
-  const before = reopens.length;
+  const before = linksOpened.length;
   emitTopic("tab.opened", { adopt: "ardiacore:75", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work@private-9", parent: "", fromClick: false });
   await settle();
-  assert.equal(reopens.length, before, "no window is asked for");
-  assert.ok(calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:75"), "the private tab is closed, never put in a regular window");
+  assert.equal(linksOpened.length, before, "it never reaches the app as a link");
+  assert.ok(discarded("ardiacore:75"), "the private tab is closed, never put in a regular window");
   await popup.done();
 });
 
-test("a tab a lone pop-up opens is closed in the engine, not left hidden and running, when no page of its profile listens within the wait", async () => {
+test("a tab a lone pop-up opens is closed in the engine, not left hidden and running, when the app doesn't adopt it within the wait", async () => {
   const { BROWSER_WINDOW_WAIT_MS } = await import("../../../../packages/expo-windows/src/engine/requestHosts.ts");
   const popup = await lonePopup("ardiacore:76");
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
-    emitTopic("tab.opened", { adopt: "ardiacore:77", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
+    emitTopic("tab.opened", { adopt: "ardiacore:77", url: "https://help.example/late", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
     mock.timers.tick(BROWSER_WINDOW_WAIT_MS - 1);
-    assert.ok(!calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:77"), "it still waits just before the deadline");
+    assert.ok(!discarded("ardiacore:77"), "it still waits just before the deadline");
     mock.timers.tick(1);
   } finally {
     mock.timers.reset();
   }
   await settle();
-  assert.ok(calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:77"), "at the deadline the offered tab is closed in the engine");
-  const events = [];
-  const late = mountPage("late-page", { url: "https://app.example/", profile: "p-work", windowId: "main-late" }, (name, data) => events.push([name, data]));
-  await settle();
-  assert.equal(events.filter(([name]) => name === "openWindow").length, 0, "a page that listens later doesn't get a tab that is gone");
-  late();
+  assert.ok(discarded("ardiacore:77"), "at the deadline the offered tab is closed in the engine");
+  assert.deepEqual(await routeLinkTabs(["https://help.example/late"]), {}, "a tab that is gone isn't handed to the app");
   await popup.done();
 });

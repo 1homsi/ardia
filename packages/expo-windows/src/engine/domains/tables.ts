@@ -13,6 +13,7 @@ import { profileCalls } from "./profiles";
 import { siteCalls } from "./sites";
 import { externalAppCalls } from "./externalApps";
 import { webViewCalls } from "./webView";
+import { tabCalls } from "./tabs";
 
 export type Rows = {
   forwarded: Record<string, Record<string, string>>;
@@ -35,6 +36,7 @@ export const reproduced: Record<string, Handlers> = {
   profiles: profileCalls,
   search: searchCalls,
   sites: siteCalls,
+  tabs: tabCalls,
   webView: webViewCalls,
 };
 

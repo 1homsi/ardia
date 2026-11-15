@@ -70,7 +70,6 @@
     "profiles": ["loaded", "unloadIdle"],
     "search": ["setEngineName"],
     "tabs": [
-      "routeLinkTabs",
       "stripCommand",
       "strips",
       "reportCommits",

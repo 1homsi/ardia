@@ -1,6 +1,6 @@
 import { fieldFocusedIn } from "../appKeyboard";
 import { discardOffered, hostCall, onEngineTopic } from "./host";
-import { browserPagesListening, hostInNewBrowserWindow, listeningBrowserPages, requestHost, type RequestPage } from "./requestHosts";
+import { linkTabAdopted, listeningBrowserPages, openInBrowserWindow, requestHost, type RequestPage } from "./requestHosts";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 import { privateSessionOpened } from "./privateWindows";
 import type { ExternalAppRequest, NavigationState, OpenWindowRequest } from "@ardia/ardiacore";
@@ -92,7 +92,7 @@ function handOpenedTab(asking: Page | undefined, opener: Page | undefined, reque
   const host = requestHost(opener, request.profile, pages.values());
   if (host) return sendTo("openWindow", request)(host);
   const discard = () => quietly(hostCall("tab.discard", { adopt: request.adoptId }));
-  if (asking && isPopupWindowId(asking.windowId)) return hostInNewBrowserWindow(request.profile, sendTo("openWindow", request), discard);
+  if (asking && isPopupWindowId(asking.windowId)) return openInBrowserWindow(request.profile ?? asking.profile, request.url, request.adoptId, discard);
   if (listeningBrowserPages(pages.values()).length) console.warn("[ardia windows] a tab opened by a page was closed: no page of its profile is showing");
   discard();
 }
@@ -101,7 +101,9 @@ function openFromPopup(page: Page, request: unknown) {
   const moved = typeof request === "object" && request !== null ? { ...request, point: undefined } : request;
   const host = requestHost(pages.get(popupOpenerKey(page.windowId)), page.profile, pages.values());
   if (host) return sendTo("openWindow", moved)(host);
-  hostInNewBrowserWindow(page.profile, sendTo("openWindow", moved), () => console.warn("[ardia windows] a link from a pop-up went nowhere: no browser window of its profile opened"));
+  const url = typeof moved === "object" && moved !== null && typeof (moved as { url?: unknown }).url === "string" ? (moved as { url: string }).url : "";
+  if (!url) return;
+  openInBrowserWindow(page.profile, url, undefined, () => console.warn("[ardia windows] a link from a pop-up went nowhere: the app never took it"));
 }
 
 function popupWindowGone(popup: PopupWindowInfo) {
@@ -287,7 +289,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
   mounted.parked = false;
   mounted.mounts += 1;
   mounted.listeners.add(listener);
-  if (!isPopupWindowId(mounted.windowId)) browserPagesListening(pages.values());
+  linkTabAdopted(from.adopt);
   void mounted.ready.then((opened) => {
     if (opened) tellReady(mounted, listener);
   });

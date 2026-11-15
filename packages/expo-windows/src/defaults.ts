@@ -11,7 +11,7 @@ const ENGINE_ONLY: Record<string, string[]> = {
 };
 
 const ENGINE_ANSWERS: Record<string, Record<string, unknown>> = {
-  ArdiaTabs: { strips: { rev: 0, cmd: null, strips: [] }, routeLinkTabs: {} },
+  ArdiaTabs: { strips: { rev: 0, cmd: null, strips: [] } },
   ArdiaExtensions: { list: { extensions: [] } },
   ArdiaSearch: { engines: { list: { engines: [] } } },
   ArdiaWindows: { list: [] },

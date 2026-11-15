@@ -540,11 +540,14 @@ is plain Chromium.
   test instance) is closed, whatever lost it.
 - What a pop-up's page asks for goes to one place, `requestHost` (`engine/requestHosts.ts`): its opener's page while
   that page is listening, else a browser page of its profile, else nobody. With nobody, a tab or link the pop-up opens
-  asks for a browser window as a second launch does ("reopen": the last window comes back or a new one opens) and
-  goes to the first page of its profile that listens within 10 s, else it is closed in the engine, never left hidden
-  and running. Known gap: a private pop-up's tab is closed at once. The app makes a new private session for each
-  private window and can't open one on an existing session, and a regular window would leak it. An app-link ask
-  with nobody to show it is refused and forgotten (`externalAppForget`), where the Mac drops it unanswered.
+  reaches the app as a link (`onOpenURLs`), the way a second launch with an address does, and `ArdiaTabs.routeLinkTabs`
+  hands back the pop-up's own engine tab and profile for that address. So it goes to a browser window of the
+  profile whether or not that window has a page (an empty window with New Tab set to the command bar takes it), or
+  to a new window when none is open. A tab the app hasn't adopted within 10 s is closed in the engine, never left
+  hidden and running. Known gap: a private pop-up's tab is closed at once. The app makes a new private session for
+  each private window and can't open one on an existing session, and a regular window would leak it. An app-link ask
+  with nobody to show it is refused and forgotten (`externalAppForget`), where the Mac drops it unanswered: the
+  prompt is drawn on the asking page's tab, so a window with no page has nowhere to show it.
 - A pop-up window takes focus only if, when it opens, its opener's app window is the foreground window and the
   opener's page holds the keyboard (`keyboard.page`, asked by `WindowManager.h` at that moment, the same rule as page
   focus in #1658); a pop-up from a pop-up is placed and focused by that pop-up, while its tabs and prompts go to the
