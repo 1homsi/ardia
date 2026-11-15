@@ -73,6 +73,7 @@ constexpr base::TimeDelta kOpenRequestWait = base::Milliseconds(25);
 constexpr base::TimeDelta kOfferDeadline = base::Seconds(30);
 constexpr base::TimeDelta kTestOfferDeadline = base::Seconds(4);
 constexpr UINT_PTR kParentSubclass = 0xA2D1A;
+constexpr UINT_PTR kPageSubclass = 0xA2D1B;
 
 base::DictValue Ok() {
   base::DictValue result;
@@ -142,6 +143,40 @@ LRESULT CALLBACK ParentProcedure(HWND window,
     ::RemoveWindowSubclass(window, &ParentProcedure, id);
   }
   return ::DefSubclassProc(window, message, w_param, l_param);
+}
+
+LRESULT CALLBACK PageProcedure(HWND window,
+                               UINT message,
+                               WPARAM w_param,
+                               LPARAM l_param,
+                               UINT_PTR id,
+                               DWORD_PTR data) {
+  if (message == WM_SYSCOMMAND && (w_param & 0xFFF0) == SC_SIZE) {
+    if (HWND app = ::GetWindow(window, GW_OWNER)) {
+      ::ReleaseCapture();
+      ::PostMessageW(app, WM_SYSCOMMAND, w_param, l_param);
+      return 0;
+    }
+  }
+  if (message == WM_NCDESTROY) {
+    ::RemoveWindowSubclass(window, &PageProcedure, id);
+  }
+  return ::DefSubclassProc(window, message, w_param, l_param);
+}
+
+std::string_view HitName(LRESULT hit) {
+  switch (hit) {
+    case HTCLIENT:
+      return "client";
+    case HTTOP:
+      return "top";
+    case HTTOPLEFT:
+      return "topLeft";
+    case HTTOPRIGHT:
+      return "topRight";
+    default:
+      return "other";
+  }
 }
 
 int Integer(const base::DictValue& args, std::string_view key) {
@@ -314,6 +349,8 @@ void Host::Call(const std::string& verb,
       }
     }
     result = Ok();
+  } else if (verb == "tab.hitTest") {
+    result = HitTest(args);
   } else if (verb == "keyboard.page") {
     result = Ok();
     result.Set("key", KeyboardPage());
@@ -600,6 +637,7 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   hosted.parent = parent;
   WatchParent(parent);
   SetOwner(window, parent);
+  ::SetWindowSubclass(window, &PageProcedure, kPageSubclass, 0);
   double scale = Text(args, "unit") == "px"
                      ? 1.0
                      : ::GetDpiForWindow(parent) / 96.0;
@@ -690,6 +728,24 @@ void Host::DeleteClosedTab(content::WebContents* contents) {
     model->delegate()->CreateHistoricalTab(contents);
   }
   model->DetachAndDeleteWebContentsAt(index);
+}
+
+base::DictValue Host::HitTest(const base::DictValue& args) {
+  content::WebContents* contents = Find(Text(args, "key"));
+  Browser* browser = contents ? BrowserOf(contents) : nullptr;
+  HWND window = browser ? WindowOf(browser) : nullptr;
+  RECT bounds;
+  if (!window || !::GetWindowRect(window, &bounds)) {
+    return Error("the tab has no page window");
+  }
+  const LRESULT hit = ::SendMessageW(
+      window, WM_NCHITTEST, 0,
+      MAKELPARAM(bounds.left + Integer(args, "x"),
+                 bounds.top + Integer(args, "y")));
+  base::DictValue result = Ok();
+  result.Set("hit", HitName(hit));
+  result.Set("width", static_cast<int>(bounds.right - bounds.left));
+  return result;
 }
 
 base::DictValue Host::DiscardOffered(const base::DictValue& args) {

@@ -63,7 +63,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
 | Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works. The pale box once left over the page's top-left came from visiting a second profile, not from Ctrl+S: the next profile's sidebar page, parked beside the sidebar, cut a hole in the page. Gone on d83398e1f, on a full-width tab and a split pane. With tabs across the top (72901e27a), the open and recently closed tabs button and New Tab stay clear of the caption buttons down to the narrowest window (600 px), where tabs scroll instead, and a right-click on the empty strip opens the tab menu | #1673, #1583 |
-| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; the top edge does not resize where the page reaches it (sidebar right), because the page window sits above the caption region | #1831, #1888 |
+| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; where the page reaches the top edge (sidebar right), the page window answers the top resize band as the window's top edge (#1888, not yet tried in the VM) | #1831, #1888 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
@@ -186,6 +186,13 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   - With no lights on the left, a sidebar header with nothing in it collapses to the page frame on Windows
     (`sidebarHeaderCollapsed`), so the tabs start at the top; the downloads button then sits in the sidebar's footer.
     The header stays for a profile indicator, an incognito window, the address row, and a right sidebar.
+  - Resizing from the top edge over a page: Windows keeps the top resize band inside the client area, and the page is
+    its own window above it. The page window's hit test (`HostedFrameView::NonClientHitTest` in `ardia/win/frame_view.cc`)
+    answers the band (the system's top frame plus padding, at the window's DPI) as the top edge, and the band's first
+    and last stretch as the top corners, only while the app window is resizable and not maximized or minimized. The
+    sizing command that follows is posted to the app window (`PageProcedure` in `ardia/win/host.cc`), and the cursor
+    is set during the hit test because Chromium's page child window ignores WM_SETCURSOR. A press below the band is
+    the page's. The `tab.hitTest` host verb answers the hit for a point in a page window, for the self-check.
   - Moving the window: a drag region is a view that moves the window when the UI's own hit-testing gives it the press,
     so a control on top of it still clicks, and the app moves the window while the button is down (Escape puts it
     back, a maximized window restores under the pointer, a release at the top edge maximizes). The UI also marks
@@ -1038,7 +1045,8 @@ App side, an agent can do these now:
    the cause is seen on Windows.
 3. A pop-up left as the only window drops its open-in-another-app prompt and the tabs it opens (#1910). S, with the
    engine thread.
-4. The window's top edge doesn't resize where the page reaches it, as in Minimalism mode (#1888). S, in the engine.
+4. The top edge over a page that reaches it (#1888): the engine answers it, untried in the VM (the drag, the cursor, a
+   maximized window). S.
 5. The theme's grain draws nothing, and the sidebar and toolbar don't blur what is behind them (#1921). M.
 6. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise
    trimmed as on the Mac since #1811). S.
