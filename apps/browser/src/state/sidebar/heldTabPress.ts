@@ -11,6 +11,19 @@ export const TAB_CLICK_SLOP = 10;
 export const devTabPress = { switchOnPress: true };
 
 let heldPress: { windowId: string; tabId: string; startedAt: number | undefined; switched: boolean } | null = null;
+const pressEnds = new Set<() => void>();
+
+export const tabPressHeld = (windowId: string) => heldPress?.windowId === windowId;
+
+export function onTabPressEnd(listener: () => void) {
+  pressEnds.add(listener);
+  return () => void pressEnds.delete(listener);
+}
+
+function releasePress() {
+  heldPress = null;
+  for (const listener of [...pressEnds]) listener();
+}
 
 type WithHistory = GestureResponderEvent & { touchHistory?: { touchBank: ({ startTimeStamp: number } | null | undefined)[] } };
 
@@ -43,7 +56,7 @@ export function holdTabPress(windowId: string, tabId: string, press: GestureResp
 
 export function clickHeldTabPress(windowId: string, tabId: string, release: GestureResponderEvent) {
   const held = heldPress;
-  heldPress = null;
+  releasePress();
   notePressEnded("click", tabId);
   dismissHover();
   const start = pressStart(release);
@@ -53,7 +66,7 @@ export function clickHeldTabPress(windowId: string, tabId: string, release: Gest
 
 export function endHeldTabPress(tabIds: string[], release: GestureResponderEvent | null) {
   const held = heldPress;
-  heldPress = null;
+  releasePress();
   if (!held) return;
   if (!release || !tabIds.includes(held.tabId) || held.startedAt === undefined || held.startedAt !== pressStart(release)) return notePressEnded("drag");
   notePressEnded("dragClick", held.tabId);
