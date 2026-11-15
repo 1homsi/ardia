@@ -181,11 +181,12 @@ function SitePermissions({ shownProfileId, site }: { shownProfileId: string | nu
 
   return (
     <>
-      {PLATFORM_FEATURES.blocksAutoplay && (
+      {(PLATFORM_FEATURES.blocksAutoplay || PLATFORM_FEATURES.answersPermissionRequests) && (
         <>
           <SectionHeader title="All sites" description="These apply in every profile." />
           <Group>
-            <SettingToggle anchor="privacy.blockAutoplayEverywhere" />
+            {PLATFORM_FEATURES.blocksAutoplay && <SettingToggle anchor="privacy.blockAutoplayEverywhere" />}
+            {PLATFORM_FEATURES.answersPermissionRequests && <SettingToggle anchor="privacy.blockNotificationRequests" />}
           </Group>
         </>
       )}

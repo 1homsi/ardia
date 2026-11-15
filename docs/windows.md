@@ -25,7 +25,7 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 74 rows, 54 work, 8 work with a difference, 4 do nothing, 7 are not offered
+who and on which build. Of the 75 rows, 54 work, 8 work with a difference, 4 do nothing, 8 are not offered
 and 1 was not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
@@ -108,6 +108,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
 | Hide anything (Hide Element) | Not offered; hidden: its rules are kept by the content blocker, which Windows lacks | #1425 |
 | Block autoplay on every site, and Autoplay per site in Site Controls | Not offered; hidden: on the Mac the page script blocks media nobody asked to play, from the global switch and the site's Autoplay choice, and the Windows page script has no such blocking, so the switch (`webView.setBlockAutoplayEverywhere` is missing) and the per-site choice (stored, never read) are hidden behind `blocksAutoplay` | #1425, #1774 |
+| Block requests to send notifications (Settings › Privacy & Security) | Not offered; hidden: it turns a notification request down when the app hears one, and on Windows the app hears none and can't answer one (`permissions.resolve`), so Chromium's own prompt still asks | #1425 |
 | Bookmark export | Works: Windows' Save As, then the HTML file is written | #1551 |
 | Password export | Works up to Windows' own sign-in prompt over the app window; the walk cancelled it there (the VM account's password is not typed in a test), so the file was not written | #1551 |
 
