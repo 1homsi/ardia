@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Host, NavigationDestination, NavigationStack, RNHostView, VStack } from "@expo/ui/swift-ui";
-import { navigationBarTitleDisplayMode, navigationTitle } from "@expo/ui/swift-ui/modifiers";
+import { ignoreSafeArea, navigationBarTitleDisplayMode, navigationTitle } from "@expo/ui/swift-ui/modifiers";
 import { refreshSettings } from "../../state/settings/actions";
 import { useSettingsNav } from "../../state/settings/hooks";
 import { followSettingsPath, settingsPath, settingsRouteFromKey, type SettingsRoute } from "../../state/settings/nav";
 import { nativeLookColors } from "../../lib/profileLook";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
-import { LookBackdrop, modifierList, profileLook, settingsChrome, settingsUIAvailable, useProfileLook, usesGlass } from "../ui";
+import { LookBackdrop, modifierList, profileLook, settingsUIAvailable, useProfileLook, usesGlass } from "../ui";
 import { useChromeStyle } from "../../state/settings/appearance";
 import { ExpoSettingsRoot } from "./ExpoSettingsRoot";
 import { SettingsHostedContext } from "./SettingsKit";
@@ -45,7 +45,7 @@ export function ExpoSettingsStack() {
     <View testID="expoSettings" style={StyleSheet.absoluteFill}>
       {settingsUIAvailable() ? null : <LookBackdrop />}
       <Host style={styles.fill}>
-        <NavigationStack path={path} onPathChange={followSettingsPath} modifiers={modifierList(profileLook({ ...nativeLookColors(look), usesGlass: glass }), settingsChrome())}>
+        <NavigationStack path={path} onPathChange={followSettingsPath} modifiers={modifierList(profileLook({ ...nativeLookColors(look), usesGlass: glass }))}>
           <ExpoSettingsRoot />
           {path.map((key) => (
             <NavigationDestination key={key} value={key}>
@@ -62,7 +62,7 @@ function HostedPage({ routeKey }: { routeKey: string }) {
   const route = settingsRouteFromKey(routeKey);
   if (!route) return null;
   return (
-    <VStack modifiers={[navigationTitle(TITLES[route.page]), navigationBarTitleDisplayMode("inline")]}>
+    <VStack modifiers={[navigationTitle(TITLES[route.page]), navigationBarTitleDisplayMode("inline"), ignoreSafeArea({ edges: "bottom" })]}>
       <RNHostView>
         <View style={styles.fill}>
           <SettingsHostedContext.Provider value>

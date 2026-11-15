@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { PlatformColor } from "react-native";
 import { Button, Form, HStack, Image, LabeledContent, NavigationLink, Picker, Section, Text, Toggle, Toolbar, ToolbarItem, VStack } from "@expo/ui/swift-ui";
-import { background, buttonStyle, clipShape, contentTransition, font, foregroundStyle, frame, listRowBackground, listRowInsets, multilineTextAlignment, navigationBarTitleDisplayMode, navigationTitle, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
+import { background, buttonStyle, clipShape, contentTransition, font, foregroundStyle, frame, listRowBackground, listRowInsets, listSectionSpacing, multilineTextAlignment, navigationBarTitleDisplayMode, navigationTitle, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
 import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
@@ -15,7 +15,7 @@ import { closeSettings, settingsRouteKey, type SettingsRoute } from "../../state
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
-import { modifierList, pressableStyle, PROFILE_COLORS, SettingsIconTile, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
+import { modifierList, pressableStyle, PROFILE_COLORS, settingsChrome, SettingsIconTile, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
 import { ExpoRowLabel } from "./ExpoRowLabel";
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
@@ -25,6 +25,7 @@ const APP_LINKS = [
 ] as const;
 const SHORTCUT_FILL = PlatformColor("secondarySystemGroupedBackground");
 const SYNC_TILE = 56;
+const TOP_SECTION_SPACING = 16;
 
 const link = (route: SettingsRoute) => settingsRouteKey(route);
 const colorName = (choice: string) => PROFILE_COLORS[choice as ProfileColor]?.name ?? choice;
@@ -47,13 +48,13 @@ export function ExpoSettingsRoot() {
   const appearance = useAppearanceSummary(colorName);
   return (
     <Toolbar>
-      <Form modifiers={[navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue"))]}>
-        <Section>
+      <Form modifiers={modifierList(navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome())}>
+        <Section modifiers={[listSectionSpacing(TOP_SECTION_SPACING)]}>
           <NavigationLink value={link({ page: "sync" })}>
             <SyncRow />
           </NavigationLink>
         </Section>
-        <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })]}>
+        <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }), listSectionSpacing(TOP_SECTION_SPACING)]}>
           <HStack spacing={12}>
             <Shortcut title="Archive" onPress={() => leaveFor(openArchive)} />
             <Shortcut title="Spaces" onPress={() => leaveFor(openSpaces)} />
@@ -140,7 +141,7 @@ export function ExpoSettingsRoot() {
       </Form>
       <Toolbar.Content>
         <ToolbarItem placement="confirmationAction">
-          <Button onPress={closeSettings} modifiers={[font({ weight: "semibold" })]}>
+          <Button onPress={closeSettings} modifiers={[font({ weight: "semibold" }), tint(PlatformColor("systemBlue"))]}>
             <Text>Done</Text>
           </Button>
         </ToolbarItem>
