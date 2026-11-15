@@ -105,13 +105,18 @@ struct MenuKeyboard {
     return true;
   }
 
-  bool CaptureSwitcherKey(KeyPress const &press) noexcept {
+  static bool ClosesSwitcherRow(KeyPress const &press, bool repeat) noexcept {
+    return press.virtualKey == 'W' && !repeat && (press.modifiers & (ModifierControl | ModifierCommand)) != 0 && (press.modifiers & ModifierOption) == 0;
+  }
+
+  bool CaptureSwitcherKey(KeyPress const &press, bool repeat) noexcept {
     CommandEntry const *entry = MenuStore::Shared().Match(press);
     if (entry && entry->command == "tabSwitcher") return Dispatch(press);
     const char *key = nullptr;
     if (press.virtualKey == VK_ESCAPE) key = "escape";
     else if (press.virtualKey == VK_RIGHT) key = "next";
     else if (press.virtualKey == VK_LEFT) key = "previous";
+    else if (ClosesSwitcherRow(press, repeat)) key = "close";
     if (key) EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "switcherKey"}, {"key", key}});
     return true;
   }
@@ -301,7 +306,7 @@ struct MenuKeyboard {
     } else {
       ActiveWindow window = ActiveArdiaWindow();
       if (!window.hwnd) return false;
-      if (switcherCaptured) handled = CaptureSwitcherKey(press);
+      if (switcherCaptured) handled = CaptureSwitcherKey(press, (flags & (1u << 30)) != 0);
       else if (escapeCaptured && BareEscape(press)) handled = CaptureEscape();
       else if (UndoReopensClosedTab(press, window)) handled = ReopenClosedTab(window);
       else handled = Dispatch(press);
