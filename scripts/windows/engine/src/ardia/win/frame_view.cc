@@ -2,8 +2,6 @@
 
 #include <windows.h>
 
-#include <dwmapi.h>
-
 #include <cmath>
 
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -13,46 +11,15 @@
 
 namespace ardia_win {
 
-namespace {
-
-const wchar_t* ResizeCursor(int hit) {
-  if (hit == HTTOPLEFT) {
-    return IDC_SIZENWSE;
-  }
-  if (hit == HTTOPRIGHT) {
-    return IDC_SIZENESW;
-  }
-  return IDC_SIZENS;
-}
-
-}
-
-int AppWindowTopEdgeHit(HWND page, POINT screen) {
+bool AppWindowResizesFromTop(HWND page, POINT screen) {
   HWND app = page ? ::GetWindow(page, GW_OWNER) : nullptr;
-  if (!app || ::IsZoomed(app) || ::IsIconic(app) ||
-      !(::GetWindowLongPtrW(app, GWL_STYLE) & WS_THICKFRAME)) {
-    return HTCLIENT;
+  if (!app) {
+    return false;
   }
-  RECT shown;
-  if (FAILED(::DwmGetWindowAttribute(app, DWMWA_EXTENDED_FRAME_BOUNDS, &shown,
-                                     sizeof(shown))) &&
-      !::GetWindowRect(app, &shown)) {
-    return HTCLIENT;
-  }
-  const UINT dpi = ::GetDpiForWindow(app);
-  const int band = ::GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
-                   ::GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-  if (screen.y < shown.top || screen.y >= shown.top + band ||
-      screen.x < shown.left || screen.x >= shown.right) {
-    return HTCLIENT;
-  }
-  if (screen.x < shown.left + band) {
-    return HTTOPLEFT;
-  }
-  if (screen.x >= shown.right - band) {
-    return HTTOPRIGHT;
-  }
-  return HTTOP;
+  const LRESULT hit = ::SendMessageW(
+      app, WM_NCHITTEST, 0,
+      MAKELPARAM(static_cast<short>(screen.x), static_cast<short>(screen.y)));
+  return hit == HTTOP || hit == HTTOPLEFT || hit == HTTOPRIGHT;
 }
 
 HostedFrameView::HostedFrameView(BrowserWidget* widget,
@@ -85,11 +52,7 @@ int HostedFrameView::NonClientHitTest(const gfx::Point& point) {
   POINT screen = {static_cast<LONG>(std::floor(point.x() * scale)),
                   static_cast<LONG>(std::floor(point.y() * scale))};
   ::ClientToScreen(page, &screen);
-  const int hit = AppWindowTopEdgeHit(page, screen);
-  if (hit != HTCLIENT) {
-    ::SetCursor(::LoadCursorW(nullptr, ResizeCursor(hit)));
-  }
-  return hit;
+  return AppWindowResizesFromTop(page, screen) ? HTTRANSPARENT : HTCLIENT;
 }
 
 std::unique_ptr<BrowserFrameView> CreateHostedFrameView(

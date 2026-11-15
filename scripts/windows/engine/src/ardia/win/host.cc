@@ -74,7 +74,6 @@ constexpr base::TimeDelta kOpenRequestWait = base::Milliseconds(25);
 constexpr base::TimeDelta kOfferDeadline = base::Seconds(30);
 constexpr base::TimeDelta kTestOfferDeadline = base::Seconds(4);
 constexpr UINT_PTR kParentSubclass = 0xA2D1A;
-constexpr UINT_PTR kPageSubclass = 0xA2D1B;
 
 base::DictValue Ok() {
   base::DictValue result;
@@ -146,29 +145,12 @@ LRESULT CALLBACK ParentProcedure(HWND window,
   return ::DefSubclassProc(window, message, w_param, l_param);
 }
 
-LRESULT CALLBACK PageProcedure(HWND window,
-                               UINT message,
-                               WPARAM w_param,
-                               LPARAM l_param,
-                               UINT_PTR id,
-                               DWORD_PTR data) {
-  if (message == WM_SYSCOMMAND && (w_param & 0xFFF0) == SC_SIZE) {
-    if (HWND app = ::GetWindow(window, GW_OWNER)) {
-      ::ReleaseCapture();
-      ::PostMessageW(app, WM_SYSCOMMAND, w_param, l_param);
-      return 0;
-    }
-  }
-  if (message == WM_NCDESTROY) {
-    ::RemoveWindowSubclass(window, &PageProcedure, id);
-  }
-  return ::DefSubclassProc(window, message, w_param, l_param);
-}
-
 std::string_view HitName(LRESULT hit) {
   switch (hit) {
     case HTCLIENT:
       return "client";
+    case HTTRANSPARENT:
+      return "transparent";
     case HTTOP:
       return "top";
     case HTTOPLEFT:
@@ -638,7 +620,6 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   hosted.parent = parent;
   WatchParent(parent);
   SetOwner(window, parent);
-  ::SetWindowSubclass(window, &PageProcedure, kPageSubclass, 0);
   double scale = Text(args, "unit") == "px"
                      ? 1.0
                      : ::GetDpiForWindow(parent) / 96.0;
@@ -747,6 +728,13 @@ base::DictValue Host::HitTest(const base::DictValue& args) {
                  bounds.top + Integer(args, "y")));
   base::DictValue result = Ok();
   result.Set("hit", HitName(hit));
+  HWND app = ::GetWindow(window, GW_OWNER);
+  result.Set("appHit",
+             HitName(app ? ::SendMessageW(
+                               app, WM_NCHITTEST, 0,
+                               MAKELPARAM(bounds.left + Integer(args, "x"),
+                                          bounds.top + Integer(args, "y")))
+                         : HTNOWHERE));
   result.Set("width", static_cast<int>(bounds.right - bounds.left));
   return result;
 }
