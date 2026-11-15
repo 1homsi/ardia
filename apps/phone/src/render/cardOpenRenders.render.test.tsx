@@ -1,10 +1,11 @@
+import { StyleSheet } from "react-native";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { Surfaces } from "../App";
 import * as perf from "../state/app/interactionPerf";
 import { sendDeckCommand } from "../state/browse/deckCommands";
 import { useBrowse } from "../state/browse/store";
-import { renderSurface, unmount, withTabs } from "../../test/render/harness";
+import { framesUntil, landOpeningPage, renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 let renders: string[] = [];
 
@@ -26,19 +27,19 @@ afterEach(() => {
 
 const LAYOUT_KEYS = ["width", "height", "top", "left", "right", "bottom", "margin", "padding", "flex"];
 
-test("a card open mounts the page and its cover once each, before the spring, and renders neither again through the hand-over; the growing card animates no layout", () => {
+test("a card grows with no page mounted, then the page and its cover mount once each when the spring lands and render no more through the hand-over; the growing card animates no layout", () => {
   const root = renderSurface(<Surfaces />);
   renders = [];
   act(() => sendDeckCommand({ kind: "openFocused" }));
-  const page = root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")[0]!;
-  expect(page).toBeDefined();
-  const mounted = { screen: renders.filter((name) => name === "BrowsingScreen").length, cover: renders.filter((name) => name === "PageCover").length };
-  expect(mounted).toEqual({ screen: 1, cover: 1 });
-  const screen = page.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function")[0]!;
-  act(() => screen.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 393, height: 873 } } }));
   const seen = new Map<string, Set<string>>();
-  for (let frame = 0; frame < 60 && useBrowse.getState().surface === "deck"; frame++) {
+  let landed = false;
+  for (let frame = 0; frame < 90 && useBrowse.getState().surface === "deck"; frame++) {
     act(() => jest.advanceTimersByTime(16));
+    if (!landed && useBrowse.getState().opening === null) expect(renders.filter((name) => name === "BrowsingScreen" || name === "PageCover")).toEqual([]);
+    if (!landed && useBrowse.getState().opening !== null) {
+      expect({ screen: renders.filter((name) => name === "BrowsingScreen").length, cover: renders.filter((name) => name === "PageCover").length }).toEqual({ screen: 1, cover: 1 });
+      landed = landOpeningPage(root);
+    }
     root.root
       .findAll((node) => node.props.testID === "deckCard" && typeof node.type === "string")
       .forEach((card, index) => {
@@ -49,6 +50,7 @@ test("a card open mounts the page and its cover once each, before the spring, an
         }
       });
   }
+  expect(landed).toBe(true);
   expect(useBrowse.getState().surface).toBe("browsing");
   act(() => jest.advanceTimersByTime(1000));
   expect(renders.filter((name) => name === "BrowsingScreen")).toHaveLength(1);
@@ -56,5 +58,15 @@ test("a card open mounts the page and its cover once each, before the spring, an
   const changing = [...seen.entries()].filter(([, values]) => values.size > 1).map(([key]) => key.split(":")[1]!);
   expect(changing).toEqual(expect.arrayContaining(["transform"]));
   expect(changing.filter((key) => LAYOUT_KEYS.some((layout) => key.toLowerCase().startsWith(layout)))).toEqual([]);
+  unmount(root);
+});
+
+test("while a card opens, the cards' container reaches the screen's bottom, so the full-size card isn't cut off above the bar and the navigation strip", () => {
+  const root = renderSurface(<Surfaces />);
+  const container = () => StyleSheet.flatten(root.root.findAll((node) => node.props.testID === "deckCards" && typeof node.type === "string")[0]!.props.style);
+  const settled = container().height as number;
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  expect(container().height).toBe(873);
+  expect(settled).toBeLessThan(873);
   unmount(root);
 });

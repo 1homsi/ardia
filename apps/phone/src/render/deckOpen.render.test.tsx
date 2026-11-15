@@ -6,20 +6,22 @@ import { sendDeckCommand } from "../state/browse/deckCommands";
 import { useBrowse } from "../state/browse/store";
 import * as pages from "../state/pages/store";
 import { currentTabs } from "../state/tabs/store";
-import { renderSurface, unmount, withTabs } from "../../test/render/harness";
+import { framesUntil, landOpeningPage, renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-test("opening a card makes its page under the deck as the spring starts, and that same page stays in front, never made twice", () => {
+test("opening a card grows it with no page made, makes the page under the deck when the spring lands, and that same page stays in front, never made twice", () => {
   const registered = jest.spyOn(pages, "registerPageHandle");
   const registrations = (handle: "made" | "ended") => registered.mock.calls.filter((call) => (call[1] === null) === (handle === "ended")).length;
   withTabs(3);
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<Surfaces />);
-  expect(registrations("made")).toBe(0);
   act(() => sendDeckCommand({ kind: "openFocused" }));
-  expect(useBrowse.getState().surface).toBe("deck");
+  act(() => jest.advanceTimersByTime(100));
+  expect(useBrowse.getState()).toMatchObject({ surface: "deck", opening: null });
+  expect(registrations("made")).toBe(0);
+  framesUntil(() => useBrowse.getState().opening !== null);
   expect(useBrowse.getState().opening).toBe(currentTabs().selectedId);
   expect(registrations("made")).toBeGreaterThan(0);
   act(() => jest.advanceTimersByTime(3000));
@@ -30,14 +32,15 @@ test("opening a card makes its page under the deck as the spring starts, and tha
   registered.mockRestore();
 });
 
-test("an open interrupted before its spring ends takes the page out from under the deck again", () => {
+test("while the card grows, nothing mounts the page, so the spring runs on a quiet UI thread", () => {
   withTabs(3);
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<Surfaces />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
-  expect(useBrowse.getState().opening).not.toBeNull();
-  act(() => useBrowse.setState({ surface: "deck", opening: null }));
-  expect(root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")).toHaveLength(0);
+  for (let frame = 0; frame < 10; frame++) {
+    act(() => jest.advanceTimersByTime(16));
+    expect(root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")).toHaveLength(0);
+  }
   unmount(root);
 });
 
@@ -60,18 +63,17 @@ test("an opening card grows a status-bar strip in the page's tone above its pict
   unmount(root);
 });
 
-test("the deck takes taps and a card's page takes over as soon as their springs are within Compose's settle point, about a third of a second, not Reanimated's 0.6", () => {
+test("the deck takes taps and a card's page takes over as soon as its spring is within Compose's settle point and the page has drawn, well under half a second", () => {
   withTabs(3);
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<Surfaces />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
-  const page = root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")[0]!;
-  const screen = page.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function")[0]!;
-  act(() => screen.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 393, height: 873 } } }));
   let elapsed = 0;
+  let landed = false;
   while (useBrowse.getState().surface === "deck" && elapsed < 1000) {
     act(() => jest.advanceTimersByTime(16));
     elapsed += 16;
+    if (!landed && useBrowse.getState().opening !== null) landed = landOpeningPage(root);
   }
   expect(useBrowse.getState().surface).toBe("browsing");
   expect(elapsed).toBeLessThan(450);

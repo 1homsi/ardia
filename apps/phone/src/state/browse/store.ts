@@ -49,6 +49,7 @@ import { noteSnapshotPageTop, noteSnapshotShown } from "../../lib/shownSnapshots
 import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
 import { countUsage } from "../telemetry/telemetry";
+import { rememberPageTones, restorePageTones } from "../pages/toneMemory";
 import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
@@ -74,6 +75,8 @@ export function startBrowser(beforeOpening: () => void = () => undefined) {
   beforeOpening();
   applySearchEngine();
   loadTabs();
+  restorePageTones(new Set(currentTabs().open.map((tab) => tab.id)));
+  rememberPageTones(() => new Set(currentTabs().open.map((tab) => tab.id)));
   history().pruneBefore(Date.now() - HISTORY_RETENTION_MS);
   archiveDueTabs();
   archiveTimer = setInterval(archiveDueTabs, AUTO_ARCHIVE_CHECK_MS);

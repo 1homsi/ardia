@@ -5,7 +5,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 
 import { PAGE_COVER, pageCoverNeeded } from "../../lib/pageCover";
 import { usePageTone } from "../../state/browse/hooks";
 import { useBrowse } from "../../state/browse/store";
-import { pageNavigation, usePages } from "../../state/pages/store";
+import { holdTone, pageNavigation, releaseTone, usePages } from "../../state/pages/store";
 import { display } from "../../state/search/omnibox";
 import { launchArguments } from "../../state/app/launchFlags";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -21,6 +21,11 @@ export const PageCover = memo(function PageCover({ tab }: { tab: BrowserTab }) {
   const opacity = useSharedValue(needed ? 1 : 0);
   useEffect(() => {
     if (!needed || frozen) return;
+    holdTone(tab.id);
+    return () => releaseTone(tab.id);
+  }, []);
+  useEffect(() => {
+    if (!needed || frozen) return;
     let fading = false;
     let sawLoading = false;
     let deadline: ReturnType<typeof setTimeout> | null = null;
@@ -29,7 +34,7 @@ export const PageCover = memo(function PageCover({ tab }: { tab: BrowserTab }) {
       if (fading) return;
       fading = true;
       opacity.value = withTiming(0, { duration: PAGE_COVER.fadeMs }, (finished) => {
-        if (finished) runOnJS(setGone)(true);
+        if (finished) runOnJS(coverGone)(tab.id);
       });
     };
     const check = () => {
@@ -61,12 +66,17 @@ export const PageCover = memo(function PageCover({ tab }: { tab: BrowserTab }) {
       if (settle) clearTimeout(settle);
     };
   }, []);
+  const coverGone = (id: string) => {
+    releaseTone(id);
+    setGone(true);
+  };
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   if (gone) return null;
   const shown = display(tab.url);
   return (
     <Animated.View
       testID="pageCover"
+      needsOffscreenAlphaCompositing
       pointerEvents="none"
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden

@@ -7,7 +7,7 @@ import { noteSnapshotPageTop } from "../lib/shownSnapshots";
 import { sendDeckCommand } from "../state/browse/deckCommands";
 import { useBrowse } from "../state/browse/store";
 import { currentTabs, useTabs } from "../state/tabs/store";
-import { renderSurface, unmount, withTabs } from "../../test/render/harness";
+import { framesUntil, landOpeningPage, renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 const STORED = "#2B5B84";
 const PAGE_TOP = 52;
@@ -32,16 +32,15 @@ test("an opening card grows a bar band in the page's bar colour from its first f
   const g = deckGeometry(393, 873, 40, 24);
   const root = renderSurface(<Surfaces />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
-  const page = root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")[0]!;
-  const screen = page.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function")[0]!;
-  act(() => screen.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 393, height: 873 } } }));
   const bands = root.root.findAll((node) => node.props.testID === "deckCardBarBand" && typeof node.type === "string");
   expect(bands.length).toBeGreaterThan(0);
   for (const band of bands) expect(StyleSheet.flatten(band.props.style).backgroundColor).toBe(STORED);
   let grown = 0;
   let drop = 0;
-  for (let frame = 0; frame < 60 && useBrowse.getState().surface === "deck"; frame++) {
+  let landed = false;
+  for (let frame = 0; frame < 90 && useBrowse.getState().surface === "deck"; frame++) {
     act(() => jest.advanceTimersByTime(16));
+    if (!landed && useBrowse.getState().opening !== null) landed = landOpeningPage(root);
     for (const band of root.root.findAll((node) => node.props.testID === "deckCardBarBand" && typeof node.type === "string")) grown = Math.max(grown, scaleY(band));
     for (const face of root.root.findAll((node) => node.props.testID === "deckCardFace" && typeof node.type === "string")) drop = Math.max(drop, translateY(face));
   }

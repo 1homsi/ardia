@@ -49,7 +49,6 @@ import {
   openSpaces,
   openTab,
   reopenLastClosed,
-  stopOpeningTab,
   whenPageLaidOut,
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
@@ -136,7 +135,7 @@ export function TabDeck() {
     [orderIds, shiftBy, fromSlots, gap, deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
-  const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: deckPhase.value === DECK_PHASE.closing ? 1 : Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
   const cardsOpacity = useSharedValue(entering && !entering.holdsForPicture ? 1 : 0);
   const cardsStyle = useAnimatedStyle(() => ({ opacity: cardsOpacity.value }));
   const chromeStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
@@ -255,18 +254,30 @@ export function TabDeck() {
     }
     setMenu(null);
     enterPhase({ kind: "closing", id });
-    beginOpeningTab(id);
     openingId.current = id;
-    whenPageLaidOut(id, OPEN_MOUNT_CAP_MS, () =>
+    requestAnimationFrame(() => {
+      if (openingId.current !== id) return;
+      scaleProgress.value = withSpring(0, tabsMotion.expand);
+      positionProgress.value = withSpring(0, tabsMotion.expand, (finished) => {
+        if (finished) runOnJS(handOver)(id);
+      });
+    });
+  };
+
+  const handOver = (id: string) => {
+    if (openingId.current !== id) return;
+    beginOpeningTab(id);
+    const picture = tabs.get(id)?.snapshotFileName ?? null;
+    let waiting = picture ? 2 : 1;
+    const ready = () => {
+      waiting -= 1;
+      if (waiting > 0) return;
       requestAnimationFrame(() => {
-        if (openingId.current !== id) return;
-        scaleProgress.value = withSpring(0, tabsMotion.expand);
-        positionProgress.value = withSpring(0, tabsMotion.expand, (finished) => {
-          if (finished) runOnJS(settledOpen)(id);
-          else runOnJS(stopOpeningTab)(id);
-        });
-      }),
-    );
+        if (openingId.current === id) settledOpen(id);
+      });
+    };
+    whenPageLaidOut(id, HANDOVER_CAP_MS, ready);
+    if (picture) whenPicturePainted(picture, HANDOVER_CAP_MS, ready);
   };
 
   const remove = (id: string) => {
@@ -492,7 +503,7 @@ export function TabDeck() {
           }}
         >
           <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
-            <Animated.View testID="deckCards" style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }, cardsStyle]} collapsable={false}>
+            <Animated.View testID="deckCards" style={[styles.touch, { height: phase.kind === "settled" ? g.barCenterY - tabsLayout.barTouchClearance : g.height }, cardsStyle]} collapsable={false}>
               {order.map((id, index) => {
                 const tab = tabs.get(id);
                 if (!tab || hidden.current.has(id) || !deckCardMounted(index, anchor)) return null;
@@ -579,7 +590,7 @@ const focusTick = () => haptics.tick();
 const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
-const OPEN_MOUNT_CAP_MS = 150;
+const HANDOVER_CAP_MS = 250;
 const ENTRANCE_PAINT_CAP_MS = 250;
 
 const DECK_RENDER_REACH = 6;

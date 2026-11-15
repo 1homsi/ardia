@@ -77,3 +77,18 @@ export async function pressButton(root: ReactTestRenderer, title: string) {
     button.props.onPress();
   });
 }
+
+export function framesUntil(done: () => boolean, limit = 120) {
+  for (let frame = 0; frame < limit && !done(); frame++) act(() => jest.advanceTimersByTime(16));
+}
+
+export function landOpeningPage(root: ReactTestRenderer) {
+  const page = root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")[0];
+  if (!page) return false;
+  const screen = page.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function")[0];
+  if (screen) act(() => screen.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 393, height: 873 } } }));
+  const cover = page.findAll((node) => node.props.testID === "pageCover" && typeof node.type === "string")[0];
+  const picture = cover?.findAll((node) => typeof node.props.onLoad === "function" && node.props.source?.uri)[0];
+  if (picture) act(() => picture.props.onLoad({ nativeEvent: { source: { width: 600, height: 1300 } } }));
+  return true;
+}

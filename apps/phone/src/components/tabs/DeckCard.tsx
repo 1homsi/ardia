@@ -9,7 +9,7 @@ import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
-import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, useTheme, isDarkColor } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -106,6 +106,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
 export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion, onOpen, onCloseNow }: Props) {
   countRender("DeckCard");
   const theme = useTheme();
+  const design = useDesign();
   const tone = shownTone(usePageTone(tab.id), tab.themeColorHex);
   const { orderIds, shiftBy, fromSlots, gap, phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
   const id = tab.id;
@@ -189,7 +190,9 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
         <Animated.View testID="deckCardFace" style={[StyleSheet.absoluteFill, faceStyle]}>
           <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} />
         </Animated.View>
-        <Animated.View testID="deckCardBarBand" pointerEvents="none" style={[styles.band, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }, bandStyle]} />
+        <Animated.View testID="deckCardBarBand" pointerEvents="none" style={[styles.band, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }, bandStyle]}>
+          {design === "original" ? <View testID="deckCardBarShade" style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
+        </Animated.View>
         {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
       </Animated.View>
       <Animated.View

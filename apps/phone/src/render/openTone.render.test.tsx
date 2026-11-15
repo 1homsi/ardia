@@ -5,7 +5,7 @@ import { Surfaces } from "../App";
 import { sendDeckCommand } from "../state/browse/deckCommands";
 import { useBrowse } from "../state/browse/store";
 import { currentTabs, useTabs } from "../state/tabs/store";
-import { renderSurface, unmount, withTabs } from "../../test/render/harness";
+import { framesUntil, landOpeningPage, renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 const STORED = "#123456";
 
@@ -36,11 +36,12 @@ test("while a card opens, before its page reports a colour, the card's strip and
   act(() => sendDeckCommand({ kind: "openFocused" }));
   act(() => jest.advanceTimersByTime(16 * 6));
   expect(useBrowse.getState().surface).toBe("deck");
-  const opening = currentTabs().selectedId!;
-  expect(useBrowse.getState().opening).toBe(opening);
   const cards = root.root.findAll((node) => node.props.testID === "deckCard" && typeof node.type === "string");
   expect(cards.length).toBeGreaterThan(0);
   expect(cards.every((card) => StyleSheet.flatten(card.props.style).backgroundColor === STORED)).toBe(true);
+  framesUntil(() => useBrowse.getState().opening !== null);
+  expect(useBrowse.getState().opening).toBe(currentTabs().selectedId);
+  landOpeningPage(root);
   act(() => jest.advanceTimersByTime(1000));
   const stored = root.root.findAll((node) => typeof node.type === "string" && background(node) === STORED);
   expect(stored.length).toBeGreaterThanOrEqual(2);
