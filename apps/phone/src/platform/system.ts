@@ -59,3 +59,5 @@ export async function clipboardOffer(): Promise<ClipboardOffer | null> {
 export const prefetchImage = (uri: string): Promise<boolean> => Image.prefetch(uri);
 
 export const displayCornerRadius = (): number | null => nativeSystem.displayCornerRadius();
+
+export const setWidgetColorChoice = (choice: string | null) => nativeSystem.setWidgetColorChoice(choice);

@@ -50,6 +50,7 @@ import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
 import { countUsage } from "../telemetry/telemetry";
 import { rememberPageTones, restorePageTones } from "../pages/toneMemory";
+import { followColorInWidgets } from "../settings/widgetColor";
 import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
@@ -72,6 +73,7 @@ export function startBrowser(beforeOpening: () => void = () => undefined) {
   if (started) return;
   started = true;
   loadPreferences();
+  followColorInWidgets();
   beforeOpening();
   applySearchEngine();
   loadTabs();
