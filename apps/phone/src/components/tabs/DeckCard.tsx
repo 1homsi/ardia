@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
 import { DECK, DECK_HEADER, deckBarBand, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
@@ -121,11 +121,20 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g
 
   const { phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
 
+  const vanished = useSharedValue(false);
+  useAnimatedReaction(
+    () => flyIndex.value === index && flyVanish.value * VANISH_FADE_RATE >= 1,
+    (gone) => {
+      if (gone) vanished.value = true;
+    },
+    [index],
+  );
+
   const placed = useDerivedValue(() => {
     const role = deckRole(phase.value, expandedIndex.value, index);
     const flying = flyIndex.value === index;
     const lift = dragIndex.value === index ? dragLift.value : flying ? flyLift.value : 0;
-    const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : 0, isLast);
+    const p = cardPose(g, role, index + slot.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : vanished.value ? 1 : 0, isLast);
     const top = p.y - (g.cardHeight * p.scale) / 2 - tabsLayout.headerGap - tabsLayout.headerHeight;
     return { pose: p, top, place: deckHeaderPlacement(p.x - (g.cardWidth * p.scale) / 2, p.visible), z: index * 2 + (role === "expanded" ? EXPANDED_Z : 0), expanded: role === "expanded" };
   }, [g, index, isLast]);
