@@ -6,6 +6,21 @@ using namespace ardia_protected_video;
 
 static void *kPossibleContext = &kPossibleContext;
 
+namespace {
+
+NSView *PictureInPicturePanelContent() {
+  for (NSWindow *window in NSApp.windows)
+    if (window.visible && [NSStringFromClass(window.class) containsString:@"PIPPanel"]) return window.contentView;
+  return nil;
+}
+
+void HideEmptyMirror(NSView *view) {
+  if ([NSStringFromClass(view.class) isEqualToString:@"AVPictureInPictureCALayerHostView"] && !view.layer.sublayers.count && !view.layer.contents) view.hidden = YES;
+  for (NSView *subview in view.subviews) HideEmptyMirror(subview);
+}
+
+}
+
 @implementation ArdiaPVSession (PictureInPicture)
 
 - (void)preparePictureInPicture {
@@ -18,7 +33,42 @@ static void *kPossibleContext = &kPossibleContext;
   Trace(@"pip controller ready: possible=%d", _pip.pictureInPicturePossible);
 }
 
+- (void)fitPictureInPicture {
+  NSView *panel = _pipPanel;
+  if (!_inPip || !panel) return;
+  const CGRect frame = {CGPointZero, NSSizeToCGSize(panel.bounds.size)};
+  WithoutActions(^{
+    if (!CGRectEqualToRect(self->_display.frame, frame)) self->_display.frame = frame;
+  });
+  HideEmptyMirror(panel);
+}
+
+- (void)watchPictureInPicturePanel {
+  [self unwatchPictureInPicturePanel];
+  NSView *panel = PictureInPicturePanelContent();
+  Trace(@"pip panel %@", panel ? NSStringFromSize(panel.bounds.size) : @"missing");
+  [self report:@{@"event" : @"pip", @"video" : @YES, @"fitted" : @(panel != nil)}];
+  if (!panel) return;
+  _pipPanel = panel;
+  panel.postsFrameChangedNotifications = YES;
+  __weak ArdiaPVSession *weakSelf = self;
+  _pipPanelObserver = [NSNotificationCenter.defaultCenter addObserverForName:NSViewFrameDidChangeNotification
+                                                                      object:panel
+                                                                       queue:NSOperationQueue.mainQueue
+                                                                  usingBlock:^(NSNotification *) {
+                                                                    [weakSelf fitPictureInPicture];
+                                                                  }];
+  [self fitPictureInPicture];
+}
+
+- (void)unwatchPictureInPicturePanel {
+  if (_pipPanelObserver) [NSNotificationCenter.defaultCenter removeObserver:_pipPanelObserver];
+  _pipPanelObserver = nil;
+  _pipPanel = nil;
+}
+
 - (void)dropPictureInPicture {
+  [self unwatchPictureInPicturePanel];
   if (!_pip) return;
   [_pip removeObserver:self forKeyPath:@"pictureInPicturePossible" context:kPossibleContext];
   [_pip stopPictureInPicture];
@@ -77,6 +127,7 @@ static void *kPossibleContext = &kPossibleContext;
     return;
   }
   _inPip = NO;
+  [self unwatchPictureInPicturePanel];
   [self place];
   [self deliverPictureInPicture];
 }
@@ -90,12 +141,14 @@ static void *kPossibleContext = &kPossibleContext;
   _pipWanted = NO;
   _inPip = YES;
   [self place];
+  [self watchPictureInPicturePanel];
   [self deliverPictureInPicture];
 }
 
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)controller {
   Trace(@"pip stopped");
   _inPip = NO;
+  [self unwatchPictureInPicturePanel];
   [self place];
   [self deliverPictureInPicture];
 }
@@ -104,6 +157,7 @@ static void *kPossibleContext = &kPossibleContext;
   Trace(@"pip failed: %@", error.localizedDescription);
   _pipWanted = NO;
   _inPip = NO;
+  [self unwatchPictureInPicturePanel];
   [self deliverPictureInPicture];
 }
 

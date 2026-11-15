@@ -26,6 +26,8 @@ async function sentUsageCounts() {
       videoPlayer: e.properties.fairplay_video_failed_player,
       mirrored: e.properties.fairplay_video_mirrored,
       mirrorResyncs: e.properties.fairplay_video_mirror_resyncs,
+      pip: e.properties.fairplay_video_pip,
+      pipUnfitted: e.properties.fairplay_video_pip_unfitted,
       youtubePlayed: e.properties.fairplay_youtube_played,
       youtubeLicense: e.properties.fairplay_youtube_failed_license,
       youtubePlayback: e.properties.fairplay_youtube_failed_playback,
@@ -33,7 +35,7 @@ async function sentUsageCounts() {
     }));
 }
 
-test("FairPlay bridge plays and failures are counted per step, unknown reports are ignored, sent on their own, then start again from zero", async () => {
+test("FairPlay bridge plays, failures per step and Picture in Picture sessions are counted, unknown reports are ignored, sent on their own, then start again from zero", async () => {
   client.loadChoice();
   client.setSharing(true, "onboarding");
 
@@ -51,6 +53,10 @@ test("FairPlay bridge plays and failures are counted per step, unknown reports a
   fairPlay.noteFairPlay({ event: "mirrorResync", video: true });
   fairPlay.noteFairPlay({ event: "mirrorResync", video: true });
   fairPlay.noteFairPlay({ event: "mirrored" });
+  fairPlay.noteFairPlay({ event: "pip", video: true, fitted: true });
+  fairPlay.noteFairPlay({ event: "pip", video: true, fitted: true });
+  fairPlay.noteFairPlay({ event: "pip", video: true, fitted: false });
+  fairPlay.noteFairPlay({ event: "pip", fitted: false });
   fairPlay.noteFairPlay({ event: "played", video: true, site: "youtube" });
   fairPlay.noteFairPlay({ event: "played", video: true, site: "youtube" });
   fairPlay.noteFairPlay({ event: "failed", step: "license", video: true, site: "youtube" });
@@ -68,6 +74,8 @@ test("FairPlay bridge plays and failures are counted per step, unknown reports a
       videoPlayer: 0,
       mirrored: 1,
       mirrorResyncs: 2,
+      pip: 3,
+      pipUnfitted: 1,
       youtubePlayed: 2,
       youtubeLicense: 1,
       youtubePlayback: 0,

@@ -1,11 +1,18 @@
 import type { FairPlayReport } from "../../platform/tabs";
 
 type FairPlayStep = NonNullable<FairPlayReport["step"]>;
-type FairPlayCounts = { played: number; failed: Record<FairPlayStep, number>; mirrored: number; mirrorResyncs: number };
+type FairPlayCounts = { played: number; failed: Record<FairPlayStep, number>; mirrored: number; mirrorResyncs: number; pip: number; pipUnfitted: number };
 
 const FAIRPLAY_STEPS: readonly FairPlayStep[] = ["license", "playback", "player"];
 
-const emptyCounts = (): FairPlayCounts => ({ played: 0, failed: { license: 0, playback: 0, player: 0 }, mirrored: 0, mirrorResyncs: 0 });
+const emptyCounts = (): FairPlayCounts => ({
+  played: 0,
+  failed: { license: 0, playback: 0, player: 0 },
+  mirrored: 0,
+  mirrorResyncs: 0,
+  pip: 0,
+  pipUnfitted: 0,
+});
 
 let tracks = emptyCounts();
 let videos = emptyCounts();
@@ -19,6 +26,10 @@ export function noteFairPlay(report: FairPlayReport) {
   else if (report?.event === "failed" && isFairPlayStep(report.step)) counts.failed[report.step]++;
   else if (report?.event === "mirrored" && report.video === true) videos.mirrored++;
   else if (report?.event === "mirrorResync" && report.video === true) videos.mirrorResyncs++;
+  else if (report?.event === "pip" && report.video === true && report.site !== "youtube") {
+    videos.pip++;
+    if (report.fitted !== true) videos.pipUnfitted++;
+  }
 }
 
 export function takeFairPlayCounts() {
@@ -33,6 +44,8 @@ export function takeFairPlayCounts() {
     fairplay_video_failed_player: videos.failed.player,
     fairplay_video_mirrored: videos.mirrored,
     fairplay_video_mirror_resyncs: videos.mirrorResyncs,
+    fairplay_video_pip: videos.pip,
+    fairplay_video_pip_unfitted: videos.pipUnfitted,
     fairplay_youtube_played: youtube.played,
     fairplay_youtube_failed_license: youtube.failed.license,
     fairplay_youtube_failed_playback: youtube.failed.playback,

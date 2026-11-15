@@ -48,7 +48,24 @@ test("the protected video bridge reads a track's timescale, size and default sam
     width: 1920,
     height: 1080,
     sampleDuration: 1001,
+    duration: 0,
   });
+});
+
+test("an init segment gives the duration from its movie header, or from the fragments' total when the header leaves it at 0", () => {
+  const withHeaders = (mvhd, mehd) =>
+    bytes(
+      box(
+        "moov",
+        box("mvhd", ...mvhd),
+        box("trak", box("mdia", box("mdhd", zeros(12), u32(24000), zeros(8)))),
+        box("mvex", ...(mehd ? [box("mehd", ...mehd)] : []), box("trex", zeros(12), u32(1001), zeros(8)))
+      )
+    );
+  assert.equal(mp4.describeInit(withHeaders([zeros(12), u32(1000), u32(2991500), zeros(80)])).duration, 2991.5);
+  assert.equal(mp4.describeInit(withHeaders([zeros(12), u32(1000), u32(0), zeros(80)], [zeros(4), u32(951500)])).duration, 951.5);
+  assert.equal(mp4.describeInit(withHeaders([u32(0x01000000), zeros(16), u32(90000), u32(0), u32(90000 * 60), zeros(80)])).duration, 60);
+  assert.equal(mp4.describeInit(withHeaders([zeros(12), u32(1000), u32(0xffffffff), zeros(80)])).duration, 0);
 });
 
 test("a media segment's start and end come from its decode time and sample durations", () => {

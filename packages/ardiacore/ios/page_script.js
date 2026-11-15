@@ -1052,6 +1052,8 @@
     const PART_CHARS = 16000;
     const PART_BYTES = 63000;
     const SLOW_MS = 500;
+    const RETRY_MS = 2000;
+    const RETRY_LIMIT = 5;
     const ROOT_GROWTH = 1.5;
     const COVER = 0.9;
     const CANVAS_PIXELS = 160000;
@@ -1068,7 +1070,7 @@
     const PSEUDO = /(?<!\\):(focus-visible|focus-within|popover-open|-webkit-full-screen|fullscreen|hover|focus|active|modal|defined)(?![\w-])/g;
     const PSEUDO_STATE = { "-webkit-full-screen": "fullscreen" };
     const STATES = ["hover", "active", "focus", "focus-within", "focus-visible", "fullscreen", "popover-open", "modal", "clear"];
-    const idle = { start() {}, stop() {} };
+    const idle = { start() {}, ensure() {}, stop() {} };
     if (!isTop) return idle;
     const MO = window.MutationObserver;
     const RO = window.ResizeObserver;
@@ -1083,6 +1085,9 @@
     const awaitingDefinition = new WeakSet();
     let s = null;
     let testMode = false;
+    let retryVideo = null;
+    let retryAt = 0;
+    let retries = 0;
 
     const composedParent = (n) => {
       const p = n.parentNode;
@@ -1420,8 +1425,9 @@
       return m ? parseFloat(m[1].split(",")[3]) : 1;
     };
     const clearList = () => {
-      const v = s.video.getBoundingClientRect();
-      const area = v.width * v.height;
+      const box = s.video.getBoundingClientRect();
+      const v = { left: Math.max(box.left, 0), top: Math.max(box.top, 0), right: Math.min(box.right, innerWidth), bottom: Math.min(box.bottom, innerHeight) };
+      const area = Math.max(0, v.right - v.left) * Math.max(0, v.bottom - v.top);
       const out = [];
       if (area < 1) return out;
       const visit = (el) => {
@@ -1670,6 +1676,7 @@
     const start = (video) => {
       if (!video || video.localName !== "video") return;
       if (s && s.video === video) return;
+      if (!video.isConnected) return;
       if (s) stop();
       s = {
         video,
@@ -1738,7 +1745,19 @@
       }
       if (message.resync && s) snapshot();
     };
-    return { start: guard(start), stop: guard(stop) };
+    const ensure = (video) => {
+      if (s || !video) return;
+      if (video !== retryVideo) {
+        retryVideo = video;
+        retries = 0;
+        retryAt = 0;
+      }
+      if (retries >= RETRY_LIMIT || now() - retryAt < RETRY_MS) return;
+      retries++;
+      retryAt = now();
+      start(video);
+    };
+    return { start: guard(start), ensure: guard(ensure), stop: guard(stop) };
   })();
   let bridgesProtectedPlayback = () => false;
   let reportProtectedPlayback = null;
@@ -2327,7 +2346,7 @@
         const child = (u, box, type) => box && boxes(u, box.body, box.end).find((b) => b.type === type);
         const describeInit = (u) => {
           const view = viewOf(u);
-          const info = { timescale: 1, sampleDuration: 0, width: 0, height: 0 };
+          const info = { timescale: 1, sampleDuration: 0, width: 0, height: 0, duration: 0 };
           const moov = boxes(u, 0, u.length).find((b) => b.type === "moov");
           const trak = child(u, moov, "trak");
           const tkhd = child(u, trak, "tkhd");
@@ -2342,6 +2361,18 @@
           if (mdhd) info.timescale = view.getUint32(mdhd.body + (u[mdhd.body] === 1 ? 20 : 12)) || 1;
           const trex = child(u, child(u, moov, "mvex"), "trex");
           if (trex) info.sampleDuration = view.getUint32(trex.body + 12);
+          const wideAt = (at) => view.getUint32(at) * 4294967296 + view.getUint32(at + 4);
+          const mvhd = child(u, moov, "mvhd");
+          if (mvhd && mvhd.body + 32 <= mvhd.end) {
+            const wide = u[mvhd.body] === 1;
+            const scale = view.getUint32(mvhd.body + (wide ? 20 : 12));
+            const whole = wide ? wideAt(mvhd.body + 24) : view.getUint32(mvhd.body + 16);
+            const mehd = child(u, child(u, moov, "mvex"), "mehd");
+            const fragments = mehd && mehd.body + (u[mehd.body] === 1 ? 12 : 8) <= mehd.end ? (u[mehd.body] === 1 ? wideAt(mehd.body + 4) : view.getUint32(mehd.body + 4)) : 0;
+            const unknown = (n) => n === 0xffffffff || n >= Number.MAX_SAFE_INTEGER;
+            const longest = Math.max(unknown(whole) ? 0 : whole, unknown(fragments) ? 0 : fragments);
+            if (scale && longest) info.duration = longest / scale;
+          }
           return info;
         };
         const fragmentTimes = (u, info) => {
@@ -2597,23 +2628,28 @@
         return live.length ? live.map((st) => mp4.merged(st.segments)).reduce(mp4.intersect) : [];
       };
       const holds = (b, time) => bufferedOf(b).some(([start, end]) => time >= start - 0.1 && time < end);
+      const durationOf = (b) => {
+        const duration = b.source.duration;
+        return Number.isNaN(duration) && b.initDuration > 0 ? b.initDuration : duration;
+      };
       const positionOf = (b) => {
         if (b.seeking) return b.seekTo;
         if (b.paused || !b.playing) return b.time;
-        const duration = b.source.duration;
+        const duration = durationOf(b);
         return Math.min(b.time + ((now() - b.stamp) / 1000) * b.rate, b.time + AHEAD_LIMIT_S, isFinite(duration) ? duration : Infinity);
       };
       const sendDuration = (b) => {
-        const duration = b.source.duration;
+        const duration = durationOf(b);
         const known = isFinite(duration) && duration > 0 ? duration : 0;
         if (known === b.sentDuration) return;
         b.sentDuration = known;
         send("protectedVideo", { op: "duration", media: b.id, duration: known });
       };
       const startMirror = (b) => {
-        if (b.mirrored) return;
+        if (typeof videoMirror === "undefined") return;
+        const again = b.mirrored;
         b.mirrored = true;
-        if (typeof videoMirror !== "undefined") guard(() => videoMirror.start(b.el))();
+        guard(() => (again ? videoMirror.ensure(b.el) : videoMirror.start(b.el)))();
       };
       const stopMirror = (b) => {
         if (!b.mirrored) return;
@@ -2718,6 +2754,7 @@
           pipEnter: [],
           pipExit: [],
           sentDuration: -1,
+          initDuration: 0,
         };
         bridgeOf.set(el, b);
         bridgeOfSource.set(source, b);
@@ -2766,6 +2803,13 @@
       const take = (b, st, unit) => {
         if (unit.kind === "init") {
           st.info = mp4.describeInit(unit.bytes);
+          if (st.info.duration > 0 && !(b.initDuration > 0)) {
+            b.initDuration = st.info.duration;
+            if (Number.isNaN(b.source.duration)) {
+              if (b.metadata) fire(b.el, "durationchange");
+              sendDuration(b);
+            }
+          }
           if (st.video && st.info.width && st.info.height) {
             const changed = b.size[0] !== st.info.width || b.size[1] !== st.info.height;
             b.size = [st.info.width, st.info.height];
@@ -2996,7 +3040,7 @@
       setter(Media, "currentTime", (b, el, value) => {
         const time = Number(value);
         if (!isFinite(time)) throw new TypeError("Failed to set the 'currentTime' property on 'HTMLMediaElement': The provided double value is non-finite.");
-        const duration = b.source.duration;
+        const duration = durationOf(b);
         const target = Math.max(0, isFinite(duration) ? Math.min(time, duration) : time);
         b.seekSeq++;
         b.ended = false;
@@ -3019,8 +3063,8 @@
       getter(Media, "seeking", (b) => b.seeking);
       getter(Media, "readyState", (b) => (b.metadata ? (holds(b, positionOf(b)) ? 4 : 1) : 0));
       getter(Media, "buffered", (b) => timeRanges(bufferedOf(b)));
-      getter(Media, "seekable", (b) => (isFinite(b.source.duration) ? timeRanges([[0, b.source.duration]]) : timeRanges(bufferedOf(b))));
-      getter(Media, "duration", (b) => b.source.duration);
+      getter(Media, "seekable", (b) => (isFinite(durationOf(b)) ? timeRanges([[0, durationOf(b)]]) : timeRanges(bufferedOf(b))));
+      getter(Media, "duration", (b) => durationOf(b));
       getter(Media, "error", (b) => b.error);
       getter(Video, "videoWidth", (b) => b.size[0]);
       getter(Video, "videoHeight", (b) => b.size[1]);
@@ -3212,11 +3256,11 @@
             b.playing = true;
             b.lastPosition = b.time;
             fire(b.el, "playing");
-            startMirror(b);
           } else if (!playing && b.playing) {
             b.playing = false;
             if (!b.paused) fire(b.el, "waiting");
           }
+          if (b.playing) startMirror(b);
         } else if (m.event === "paused") {
           if (m.paused === true && !b.paused) {
             b.time = positionOf(b);
@@ -3230,7 +3274,7 @@
             startTicking(b);
           }
         } else if (m.event === "ended") {
-          const duration = b.source.duration;
+          const duration = durationOf(b);
           b.time = isFinite(duration) ? duration : positionOf(b);
           b.playing = false;
           b.ended = true;
@@ -3414,9 +3458,10 @@
           return Math.min(b.time + ((now() - b.stamp) / 1000) * b.rate, b.time + AHEAD_LIMIT_S, limit);
         };
         const startMirror = (b) => {
-          if (b.mirrored) return;
+          if (typeof videoMirror === "undefined") return;
+          const again = b.mirrored;
           b.mirrored = true;
-          if (typeof videoMirror !== "undefined") guard(() => videoMirror.start(b.el))();
+          guard(() => (again ? videoMirror.ensure(b.el) : videoMirror.start(b.el)))();
         };
         const stopMirror = (b) => {
           if (!b.mirrored) return;
@@ -3867,7 +3912,6 @@
               b.waiting = false;
               b.lastPosition = b.time;
               fire(b.el, "playing");
-              startMirror(b);
             } else if (!playing && b.playing) {
               b.playing = false;
               if (!b.paused) {
@@ -3878,6 +3922,7 @@
               b.waiting = waiting;
               if (waiting) fire(b.el, "waiting");
             }
+            if (b.playing) startMirror(b);
           } else if (m.event === "seeked") {
             if (m.seq !== b.seekSeq || !isFinite(m.time)) return;
             b.time = m.time;

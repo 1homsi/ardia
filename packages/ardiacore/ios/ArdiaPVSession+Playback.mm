@@ -402,7 +402,7 @@ using namespace ardia_protected_video;
   const NSRect inside = NSOffsetRect(full, -visible.origin.x, -visible.origin.y);
   CGRect layerFrame = NSRectToCGRect(inside);
   if (host.isFlipped) layerFrame.origin.y = NSHeight(visible) - CGRectGetMaxY(layerFrame);
-  if (!CGRectEqualToRect(_display.frame, layerFrame)) _display.frame = layerFrame;
+  if (!_inPip && !CGRectEqualToRect(_display.frame, layerFrame)) _display.frame = layerFrame;
   _display.contentsScale = content.window.backingScaleFactor ?: 2;
   [CATransaction commit];
   _view.hidden = _inPip;

@@ -174,6 +174,8 @@ double EndOf(CMSampleBufferRef sample);
   BOOL _pipWanted;
   CFTimeInterval _pipAskedAt;
   CMTimeRange _tracedRange;
+  __weak NSView *_pipPanel;
+  id _pipPanelObserver;
   NSTimer *_ticker;
   BOOL _hasRect;
   NSRect _rect;
