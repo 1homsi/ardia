@@ -48,6 +48,7 @@ struct MenuKeyboard {
   bool consumedWithAlt = false;
   bool escapeCaptured = false;
   bool switcherCaptured = false;
+  bool capturedWHeld = false;
   std::atomic<bool> textInputFocused{false};
   std::set<UINT> swallowedKeyUps;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
@@ -112,6 +113,7 @@ struct MenuKeyboard {
   bool CaptureSwitcherKey(KeyPress const &press, bool repeat) noexcept {
     CommandEntry const *entry = MenuStore::Shared().Match(press);
     if (entry && entry->command == "tabSwitcher") return Dispatch(press);
+    if (press.virtualKey == 'W') capturedWHeld = true;
     const char *key = nullptr;
     if (press.virtualKey == VK_ESCAPE) key = "escape";
     else if (press.virtualKey == VK_RIGHT) key = "next";
@@ -288,6 +290,7 @@ struct MenuKeyboard {
   bool HandleKey(UINT virtualKey, LPARAM flags) noexcept {
     bool keyUp = (flags & (1u << 31)) != 0;
     if (keyUp) {
+      if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));
       if (swallowedKeyUps.erase(virtualKey)) return true;
       if ((virtualKey == VK_MENU || virtualKey == VK_LMENU || virtualKey == VK_RMENU) && consumedWithAlt) {
@@ -297,6 +300,10 @@ struct MenuKeyboard {
       return false;
     }
     if (IsModifierKey(virtualKey)) return false;
+    if (capturedWHeld && virtualKey == 'W') {
+      if (flags & (1u << 30)) return true;
+      capturedWHeld = false;
+    }
     if (trackingMenu) return false;
     KeyPress press = ReadKeyPress(virtualKey, flags);
     if (press.windowsKey || press.altGraph) return false;
