@@ -26,6 +26,7 @@ export { PasteButton, pasteButtonIsNative, type PasteButtonProps } from "./paste
 export { sync } from "./sync";
 export { syncLab, type SyncRuntimeCheck } from "./syncLab";
 export { labLog, restorableState, system, systemLab, type SystemLink, type SystemLinkSource } from "./system";
+export { TRAY_BACK_TRAVEL, trayBack, type TrayBackHandlers } from "./back";
 export { scanLab, scanner, ScanView, type ScanError, type ScanPermission, type ScanViewProps } from "./scan";
 export { clipboard, type ClipboardOffer } from "./clipboard";
 export {
