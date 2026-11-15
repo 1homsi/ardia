@@ -329,8 +329,6 @@ await closedBy("low-power", q480, () => engine("webView.setVideoUpscalingTestCon
 await closedBy("thermal", q480, () => engine("webView.setVideoUpscalingTestConditions", { thermalPressure: true }), () => engine("webView.setVideoUpscalingTestConditions"));
 await closedBy("screen-share", q480, () => engine("webView.setVideoUpscalingTestConditions", { capturing: true }), () => engine("webView.setVideoUpscalingTestConditions"));
 
-// The same, with nothing acted: the tab playing the video shares another tab through getDisplayMedia, as Meet's presenter does,
-// so the engine's capture indicator and its observer are what close the gate, then open it again.
 await check("tab-share", async () => {
   const capturing = async (v) => (await gate(v)).state.tabs.find((t) => t.url === v.url)?.capturing ?? null;
   const target = await openVideo("src=clip_640x360.mp4&w=160&h=90");

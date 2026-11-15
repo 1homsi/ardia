@@ -2,11 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-// Video upscaling replaces a video's on-screen surface with its own output. Meet's stage shows the capture track
-// of a presented tab as a big clear video, so the upscaler picked it up and the presenter's preview stayed black
-// (#943). The gate has to leave a tab alone while it shares a tab, window or screen, and has to run again when a
-// share starts or stops. The real check is `video-upscaling-test.mjs` (`tab-share`, needs a Mac); this pins the
-// wiring it relies on where the Mac isn't there.
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const core = "../../../engine/ardiacore/src/ardia/core/";
 const upscaling = read(`${core}ac_video_upscaling.mm`);
