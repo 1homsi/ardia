@@ -2,7 +2,8 @@
 # Usage: check-names.py <apk> [<baseline apk built without R8>]
 # Checks that what Android and the JavaScript reach by name survived R8: the manifest's activities, services,
 # receivers and providers, App Startup initializers, each module in packages/phone/expo-module.config.json, the
-# native names the JavaScript asks for (a name absent from the baseline too is reported as not built for Android),
+# native names the JavaScript asks for (a name no Kotlin Name(...) in packages/phone/android defines, or absent from
+# the baseline too, is reported as not built for Android),
 # Room's WorkDatabase_Impl with its no-argument constructor, and Expo's generated package list. Exits 1 on a loss.
 # Components switched on or off by the build's ardia_sync_offered value are listed with it; their classes are still checked.
 # check-names.py --self-test checks the constructor match on fixed dexdump records.
@@ -21,7 +22,7 @@ if len(sys.argv) > 1 and sys.argv[1] == '--self-test':
     sys.exit(0)
 
 if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):
-    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:8]))
+    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:9]))
     sys.exit(0 if len(sys.argv) > 1 else 64)
 apk = sys.argv[1]
 baseline = sys.argv[2] if len(sys.argv) > 2 else None
@@ -94,10 +95,14 @@ names = set()
 for source in list((repo / 'packages/phone/src').rglob('*.ts')) + list((repo / 'packages/phone/src').rglob('*.tsx')):
     for found in re.findall(r'require(?:Optional)?Native(?:Module|ViewManager)(?:<[^>]*>)?\(\s*"([^"]+)"', source.read_text()):
         names.add(found)
-unnamed = sorted(n for n in names if n.encode() not in strings and (base_strings is None or n.encode() in base_strings))
-expected = sorted(n for n in names if base_strings is not None and n.encode() not in base_strings)
+defined = set()
+for source in (repo / 'packages/phone/android/src/main').rglob('*.kt'):
+    defined.update(re.findall(r'\bName\("([^"]+)"\)', source.read_text()))
+built = {n for n in names if n in defined and (base_strings is None or n.encode() in base_strings)}
+unnamed = sorted(n for n in built if n.encode() not in strings)
+expected = sorted(names - built)
 if expected:
-    print(f'  absent without R8 too (not built for Android): {", ".join(expected)}')
+    print(f'  not built for Android: {", ".join(expected)}')
 print(f'native names the JS asks for: {len(names)}, {len(unnamed)} absent from the dex strings')
 for n in unnamed:
     print(f'  ABSENT {n}')

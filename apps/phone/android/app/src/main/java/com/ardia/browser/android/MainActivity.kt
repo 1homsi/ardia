@@ -3,6 +3,7 @@ package com.ardia.browser.android
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import com.ardia.phone.FirstScreenDrawn
 import com.ardia.phone.PhoneSystemLinks
 import com.ardia.phone.ReactBack
 import com.ardia.phone.RestorableState
@@ -20,6 +21,7 @@ class MainActivity : ReactActivity() {
         RestorableState.restore(savedInstanceState)
         super.onCreate(null)
         onBackPressedDispatcher.addCallback(this, reactBack)
+        FirstScreenDrawn.watch(this)
         PhoneSystemLinks.activityStarted(intent, restored = savedInstanceState != null)
     }
 

@@ -120,6 +120,9 @@ android {
         jniLibs {
             useLegacyPackaging((findProperty('expo.useLegacyPackaging') ?: 'false').toBoolean())
         }
+        dex {
+            useLegacyPackaging((findProperty('ardiaCompressDex') ?: 'false').toBoolean())
+        }
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
