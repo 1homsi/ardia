@@ -9,7 +9,9 @@ export type RequestPage = Pick<Page, "key" | "profile" | "windowId" | "closed" |
 
 export const BROWSER_WINDOW_WAIT_MS = 10000;
 
-const unadopted = new Map<string, ReturnType<typeof setTimeout>>();
+type Unadopted = { timer: ReturnType<typeof setTimeout>; giveUp: () => void };
+
+const unadopted = new Map<string, Unadopted>();
 
 const listens = (page: RequestPage | undefined): page is RequestPage => !!page && page.listeners.size > 0 && !page.closed && !isPopupWindowId(page.windowId);
 
@@ -27,20 +29,22 @@ export function openInBrowserWindow(request: OpenWindowRequest, profile: string,
   if (isPrivateName(profile)) return giveUp();
   const { adoptId } = request;
   if (adoptId) {
-    clearTimeout(unadopted.get(adoptId));
-    unadopted.set(
-      adoptId,
-      setTimeout(() => {
-        unadopted.delete(adoptId);
-        giveUp();
-      }, BROWSER_WINDOW_WAIT_MS),
-    );
+    const timer = setTimeout(() => {
+      unadopted.delete(adoptId);
+      giveUp();
+    }, BROWSER_WINDOW_WAIT_MS);
+    clearTimeout(unadopted.get(adoptId)?.timer);
+    unadopted.set(adoptId, { timer, giveUp });
   }
   emitWhenListened("ArdiaTabs", "tabs", { name: "tabs.windowRequest", data: { request, profile } satisfies WindowRequest });
 }
 
-export function offeredTabAdopted(adoptId: string | undefined) {
-  if (adoptId === undefined || !unadopted.has(adoptId)) return;
-  clearTimeout(unadopted.get(adoptId));
+export function offeredTabAdopting(adoptId: string | undefined): (adopted: boolean) => void {
+  const waiting = adoptId === undefined ? undefined : unadopted.get(adoptId);
+  if (!waiting || adoptId === undefined) return () => {};
+  clearTimeout(waiting.timer);
   unadopted.delete(adoptId);
+  return (adopted) => {
+    if (!adopted) waiting.giveUp();
+  };
 }

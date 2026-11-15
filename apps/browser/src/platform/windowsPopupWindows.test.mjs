@@ -9,12 +9,14 @@ const closeRequests = [];
 const openIds = new Set();
 let refuseWindows = false;
 let closeWhileOpening = false;
+let refuseCreates = false;
 const shownPages = new Set(["opener-page"]);
 
 turboModules.ArdiaEngineHost = {
   available: () => true,
   hostCall: async (verb, argsJson, windowId) => {
     calls.push({ verb, args: JSON.parse(argsJson), windowId });
+    if (verb === "tab.create" && refuseCreates) throw new Error("no window");
     if (verb === "tabs.list") return JSON.stringify({ tabs: [...shownPages].map((key) => ({ key, shown: true, windowVisible: true })) });
     return JSON.stringify(verb === "tab.create" ? { tab: calls.length } : { ok: true });
   },
@@ -358,5 +360,21 @@ test("a tab a lone pop-up opens is closed in the engine, not left hidden and run
   }
   await settle();
   assert.ok(discarded("ardiacore:77"), "at the deadline the offered tab is closed in the engine");
+  await popup.done();
+});
+
+test("a lone pop-up's tab whose adoption fails, because its window closed first, is closed in the engine at once", async () => {
+  const popup = await lonePopup("ardiacore:78");
+  emitTopic("tab.opened", { adopt: "ardiacore:79", url: "https://help.example/gone", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
+  await settle();
+  refuseCreates = true;
+  try {
+    const adopting = mountPage("closed-window-tab", { url: "https://help.example/gone", profile: "p-work", adopt: "ardiacore:79", windowId: "closed-window" }, () => {});
+    await settle();
+    assert.ok(discarded("ardiacore:79"), "the offer is closed, not left running with its deadline already cleared");
+    adopting();
+  } finally {
+    refuseCreates = false;
+  }
   await popup.done();
 });

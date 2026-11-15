@@ -1,6 +1,6 @@
 import { fieldFocusedIn } from "../appKeyboard";
 import { discardOffered, hostCall, onEngineTopic } from "./host";
-import { asOpenWindowRequest, listeningBrowserPages, offeredTabAdopted, openInBrowserWindow, requestHost, type RequestPage } from "./requestHosts";
+import { asOpenWindowRequest, listeningBrowserPages, offeredTabAdopting, openInBrowserWindow, requestHost, type RequestPage } from "./requestHosts";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 import { privateSessionOpened } from "./privateWindows";
 import type { ExternalAppRequest, NavigationState, OpenWindowRequest } from "@ardia/ardiacore";
@@ -290,8 +290,9 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
   mounted.parked = false;
   mounted.mounts += 1;
   mounted.listeners.add(listener);
-  offeredTabAdopted(from.adopt);
+  const adopting = offeredTabAdopting(from.adopt);
   void mounted.ready.then((opened) => {
+    adopting(opened);
     if (opened) tellReady(mounted, listener);
   });
   return () => {
