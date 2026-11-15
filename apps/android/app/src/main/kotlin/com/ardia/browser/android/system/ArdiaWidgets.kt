@@ -7,6 +7,8 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -21,12 +23,14 @@ import androidx.glance.LocalSize
 import androidx.glance.action.Action
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.currentState
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -53,12 +57,20 @@ import com.ardia.design.Monogram
 import com.ardia.design.ProfileLook
 
 object ArdiaWidgets {
-    suspend fun refreshSearch(context: Context) {
-        runCatching { SearchWidget().updateAll(context) }
-    }
+    internal val REVISION = longPreferencesKey("ardia.widget.revision")
 
-    suspend fun refreshMacTabs(context: Context) {
-        runCatching { MacTabsWidget().updateAll(context) }
+    suspend fun refreshSearch(context: Context) = refresh(context, SearchWidget(), SearchWidget::class.java)
+
+    suspend fun refreshMacTabs(context: Context) = refresh(context, MacTabsWidget(), MacTabsWidget::class.java)
+
+    private suspend fun refresh(context: Context, widget: GlanceAppWidget, kind: Class<out GlanceAppWidget>) {
+        val ids = runCatching { GlanceAppWidgetManager(context).getGlanceIds(kind) }.getOrDefault(emptyList())
+        for (id in ids) {
+            runCatching {
+                updateAppWidgetState(context, id) { it[REVISION] = (it[REVISION] ?: 0L) + 1L }
+                widget.update(context, id)
+            }
+        }
     }
 
     fun isDark(context: Context): Boolean =
@@ -116,7 +128,7 @@ class SearchWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Responsive(setOf(SMALL, MEDIUM))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { SearchWidgetContent() }
+        provideContent { key(currentState(ArdiaWidgets.REVISION) ?: 0L) { SearchWidgetContent() } }
     }
 
     companion object {
@@ -200,7 +212,7 @@ class MacTabsWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Responsive(setOf(MEDIUM, LARGE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { MacTabsWidgetContent() }
+        provideContent { key(currentState(ArdiaWidgets.REVISION) ?: 0L) { MacTabsWidgetContent() } }
     }
 
     companion object {
