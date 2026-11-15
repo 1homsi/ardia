@@ -705,7 +705,7 @@ struct WindowManager {
     entry.closing = entry.appWindow.Closing(
         [this, id](winrt::Microsoft::UI::Windowing::AppWindow const &, winrt::Microsoft::UI::Windowing::AppWindowClosingEventArgs const &args) noexcept {
           ManagedWindow *found = Find(id);
-          if (!found || !(found->IsBrowser() || found->IsPopup()) || !m_context || m_quitting) return;
+          if (!found || !m_context || m_quitting) return;
           try {
             args.Cancel(true);
           } catch (...) {
