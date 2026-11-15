@@ -1,13 +1,35 @@
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
-import { incomingPose, outgoingPose, PAGER, resolvedOffset, snapTarget } from "../../lib/pagerPhysics";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  type SharedValue,
+} from "react-native-reanimated";
+import {
+  incomingPose,
+  outgoingPose,
+  PAGER,
+  resolvedOffset,
+  snapTarget,
+} from "../../lib/pagerPhysics";
 import { haptics } from "../../state/app/haptics";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
+import {
+  TabFace,
+  tabsCurve,
+  tabsInk,
+  tabsLayout,
+  tabsMotion,
+  trayMotion,
+  useTheme,
+} from "../ui";
 
 export type TabPager = {
   offset: SharedValue<number>;
@@ -20,9 +42,24 @@ export type TabPager = {
   settleTo: (target: number, velocity: number) => void;
 };
 
-type Options = { width: number; selectedId: string | null; left: string | null; right: string | null; onCommit: (id: string) => void; onGrab: () => void };
+type Options = {
+  width: number;
+  selectedId: string | null;
+  left: string | null;
+  right: string | null;
+  onCommit: (id: string) => void;
+  onGrab: () => void;
+};
 
-export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }: Options): TabPager {
+export function useTabPager({
+  width,
+  selectedId,
+  left,
+  right,
+  onCommit,
+  onGrab,
+}: Options): TabPager {
+  const reduceMotion = useReducedMotion();
   const offset = useSharedValue(0);
   const active = useSharedValue(0);
   const base = useSharedValue(0);
@@ -49,12 +86,27 @@ export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }
   };
 
   const settleTo = (wanted: number, velocity: number) => {
-    const target = (wanted > 0 && !hasLeft.value) || (wanted < 0 && !hasRight.value) ? 0 : wanted;
-    offset.value = withSpring(target * span.value, { ...tabsMotion.pagerSettle, velocity }, (finished) => {
+    const target =
+      (wanted > 0 && !hasLeft.value) || (wanted < 0 && !hasRight.value)
+        ? 0
+        : wanted;
+    const landed = (finished?: boolean) => {
+      "worklet";
       if (!finished) return;
       if (target === 0) active.value = 0;
       else runOnJS(commit)(target);
-    });
+    };
+    offset.value = reduceMotion
+      ? withTiming(
+          target * span.value,
+          { duration: trayMotion.reduced, easing: tabsCurve.easeOut },
+          landed,
+        )
+      : withSpring(
+          target * span.value,
+          { ...tabsMotion.pagerSettle, velocity },
+          landed,
+        );
   };
   const grab = () => {
     if (!hasLeft.value && !hasRight.value) return false;
@@ -63,7 +115,12 @@ export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }
     return true;
   };
   const track = (raw: number) => {
-    offset.value = resolvedOffset(raw, hasLeft.value, hasRight.value, span.value);
+    offset.value = resolvedOffset(
+      raw,
+      hasLeft.value,
+      hasRight.value,
+      span.value,
+    );
   };
 
   const gesture = Gesture.Pan()
@@ -75,53 +132,185 @@ export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }
       base.value = offset.value;
     })
     .onUpdate((event) => {
-      offset.value = resolvedOffset(base.value + event.translationX, hasLeft.value, hasRight.value, span.value);
+      offset.value = resolvedOffset(
+        base.value + event.translationX,
+        hasLeft.value,
+        hasRight.value,
+        span.value,
+      );
     })
     .onEnd((event) => {
-      const velocity = Math.min(Math.max(event.velocityX, -PAGER.maxVelocity), PAGER.maxVelocity);
-      const target = snapTarget(offset.value, velocity, span.value, hasLeft.value, hasRight.value);
-      offset.value = withSpring(target * span.value, { ...tabsMotion.pagerSettle, velocity }, (finished) => {
+      const velocity = Math.min(
+        Math.max(event.velocityX, -PAGER.maxVelocity),
+        PAGER.maxVelocity,
+      );
+      const target = snapTarget(
+        offset.value,
+        velocity,
+        span.value,
+        hasLeft.value,
+        hasRight.value,
+      );
+      const landed = (finished?: boolean) => {
+        "worklet";
         if (!finished) return;
         if (target === 0) active.value = 0;
         else runOnJS(commit)(target);
-      });
+      };
+      offset.value = reduceMotion
+        ? withTiming(
+            target * span.value,
+            { duration: trayMotion.reduced, easing: tabsCurve.easeOut },
+            landed,
+          )
+        : withSpring(
+            target * span.value,
+            { ...tabsMotion.pagerSettle, velocity },
+            landed,
+          );
     });
 
   const outgoing = useAnimatedStyle(() => {
-    const pose = outgoingPose(offset.value, span.value, hasLeft.value, hasRight.value);
-    return { transform: [{ translateX: pose.x }, { scale: pose.scale }], borderRadius: active.value ? tabsLayout.displayCornerRadius : 0 };
+    const pose = outgoingPose(
+      offset.value,
+      span.value,
+      hasLeft.value,
+      hasRight.value,
+      reduceMotion,
+    );
+    return {
+      transform: [{ translateX: pose.x }, { scale: pose.scale }],
+      borderRadius: active.value ? tabsLayout.displayCornerRadius : 0,
+    };
   });
-  const dim = useAnimatedStyle(() => ({ opacity: outgoingPose(offset.value, span.value, hasLeft.value, hasRight.value).dim }));
+  const dim = useAnimatedStyle(() => ({
+    opacity: outgoingPose(
+      offset.value,
+      span.value,
+      hasLeft.value,
+      hasRight.value,
+      reduceMotion,
+    ).dim,
+  }));
 
   return { offset, active, gesture, outgoing, dim, grab, track, settleTo };
 }
 
-type NeighbourProps = { pager: TabPager; tab: BrowserTab; side: -1 | 1; width: number; statusHeight: number; hasLeft: boolean; hasRight: boolean };
+type NeighbourProps = {
+  pager: TabPager;
+  tab: BrowserTab;
+  side: -1 | 1;
+  width: number;
+  statusHeight: number;
+  hasLeft: boolean;
+  hasRight: boolean;
+};
 
-export function PagerNeighbour({ pager, tab, side, width, statusHeight, hasLeft, hasRight }: NeighbourProps) {
+export function PagerNeighbour({
+  pager,
+  tab,
+  side,
+  width,
+  statusHeight,
+  hasLeft,
+  hasRight,
+}: NeighbourProps) {
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const { offset } = pager;
+  const reduceMotion = useReducedMotion();
   const style = useAnimatedStyle(() => {
-    const pose = incomingPose(side, offset.value, width, hasLeft, hasRight);
+    const pose = incomingPose(
+      side,
+      offset.value,
+      width,
+      hasLeft,
+      hasRight,
+      reduceMotion,
+    );
     return { opacity: pose.opacity, transform: [{ translateX: pose.x }] };
   });
+  const shadowStyle = useAnimatedStyle(() => {
+    const pose = incomingPose(
+      side,
+      offset.value,
+      width,
+      hasLeft,
+      hasRight,
+      reduceMotion,
+    );
+    return { opacity: pose.shadow, transform: [{ translateX: pose.x }] };
+  });
   const shown = display(tab.url);
+  const edge =
+    side < 0
+      ? { left: width, experimental_backgroundImage: EDGE_SHADOW_TRAILING }
+      : {
+          left: -tabsLayout.pagerEdgeShadow,
+          experimental_backgroundImage: EDGE_SHADOW_LEADING,
+        };
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, styles.card, { backgroundColor: theme.surface }, style]} pointerEvents="none">
-      <View style={{ height: statusHeight, backgroundColor: tone?.top ?? theme.surface }} />
-      <View style={styles.body}>
-        <TabFace tab={tab} title={tab.title || shown.host} host={shown.host} tone={tone?.top ?? null} roles={theme} />
-      </View>
-    </Animated.View>
+    <>
+      <Animated.View
+        testID="pagerEdgeShadow"
+        pointerEvents="none"
+        style={[
+          styles.edge,
+          {
+            top: tabsLayout.displayCornerRadius * 0.6,
+            bottom: tabsLayout.displayCornerRadius * 0.6,
+          },
+          edge,
+          shadowStyle,
+        ]}
+      />
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          styles.card,
+          { backgroundColor: theme.surface },
+          style,
+        ]}
+        pointerEvents="none"
+      >
+        <View
+          style={{
+            height: statusHeight,
+            backgroundColor: tone?.top ?? theme.surface,
+          }}
+        />
+        <View style={styles.body}>
+          <TabFace
+            tab={tab}
+            title={tab.title || shown.host}
+            host={shown.host}
+            tone={tone?.top ?? null}
+            roles={theme}
+          />
+        </View>
+      </Animated.View>
+    </>
   );
 }
 
+const EDGE_SHADOW_STOPS = [
+  "rgba(0,0,0,0)",
+  "rgba(0,0,0,0.08)",
+  "rgba(0,0,0,0.26)",
+];
+const EDGE_SHADOW_LEADING = `linear-gradient(to right, ${EDGE_SHADOW_STOPS.join(", ")})`;
+const EDGE_SHADOW_TRAILING = `linear-gradient(to left, ${EDGE_SHADOW_STOPS.join(", ")})`;
+
 export function PagerBlack() {
-  return <View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }]} />;
+  return (
+    <View
+      style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }]}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
   card: { overflow: "hidden", borderRadius: tabsLayout.displayCornerRadius },
+  edge: { position: "absolute", width: tabsLayout.pagerEdgeShadow },
   body: { flex: 1 },
 });

@@ -854,7 +854,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 - Sync: Enter Words replaces the page instead of pushing one, its counter and footer don't crossfade, and on iPhone the keyboard isn't ASCII and doesn't dismiss on scroll; connect steps pop instead of animating. `RecoveryPhraseEntryPage` in `SyncPages.kt`, `RecoveryPhraseEntryPage.swift`, `SyncConnectPage.swift`. Small.
 - Spaces: the empty state's Sync With Mac opens Settings › Sync, not Connect; pinned tabs with a symbol show a favicon (`row.icon` never drawn); open groups, folders and devices are kept per profile only while the sheet is open (Compose keeps them across launches). `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
 - Spaces at large text and motion: rows don't wrap, icons and tiles don't grow, the switcher doesn't scroll when profiles overflow; the folder chevron, Show All and group expansion snap and the header doesn't crossfade; the banner uses Compose's icons on iPhone; rows and tiles have no accessibility action for their menu. `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
-- Tab pager: it ignores Reduce Motion (Compose keeps the outgoing page still and crossfades the incoming one), and the incoming card has no edge shadow though `incomingPose` computes it. `BrowsingRules.kt`, `TabPager.kt`. Small.
 
 ### Needs native code on Android
 

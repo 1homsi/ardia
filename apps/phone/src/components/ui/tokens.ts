@@ -261,6 +261,7 @@ export const tabsInk = {
 } as const;
 
 export const tabsLayout = {
+  pagerEdgeShadow: 36,
   cardRadius: 13,
   displayCornerRadius: 55,
   faviconSize: 16,

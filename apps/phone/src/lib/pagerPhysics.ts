@@ -46,9 +46,9 @@ const progressOf = (offset: number, width: number) => {
   return width <= 0 ? 0 : Math.min(Math.abs(offset) / width, 1);
 };
 
-export function outgoingPose(offset: number, width: number, hasLeft: boolean, hasRight: boolean) {
+export function outgoingPose(offset: number, width: number, hasLeft: boolean, hasRight: boolean, reduceMotion = false) {
   "worklet";
-  if (width <= 0) return { x: 0, scale: 1, dim: 0 };
+  if (width <= 0 || reduceMotion) return { x: 0, scale: 1, dim: 0 };
   if (pagerSide(offset, hasLeft, hasRight) === 0) {
     const pull = Math.min(Math.abs(offset) / PAGER.rubberLimit, 1);
     return { x: offset, scale: 1 - PAGER.edgeScale * pull, dim: 0 };
@@ -57,9 +57,10 @@ export function outgoingPose(offset: number, width: number, hasLeft: boolean, ha
   return { x: offset * PAGER.parallax, scale: 1 - (1 - PAGER.recededScale) * progress, dim: PAGER.recededDim * progress };
 }
 
-export function incomingPose(cardSide: number, offset: number, width: number, hasLeft: boolean, hasRight: boolean) {
+export function incomingPose(cardSide: number, offset: number, width: number, hasLeft: boolean, hasRight: boolean, reduceMotion = false) {
   "worklet";
   if (width <= 0 || pagerSide(offset, hasLeft, hasRight) !== cardSide) return { x: cardSide * width, opacity: 0, shadow: 0 };
+  if (reduceMotion) return { x: 0, opacity: progressOf(offset, width), shadow: 0 };
   return { x: cardSide * width + offset, opacity: 1, shadow: 1 - progressOf(offset, width) };
 }
 
