@@ -53,7 +53,6 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int size);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);
   [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool GetSystemFlag(uint action, uint unused, ref int value, uint flags);
@@ -437,9 +436,11 @@ else {
 }
 
 $httpPagesPort = 9353
-$httpPagesScript = Join-Path (New-DataDirectory "http-pages") "serve.ps1"
+$httpPagesFolder = New-DataDirectory "http-pages"
+$httpPagesScript = Join-Path $httpPagesFolder "serve.ps1"
+$httpPagesLog = Join-Path $httpPagesFolder "requests.log"
 Set-Content -LiteralPath $httpPagesScript -Encoding utf8NoBOM -Value @'
-param([int]$Port)
+param([int]$Port, [string]$Log)
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
 $listener.Start()
 while ($true) {
@@ -450,9 +451,11 @@ while ($true) {
     $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 1024, $true)
     $request = $reader.ReadLine()
     while ($reader.ReadLine()) { }
-    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover" }[$(if ($request) { $request.Split(" ")[1] } else { "" })]
-    $status = if ($name) { "200 OK" } else { "404 Not Found" }
-    $text = if ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; }); strip.addEventListener('mouseleave', () => { document.title = 'left'; });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
+    $path = if ($request) { $request.Split(" ")[1] } else { "" }
+    if ($Log -and $path) { Add-Content -LiteralPath $Log -Value $path }
+    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/event/hovered" = "event"; "/event/left" = "event" }[$path]
+    $status = if ($name -eq "event") { "204 No Content" } elseif ($name) { "200 OK" } else { "404 Not Found" }
+    $text = if ($name -eq "event") { "" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($text)
     $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
     $stream.Write($head, 0, $head.Length)
@@ -461,7 +464,7 @@ while ($true) {
   } catch { } finally { $client.Close() }
 }
 '@
-$httpPages = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList "-NoProfile", "-NonInteractive", "-File", "`"$httpPagesScript`"", "-Port", $httpPagesPort -WindowStyle Hidden -PassThru
+$httpPages = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList "-NoProfile", "-NonInteractive", "-File", "`"$httpPagesScript`"", "-Port", $httpPagesPort, "-Log", "`"$httpPagesLog`"" -WindowStyle Hidden -PassThru
 $httpPagesBy = (Get-Date).AddSeconds(15)
 $httpPagesUp = $false
 while (-not $httpPagesUp -and (Get-Date) -lt $httpPagesBy -and -not $httpPages.HasExited) {
@@ -505,11 +508,9 @@ elseif (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Qui
 }
 elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first window" -Quiet)) { $failures += "the browser window never rendered with onboarding done" }
 
-function Get-WindowText([System.Diagnostics.Process]$Process) {
-  $Process.Refresh()
-  $text = New-Object System.Text.StringBuilder 512
-  [ArdiaInput]::GetWindowText($Process.MainWindowHandle, $text, 512) | Out-Null
-  return $text.ToString()
+function Get-PageEvents {
+  if (-not (Test-Path -LiteralPath $httpPagesLog)) { return @() }
+  return @(Get-Content -LiteralPath $httpPagesLog | Where-Object { $_ -like "/event/*" })
 }
 
 function Send-Move([int]$FromX, [int]$FromY, [int]$ToX, [int]$ToY) {
@@ -522,14 +523,14 @@ function Send-Move([int]$FromX, [int]$FromY, [int]$ToX, [int]$ToY) {
   }
 }
 
-function Wait-WindowText([System.Diagnostics.Process]$Process, [string]$Pattern, [int]$Milliseconds) {
+function Wait-PageEvent([string]$Name, [int]$After, [int]$Milliseconds) {
   $deadline = (Get-Date).AddMilliseconds($Milliseconds)
   do {
-    $text = Get-WindowText $Process
-    if ($text -match $Pattern) { return $text }
+    $events = Get-PageEvents
+    if (@($events | Select-Object -Skip $After) -contains "/event/$Name") { return $true }
     Start-Sleep -Milliseconds 100
   } while ((Get-Date) -lt $deadline)
-  return $null
+  return $false
 }
 
 function Test-PageHoverEnds([System.Diagnostics.Process]$Process) {
@@ -543,19 +544,19 @@ function Test-PageHoverEnds([System.Diagnostics.Process]$Process) {
   $x = $client.X + [int]($client.Width * 0.3)
   $inside = $client.Y + [int](60 * $client.Scale)
   $band = $client.Y + 2
+  $before = @(Get-PageEvents).Count
   [ArdiaInput]::SetCursorPos($x, $inside + 20) | Out-Null
   Start-Sleep -Milliseconds 300
   Send-Move $x ($inside + 20) $x $inside
-  $hovered = Wait-WindowText $Process "\bhovered\b" 3000
-  if (-not $hovered) { return @("hover: the page never reported the pointer over its strip (window title: $(Get-WindowText $Process))") }
-  Write-Host "Hover: the page reports the pointer over its strip ($hovered)."
+  if (-not (Wait-PageEvent "hovered" $before 3000)) { return @("hover: the page never reported the pointer over its strip (events: $((Get-PageEvents) -join ', '))") }
+  Write-Host "Hover: the page reports the pointer over its strip."
+  $entered = @(Get-PageEvents).Count
   Send-Move $x $inside $x $band
   Start-Sleep -Milliseconds 200
   if ($window.Top -ge 40) { $outX = $x; $outY = $window.Top - 30 } else { $outX = $window.Right + 30; $outY = $band }
   Send-Move $x $band $outX $outY
-  $left = Wait-WindowText $Process "\bleft\b" 3000
-  if ($left) { Write-Host "Hover: leaving the window through the top band ended the page's hover ($left)."; return @() }
-  return @("hover: after the pointer left the window through the top band over the page, the page still reports it over its strip (window title: $(Get-WindowText $Process))")
+  if (Wait-PageEvent "left" $entered 3000) { Write-Host "Hover: leaving the window through the top band ended the page's hover."; return @() }
+  return @("hover: after the pointer left the window through the top band over the page, the page never reported the hover ended (events: $((Get-PageEvents) -join ', '))")
 }
 
 function Test-TopEdgeResize([System.Diagnostics.Process]$Process) {
