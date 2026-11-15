@@ -710,7 +710,7 @@ function Invoke-SelfCheckStage([string]$Stage) {
   return ""
 }
 
-if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")) {
+if ($Part -ne "gate" -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll"))) {
   $secondLogin = "https://ardia-self-check-two.example%"
   $otherKinds = "CREATE TEMP TABLE ardia_kinds AS SELECT * FROM logins WHERE signon_realm LIKE 'https://ardia-self-check-one.example%';" +
     " UPDATE ardia_kinds SET id = NULL, signon_realm = 'https://ardia-self-check-never.example/', origin_url = 'https://ardia-self-check-never.example/', username_value = '', password_value = X'', blacklisted_by_user = 1;" +
@@ -732,7 +732,7 @@ if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -Literal
   }
 }
 
-if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")) {
+if ($Part -ne "gate" -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll"))) {
   $warpLog = Join-Path $Out "self-check-warp.log"
   $env:ARDIA_TEST = "selfCheckOnly=meadow:,meadowWebGL=required"
   $warp = Start-Process -FilePath $App -ArgumentList "--self-check", "--ignore-gpu-blocklist", "--use-angle=d3d11-warp", "--log-file=`"$warpLog`"" -PassThru
