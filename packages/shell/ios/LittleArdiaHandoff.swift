@@ -27,20 +27,14 @@ final class LittleArdiaHandoff {
     }
   }
 
-  func linkCame(from bundleId: String?) {
-    guard let bundleId, bundleId != Bundle.main.bundleIdentifier,
-      let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first(where: { $0.activationPolicy == .regular })
-    else { return }
-    lastOtherApp = app
-    openerSeenAt = Date()
-  }
-
-  func opened(_ id: String) {
+  func opened(_ id: String, linkFrom bundleId: String?) {
+    let linkApp = bundleId.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
     let front = NSWorkspace.shared.frontmostApplication
-    let cameFrom = front != nil && front != NSRunningApplication.current
-      ? front
-      : Date().timeIntervalSince(openerSeenAt) < Self.openerWindow ? lastOtherApp : nil
-    returnApps[id] = cameFrom?.activationPolicy == .regular ? cameFrom : nil
+    let cameFrom = linkApp
+      ?? (front != nil && front != NSRunningApplication.current
+        ? front
+        : Date().timeIntervalSince(openerSeenAt) < Self.openerWindow ? lastOtherApp : nil)
+    returnApps[id] = cameFrom?.activationPolicy == .regular && cameFrom != NSRunningApplication.current ? cameFrom : nil
   }
 
   func forget(_ id: String) {

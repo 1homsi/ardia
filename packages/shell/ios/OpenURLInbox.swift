@@ -49,7 +49,6 @@ public enum OpenURLInbox {
     var body: [String: Any] = ["urls": batch.urls, "pointer": [batch.pointer.x, batch.pointer.y]]
     if let source = batch.source { body["source"] = source }
     guard ShellEvents.send(.openURLs, body) else { return false }
-    LittleArdiaHandoff.shared.linkCame(from: batch.source?["bundleId"] as? String)
     if LaunchConfig.shared.isolated { testDeliveries = Array((testDeliveries + [body]).suffix(20)) }
     return true
   }

@@ -113,6 +113,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       ChromeWindows.onSwap { [weak self] from, to in self?.adopt(from: from, to: to) }
       observeDelegateNotifications(chromeWindow)
       if small { configureSmall(chromeWindow) }
+      if small { LittleArdiaHandoff.shared.opened(id, linkFrom: options.returnTo) }
       return show(entry, frame: frame, title: title, focus: focus, small: small, smallSize: options.size, smallPointer: options.pointer, behind: behind)
     }
     let window = makeWindow()
@@ -122,7 +123,10 @@ final class WindowManager: NSObject, NSWindowDelegate {
     window.contentViewController = controller
     window.delegate = self
     if options.incognito { window.appearance = NSAppearance(named: .darkAqua) }
-    if small { configureSmall(window) }
+    if small {
+      configureSmall(window)
+      LittleArdiaHandoff.shared.opened(id, linkFrom: options.returnTo)
+    }
     show(ManagedWindow(id: id, kind: kind, window: window), frame: frame, title: title, focus: focus, small: small, smallSize: options.size, smallPointer: options.pointer)
   }
 
@@ -131,7 +135,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
     behind: String? = nil
   ) {
     let window = entry.window, id = entry.id
-    if small { LittleArdiaHandoff.shared.opened(id) }
     if let lights = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(lights.center, trailing: lights.trailing, in: window) }
     window.title = title
     Self.identify(window, id: id, kind: entry.kind)
