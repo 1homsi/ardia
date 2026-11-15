@@ -8,6 +8,7 @@ import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
+import { POOF } from "../../lib/poof";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
 import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
@@ -39,6 +40,8 @@ export function deckRole(phase: number, expanded: number, index: number): DeckRo
 }
 
 const EXPANDED_Z = 100_000;
+const VANISH_FADE_RATE = 2;
+const CARD_BLURS_AWAY = Platform.OS === "android";
 
 export type DeckMotion = {
   phase: SharedValue<number>;
@@ -65,7 +68,7 @@ type Props = {
   onCloseNow: (index: number) => void;
 };
 
-type Pose = { x: number; y: number; scale: number; corner: number; opacity: number; header: number; visible: number; lift: number };
+type Pose = { x: number; y: number; scale: number; corner: number; opacity: number; header: number; visible: number; lift: number; vanish: number };
 
 function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number, pp: number, lift: number, vanish: number, isLast: boolean): Pose {
   "worklet";
@@ -95,10 +98,10 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
   const fade = Math.min(Math.max(vanish, 0), 1);
   y += lift;
   scale *= 1 - 0.28 * fade;
-  opacity *= 1 - fade;
+  opacity *= Math.max(0, 1 - fade * VANISH_FADE_RATE);
   const settle = role === "stay" ? 1 : Math.max(0, (pp - 0.7) / 0.3);
   const liftFade = Math.max(0, 1 + lift / 120);
-  return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift };
+  return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift, vanish: fade };
 }
 
 export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g, motion, shift, onOpen, onCloseNow }: Props) {
@@ -131,6 +134,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g
     return {
       zIndex: placed.value.z,
       opacity: p.opacity,
+      ...(CARD_BLURS_AWAY ? { filter: p.vanish > 0 ? [{ blur: POOF.blurFrom + POOF.blurGrow * p.vanish }] : [] } : {}),
       borderRadius: p.corner / Math.max(p.scale, 0.01),
       transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
     };
