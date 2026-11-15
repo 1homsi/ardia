@@ -318,7 +318,13 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   saved, then closes each tab keeping its history (`KeepTabHistoryWhenClosed`, no closed-tab entry), closes the empty
   companions, drops the profile's first-window keep-alive and answers `released` (the profile is gone) or `pending`,
   with the unloaded tabs' keys in `tabs`. A profile that isn't loaded answers `released`. Test:
-  `engine/ardiacore-linux/tests/test_idle_profiles.py`.
+  `engine/ardiacore-linux/tests/test_idle_profiles.py`. When the profile opens again, `tab.create` for a tab of a
+  regular profile with no adoption id reads the history the engine kept for its key (`Ardia Tab History/<hex key>`)
+  on a background thread and recreates the tab from it when the file is version 1, its URL or virtual URL is the
+  tab's (fragment aside) and its generation is the profile's (`ac_tab_history_generation`, else the
+  `Ardia Tab History Cleared` marker), as macOS's `RestoreSavedHistory` does; otherwise the URL loads. Private
+  profiles, temporary views and user navigations never read it (`ac_linux_saved_history.cc`, Chrome glue in
+  `ac_linux_saved_history_engine.cc`). Test: `engine/ardiacore-linux/tests/test_saved_history.py`.
 - **The window's active engine profile.** The Linux shell tells the host which engine profile the window shows
   (`ArdiaShell.setActiveProfile`, sent by `watchActiveProfile` in `hostWindowProfiles.ts` whenever the window's engine
   profile changes, with a sequence number so a late reply can't win). The extension toolbar, popups, side panels and
