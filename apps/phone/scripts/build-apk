@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds a release APK whose JavaScript is one commit, and stamps it with that commit and the native tree's state.
 #
-#   apps/phone/scripts/build-apk <name> [--commit REV] [--compose-key] [--store] [--direct] [--no-r8]
+#   apps/phone/scripts/build-apk <name> [--commit REV] [--compose-key] [--store] [--direct] [--no-r8] [--abi ABI[,ABI]]
 #
 # The bundle comes from an export of REV (default HEAD at start, see bundle-export.ts), so edits and commits in the
 # working tree during the build don't reach it; the export is deleted afterwards. Kotlin, resources and the native
@@ -10,10 +10,11 @@
 # $ARDIA_APK_DIR/<name>.apk (default /tmp/ardia-phone) and <name>.txt beside it. --compose-key re-signs it with the
 # Compose app's key (~/.android/debug.keystore) for the upgrade test; --store builds without the lab switch.
 # The release is shrunk with R8, and its reports (mapping, usage, seeds, configuration, missing rules) are kept
-# in <name>-r8/ beside the APK. --no-r8 builds the unshrunk control.
+# in <name>-r8/ beside the APK. --no-r8 builds the unshrunk control. --abi builds only those ABIs (default
+# arm64-v8a,x86_64, from gradle.properties), e.g. --abi arm64-v8a for what a phone gets from a split.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && exit 0 || exit 64
 fi
 name="$1"
@@ -30,6 +31,7 @@ while [ $# -gt 0 ]; do
     --direct) direct=1 ;;
     --r8) r8=1 ;;
     --no-r8) r8=0 ;;
+    --abi) abis="$2"; shift ;;
     --commit) rev="$2"; shift ;;
     *) echo "unknown option $1" >&2; exit 64 ;;
   esac
@@ -67,6 +69,7 @@ else
 fi
 echo "bundling $commit from the $source"
 [ "$r8" = "1" ] && gradleArgs+=(-Pandroid.enableMinifyInReleaseBuilds=true)
+[ -n "${abis:-}" ] && gradleArgs+=(-PreactNativeArchitectures="$abis")
 ARDIA_LAB=$lab "$here/gradle-locked" :app:assembleRelease ${gradleArgs[@]+"${gradleArgs[@]}"} --max-workers=4 --console=plain -q
 nativeAfter="$(node --no-warnings "$here/bundle-guard.ts" native --since "$started" --root "$root")"
 mkdir -p "$out"
@@ -104,6 +107,7 @@ sum="$(shasum -a 256 "$apk" | cut -d' ' -f1)"
   echo "native after the build: $nativeAfter"
   echo "lab: $([ "$lab" = "1" ] && echo on || echo off)"
   echo "r8: $([ "$r8" = "1" ] && echo on || echo off)"
+  echo "abis: ${abis:-arm64-v8a,x86_64 (gradle.properties)}"
   echo "versionCode: $version"
   echo "signer sha256: $signer"
   echo "sha256: $sum"
