@@ -8,9 +8,11 @@ export const LOOK_BUDGET = {
   slowestRefreshMs: 1000 / 60,
   latchSlack: 1.5,
   retryAfterMs: 30 * 24 * 60 * 60 * 1000,
+  quietBeforeRetryMs: 1000,
+  triesPerShow: 4,
 } as const;
 
-export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number; waits?: number[]; tickMs?: number; mainThreadMs?: number; droppedReports?: number; sceneWorkerMs?: number; mainThreadMessages?: number; longestMessages?: string[]; sceneCount?: number; blendCount?: number };
+export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number; waits?: number[]; tickMs?: number; mainThreadMs?: number; droppedReports?: number; sceneWorkerMs?: number; mainThreadMessages?: number; longestMessages?: string[]; sceneCount?: number; blendCount?: number; foreignViews?: string[] };
 
 export type Judgement = {
   conclusive: boolean;
@@ -26,6 +28,7 @@ export type Judgement = {
   paceMs?: number;
   keepsUp?: boolean;
   foreignFrames?: number;
+  foreignViews?: string[];
   waitMs?: number;
   tickMs?: number;
   mainThreadMs?: number;
@@ -95,7 +98,7 @@ export function judge(sample: FrameSample): Judgement {
   const droppedReports = sample.droppedReports ?? 0;
   const conclusive = foreignFrames === 0 && droppedReports === 0 && (frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp)));
   const over = conclusive && (tooBusy || !keepsUp);
-  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}), ...(sceneWorkerMs > 0 ? { sceneWorkerMs } : {}), ...(sample.mainThreadMessages !== undefined ? { mainThreadMessages: sample.mainThreadMessages } : {}), ...(sample.longestMessages?.length ? { longestMessages: sample.longestMessages.slice(0, 3) } : {}), ...(sample.sceneCount !== undefined ? { sceneCount: sample.sceneCount } : {}), ...(sample.blendCount !== undefined ? { blendCount: sample.blendCount } : {}) };
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames, ...(sample.foreignViews?.length ? { foreignViews: sample.foreignViews } : {}) } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}), ...(sceneWorkerMs > 0 ? { sceneWorkerMs } : {}), ...(sample.mainThreadMessages !== undefined ? { mainThreadMessages: sample.mainThreadMessages } : {}), ...(sample.longestMessages?.length ? { longestMessages: sample.longestMessages.slice(0, 3) } : {}), ...(sample.sceneCount !== undefined ? { sceneCount: sample.sceneCount } : {}), ...(sample.blendCount !== undefined ? { blendCount: sample.blendCount } : {}) };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });
@@ -151,9 +154,11 @@ export function parseState(text: string | null | undefined): BudgetState | null 
 export type ProbeDeps = {
   sample: (millis: number) => Promise<FrameSample | null>;
   schedule: (run: () => void, millis: number) => () => void;
-  record: (sample: FrameSample) => void;
+  record: (sample: FrameSample, attempt: ProbeAttempt) => void;
   cancelSample?: () => void;
 };
+
+export type ProbeAttempt = { tries: number; retrying: boolean };
 
 export function createBudgetProbe(deps: ProbeDeps) {
   let measured = false;
@@ -174,20 +179,25 @@ export function createBudgetProbe(deps: ProbeDeps) {
       stop();
       if (measured || !idle || !wanted) return;
       const mine = generation;
-      cancel = deps.schedule(() => {
-        sampling = true;
-        deps.sample(LOOK_BUDGET.sampleMs).then(
-          (sample) => {
-            if (mine === generation) sampling = false;
-            if (mine !== generation || measured || !sample) return;
-            measured = true;
-            deps.record(sample);
-          },
-          () => {
-            if (mine === generation) sampling = false;
-          },
-        );
-      }, LOOK_BUDGET.skipAfterShownMs);
+      const attempt = (tries: number, wait: number) => {
+        cancel = deps.schedule(() => {
+          sampling = true;
+          deps.sample(LOOK_BUDGET.sampleMs).then(
+            (sample) => {
+              if (mine === generation) sampling = false;
+              if (mine !== generation || measured || !sample) return;
+              const retrying = (sample.foreignFrames ?? 0) > 0 && tries < LOOK_BUDGET.triesPerShow;
+              if (!retrying) measured = true;
+              deps.record(sample, { tries, retrying });
+              if (retrying) attempt(tries + 1, LOOK_BUDGET.quietBeforeRetryMs);
+            },
+            () => {
+              if (mine === generation) sampling = false;
+            },
+          );
+        }, wait);
+      };
+      attempt(1, LOOK_BUDGET.skipAfterShownMs);
     },
     stop,
     get measured() {

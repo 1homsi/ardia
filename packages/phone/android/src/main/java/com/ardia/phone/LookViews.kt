@@ -215,6 +215,7 @@ internal object LookActivity {
     var restingLayered = 0
     @Volatile
     var foreignTraversals = 0L
+    val foreignLabels = ForeignLabels()
     @Volatile
     var tickNanos = 0L
     @Volatile
@@ -254,6 +255,19 @@ internal object DeckLayers {
         }
         return emptyList()
     }
+}
+
+internal class ForeignLabels(private val kept: Int = 32) {
+    private val seen = ArrayDeque<Pair<Long, String>>()
+
+    @Synchronized
+    fun add(traversal: Long, label: String) {
+        seen.addLast(traversal to label)
+        while (seen.size > kept) seen.removeFirst()
+    }
+
+    @Synchronized
+    fun since(traversal: Long, most: Int = 4): List<String> = seen.filter { it.first > traversal }.map { it.second }.distinct().take(most)
 }
 
 internal class ForeignDraws(private val dirty: (View) -> Boolean = View::isDirty) {
@@ -593,6 +607,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (ours) return false
         lastOthersDrew = SystemClock.uptimeMillis()
         LookActivity.foreignTraversals += 1
+        LookActivity.foreignLabels.add(LookActivity.foreignTraversals, FrameTrace.label(other))
         releaseResting()
         return true
     }

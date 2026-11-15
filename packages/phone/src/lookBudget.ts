@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { requireOptionalNativeModule } from "expo-modules-core";
-import { createBudgetProbe, judge, LOOK_BUDGET, mode, parseState, record, refresh, wantsMeasurement, otherWork, type BudgetState, type FrameSample, type LookMode, type SystemLook } from "./lookBudgetRules";
+import { createBudgetProbe, judge, LOOK_BUDGET, mode, parseState, record, refresh, wantsMeasurement, otherWork, type BudgetState, type FrameSample, type LookMode, type ProbeAttempt, type SystemLook } from "./lookBudgetRules";
 import { labLog } from "./system";
 
 type BudgetNative = {
@@ -70,7 +70,7 @@ export const lookBudget = {
     if (!stored) return;
     save(refresh(null, stored.version, Date.now()));
   },
-  recordSample: (sample: FrameSample, now = Date.now()): BudgetState | null => {
+  recordSample: (sample: FrameSample, now = Date.now(), attempt?: ProbeAttempt): BudgetState | null => {
     const before = state();
     if (!before) return null;
     const judgement = judge(sample);
@@ -79,7 +79,7 @@ export const lookBudget = {
     const why = judgement.conclusive
       ? ""
       : judgement.foreignFrames
-        ? ` (this sample dropped: ${judgement.foreignFrames} frame(s) drawn by something other than the backdrop)`
+        ? ` (this sample dropped: ${judgement.foreignFrames} frame(s) drawn by something other than the backdrop${judgement.foreignViews?.length ? `: ${judgement.foreignViews.join(", ")}` : ""}${attempt ? (attempt.retrying ? `; trying again after a quiet second, try ${attempt.tries + 1} of ${LOOK_BUDGET.triesPerShow}` : `; try ${attempt.tries} of ${LOOK_BUDGET.triesPerShow}, no more tries until the deck shows again`) : ""})`
         : judgement.droppedReports
           ? ` (this sample dropped: ${judgement.droppedReports} frame report(s) lost)`
           : ` (this sample dropped: ${judgement.frames} frame(s), too few)`;
@@ -97,7 +97,7 @@ export function useLookBudgetProbe(idle: boolean, system: SystemLook) {
       const timer = setTimeout(run, millis);
       return () => clearTimeout(timer);
     },
-    record: (sample) => void lookBudget.recordSample(sample),
+    record: (sample, attempt) => void lookBudget.recordSample(sample, Date.now(), attempt),
   });
   useEffect(() => {
     const now = state();

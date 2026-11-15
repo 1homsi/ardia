@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createBudgetProbe, initialState, judge, LOOK_BUDGET, mode, otherWork, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample } from "../../../../packages/phone/src/lookBudgetRules.ts";
+import { createBudgetProbe, initialState, judge, LOOK_BUDGET, mode, otherWork, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample, type ProbeAttempt } from "../../../../packages/phone/src/lookBudgetRules.ts";
 
 const frames = (count: number, totalMs: number, deadlineMs = 16.6): FrameSample => ({ totals: Array(count).fill(totalMs), deadlines: Array(count).fill(deadlineMs), windowMs: 2000 });
 const over = judge(frames(50, 40));
@@ -234,6 +234,7 @@ function fakeProbe() {
   const asked: number[] = [];
   const recorded: FrameSample[] = [];
   const cancelled: number[] = [];
+  const attempts: ProbeAttempt[] = [];
   let answer: (sample: FrameSample | null) => void = () => undefined;
   const probe = createBudgetProbe({
     sample: (millis) => {
@@ -246,7 +247,10 @@ function fakeProbe() {
       timers.push(timer);
       return () => (timer.cancelled = true);
     },
-    record: (sample) => recorded.push(sample),
+    record: (sample, attempt) => {
+      recorded.push(sample);
+      attempts.push(attempt);
+    },
     cancelSample: () => cancelled.push(now),
   });
   const advance = (millis: number) => {
@@ -260,7 +264,7 @@ function fakeProbe() {
     answer(sample);
     await new Promise((resolve) => setImmediate(resolve));
   };
-  return { probe, advance, settle, asked, recorded, cancelled };
+  return { probe, advance, settle, asked, recorded, cancelled, attempts };
 }
 
 test("the probe skips the first second after the deck shows and samples only while it stays idle", async () => {
@@ -349,4 +353,53 @@ test("the budget line splits the other main-thread work into the backdrop's tick
     otherWork(judged),
     "241.7 ms in 412 message(s): backdrop ticks 3.2 ms, the rest 238.5 ms; longest MessageQueueThreadHandler what 0 41.2 ms, Handler Editor$Blink 6.0 ms, ViewRootImpl$ViewRootHandler DeckBackdropView$$ExternalSyntheticLambda3 0.9 ms",
   );
+});
+
+test("a sample dropped for another view's frames is taken again after a quiet second, a few times per show", async () => {
+  const { probe, advance, settle, asked, recorded, attempts } = fakeProbe();
+  const late = { ...frames(50, 9), foreignFrames: 2, foreignViews: ["ReactViewGroup", "ScrollActionsView"] };
+  probe.update(true, true);
+  advance(LOOK_BUDGET.skipAfterShownMs);
+  await settle(late);
+  assert.deepEqual(attempts, [{ tries: 1, retrying: true }]);
+  assert.equal(probe.measured, false, "one late redraw doesn't end the deck's chance of a verdict");
+  advance(LOOK_BUDGET.quietBeforeRetryMs - 1);
+  assert.equal(asked.length, 1);
+  advance(1);
+  assert.equal(asked.length, 2, "the next try starts after a quiet second");
+  await settle(frames(50, 9));
+  assert.equal(recorded.length, 2);
+  assert.deepEqual(attempts[1], { tries: 2, retrying: false });
+  assert.equal(probe.measured, true);
+});
+
+test("a deck that never goes quiet stops trying after the last try of its show", async () => {
+  const { probe, advance, settle, asked, attempts } = fakeProbe();
+  const late = { ...frames(50, 9), foreignFrames: 1 };
+  probe.update(true, true);
+  advance(LOOK_BUDGET.skipAfterShownMs);
+  for (let tries = 1; tries <= LOOK_BUDGET.triesPerShow; tries++) {
+    await settle(late);
+    advance(LOOK_BUDGET.quietBeforeRetryMs);
+  }
+  assert.equal(asked.length, LOOK_BUDGET.triesPerShow);
+  assert.deepEqual(attempts.at(-1), { tries: LOOK_BUDGET.triesPerShow, retrying: false });
+  assert.equal(probe.measured, true);
+});
+
+test("a retry waiting for its quiet second is cancelled when the deck stops being idle", async () => {
+  const { probe, advance, settle, asked } = fakeProbe();
+  probe.update(true, true);
+  advance(LOOK_BUDGET.skipAfterShownMs);
+  await settle({ ...frames(50, 9), foreignFrames: 1 });
+  probe.update(false, true);
+  advance(LOOK_BUDGET.quietBeforeRetryMs * 3);
+  assert.equal(asked.length, 1);
+});
+
+test("the judgement names the views that drew when a sample is dropped for them", () => {
+  const named = judge({ totals: Array(35).fill(15), deadlines: Array(35).fill(16.7), windowMs: 2000, foreignFrames: 2, foreignViews: ["ReactViewGroup"] });
+  assert.equal(named.conclusive, false);
+  assert.deepEqual(named.foreignViews, ["ReactViewGroup"]);
+  assert.equal(judge({ totals: Array(35).fill(15), deadlines: Array(35).fill(16.7), windowMs: 2000, foreignViews: ["ReactViewGroup"] }).foreignViews, undefined);
 });

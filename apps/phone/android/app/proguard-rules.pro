@@ -5,6 +5,7 @@
 -keep class com.th3rdwave.safeareacontext.** { *; }
 -keep class com.horcrux.svg.** { *; }
 -keep class kotlin.Metadata { *; }
+-keepnames class * extends android.view.View
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,Exceptions,AnnotationDefault,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
 -keep class * extends androidx.room.RoomDatabase {
     <init>();
