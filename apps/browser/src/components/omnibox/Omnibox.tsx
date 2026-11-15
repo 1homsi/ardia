@@ -35,6 +35,7 @@ import { ADD_CHIP, BAR } from "./tokens";
 import { useBarItems } from "./useBarItems";
 import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
+import { useTypeAhead } from "./useTypeAhead";
 import { usePreviewSelection } from "./usePreviewSelection";
 
 export { PANEL_TEXT_LEFT } from "./tokens";
@@ -100,6 +101,7 @@ export function Omnibox({
   fieldText.current = value;
   const editing = useRef(false);
   const focusEcho = useRef(false);
+  const typeAhead = useTypeAhead(windowId, () => ({ text: fieldText.current, start: selection.current.start, end: selection.current.end }), (text) => (selection.note({ start: text.length, end: text.length }), onChangeText(text)));
   const panelOpen = useWindowUiOf(windowId, (ui) => hero && !!ui?.panel.open);
   const [listAway, setListAway] = useState(false);
   if (panelOpen && !listAway) setListAway(true);
@@ -235,7 +237,7 @@ export function Omnibox({
     }
   });
 
-  const onChangeText = (next: string) => {
+  const onChangeText = (raw: string, next = typeAhead.text(raw)) => {
     if (__DEV__) heardAt.current = Date.now();
     previewSelection.settle();
     const change = inline.read(next, { before: selection.beforeEdit(), after: selection.current });
@@ -302,15 +304,8 @@ export function Omnibox({
       }}
       onChangeText={onChangeText}
       onSubmitEditing={() => choose(current, "current", true)}
-      onFocus={() => {
-        editing.current = true;
-        setListAway(false);
-      }}
-      onBlur={() => {
-        editing.current = false;
-        focusEcho.current = false;
-        onCancel?.();
-      }}
+      onFocus={() => ((editing.current = true), setListAway(false), typeAhead.focused())}
+      onBlur={() => ((editing.current = false), (focusEcho.current = false), typeAhead.blurred(), onCancel?.())}
       keyDownEvents={barKeyDownEvents(asksForBackspace(scope), isRemovable(current))}
       onKeyDown={onKeyDown}
     />

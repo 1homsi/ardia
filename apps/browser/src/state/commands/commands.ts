@@ -27,7 +27,7 @@ import { showHistory } from "../history/showHistory";
 import { openInternalPage } from "../pages/urls";
 import { isUtilityWindowId, openImport, openSettings, SETTINGS_WINDOW_ID } from "../settings/settingsWindows";
 import { focusSettingsSearch } from "../settings/searchState";
-import { closePanelToHeroBar, focusHeroBar } from "../omnibox/barState";
+import { armTypeAhead, closePanelToHeroBar, focusHeroBar } from "../omnibox/barState";
 import { closeNewTabBar, isEmptyCardTab, showNewTabBar, toggleNewTabBar } from "../omnibox/newTabBar";
 import { NEW_TAB_BAR_POLICY } from "../omnibox/newTabBarPolicy";
 import { addressBarInSidebar } from "../windows/layout";
@@ -156,6 +156,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
   if (page && (runHidingCommand(command, page.id) || runReaderCommand(command, page.id))) return;
   if (!targeted && runSidebarCommand(command, arg, windowId)) return;
 
+  if (command === "newTab" || command === "focusCommandBar") armTypeAhead(windowId);
   switch (command) {
     case "newTab":
       if (toggleNewTabBar(windowId)) return;

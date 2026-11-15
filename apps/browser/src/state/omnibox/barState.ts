@@ -73,3 +73,5 @@ export function closePanelToHeroBar(windowId: string, tabId: string, reason?: Ba
   if (!now.tabs[tabId]?.url) focusHeroBar(windowId, tabId);
   else if (reason && now.tabs[tabId]?.windowId === windowId) void webviews.get(tabId)?.focus();
 }
+
+export { armTypeAhead } from "./typeAhead";
