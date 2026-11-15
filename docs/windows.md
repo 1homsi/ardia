@@ -505,6 +505,9 @@ is plain Chromium.
   still showing in the window a tab moved from) the ask is kept until that page shows in that window, however long it
   takes to open, and no show timer is involved (`engine/keptFollow.ts`, #1689, not seen on Windows yet). A shown tab
   that gets its first address (Enter in its New Tab page's search box, or in the command bar over it) asks again.
+  Escape in the command bar over a page gives that page the keyboard back, as on the Mac (#1894): the page's
+  `focusIfUnfocused` asks the same way, and only when no field of the window holds the keyboard (not seen on Windows
+  yet; `page_focus_returns_after_bar` counts it).
   The ask is used once. It is dropped when another tab is followed or focused, a page is pressed, or a field takes the
   keyboard or holds it when the page shows: the rule above for fields of the page's window, so another tab's content
   area doesn't count, and any field at all in another window, such as Settings. `keyboard_follows_kept`,
