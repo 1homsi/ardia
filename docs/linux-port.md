@@ -324,7 +324,9 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   tab's (fragment aside) and its generation is the profile's (`ac_tab_history_generation`, else the
   `Ardia Tab History Cleared` marker), as macOS's `RestoreSavedHistory` does; otherwise the URL loads. Private
   profiles, temporary views and user navigations never read it (`ac_linux_saved_history.cc`, Chrome glue in
-  `ac_linux_saved_history_engine.cc`). Test: `engine/ardiacore-linux/tests/test_saved_history.py`.
+  `ac_linux_saved_history_engine.cc`). Test: `engine/ardiacore-linux/tests/test_saved_history.py`. As macOS's
+  `loadURL:` does, the shell drops the first `loadUrl` of the URL a tab was created with when it comes within 2 s
+  (`HostTab.repeatsCreate`), so it doesn't add a second entry after the restored ones.
 - **The window's active engine profile.** The Linux shell tells the host which engine profile the window shows
   (`ArdiaShell.setActiveProfile`, sent by `watchActiveProfile` in `hostWindowProfiles.ts` whenever the window's engine
   profile changes, with a sequence number so a late reply can't win). The extension toolbar, popups, side panels and

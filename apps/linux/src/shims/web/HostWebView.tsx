@@ -67,7 +67,10 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
       return async (...args: unknown[]) => {
         const current = tab.current;
         if (!current) throw new Error("Ardia tab is not mounted");
-        if (property === "loadUrl") args[0] = toEngineUrl(args[0] as string);
+        if (property === "loadUrl") {
+          args[0] = toEngineUrl(args[0] as string);
+          if (current.repeatsCreate(args[0] as string)) return undefined;
+        }
         if (property === "focus") notePageFocusRequest();
         if (property === "getSecurityInfo") return current.pageResult(property, args);
         const script = hostPageScript(property, args);

@@ -17,6 +17,7 @@ export type HostPageFactory = (claim: string, nativeId: () => number | undefined
 export type TabViewport = { rect: { x: number; y: number; width: number; height: number }; visible: boolean };
 
 const claims = new WeakMap<ArdiaHost, Map<string, HostTab>>();
+const CREATING_LOAD_MS = 2_000;
 const ADOPTED_LIVE = ["tab", "ardiacore"];
 const ADOPTED_AS_COPIES = ["restore", "clone"];
 
@@ -42,9 +43,14 @@ export class HostTab {
   releaseScheduled = false;
   page: HostPageReceiver | undefined;
 
-  constructor(host: ArdiaHost, options: HostTabOptions, onEvent: (event: HostTabEvent) => void, page?: HostPageFactory) {
+  creating: { url: string; at: number } | null;
+  now: () => number;
+
+  constructor(host: ArdiaHost, options: HostTabOptions, onEvent: (event: HostTabEvent) => void, page?: HostPageFactory, now: () => number = Date.now) {
     this.host = host;
     this.key = options.key;
+    this.now = now;
+    this.creating = { url: options.url ?? "about:blank", at: now() };
     this.page = page?.(this.claim, () => this.identity?.browserId, (identity) => {
       if (this.disposed || !this.identity || claims.get(host)?.get(this.key) !== this) return;
       this.identity = { ...this.identity, browserId: identity.browserId, chromeTabId: identity.chromeTabId };
@@ -101,6 +107,13 @@ export class HostTab {
       throw error;
     });
   }
+
+  repeatsCreate(url: string) {
+    const creating = this.creating;
+    this.creating = null;
+    return !!creating && creating.url === url && this.now() - creating.at < CREATING_LOAD_MS;
+  }
+
 
   async command<T = unknown>(command: string, args: unknown[] = []): Promise<T> {
     await this.ready;

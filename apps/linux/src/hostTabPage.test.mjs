@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { HostTab } from "./hostTab.ts";
 import { HostPageEvents } from "./hostPageEvents.ts";
 
@@ -220,4 +221,22 @@ test("Chrome's open-link-in-private request reaches the shell as an incognito wi
   assert.deepEqual(calls.at(-1), ["openWindow", { url: "https://private.example.test/", disposition: "incognito", profile: "work" }]);
   tab.dispose();
   await settle();
+});
+
+test("the shell's first load of the URL a tab was just created with is dropped, so a tab woken with its saved history keeps it", async () => {
+  const native = nativeHost();
+  let now = 1_000;
+  const tab = new HostTab(native.host, { key: "woken", url: "https://example.net/" }, () => {}, undefined, () => now);
+  now += 300;
+  assert.equal(tab.repeatsCreate("https://example.net/"), true);
+  assert.equal(tab.repeatsCreate("https://example.net/"), false, "only the first load after creation");
+  const late = new HostTab(native.host, { key: "late", url: "https://example.net/" }, () => {}, undefined, () => now);
+  now += 2_500;
+  assert.equal(late.repeatsCreate("https://example.net/"), false, "a load seconds later is the user's");
+  const other = new HostTab(native.host, { key: "other", url: "https://example.net/" }, () => {}, undefined, () => now);
+  assert.equal(other.repeatsCreate("https://example.com/"), false, "another URL always loads");
+  assert.equal(other.repeatsCreate("https://example.net/"), false);
+  await settle();
+  const shim = readFileSync(new URL("./shims/web/HostWebView.tsx", import.meta.url), "utf8");
+  assert.match(shim, /if \(property === "loadUrl"\) \{\n\s+args\[0\] = toEngineUrl\(args\[0\] as string\);\n\s+if \(current\.repeatsCreate\(args\[0\] as string\)\) return undefined;/);
 });
