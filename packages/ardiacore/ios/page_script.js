@@ -246,6 +246,7 @@
     if (e.type === "play" || e.type === "playing") {
       active = m;
       watchRemoval(m);
+      if (timeline) anchorStartedMedia(timeline, m);
     }
     noteHeard(m);
     if (e.type !== "volumechange") reportNowPlaying();
@@ -315,9 +316,13 @@
     const setPositionState = proto.setPositionState;
     proto.setPositionState = function (state) {
       const result = setPositionState.apply(this, arguments);
-      timeline = typeof state?.duration === "number" ? { position: state.position ?? 0, duration: state.duration, playbackRate: state.playbackRate ?? 1, mediaTimes: new WeakMap(reachableMedia().map((m) => [m, m.currentTime])) } : null;
+      timeline = typeof state?.duration === "number" ? { position: state.position ?? 0, duration: state.duration, playbackRate: state.playbackRate ?? 1, mediaTimes: mediaTimesOf(reachableMedia()) } : null;
       positionState = timeline ? state : null;
-      if (timeline) restartTimelineClock(timeline.position);
+      if (timeline) {
+        restartTimelineClock(timeline.position);
+        const reported = timeline;
+        queueMicrotask(guard(() => timeline === reported && (reported.mediaTimes = mediaTimesOf(reachableMedia()))));
+      }
       reportNowPlaying();
       return result;
     };
@@ -340,6 +345,10 @@
   const timelineNow = (reported, mediaAdvance, now) => {
     const position = mediaAdvance == null ? clockPosition(reported.playbackRate, reported.clock, now) : reported.position + mediaAdvance;
     return { position: Math.max(0, Math.min(reported.duration, position)), duration: reported.duration };
+  };
+  const mediaTimesOf = (media) => new WeakMap(media.map((m) => [m, m.currentTime]));
+  const anchorStartedMedia = (timeline, m) => {
+    if (!timeline.mediaTimes.has(m)) timeline.mediaTimes.set(m, m.currentTime);
   };
   const mediaAdvanceOf = (el, timeline) => (el && timeline.mediaTimes.has(el) ? el.currentTime - timeline.mediaTimes.get(el) : null);
   const timelineReport = (timeline, el, now) => {

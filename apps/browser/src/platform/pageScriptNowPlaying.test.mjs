@@ -11,6 +11,7 @@ const define = (name, pattern, uses = {}) => {
 const clockPosition = define("clockPosition", /const clockPosition = (\(rate, clock, now\) => \{[\s\S]*?\n {2}\});\n/);
 const timelineNow = define("timelineNow", /const timelineNow = (\(reported, mediaAdvance, now\) => \{[\s\S]*?\n {2}\});\n/, { clockPosition });
 const mediaAdvanceOf = define("mediaAdvanceOf", /const mediaAdvanceOf = (\(el, timeline\) => .*);\n/);
+const anchorStartedMedia = define("anchorStartedMedia", /const anchorStartedMedia = (\(timeline, m\) => \{[\s\S]*?\n {2}\});\n/);
 const timelineReport = define("timelineReport", /const timelineReport = (\(timeline, el, now\) => \{[\s\S]*?\n {2}\});\n/, { mediaAdvanceOf, timelineNow });
 
 const video = (currentTime, playbackRate = 1) => ({ currentTime, playbackRate });
@@ -42,4 +43,14 @@ test("a site's position never runs past its duration or below zero", () => {
   assert.equal(timelineReport(setAt(195), null, 60_000).position, 200);
   const el = video(0);
   assert.equal(timelineReport(setAt(3, { media: [[el, 10]] }), el, 0).position, 0);
+});
+
+test("media that starts playing after the site set its position counts from where it starts, not from the site's clock", () => {
+  const timeline = setAt(0);
+  const audio = video(0);
+  assert.equal(timelineReport(timeline, audio, 20_000).position, 20, "unseen, it follows the clock that ran while nothing played");
+  anchorStartedMedia(timeline, audio);
+  assert.equal(timelineReport(timeline, audio, 20_000).position, 0);
+  audio.currentTime = 5;
+  assert.equal(timelineReport(timeline, audio, 25_000).position, 5);
 });
