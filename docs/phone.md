@@ -1560,9 +1560,9 @@ thinning report.
 
 | Build | Installed | Download (zip -9) |
 | --- | --- | --- |
-| Expo 58, as archived today | 60.0 MB | 26.9 MB |
-| Expo 58 with React Native's prebuilt frameworks stripped of symbols | 50.8 MB | 26.0 MB |
-| main's SwiftUI app | 27.7 MB | 16.8 MB |
+| Expo 58 before the strip (773ee4ded) | 60.0 MB | 26.3 MB |
+| Expo 58 as it builds now, with the Release strip of React Native's prebuilt frameworks | 56.5 MB | 25.7 MB |
+| main's SwiftUI app | 27.7 MB | 16.6 MB |
 | Both, after the App Store drops the iPad copies of the app icon (estimate) | about 4.3 MB less each | about 4.3 MB less each |
 
 By part, installed (deflated):
@@ -1570,7 +1570,7 @@ By part, installed (deflated):
 | Part | Expo 58 | SwiftUI |
 | --- | --- | --- |
 | App binary | 12.7 MB (4.7) | 5.9 MB (2.4) |
-| React Native's frameworks: React 11.6, hermesvm 6.1, ReactNativeDependencies 1.2, ExpoModulesJSI 1.2 | 20.1 MB as shipped, 10.8 stripped (3.9) | none |
+| React Native's frameworks: React 11.6, hermesvm 6.1, ReactNativeDependencies 1.2, ExpoModulesJSI 1.2 | 20.1 MB as shipped, 16.5 after the Release strip: React 10.1, hermesvm 4.2, ReactNativeDependencies 1.1, ExpoModulesJSI 1.2 | none |
 | JS bundle (Hermes bytecode) | 5.4 MB (2.2) | none |
 | The three extensions (Share, Open in Ardia, Widgets) | 11.2 MB (4.4) | 11.2 MB (4.4) |
 | Asset catalog | 9.4 MB (9.3) | 9.5 MB (9.4) |
@@ -1595,26 +1595,38 @@ compresses. The App Store's thinning sends an iPhone only its own copies, about 
 icon, so it doesn't change the difference between them.
 
 **What could go without losing anything:**
-1. **The symbols in React Native's prebuilt frameworks.**
-   - Xcode strips what it builds, but these four come prebuilt and are copied in with their symbols.
-   - Stripping them (`strip -x -S` after they're embedded, keeping the archive's dSYMs) saves 9.2 MB installed but
-     only 0.9 MB of download, since symbols compress well.
-   - That's worth doing, as a build step after CocoaPods' "Embed Pods Frameworks". The app binary itself is already
-     stripped.
-2. **Nothing else:**
+1. **The debug map in React Native's prebuilt frameworks, now stripped in Release.**
+   - Xcode strips what it builds, but these four come prebuilt and are copied in as they ship. React and Hermes
+     carry a debug map: about 88,000 entries naming object files on the machine that built them, which nothing on a
+     phone or in a crash report can use.
+   - The "Strip prebuilt symbols" build phase runs `apps/phone/ios/strip-prebuilt-symbols.sh` after CocoaPods'
+     "Embed Pods Frameworks", in Release only. It runs `strip -S`, then re-signs each framework when the build
+     signs. That saves 3.6 MB installed and 0.6 MB of download.
+   - Function names stay, local ones included: the same 40,160 symbols before and after. React Native's prebuilt
+     frameworks ship no dSYMs (only ExpoModulesJSI has one), so these names are what makes their frames in a
+     crash report readable. Proof on the stripped device archive: `atos` names a React and a Hermes local function
+     from the stripped binaries. Our own code goes through the archive's dSYMs, which stay with the archive: the app
+     binary's UUID matches `Ardia.app.dSYM`, and an address in it resolves to `SettingsShortcutsView.body.getter
+     (SettingsUIModule.swift:148)`.
+   - `strip -x -S` would save 5.5 MB more installed, but it removes the local function names, and with no dSYM for
+     these frameworks nothing can restore them. lldb then shows `___lldb_unnamed_symbol…` for React and Hermes
+     frames. Not worth 0.3 MB of download.
+   - The stripped build passes `ios-update-launch-check`, onboards and loads a page.
+2. **The app icon's iPad copies** are the App Store's to thin. Nothing to do in the build.
+3. **Nothing else:**
    - Expo UI draws the Settings screens; expo-sqlite is the app's store; SVG draws the logo and the sync pictures;
      Reanimated and worklets carry the motion.
    - The extensions are the same in both apps.
 
-**Recommendation:** strip the four frameworks in the Release build. Read the real per-device download and install
-sizes from App Store Connect when the internal TestFlight build goes up.
+Read the real per-device download and install sizes from App Store Connect when the internal TestFlight build goes
+up.
 
-**Estimate for an iPhone after stripping and thinning:**
+**Estimate for an iPhone after the strip and the App Store's thinning:**
 
 | | Expo | SwiftUI |
 | --- | --- | --- |
-| Installed | about 46 MB | about 23 MB |
-| Download | about 22 MB | about 12.5 MB |
+| Installed | about 52 MB | about 23 MB |
+| Download | about 21.5 MB | about 12.5 MB |
 
 The App Store's encryption of the executables can add a few megabytes to both downloads. So on an iPhone the Expo
 app is about twice the SwiftUI app. React Native itself (React, Hermes, Expo's modules) and the JS bundle are the
@@ -1700,6 +1712,10 @@ Watch your own frames before you hand a change on. The loop, for any agent:
    - A fresh lease's first keyboard shows the "Type English and Hindi" tip over the keys. Press its Continue, which
      appears in a plain `snapshot` (not `snapshot -i`), before typing, or a Go press does nothing.
    - In zsh, `$var:a…` is a modifier; write `${var}:path`.
+   - Simlock has leased one simulator to two agents at once: the screens agent's lease id and mine were the same
+     (a537518c…), and our taps and launches crossed, which spoiled a memory reading. Before measuring, check the
+     device id `device_open` returned against the other agents' lease ids, and the udid's device type against the
+     model you asked for (`plutil -extract deviceType raw ~/.simlock/devices/ios/<udid>/device.plist`).
 
 #### Speed against the SwiftUI app
 
