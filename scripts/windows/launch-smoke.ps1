@@ -659,7 +659,7 @@ try {
 }
 
 if (Test-Path $checkLog) {
-  Select-String -Path $checkLog -Pattern "self-check|webgl2 probe|^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
+  Select-String -Path $checkLog -Pattern "self-check|webgl2 probe|^dialog |^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
   $done = Select-String -Path $checkLog -Pattern "self-check done: (\d+) passed, (\d+) failed" | Select-Object -First 1
   if (-not $done) { $failures += "the self-check never reported its result" }
   elseif ([int]$done.Matches[0].Groups[2].Value -gt 0) { $failures += "$($done.Matches[0].Groups[2].Value) self-checks failed" }
