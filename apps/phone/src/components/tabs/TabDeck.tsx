@@ -44,6 +44,7 @@ import {
   openTab,
   reopenLastClosed,
   stopOpeningTab,
+  whenPageLaidOut,
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
@@ -201,6 +202,8 @@ export function TabDeck() {
     } else showArchiveCardNow();
   }, [command, phase.kind]);
 
+  const openingId = useRef<string | null>(null);
+  useEffect(() => () => void (openingId.current = null), []);
   const open = (index: number) => {
     beginInteraction("card open", INTERACTION_WINDOW_MS.cardOpen);
     const id = order[index];
@@ -212,11 +215,17 @@ export function TabDeck() {
     setMenu(null);
     enterPhase({ kind: "closing", id });
     beginOpeningTab(id);
-    scaleProgress.value = withSpring(0, tabsMotion.expand);
-    positionProgress.value = withSpring(0, tabsMotion.expand, (finished) => {
-      if (finished) runOnJS(settledOpen)(id);
-      else runOnJS(stopOpeningTab)(id);
-    });
+    openingId.current = id;
+    whenPageLaidOut(id, OPEN_MOUNT_CAP_MS, () =>
+      requestAnimationFrame(() => {
+        if (openingId.current !== id) return;
+        scaleProgress.value = withSpring(0, tabsMotion.expand);
+        positionProgress.value = withSpring(0, tabsMotion.expand, (finished) => {
+          if (finished) runOnJS(settledOpen)(id);
+          else runOnJS(stopOpeningTab)(id);
+        });
+      }),
+    );
   };
 
   const remove = (id: string) => {
@@ -530,6 +539,7 @@ const focusTick = () => haptics.tick();
 const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
+const OPEN_MOUNT_CAP_MS = 150;
 
 const DECK_RENDER_REACH = 6;
 const DECK_GESTURE_REACH = 3;

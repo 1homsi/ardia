@@ -65,6 +65,9 @@ test("the deck takes taps and a card's page takes over as soon as their springs 
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<Surfaces />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
+  const page = root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")[0]!;
+  const screen = page.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function")[0]!;
+  act(() => screen.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 393, height: 873 } } }));
   let elapsed = 0;
   while (useBrowse.getState().surface === "deck" && elapsed < 1000) {
     act(() => jest.advanceTimersByTime(16));

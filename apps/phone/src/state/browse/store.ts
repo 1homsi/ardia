@@ -179,6 +179,24 @@ export function beginOpeningTab(id: string) {
   useBrowse.setState({ opening: id });
 }
 
+const laidOutWaiters = new Map<string, () => void>();
+
+export function whenPageLaidOut(id: string, capMs: number, then: () => void) {
+  laidOutWaiters.get(id)?.();
+  let called = false;
+  const done = () => {
+    if (called) return;
+    called = true;
+    clearTimeout(cap);
+    if (laidOutWaiters.get(id) === done) laidOutWaiters.delete(id);
+    then();
+  };
+  const cap = setTimeout(done, capMs);
+  laidOutWaiters.set(id, done);
+}
+
+export const pageLaidOut = (id: string) => laidOutWaiters.get(id)?.();
+
 export function stopOpeningTab(id: string) {
   if (useBrowse.getState().opening === id) useBrowse.setState({ opening: null });
 }
@@ -187,7 +205,7 @@ export function openTab(id: string) {
   hideArchiveCard();
   dismissSearch();
   setIncognito(isPrivateTab(currentTabs(), id));
-  selectTabById(id);
+  if (currentTabs().selectedId !== id) selectTabById(id);
   useBrowse.setState({ surface: "browsing", sheet: null, opening: null });
   const tab = findTab(currentTabs(), id);
   if (tab && !tab.snapshotFileName && loading.get(id) === false) scheduleSnapshot(id);

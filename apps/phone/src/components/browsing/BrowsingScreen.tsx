@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
@@ -10,7 +10,7 @@ import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
 import { closePageMenu, openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, usePressOpen, useReaderTabId } from "../../state/page/hooks";
-import { captureCurrentCover, newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
+import { captureCurrentCover, newTab, pageLaidOut, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeFrontTab, menuOpenedHaptic, recentTabs, switchToTab, tabTitle } from "../../state/browse/tabMenus";
@@ -46,7 +46,7 @@ import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
 import { launchArguments } from "../../state/app/launchFlags";
 import { shownTone } from "../../lib/pageTone";
 
-export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
+export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   countRender("BrowsingScreen");
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -86,7 +86,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const statusStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(top, { duration: tabsMotion.barTone }) }), [top]);
   const barStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(bottom, { duration: tabsMotion.barTone }) }), [bottom]);
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]} onLayout={() => pageLaidOut(tab.id)}>
       <Shade shaded={menuOpen || readerId === tab.id || pressing || tabsMenu}>
         <PagerBlack />
         <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
@@ -147,14 +147,14 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
       <PageRequestHost tabId={tab.id} />
     </View>
   );
-}
+});
 
 function useBarCollapse(tabId: string, finding: boolean) {
   const collapses = usePreferences((p) => p.collapsesBottomBar);
   const direction = useNavigation(tabId, (n) => n?.scrollDirection ?? "up");
   const page = useNavigation(tabId, (n) => n?.url ?? null);
   const reduceMotion = useReducedMotion();
-  const [state, setState] = useState(BAR_SHOWN);
+  const [state, setState] = useState(() => followScroll(BAR_SHOWN, tabId, page, direction, collapses));
   useEffect(() => setState((now) => followScroll(now, tabId, page, direction, collapses)), [tabId, page, direction, collapses]);
   const hidden = (state.hidden && state.tabId === tabId) || finding;
   const hide = useSharedValue(0);
