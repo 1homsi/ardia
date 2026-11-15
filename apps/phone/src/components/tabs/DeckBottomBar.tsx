@@ -9,6 +9,7 @@ import { useKeyboardHeight } from "../search/useKeyboardHeight";
 import { GlassCircleButton, GlassPlusButton } from "./ChromeButtons";
 
 type Props = {
+  shown: boolean;
   barCenterY: number;
   deckHeight: number;
   safeSide: number;
@@ -20,7 +21,7 @@ type Props = {
 
 export const deckBarAboveKeyboard = (deckHeight: number, keyboard: number) => deckHeight - keyboard - deckChromeLayout.barGap - deckChromeLayout.barCircle / 2;
 
-export function DeckBottomBar({ barCenterY, deckHeight, safeSide, incognito, onGrid, onQuery, onPlusMenu }: Props) {
+export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, onGrid, onQuery, onPlusMenu }: Props) {
   const roles = useTheme();
   const dark = roles.dark;
   const [text, setText] = useState("");
@@ -28,18 +29,28 @@ export function DeckBottomBar({ barCenterY, deckHeight, safeSide, incognito, onG
   const needle = useRef("");
   const input = useRef<TextInput>(null);
   const row = useRef<View>(null);
-  const keyboard = useKeyboardHeight();
+  const keyboard = useKeyboardHeight(shown);
   const lift = focused && keyboard > 0 ? Math.max(0, barCenterY - deckBarAboveKeyboard(deckHeight, keyboard)) : 0;
   const rise = useSharedValue(0);
   useEffect(() => {
     rise.value = withTiming(-lift, { duration: deckChromeMotion.keyboard, easing: tabsCurve.easeOut });
   }, [lift]);
   const riseStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
-  const measure = () => row.current?.measureInWindow((_x, y, _width, height) => noteDeckBarTop(height > 0 ? y : null));
+  const measure = () =>
+    row.current?.measureInWindow((_x, y, _width, height) => {
+      if (height > 0) noteDeckBarTop(y);
+    });
   useEffect(() => {
     watchDeckBar(measure);
     return () => watchDeckBar(null);
   }, []);
+  useEffect(() => {
+    if (shown) return;
+    input.current?.blur();
+    needle.current = "";
+    setText("");
+    setFocused(false);
+  }, [shown]);
   const change = (next: string) => {
     setText(next);
     const trimmed = next.trim();

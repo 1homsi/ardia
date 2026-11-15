@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useState, type ReactNode } from "react";
 import { FrameProbe } from "./components/perf/FrameProbe";
 import { countRender, interactionPerfEnabled } from "./state/app/interactionPerf";
 import { AppState, BackHandler, StyleSheet, View } from "react-native";
@@ -14,7 +14,7 @@ import { ImportFailedView } from "./components/upgrade/ImportFailedView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { appDesign, useTheme, DEFAULT_PROFILE_COLOR, FrostSource, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground, SURFACES_FROST } from "./components/ui";
+import { appDesign, tabsMotion, useTheme, DEFAULT_PROFILE_COLOR, FrostSource, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground, SURFACES_FROST } from "./components/ui";
 import { useLook } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
@@ -27,7 +27,8 @@ import { startLinks } from "./state/links/links";
 import { useBaseSystemBars, useSystemBars } from "./state/app/systemBars";
 import { useSearchOpen } from "./state/search/hooks";
 import { useLeavingTab, useOpeningTab, useSheet, useSurface } from "./state/browse/hooks";
-import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
+import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser, type Surface } from "./state/browse/store";
+import { refreshHiddenDeck } from "./state/browse/deckHold";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { VoiceSearchView } from "./components/search/VoiceSearchView";
 import { useVoicePresented } from "./state/voice/store";
@@ -107,6 +108,7 @@ export function Surfaces() {
   const layer = inkLayer({ onboarding, voice, sheet: front !== null, searching, surface });
   const lightIcons = lightStatusIcons(layer, { cover: theme.backdrop[0], surface: theme.surface, deck: theme.backdrop[0], incognito });
   useEffect(goBackToStartIfEmpty, [tab, surface]);
+  const deckMounted = useDeckStandby(surface, surface === "browsing" && tab !== null && opening === null && leaving === null && !searching && !voice && !onboarding && front === null, tab?.id ?? null);
   return (
     <>
       <SheetBackground progress={sheetProgress}>
@@ -114,7 +116,7 @@ export function Surfaces() {
           <Shade shaded={searching}>
             <FrostSource name={SURFACES_FROST} style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
               {(surface === "browsing" || pageUnderDeck) && tab ? <BrowsingScreen tab={tab} /> : null}
-              {surface === "deck" ? <TabDeck /> : null}
+              {deckMounted ? <TabDeck /> : null}
               {surface === "start" ? <StartScreen /> : null}
             </FrostSource>
           </Shade>
@@ -134,6 +136,18 @@ export function Surfaces() {
       {lightIcons !== null ? <LayerInk key={layer} light={lightIcons} /> : null}
     </>
   );
+}
+
+function useDeckStandby(surface: Surface, pageSettled: boolean, pageId: string | null) {
+  const [standby, setStandby] = useState(false);
+  if (surface === "deck" && !standby) setStandby(true);
+  if (surface === "start" && standby) setStandby(false);
+  useEffect(() => {
+    if (!pageSettled) return;
+    const settle = setTimeout(() => (standby ? refreshHiddenDeck() : startTransition(() => setStandby(true))), tabsMotion.deckStandby);
+    return () => clearTimeout(settle);
+  }, [pageSettled, pageId, standby]);
+  return surface !== "start" && (standby || surface === "deck");
 }
 
 function LayerInk({ light }: { light: boolean }) {

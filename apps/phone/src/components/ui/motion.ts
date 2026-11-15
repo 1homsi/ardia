@@ -38,6 +38,7 @@ export const tabsMotion = {
   sheetReduced: 200,
   toneFade: 300,
   barCollapseReduced: 200,
+  deckStandby: 600,
 } as const;
 
 export const trayMotion = {

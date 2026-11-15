@@ -4,7 +4,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
 import { DECK, DECK_HEADER, deckBarBand, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckSlot, deckVisibleWidth, lerp, titleReveal, type DeckGeometry, type DeckSlots } from "../../lib/deckGeometry";
-import { usePageTone } from "../../state/browse/hooks";
+import { useHeldPageTone } from "../../state/browse/deckHold";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
@@ -107,7 +107,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
   countRender("DeckCard");
   const theme = useTheme();
   const design = useDesign();
-  const tone = shownTone(usePageTone(tab.id), tab.themeColorHex);
+  const tone = shownTone(useHeldPageTone(tab.id), tab.themeColorHex);
   const { orderIds, shiftBy, fromSlots, gap, phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
   const id = tab.id;
 

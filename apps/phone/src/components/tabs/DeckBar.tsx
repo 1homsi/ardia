@@ -34,7 +34,10 @@ export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSetti
   const sideSize = (name: SymbolName) => (glass ? (GLASS_GLYPHS[name] ?? GLASS_GLYPHS.gearshape) : FROST_ICONS.side);
   const edge = glass ? null : [styles.edge, { borderColor: theme.controlEdge }];
   const row = useRef<View>(null);
-  const measure = () => row.current?.measureInWindow((_x, y, _width, height) => noteDeckBarTop(height > 0 ? y : null));
+  const measure = () =>
+    row.current?.measureInWindow((_x, y, _width, height) => {
+      if (height > 0) noteDeckBarTop(y);
+    });
   useEffect(() => {
     watchDeckBar(measure);
     return () => watchDeckBar(null);

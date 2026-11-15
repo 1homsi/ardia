@@ -5,16 +5,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const SHOW = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
 const HIDE = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-export function useKeyboardHeight(): number {
+export function useKeyboardHeight(listening = true): number {
   const [height, setHeight] = useState(Keyboard.metrics()?.height ?? 0);
   useEffect(() => {
+    if (!listening) return;
+    setHeight(Keyboard.metrics()?.height ?? 0);
     const show = Keyboard.addListener(SHOW, (event) => setHeight(event.endCoordinates.height));
     const hide = Keyboard.addListener(HIDE, () => setHeight(0));
     return () => {
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [listening]);
   return height;
 }
 
