@@ -50,6 +50,7 @@ using namespace ardia_hls_video;
 
 - (void)updateKeySession:(NSInteger)session data:(NSData *)data {
   ArdiaHLSKeySession *owner = _keySessions[@(session)];
+  if (!owner) return;
   AVContentKeyRequest *request = owner->_awaiting;
   if (!request || !data.length || data.length > kMaxKeyData) return;
   owner->_awaiting = nil;

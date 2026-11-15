@@ -237,3 +237,26 @@ test("the user agent extension only gives Netflix and YouTube Safari's face, and
   assert.match(embed, /rsync -a --delete "\$repo\/packages\/ardiacore\/extensions\/protected-video-ua\/" "\$extensions\/protected-video-ua\/"/);
   assert.match(protectedVideo, /kExtensionName = @"protected-video-ua"/);
 });
+
+test("a licence for a closed HLS key session is dropped, not read from a missing session", () => {
+  const hlsKeys = read("../ios/ArdiaHLSVideoSession+Keys.mm");
+  const update = between(hlsKeys, "- (void)updateKeySession:(NSInteger)session data:(NSData *)data {", "\n}\n");
+  assert.ok(update.indexOf("if (!owner) return;") >= 0 && update.indexOf("if (!owner) return;") < update.indexOf("owner->_awaiting"));
+  assert.match(pageScript, /if \(keySessions\.has\(id\)\) send\("hlsVideo", \{ op: "update", session: id, data: toBase64\(bytes\) \}\);/);
+});
+
+test("a raw FairPlay key session has one licence request out at a time, and its licence goes to that request", () => {
+  const keys = read("../ios/ArdiaPVSession+Keys.mm");
+  const update = between(keys, "- (void)keyUpdate:(NSDictionary *)message session:(NSInteger)session {", "\n}\n");
+  assert.match(update, /NSData \*kid = owner->_awaitingKid;/);
+  assert.match(update, /AVContentKeyRequest \*request = kid \? _keyRequests\[kid\] : nil;/);
+  assert.match(update, /return \[self askPageForNextRawKey:session\];/);
+  assert.doesNotMatch(update, /_keyRequests\.allKeys/);
+  const ask = between(keys, "- (void)askPage:(NSInteger)session for:", "\n}\n");
+  assert.match(ask, /\[owner->_rawQueue addObjectsFromArray:entries\];/);
+  const next = between(keys, "- (void)askPageForNextRawKey:(NSInteger)session {", "\n}\n");
+  assert.match(next, /while \(owner && !owner->_awaitingKid && owner->_rawQueue\.count\)/);
+  assert.match(next, /owner->_awaitingKid = entry\[@"keyID"\];/);
+  const failed = between(keys, "contentKeyRequest:(AVContentKeyRequest *)keyRequest didFailWithError:", "\n}\n");
+  assert.match(failed, /keySession->_raw && \[keySession->_awaitingKid isEqualToData:kid\]/);
+});

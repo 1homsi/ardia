@@ -27,6 +27,7 @@
   const sheets = new Map();
   const flagged = new Map();
   const shadows = new Map();
+  const scopeSheetLists = new Map();
   let rootId = 0;
   let documentSheets = [];
   let detached = [];
@@ -127,21 +128,27 @@
   const forget = (n) => {
     const id = idOfNode.get(n);
     if (id !== undefined && nodes.get(id) === n) nodes.delete(id);
-    if (shadows.get(id) === n.shadowRoot) shadows.delete(id);
+    if (shadows.get(id) === n.shadowRoot) {
+      shadows.delete(id);
+      scopeSheetLists.delete(id);
+    }
     for (let c = n.firstChild; c; c = c.nextSibling) forget(c);
     if (n.shadowRoot) for (let c = n.shadowRoot.firstChild; c; c = c.nextSibling) forget(c);
   };
   const putSheet = (op) => {
     if (typeof op.x === "string") {
       let sheet = sheets.get(op.id);
-      if (!(sheet instanceof CSSStyleSheet)) sheets.set(op.id, (sheet = new CSSStyleSheet()));
+      const swapped = !(sheet instanceof CSSStyleSheet);
+      if (swapped) sheets.set(op.id, (sheet = new CSSStyleSheet()));
       try {
         sheet.replaceSync(op.x);
       } catch (e) {}
+      if (swapped) for (const [i, l] of [...scopeSheetLists]) if (l.includes(op.id)) listSheets({ i, l });
     } else if (typeof op.h === "string" && /^https:/.test(op.h)) sheets.set(op.id, { h: op.h, m: typeof op.m === "string" ? op.m : "" });
   };
   const listSheets = (op) => {
     const ids = Array.isArray(op.l) ? op.l : [];
+    scopeSheetLists.set(op.i, ids);
     const constructed = ids.map((id) => sheets.get(id)).filter((sheet) => sheet instanceof CSSStyleSheet);
     if (op.i === 0) {
       document.adoptedStyleSheets = [agent, ...constructed, base, rootFrame];
@@ -227,6 +234,7 @@
     for (const key of flagged.keys()) setState(key, []);
     nodes.clear();
     shadows.clear();
+    for (const key of [...scopeSheetLists.keys()]) if (key !== 0) scopeSheetLists.delete(key);
     rootId = 0;
     document.body.replaceChildren();
     const shells = Array.isArray(batch.shells) ? batch.shells : [];

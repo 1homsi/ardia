@@ -44,14 +44,14 @@ using namespace ardia_protected_video;
   ArdiaPVKeySession *owner = _keySessions[@(session)];
   if (!owner || !data.length || data.length > kMaxKeyData) return;
   if (owner->_raw) {
-    for (NSData *kid in _keyRequests.allKeys) {
-      if (![_keyOwners[kid] isEqual:@(session)]) continue;
-      AVContentKeyRequest *request = _keyRequests[kid];
+    NSData *kid = owner->_awaitingKid;
+    owner->_awaitingKid = nil;
+    AVContentKeyRequest *request = kid ? _keyRequests[kid] : nil;
+    if (request) {
       [_keyRequests removeObjectForKey:kid];
       [request processContentKeyResponse:[AVContentKeyResponse contentKeyResponseWithFairPlayStreamingKeyResponseData:data]];
-      return;
     }
-    return;
+    return [self askPageForNextRawKey:session];
   }
   NSArray *entries = JSONObject([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"");
   if (![entries isKindOfClass:NSArray.class]) return;
@@ -155,9 +155,9 @@ using namespace ardia_protected_video;
     ArdiaPVKeySession *owner = strong ? strong->_keySessions[@(session)] : nil;
     if (!owner || !entries.count) return;
     if (owner->_raw) {
-      for (NSDictionary *entry in entries)
-        [strong deliver:@{@"event" : @"message", @"session" : @(session), @"data" : [entry[@"payload"] base64EncodedStringWithOptions:0]}];
-      return;
+      if (!owner->_rawQueue) owner->_rawQueue = [NSMutableArray array];
+      [owner->_rawQueue addObjectsFromArray:entries];
+      return [strong askPageForNextRawKey:session];
     }
     NSMutableArray *json = [NSMutableArray array];
     for (NSDictionary *entry in entries)
@@ -166,6 +166,17 @@ using namespace ardia_protected_video;
     Trace(@"%lu key requests to session %ld", (unsigned long)entries.count, (long)session);
     if (message) [strong deliver:@{@"event" : @"message", @"session" : @(session), @"data" : [message base64EncodedStringWithOptions:0]}];
   });
+}
+
+- (void)askPageForNextRawKey:(NSInteger)session {
+  ArdiaPVKeySession *owner = _keySessions[@(session)];
+  while (owner && !owner->_awaitingKid && owner->_rawQueue.count) {
+    NSDictionary *entry = owner->_rawQueue.firstObject;
+    [owner->_rawQueue removeObjectAtIndex:0];
+    if (!_keyRequests[entry[@"keyID"]]) continue;
+    owner->_awaitingKid = entry[@"keyID"];
+    [self deliver:@{@"event" : @"message", @"session" : @(session), @"data" : [entry[@"payload"] base64EncodedStringWithOptions:0]}];
+  }
 }
 
 - (void)contentKeySession:(AVContentKeySession *)session contentKeyRequestDidSucceed:(AVContentKeyRequest *)keyRequest {
@@ -192,6 +203,10 @@ using namespace ardia_protected_video;
     ArdiaPVKeySession *keySession = owner ? self->_keySessions[owner] : nil;
     if (kid) [self->_keyRequests removeObjectForKey:kid];
     Trace(@"key %@ failed: %@", kid ? Hex(kid) : @"?", error);
+    if (keySession && keySession->_raw && [keySession->_awaitingKid isEqualToData:kid]) {
+      keySession->_awaitingKid = nil;
+      [self askPageForNextRawKey:owner.integerValue];
+    }
     if (!keySession || error.code == kContentKeyTimedOut) return;
     [self deliver:@{@"event" : @"keys", @"session" : owner, @"ok" : @NO}];
     if (keySession->_succeeded || self->_licenseFailed) return;

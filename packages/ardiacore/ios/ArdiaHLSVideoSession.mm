@@ -316,6 +316,8 @@ using namespace ardia_hls_video;
 }
 
 - (void)tick {
+  ArdiaCoreTab *tab = _tab;
+  if (!tab) return [self close];
   if (!_media || !_item || _failed) return;
   if (_item.status == AVPlayerItemStatusFailed) return [self failAt:@"playback" reason:_item.error.localizedDescription ?: @"item failed"];
   if (!_ready) {

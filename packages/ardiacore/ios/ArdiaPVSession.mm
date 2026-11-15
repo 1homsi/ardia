@@ -65,6 +65,7 @@ using namespace ardia_protected_video;
   Trace(@"close %ld", (long)_media);
   [_ticker invalidate];
   _ticker = nil;
+  [self keepDisplayAwake:NO];
   [self dropPictureInPicture];
   [self tearDownRenderers];
   [_view removeFromSuperview];
@@ -115,6 +116,7 @@ using namespace ardia_protected_video;
   if ([op isEqualToString:@"buffer"]) return [self buffer:message];
   if ([op isEqualToString:@"append"]) return [self append:message];
   if ([op isEqualToString:@"remove"]) return [self remove:message];
+  if ([op isEqualToString:@"dropBuffer"]) return [self dropBuffer:message];
   if ([op isEqualToString:@"end"]) {
     _ended = Flag(message, @"ended");
     return [self lanesChanged];
@@ -290,6 +292,19 @@ using namespace ardia_protected_video;
   ArdiaPVTrack *track = _tracks[@(buffer)];
   if (!track) return;
   [track->_video ? _videoLane : _audioLane removeFrom:start to:end position:[self position]];
+  [self lanesChanged];
+}
+
+- (void)dropBuffer:(NSDictionary *)message {
+  NSInteger buffer;
+  if (!WholeNumber(message, @"buffer", 1, 64, &buffer)) return;
+  ArdiaPVTrack *track = _tracks[@(buffer)];
+  if (!track) return;
+  [_tracks removeObjectForKey:@(buffer)];
+  Trace(@"drop buffer %ld", (long)buffer);
+  for (ArdiaPVTrack *other in _tracks.objectEnumerator)
+    if (other->_video == track->_video) return [self lanesChanged];
+  [track->_video ? _videoLane : _audioLane removeFrom:-1e6 to:1e8 position:[self position]];
   [self lanesChanged];
 }
 

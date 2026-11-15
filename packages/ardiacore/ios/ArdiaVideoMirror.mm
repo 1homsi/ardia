@@ -29,6 +29,11 @@ static NSString *const kShell =
     @"style-src * data: 'unsafe-inline'; img-src * data:; font-src * data:; script-src 'none'; frame-src 'none'; object-src 'none'; "
     @"media-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'\"></head><body></body></html>";
 
+static WKWebsiteDataStore *SharedDataStore() {
+  static WKWebsiteDataStore *store = WKWebsiteDataStore.nonPersistentDataStore;
+  return store;
+}
+
 static BOOL TestMode() {
   static const BOOL test = [ArdiaLaunchConfig.shared testFlag:@"videoMirror"];
   return test;
@@ -143,7 +148,7 @@ static bool WholeNumber(NSDictionary *d, NSString *key, double low, double high,
     _scale = 0;
     _world = [WKContentWorld worldWithName:@"ardia.videoMirror"];
     WKWebViewConfiguration *config = [WKWebViewConfiguration new];
-    config.websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore;
+    config.websiteDataStore = SharedDataStore();
     config.defaultWebpagePreferences.allowsContentJavaScript = NO;
     config.preferences.javaScriptCanOpenWindowsAutomatically = NO;
     config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAll;
@@ -315,6 +320,7 @@ static bool WholeNumber(NSDictionary *d, NSString *key, double low, double high,
 - (void)place {
   if (_closed) return;
   ArdiaCoreTab *tab = _tab;
+  if (!tab) return [self close];
   NSView *content = tab.view;
   NSView *host = content.superview;
   NSView *video = nil;

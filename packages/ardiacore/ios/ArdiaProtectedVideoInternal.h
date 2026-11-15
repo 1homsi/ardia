@@ -130,6 +130,8 @@ double EndOf(CMSampleBufferRef sample);
   NSString *_keySystem;
   BOOL _raw;
   BOOL _succeeded;
+  NSData *_awaitingKid;
+  NSMutableArray<NSDictionary *> *_rawQueue;
 }
 @end
 
@@ -182,6 +184,7 @@ double EndOf(CMSampleBufferRef sample);
   CMTimeRange _tracedRange;
   __weak NSView *_pipPanel;
   id _pipPanelObserver;
+  id<NSObject> _displayAwake;
   NSTimer *_ticker;
   BOOL _hasRect;
   NSRect _rect;
@@ -221,6 +224,7 @@ double EndOf(CMSampleBufferRef sample);
 
 @interface ArdiaPVSession (Playback)
 - (void)setUpRenderers;
+- (void)keepDisplayAwake:(BOOL)awake;
 - (void)tearDownRenderers;
 - (void)resetPlayback;
 - (NSArray<ArdiaPVLane *> *)lanes;

@@ -6,6 +6,16 @@ using namespace ardia_protected_video;
 
 @implementation ArdiaPVSession (Playback)
 
+- (void)keepDisplayAwake:(BOOL)awake {
+  if (awake == (_displayAwake != nil)) return;
+  if (awake) {
+    _displayAwake = [NSProcessInfo.processInfo beginActivityWithOptions:NSActivityIdleDisplaySleepDisabled | NSActivityUserInitiated reason:@"Playing video"];
+  } else {
+    [NSProcessInfo.processInfo endActivity:_displayAwake];
+    _displayAwake = nil;
+  }
+}
+
 - (void)setUpRenderers {
   _display = [AVSampleBufferDisplayLayer new];
   _display.videoGravity = AVLayerVideoGravityResizeAspect;
@@ -320,9 +330,10 @@ using namespace ardia_protected_video;
 
 - (void)tick {
   ArdiaCoreTab *tab = _tab;
-  if (!tab || tab.closed) return;
+  if (!tab) return [self close];
+  if (tab.closed) return;
   [self place];
-  if (!_started) return;
+  if (!_started) return [self keepDisplayAwake:NO];
   AVSampleBufferVideoRenderer *video = _display.sampleBufferRenderer;
   if (video.status == AVQueuedSampleBufferRenderingStatusFailed) return [self failAt:@"playback" reason:video.error.description ?: @"video renderer failed"];
   if (_audio.status == AVQueuedSampleBufferRenderingStatusFailed) return [self failAt:@"playback" reason:_audio.error.description ?: @"audio renderer failed"];
@@ -332,6 +343,7 @@ using namespace ardia_protected_video;
     [self restart:_videoLane at:now];
   }
   const BOOL playing = CMTimebaseGetRate(_sync.timebase) > 0;
+  [self keepDisplayAwake:playing && !_endedSent];
   if (playing && !_played) {
     _played = YES;
     [self report:@{@"event" : @"played", @"video" : @YES}];

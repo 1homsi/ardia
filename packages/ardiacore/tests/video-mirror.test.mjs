@@ -87,3 +87,119 @@ test("a batch splits into parts the native side accepts, whatever its text", () 
   ship({ seq: 0 }, () => {}, () => (stopped = true), JSON.stringify, new TextEncoder())({ text: "a".repeat(constant("BATCH_CHARS")) });
   assert.equal(stopped, true);
 });
+
+const applierSheets = () => {
+  class Sheet {
+    replaceSync(text) {
+      this.text = text;
+    }
+  }
+  const head = {
+    links: [],
+    querySelectorAll: () => [...head.links],
+    append: (link) => head.links.push(link),
+  };
+  const document = {
+    adoptedStyleSheets: [],
+    head,
+    createElement: () => {
+      const link = { dataset: {}, remove: () => head.links.splice(head.links.indexOf(link), 1) };
+      return link;
+    },
+  };
+  const agent = new Sheet();
+  const base = new Sheet();
+  const rootFrame = new Sheet();
+  const shadows = new Map();
+  const source = between(applier, "  const putSheet = ", "  const setState = ");
+  const api = new Function(
+    "CSSStyleSheet",
+    "document",
+    "agent",
+    "base",
+    "rootFrame",
+    "shadows",
+    `const sheets = new Map(); const scopeSheetLists = new Map(); let documentSheets = [];
+    const scopeSheets = (extra) => [agent, ...extra, base];
+    ${source}return { putSheet, listSheets, sheets };`,
+  )(Sheet, document, agent, base, rootFrame, shadows);
+  return { ...api, document, shadows, head };
+};
+
+test("a cross-origin sheet the page fetched later replaces its link in the document and in shadow roots", () => {
+  const { putSheet, listSheets, sheets, document, shadows, head } = applierSheets();
+  const root = { adoptedStyleSheets: [] };
+  shadows.set(7, root);
+  putSheet({ o: "put", id: 5, h: "https://cdn.example/a.css", m: "" });
+  listSheets({ o: "sl", i: 0, l: [5] });
+  listSheets({ o: "sl", i: 7, l: [5] });
+  assert.equal(head.links.length, 1);
+  assert.equal(document.adoptedStyleSheets.length, 3);
+  putSheet({ o: "put", id: 5, x: ".play{color:red}" });
+  const fetched = sheets.get(5);
+  assert.equal(fetched.text, ".play{color:red}");
+  assert.ok(document.adoptedStyleSheets.includes(fetched));
+  assert.ok(root.adoptedStyleSheets.includes(fetched));
+  assert.equal(head.links.length, 0);
+});
+
+const sheetSignatures = () => {
+  const asNative = new Function(`${between(pageScript, "  const asNative = ", "  const { keys, setPrototypeOf } = Object;")}return asNative;`)();
+  let scheduled = 0;
+  const source = between(block, "    const sheetEdits = new WeakMap();", "    const sheetList = ");
+  const api = new Function(
+    "apply",
+    "asNative",
+    "MIRROR_ORIGINS",
+    "location",
+    "window",
+    "absolutize",
+    "listText",
+    "fetched",
+    "fetchSheet",
+    "document",
+    "getS",
+    "schedule",
+    `${source.replaceAll("if (s) schedule();", "if (getS()) schedule();")}return { sheetEntry, watchSheetEdits };`,
+  )(
+    Reflect.apply,
+    asNative,
+    [],
+    { origin: "https://example.com" },
+    {},
+    (text) => text,
+    (rules) => rules.map((r) => r.text).join("\n"),
+    new Map(),
+    () => {},
+    { baseURI: "https://example.com/" },
+    () => true,
+    () => scheduled++,
+  );
+  return { ...api, scheduled: () => scheduled };
+};
+
+test("a sheet's signature changes when its media changes or the page edits it through the CSS object model", () => {
+  const { sheetEntry, watchSheetEdits, scheduled } = sheetSignatures();
+  class FakeSheet {
+    replaceSync(text) {
+      this.cssRules = [{ text }];
+    }
+  }
+  watchSheetEdits(FakeSheet.prototype, ["replaceSync"], (sheet) => sheet);
+  const sheet = new FakeSheet();
+  sheet.cssRules = [{ text: ".a{color:red}" }];
+  sheet.media = { mediaText: "" };
+  sheet.href = null;
+  const first = sheetEntry(sheet).sig;
+  sheet.replaceSync(".a{color:blue}");
+  const edited = sheetEntry(sheet).sig;
+  assert.notEqual(edited, first);
+  assert.equal(scheduled(), 1);
+  assert.equal(sheetEntry(sheet).x(), ".a{color:blue}");
+  sheet.media.mediaText = "print";
+  assert.notEqual(sheetEntry(sheet).sig, edited);
+  assert.equal(FakeSheet.prototype.replaceSync.name, "replaceSync");
+  assert.match(block, /watchSheetEdits\(window\.CSSStyleDeclaration && CSSStyleDeclaration\.prototype, \["setProperty", "removeProperty", "cssText"\], \(style\) => ruleSheet\(style\.parentRule\)\);/);
+  assert.match(block, /watchSheetEdits\(window\.CSSStyleRule && CSSStyleRule\.prototype, \["selectorText"\], ruleSheet\);/);
+  assert.match(block, /watchSheetEdits\(window\.CSSGroupingRule && CSSGroupingRule\.prototype, \["insertRule", "deleteRule"\], ruleSheet\);/);
+});

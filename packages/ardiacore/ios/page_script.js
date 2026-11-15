@@ -1074,7 +1074,7 @@
     const PSEUDO = /(?<!\\):(focus-visible|focus-within|popover-open|-webkit-full-screen|fullscreen|hover|focus|active|modal|defined)(?![\w-])/g;
     const PSEUDO_STATE = { "-webkit-full-screen": "fullscreen" };
     const STATES = ["hover", "active", "focus", "focus-within", "focus-visible", "fullscreen", "popover-open", "modal", "clear"];
-    const idle = { start() {}, ensure() {}, stop() {} };
+    const idle = { start() {}, ensure() {}, stop() {}, prepare() {} };
     if (!isTop) return idle;
     const MO = window.MutationObserver;
     const RO = window.ResizeObserver;
@@ -1157,6 +1157,35 @@
     };
     const sheetIds = new WeakMap();
     let sheetSeq = 0;
+    const sheetEdits = new WeakMap();
+    const noteSheetEdit = (sheet) => {
+      if (!sheet) return;
+      sheetEdits.set(sheet, (sheetEdits.get(sheet) || 0) + 1);
+      if (s) schedule();
+    };
+    const watchSheetEdits = (proto, names, sheetOf) => {
+      if (!proto) return;
+      const edited = (target, self, args) => {
+        const result = apply(target, self, args);
+        const sheet = sheetOf(self);
+        noteSheetEdit(sheet);
+        if (result && typeof result.then === "function") result.then(() => noteSheetEdit(sheet), () => noteSheetEdit(sheet));
+        return result;
+      };
+      for (const name of names) {
+        const was = Object.getOwnPropertyDescriptor(proto, name);
+        if (was && typeof was.value === "function") Object.defineProperty(proto, name, { ...was, value: asNative(was.value, edited) });
+        else if (was && was.set) Object.defineProperty(proto, name, { ...was, set: asNative(was.set, edited) });
+      }
+    };
+    if (MIRROR_ORIGINS.includes(location.origin)) {
+      const ruleSheet = (rule) => rule && rule.parentStyleSheet;
+      watchSheetEdits(window.CSSStyleSheet && CSSStyleSheet.prototype, ["insertRule", "deleteRule", "addRule", "removeRule", "replace", "replaceSync"], (sheet) => sheet);
+      watchSheetEdits(window.CSSGroupingRule && CSSGroupingRule.prototype, ["insertRule", "deleteRule"], ruleSheet);
+      watchSheetEdits(window.CSSKeyframesRule && CSSKeyframesRule.prototype, ["appendRule", "deleteRule"], ruleSheet);
+      watchSheetEdits(window.CSSStyleRule && CSSStyleRule.prototype, ["selectorText"], ruleSheet);
+      watchSheetEdits(window.CSSStyleDeclaration && CSSStyleDeclaration.prototype, ["setProperty", "removeProperty", "cssText"], (style) => ruleSheet(style.parentRule));
+    }
     const sheetEntry = (sheet) => {
       let rules = null;
       try {
@@ -1164,12 +1193,12 @@
       } catch (e) {}
       const media = sheet.media && sheet.media.mediaText;
       const wrap = (text) => (media ? `@media ${media}{${text}}` : text);
-      if (rules) return { sig: "r" + rules.length, x: () => wrap(absolutize(listText(rules), sheet.href || document.baseURI)) };
+      if (rules) return { sig: `r${rules.length}|${sheetEdits.get(sheet) || 0}|${media || ""}`, x: () => wrap(absolutize(listText(rules), sheet.href || document.baseURI)) };
       if (!sheet.href) return null;
       const text = fetched.get(sheet.href);
-      if (text) return { sig: "f", x: () => wrap(text) };
+      if (text) return { sig: "f|" + (media || ""), x: () => wrap(text) };
       fetchSheet(sheet.href);
-      return { sig: "h", h: sheet.href, m: media || "" };
+      return { sig: "h|" + (media || ""), h: sheet.href, m: media || "" };
     };
     const sheetList = (scope, pre) => {
       const ids = [];
@@ -1849,7 +1878,11 @@
       retryAt = now();
       start(video);
     };
-    return { start: guard(start), ensure: guard(ensure), stop: guard(stop) };
+    const prepare = () => {
+      if (s || !MIRROR_ORIGINS.includes(location.origin)) return;
+      send("videoMirror", { op: "frame", dpr: devicePixelRatio, vw: innerWidth, vh: innerHeight });
+    };
+    return { start: guard(start), ensure: guard(ensure), stop: guard(stop), prepare: guard(prepare) };
   })();
   let bridgesProtectedPlayback = () => false;
   let reportProtectedPlayback = null;
@@ -2391,6 +2424,7 @@
       const PART_BYTES = 45000;
       const MAX_KEY_BYTES = 45000;
       const MAX_PENDING_BYTES = 64e6;
+      const MAX_BUFFER_ID = 64;
       const TICK_MS = 250;
       const FRAME_RATE = 24;
       const KEY_WAIT_MS = 15000;
@@ -2826,6 +2860,7 @@
         b.held = false;
         bridged = b;
         for (const data of b.backlog.splice(0)) send("protectedVideo", data);
+        if (typeof videoMirror !== "undefined") videoMirror.prepare();
       };
       const bridge = (el, source) => {
         const hold = !!(bridged && bridged.played && !bridged.ended && bridged.el !== el);
@@ -2837,6 +2872,7 @@
           source,
           states: [],
           buffers: [],
+          bufferSeq: 0,
           paused: true,
           ended: false,
           seeking: false,
@@ -2872,6 +2908,7 @@
         if (hold) held = b;
         else bridged = b;
         sendMedia(b, { op: "attach", media: b.id });
+        if (!hold && typeof videoMirror !== "undefined") videoMirror.prepare();
         sendMedia(b, { op: "volume", media: b.id, volume: el.volume, muted: el.muted });
         if (b.rate !== 1) sendMedia(b, { op: "rate", media: b.id, rate: b.rate });
         sendDuration(b);
@@ -2952,7 +2989,7 @@
         const sb = new EventTarget();
         setPrototypeOf(sb, SourceBuffer.prototype);
         const st = {
-          id: b.states.length + 1,
+          id: ++b.bufferSeq,
           video: /^video\//i.test(mime),
           info: null,
           pending: new Uint8Array(0),
@@ -2964,6 +3001,7 @@
           windowEnd: Infinity,
           mode: "segments",
           seq: 0,
+          op: 0,
           removed: false,
         };
         const property = (name, descriptor) => defineProperty(sb, name, { configurable: true, enumerable: true, ...descriptor });
@@ -2993,13 +3031,14 @@
             combined.set(st.pending);
             combined.set(incoming, st.pending.length);
             st.updating = true;
+            const op = ++st.op;
             if (b.sourceEnded) {
               b.sourceEnded = false;
               sendMedia(b, { op: "end", media: b.id, ended: false });
               fire(b.source, "sourceopen");
             }
             soon(() => {
-              if (!st.updating) return;
+              if (st.op !== op || !st.updating) return;
               fireOwn(sb, "updatestart");
               const { units, rest } = mp4.split(combined);
               st.pending = combined.length - rest > MAX_PENDING_BYTES ? new Uint8Array(0) : combined.slice(rest);
@@ -3013,8 +3052,9 @@
             if (st.removed) throw gone();
             if (st.updating) throw busy();
             st.updating = true;
+            const op = ++st.op;
             soon(() => {
-              if (!st.updating) return;
+              if (st.op !== op || !st.updating) return;
               fireOwn(sb, "updatestart");
               dropRange(b, st, Number(start), Number(end));
               finish();
@@ -3024,6 +3064,7 @@
         property("abort", {
           value: () => {
             st.pending = new Uint8Array(0);
+            st.op++;
             if (!st.updating) return;
             st.updating = false;
             fireOwn(sb, "abort");
@@ -3049,15 +3090,20 @@
         if (UNDECODABLE.test(type)) throw new DOMException("The type provided ('" + type + "') is unsupported.", "NotSupportedError");
         const b = bridgeOfSource.get(self);
         if (!b || b.states.length >= 8) return apply(target, self, args);
+        if (b.bufferSeq >= MAX_BUFFER_ID) throw new DOMException("This MediaSource has reached the limit of SourceBuffer objects it can handle.", "QuotaExceededError");
         return makeBuffer(b, type).sb;
       });
       SourceProto.removeSourceBuffer = asNative(SourceProto.removeSourceBuffer, (target, self, args) => {
         const b = bridgeOfSource.get(self);
         const at = b ? b.buffers.indexOf(args[0]) : -1;
         if (at < 0) return apply(target, self, args);
-        b.states[at].removed = true;
+        const st = b.states[at];
+        st.removed = true;
+        st.op++;
+        st.updating = false;
         b.buffers.splice(at, 1);
         b.states.splice(at, 1);
+        sendMedia(b, { op: "dropBuffer", media: b.id, buffer: st.id });
       });
       const sourceGetter = (name, read) => {
         const was = getOwnPropertyDescriptor(SourceProto, name);
@@ -3526,7 +3572,7 @@
             update: (key) => {
               const bytes = bytesOf(key);
               if (!bytes.length || bytes.length > MAX_KEY_BYTES) throw new DOMException("The key is not valid.", "InvalidAccessError");
-              send("hlsVideo", { op: "update", session: id, data: toBase64(bytes) });
+              if (keySessions.has(id)) send("hlsVideo", { op: "update", session: id, data: toBase64(bytes) });
             },
             close: () => {
               if (keySessions.delete(id)) send("hlsVideo", { op: "closeSession", session: id });
@@ -3705,6 +3751,7 @@
           };
           bridgeOf.set(el, b);
           bridged = b;
+          if (typeof videoMirror !== "undefined") videoMirror.prepare();
           const parts = Math.max(1, Math.ceil(playlist.length / PART_CHARS));
           for (let part = 0; part < parts; part++)
             send("hlsVideo", {
