@@ -3,6 +3,7 @@ import { View, type LayoutChangeEvent, type NativeMethods, type NativeSyntheticE
 import type { NativeProps, PageEvent, WebViewHandle } from "@ardia/ardiacore";
 import type { AppWindowsModule } from "../nativeModuleTypes";
 import { followMotion } from "../animation/motion";
+import { fieldFocusedIn } from "../appKeyboard";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
 import { coversIn, hiddenByFullScreen, holesFor, onCoversChange, pageRadiusIn, setFullScreenPage } from "./covers";
@@ -185,6 +186,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
           get(_target, method) {
             if (typeof method !== "string" || method === "then" || method === "$$typeof") return undefined;
             if (method === "capturePicture") return (scale: number) => capturePicture(windowId, shown, scale);
+            if (method === "focusIfUnfocused") return async () => !fieldFocusedIn(windowId) && (await callPage(key, "focus", { follow: true })) !== null;
             const names = ARGUMENTS[method];
             if (names) {
               const unwrap = UNWRAPPED[method];
