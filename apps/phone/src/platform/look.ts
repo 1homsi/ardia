@@ -1,4 +1,4 @@
-import { AccessibilityInfo, Platform } from "react-native";
+import { AccessibilityInfo, Appearance, Platform } from "react-native";
 
 import { useLookBudgetProbe as nativeLookBudgetProbe, type SystemLook } from "@ardia/phone-native";
 
@@ -17,3 +17,5 @@ export async function systemLook(): Promise<{ reduceMotion: boolean; reduceTrans
 }
 
 export { useSystemReduceMotion, useSystemReduceTransparency } from "@ardia/phone-native";
+
+export const overrideColorScheme = (scheme: "light" | "dark" | null) => Appearance.setColorScheme(scheme);

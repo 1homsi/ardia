@@ -6,6 +6,7 @@ import { useSettingsNav, type SettingsRoute } from "../../state/settings/hooks";
 import { tabsMotion } from "../ui";
 import { FilterListDetailPage, FilterListsPage, MyFiltersPage, TrustedSitesPage } from "./BlockingPages";
 import { AboutPage, ClearDataPage, LicensesPage } from "./DataPages";
+import { AppearancePage } from "./AppearancePage";
 import { SettingsRoot } from "./SettingsRoot";
 import { SearchEnginePage, SiteSettingsPage } from "./SitePages";
 import { SyncConnect } from "../sync/SyncConnect";
@@ -22,6 +23,8 @@ function Page({ route }: { route: SettingsRoute }) {
   switch (route.page) {
     case "root":
       return <SettingsRoot />;
+    case "appearance":
+      return <AppearancePage />;
     case "searchEngine":
       return <SearchEnginePage />;
     case "siteSettings":

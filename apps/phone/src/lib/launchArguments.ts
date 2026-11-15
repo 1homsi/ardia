@@ -22,6 +22,8 @@ export type LaunchArguments = {
   opensSettings: boolean;
   restingStart: boolean;
   color: string | null;
+  interfaceStyle: string | null;
+  colorScheme: string | null;
   toast: string | null;
   trustedSitesSample: boolean;
   pagerFreeze: number | null;
@@ -93,6 +95,8 @@ export function parseLaunchArguments(values: Record<string, LaunchValue>): Launc
     opensSettings: flag(values, "ArdiaOpenSettings"),
     restingStart: flag(values, "ArdiaRestingStart"),
     color: text(values, "ArdiaColor"),
+    interfaceStyle: text(values, "ArdiaInterfaceStyle"),
+    colorScheme: text(values, "ArdiaColorScheme"),
     toast: text(values, "ArdiaToast"),
     trustedSitesSample: flag(values, "ArdiaTrustedSites"),
     pagerFreeze: isDemo ? number(values, "BrowsePagerFreeze") : null,

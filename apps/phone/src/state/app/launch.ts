@@ -1,3 +1,4 @@
+import type { InterfaceStyleChoice, SchemeChoice } from "../../lib/appearance";
 import { deckSteps, LAUNCH_TIMING, TRUSTED_SITES_SAMPLE, type DeckStep, type LaunchArguments } from "../../lib/launchArguments";
 import { neighbourAt } from "../../lib/pagerPhysics";
 import { sendDeckCommand } from "../browse/deckCommands";
@@ -24,6 +25,8 @@ export function applyLaunchSettings() {
   if (args.restingStart) setPreference("autoOpensKeyboard", false);
   const color = args.color?.toLowerCase() ?? null;
   if (color && acceptsPreference("colorChoice", color)) setPreference("colorChoice", color as ColorChoice);
+  if (args.interfaceStyle && acceptsPreference("interfaceStyle", args.interfaceStyle)) setPreference("interfaceStyle", args.interfaceStyle as InterfaceStyleChoice);
+  if (args.colorScheme && acceptsPreference("schemeChoice", args.colorScheme)) setPreference("schemeChoice", args.colorScheme as SchemeChoice);
 }
 
 export function runLaunchScenario() {

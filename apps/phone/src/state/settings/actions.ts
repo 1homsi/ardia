@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { InterfaceStyleChoice, SchemeChoice } from "../../lib/appearance";
 import { appVersion } from "../../platform/appInfo";
 import { haptics } from "../app/haptics";
 import { blocking, type BlockingCategory, type BlockingState } from "../../platform/blocking";
@@ -71,6 +72,8 @@ export const setAutoOpenKeyboard = (on: boolean) => setPreference("autoOpensKeyb
 export const setSwipeNavigation = (mode: SwipeNavigationMode) => setPreference("swipeNavigation", mode);
 export const setCollapsesBottomBar = (on: boolean) => setPreference("collapsesBottomBar", on);
 export const setColorChoice = (choice: ColorChoice) => setPreference("colorChoice", choice);
+export const setInterfaceStyle = (choice: InterfaceStyleChoice) => setPreference("interfaceStyle", choice);
+export const setSchemeChoice = (choice: SchemeChoice) => setPreference("schemeChoice", choice);
 export const setArchiveInterval = (interval: AutoArchiveInterval) => setAutoArchiveInterval(interval);
 
 export function setDefaultNightShade(mode: NightShadeMode) {

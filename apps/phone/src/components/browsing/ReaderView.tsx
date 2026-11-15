@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSystemBars } from "../../state/app/systemBars";
 import { closeReader, readableContent, setReaderSerif, setReaderStep, setReaderTheme, type ReadableContent } from "../../state/page/actions";
 import { useReaderSettings } from "../../state/page/hooks";
+import { useDarkScheme } from "../../state/settings/appearance";
 import {
   clampReaderStep,
   leadImageAspect,
@@ -26,7 +27,7 @@ type Load = { kind: "loading" } | { kind: "failed" } | { kind: "loaded"; content
 export function ReaderView({ tabId }: { tabId: string }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const dark = useColorScheme() === "dark";
+  const dark = useDarkScheme();
   const settings = useReaderSettings();
   const shown = readerTheme(settings.theme, dark);
   const ink = readerInk[shown];

@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo } from "react";
-import { useColorScheme } from "react-native";
+import { useDarkScheme } from "../../state/settings/appearance";
 import { backdropStops, presetLook, showsTheme, windowTintStops, type PresetSpec, type ProfileLook } from "../../lib/profileLook";
 import { colorRoles, PROFILE_COLORS, type ColorRoles, type ProfileColor } from "./tokens";
 
@@ -25,7 +25,7 @@ export const useProfileLook = () => useContext(ProfileLookContext);
 
 export function useTheme(): Theme {
   const look = useProfileLook();
-  const dark = useColorScheme() === "dark";
+  const dark = useDarkScheme();
   return useMemo(() => {
     const backdrop = windowTintStops(look, dark);
     const start = { colors: backdropStops(look, dark, true), diagonal: showsTheme(look, dark, true) };

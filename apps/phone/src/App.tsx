@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { FrameProbe } from "./components/perf/FrameProbe";
 import { countRender, interactionPerfEnabled } from "./state/app/interactionPerf";
-import { AppState, BackHandler, StyleSheet, useColorScheme, View } from "react-native";
+import { AppState, BackHandler, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BrowsingScreen } from "./components/browsing/BrowsingScreen";
@@ -19,6 +19,7 @@ import { useLook } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
 import { setSpacesDesign } from "./state/sync/store";
+import { setAppearanceDesign, useDarkScheme } from "./state/settings/appearance";
 import { useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
 import { bootApp, useBoot } from "./state/app/boot";
@@ -43,6 +44,7 @@ export default function App() {
   useState(() =>
     bootApp(() => {
       setSpacesDesign(appDesign);
+      setAppearanceDesign(appDesign);
       startTelemetry();
       startBrowser(applyLaunchSettings);
       startPageUi();
@@ -59,7 +61,7 @@ export default function App() {
     const frame = requestAnimationFrame(() => void reportLaunch(Date.now()));
     return () => cancelAnimationFrame(frame);
   }, [ready]);
-  const dark = useColorScheme() === "dark";
+  const dark = useDarkScheme();
   const look = useLook(PROFILE_PRESETS, DEFAULT_PROFILE_COLOR);
   useBaseSystemBars(dark);
   useEffect(() => {

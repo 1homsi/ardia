@@ -36,6 +36,8 @@ export const EVENT_FIELDS = {
     legacy_import: { kind: "enum", values: ["imported", "started_fresh", "none"] },
     legacy_import_failures: { kind: "count" },
     look_mode: { kind: "enum", values: ["full", "no_blur", "no_motion", "neither"] },
+    interface_style: { kind: "enum", values: ["match_mac", "glass", "classic"] },
+    color_scheme: { kind: "enum", values: ["match_mac", "system", "light", "dark"] },
   },
   perf_launch: { launch_ms: { kind: "ms" }, js_ms: { kind: "ms" } },
   usage_counts: {

@@ -1,7 +1,7 @@
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { SettingsView } from "../components/settings/SettingsView";
-import { PROFILE_COLORS } from "../components/ui";
+import { appDesign, PROFILE_COLORS } from "../components/ui";
 import { openSettings } from "../state/settings/nav";
 import * as settingsActions from "../state/settings/actions";
 import { setPreference } from "../state/settings/store";
@@ -14,7 +14,7 @@ beforeEach(() => {
   withTabs(1);
   setPreference("colorChoice", "plum");
   choose = jest.spyOn(settingsActions, "setColorChoice").mockImplementation((color) => setPreference("colorChoice", color));
-  openSettings();
+  openSettings(appDesign === "redesigned" ? { page: "appearance" } : { page: "root" });
 });
 
 afterEach(() => {

@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export type SettingsRoute =
   | { page: "root" }
+  | { page: "appearance" }
   | { page: "searchEngine" }
   | { page: "siteSettings" }
   | { page: "filterLists" }

@@ -34,6 +34,10 @@ export const PHONE_WHATS_SENT: { title: string; items: SentItem[] }[] = [
         fields: ["app_launched", "legacy_import", "legacy_import_failures", "look_mode"],
       },
       {
+        text: "With each launch, the Appearance you chose: Glass, Classic or Match My Mac, and Light, Dark, System or Match My Mac",
+        fields: ["interface_style", "color_scheme"],
+      },
+      {
         text: "How long Ardia took to open, from when the system started it to its first screen, and how much of that passed before its code began to run",
         fields: ["perf_launch", "launch_ms", "js_ms"],
       },

@@ -1,5 +1,5 @@
-import { useColorScheme } from "react-native";
 import { usePages } from "../pages/store";
+import { useDarkScheme } from "../settings/appearance";
 import { usePreferences } from "../settings/store";
 import { useTabs } from "../tabs/store";
 import { menuModel, menuTitle, searchQuery, type MenuModel } from "./pageMenu";
@@ -23,7 +23,7 @@ export const useFindResult = (id: string | null) => usePages((s) => (id ? s.find
 export const usePageRequest = (id: string | null) => usePages((s) => (id ? (s.requests[id] as Request | null | undefined) ?? null : null));
 
 export function useMenuModel(id: string): MenuModel {
-  const dark = useColorScheme() === "dark";
+  const dark = useDarkScheme();
   const state = usePages((s) => s.navigation[id] ?? null);
   const tabUrl = useTabs((s) => s.open.find((t) => t.id === id)?.url ?? s.privates.find((t) => t.id === id)?.url ?? "");
   const site = usePageUi((s) => s.menuSite);

@@ -1,20 +1,20 @@
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, LayoutAnimationConfig } from "react-native-reanimated";
 import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
-import { matchMyMac } from "../../state/sync/actions";
 import { useSyncEnabled, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName, syncRowSubtitle } from "../../state/sync/syncRules";
 import { showOnboarding } from "../../state/onboarding/store";
-import { appVersion, exportOpenTabs, setAppLinks, setArchiveInterval, setAutoOpenKeyboard, setColorChoice, setSearchSuggestions, useEngines } from "../../state/settings/actions";
+import { appVersion, exportOpenTabs, setAppLinks, setArchiveInterval, setAutoOpenKeyboard, setSearchSuggestions, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { capsule, duration, settingsMotion, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor, useWarningInk } from "../ui";
+import { capsule, duration, font, settingsLayout, settingsTint, space, Symbol, useDesign, useTheme, useWarningInk } from "../ui";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
+import { AppearanceRow, ColorRow, MatchMyMac } from "./AppearancePage";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
 
 const APP_LINKS = [
@@ -41,6 +41,7 @@ export function SettingsRoot() {
   const synced = useSyncView().search;
   const engineName = syncEnabled && synced ? syncedEngineName(synced, engines) : (engines.find((engine) => engine.id === engineId)?.name ?? "");
   const stacks = useWindowDimensions().fontScale >= settingsLayout.accessibilityFontScale;
+  const redesigned = useDesign() === "redesigned";
   return (
     <SettingsPage title="Settings" trailing={<BarButton title="Done" emphasized onPress={closeSettings} />}>
       <Group>
@@ -70,10 +71,16 @@ export function SettingsRoot() {
           <Text style={[font.body, styles.medium, { color: theme.label }]}>Spaces</Text>
         </Pressable>
       </View>
-      <Group>
-        <ColorRow />
-        {syncEnabled ? <MatchMyMac /> : null}
-      </Group>
+      {redesigned ? (
+        <Group>
+          <AppearanceRow />
+        </Group>
+      ) : (
+        <Group>
+          <ColorRow />
+          {syncEnabled ? <MatchMyMac /> : null}
+        </Group>
+      )}
       <Group>
         <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} divider={offersDefault} onPress={() => pushSettings({ page: "siteSettings" })} />
         {offersDefault ? <NavRow title="Default Browser" icon="safariFill" tint={settingsTint.defaultBrowser} onPress={() => pushSettings({ page: "defaultBrowser" })} /> : null}
@@ -116,8 +123,6 @@ export function SettingsRoot() {
   );
 }
 
-const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
-
 function SyncCard({ stacks }: { stacks: boolean }) {
   const theme = useTheme();
   const warningInk = useWarningInk();
@@ -154,61 +159,6 @@ function SyncCard({ stacks }: { stacks: boolean }) {
   );
 }
 
-function MatchMyMac() {
-  const theme = useTheme();
-  const chosen = usePreferences((p) => p.colorChoice);
-  const look = useProfileLook();
-  return (
-    <>
-      <View style={[styles.divider, { backgroundColor: theme.separator }]} />
-      <ToggleRow title="Match My Mac" icon="laptop" tint={settingsTint.neutral} value={chosen === null} onChange={(on) => matchMyMac(on, look)} />
-    </>
-  );
-}
-
-function ColorRow() {
-  const theme = useTheme();
-  const look = useProfileLook();
-  return (
-    <View style={styles.colorRow}>
-      <View style={styles.colorLabel}>
-        <IconTile icon="paintpaletteFill" tint={look.swatch} />
-        <Text style={[font.body, { color: theme.label }]}>Color</Text>
-      </View>
-      <View style={styles.swatches} accessibilityRole="radiogroup">
-        {COLORS.map((color) => (
-          <Swatch key={color} color={color} selected={color === look.preset} />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function Swatch({ color, selected }: { color: ProfileColor; selected: boolean }) {
-  const swatch = PROFILE_COLORS[color].swatch;
-  const ring = useSharedValue(selected ? 1 : 0);
-  useEffect(() => {
-    ring.value = withSpring(selected ? 1 : 0, settingsMotion.swatchRing);
-  }, [selected, ring]);
-  const ringStyle = useAnimatedStyle(() => ({ opacity: ring.value }));
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityLabel={PROFILE_COLORS[color].name}
-      accessibilityState={{ selected }}
-      onPress={() => setColorChoice(color)}
-      style={styles.swatchHit}
-    >
-      <View style={styles.ringBox}>
-        <Animated.View testID="swatchRing" style={[StyleSheet.absoluteFill, styles.ring, { borderColor: swatch }, ringStyle]} />
-        <View style={[styles.swatch, { backgroundColor: swatch }]} />
-      </View>
-    </Pressable>
-  );
-}
-
-const RING = settingsLayout.swatch + (settingsLayout.swatchGap + settingsLayout.swatchRing) * 2;
-
 const styles = StyleSheet.create({
   shortcuts: { paddingHorizontal: space.l, gap: space.s },
   fill: { flex: 1 },
@@ -222,11 +172,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap, minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: settingsLayout.rowInset + settingsLayout.tile + settingsLayout.labelGap },
   centered: { textAlign: "center" },
-  colorRow: { paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m, gap: space.m },
-  colorLabel: { flexDirection: "row", alignItems: "center", gap: settingsLayout.labelGap },
-  swatches: { flexDirection: "row" },
-  swatchHit: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  ringBox: { width: RING, height: RING, alignItems: "center", justifyContent: "center" },
-  ring: { borderRadius: capsule(RING), borderWidth: settingsLayout.swatchRing },
-  swatch: { width: settingsLayout.swatch, height: settingsLayout.swatch, borderRadius: capsule(settingsLayout.swatch) },
 });

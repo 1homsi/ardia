@@ -18,6 +18,7 @@ import {
   type ProfileLook,
 } from "../../lib/profileLook";
 import { Backdrop } from "./Backdrop";
+import { useChromeStyle } from "../../state/settings/appearance";
 import { useReduceTransparency } from "./contrast";
 import { useProfileLook, useTheme } from "./theme";
 import { chromeInk, chromeLayout, startInk, tabsInk } from "./tokens";
@@ -209,9 +210,10 @@ export function ChromeSurface({
 }) {
   const look = useProfileLook();
   const theme = useTheme();
+  const surface = useChromeStyle();
   if (glassIsNative()) {
     return (
-      <Glass testID={testID} source={SURFACES_FROST} shape={shape} cornerRadius={cornerRadius} interactive={interactive} tinted={tinted} surface="glass" barShadow={barShadow} {...lookColors(look, incognito)} dark={dark ?? (incognito || theme.dark)} style={[style, { borderRadius: cornerRadius }]}>
+      <Glass testID={testID} source={SURFACES_FROST} shape={shape} cornerRadius={cornerRadius} interactive={interactive} tinted={tinted} surface={surface} barShadow={barShadow} {...lookColors(look, incognito)} dark={dark ?? (incognito || theme.dark)} style={[style, { borderRadius: cornerRadius }]}>
         {children}
       </Glass>
     );

@@ -4,7 +4,9 @@ import { create } from "zustand";
 import { createGate, type SharingSource } from "../../lib/telemetryGate";
 import { launchProps, legacyImportOutcome, pendingUsage, type Counted } from "../../lib/telemetrySchema";
 import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt, setUsageConsent, takePendingCounts } from "../../platform/telemetry";
+import { appearanceTelemetry } from "../../lib/appearance";
 import { useBoot } from "../app/bootState";
+import { currentPreferences } from "../settings/store";
 import { readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
 
@@ -66,7 +68,8 @@ export async function reportLaunch(firstScreenAt: number) {
   reported = true;
   const boot = useBoot.getState();
   const look = lookBudget.mode(await systemLook());
-  gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures, look_mode: look });
+  const { interfaceStyle, schemeChoice } = currentPreferences();
+  gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures, look_mode: look, ...appearanceTelemetry(interfaceStyle, schemeChoice) });
   const timings = launchProps(await processStartedAt(), JS_STARTED_AT, firstScreenAt);
   if (timings) gate.capture("perf_launch", timings);
 }
