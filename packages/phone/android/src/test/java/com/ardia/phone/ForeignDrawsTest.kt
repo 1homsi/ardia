@@ -136,6 +136,21 @@ class ForeignDrawsTest {
     }
 
     @Test
+    fun aBusyDeckIsJudgedFromItsFirstVisibleChangeWithoutWalkingEveryCard() {
+        val many = FrameLayout(activity)
+        repeat(26) {
+            val card = FrameLayout(activity)
+            repeat(10) { card.addView(View(activity), FrameLayout.LayoutParams(20, 20)) }
+            many.addView(card, FrameLayout.LayoutParams(180, 60))
+        }
+        show { root.addView(many, FrameLayout.LayoutParams(200, 400)) }
+        var asked = 0
+        val draws = ForeignDraws { asked += 1; true }
+        assertSame("every card redrawing while the deck scrolls", many.getChildAt(0).let { it as FrameLayout }.getChildAt(0), draws.first(many, emptyList(), deck))
+        assertTrue("it stops at the first one it finds: $asked of 287 views asked", asked < 10)
+    }
+
+    @Test
     fun aTickOnItsOwnIsTheBackdropsFrame() {
         show()
         val before = LookActivity.foreignTraversals

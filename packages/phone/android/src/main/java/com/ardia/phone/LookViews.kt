@@ -300,29 +300,26 @@ internal class ForeignDraws(private val dirty: (View) -> Boolean = View::isDirty
     private fun walk(view: View, explained: Set<View>, deck: View?, area: android.graphics.Rect?): View? {
         val movedItself = moved(view)
         if (view !in explained) return foreignWithin(view, movedItself, deck, area)
-        var found: View? = if (movedItself && seen(view, deck, area)) view else null
+        if (movedItself && seen(view, deck, area)) return view
         if (view is android.view.ViewGroup) for (index in 0 until view.childCount) {
-            val other = walk(view.getChildAt(index), explained, deck, area)
-            if (found == null) found = other
+            walk(view.getChildAt(index), explained, deck, area)?.let { return it }
         }
-        return found
+        return null
     }
 
     private fun foreignWithin(view: View, movedItself: Boolean, deck: View?, area: android.graphics.Rect?): View? {
+        if (!movedItself && !dirty(view)) return null
         if (!seen(view, deck, area)) return null
-        if (movedItself) return view
-        if (!dirty(view)) return null
-        if (view !is android.view.ViewGroup) return view
-        var anyDirtyChild = false
-        var found: View? = null
+        if (movedItself || view !is android.view.ViewGroup) return view
+        var anyChanged = false
         for (index in 0 until view.childCount) {
             val child = view.getChildAt(index)
             val childMoved = moved(child)
-            if (childMoved || dirty(child)) anyDirtyChild = true
-            val other = if (childMoved || dirty(child)) foreignWithin(child, childMoved, deck, area) else null
-            if (found == null) found = other
+            if (!childMoved && !dirty(child)) continue
+            anyChanged = true
+            foreignWithin(child, childMoved, deck, area)?.let { return it }
         }
-        return if (anyDirtyChild) found else view
+        return if (anyChanged) null else view
     }
 
     private fun seen(view: View, deck: View?, area: android.graphics.Rect?): Boolean {
