@@ -90,6 +90,27 @@ class GeoClueTests(unittest.TestCase):
         self.assertIn('if (std::exchange(restart_when_started_, false)) return Restart();', provider)
         self.assertIn('if (state_ != State::kStarting || !client_.IsValid()) return;', provider, 'a Start answered after Stop leaves the client stopped')
 
+    def test_a_reply_or_signal_from_a_stopped_session_is_dropped_instead_of_reaching_the_next(self):
+        provider = (LINUX / 'ac_linux_geoclue.cc').read_text()
+        geoclue = provider[provider.index('class GeoClue {'):provider.index('class GeoClueLocationProvider')]
+        for callback in ['&GeoClue::GotClient', '&GeoClue::Started', '&GeoClue::LocationUpdated', '&GeoClue::FixRead']:
+            for at in [i for i in range(len(geoclue)) if geoclue.startswith(callback, i)]:
+                bound = geoclue[at:geoclue.index(')', geoclue.index('GetWeakPtr', at)) + 1]
+                self.assertIn('session_.GetWeakPtr()', bound, f'{callback} is tied to its session')
+        location = geoclue[geoclue.index('writer.AppendString("Location");'):geoclue.index('void LocationUpdated(')]
+        self.assertIn('session_.GetWeakPtr()', location, 'the first Location read is tied to its session')
+        end = geoclue[geoclue.index('void EndSession() {'):]
+        self.assertIn('session_.InvalidateWeakPtrs();', end[:end.index('}')])
+        for method in ['void Start(bool high_accuracy) {', 'void GiveUp(const std::string& reason) {', 'void Stop() {']:
+            body = geoclue[geoclue.index(method):]
+            body = body[:body.index('\n  }\n')]
+            self.assertIn('EndSession();', body, f'{method} ends the session before another can start')
+        stop = geoclue[geoclue.index('void Stop() {'):]
+        stop = stop[:stop.index('\n  }\n')]
+        self.assertLess(stop.index('EndSession();'), stop.index('latest_.reset();'))
+        for timer in ['&GeoClue::NoFirstFix', '&GeoClue::Stop']:
+            self.assertIn(f'{timer}, weak_factory_.GetWeakPtr()', geoclue, 'timers outlive sessions')
+
     def test_a_cached_fix_keeps_the_time_geoclue_reported_it_instead_of_each_delivery_time(self):
         provider = (LINUX / 'ac_linux_geoclue.cc').read_text()
         result = provider[provider.index('device::mojom::GeopositionResultPtr ResultOf('):provider.index('class Relay')]

@@ -89,6 +89,12 @@ class SystemSignalsTests(unittest.TestCase):
         self.assertLess(watch.index('idle_.Watch(all);'), replay)
         self.assertLess(replay, watch.index('Poll();'), 'the replay goes first, so Poll only adds what changed since')
         self.assertIn('.Set("threshold", threshold).Set("idle", true)', watch[replay:])
+
+    def test_a_shell_renderer_that_goes_away_drops_its_idle_thresholds_and_the_next_one_registers_its_own(self):
+        host = (LINUX / 'ac_linux_host.cc').read_text()
+        retire = host[host.index('  void RetireRenderer() {'):]
+        retire = retire[:retire.index('\n  }\n')]
+        self.assertIn('ardia::LinuxSystemSignals::Get().WatchIdle(id_, {});', retire)
         build = (LINUX / 'BUILD.gn').read_text()
         for name in ['"ac_linux_system_signals.cc"', '"ac_linux_idle_policy.h"']:
             self.assertIn(name, build)

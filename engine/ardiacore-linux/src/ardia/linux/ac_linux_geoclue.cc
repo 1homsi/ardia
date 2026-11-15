@@ -142,19 +142,19 @@ class GeoClue {
     Proxy(client_)->CallMethod(&stop, geoclue::kCallTimeoutMs, base::DoNothing());
     dbus::MethodCall start(geoclue::kClient, "Start");
     Proxy(client_)->CallMethodWithErrorResponse(&start, geoclue::kCallTimeoutMs,
-                                                base::BindOnce(&GeoClue::Started, weak_factory_.GetWeakPtr()));
+                                                base::BindOnce(&GeoClue::Started, session_.GetWeakPtr()));
   }
 
   void Start(bool high_accuracy) {
     bus_ = dbus_thread_linux::GetSharedSystemBus();
     if (!bus_) return GiveUp("no system bus");
+    EndSession();
     state_ = State::kStarting;
     high_accuracy_ = high_accuracy;
-    restart_when_started_ = false;
     dbus::MethodCall call(geoclue::kManager, "GetClient");
     Proxy(dbus::ObjectPath(geoclue::kManagerPath))
         ->CallMethodWithErrorResponse(&call, geoclue::kCallTimeoutMs,
-                                      base::BindOnce(&GeoClue::GotClient, weak_factory_.GetWeakPtr()));
+                                      base::BindOnce(&GeoClue::GotClient, session_.GetWeakPtr()));
   }
 
   static std::string ErrorText(dbus::ErrorResponse* error, std::string_view fallback) {
@@ -173,11 +173,11 @@ class GeoClue {
     SetProperty("DesktopId", [](dbus::MessageWriter& writer) { writer.AppendVariantOfString(geoclue::kDesktopId); });
     RequestAccuracy();
     Proxy(client_)->ConnectToSignal(geoclue::kClient, "LocationUpdated",
-                                    base::BindRepeating(&GeoClue::LocationUpdated, weak_factory_.GetWeakPtr()),
+                                    base::BindRepeating(&GeoClue::LocationUpdated, session_.GetWeakPtr()),
                                     base::DoNothing());
     dbus::MethodCall start(geoclue::kClient, "Start");
     Proxy(client_)->CallMethodWithErrorResponse(&start, geoclue::kCallTimeoutMs,
-                                                base::BindOnce(&GeoClue::Started, weak_factory_.GetWeakPtr()));
+                                                base::BindOnce(&GeoClue::Started, session_.GetWeakPtr()));
   }
 
   template <typename Write>
@@ -209,7 +209,7 @@ class GeoClue {
                 self->ReadFix(location);
               }
             },
-            weak_factory_.GetWeakPtr()));
+            session_.GetWeakPtr()));
   }
 
   void LocationUpdated(dbus::Signal* signal) {
@@ -223,7 +223,7 @@ class GeoClue {
     dbus::MethodCall call(geoclue::kProperties, "GetAll");
     dbus::MessageWriter(&call).AppendString(geoclue::kLocation);
     Proxy(location)->CallMethod(&call, geoclue::kCallTimeoutMs,
-                                base::BindOnce(&GeoClue::FixRead, weak_factory_.GetWeakPtr()));
+                                base::BindOnce(&GeoClue::FixRead, session_.GetWeakPtr()));
   }
 
   void FixRead(dbus::Response* response) {
@@ -252,7 +252,13 @@ class GeoClue {
     for (const scoped_refptr<Relay>& relay : relays_) relay->Send(std::nullopt);
   }
 
+  void EndSession() {
+    session_.InvalidateWeakPtrs();
+    restart_when_started_ = false;
+  }
+
   void GiveUp(const std::string& reason) {
+    EndSession();
     state_ = State::kUnavailable;
     unavailable_since_ = base::TimeTicks::Now();
     reason_ = reason;
@@ -268,6 +274,7 @@ class GeoClue {
       dbus::MethodCall call(geoclue::kClient, "Stop");
       Proxy(client_)->CallMethod(&call, geoclue::kCallTimeoutMs, base::DoNothing());
     }
+    EndSession();
     state_ = State::kIdle;
     latest_.reset();
     client_ = dbus::ObjectPath();
@@ -284,6 +291,7 @@ class GeoClue {
   std::set<scoped_refptr<Relay>> relays_;
   base::OneShotTimer first_fix_timer_;
   base::OneShotTimer idle_timer_;
+  base::WeakPtrFactory<GeoClue> session_{this};
   base::WeakPtrFactory<GeoClue> weak_factory_{this};
 };
 

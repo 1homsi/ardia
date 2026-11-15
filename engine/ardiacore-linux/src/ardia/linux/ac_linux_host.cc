@@ -1303,6 +1303,7 @@ class ShellHostView : public views::View,
     return base::NumberToString(id_) + "#" + base::NumberToString(renderer_generation_);
   }
   void RetireRenderer() {
+    ardia::LinuxSystemSignals::Get().WatchIdle(id_, {});
     LinuxLiveCallerGone(LiveCaller());
     ardiacore::LinuxAutomationCallerGone(LiveCaller());
     ardiacore::LinuxConfigCallerGone(LiveCaller());
