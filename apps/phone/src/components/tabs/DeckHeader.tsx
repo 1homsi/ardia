@@ -6,7 +6,8 @@ import { menuOpenedHaptic } from "../../state/browse/tabMenus";
 import { openSettings } from "../../state/settings/hooks";
 import { selectProfile } from "../../state/sync/actions";
 import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync/hooks";
-import { useCanReopen } from "../../state/tabs/hooks";
+import { useCanReopen, useIncognito } from "../../state/tabs/hooks";
+import { countUsage } from "../../state/telemetry/telemetry";
 import { browseLayout, capsule, deckChromeInk, deckChromeLayout, deckChromeMotion, font, Symbol, tabsInk, tabsLayout, useTheme, type MenuItem } from "../ui";
 import { SpaceTitle, spaceMenuSymbol } from "../search/StartSpaces";
 import { GlassCircleButton } from "./ChromeButtons";
@@ -33,6 +34,7 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onMenu, o
   const view = useSyncView();
   const shown = useSelectedProfile();
   const canReopen = useCanReopen();
+  const incognito = useIncognito();
   const spaces = status.isEnabled ? view.profiles : [];
   const current = shown ?? spaces[0] ?? null;
   const side = safeSide + deckChromeLayout.headerSide;
@@ -44,6 +46,7 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onMenu, o
   const choose = (id: string) => {
     if (id === current?.syncId) return;
     haptics.selection();
+    if (!incognito) countUsage("spaces_picked");
     selectProfile(id);
   };
   const showSpaces = () =>

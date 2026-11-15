@@ -20,7 +20,8 @@ import { pageUi } from "../page/store";
 import { settingsNav } from "../settings/nav";
 import { refreshDefaultBrowser } from "../settings/defaultBrowser";
 import { forgetPosition, saveTabPosition, watchFrontScroll } from "./positions";
-import { noteLocalChange } from "../sync/store";
+import { noteLocalChange, showSpace } from "../sync/store";
+import { spaceToShow } from "../tabs/spaces";
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { enterTarget, rowTarget, resolve, type TrayRow } from "../search/omnibox";
@@ -181,7 +182,14 @@ function copyCalculation(value: string) {
   showToast(`Copied ${value}`, "calculation");
 }
 
+function showSpaceOf(id: string) {
+  const data = currentTabs();
+  const space = spaceToShow(data.spaces, findTab(data, id));
+  if (space) showSpace(space);
+}
+
 export function beginOpeningTab(id: string) {
+  showSpaceOf(id);
   setIncognito(isPrivateTab(currentTabs(), id));
   selectTabById(id);
   useBrowse.setState({ opening: id });
@@ -213,6 +221,7 @@ export function openTab(id: string) {
   takeLeavingPicture(id);
   hideArchiveCard();
   dismissSearch();
+  showSpaceOf(id);
   setIncognito(isPrivateTab(currentTabs(), id));
   if (currentTabs().selectedId !== id) selectTabById(id);
   useBrowse.setState({ surface: "browsing", sheet: null, opening: null });

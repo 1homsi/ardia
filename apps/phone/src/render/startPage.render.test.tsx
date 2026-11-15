@@ -202,7 +202,7 @@ test("in a private tab a swipe still switches space but is never counted", () =>
   unmount(root);
 });
 
-test("with more than one space the switcher is a button whose menu lists the spaces, the current one checked, and picking one switches without counting a swipe", () => {
+test("with more than one space the switcher is a button whose menu lists the spaces, the current one checked, and picking one switches, counted as a pick and not a swipe", () => {
   withSpaces([profile("work", "Work"), profile("home", "Home")]);
   const root = start();
   const button = root.root.findAll((node) => node.props.accessibilityLabel === "Space, Work" && typeof node.props.onPress === "function")[0]!;
@@ -215,6 +215,17 @@ test("with more than one space the switcher is a button whose menu lists the spa
   act(() => menu.props.items[1].onPress());
   expect(select).toHaveBeenCalledWith("home");
   expect(tick).toHaveBeenCalledTimes(1);
+  expect(counted.mock.calls).toEqual([["spaces_picked"]]);
+  unmount(root);
+});
+
+test("in a private tab a pick from the switcher still switches space but is never counted", () => {
+  act(() => useTabs.setState({ incognito: true }));
+  withSpaces([profile("work", "Work"), profile("home", "Home")]);
+  const root = start();
+  act(() => root.root.findAll((node) => node.props.accessibilityLabel === "Space, Work" && typeof node.props.onPress === "function")[0]!.props.onPress());
+  act(() => root.root.findAll((node) => node.type === FloatingMenu)[0]!.props.items[1].onPress());
+  expect(select).toHaveBeenCalledWith("home");
   expect(counted).not.toHaveBeenCalled();
   unmount(root);
 });

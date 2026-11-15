@@ -3,7 +3,9 @@ import { sync, type SyncedView, type SyncEvent, type SyncStatus } from "../../pl
 
 export type { PinnedTile, SyncedProfile } from "../../platform/sync";
 import { settled } from "../pages/store";
-import { setTabProfile } from "../tabs/store";
+import { applyTabSpaces, setTabProfile } from "../tabs/store";
+import { tabSpacesFor } from "../tabs/spaces";
+import type { Design } from "../../lib/design";
 import { pinKey, pinsStillOnTheirWay } from "./spaces";
 import { shownProfile } from "./syncRules";
 
@@ -51,9 +53,27 @@ export const selectedProfile = () => {
   return shownProfile(view, status);
 };
 
+let spacesDesign: Design = "original";
+
+function followSpaces() {
+  const { status, view } = syncData();
+  setTabProfile(selectedProfileId());
+  applyTabSpaces(tabSpacesFor(spacesDesign, status.isEnabled, view.profiles, shownProfile(view, status)?.syncId ?? null));
+}
+
+useSync.subscribe(followSpaces);
+
+export function setSpacesDesign(design: Design) {
+  spacesDesign = design;
+  followSpaces();
+}
+
+export function showSpace(profileSyncId: string) {
+  void settled(() => sync.selectProfile(profileSyncId), undefined);
+}
+
 function publish(patch: Partial<SyncData>) {
   useSync.setState((state) => ({ ...patch, revision: state.revision + 1 }));
-  setTabProfile(selectedProfileId());
 }
 
 function onEvent(event: SyncEvent) {

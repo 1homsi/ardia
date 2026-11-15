@@ -8,6 +8,7 @@ import {
   type TabOrigin,
   type TabPatch,
 } from "./tabModels.ts";
+import { sameSpaces, tabsInSpace, UNSYNCED, type TabSpaces } from "./spaces.ts";
 
 export type ClosedTab = { tab: BrowserTab; wasSelected: boolean };
 
@@ -18,6 +19,7 @@ export type TabsData = {
   undo: ClosedTab[][];
   archive: BrowserTab[] | null;
   archivedCount: number;
+  spaces: TabSpaces;
 };
 
 export type TabsChange = {
@@ -41,7 +43,7 @@ export type OpenRequest = {
 
 export const UNDO_LIMIT = 20;
 
-export const emptyTabs = (): TabsData => ({ open: [], privates: [], selectedId: null, undo: [], archive: null, archivedCount: 0 });
+export const emptyTabs = (): TabsData => ({ open: [], privates: [], selectedId: null, undo: [], archive: null, archivedCount: 0, spaces: UNSYNCED });
 
 export function launchTabs(open: BrowserTab[], archivedCount: number): TabsData {
   const sorted = [...open].sort((a, b) => a.position - b.position);
@@ -63,7 +65,34 @@ export const recentOtherTabs = (order: readonly BrowserTab[]): BrowserTab[] => o
 
 export const tabMenuTitle = (tab: BrowserTab, host: string, byAddress = false): string => tab.title.trim() || host || (byAddress ? tab.url : "New Tab");
 
-export const deckOrder = (data: TabsData): BrowserTab[] => recencyOrder([...data.open, ...data.privates], data.selectedId);
+export const spaceTabs = (data: Pick<TabsData, "open" | "spaces">): readonly BrowserTab[] => tabsInSpace(data.open, data.spaces);
+
+export const deckOrder = (data: TabsData): BrowserTab[] => recencyOrder([...spaceTabs(data), ...data.privates], data.selectedId);
+
+const mostRecent = (tabs: readonly BrowserTab[]) => tabs.reduce<BrowserTab | null>((best, tab) => (best === null || tab.lastActive > best.lastActive ? tab : best), null);
+
+function reselectForSpace(data: TabsData): TabsData {
+  const selected = data.selectedId;
+  const shown = spaceTabs(data);
+  if (selected !== null && (isPrivateTab(data, selected) || shown.some((t) => t.id === selected))) return data;
+  const next = mostRecent(shown)?.id ?? null;
+  return next === selected ? data : { ...data, selectedId: next };
+}
+
+export function withSpaces(data: TabsData, spaces: TabSpaces): TabsData {
+  if (sameSpaces(data.spaces, spaces)) return data;
+  return reselectForSpace({ ...data, spaces });
+}
+
+export function moveToSpace(data: TabsData, id: string, space: string): TabsChange {
+  const index = data.open.findIndex((t) => t.id === id);
+  const tab = data.open[index];
+  if (!tab || tab.profileSyncId === space) return unchanged(data);
+  const moved = { ...tab, profileSyncId: space };
+  const open = [...data.open];
+  open[index] = moved;
+  return { data: reselectForSpace({ ...data, open }), put: [moved], remove: [], endedPages: [] };
+}
 
 export const isPrivateOnScreen = (data: Pick<TabsData, "privates">, incognito: boolean) => incognito || data.privates.length > 0;
 
@@ -171,17 +200,19 @@ export function archiveTabs(data: TabsData, ids: readonly string[], undoable: bo
   const closing = data.open.filter((t) => set.has(t.id));
   if (!closing.length) return unchanged(data);
   const undo = undoable ? [...data.undo, closing.map((tab) => ({ tab, wasSelected: tab.id === data.selectedId }))].slice(-UNDO_LIMIT) : data.undo;
-  const selectedIndex = data.open.findIndex((t) => t.id === data.selectedId);
+  const shown = spaceTabs(data);
+  const selectedIndex = shown.findIndex((t) => t.id === data.selectedId);
   const open = data.open.filter((t) => !set.has(t.id));
+  const remaining = shown.filter((t) => !set.has(t.id));
   const archived = closing.map((tab) => ({ ...tab, archivedAt: now }));
   const archive = data.archive ? [...archived, ...data.archive].sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0)) : null;
   let next: TabsData = { ...data, open, undo, archive, archivedCount: data.archivedCount + archived.length };
   const put: BrowserTab[] = [...archived];
   if (data.selectedId !== null && set.has(data.selectedId)) {
-    const neighbour = selectedIndex >= 0 ? Math.min(selectedIndex, open.length - 1) : -1;
-    next = { ...next, selectedId: neighbour >= 0 ? open[neighbour]!.id : null };
+    const neighbour = selectedIndex >= 0 ? Math.min(selectedIndex, remaining.length - 1) : -1;
+    next = { ...next, selectedId: neighbour >= 0 ? remaining[neighbour]!.id : null };
     if (neighbour >= 0) {
-      const touched = withLastActive(next, open[neighbour]!.id, now);
+      const touched = withLastActive(next, remaining[neighbour]!.id, now);
       next = touched.data;
       put.push(...touched.put);
     }
@@ -199,7 +230,7 @@ export function closePrivateTabs(data: TabsData, ids: readonly string[]): TabsCh
     if (selectedIndex >= 0 && privates.length) {
       selectedId = privates[Math.min(selectedIndex, privates.length - 1)]!.id;
     } else {
-      selectedId = data.open.reduce<BrowserTab | null>((best, t) => (best === null || t.lastActive > best.lastActive ? t : best), null)?.id ?? null;
+      selectedId = mostRecent(spaceTabs(data))?.id ?? null;
     }
   }
   const ended = data.privates.filter((t) => set.has(t.id)).map((t) => t.id);
@@ -214,7 +245,7 @@ export const closeAllPrivateTabs = (data: TabsData): TabsChange => closePrivateT
 
 export function closeAllTabs(data: TabsData, now: number): TabsChange {
   const privates = closeAllPrivateTabs(data);
-  const archived = archiveTabs(privates.data, privates.data.open.map((t) => t.id), true, now);
+  const archived = archiveTabs(privates.data, spaceTabs(privates.data).map((t) => t.id), true, now);
   return { ...archived, endedPages: [...privates.endedPages, ...archived.endedPages] };
 }
 

@@ -15,6 +15,7 @@ import { labTrace } from "../../platform/lab";
 import { currentTabs, openNewTab, receiveSentTabs, setIncognito, useTabs } from "../tabs/store";
 import { isSyncableUrl, type BrowserTab } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
+import { moveTargets } from "../tabs/spaces";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 import { isPinnedOnMac, pinsOnTheirWay } from "./spaces";
 import { noteLocalChange, notePinSent, selectedProfile, selectedProfileId, startSyncSources, syncData, useSync } from "./store";
@@ -175,6 +176,8 @@ export function sendTargetsFor(tab: BrowserTab | null): SyncedDevice[] {
   if (!tab || tab.isPrivate || !syncData().status.isEnabled || !isSyncableUrl(tab.url)) return [];
   return sendReceivers(syncData().view, tab.profileSyncId ?? selectedProfileId());
 }
+
+export const spaceMoveTargets = (tab: BrowserTab) => moveTargets(currentTabs().spaces, syncData().view.profiles, tab);
 
 export async function sendTab(tab: BrowserTab, device: SyncedDevice) {
   if (!isSyncableUrl(tab.url)) return;

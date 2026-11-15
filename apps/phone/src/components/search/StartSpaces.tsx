@@ -70,6 +70,7 @@ export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeom
     const to = spaces.findIndex((p) => p.syncId === id);
     if (to < 0) return;
     pager.current?.scrollToOffset({ offset: to * geometry.width, animated: !reduceMotion });
+    if (!incognito) countUsage("spaces_picked");
     select(id);
   };
   const settle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

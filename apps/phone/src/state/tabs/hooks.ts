@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { recencyOrder, type BrowserTab } from "./tabModels";
+import { isSplit, tabsInSpace } from "./spaces";
 import { archiveDays, type ArchivedDay } from "./tabsState";
 import { useTabs } from "./store";
 
@@ -12,9 +13,13 @@ export const useSelectedTab = () =>
 export const useTab = (id: string) => useTabs((s) => s.open.find((t) => t.id === id) ?? s.privates.find((t) => t.id === id) ?? null);
 
 export function useDeckOrder(): BrowserTab[] {
-  const [open, privates, selectedId] = useTabs(useShallow((s) => [s.open, s.privates, s.selectedId] as const));
-  return useMemo(() => recencyOrder([...open, ...privates], selectedId), [open, privates, selectedId]);
+  const [open, privates, selectedId, spaces] = useTabs(useShallow((s) => [s.open, s.privates, s.selectedId, s.spaces] as const));
+  return useMemo(() => recencyOrder([...tabsInSpace(open, spaces), ...privates], selectedId), [open, privates, selectedId, spaces]);
 }
+
+export const useShownSpace = () => useTabs((s) => (isSplit(s.spaces) ? s.spaces.current : null));
+
+export const useTabSpaces = () => useTabs((s) => s.spaces);
 
 export const useHasTabs = () => useTabs((s) => s.open.length + s.privates.length > 0);
 

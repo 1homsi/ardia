@@ -11,6 +11,7 @@ import { copy } from "../../lib/platformCopy";
 import { clipboardOffer } from "../../platform/system";
 import { settled } from "../pages/store";
 import { buildSources, recentSearches, sourcesKey } from "./sources";
+import { spaceTabs } from "../tabs/tabsState";
 
 export type SearchOrigin = "home" | "start" | "page";
 
@@ -51,12 +52,12 @@ let context: SuggestContext = { currentUrl: null, currentTabId: null };
 let paste: PasteOffer | null = null;
 
 export function feedSources() {
-  const key = sourcesKey(useTabs.getState().listing, history().revision(), syncData().revision);
+  const key = `${sourcesKey(useTabs.getState().listing, history().revision(), syncData().revision)}:${useTabs.getState().spaces.current}`;
   if (key === fedSources) return;
   fedSources = key;
   const profile = selectedProfile();
   const local = history().summary();
-  setSources(buildSources(currentTabs().open, profile ? mergeSyncedHistory(local, profile.history) : local, profile ? syncedBookmarks(profile) : []));
+  setSources(buildSources(spaceTabs(currentTabs()), profile ? mergeSyncedHistory(local, profile.history) : local, profile ? syncedBookmarks(profile) : []));
 }
 
 function suggestionsFor(text: string, remoteValues: readonly string[]): { rows: TrayRow[]; completion: string } {

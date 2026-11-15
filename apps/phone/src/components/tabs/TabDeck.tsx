@@ -54,12 +54,12 @@ import {
   whenPageLaidOut,
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
-import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
+import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount, useShownSpace } from "../../state/tabs/hooks";
 import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
-import { pinToMac, sendTab, sendTargetsFor } from "../../state/sync/actions";
-import { currentTabs } from "../../state/tabs/store";
+import { pinToMac, sendTab, sendTargetsFor, spaceMoveTargets } from "../../state/sync/actions";
+import { currentTabs, moveTabToSpace } from "../../state/tabs/store";
 import { tabMatchesQuery } from "../../state/tabs/tabModels";
 import { DeckBar } from "./DeckBar";
 import { DECK_PHASE, DeckCard, type DeckMotion } from "./DeckCard";
@@ -70,6 +70,7 @@ import { plusMenuItems } from "./ChromeButtons";
 import { DeckBottomBar } from "./DeckBottomBar";
 import { deckArchiveBottom, DeckHeader, deckHeaderBottom, type DeckHeaderMenu } from "./DeckHeader";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
+import { spaceMenuSymbol } from "../search/StartSpaces";
 
 type Phase = { kind: "opening" | "settled" | "closing"; id: string | null };
 
@@ -89,6 +90,7 @@ export function TabDeck() {
   );
   const [deckHeight, setDeckHeight] = useState<number | null>(null);
   const allTabs = useDeckOrder();
+  const shownSpace = useShownSpace();
   const [needle, setNeedle] = useState("");
   const live = useMemo(() => (needle ? allTabs.filter((tab) => tabMatchesQuery(tab, needle)) : allTabs), [allTabs, needle]);
   const incognito = useIncognito();
@@ -105,7 +107,7 @@ export function TabDeck() {
   const [phase, setPhase] = useState<Phase>({ kind: "settled", id: null });
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
   const [headerMenu, setHeaderMenu] = useState<DeckHeaderMenu | null>(null);
-  const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number } | null>(null);
+  const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number; spaces?: boolean } | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const deckSurface = useSurface();
   const deckSheet = useSheet();
@@ -232,9 +234,16 @@ export function TabDeck() {
   }, []);
 
   const searchedFor = useRef(needle);
+  const spaceShown = useRef(shownSpace);
   useEffect(() => {
     const ids = live.map((t) => t.id);
     const alive = new Set(allTabs.map((t) => t.id));
+    if (spaceShown.current !== shownSpace) {
+      spaceShown.current = shownSpace;
+      searchedFor.current = needle;
+      showNewSpace(ids, alive);
+      return;
+    }
     const next = mergeDeckOrder(order, ids);
     const searched = searchedFor.current !== needle;
     searchedFor.current = needle;
@@ -263,6 +272,29 @@ export function TabDeck() {
     setAnchor(Math.round(after));
     setOrder(next);
   }, [live]);
+
+  const showNewSpace = (ids: string[], alive: ReadonlySet<string>) => {
+    const to = initialDeckScroll(ids.length);
+    for (const id of hidden.current) if (!alive.has(id)) hidden.current.delete(id);
+    runOnUI((next: readonly string[], at: number) => {
+      "worklet";
+      fromSlots.value = {};
+      shiftBy.value = 0;
+      flyIndex.value = -1;
+      flyVanish.value = 0;
+      flyLift.value = 0;
+      dragIndex.value = -1;
+      dragLift.value = 0;
+      orderIds.value = next;
+      scroll.value = at;
+      gap.value = 1;
+    })(ids, to);
+    cardsOpacity.value = 0;
+    cardsOpacity.value = withTiming(1, { duration: tabsMotion.fade });
+    setAnchor(to);
+    setOrder(ids);
+    if (!archiveCard) offerArchiveCard(ids.length);
+  };
 
   const settledOpen = (id: string) => openTab(id);
 
@@ -436,6 +468,7 @@ export function TabDeck() {
     setCardMenu({ index, x, y });
   };
   const longPress = Gesture.LongPress()
+    .withTestId("deckLongPress")
     .minDuration(tabsMotion.longPress)
     .onStart((e) => {
       const card = deckCardAt(g, count, scroll.value, e.x, e.y);
@@ -467,11 +500,15 @@ export function TabDeck() {
       onPress: () => void sendTab(tab, device),
     }));
     const pin: MenuItem[] = !tab.isPrivate && syncEnabled ? [{ label: "Pin to Mac", icon: "star", onPress: () => void pinToMac(tab, () => openSettings({ page: "sync" })) }] : [];
+    const targets = redesigned ? spaceMoveTargets(tab) : [];
+    if (cardMenu?.spaces) return [{ heading: "Move to Space" }, ...targets.map((space): MenuItem => ({ label: space.name, icon: spaceMenuSymbol(space) ?? undefined, onPress: () => moveTabToSpace(tab.id, space.syncId) }))];
+    const move: MenuItem[] = targets.length ? [{ label: "Move to Space", icon: "chevronRight", onPress: () => setCardMenu({ ...cardMenu!, index, spaces: true }) }] : [];
     return [
       { label: "Copy Link", icon: "link", onPress: () => copyTabLink(tab) },
       { label: "Share", icon: "squareAndArrowUp", onPress: () => shareTab(tab) },
       ...sends,
       ...pin,
+      ...move,
       "divider",
       closing,
     ];

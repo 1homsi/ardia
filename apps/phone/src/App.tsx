@@ -14,10 +14,11 @@ import { ImportFailedView } from "./components/upgrade/ImportFailedView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { useTheme, DEFAULT_PROFILE_COLOR, FrostSource, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground, SURFACES_FROST } from "./components/ui";
+import { appDesign, useTheme, DEFAULT_PROFILE_COLOR, FrostSource, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground, SURFACES_FROST } from "./components/ui";
 import { useLook } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
+import { setSpacesDesign } from "./state/sync/store";
 import { useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
 import { bootApp, useBoot } from "./state/app/boot";
@@ -41,6 +42,7 @@ import { setRootSize } from "./state/app/rootSize";
 export default function App() {
   useState(() =>
     bootApp(() => {
+      setSpacesDesign(appDesign);
       startTelemetry();
       startBrowser(applyLaunchSettings);
       startPageUi();

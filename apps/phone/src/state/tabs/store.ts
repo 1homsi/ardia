@@ -30,6 +30,7 @@ import {
   emptyTabs,
   findTab,
   launchTabs,
+  moveToSpace,
   openTab,
   reopenLastClosed,
   restoreArchived,
@@ -37,10 +38,12 @@ import {
   selectTab,
   updateTab,
   withArchive,
+  withSpaces,
   type OpenRequest,
   type TabsChange,
   type TabsData,
 } from "./tabsState";
+import type { TabSpaces } from "./spaces";
 
 export type TabsStore = TabsData & { incognito: boolean; listing: number };
 
@@ -108,7 +111,7 @@ export function pruneExpiredArchive() {
 export function loadTabs() {
   const db = browserDatabase();
   pruneExpiredArchive();
-  useTabs.setState({ ...launchTabs(readOpenTabs(db), countArchivedTabs(db)), incognito: false, listing: 0 });
+  useTabs.setState({ ...withSpaces(launchTabs(readOpenTabs(db), countArchivedTabs(db)), data().spaces), incognito: false, listing: 0 });
 }
 
 let tabsOpenedThisRun = 0;
@@ -124,6 +127,20 @@ export function openNewTab(request: Omit<OpenRequest, "isPrivate"> & { isPrivate
   if (!tab.isPrivate && !request.received) countUsage("tabs_opened");
   labTrace(`PAGELAB tab opened #${++tabsOpenedThisRun} origin ${request.origin}${tab.isPrivate ? " private" : ""}${request.received ? " received" : ""} id ${tab.id} open ${useTabs.getState().open.length}`);
   return tab;
+}
+
+export function applyTabSpaces(spaces: TabSpaces) {
+  const next = withSpaces(data(), spaces);
+  if (next !== data()) useTabs.setState(next);
+}
+
+export function moveTabToSpace(id: string, space: string) {
+  const tab = findTab(data(), id);
+  if (!tab || tab.isPrivate) return;
+  const change = moveToSpace(data(), id, space);
+  if (!change.put.length) return;
+  apply(change);
+  countUsage("tabs_moved_to_space");
 }
 
 export const selectTabById = (id: string | null) => apply(selectTab(data(), id, now()));
