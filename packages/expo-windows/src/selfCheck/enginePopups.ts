@@ -1,6 +1,7 @@
 import { hostCall, leaveOffersFromUnheard, onEngineTopic } from "../engine/host";
 import { showStepsOf, traceShowsOf } from "../engine/showTrace";
-import { isPopupWindowId, type WindowsNative } from "@ardia/shell";
+import type { WindowsNative } from "@ardia/shell";
+import { isPopupWindowId } from "@ardia/shell/src/windows.ts";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 

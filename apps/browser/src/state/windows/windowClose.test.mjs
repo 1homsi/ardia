@@ -323,6 +323,8 @@ test("the Windows self-check closes Settings, Import and a pop-up the ways users
   assert.match(selfCheck("selfCheck/windows.ts"), /\["self-check-close-settings", "settings"\], \["self-check-close-import", "import"\]/);
   assert.match(selfCheck("selfCheck/windows.ts"), /await windows\(\)\.requestClose\(id\);\n\s+const took = await goneWithin\(id, CLOSED_BY_REQUEST_MS\);/);
   assert.match(selfCheck("selfCheck/enginePopups.ts"), /expectTrue\(await popupWindowsGone\(popupsBefore, POPUP_WINDOW_GONE_MS\),/);
+  assert.doesNotMatch(selfCheck("selfCheck/enginePopups.ts"), /^import \{[^}]*\} from "@ardia\/shell";/m, "a runtime import of @ardia/shell from the self-checks loads its view managers before viewNamed is ready");
+  assert.match(selfCheck("selfCheck/enginePopups.ts"), /import \{ isPopupWindowId \} from "@ardia\/shell\/src\/windows\.ts";/);
   assert.match(selfCheck("index.ts"), /void runSelfCheck\(\)\.finally\(\(\) => void endByClosingTheLastWindow\(\)\);/);
   const last = selfCheck("selfCheck/lastWindow.ts");
   assert.match(last, /for \(const id of await windows\(\)\.windowIds\(\)\) if \(id !== LAST_WINDOW_ID\) await windows\(\)\.closeWindow\(id\);/);
