@@ -1,8 +1,12 @@
 package com.ardia.phone
 
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.OnBackPressedDispatcher
+import androidx.lifecycle.LifecycleOwner
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -25,21 +29,52 @@ class TrayBack(private val report: (String, Map<String, Any?>) -> Unit) : OnBack
     }
 }
 
-class BackModule : Module() {
-    private var trayBack: TrayBack? = null
-    private var attachedTo: ComponentActivity? = null
+class TrayBackBinding(private val report: (String, Map<String, Any?>) -> Unit) {
+    private var callback: TrayBack? = null
+    private var boundTo: OnBackPressedDispatcher? = null
+    var wanted = false
+        private set
 
-    private fun ensureCallback(): TrayBack? {
-        val activity = appContext.currentActivity as? ComponentActivity ?: return null
-        val existing = trayBack
-        if (existing != null && attachedTo === activity) return existing
-        existing?.remove()
-        val made = TrayBack { name, body -> sendEvent(name, body) }
-        activity.onBackPressedDispatcher.addCallback(activity, made)
-        trayBack = made
-        attachedTo = activity
-        return made
+    fun want(enabled: Boolean, dispatcher: OnBackPressedDispatcher?, owner: LifecycleOwner?) {
+        wanted = enabled
+        if (enabled && dispatcher != null && owner != null) bind(dispatcher, owner)
+        callback?.isEnabled = enabled && boundTo != null
     }
+
+    fun bind(dispatcher: OnBackPressedDispatcher, owner: LifecycleOwner) {
+        if (boundTo === dispatcher && callback != null) {
+            callback?.isEnabled = wanted
+            return
+        }
+        callback?.remove()
+        val made = TrayBack(report)
+        dispatcher.addCallback(owner, made)
+        made.isEnabled = wanted
+        callback = made
+        boundTo = dispatcher
+    }
+
+    fun lost() {
+        val hadGesture = callback?.isEnabled == true
+        callback?.remove()
+        callback = null
+        boundTo = null
+        if (hadGesture) report(TrayBack.CANCEL, emptyMap())
+    }
+
+    fun release() {
+        callback?.remove()
+        callback = null
+        boundTo = null
+        wanted = false
+    }
+}
+
+class BackModule : Module() {
+    private val main = Handler(Looper.getMainLooper())
+    private val binding = TrayBackBinding { name, body -> runCatching { sendEvent(name, body) } }
+
+    private fun current(): ComponentActivity? = appContext.currentActivity as? ComponentActivity
 
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhoneBack")
@@ -47,17 +82,26 @@ class BackModule : Module() {
         Events(TrayBack.PROGRESS, TrayBack.CANCEL, TrayBack.COMMIT)
 
         Function("setTrayBackEnabled") { enabled: Boolean ->
-            appContext.currentActivity?.runOnUiThread {
-                val callback = if (enabled) ensureCallback() else trayBack
-                callback?.isEnabled = enabled
+            main.post {
+                val activity = current()
+                binding.want(enabled, activity?.onBackPressedDispatcher, activity)
             }
             Unit
         }
 
+        OnActivityEntersForeground {
+            main.post {
+                val activity = current() ?: return@post
+                if (binding.wanted) binding.bind(activity.onBackPressedDispatcher, activity)
+            }
+        }
+
         OnActivityDestroys {
-            trayBack?.remove()
-            trayBack = null
-            attachedTo = null
+            main.post { binding.lost() }
+        }
+
+        OnDestroy {
+            main.post { binding.release() }
         }
     }
 }
