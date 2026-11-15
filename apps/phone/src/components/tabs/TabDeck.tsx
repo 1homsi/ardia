@@ -32,6 +32,7 @@ import {
   scrollAfterClosing,
   scrollAfterRemoving,
   deckSlotsNow,
+  mergeDeckOrder,
   type DeckSlots,
 } from "../../lib/deckGeometry";
 import {
@@ -211,9 +212,7 @@ export function TabDeck() {
   useEffect(() => {
     const ids = live.map((t) => t.id);
     const alive = new Set(ids);
-    const kept = order.filter((id) => alive.has(id));
-    const known = new Set(kept);
-    const next = [...kept, ...ids.filter((id) => !known.has(id))];
+    const next = mergeDeckOrder(order, ids);
     if (next.length === order.length && next.every((id, i) => id === order[i])) return;
     const before = scroll.value;
     const focused = order[focusedIndex(before, order.length)];

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   deckSlot,
+  mergeDeckOrder,
   deckSlotsNow,
   archiveCardEdgeY,
   deckScrollActionTarget,
@@ -198,4 +199,12 @@ test("a card's slot starts where it was drawn and ends at its new index, and a s
   assert.equal(deckSlot("d", 1, midway, 0, 1), 1);
   assert.equal(deckSlot("e", 2, midway, 0, 0), 2);
   assert.equal(deckSlot("a", 0, first, -1, 0), -1);
+});
+
+test("a tab that arrives while the deck is open takes its place in the live order, before the tab that follows it, so a tab from the Mac lands beside the selected one instead of past it", () => {
+  assert.deepEqual(mergeDeckOrder(["a", "b", "c", "sel"], ["a", "b", "c", "mac", "sel"]), ["a", "b", "c", "mac", "sel"]);
+  assert.deepEqual(mergeDeckOrder(["a", "b", "c"], ["a", "b", "c", "new"]), ["a", "b", "c", "new"]);
+  assert.deepEqual(mergeDeckOrder(["c", "a", "b"], ["a", "b", "c"]), ["c", "a", "b"]);
+  assert.deepEqual(mergeDeckOrder(["a", "b", "c"], ["a", "c"]), ["a", "c"]);
+  assert.deepEqual(mergeDeckOrder(["a", "sel"], ["x", "a", "y", "z", "sel"]), ["x", "a", "y", "z", "sel"]);
 });

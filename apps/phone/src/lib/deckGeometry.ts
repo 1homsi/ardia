@@ -235,3 +235,24 @@ export function deckBarBand(g: DeckGeometry, barHeight: number, scaleProgress: n
   "worklet";
   return { height: barHeight * (g.cardWidth / Math.max(g.width, 1)), grown: 1 - Math.min(Math.max(scaleProgress, 0), 1) };
 }
+
+export function mergeDeckOrder(shown: readonly string[], live: readonly string[]): string[] {
+  const alive = new Set(live);
+  const next = shown.filter((id) => alive.has(id));
+  const known = new Set(next);
+  for (let i = 0; i < live.length; i++) {
+    const id = live[i]!;
+    if (known.has(id)) continue;
+    let at = next.length;
+    for (let j = i + 1; j < live.length; j++) {
+      const after = next.indexOf(live[j]!);
+      if (after >= 0) {
+        at = after;
+        break;
+      }
+    }
+    next.splice(at, 0, id);
+    known.add(id);
+  }
+  return next;
+}
