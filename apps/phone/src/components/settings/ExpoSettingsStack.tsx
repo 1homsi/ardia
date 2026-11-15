@@ -11,11 +11,12 @@ import { LookBackdrop, modifierList, profileLook, settingsUIAvailable, useProfil
 import { useChromeStyle } from "../../state/settings/appearance";
 import { ExpoAppearancePage } from "./ExpoAppearancePage";
 import { ExpoSiteSettingsPage } from "./ExpoSiteSettingsPage";
+import { ExpoSyncPage } from "./ExpoSyncPage";
 import { ExpoSettingsRoot } from "./ExpoSettingsRoot";
 import { SettingsHostedContext } from "./SettingsKit";
 import { SettingsPageFor } from "./SettingsView";
 
-const CONVERTED: Partial<Record<SettingsRoute["page"], () => React.JSX.Element>> = { appearance: ExpoAppearancePage, siteSettings: ExpoSiteSettingsPage };
+const CONVERTED: Partial<Record<SettingsRoute["page"], () => React.JSX.Element>> = { appearance: ExpoAppearancePage, siteSettings: ExpoSiteSettingsPage, sync: ExpoSyncPage };
 
 const TITLES: Record<SettingsRoute["page"], string> = {
   root: "Settings",

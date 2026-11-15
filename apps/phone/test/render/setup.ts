@@ -46,6 +46,21 @@ jest.mock("react-native-reanimated", () => {
 
 jest.mock("react-native-safe-area-context", () => require("react-native-safe-area-context/jest/mock").default);
 
+jest.mock("@expo/ui/swift-ui", () => {
+  const { useRef } = jest.requireActual<typeof import("react")>("react");
+  return {
+    ...jest.requireActual<object>("@expo/ui/swift-ui"),
+    useNativeState: <T,>(initial: T) => {
+      const state = useRef<{ value: T; get: () => T; set: (next: T) => void; onChange: null } | null>(null);
+      if (!state.current) {
+        const made = { value: initial, get: () => made.value, set: (next: T) => void (made.value = next), onChange: null };
+        state.current = made;
+      }
+      return state.current;
+    },
+  };
+});
+
 jest.mock("../../src/platform/database", () => {
   const { renderDatabase } = require("./renderDatabase");
   return { openSqlDatabase: () => renderDatabase(), openMemoryDatabase: () => renderDatabase() };
