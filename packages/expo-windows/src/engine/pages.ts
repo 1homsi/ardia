@@ -92,7 +92,7 @@ function handOpenedTab(asking: Page | undefined, opener: Page | undefined, reque
   const host = requestHost(opener, request.profile, pages.values());
   if (host) return sendTo("openWindow", request)(host);
   const discard = () => quietly(hostCall("tab.discard", { adopt: request.adoptId }));
-  if (asking && isPopupWindowId(asking.windowId)) return openInBrowserWindow(request, request.profile ?? asking.profile, discard);
+  if (asking && isPopupWindowId(asking.windowId)) return openInBrowserWindow(request, request.profile ?? asking.profile, asking.windowId, discard);
   if (listeningBrowserPages(pages.values()).length) console.warn("[ardia windows] a tab opened by a page was closed: no page of its profile is showing");
   discard();
 }
@@ -103,7 +103,7 @@ function openFromPopup(page: Page, request: unknown) {
   const moved = { ...asked, point: undefined };
   const host = requestHost(pages.get(popupOpenerKey(page.windowId)), page.profile, pages.values());
   if (host) return sendTo("openWindow", moved)(host);
-  openInBrowserWindow(moved, page.profile, () => console.warn("[ardia windows] a link from a private pop-up was dropped: no window of its private session can take it"));
+  openInBrowserWindow(moved, page.profile, page.windowId, () => console.warn("[ardia windows] a link from a private pop-up was dropped: no window of its private session can take it"));
 }
 
 function popupWindowGone(popup: PopupWindowInfo) {

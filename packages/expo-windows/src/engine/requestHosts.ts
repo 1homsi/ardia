@@ -25,7 +25,7 @@ export function requestHost<Candidate extends RequestPage>(opener: Candidate | u
 export const asOpenWindowRequest = (value: unknown): OpenWindowRequest | null =>
   typeof value === "object" && value !== null && typeof (value as OpenWindowRequest).url === "string" ? (value as OpenWindowRequest) : null;
 
-export function openInBrowserWindow(request: OpenWindowRequest, profile: string, giveUp: () => void) {
+export function openInBrowserWindow(request: OpenWindowRequest, profile: string, fromWindow: string, giveUp: () => void) {
   if (isPrivateName(profile)) return giveUp();
   const { adoptId } = request;
   if (adoptId) {
@@ -36,7 +36,7 @@ export function openInBrowserWindow(request: OpenWindowRequest, profile: string,
     clearTimeout(unadopted.get(adoptId)?.timer);
     unadopted.set(adoptId, { timer, giveUp });
   }
-  emitWhenListened("ArdiaTabs", "tabs", { name: "tabs.windowRequest", data: { request, profile } satisfies WindowRequest });
+  emitWhenListened("ArdiaTabs", "tabs", { name: "tabs.windowRequest", data: { request, profile, fromWindow } satisfies WindowRequest });
 }
 
 export function offeredTabAdopting(adoptId: string | undefined): (adopted: boolean) => void {

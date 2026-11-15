@@ -58,7 +58,7 @@ export function startNativeSync() {
   startWindowCloseGuard();
   startExtensionsBridge();
   onOpenURLs((urls, pointer, source, returnTo) => openExternalUrls(urls, pointer, source, returnTo));
-  onWindowRequest(({ request, profile }) => openFromWindowlessPage(request, profile));
+  onWindowRequest(({ request, profile, fromWindow }) => openFromWindowlessPage(request, profile, fromWindow));
   startUnclaimedEscape();
   startKeyboardFollows();
   void lastTabClosesWindow()

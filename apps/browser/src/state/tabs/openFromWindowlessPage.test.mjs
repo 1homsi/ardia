@@ -135,3 +135,53 @@ test("a peek or current-tab request from a lone pop-up, which has no tab to peek
   assert.equal(adoptedTab("ardiacore:10")?.windowId, w);
   assert.equal(stub.windows.focused, w);
 });
+
+const { createWindowSync } = await import("../windows/windowSync.ts");
+const { focusedWindowOf } = await import("../windows/ui.ts");
+const { useMountedTabIds } = await import("../windows/card.ts");
+const { mount } = await import("../../test-hooks.mjs");
+
+const recordingPort = (opened) => ({
+  open: (id, options) => opened.push({ id, options }),
+  close: () => {},
+  setTitle: () => {},
+  windowIds: async () => [],
+  restoreFullScreen: () => {},
+  onEvent: () => {},
+  releaseProfile: () => {},
+});
+
+test("a background link from a lone pop-up with no browser window opens one behind the pop-up, without focus, holding the offered page", () => {
+  openFromWindowlessPage(offered("ardiacore:11", "background"), "work", "popup:lone");
+  const tab = adoptedTab("ardiacore:11");
+  const w = S().windows[tab?.windowId];
+  assert.equal(w?.profileId, "work", "a window of the request's profile holds the offered page");
+  assert.notEqual(focusedWindowOf(S()), w.id, "the new window doesn't become the focused one");
+  const opened = [];
+  createWindowSync({ port: recordingPort(opened), getState: S, isQuitting: () => false, lightsCenter: () => null, isUtilityWindow: () => false }).sync(S());
+  const mine = opened.find((o) => o.id === w.id);
+  assert.equal(mine?.options.focus, false, "it opens without focus, so the pop-up keeps the keyboard");
+  assert.equal(mine?.options.behind, "popup:lone", "it opens behind the pop-up that asked");
+});
+
+test("a foreground link from a lone pop-up with no browser window opens its window in front, as before", () => {
+  openFromWindowlessPage(offered("ardiacore:12"), "work", "popup:lone");
+  const w = S().windows[adoptedTab("ardiacore:12")?.windowId];
+  assert.equal(focusedWindowOf(S()), w.id);
+  const opened = [];
+  createWindowSync({ port: recordingPort(opened), getState: S, isQuitting: () => false, lightsCenter: () => null, isUtilityWindow: () => false }).sync(S());
+  const mine = opened.find((o) => o.id === w.id);
+  assert.equal(mine?.options.focus, true);
+  assert.equal(mine?.options.behind, undefined);
+});
+
+test("a background tab holding a lone pop-up's offered page gets a mounted page view at once, so the offer is adopted, not closed at its deadline", () => {
+  const w = S().createWindow({ url: "https://work.example/", profileId: "work" });
+  openFromWindowlessPage(offered("ardiacore:13", "background"), "work", "popup:lone");
+  const tab = adoptedTab("ardiacore:13");
+  assert.equal(tab?.windowId, w);
+  assert.notEqual(S().windows[w].activeTabIds.work, tab.id, "it stays in the background");
+  const mounted = mount(() => useMountedTabIds(w));
+  assert.ok(mounted.value.includes(tab.id), "its page view mounts without being shown, which adopts the offer");
+  mounted.unmount();
+});

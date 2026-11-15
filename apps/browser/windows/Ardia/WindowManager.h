@@ -44,6 +44,7 @@ struct OpenWindowRequest {
   bool animated{false};
   std::string focusWhenFront;
   std::string focusWhenPage;
+  std::string behind;
 };
 
 struct ManagedWindow {
@@ -170,6 +171,13 @@ struct WindowManager {
     }
   }
 
+  void PlaceBehind(HWND hwnd, std::string_view id) const noexcept {
+    HWND under = Hwnd(id);
+    if (!under || !IsWindow(under) || under == hwnd) return;
+    SetWindowPos(hwnd, under, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    LaunchLog::Write(L"window", std::wstring(L"opened behind ").append(Paths::Wide(id)).append(L" without taking focus"));
+  }
+
   static void ShowAboveOpener(HWND hwnd, HWND opener) noexcept {
     if (!opener || !IsWindow(opener)) return;
     HWND top = opener;
@@ -228,6 +236,7 @@ struct WindowManager {
       bool quietPopup = !activate && placed->second.kind == "popup";
       if (quietPopup) ShowAboveOpener(hwnd, openedFrom);
       appWindow.Show(activate);
+      if (!activate && !request.behind.empty()) PlaceBehind(hwnd, request.behind);
       if (activate) SetForegroundWindow(hwnd);
       else if (quietPopup) {
         ShowAboveOpener(hwnd, openedFrom);
