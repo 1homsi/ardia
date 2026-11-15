@@ -1,6 +1,9 @@
 import { engineAvailable, hostCall, leaveOffersFromUnheard } from "../engine/host";
+import { mountPage } from "../engine/pages";
+import { setPopupsOpenAsTabs } from "../engine/popupsAsTabs";
 import { expectEqual, type Check } from "./check";
-import { click, evaluate, hide, keptBy, LEFT, listed, RIGHT, show, until, withPages } from "./engineSleep";
+import { httpPagesPort } from "./engineBackForward";
+import { click, evaluate, firstWindow, hide, keptBy, LEFT, listed, loaded, RIGHT, show, until, withPages } from "./engineSleep";
 
 const OPENS_LIVE_PAGE = 100;
 const UNSAVED_AFTER_USE = 101;
@@ -9,6 +12,8 @@ const LIVE_CONNECTION = 104;
 const INSPECTED_BY_ANOTHER_CLIENT = 105;
 const SIGNAL_MS = 5000;
 const UNHEARD_POPUP = "ardia-sleep-check-unheard";
+const TAB_POPUP = "ardia-sleep-check-as-tab";
+const OFFER_MS = 8000;
 
 const keptWithin = (key: string, code: number | number[], what: string) => {
   const wanted = Array.isArray(code) ? code : [code];
@@ -89,6 +94,37 @@ const keptChecks: Check[] = [
           await evaluate(page!, `const w = window.open("", "${UNHEARD_POPUP}"); if (w) w.close(); post("result", "null");`).catch(() => null);
         }
       }),
+  },
+  {
+    name: "engine sleep: the opener of a pop-up opened as a tab (Open pop-up windows as tabs) is kept",
+    async run() {
+      const port = httpPagesPort();
+      expectEqual(typeof port, "string", "the launch's loopback page server");
+      const windowId = await firstWindow();
+      const opener = "self-check-sleep-astab";
+      const tab = "self-check-sleep-astab-tab";
+      const offered: string[] = [];
+      const closeOpener = mountPage(opener, { url: `http://127.0.0.1:${port}/sleep?astab`, profile: "", windowId }, (name, data) => {
+        const adopt = (data as { adoptId?: unknown } | null)?.adoptId;
+        if (name === "openWindow" && typeof adopt === "string") offered.push(adopt);
+      });
+      let closeTab: (() => void) | null = null;
+      setPopupsOpenAsTabs(true);
+      try {
+        await loaded(opener);
+        await show(opener, windowId, LEFT);
+        expectEqual(await evaluate(opener, `post("result", JSON.stringify(!!window.open("about:blank", "${TAB_POPUP}", "width=320,height=240")));`, true), true, "window.open with a click returns a window");
+        await until("the pop-up is offered to the opener's page as a tab", OFFER_MS, async () => offered.length, (count) => count > 0);
+        closeTab = mountPage(tab, { url: "", profile: "", adopt: offered[0], windowId }, () => {});
+        await until("the pop-up is adopted as a tab", OFFER_MS, () => listed(tab), (listedTab) => !!listedTab);
+        await hide(opener, windowId);
+        await keptWithin(opener, OPENS_LIVE_PAGE, `kept as the opener of a pop-up opened as a tab (${OPENS_LIVE_PAGE})`);
+      } finally {
+        setPopupsOpenAsTabs(false);
+        closeTab?.();
+        closeOpener();
+      }
+    },
   },
 ];
 

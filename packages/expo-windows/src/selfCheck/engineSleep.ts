@@ -30,7 +30,7 @@ type Listed = Pick<ListedTab, "key" | "title"> & { loading?: boolean; discarded?
 
 export const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-const firstWindow = async () => {
+export const firstWindow = async () => {
   const ids = await requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows").windowIds();
   expectTrue(ids.length > 0, "no window is open to host a page");
   return ids[0]!;
