@@ -45,7 +45,7 @@ final class LinkActivationOrder: NSObject {
   }
 
   private static func restore(_ placements: [Placement], except opened: NSWindow?) {
-    for placement in placements {
+    for placement in placements.reversed() {
       guard let window = placement.window, window !== opened, window.isVisible, !window.isMiniaturized else { continue }
       window.order(.below, relativeTo: placement.below)
     }
