@@ -282,11 +282,10 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         "${width}x$height, ${frames} frames, ${framesPerSecond} fps, ${if (still) "still" else "moving"}, ${if (isDark) "dark" else "light"}, " +
             "transparency ${if (noBlobs) "reduced" else "on"}${if (budgetDegraded) " (look budget: degraded)" else ""}, mesh centre ${LookProbeText.hex(meshCentre())}"
 
-    private val drawTimes = LongArray(64)
-    private var drawIndex = 0
+    private var lastOthersDrew = 0L
+    private var ownDrawPending = false
     private val counted = ViewTreeObserver.OnPreDrawListener {
-        drawTimes[drawIndex] = SystemClock.uptimeMillis()
-        drawIndex = (drawIndex + 1) % drawTimes.size
+        if (ownDrawPending) ownDrawPending = false else lastOthersDrew = SystemClock.uptimeMillis()
         true
     }
     private var clockBase = 0L
@@ -312,12 +311,13 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     private var paceMillis = 40L
     private val tick = Runnable {
         val now = SystemClock.uptimeMillis()
-        if (LookRules.othersAreDrawing(drawTimes, now, paceMillis)) {
+        if (LookRules.othersMovedRecently(lastOthersDrew, now)) {
             holdStill(now)
             postDelayed(nextTick(), paceMillis)
         } else {
             moveOn(now)
             sceneFresh = renderScene(clock(now))
+            ownDrawPending = true
             invalidate()
             enclosingSource()?.let(FrostSources::retintFrostsOf)
         }
@@ -382,6 +382,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (animated && isShown) {
             when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
                 0L -> {
+                    ownDrawPending = true
                     postInvalidateOnAnimation()
                     postOnAnimation { enclosingSource()?.let(FrostSources::retintFrostsOf) }
                 }

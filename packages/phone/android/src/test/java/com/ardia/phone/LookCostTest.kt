@@ -57,17 +57,12 @@ class LookCostTest {
     }
 
     @Test
-    fun theBlobsHoldStillWhileSomethingElseDrawsAndMoveOnWhenOnlyTheyDo() {
-        val pace = 40L
+    fun theBlobsHoldStillWhileSomethingElseDrawsAndMoveOnAfterASecondOfQuiet() {
         val now = 10_000L
-        val ownOnly = LongArray(64).also { times -> for (i in 0 until 7) times[i] = now - i * pace }
-        assertFalse("the blobs' own paced frames are not someone else drawing", LookRules.othersAreDrawing(ownOnly, now, pace))
-        val scrolling = LongArray(64).also { times -> for (i in 0 until 30) times[i] = now - i * 8 }
-        assertTrue("a 120 Hz scroll", LookRules.othersAreDrawing(scrolling, now, pace))
-        val sixty = LongArray(64).also { times -> for (i in 0 until 15) times[i] = now - i * 16 }
-        assertTrue("a 60 Hz scroll", LookRules.othersAreDrawing(sixty, now, pace))
-        val longAgo = LongArray(64).also { times -> for (i in 0 until 30) times[i] = now - 2_000 - i * 8 }
-        assertFalse("a scroll that ended", LookRules.othersAreDrawing(longAgo, now, pace))
+        assertFalse("nothing but the blobs has drawn", LookRules.othersMovedRecently(0L, now))
+        assertTrue("a frame someone else asked for, just now", LookRules.othersMovedRecently(now - 16, now))
+        assertTrue("between two swipes 600 ms apart the blobs stay still", LookRules.othersMovedRecently(now - 600, now))
+        assertFalse("a second after the last foreign frame they move on", LookRules.othersMovedRecently(now - 1_000, now))
     }
 
     @Test
