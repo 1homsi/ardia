@@ -2,6 +2,7 @@ import { engineDomainModules } from "./domains";
 import { setCover, setPageRadius } from "./covers";
 import { discardOffered } from "./host";
 import { followPage, parkPage, releasePage } from "./pages";
+import { takeKeptFollows } from "./keptFollow";
 
 const pageCovers = {
   set: (windowId: string, id: string, x: number, y: number, width: number, height: number, radius = 0) => setCover(windowId, id, { x, y, width, height, radius }),
@@ -22,5 +23,6 @@ export const engineModules: Record<string, Record<string, unknown>> = {
     revealOffered: () => {},
     discardOffered: (adoptId: string) => discardOffered(adoptId),
     followKeyboard: (tabId: string) => followPage(tabId),
+    takeKeptFollows: () => takeKeptFollows(),
   },
 };

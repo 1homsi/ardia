@@ -233,6 +233,7 @@ const ADDED_ITEMS = {
     "How many imports from another browser finished, how many kinds of data (bookmarks, history, passwords and so on) came over or failed, and how many times some passwords or cookies were left behind because they couldn't be decrypted, summed up once an hour. Never which browser, pages, names or passwords",
     "How many deleted profiles had their browsing data removed from this Mac and how many removals had to wait or failed, summed up once an hour. Never which profile",
     "On Windows, how many sync files waited because they were online-only or still being written, and how many online-only sync files Ardia downloaded, summed up once an hour. Never which files or what's in them",
+    "On Windows, how many times a tab you switched to had no page yet, so Ardia held on to giving that page the keyboard, and how many of those it then gave and how many it let go (you moved on, clicked another page or typed in a field), summed up once an hour. Never which tab or page",
   ],
 };
 

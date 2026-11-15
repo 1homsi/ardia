@@ -9,6 +9,17 @@ const MOST_ANCESTORS = 4096;
 
 let readFocusedField: () => FocusedField = () => null;
 const pressedOver = new Map<string, unknown>();
+const fieldAskedListeners = new Set<() => void>();
+
+export function onFieldAsked(listener: () => void): () => void {
+  fieldAskedListeners.add(listener);
+  return () => void fieldAskedListeners.delete(listener);
+}
+
+export function fieldFocusedAnywhere(): boolean {
+  const focused = readFocusedField();
+  return !!focused && pressedOver.get(focused.windowId) !== focused.field;
+}
 
 export function readFocusedFieldWith(read: () => FocusedField) {
   readFocusedField = read;
@@ -29,6 +40,7 @@ export function fieldFocusedIn(windowId: string, forTab = ""): boolean {
 export function noteFieldAsked(windowId: string) {
   if (windowId) pressedOver.delete(windowId);
   else pressedOver.clear();
+  for (const listener of [...fieldAskedListeners]) listener();
 }
 
 export function placeOfField(field: unknown): FieldPlace {
