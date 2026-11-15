@@ -2,6 +2,7 @@ import { selfChecks } from "../app/selfCheck";
 import { useBrowser } from "../browser/store";
 import { webviews } from "../../platform/webviews";
 import { httpPagesPort } from "../../platform/launchConfig";
+import { lastTabClosesWindow } from "../../platform/tabs";
 
 const STORAGE_KEY = "ardia-profile-check";
 const COOKIE = "ardiaProfileCheck";
@@ -48,6 +49,7 @@ async function run(handle: WebViewHandle, code: string): Promise<Seen> {
 }
 
 async function checkMovedTabProfile() {
+  if (!(await lastTabClosesWindow().then(() => true, () => false))) return;
   const port = httpPagesPort();
   if (!port) throw new Error("no loopback page server: the launch has no httpPages port");
   const url = `http://127.0.0.1:${port}/a`;
