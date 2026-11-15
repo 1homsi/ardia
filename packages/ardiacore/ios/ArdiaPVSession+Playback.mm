@@ -430,9 +430,14 @@ using namespace ardia_protected_video;
   const CGFloat backing = content.window.backingScaleFactor ?: 2;
   const double k = _scale / backing;
   NSRect inContent = NSMakeRect(_rect.origin.x * k, _rect.origin.y * k, _rect.size.width * k, _rect.size.height * k);
-  if (!content.isFlipped) inContent.origin.y = NSHeight(content.bounds) - NSMaxY(inContent);
+  NSRect uncovered = NSMakeRect(inContent.origin.x, (_rect.origin.y + _coverTop) * k, inContent.size.width,
+                                MAX(0, _rect.size.height - _coverTop - _coverBottom) * k);
+  if (!content.isFlipped) {
+    inContent.origin.y = NSHeight(content.bounds) - NSMaxY(inContent);
+    uncovered.origin.y = NSHeight(content.bounds) - NSMaxY(uncovered);
+  }
   const NSRect full = [content convertRect:inContent toView:host];
-  const NSRect visible = NSIntersectionRect(full, content.frame);
+  const NSRect visible = NSIntersectionRect([content convertRect:uncovered toView:host], content.frame);
   if (NSIsEmptyRect(visible)) {
     _view.hidden = YES;
     return;

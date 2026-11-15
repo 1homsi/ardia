@@ -714,6 +714,34 @@
   const disconnect = PO && PO.prototype.disconnect;
   const { addEventListener: listen, removeEventListener: unlisten } = EventTarget.prototype;
   const raf = window.requestAnimationFrame;
+  const holds = (outer, inner) => {
+    for (let n = inner; n; n = n.parentNode || n.host) if (n === outer) return true;
+    return false;
+  };
+  const pinnedOver = (el, x, y) => {
+    for (let e = document.elementFromPoint(x, y); e && e !== document.body && e !== document.documentElement; e = e.parentElement) {
+      if (holds(e, el)) return null;
+      const position = getComputedStyle(e).position;
+      if (position === "fixed" || position === "sticky") return e.getBoundingClientRect();
+    }
+    return null;
+  };
+  const pinnedCover = (el, r) => {
+    const left = Math.max(r.left, 0);
+    const right = Math.min(r.right, innerWidth);
+    const top = Math.max(r.top, 0);
+    const bottom = Math.min(r.bottom, innerHeight);
+    const cover = { top: 0, bottom: 0 };
+    if (right - left < 2 || bottom - top < 2) return cover;
+    for (let i = 1; i <= 3; i++) {
+      const x = left + ((right - left) * i) / 4;
+      const above = pinnedOver(el, x, top + 1);
+      if (above && above.top <= top + 1) cover.top = Math.max(cover.top, Math.min(above.bottom, bottom) - r.top);
+      const below = pinnedOver(el, x, bottom - 1);
+      if (below && below.bottom >= bottom - 1) cover.bottom = Math.max(cover.bottom, r.bottom - Math.max(below.top, top));
+    }
+    return cover;
+  };
   const dateNow = Date.now;
   const timeOrigin = performance.timeOrigin;
   let fieldTiming = null;
@@ -2826,8 +2854,14 @@
       const reportRect = (b) => {
         const r = b.el.getBoundingClientRect();
         const visible = document.visibilityState === "visible" && b.el.isConnected && r.width > 0 && r.height > 0;
-        const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible };
-        const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible].join();
+        const geometry = [r.left, r.top, r.width, r.height].join();
+        if (geometry !== b.coverKey || ++b.coverAge >= 10) {
+          b.cover = visible ? pinnedCover(b.el, r) : { top: 0, bottom: 0 };
+          b.coverKey = geometry;
+          b.coverAge = 0;
+        }
+        const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible, coverTop: b.cover.top, coverBottom: b.cover.bottom };
+        const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible, rect.coverTop, rect.coverBottom].join();
         if (key === b.rectKey) return;
         b.rectKey = key;
         sendMedia(b, rect);
@@ -3653,8 +3687,14 @@
         const reportRect = (b) => {
           const r = b.el.getBoundingClientRect();
           const visible = document.visibilityState === "visible" && b.el.isConnected && r.width > 0 && r.height > 0;
-          const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible };
-          const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible].join();
+          const geometry = [r.left, r.top, r.width, r.height].join();
+          if (geometry !== b.coverKey || ++b.coverAge >= 10) {
+            b.cover = visible ? pinnedCover(b.el, r) : { top: 0, bottom: 0 };
+            b.coverKey = geometry;
+            b.coverAge = 0;
+          }
+          const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible, coverTop: b.cover.top, coverBottom: b.cover.bottom };
+          const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible, rect.coverTop, rect.coverBottom].join();
           if (key === b.rectKey) return;
           b.rectKey = key;
           send("hlsVideo", rect);

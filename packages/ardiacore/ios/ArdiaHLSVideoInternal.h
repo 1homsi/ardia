@@ -106,6 +106,8 @@ double Seconds(CMTime time);
   BOOL _showing;
   BOOL _hasRect;
   NSRect _rect;
+  double _coverTop;
+  double _coverBottom;
   double _scale;
   BOOL _rectVisible;
   BOOL _inPip;

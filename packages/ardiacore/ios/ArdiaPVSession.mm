@@ -324,6 +324,8 @@ using namespace ardia_protected_video;
       !Bounded(message, @"height", 0, 1e5, &height) || !Bounded(message, @"scale", 0.25, 8, &scale))
     return;
   _rect = NSMakeRect(x, y, width, height);
+  if (!Bounded(message, @"coverTop", 0, 1e5, &_coverTop)) _coverTop = 0;
+  if (!Bounded(message, @"coverBottom", 0, 1e5, &_coverBottom)) _coverBottom = 0;
   _scale = scale;
   _rectVisible = Flag(message, @"visible") && width > 0 && height > 0;
   _hasRect = YES;
