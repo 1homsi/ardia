@@ -2,6 +2,7 @@ import { Platform, StyleSheet } from "react-native";
 import { act } from "react-test-renderer";
 import { BottomBar } from "../components/browsing/BottomBar";
 import { BrowsingScreen } from "../components/browsing/BrowsingScreen";
+import { DesignProvider } from "../components/ui";
 import { barHeight, pageBarCenterFromBottom } from "../components/ui/barGeometry";
 import { currentTabs } from "../state/tabs/store";
 import { useBrowse } from "../state/browse/store";
@@ -33,15 +34,19 @@ test("on Android the bar still lifts above three-button navigation, and with ges
   expect(pageBarCenterFromBottom(16, "android")).toBe(44);
 });
 
-test("the bar on screen takes this phone's rule: its controls' bottom edge is the centre less half a button", () => {
+test("in the original design the bar on screen takes this phone's rule: its controls' bottom edge is the centre less half a button", () => {
   jest.spyOn(safeArea, "useSafeAreaInsets").mockImplementation(() => ({ top: 47, bottom: HOME_INDICATOR, left: 0, right: 0 }));
   const tab = currentTabs().open[0]!;
-  const root = renderSurface(<BrowsingScreen tab={tab} />);
+  const root = renderSurface(
+    <DesignProvider design="original">
+      <BrowsingScreen tab={tab} />
+    </DesignProvider>,
+  );
   const bar = root.root.findAll((node) => node.type === BottomBar)[0]!;
   let controls = bar.parent;
   while (controls && (typeof controls.type !== "string" || StyleSheet.flatten(controls.props.style)?.bottom === undefined)) controls = controls.parent;
   const centre = Platform.OS === "ios" ? 44 : pageBarCenterFromBottom(HOME_INDICATOR, "android");
   expect(StyleSheet.flatten(controls!.props.style).bottom).toBe(centre - 22);
-  expect(barHeight(HOME_INDICATOR)).toBe(Platform.OS === "ios" ? 75 : 75 + centre - 44);
+  expect(barHeight(HOME_INDICATOR, "original")).toBe(Platform.OS === "ios" ? 75 : 75 + centre - 44);
   unmount(root);
 });

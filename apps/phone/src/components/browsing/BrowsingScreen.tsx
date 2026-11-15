@@ -8,7 +8,7 @@ import { BAR_SHOWN, followScroll, pageInsets } from "../../lib/barCollapse";
 import { neighbours } from "../../lib/pagerPhysics";
 import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
-import { closePageMenu, openPageMenu } from "../../state/page/actions";
+import { closePageMenu, editPageQuery, openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, usePressOpen, useReaderTabId } from "../../state/page/hooks";
 import { captureCurrentCover, newTab, pageLaidOut, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
@@ -29,11 +29,14 @@ import {
   tabsInk,
   tabsLayout,
   tabsMotion,
+  floatingBarLayout,
+  useDesign,
   usePresence,
   useTheme,
   type MenuItem,
 } from "../ui";
 import { BottomBar } from "./BottomBar";
+import { FloatingBar } from "./FloatingBar";
 import { FindBar } from "./FindBar";
 import { PageMenu } from "./PageMenu";
 import { PageRequestHost, PressMenu } from "./PageRequests";
@@ -49,6 +52,7 @@ import { shownTone } from "../../lib/pageTone";
 export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   countRender("BrowsingScreen");
   const theme = useTheme();
+  const design = useDesign();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const menuOpen = useMenuOpen();
@@ -82,11 +86,19 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const barDark = isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding);
-  const layout = pageInsets(collapse.collapses, barHeight(insets.bottom), browseLayout.pageOverlap);
+  const layout = pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
   const painted = useSharedValue(false);
   useEffect(() => {
     painted.value = true;
   }, [painted]);
+  const openTabsMenu = () => {
+    menuOpenedHaptic();
+    setTabsMenu(true);
+  };
+  const stepTab = (delta: -1 | 1) => {
+    const id = delta < 0 ? left?.id : right?.id;
+    if (id) switchToNeighbour(id);
+  };
   const statusStyle = useAnimatedStyle(() => ({ backgroundColor: painted.value ? withTiming(top, { duration: tabsMotion.barTone }) : top }), [top]);
   const barStyle = useAnimatedStyle(() => ({ backgroundColor: painted.value ? withTiming(bottom, { duration: tabsMotion.barTone }) : bottom }), [bottom]);
   return (
@@ -112,27 +124,31 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
             <Animated.View
               pointerEvents={collapse.hidden ? "none" : "auto"}
               importantForAccessibility={collapse.hidden ? "no-hide-descendants" : "auto"}
-              style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle, collapse.style]}
+              style={[styles.bar, { height: barHeight(insets.bottom, design) }, barStyle, collapse.style]}
             >
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
-              <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
-                <BottomBar
-                  order={order}
-                  roles={rolesFor(barDark)}
-                  showsPlus={!searching}
-                  onTabs={showDeck}
-                  onTabsMenu={() => {
-                    menuOpenedHaptic();
-                    setTabsMenu(true);
-                  }}
-                  onStep={(delta) => {
-                    const id = delta < 0 ? left?.id : right?.id;
-                    if (id) switchToNeighbour(id);
-                  }}
-                  onPlus={newTab}
-                  onMore={openPageMenu}
-                />
-              </View>
+              {design === "redesigned" ? (
+                <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - floatingBarLayout.control / 2 }]} pointerEvents="box-none">
+                  <FloatingBar
+                    tab={tab}
+                    order={order}
+                    roles={rolesFor(barDark)}
+                    showsPlus={!searching}
+                    onTabs={showDeck}
+                    onTabsMenu={openTabsMenu}
+                    onStep={stepTab}
+                    onAddress={editPageQuery}
+                    onPlus={newTab}
+                    onMore={openPageMenu}
+                  />
+                </View>
+              ) : (
+                <>
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
+                  <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - browseLayout.hitTarget / 2 }]}>
+                    <BottomBar order={order} roles={rolesFor(barDark)} showsPlus={!searching} onTabs={showDeck} onTabsMenu={openTabsMenu} onStep={stepTab} onPlus={newTab} onMore={openPageMenu} />
+                  </View>
+                </>
+              )}
             </Animated.View>
           </GestureDetector>
         }
@@ -141,7 +157,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
       {tabsMenu ? (
         <Menu
           items={tabsMenuItems(order)}
-          place={{ bottom: barHeight(insets.bottom) + space.xs, left: space.l, width: Math.min(tabsLayout.menuWidth, width - space.l * 2) }}
+          place={{ bottom: barHeight(insets.bottom, design) + space.xs, left: space.l, width: Math.min(tabsLayout.menuWidth, width - space.l * 2) }}
           onDismiss={() => setTabsMenu(false)}
         />
       ) : null}

@@ -21,7 +21,7 @@ import {
 import { Backdrop } from "./Backdrop";
 import { useReduceTransparency } from "./contrast";
 import { useProfileLook, useTheme } from "./theme";
-import { tabsInk } from "./tokens";
+import { chromeInk, chromeLayout, tabsInk } from "./tokens";
 
 export const SURFACES_FROST = "surfaces";
 
@@ -175,6 +175,50 @@ export function LookFrost({
 }
 
 export const usesGlass = () => glassIsNative();
+
+export function ChromeSurface({
+  shape,
+  cornerRadius,
+  incognito = false,
+  testID,
+  style,
+  children,
+}: {
+  shape: GlassShape;
+  cornerRadius: number;
+  incognito?: boolean;
+  testID?: string;
+  style?: StyleProp<ViewStyle>;
+  children?: ReactNode;
+}) {
+  const look = useProfileLook();
+  const theme = useTheme();
+  if (glassIsNative()) {
+    return (
+      <Glass testID={testID} source={SURFACES_FROST} shape={shape} interactive {...lookColors(look, incognito)} dark={incognito || theme.dark} style={[style, { borderRadius: cornerRadius }]}>
+        {children}
+      </Glass>
+    );
+  }
+  const ink = incognito || theme.dark ? chromeInk.dark : chromeInk.light;
+  return (
+    <View
+      testID={testID}
+      style={[
+        style,
+        {
+          borderRadius: cornerRadius,
+          backgroundColor: ink.surface,
+          borderWidth: chromeLayout.edge,
+          borderColor: ink.edge,
+          boxShadow: `0px ${chromeLayout.shadowY}px ${chromeLayout.shadowRadius * 2}px ${ink.shadow}`,
+        },
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
 
 export function LookGlass({
   shape,

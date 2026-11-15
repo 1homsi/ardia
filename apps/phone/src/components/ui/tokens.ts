@@ -221,6 +221,29 @@ export const archiveCardLayout = { radius: 16, tile: 28, maxWidth: 520, aboveBar
 
 export const onboardingArt = { appIcon: 60, linkCardWidth: 210, linkCardRadius: 18, stripHeight: 64, arrowLift: 26, shadowRadius: 12, sheetRadius: 38 } as const;
 
+export const floatingBarLayout = {
+  control: 48,
+  gap: 8,
+  edgeInset: 12,
+  bottomGap: 21.5,
+  glyph: 19,
+  menuGlyph: 17,
+  addressLead: 13,
+  addressSpacing: 6,
+  siteIcon: 16,
+  hostText: 15,
+  warningText: 13,
+  privateIconShare: 0.92,
+  maxTextScale: 1.35,
+} as const;
+
+export const chromeLayout = { edge: 0.5, shadowRadius: 10, shadowY: 2 } as const;
+
+export const chromeInk = {
+  light: { surface: "#FFFFFF", edge: "rgba(0,0,0,0.12)", shadow: "rgba(0,0,0,0.12)", foreground: "rgba(14,15,16,0.9)", secondary: "rgba(0,0,0,0.5)", notSecure: "#F7931E" },
+  dark: { surface: "#000000", edge: "rgba(255,255,255,0.12)", shadow: "rgba(0,0,0,0.4)", foreground: "rgba(255,255,255,0.8)", secondary: "rgba(255,255,255,0.5)", notSecure: "#FF9F0A" },
+} as const;
+
 export const syncSketch = {
   macWidth: 250,
   macHeight: 168,

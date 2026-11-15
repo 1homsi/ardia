@@ -70,7 +70,7 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onStep,
   );
 }
 
-function TabStack({ tabs, roles }: { tabs: BrowserTab[]; roles: ColorRoles }) {
+export function TabStack({ tabs, roles }: { tabs: BrowserTab[]; roles: ColorRoles }) {
   const tile = tabsLayout.tabStackTile;
   if (!tabs.length) {
     return <View style={[styles.tile, { width: tile.width, height: tile.height, borderColor: roles.foregroundSecondary, borderWidth: 1.5 }]} />;
