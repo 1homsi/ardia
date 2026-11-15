@@ -9,7 +9,7 @@ const deferred = () => { let resolve; const promise = new Promise((yes) => { res
 const item = { id: "i", source: "github", url: "https://example.test/item", title: "Item", subtitle: "", icon: null, updatedAt: 0 };
 const folder = { id: "f", profileId: "p", kind: "pullRequests", name: "f", icon: null, collapsed: false, sources: ["github"], filters: { authored: true, reviewRequests: true }, groupStacks: true, showCompleted: true, createdAt: 0 };
 const liveDocument = (seeded) => ({ folders: seeded ? { f: folder } : {}, folderOrder: seeded ? ["f"] : [], items: seeded ? { f: [item] } : {}, known: seeded ? { f: ["i"] } : {}, unread: {}, hidden: {}, completed: {}, accounts: {}, expandedStacks: {}, config: {}, calendar: { hiddenCalendarIds: [] }, meetingGroups: {}, dismissedAlerts: [], version: 1 });
-let payload = liveDocument(false), revision = 0, watermark = 0, generation = 0, generations = {}, incarnations = {}, mode = "accept", heldReply;
+let payload = liveDocument(false), revision = 0, watermark = 0, generation = 0, generations = {}, incarnations = {}, mode = "accept", heldReply, onFieldCommit;
 const requests = [], listeners = new Set(), receipts = new Map();
 const snapshot = () => structuredClone({ document: "live.json", scope: "scope", epoch: "epoch", clientId: "a", revision, watermark, payload, incarnations, generations });
 const emit = (clientId = "peer", requestId = "peer:1") => { for (const listener of listeners) listener("ArdiaDocuments", "documents", { name: "documents.changed", data: { snapshot: snapshot(), clientId, requestId } }); };
@@ -22,6 +22,8 @@ const host = {
     requests.push(request);
     if (receipts.has(request.requestId)) return JSON.stringify(receipts.get(request.requestId));
     const operation = request.operations[0];
+    const field = request.operations.find((op) => op.type === "field" && op.field === "hiddenRepos");
+    if (field && onFieldCommit) { const hook = onFieldCommit; onFieldCommit = undefined; hook(field); }
     let superseded = false;
     if (operation.type === "refresh") {
       if (mode === "reject") throw Object.assign(new Error("Fixture write failure"), { code: "ERR_DOCUMENT_STORAGE" });
@@ -46,7 +48,7 @@ const host = {
   },
 };
 globalThis.window = { __ardiaHost: host };
-const { live, setLive } = await import("../../browser/src/state/live/store.ts");
+const { live, setLive, updateFolder } = await import("../../browser/src/state/live/store.ts");
 const { refreshFolder, COMPLETION_MS } = await import("../../browser/src/state/live/engine.ts");
 const { SOURCES } = await import("../../browser/src/state/live/sources.ts");
 const { flushLinuxDocuments } = await import("./documentFlush.ts");
@@ -157,4 +159,22 @@ test("a refresh that finds a new repo while new repos stay hidden still lands wh
   assert.deepEqual(payload.folders.f.hiddenRepos, ["github:acme/new"]);
   assert.ok(payload.items.f.some((entry) => entry.id === "followed"));
   assert.ok(!payload.items.f.some((entry) => entry.id === "discovered"));
+});
+
+test("a folder edit that saves while the refresh is claimed again keeps what was fetched before it out", async (context) => {
+  await reset(context);
+  const followed = { ...item, id: "followed", pr: { number: 3, repo: "acme/old" } };
+  const discovered = { ...item, id: "discovered", pr: { number: 4, repo: "acme/new" } };
+  payload = { ...payload, folders: { f: { ...folder, showNewRepos: false, shownRepos: ["github:acme/old"], hiddenRepos: [] } } };
+  revision++; emit();
+  const previousFetch = SOURCES.github.fetch;
+  SOURCES.github.fetch = async () => [followed, discovered];
+  onFieldCommit = () => updateFolder("f", { sources: [] });
+  try {
+    await refreshFolder("f"); await flushLinuxDocuments();
+  } finally { SOURCES.github.fetch = previousFetch; onFieldCommit = undefined; }
+  assert.deepEqual(payload.folders.f.sources, []);
+  assert.equal(requests.some((request) => request.operations[0].type === "refresh" && !receipts.get(request.requestId)?.superseded), false);
+  assert.ok(!payload.items.f.some((entry) => entry.id === "followed"));
+  assert.equal(live().status.f?.state, "idle");
 });

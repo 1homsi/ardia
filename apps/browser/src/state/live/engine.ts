@@ -43,6 +43,10 @@ export function manualRefresh(folderId: string): Promise<void> {
   return refreshFolder(folderId);
 }
 
+const sortedKeys = (_key: string, value: unknown) =>
+  value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : value;
+const sameFolder = (a: unknown, b: unknown) => JSON.stringify(a, sortedKeys) === JSON.stringify(b, sortedKeys);
+
 function claimRefresh(folderId: string) {
   const refresh = beginLiveRefresh(folderId);
   return refresh?.catch((error: unknown) => { console.warn("Couldn't claim the live folder refresh", error); return null; }).then((fence) => {
@@ -91,10 +95,15 @@ async function run(folderId: string) {
 
   const folderBeforeHiding = live().folders[folderId];
   hideNewRepos(folderId, fetched);
-  if (fence !== undefined && folderBeforeHiding === folder && live().folders[folderId] !== folderBeforeHiding) {
+  const folderAfterHiding = live().folders[folderId];
+  if (fence !== undefined && sameFolder(folderBeforeHiding, folder) && !sameFolder(folderAfterHiding, folderBeforeHiding)) {
     const reclaim = claimRefresh(folderId);
     fence = reclaim ? await reclaim : undefined;
     if (fence === null || !live().folders[folderId]) return;
+    if (!sameFolder(live().folders[folderId], folderAfterHiding)) {
+      setStatus(folderId, { state: "idle" });
+      return;
+    }
   }
   const current = live();
   const prev = current.items[folderId] ?? [];
