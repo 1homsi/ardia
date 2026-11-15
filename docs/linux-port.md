@@ -305,7 +305,10 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 - **Unloading idle profiles.** Settings › Advanced › Performance › Unload inactive profiles works as on macOS: the
   shared `state/profiles/profileUnloading.ts` calls `profiles.unloadIdle` for a profile no window shows. Only the
   window holding the tab-policy lock runs it (`startLinuxTabPolicies` in `hostPolicies.ts`), and only when the host
-  answers the call, so one renderer checks every minute instead of each window racing the others. The host
+  answers the call, so one renderer checks every minute instead of each window racing the others. The host reports
+  each tab it closes for the unload as the page's `windowClose`, before its reply, so the shell ignores that event
+  for a profile whose `profiles.unloadIdle` call is in flight and for a tab it put to sleep for the unload
+  (`closedByUnload`, checked by `pageAskedToClose`); the tabs stay in the sidebar and load again with their history. The host
   (`ac_linux_idle_profiles.cc`, Chrome glue in `ac_linux_idle_profile_engine.cc`) answers `busy` with `heldBy` when a
   tab of that profile has no binding (`tab`) or is visible, in its own window, capturing, in picture in picture or has
   DevTools open; when the profile is the app profile, has a private profile or a download (`profile`, `private`,
