@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import type { OpenWindowRequest } from "@ardia/ardiacore";
 import type { MeadowIntroEvent, MeadowProps } from "@ardia/shaders";
 import type { AppNative } from "@ardia/shell";
 import { takeKeyboardFor } from "../appKeyboard";
@@ -116,7 +117,7 @@ export function MeadowPage({ intro, night, onIntro, onTone, style }: MeadowProps
           style={StyleSheet.absoluteFill}
           onPageEvent={({ nativeEvent }) => {
             if (nativeEvent.name === "openWindow") {
-              const adopt = (nativeEvent.data as { adoptId?: unknown } | null)?.adoptId;
+              const adopt = (nativeEvent.data as Pick<OpenWindowRequest, "adoptId"> | null)?.adoptId;
               if (typeof adopt === "string") void discardOffered(adopt);
               return;
             }

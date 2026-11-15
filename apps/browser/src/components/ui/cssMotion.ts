@@ -1,6 +1,5 @@
+import type { EasingFunction } from "react-native";
 import type { spring } from "./motion";
-
-type Curve = (t: number) => number;
 
 type SpringPhysics = ReturnType<typeof spring>;
 
@@ -12,7 +11,7 @@ const REACH_STEPS = 40;
 
 const fixed = (n: number) => String(Math.round(n * 10000) / 10000);
 
-export function cssEasing(curve: Curve, steps = CURVE_STEPS): string {
+export function cssEasing(curve: EasingFunction, steps = CURVE_STEPS): string {
   const points = Array.from({ length: steps + 1 }, (_, i) => fixed(i === 0 ? 0 : i === steps ? 1 : curve(i / steps)));
   return `linear(${points.join(", ")})`;
 }
@@ -47,7 +46,7 @@ export function cssSpring(physics: SpringPhysics, steps = SPRING_STEPS): { durat
   return { duration: ms, easing: cssEasing(curve, steps) };
 }
 
-export function timeToReach(curve: Curve, progress: number): number {
+export function timeToReach(curve: EasingFunction, progress: number): number {
   let low = 0;
   let high = 1;
   for (let i = 0; i < REACH_STEPS; i++) {
