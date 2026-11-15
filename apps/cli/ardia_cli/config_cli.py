@@ -8,16 +8,17 @@ import textwrap
 from pathlib import Path
 
 from ardia_cli import config_files as files
+from ardia_cli import endpoint
 from ardia_cli.config_files import ConfigError, Places
 from ardia_cli.printable import complain, say
 from ardia_cli.schema_check import Problem, describe, did_you_mean, ecma_pattern, format_path, show, validate
 
 CONFIG_DESCRIPTION = """\
-Set Ardia up from ~/.config/ardia/config.json, dotfiles style. Ardia reads the file at launch and whenever it
+Set Ardia up from {folder}/config.json, dotfiles style. Ardia reads the file at launch and whenever it
 changes, and never writes it; these commands edit it for you and check it against the schema Ardia writes.
 None of them need Ardia running.
 
-The config folder is ~/.config/ardia, or <data dir>/config with --data-dir or $ARDIA_DATA_DIR. Keys, allowed
+The config folder is {folder}, or <data dir>/config with --data-dir or $ARDIA_DATA_DIR. Keys, allowed
 values and defaults come from config.schema.json in the config folder, else <data dir>/config-schema/ (the named
 data dir, else the installed app's).
 
@@ -28,7 +29,7 @@ Commands:
   set KEY VALUE      check VALUE and write it (KEY is a setting or shortcuts.<command id>)
   unset KEY          take a key out of the file (Ardia keeps its current value)
   list               every setting: allowed values, default and the file's value
-  edit               open config.json in $VISUAL, $EDITOR or vi, then check it
+  edit               open config.json in $VISUAL, $EDITOR or {fallback}, then check it
   check              check config.json and the theme it names
 
 Exit status: 0 done, 1 a check failed or the input is wrong.
@@ -48,6 +49,13 @@ Commands:
   use NAME|none             make NAME the active theme, or go back to Ardia's own
   list                      the themes, the active one marked
   check [NAME|FILE]         check a theme (default: the active one)
+  get [KEY]                 print a key from the theme, or the whole file
+  set KEY VALUE             check VALUE and write it; a running Ardia restyles at once
+  unset KEY                 take a key out of the theme (Ardia's own value comes back)
+
+get, set and unset work on the active theme, or on --theme NAME. KEY is a dotted path: dark.accent,
+type.sizes.body, metrics.radius.row, layout.hide, icons.chevron.down (after icons. it's one SF Symbol name).
+With no active theme, set creates themes/custom.json and makes it active.
 
 Exit status: 0 done, 1 a check failed or the input is wrong.
 """
@@ -61,12 +69,42 @@ Examples:
   ardia config set shortcuts.newTab cmd+shift+n
   ardia config set shortcuts.reopenClosedTab ''
 """
+THEME_SET_DESCRIPTION = """\
+Write one key to a theme (default: the active one); a running Ardia restyles at once. KEY is a dotted path whose
+first part is dark, light, type, metrics, layout or icons. Under icons, everything after icons. is one SF Symbol
+name (icons.chevron.down). VALUE is parsed as JSON, else taken as a string, and checked against theme.schema.json
+first; a value that fails leaves the file as it was. The file is rewritten even when it already holds the value, so
+a running Ardia applies it again. With no active theme and no --theme, it creates themes/custom.json and makes it
+the active theme.
+
+Examples:
+  ardia theme set dark.accent '#FF9F5A'
+  ardia theme set type.family "Avenir Next"
+  ardia theme set type.sizes.body 14
+  ardia theme set metrics.rowHeight 40
+  ardia theme set metrics.radius.row 14
+  ardia theme set layout.hide '["navButtons"]'
+  ardia theme set layout.addressField bottom
+  ardia theme set icons.plus plus.circle
+  ardia theme set --theme nord light.accent '#5E81AC'
+"""
 SHORTCUT_HELP = (
     "Shortcuts are one string per command: modifiers cmd, opt (option, alt), ctrl (control), shift, fn, joined with +,"
     " then a character, f1-f20, space, tab, return, escape, delete, up, down, left, right, home, end, pageup or"
     " pagedown; or glyphs like ⌘⇧T; '' unbinds."
 )
-DATA_DIR_HELP = "the Ardia data dir; the config folder is <DIR>/config (default: $ARDIA_DATA_DIR, else ~/.config/ardia)"
+THEME_HELP = "the theme to work on (default: the active one)"
+THEME_KEY_HELP = "a dotted key: dark.ROLE, light.ROLE, type.family, metrics.radius.row, layout.hide, icons.SYMBOL"
+CUSTOM_THEME = "custom"
+FOLDER_SHOWN = f"{endpoint.LINUX_DATA_DIR_SHOWN}/config" if endpoint.LINUX else "~/.config/ardia"
+EDITOR_FALLBACK = "xdg-open (vi with no display)" if endpoint.LINUX else "vi"
+CONFIG_DESCRIPTION = CONFIG_DESCRIPTION.replace("{folder}", FOLDER_SHOWN).replace("{fallback}", EDITOR_FALLBACK)
+EDIT_HELP = (
+    ("open config.json in $VISUAL or $EDITOR and check it, else with xdg-open", "Open config.json (created first if needed) in $VISUAL or $EDITOR, wait for the editor to exit, then\ncheck it like ardia config check. With neither set, in a desktop session it opens the file with xdg-open, which\nreturns at once, so run ardia config check once you've saved it; with no display or no xdg-open it uses vi.")
+    if endpoint.LINUX
+    else ("open config.json in $VISUAL, $EDITOR, else vi, then check it", "Open config.json (created first if needed) in $VISUAL, $EDITOR, else vi, wait for the editor to exit, then\ncheck it like ardia config check.")
+)
+DATA_DIR_HELP = f"the Ardia data dir; the config folder is <DIR>/config (default: $ARDIA_DATA_DIR, else {FOLDER_SHOWN})"
 CHANNEL = r"\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\s*"
 ALPHA = r"\s*(?:0|1|0?\.[0-9]+|1\.0+)\s*"
 COLOUR = re.compile(
@@ -159,11 +197,11 @@ def add_parsers(commands, formatter):
     unset.add_argument("key", metavar="KEY", help="a setting name or shortcuts.<command id>")
     listing = command("list", "list every setting with its allowed values, default and file value")
     listing.add_argument("--json", action="store_true", help="print JSON")
-    command("edit", "open config.json in $VISUAL, $EDITOR, else vi, then check it", "Open config.json (created first if needed) in $VISUAL, $EDITOR, else vi, wait for the editor to exit, then\ncheck it like ardia config check.")
+    command("edit", *EDIT_HELP)
     check = command("check", "check config.json and the theme it names", "Check config.json and the theme it names, the way Ardia reads them. Exit 1 on any problem.")
     check.add_argument("--json", action="store_true", help="print JSON")
 
-    theme = commands.add_parser("theme", help="make, pick and check themes", description=THEME_DESCRIPTION, formatter_class=formatter)
+    theme = commands.add_parser("theme", help="make, pick, edit and check themes", description=THEME_DESCRIPTION, formatter_class=formatter)
     tsub = theme.add_subparsers(dest="theme_command", metavar="<command>")
 
     def theme_command(name, help_text, description=None):
@@ -181,6 +219,17 @@ def add_parsers(commands, formatter):
     tcheck = theme_command("check", "check a theme", "Check a theme by name or file (default: the active one). Exit 1 on any problem.")
     tcheck.add_argument("target", nargs="?", metavar="NAME|FILE", help="a theme name or a path to a theme file")
     tcheck.add_argument("--json", action="store_true", help="print JSON")
+    tget = theme_command("get", "print a key from the theme, or the whole file", "Print a key from a theme (default: the active one), or the whole file. Exit 1 when the file doesn't set\nthe key; the message gives Ardia's default when the schema has one.")
+    tget.add_argument("key", nargs="?", metavar="KEY", help=THEME_KEY_HELP)
+    tget.add_argument("--theme", metavar="NAME", help=THEME_HELP)
+    tget.add_argument("--json", action="store_true", help="print JSON")
+    tset = theme_command("set", "check a value and write it to the theme; Ardia restyles at once", THEME_SET_DESCRIPTION)
+    tset.add_argument("key", metavar="KEY", help=THEME_KEY_HELP)
+    tset.add_argument("value", metavar="VALUE", help="JSON, else a plain string")
+    tset.add_argument("--theme", metavar="NAME", help=THEME_HELP)
+    tunset = theme_command("unset", "take a key out of the theme", "Take a key out of a theme (default: the active one) and drop the blocks it leaves empty. Ardia goes back\nto its own value for that key.")
+    tunset.add_argument("key", metavar="KEY", help=THEME_KEY_HELP)
+    tunset.add_argument("--theme", metavar="NAME", help=THEME_HELP)
     return config, theme
 
 
@@ -194,7 +243,7 @@ def run_config(args, parser) -> int:
 
 
 def run_theme(args, parser) -> int:
-    handlers = {"new": theme_new, "use": theme_use, "list": theme_list, "check": theme_check}
+    handlers = {"new": theme_new, "use": theme_use, "list": theme_list, "check": theme_check, "get": theme_get, "set": theme_set, "unset": theme_unset}
     handler = handlers.get(args.theme_command)
     if handler is None:
         parser.parse_args(["theme", "--help"])
@@ -466,14 +515,23 @@ def config_list(args, where: Places) -> int:
     return 0
 
 
-def editor_command() -> list[str]:
+def has_display() -> bool:
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
+def editor_command(linux: bool | None = None) -> tuple[list[str], bool]:
     import shlex
+    import shutil
 
     for variable in ("VISUAL", "EDITOR"):
         value = os.environ.get(variable, "").strip()
         if value:
-            return shlex.split(value)
-    return ["vi"]
+            return shlex.split(value), True
+    if (endpoint.LINUX if linux is None else linux) and has_display():
+        opener = shutil.which("xdg-open")
+        if opener:
+            return [opener], False
+    return ["vi"], True
 
 
 def config_edit(args, where: Places) -> int:
@@ -482,7 +540,7 @@ def config_edit(args, where: Places) -> int:
     if not os.path.lexists(where.config):
         where.folder.mkdir(parents=True, exist_ok=True)
         create(where.config, files.dump(files.new_config()))
-    command = editor_command()
+    command, waits = editor_command()
     try:
         status = subprocess.call(command + [str(where.config)])
     except OSError as error:
@@ -490,6 +548,9 @@ def config_edit(args, where: Places) -> int:
     if status != 0:
         complain(f"ardia config: {command[0]} exited with status {status}")
         return 1
+    if not waits:
+        say(f"opened {where.config} with {os.path.basename(command[0])}; run ardia config check once you've saved it (set $VISUAL or $EDITOR to edit here)")
+        return 0
     args.json = False
     return config_check(args, where)
 
@@ -590,6 +651,11 @@ def matches(pattern: re.Pattern | None, value) -> bool:
     return isinstance(value, str) and (pattern is None or pattern.search(value) is not None)
 
 
+def unknown_key(name: str, noun: str, key: str, known: list) -> str:
+    hint = did_you_mean(key, known) or " (" + ", ".join(known) + ")"
+    return f"{name} isn't a {noun} key{hint}"
+
+
 def look_problems(spec: dict, value, path: tuple) -> list[Problem]:
     name = format_path(path)
     kind = spec.get("type")
@@ -602,7 +668,7 @@ def look_problems(spec: dict, value, path: tuple) -> list[Problem]:
         for key, given in value.items():
             sub = properties.get(key)
             if not isinstance(sub, dict):
-                problems.append(Problem(path + (key,), f"{name}.{key} isn't a {noun} key ({', '.join(properties)}){did_you_mean(key, properties)}"))
+                problems.append(Problem(path + (key,), unknown_key(f"{name}.{key}", noun, key, list(properties))))
                 continue
             problems += look_problems(sub, given, path + (key,))
         return problems
@@ -685,7 +751,7 @@ def theme_problems(document, schema: dict | None) -> list[Problem]:
     keys = theme_keys(schema)
     for key in document:
         if key != "$schema" and key not in keys:
-            problems.append(Problem((key,), f"{key} isn't a theme key ({', '.join(keys)}){did_you_mean(key, keys)}"))
+            problems.append(Problem((key,), unknown_key(key, "theme", key, keys)))
     for mode in files.MODES:
         if mode not in document:
             continue
@@ -821,15 +887,8 @@ def theme_new(args, where: Places) -> int:
 def theme_use(args, where: Places) -> int:
     name = None if args.name == "none" else args.name
     if name is not None:
-        files.check_theme_name(name)
-        path = where.theme(name)
-        if not path.exists():
-            raise ConfigError(f"no theme named {name} in {where.themes}{did_you_mean(name, files.theme_names(where))} (ardia theme new {name} makes one)")
-    document, created = files.load_config(where, create=True)
-    document = files.with_key(document, "theme", name, after="$schema")
-    files.save_config(where, document, created)
-    if created:
-        complain(f"ardia theme: created {where.config}")
+        path = existing_theme(where, name)
+    activate(where, name)
     if name is None:
         say("theme: none (Ardia's own palette)")
         return 0
@@ -838,6 +897,22 @@ def theme_use(args, where: Places) -> int:
         complain(f"warning: {where.show(path)}: {problem.message}")
     say(f"theme: {name}")
     return 0
+
+
+def existing_theme(where: Places, name: str) -> Path:
+    files.check_theme_name(name)
+    path = where.theme(name)
+    if not path.exists():
+        raise ConfigError(f"no theme named {name} in {where.themes}{did_you_mean(name, files.theme_names(where))} (ardia theme new {name} makes one)")
+    return path
+
+
+def activate(where: Places, name: str | None) -> None:
+    document, created = files.load_config(where, create=True)
+    document = files.with_key(document, "theme", name, after="$schema")
+    files.save_config(where, document, created)
+    if created:
+        complain(f"ardia theme: created {where.config}")
 
 
 def active_theme(where: Places):
@@ -891,3 +966,216 @@ def theme_check(args, where: Places) -> int:
     if schema.document is None:
         warnings.append(f"no {files.THEME_SCHEMA} found, so unknown colour roles weren't checked")
     return report([(path, where.show(path), check_theme_file(where, path, schema.document))], warnings, args.json)
+
+
+def theme_key(key: str) -> tuple:
+    head, dot, rest = key.partition(".")
+    path = (head, rest) if head == "icons" and dot else tuple(key.split("."))
+    if any(part == "" for part in path) or head == "$schema":
+        raise ConfigError(f"{key!r} isn't a theme key; write a dotted path like dark.accent, metrics.rowHeight or icons.plus")
+    return path
+
+
+def theme_schema(where: Places) -> files.Schema:
+    found = files.find_schema(where, files.THEME_SCHEMA)
+    if found.warning:
+        complain(f"ardia theme: {found.warning}")
+    return found
+
+
+def mode_spec(schema: dict | None, mode: str) -> dict:
+    if schema is None:
+        return {"type": "object"}
+    return {"type": "object", "properties": {role: spec for role, spec in files.role_specs(schema, mode).items() if role != "dark"}}
+
+
+def key_spec(schema: dict | None, path: tuple) -> tuple[dict | None, str | None]:
+    level = {"properties": {**{mode: mode_spec(schema, mode) for mode in files.MODES}, **look_specs(schema)}}
+    for depth, part in enumerate(path):
+        properties = level.get("properties")
+        if isinstance(properties, dict):
+            if part not in properties:
+                return None, unknown_key_at(path[:depth], part, list(properties))
+            level = properties[part]
+        elif isinstance(level.get("additionalProperties"), dict):
+            level = level["additionalProperties"]
+        else:
+            return None, None
+        if not isinstance(level, dict):
+            return None, None
+    return level, None
+
+
+def unknown_key_at(parent: tuple, key: str, known: list) -> str:
+    if not parent:
+        return unknown_key(key, "theme", key, known)
+    name = format_path(parent)
+    if len(parent) == 1 and parent[0] in files.MODES:
+        return f"{name}.{key} isn't a colour role{did_you_mean(key, known)}"
+    return unknown_key(f"{name}.{key}", LOOK_NOUNS.get(name, parent[-1]), key, known)
+
+
+def theme_value(document: dict, path: tuple):
+    value = document
+    for part in path:
+        if not isinstance(value, dict) or part not in value:
+            return NO_DEFAULT
+        value = value[part]
+    return value
+
+
+def with_theme_value(document: dict, path: tuple, value, label: str) -> dict:
+    updated = copy.deepcopy(document)
+    holder = updated
+    for depth, part in enumerate(path[:-1]):
+        child = holder.setdefault(part, {})
+        if not isinstance(child, dict):
+            raise ConfigError(f"{format_path(path[:depth + 1])} in {label} isn't an object; fix it or unset it first")
+        holder = child
+    holder[path[-1]] = value
+    return updated
+
+
+def overlaps(left: tuple, right: tuple) -> bool:
+    shorter = min(len(left), len(right))
+    return left[:shorter] == right[:shorter]
+
+
+def chosen_theme(args, where: Places) -> str | None:
+    if args.theme is not None:
+        files.check_theme_name(args.theme)
+        return args.theme
+    return active_theme(where)
+
+
+def named_theme(args, where: Places) -> tuple[str, Path]:
+    name = chosen_theme(args, where)
+    if name is None:
+        raise ConfigError("config.json names no theme; pass --theme NAME (ardia theme list shows them)")
+    return name, existing_theme(where, name)
+
+
+def theme_set(args, where: Places) -> int:
+    path = theme_key(args.key)
+    schema = theme_schema(where)
+    name = chosen_theme(args, where)
+    creating = name is None
+    if creating:
+        name = CUSTOM_THEME
+        target = where.theme(name)
+        if os.path.lexists(target):
+            raise ConfigError(f"config.json names no theme and {where.show(target)} already exists; ardia theme use {name} makes it active, or pass --theme NAME")
+        files.load_config(where, create=True)
+        document = {"$schema": f"../{files.THEME_SCHEMA}"}
+    else:
+        target = existing_theme(where, name)
+        document = files.read_object(target, where.show(target))
+    label = where.show(target)
+    candidates = parse_value(args.value)
+    chosen = NO_DEFAULT
+    first_problems = None
+    for candidate in candidates:
+        updated = with_theme_value(document, path, candidate, label)
+        if schema.document is None:
+            chosen = candidate
+            break
+        problems = [p for p in theme_problems(updated, schema.document) if overlaps(p.path, path)]
+        if not problems:
+            chosen = candidate
+            break
+        first_problems = first_problems or problems
+    if chosen is NO_DEFAULT:
+        note_error("invalid_value")
+        for problem in first_problems:
+            complain(f"ardia theme: {problem.message}")
+        return 1
+    if creating:
+        where.themes.mkdir(parents=True, exist_ok=True)
+        try:
+            files.write_json(target, updated, overwrite=False)
+        except FileExistsError:
+            raise ConfigError(f"{target} appeared while this ran; run the command again") from None
+        try:
+            activate(where, name)
+        except (ConfigError, OSError):
+            remove_if_unchanged(target, updated)
+            raise
+        complain(f"ardia theme: no theme was active, so this created {label} and made it the active theme")
+    else:
+        files.write_json(target, updated)
+        if args.theme is not None:
+            try:
+                active = active_theme(where)
+            except ConfigError:
+                active = name
+            if active != name:
+                complain(f"ardia theme: {name} isn't the active theme, so Ardia won't show this until ardia theme use {name}")
+    if schema.document is None:
+        complain(f"ardia theme: no {files.THEME_SCHEMA} found (Ardia writes one at launch), so {args.key} was written without checking it")
+    say(f"{args.key} = {json.dumps(chosen, ensure_ascii=False)}")
+    return 0
+
+
+def remove_if_unchanged(path: Path, written: dict) -> None:
+    try:
+        if files.parse_json(files.read_text(path)) == written:
+            path.unlink()
+    except (OSError, ValueError):
+        pass
+
+
+def theme_get(args, where: Places) -> int:
+    path = theme_key(args.key) if args.key is not None else None
+    name, target = named_theme(args, where)
+    label = where.show(target)
+    if path is None:
+        text = files.read_text(target)
+        if args.json:
+            try:
+                document = files.parse_json(text)
+            except ValueError as error:
+                raise ConfigError(f"{label} doesn't parse: {error}") from None
+            say(json.dumps(document, indent=2, ensure_ascii=False))
+        else:
+            sys.stdout.write(text if text.endswith("\n") or not text else text + "\n")
+            sys.stdout.flush()
+        return 0
+    value = theme_value(files.read_object(target, label), path)
+    if value is NO_DEFAULT:
+        spec, unknown = key_spec(files.find_schema(where, files.THEME_SCHEMA).document, path)
+        if unknown:
+            raise ConfigError(unknown)
+        default = look_default(spec) if spec is not None else NO_DEFAULT
+        hint = f" (Ardia's default: {cell(default)})" if default is not NO_DEFAULT else ""
+        note_error("not_set")
+        complain(f"ardia theme: {label} doesn't set {args.key}{hint}")
+        return 1
+    say(json.dumps(value, ensure_ascii=False) if args.json or not isinstance(value, str) else value)
+    return 0
+
+
+def theme_unset(args, where: Places) -> int:
+    path = theme_key(args.key)
+    name, target = named_theme(args, where)
+    label = where.show(target)
+    document = files.read_object(target, label)
+    holders = [document]
+    for part in path[:-1]:
+        child = holders[-1].get(part)
+        if not isinstance(child, dict):
+            break
+        holders.append(child)
+    if len(holders) < len(path) or path[-1] not in holders[-1]:
+        _, unknown = key_spec(theme_schema(where).document, path)
+        if unknown:
+            raise ConfigError(unknown)
+        say(f"{args.key} isn't in {label}")
+        return 0
+    del holders[-1][path[-1]]
+    for depth in range(len(path) - 1, 0, -1):
+        if holders[depth]:
+            break
+        del holders[depth - 1][path[depth - 1]]
+    files.write_json(target, document)
+    say(f"removed {args.key}; Ardia uses its own value for it")
+    return 0
