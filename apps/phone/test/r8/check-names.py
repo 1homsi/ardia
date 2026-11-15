@@ -4,10 +4,23 @@
 # receivers and providers, App Startup initializers, each module in packages/phone/expo-module.config.json, the
 # native names the JavaScript asks for (a name absent from the baseline too is reported as not built for Android),
 # Room's WorkDatabase_Impl with its no-argument constructor, and Expo's generated package list. Exits 1 on a loss.
+# check-names.py --self-test checks the constructor match on fixed dexdump records.
 import json, re, subprocess, sys, zipfile, pathlib
 
+def has_no_argument_constructor(section):
+    return re.search(r"name\s*:\s*'<init>'\s*\n\s*type\s*:\s*'\(\)V'", section) is not None
+
+
+if len(sys.argv) > 1 and sys.argv[1] == '--self-test':
+    wrong = "    #0 : (in LX;)\n      name          : '<init>'\n      type          : '(Landroid/content/Context;)V'\n    #1 : (in LX;)\n      name          : 'clear'\n      type          : '()V'\n"
+    right = "    #0 : (in LX;)\n      name          : '<init>'\n      type          : '()V'\n"
+    assert not has_no_argument_constructor(wrong), 'a constructor with arguments and an unrelated ()V method must not pass'
+    assert has_no_argument_constructor(right)
+    print('self-test passed')
+    sys.exit(0)
+
 if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):
-    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:6]))
+    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:7]))
     sys.exit(0 if len(sys.argv) > 1 else 64)
 apk = sys.argv[1]
 baseline = sys.argv[2] if len(sys.argv) > 2 else None
@@ -102,7 +115,7 @@ if room in classes:
                     start = text.find(f"Class descriptor  : '{descriptor}'")
                     if start >= 0:
                         section = text[start:text.find('Class #', start + 10)]
-                        constructor = "name          : '<init>'" in section and "type          : '()V'" in section
+                        constructor = has_no_argument_constructor(section)
 print(f'{room}: {"present with its no-argument constructor" if constructor else "MISSING or without <init>()"}')
 lost = lost + ([] if constructor else [room])
 generated = 'expo.modules.ExpoModulesPackageList'
