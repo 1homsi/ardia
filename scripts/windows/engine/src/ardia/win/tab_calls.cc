@@ -12,6 +12,7 @@
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/ac_calls.h"
 #include "ardia/win/external_apps.h"
+#include "ardia/win/host.h"
 #include "ardia/win/tab_events.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
@@ -86,6 +87,7 @@ namespace ardia_win {
 namespace {
 
 constexpr size_t kMaxEvaluationResultBytes = 4 * 1024 * 1024;
+constexpr int kOpensLivePage = 100;
 
 constexpr char kEvaluationStart[] =
     "new Promise((resolve) => {(function(post){'use strict';\n";
@@ -752,6 +754,11 @@ void SleepIfHidden(content::WebContents* contents,
     return AnswerKeptBy(std::move(reply), std::move(unavailable));
   }
   SyncUserDevTools(contents);
+  if (Host::Get()->OpensLivePage(contents)) {
+    base::ListValue codes;
+    codes.Append(kOpensLivePage);
+    return AnswerKeptBy(std::move(reply), std::move(codes));
+  }
   const auto reason =
       policies::DiscardEligibilityPolicy::DiscardReason::PROACTIVE;
   const double seconds = args.FindDouble("seconds").value_or(0);
@@ -771,6 +778,40 @@ void SleepIfHidden(content::WebContents* contents,
     return AnswerKeptBy(std::move(reply), std::move(unavailable));
   }
   AnswerKeptBy(std::move(reply), base::ListValue());
+}
+
+void ClickForTest(content::WebContents* contents,
+                  const base::DictValue& args,
+                  Reply reply) {
+  if (!ardiacore::TestInstance()) {
+    std::move(reply).Run(Error("clickForTest is for test instances"));
+    return;
+  }
+  const double x = args.FindDouble("x").value_or(0);
+  const double y = args.FindDouble("y").value_or(0);
+  const int modifiers = Integer(args, "modifiers");
+  for (const char* type : {"mouseMoved", "mousePressed", "mouseReleased"}) {
+    base::DictValue params;
+    params.Set("type", type);
+    params.Set("x", x);
+    params.Set("y", y);
+    params.Set("modifiers", modifiers);
+    if (std::string_view(type) != "mouseMoved") {
+      params.Set("button", "left");
+      params.Set("clickCount", 1);
+    }
+    CallDevTools(contents, "Input.dispatchMouseEvent", std::move(params),
+                 std::nullopt, base::BindOnce(&Ignore));
+  }
+  base::DictValue last;
+  last.Set("expression", "0");
+  CallDevTools(contents, "Runtime.evaluate", std::move(last), std::nullopt,
+               base::BindOnce(
+                   [](Reply reply, std::optional<base::DictValue> result,
+                      std::optional<std::string> error) {
+                     std::move(reply).Run(error ? Error(*error) : Ok());
+                   },
+                   std::move(reply)));
 }
 
 void InsertTextForTest(content::WebContents* contents,
@@ -855,6 +896,7 @@ constexpr NamedMethod kMethods[] = {
     {"discard", &Discard},
     {"sleepIfHidden", &SleepIfHidden},
     {"insertText", &InsertTextForTest},
+    {"clickForTest", &ClickForTest},
     {"setFrozen", &SetFrozen},
     {"resolveUnresponsive", &ResolveUnresponsive},
     {"externalAppAlive", &ExternalAppAliveCall},

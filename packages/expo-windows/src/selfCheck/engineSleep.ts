@@ -1,5 +1,5 @@
 import type { WindowsNative } from "@ardia/shell";
-import { engineAvailable, hostCall } from "../engine/host";
+import { engineAvailable, hostCall, onEngineTopic } from "../engine/host";
 import { requireNativeModule } from "../modules";
 import { httpPagesPort } from "./engineBackForward";
 import { expectEqual, expectTrue, type Check } from "./check";
@@ -10,6 +10,11 @@ const DEVTOOLS_OPEN = 24;
 const FORM_INTERACTIONS = 26;
 const USER_EDITS = 27;
 const TITLE = "sleep page";
+const LINKS_TITLE = "links page";
+const OPENS_LIVE_PAGE = 100;
+const SHIFT = 8;
+const EVENT_MS = 8000;
+const POPUP_NAME = "ardia-sleep-check-popup";
 const LOAD_MS = 20000;
 const DEVTOOLS_GONE_MS = 3000;
 const POLL_MS = 100;
@@ -41,7 +46,7 @@ async function until<T>(what: string, ms: number, read: () => Promise<T>, done: 
   return value;
 }
 
-const loaded = (key: string) => until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === TITLE && tab.loading === false && tab.discarded !== true);
+const loaded = (key: string, title = TITLE) => until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === title && tab.loading === false && tab.discarded !== true);
 
 const evaluate = async (key: string, code: string) => {
   const reply = await hostCall<{ result?: unknown }>("tab.call", { key, method: "evaluate", code });
@@ -56,14 +61,41 @@ const keptBy = (key: string, seconds: number) =>
     (kept) => !(Array.isArray(kept) && kept.length === 1 && kept[0] === DEVTOOLS_OPEN),
   );
 
-async function withPages(names: string[], run: (keys: string[], windowId: string) => Promise<void>) {
+type HeardEvent = { key?: unknown; name?: unknown; data?: Record<string, unknown>; opener?: unknown; url?: unknown };
+
+function heard(topic: string, wanted: (event: HeardEvent) => boolean, what: string): Promise<HeardEvent> {
+  return new Promise((resolve, reject) => {
+    const watching = onEngineTopic(topic, (event: HeardEvent) => {
+      if (!wanted(event)) return;
+      clearTimeout(deadline);
+      watching.remove();
+      resolve(event);
+    });
+    const deadline = setTimeout(() => {
+      watching.remove();
+      reject(new Error(`${what}: nothing within ${EVENT_MS} ms`));
+    }, EVENT_MS);
+  });
+}
+
+const click = (key: string, x: number, y: number, modifiers = 0) => hostCall("tab.call", { key, method: "clickForTest", x, y, modifiers });
+
+async function sleepOnce(key: string, windowId: string, title: string) {
+  await hide(key, windowId);
+  expectEqual(await keptBy(key, 0), [], "the hidden page sleeps");
+  expectEqual((await listed(key))?.discarded, true, "the page is discarded");
+  await show(key, windowId, LEFT);
+  await loaded(key, title);
+}
+
+async function withPages(names: string[], run: (keys: string[], windowId: string) => Promise<void>, path = "sleep", title = TITLE) {
   const port = httpPagesPort();
   expectTrue(port, "the launch has no loopback page server (test httpPages)");
   const windowId = await firstWindow();
   const keys = names.map((name) => `self-check-sleep-${name}`);
   try {
-    for (const [index, key] of keys.entries()) await hostCall("tab.create", { key, url: `http://127.0.0.1:${port}/sleep?${names[index]}`, profile: "" }, windowId);
-    for (const key of keys) await loaded(key);
+    for (const [index, key] of keys.entries()) await hostCall("tab.create", { key, url: `http://127.0.0.1:${port}/${path}?${names[index]}`, profile: "" }, windowId);
+    for (const key of keys) await loaded(key, title);
     await run(keys, windowId);
   } finally {
     for (const key of keys) await hostCall("tab.close", { key }).catch(() => null);
@@ -152,6 +184,59 @@ const sleepChecks: Check[] = [
         } finally {
           if (open) await hostCall("tab.call", { key: page!, method: "showDevTools", panel: "toggle" }).catch(() => null);
         }
+      }),
+  },
+  {
+    name: "engine sleep: a tab that slept once still opens a Peek, a new tab and an app-link ask from a click",
+    run: () =>
+      withPages(
+        ["links"],
+        async ([page], windowId) => {
+          const config = await hostCall<{ peek?: unknown }>("peek.config", {});
+          if (config.peek !== "shift") await hostCall("peek.config", { peek: "shift" });
+          try {
+            await show(page!, windowId, LEFT);
+            await sleepOnce(page!, windowId, LINKS_TITLE);
+            const peek = heard("tab", (event) => event.key === page && event.name === "openWindow" && event.data?.disposition === "peek", "a Peek from a shift-click");
+            await click(page!, 110, 30, SHIFT);
+            expectTrue(String((await peek).data?.url).endsWith("/a"), "the Peek opens the link's address");
+            const opened = heard("tab.opened", (event) => event.opener === page, "a new tab from a target=_blank click");
+            await click(page!, 110, 90);
+            expectTrue(String((await opened).url).endsWith("/b"), "the new tab opens the link's address");
+            const ask = heard("tab", (event) => event.key === page && event.name === "externalApp", "an app-link ask from a click");
+            await click(page!, 110, 150);
+            expectEqual((await ask).data?.url, "ardia-sleep-check-link:woke", "the app-link ask");
+          } finally {
+            if (config.peek !== "shift") await hostCall("peek.config", { peek: config.peek }).catch(() => null);
+          }
+        },
+        "links",
+        LINKS_TITLE,
+      ),
+  },
+  {
+    name: "engine sleep: the opener of a live pop-up is kept, so the pop-up's window.opener still works, and sleeps once the pop-up is closed",
+    run: () =>
+      withPages(["opener"], async ([page], windowId) => {
+        await show(page!, windowId, LEFT);
+        const opened = heard("tab.opened", (event) => event.opener === page, "the pop-up");
+        expectEqual(await evaluate(page!, `post("result", JSON.stringify(!!window.open("about:blank", "${POPUP_NAME}", "width=320,height=240")));`), true, "window.open returns a window");
+        await opened;
+        await hide(page!, windowId);
+        try {
+          const kept = await keptBy(page!, 0);
+          expectTrue(Array.isArray(kept) && kept.includes(OPENS_LIVE_PAGE), `kept as the opener of a live pop-up (${OPENS_LIVE_PAGE}): ${JSON.stringify(kept)}`);
+          expectEqual(await evaluate(page!, `const w = window.open("", "${POPUP_NAME}"); post("result", JSON.stringify(!!w && w.opener === window));`), true, "the pop-up's opener is still this page");
+        } finally {
+          await evaluate(page!, `const w = window.open("", "${POPUP_NAME}"); if (w) w.close(); post("result", "null");`).catch(() => null);
+        }
+        const after = await until(
+          "the opener sleeps once its pop-up is closed",
+          LOAD_MS,
+          async () => (await hostCall<{ keptBy?: unknown }>("tab.call", { key: page!, method: "sleepIfHidden", seconds: 0 })).keptBy,
+          (kept) => Array.isArray(kept) && kept.length === 0,
+        );
+        expectEqual(after, [], "nothing keeps it once the pop-up is closed");
       }),
   },
 ];

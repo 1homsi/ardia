@@ -52,6 +52,7 @@
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
@@ -1191,6 +1192,20 @@ HWND Host::VisibleParent() const {
     }
   }
   return nullptr;
+}
+
+bool Host::OpensLivePage(const content::WebContents* contents) const {
+  for (const auto& entry : tabs_) {
+    content::WebContents* other = entry.second;
+    if (!other || other == contents) {
+      continue;
+    }
+    content::RenderFrameHost* opener = other->GetOpener();
+    if (opener && content::WebContents::FromRenderFrameHost(opener) == contents) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool Host::Shows(const std::string& key) const {
