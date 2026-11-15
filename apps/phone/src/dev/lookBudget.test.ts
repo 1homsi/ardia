@@ -64,6 +64,20 @@ test("a sample in which anything but the backdrop drew a frame decides nothing, 
   assert.equal(record(initialState("1"), withPopupSliding, 1000).verdict, "unknown", "a dropped sample changes nothing stored");
 });
 
+test("busy counts each frame's work, not its wait for the vsync, plus the backdrop's own ticks between frames", () => {
+  const f4Sync17b = { totals: Array(34).fill(13), deadlines: Array(34).fill(11.7), waits: Array(34).fill(7), windowMs: 2000 };
+  const judged = judge(f4Sync17b);
+  assert.equal(judged.medianMs, 6, "13 ms frames of which 7 ms waited for the vsync");
+  assert.equal(judged.waitMs, 7);
+  assert.ok(Math.abs(judged.busyShare! - 0.102) < 0.001, `busy ${judged.busyShare}`);
+  assert.equal(judged.over, false);
+  const withTicks = judge({ ...f4Sync17b, tickMs: 68 });
+  assert.ok(Math.abs(withTicks.busyShare! - 0.136) < 0.001, "34 ticks of 2 ms between frames count too");
+  assert.equal(withTicks.tickMs, 68);
+  const old = judge({ totals: Array(34).fill(13), deadlines: Array(34).fill(11.7), windowMs: 2000 });
+  assert.ok(Math.abs(old.busyShare! - 0.221) < 0.001, "a sampler that sends no waits is judged on the whole frame, as before");
+});
+
 test("the window is the sampler's own when it sends one, and the planned two seconds otherwise", () => {
   const sent = judge({ totals: Array(40).fill(10), deadlines: Array(40).fill(16.7), windowMs: 4000 });
   assert.equal(sent.busyShare, 0.1);

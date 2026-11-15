@@ -20,6 +20,7 @@ class LookModule : Module() {
             val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
             LookSwitch.set(context, off)
             android.util.Log.i("PAGELAB", "PAGELAB look views ${if (off) "off: flat colours, no blur, grain or motion" else "on"} (takes effect for views drawn from now; force-stop to measure a clean launch)")
+            AttachedLookViews.all().forEach { it.invalidate() }
             FrostSources.frosts().forEach { it.invalidate() }
             FrostSources.allSources().forEach { it.invalidate() }
             off
@@ -48,7 +49,7 @@ class LookModule : Module() {
                 return@AsyncFunction
             }
             FrameSampler.sample(activity, millis.toLong().coerceIn(100L, 10_000L)) { sample ->
-                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis, "windowMs" to it.windowMillis, "foreignFrames" to it.foreignFrames) })
+                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis, "windowMs" to it.windowMillis, "foreignFrames" to it.foreignFrames, "waits" to it.waits, "tickMs" to it.tickMillis) })
             }
         }.runOnQueue(Queues.MAIN)
 

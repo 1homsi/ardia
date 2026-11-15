@@ -58,7 +58,7 @@ object LookBudget {
 }
 
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double)
 
     fun sample(activity: Activity, millis: Long, done: (Sample?) -> Unit) {
         val window: Window = activity.window ?: return done(null)
@@ -66,20 +66,23 @@ internal object FrameSampler {
         val handler = Handler(thread.looper)
         val totals = ArrayList<Double>()
         val deadlines = ArrayList<Double>()
+        val waits = ArrayList<Double>()
         val refreshRate = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) activity.display?.refreshRate else null) ?: @Suppress("DEPRECATION") activity.windowManager.defaultDisplay.refreshRate
         val interval = 1_000_000_000.0 / refreshRate.coerceAtLeast(1f)
         val listener = Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
             totals += metrics.getMetric(FrameMetrics.TOTAL_DURATION) / 1_000_000.0
+            waits += metrics.getMetric(FrameMetrics.UNKNOWN_DELAY_DURATION) / 1_000_000.0
             val deadline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) metrics.getMetric(FrameMetrics.DEADLINE).toDouble() else interval
             deadlines += (if (deadline > 0) deadline else interval) / 1_000_000.0
         }
         val started = SystemClock.uptimeMillis()
         val foreignBefore = LookActivity.foreignTraversals
+        val ticksBefore = LookActivity.tickNanos
         window.addOnFrameMetricsAvailableListener(listener, handler)
         Handler(Looper.getMainLooper()).postDelayed({
             runCatching { window.removeOnFrameMetricsAvailableListener(listener) }
             handler.post {
-                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble(), LookActivity.foreignTraversals - foreignBefore))
+                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble(), LookActivity.foreignTraversals - foreignBefore, waits.toList(), (LookActivity.tickNanos - ticksBefore) / 1_000_000.0))
                 thread.quitSafely()
             }
         }, millis)

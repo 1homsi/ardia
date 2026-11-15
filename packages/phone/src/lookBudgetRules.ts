@@ -10,7 +10,7 @@ export const LOOK_BUDGET = {
   retryAfterMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
-export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number };
+export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number; waits?: number[]; tickMs?: number };
 
 export type Judgement = {
   conclusive: boolean;
@@ -26,6 +26,8 @@ export type Judgement = {
   paceMs?: number;
   keepsUp?: boolean;
   foreignFrames?: number;
+  waitMs?: number;
+  tickMs?: number;
 };
 
 export type BudgetVerdict = "unknown" | "pass" | "fail";
@@ -64,19 +66,23 @@ export function judge(sample: FrameSample): Judgement {
   const refreshMs = refreshInterval(sample.refreshMs);
   const deadlines = sample.deadlines.slice(0, frames).map((own) => frameDeadline(own, refreshMs));
   const stretched = sample.deadlines.slice(0, frames).filter((own, index) => own !== deadlines[index]).length;
-  const medianMs = median(totals);
+  const waits = (sample.waits ?? []).slice(0, frames);
+  const work = totals.map((total, index) => Math.max(0, total - (waits[index] ?? 0)));
+  const medianMs = median(work);
+  const waitMs = waits.length === frames && frames > 0 ? median(waits) : undefined;
+  const tickMs = sample.tickMs !== undefined && sample.tickMs > 0 ? sample.tickMs : 0;
   const deadlineMs = median(deadlines);
   const missed = totals.filter((total, index) => total > deadlines[index]!).length;
   const missedShare = frames === 0 ? 0 : missed / frames;
   const windowMs = sample.windowMs !== undefined && sample.windowMs > 0 ? sample.windowMs : LOOK_BUDGET.sampleMs;
-  const busyShare = totals.reduce((sum, total) => sum + total, 0) / windowMs;
+  const busyShare = (work.reduce((sum, spent) => sum + spent, 0) + tickMs) / windowMs;
   const paceMs = frames === 0 ? windowMs : windowMs / frames;
   const keepsUp = medianMs <= paceMs;
   const tooBusy = busyShare > LOOK_BUDGET.maxBusyShare;
   const foreignFrames = sample.foreignFrames ?? 0;
   const conclusive = foreignFrames === 0 && (frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp)));
   const over = conclusive && (tooBusy || !keepsUp);
-  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}) };
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs } : {}), ...(tickMs > 0 ? { tickMs } : {}) };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });

@@ -531,9 +531,15 @@ off in the lab`.
       when the scroll starts and stops: the backdrop holds still while anything else draws;
     - from the `PAGELAB perf deck scroll` lines, check the look field reads `look drew backdrop 0, recorded 0,
       blurred 0, retinted 0` (sync13's older field read `1 3 1`);
-    - the `look drew …` counts must be 0 on every `PAGELAB perf` line for a scroll, a card open, a deck open and a
-      tray open, in every run of every step. Treat any non-zero as a bug and report the line with the step and the
-      time. They are what the look did during the window (its running totals at the end less those at the start);
+    - the `look drew …` counts are what the look did during the window (its running totals at the end less those at
+      the start). What each interaction should show, from sync20:
+      - a deck scroll and a card open: all 0;
+      - a deck open: `backdrop 1, recorded 0` (the backdrop's first frame on the new deck, with the look on or off),
+        and 0 blurred and retinted beyond the bar's first fill;
+      - a tray open over the deck with the look on: `blurred` about one per frame of the rise (sync17b: 27 to 30)
+        and `recorded` a few (the tray's sheet frost blurs what's under it as it rises, which is the look working);
+        with the look off, all 0.
+      Anything beyond that is a bug: report the line with the step and the time;
       the `at end recording … holding … animating …` part after them is only its state when the window closed, so
       a short swipe in a 1.2 s window can show `animating 1` there without being a cost;
     - report, per run, the janky share, the 50th, 90th and 99th percentiles, and the slow issue-draw commands.

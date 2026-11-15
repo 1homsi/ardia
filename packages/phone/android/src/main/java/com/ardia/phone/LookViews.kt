@@ -134,6 +134,12 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         budgetDegraded = LookBudget.isDegraded(context)
+        AttachedLookViews.attach(this)
+    }
+
+    override fun onDetachedFromWindow() {
+        AttachedLookViews.detach(this)
+        super.onDetachedFromWindow()
     }
 
     init {
@@ -209,6 +215,8 @@ internal object LookActivity {
     var restingLayered = 0
     @Volatile
     var foreignTraversals = 0L
+    @Volatile
+    var tickNanos = 0L
 }
 
 internal object DeckLayers {
@@ -238,6 +246,16 @@ internal object DeckLayers {
         }
         return emptyList()
     }
+}
+
+internal object AttachedLookViews {
+    private val attached = java.util.WeakHashMap<LookView, Unit>()
+
+    fun attach(view: LookView) = synchronized(attached) { attached[view] = Unit }
+
+    fun detach(view: LookView) = synchronized(attached) { attached.remove(view) }
+
+    fun all(): List<LookView> = synchronized(attached) { attached.keys.toList() }
 }
 
 internal object DeckBackdrops {
@@ -292,7 +310,9 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         mesh = null
         blobShaders = emptyArray()
         scene = null
-        scenePixels = IntArray(0)
+        sceneBase = null
+        sceneBaseLook = null
+        region = IntArray(0)
         sceneFresh = false
         grainNode?.discardDisplayList()
         grainNode = null
@@ -349,8 +369,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (layered.isEmpty()) return
         LookActivity.restingLayerHolds += 1
         LookActivity.restingLayered = layered.size
-        if (PhoneLab.isOn && LookActivity.restingLayerHolds <= 3) {
-            android.util.Log.i("PAGELAB", "PAGELAB look deck holds its resting content on ${layered.size} layer(s) while the blobs move: ${layered.joinToString { (view, _) -> "${FrameTrace.label(view)} ${view.width}x${view.height}" }}")
+        if (PhoneLab.isOn) {
+            android.util.Log.i("PAGELAB", "PAGELAB look deck holds its resting content on ${layered.size} layer(s) while the blobs move (hold #${LookActivity.restingLayerHolds}): ${layered.joinToString { (view, _) -> "${FrameTrace.label(view)} ${view.width}x${view.height}" }}")
         }
     }
 
@@ -387,12 +407,14 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             holdStill(now)
             postDelayed(nextTick(), paceMillis)
         } else {
+            val started = SystemClock.elapsedRealtimeNanos()
             moveOn(now)
             sceneFresh = renderScene(clock(now))
             ownDrawPending = true
             holdRestingOnLayers()
             invalidate()
             enclosingSource()?.let(FrostSources::retintFrostsOf)
+            LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - started
         }
     }
 
@@ -504,6 +526,11 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         target.set(0, 0, width + 1, height + 1)
         canvas.drawBitmap(meshBitmap, source, target, meshPaint)
         if (noBlobs) return true
+        drawBlobs(canvas, dark, w, h, at, radius)
+        return true
+    }
+
+    private fun drawBlobs(canvas: Canvas, dark: Boolean, w: Float, h: Float, at: Long, radius: Float) {
         val animated = !still
         val now = at
         blobPaint.alpha = (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt()
@@ -516,11 +543,41 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             canvas.drawCircle(0f, 0f, radius, blobPaint)
             canvas.restoreToCount(saved)
         }
-        return true
+    }
+
+    private var sceneBase: Bitmap? = null
+    private var sceneBaseLook: ProfileLook? = null
+    private var sceneBaseDark = false
+
+    private fun meshBase(look: ProfileLook, dark: Boolean, sceneWidth: Int, sceneHeight: Int, w: Float, h: Float): Bitmap? {
+        val kept = sceneBase?.takeIf { it.width == sceneWidth && it.height == sceneHeight && sceneBaseLook === look && sceneBaseDark == dark && mesh != null && paintedLook === look }
+        if (kept != null) return kept
+        val radius = LookRules.blobRadius(w, h)
+        prepare(look, dark, radius)
+        val meshBitmap = mesh ?: return null
+        val base = sceneBase?.takeIf { it.width == sceneWidth && it.height == sceneHeight } ?: Bitmap.createBitmap(sceneWidth, sceneHeight, Bitmap.Config.RGBA_F16).also { sceneBase = it }
+        val canvas = Canvas(base)
+        canvas.scale(sceneWidth / w, sceneHeight / h)
+        source.set(0, 0, meshBitmap.width, meshBitmap.height)
+        target.set(0, 0, width + 1, height + 1)
+        canvas.drawBitmap(meshBitmap, source, target, meshPaint)
+        base.setHasAlpha(false)
+        sceneBaseLook = look
+        sceneBaseDark = dark
+        return base
     }
 
     private var scene: Bitmap? = null
-    private var scenePixels = IntArray(0)
+    private var region = IntArray(0)
+
+    private fun regionAverage(bitmap: Bitmap, x0: Int, y0: Int, x1: Int, y1: Int): Int {
+        val width = x1 - x0
+        val height = y1 - y0
+        if (width <= 0 || height <= 0) return Color.GRAY
+        if (region.size < width * height) region = IntArray(width * height)
+        bitmap.getPixels(region, 0, width, x0, y0, width, height)
+        return FrostTint.average(region, width, 0, 0, width, height)
+    }
     private var sceneAt = Long.MIN_VALUE
     private var sceneLook: ProfileLook? = null
     private var sceneDark = false
@@ -542,15 +599,14 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (kept != null && at == sceneAt && look === sceneLook && dark == sceneDark) return true
         val bitmap = kept ?: Bitmap.createBitmap(sceneWidth, sceneHeight, Bitmap.Config.RGBA_F16).also {
             scene = it
-            scenePixels = IntArray(sceneWidth * sceneHeight)
         }
-        bitmap.eraseColor(Color.TRANSPARENT)
-        val canvas = Canvas(bitmap)
-        canvas.scale(sceneWidth / w, sceneHeight / h)
         sceneAt = Long.MIN_VALUE
-        if (!drawScene(canvas, look, dark, w, h, at)) return false
+        val base = meshBase(look, dark, sceneWidth, sceneHeight, w, h) ?: return false
+        val canvas = Canvas(bitmap)
+        canvas.drawBitmap(base, 0f, 0f, null)
+        canvas.scale(sceneWidth / w, sceneHeight / h)
+        if (!noBlobs) drawBlobs(canvas, dark, w, h, at, LookRules.blobRadius(w, h))
         bitmap.setHasAlpha(false)
-        bitmap.getPixels(scenePixels, 0, sceneWidth, 0, 0, sceneWidth, sceneHeight)
         sceneAt = at
         sceneLook = look
         sceneDark = dark
@@ -592,8 +648,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         val y0 = (top / h * sceneHeight).toInt().coerceIn(0, sceneHeight - 1)
         val y1 = (bottom / h * sceneHeight).toInt().coerceIn(y0 + 1, sceneHeight)
         val middle = ((y0 + y1) / 2).coerceIn(y0 + 1, y1)
-        out[0] = FrostTint.average(scenePixels, sceneWidth, x0, y0, x1, middle)
-        out[1] = FrostTint.average(scenePixels, sceneWidth, x0, if (middle < y1) middle else y0, x1, y1)
+        out[0] = regionAverage(bitmap, x0, y0, x1, middle)
+        out[1] = regionAverage(bitmap, x0, if (middle < y1) middle else y0, x1, y1)
         return true
     }
 
@@ -987,7 +1043,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
 
     internal fun wantsSource(): Boolean {
         if (!canBlur()) return false
-        val choice = lastChoice ?: return true
+        val choice = lastChoice ?: return !(FrostSources.find(source)?.holdsOnlyBackdrop == true && !LookSwitch.blurOverBackdrop(context))
         return choice.path == FrostPage.Path.Live || choice.reason == FrostPage.SOURCE_NOT_DRAWN
     }
 
