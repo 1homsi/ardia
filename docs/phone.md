@@ -749,6 +749,16 @@ Nothing in the Compose app's data is changed or deleted, so installing the Compo
   - Per-site settings (1b33e2c47): hosts with blockers off join Trusted Sites, and a host's Desktop Site applies
     when a page enters that host. The Compose app never writes either flag to disk (Desktop Site lives only in the
     page), so a real upgrader has none to bring; the code handles them if they are there.
+- **Names that must survive.** A placed widget, a pinned shortcut, the tile, a share target pinned in Android's share
+  sheet and a job WorkManager queued all name a class, so the Expo app keeps every component the Compose app exports
+  under the same name. The Compose app's `.share.ShareActivity` is an activity-alias of `.share.PhoneShareActivity`,
+  and the alias is the only share target, so Ardia shows once in the share sheet. `apps/phone/test/r8/check-upgrade.py
+  <compose apk> <expo apk>` checks the pair:
+  - every exported component's name, kind, export and intent actions, and its class (or an alias's target) in the R8
+    dex;
+  - the widgets' provider meta-data and the launcher shortcuts' targets;
+  - SyncWorker under its name, and WorkManager's Room identity hashes;
+  - every database, preferences and key name the legacy reader opens.
 - **Signing.** Android installs an update only when both apps have the same signing key and the new versionCode is
   not lower. The Compose debug build is signed with the building machine's `~/.android/debug.keystore`. The Expo
   app signs with `apps/phone/android/app/debug.keystore`, so for an upgrade it is re-signed with the Compose key
@@ -1154,6 +1164,7 @@ target height as its animation starts (5bf60a7fa); the onboarding step across a 
 Inline completion is in and waits on a phone (the checklist below). Since then, in and waiting on a phone (tester steps 56 to 61): site permissions asking Android first (610f0578d), pull to refresh on Compose's spring and accent with the profile's surface behind a swipe (397f87ce4, fbefd2967), the pager's display corner (9e3bc50f9, 080cb4000), the widgets' Color (9a1014d1f, 35f46a55d), the bar thumbnail taken on the way out (14bbb3d2f; the lag was the 700 ms settle delay), the share sheet with Send to Your Mac (d2ecc1416, its sends counted through 48ce2cb87) and the tray's predictive back (76f0509d3, a1da434a0). What is left:
 
 - Release builds use R8 by default since sync20b (98684363b; `build-apk --no-r8` for the control): 90.1 to 57.6 MB. sync19-r8 passed the F4 with nothing failing on the shrunk build only, and the upgrade pair is built with it.
+- The tray's predictive back swipe (step 61) is still unseen on a device. The F4 is on 3-button navigation, which MIUI won't change, and the M3 is Android 13 and quarantined. The Simlock Pixel 8 (Android 15) would not start: "Remote daemon is unavailable", then on the retry "Daemon request timed out". It needs a working Simlock Android daemon, or an Android 14+ phone with gesture navigation.
 
 ### The iPhone redesign
 
