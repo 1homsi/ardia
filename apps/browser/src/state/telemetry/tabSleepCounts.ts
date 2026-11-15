@@ -1,3 +1,5 @@
+import { takeCleanUpCounts } from "./cleanUpCounts";
+
 const none = () => ({ captureIndicatorsCleared: 0, pinnedTabsSleptByMemorySaver: 0, tabsSleptOverBudget: 0, tabsSleptOverBudgetReopened: 0, topAppsKeptRunning: 0, topAppsUnloadedFromMenu: 0 });
 
 let pending = none();
@@ -53,6 +55,7 @@ export function takeTabSleepCounts() {
     top_app_closes_kept_running: taken.topAppsKeptRunning,
     top_apps_unloaded_from_menu: taken.topAppsUnloadedFromMenu,
     ...takeProfileUnloadCounts(),
+    ...takeCleanUpCounts(),
     tabs_slept_over_budget: taken.tabsSleptOverBudget,
     tabs_slept_over_budget_reopened: taken.tabsSleptOverBudgetReopened,
   };

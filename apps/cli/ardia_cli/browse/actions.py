@@ -1,11 +1,10 @@
 import asyncio
 import contextlib
-import json
 import random
 import re
 
 from ardia_cli import command_metrics
-from ardia_cli.browse import fields
+from ardia_cli.browse import fields, human
 from ardia_cli.browse.errors import BrowseError, CdpError, Gated, OutcomeUnknown
 
 SCROLL_DEFAULT = 300
@@ -34,6 +33,7 @@ EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
 ENABLE_WAIT = 1.5
 EDITOR_WAIT = 1.0
 COMMIT_WAIT = 0.5
+CLOSING_MODAL_WAIT = 0.5
 POLL = 0.05
 INSERTED_INPUT_TYPES = frozenset({"text", "search", "email", "url", "tel", "number"})
 DRAG_FAR_SHARE = 0.75
@@ -218,14 +218,11 @@ def left_document(error: BrowseError) -> bool:
     return error.code == "document_changed" or error.code == "outcome_unknown" and "changed document" in error.message
 
 
-def mouse_button(name: str | None):
-    from pydoll.protocol.input.types import MouseButton
-
+def mouse_button(name: str | None) -> str:
     name = (name or "left").lower()
-    mapping = {"left": MouseButton.LEFT, "right": MouseButton.RIGHT, "middle": MouseButton.MIDDLE}
-    if name not in mapping:
+    if name not in ("left", "right", "middle"):
         raise BrowseError(f"Unknown mouse button: {name} (left, right or middle)")
-    return mapping[name]
+    return name
 
 
 class ScrollDriver:
@@ -236,29 +233,15 @@ class ScrollDriver:
         self.scripted = scripted
         self.element = element
 
-    async def _execute_command(self, command):
-        from pydoll.constants import Scripts
-
-        method = command["method"]
-        params = command.get("params") or {}
-        if method == "Runtime.evaluate":
-            expression = params.get("expression", "")
-            if expression == Scripts.GET_VIEWPORT_CENTER:
-                return {"result": {"result": {"value": json.dumps([int(self.point[0]), int(self.point[1])])}}}
-            value = await self.page.call(f"() => ({expression})", frame=self.frame)
-            return {"result": {"result": {"value": value}}}
-        if method == "Input.dispatchMouseEvent":
-            params = dict(params)
-            params["x"], params["y"] = int(self.point[0]), int(self.point[1])
-            if self.scripted:
-                dx, dy = params.get("deltaX") or 0, params.get("deltaY") or 0
-                if self.element is not None:
-                    await self.page.call("(el, x, y) => el.scrollBy(x, y)", self.element, dx, dy, frame=self.element.frame)
-                else:
-                    await self.page.call("(x, y) => scrollBy(x, y)", dx, dy, frame=self.frame)
-                return {"result": {}}
-        await self.page.send(method, params, input_event=True)
-        return {"result": {}}
+    async def wheel(self, dx: int, dy: int):
+        if self.scripted:
+            if self.element is not None:
+                await self.page.call("(el, x, y) => el.scrollBy(x, y)", self.element, dx, dy, frame=self.element.frame)
+            else:
+                await self.page.call("(x, y) => scrollBy(x, y)", dx, dy, frame=self.frame)
+            return
+        await self.page.send("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": int(self.point[0]), "y": int(self.point[1]), "deltaX": dx, "deltaY": dy},
+                             input_event=True)
 
 
 async def viewport(page, frame=None):
@@ -281,9 +264,6 @@ async def frame_offset(page, frame: str) -> tuple[float, float]:
 
 
 async def scroll_wheel(page, distance: float, vertical: bool, humanize: bool, point=None, frame=None, element=None):
-    from pydoll.constants import ScrollPosition
-    from pydoll.interactions.scroll import Scroll
-
     mouse = page.input.mouse
     scripted = await page.hidden()
     if point is None:
@@ -301,12 +281,11 @@ async def scroll_wheel(page, distance: float, vertical: bool, humanize: bool, po
     if distance == 0:
         return
     if humanize:
-        position = (ScrollPosition.DOWN if distance > 0 else ScrollPosition.UP) if vertical else (ScrollPosition.RIGHT if distance > 0 else ScrollPosition.LEFT)
-        await Scroll(ScrollDriver(page, point, frame or page.main_frame, scripted, element)).by(position, abs(distance), humanize=True)
+        driver = ScrollDriver(page, point, frame or page.main_frame, scripted, element)
+        await human.scroll(driver.wheel, abs(distance), vertical, 1 if distance > 0 else -1)
         return
     if scripted:
-        await ScrollDriver(page, point, frame or page.main_frame, True, element)._execute_command({
-            "method": "Input.dispatchMouseEvent", "params": {"type": "mouseWheel", "deltaX": 0 if vertical else int(distance), "deltaY": int(distance) if vertical else 0}})
+        await ScrollDriver(page, point, frame or page.main_frame, True, element).wheel(0 if vertical else int(distance), int(distance) if vertical else 0)
         return
     await page.send("Input.dispatchMouseEvent", {
         "type": "mouseWheel", "x": int(point[0]), "y": int(point[1]),
@@ -458,8 +437,10 @@ async def dismissed_consent(page, element, x, y) -> bool:
         return False
     if not done:
         return False
-    command_metrics.flag("consent_dismissed", True)
-    page.state.consent_dismissed = f'{done["layer"]} covered {element.label}, so its "{done["name"]}" button was clicked ({done["choice"]})'
+    popup = done.get("kind") == "popup"
+    command_metrics.flag("popup_dismissed" if popup else "consent_dismissed", True)
+    what = "A signup popup" if popup else "A consent banner"
+    page.state.consent_dismissed = f'{what} was in the way: {done["layer"]} covered {element.label}, so its "{done["name"]}" button was clicked ({done["choice"]})'
     await asyncio.sleep(CONSENT_SETTLE)
     return True
 
@@ -546,6 +527,22 @@ async def dom_click(page, element, error: BrowseError):
     from ardia_cli import command_metrics
 
     clicked = await page.call(DOM_CLICK, element, frame=element.frame)
+    if isinstance(clicked, dict):
+        async def unblocked():
+            nonlocal clicked
+            clicked = await page.call(DOM_CLICK, element, frame=element.frame)
+            return not isinstance(clicked, dict)
+
+        if await poll(unblocked, CLOSING_MODAL_WAIT) and clicked:
+            command_metrics.flag("dom_click_waited_for_modal", True)
+    if isinstance(clicked, dict):
+        command_metrics.flag("dom_click_behind_modal", True)
+        name = clicked.get("modal")
+        lock = f'the modal dialog "{name}" is open over it' if name else "a modal dialog is open over it"
+        raise BrowseError(
+            f"Element {element.label} is outside the visible page, and {lock}. Close that first (press Escape, or its close button), then retry",
+            data={**(error.data or {}), "scrollLock": lock}, code="outside_viewport",
+        )
     if not clicked:
         raise error
     command_metrics.flag("dom_click_fallback", True)
@@ -619,6 +616,58 @@ DOM_CLICK = """(el) => {
     if (/hidden|auto|scroll|clip/.test(overflow)) { clipped = true; break; }
   }
   if (!clipped) return false;
+  const within = (outer, node) => {
+    for (; node; node = node.parentNode || node.host) if (node === outer) return true;
+    return false;
+  };
+  const modals = el.checkVisibility && CSS.supports("selector(:modal)")
+    ? [...document.querySelectorAll("dialog:modal, [aria-modal=true]")].filter((modal) => !/opacity\\(0\\)/.test(getComputedStyle(modal).filter))
+    : [];
+  const owner = (node) => modals.filter((modal) => within(modal, node)).pop();
+  const ownerAt = (x, y) => {
+    let hit = document.elementFromPoint(x, y);
+    for (let inner = hit?.shadowRoot?.elementFromPoint(x, y); inner && inner !== hit; inner = hit.shadowRoot?.elementFromPoint(x, y)) hit = inner;
+    return hit?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) ? owner(hit) : undefined;
+  };
+  function* tree(node) {
+    yield node;
+    if (node.shadowRoot) for (const child of node.shadowRoot.children) yield* tree(child);
+    for (const child of node.children) yield* tree(child);
+  }
+  const boxes = new Map(), hits = [];
+  for (const modal of modals) {
+    const sampled = [];
+    boxes.set(modal, sampled);
+    let seen = 0, tried = 0;
+    walk: for (const node of tree(modal)) {
+      if (++seen > 200 || tried >= 40) break;
+      const box = node.getBoundingClientRect();
+      const left = Math.max(box.left, 0), right = Math.min(box.right, innerWidth), top = Math.max(box.top, 0), bottom = Math.min(box.bottom, innerHeight);
+      if (right - left < 2 || bottom - top < 2 || getComputedStyle(node).pointerEvents === "none") continue;
+      sampled.push({ left, right, top, bottom });
+      for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+        const x = left + (right - left) * fx, y = top + (bottom - top) * fy, over = ownerAt(x, y);
+        tried++;
+        if (over) hits.push({ over, x, y });
+        if (over === modal) break walk;
+      }
+    }
+  }
+  const open = modals.filter((modal) => hits.some((hit) => hit.over === modal));
+  if (open.length) {
+    const under = (modal, { over, x, y }) => over !== modal && boxes.get(modal).some((box) => x >= box.left && x <= box.right && y >= box.top && y <= box.bottom);
+    const top = open.filter((modal) => !hits.some((hit) => under(modal, hit)));
+    const ranked = top.length ? top : open.slice(-1);
+    const focused = owner(document.activeElement);
+    const holding = ranked.length > 1 && ranked.includes(focused) ? [focused] : ranked;
+    if (!holding.some((modal) => within(modal, el))) {
+      const blocking = holding[holding.length - 1];
+      const labelled = blocking.getAttribute("aria-labelledby");
+      const name = (blocking.getAttribute("aria-label") || (labelled && document.getElementById(labelled)?.innerText) || blocking.innerText || "")
+        .trim().split("\\n")[0].slice(0, 60);
+      return { modal: name };
+    }
+  }
   el.focus && el.focus({ preventScroll: true });
   el.click();
   return true;
@@ -1221,7 +1270,12 @@ async def settled_box(page, element) -> tuple | None:
 
 
 async def element_box(page, element) -> tuple | None:
-    quads = (await page.send("DOM.getContentQuads", {"backendNodeId": element.backend_id})).get("quads") or []
+    try:
+        quads = (await page.send("DOM.getContentQuads", {"backendNodeId": element.backend_id})).get("quads") or []
+    except CdpError as error:
+        if "content quads" not in error.cdp_message:
+            raise
+        return None
     best = None
     for quad in quads:
         xs, ys = quad[0::2], quad[1::2]

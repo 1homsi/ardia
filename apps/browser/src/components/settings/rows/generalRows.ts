@@ -205,6 +205,11 @@ export const generalRows = {
           description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows its icon faded, as sleeping tabs do. Clicking it loads the page.",
           keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
         },
+        strikeSleepingTabs: {
+          title: "Strike through sleeping tabs",
+          description: "A tab Memory Saver or the ardia command put to sleep shows its title struck through and dimmed, in the sidebar and across the top, until its page loads again. A tab whose icon is faded as unloaded, with Fade icons of unloaded tabs on or a closed Top App without its tile, shows it too.",
+          keywords: ["strikethrough", "strike", "line through", "crossed out", "asleep", "sleeping", "discarded", "unloaded", "memory saver", "dim", "title"],
+        },
       },
     },
     {
@@ -289,6 +294,11 @@ export const generalRows = {
           title: "Open new-tab links in",
           description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
           keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
+        },
+        peekButtons: {
+          title: "Show Peek buttons",
+          description: "Close, Open as Tab and Split View sit in the Peek's title bar, or float beside it on the left or right.",
+          keywords: ["peek", "buttons", "close", "expand", "split view", "left", "right", "side", "position", "arc", "zen"],
         },
         peekModifier: {
           advanced: true,
