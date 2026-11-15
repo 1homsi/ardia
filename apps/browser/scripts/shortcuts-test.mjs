@@ -701,7 +701,6 @@ await sleep(1000);
   const url = await activeUrl();
   await clipboard.set("before ⌥C");
   await swallowKeys();
-  // A real hardware key sent through AppKit (not dry): its own key-equivalent matching has to accept the Option mask, not a stand-in matcher.
   const r = await press(optionC, { focus: "page", asKey: true, send: true, wait: 600 });
   const seen = await pageKeys(), copied = await clipboard.get();
   const harness = r.error ? `harness: ${r.error}; ` : r.lostEvents ? "harness: a key event never came back from the app's event queue; " : r.keyWindow !== true ? "harness not key: NSApp.keyWindow wasn't the pressed window; " : "";
