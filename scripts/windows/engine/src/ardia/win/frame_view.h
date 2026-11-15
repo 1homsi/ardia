@@ -27,7 +27,8 @@ class HostedFrameView : public BrowserFrameView {
   int NonClientHitTest(const gfx::Point& point) override;
 };
 
-bool AppWindowResizesFromTop(HWND page, POINT screen);
+LRESULT AppWindowHitAt(HWND page, POINT screen);
+bool TakeTopEdgePress(const MSG& msg);
 
 std::unique_ptr<BrowserFrameView> CreateHostedFrameView(
     BrowserWidget* widget,

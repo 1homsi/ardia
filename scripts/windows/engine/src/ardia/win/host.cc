@@ -12,6 +12,7 @@
 #include "ardia/core/ac_host_visibility.h"
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/context_menu.h"
+#include "ardia/win/frame_view.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/main.h"
 #include "ardia/win/page_links.h"
@@ -728,14 +729,10 @@ base::DictValue Host::HitTest(const base::DictValue& args) {
                  bounds.top + Integer(args, "y")));
   base::DictValue result = Ok();
   result.Set("hit", HitName(hit));
-  HWND app = ::GetWindow(window, GW_OWNER);
   result.Set("appHit",
-             HitName(app ? ::SendMessageW(
-                               app, WM_NCHITTEST, 0,
-                               MAKELPARAM(bounds.left + Integer(args, "x"),
-                                          bounds.top + Integer(args, "y")))
-                         : HTNOWHERE));
-  result.Set("width", static_cast<int>(bounds.right - bounds.left));
+             HitName(AppWindowHitAt(
+                 window, {bounds.left + Integer(args, "x"),
+                          bounds.top + Integer(args, "y")})));
   return result;
 }
 

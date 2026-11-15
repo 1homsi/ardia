@@ -19,7 +19,7 @@ const hitAt = (x: number, y: number) => hostCall<Hit>("tab.hitTest", { key: EDGE
 
 const topEdgeChecks: Check[] = [
   {
-    name: "engine: a page that reaches the window's top edge lets the app window take its top resize band, corners included, and stays the page below it",
+    name: "engine: a page that reaches the window's top edge answers the app window's own top resize band, corners included, and stays the page below it",
     async run() {
       const windowId = await firstWindow();
       await hostCall("tab.create", { key: EDGE_KEY, url: EDGE_URL, profile: "" }, windowId);
@@ -32,11 +32,9 @@ const topEdgeChecks: Check[] = [
         const answers = Object.fromEntries(await Promise.all(Object.entries(points).map(async ([name, [x, y]]) => [name, await hitAt(x, y)] as const)));
         const hits = Object.fromEntries(Object.entries(answers).map(([name, answer]) => [name, answer.hit]));
         const app = Object.fromEntries(Object.entries(answers).map(([name, answer]) => [name, answer.appHit]));
-        expectEqual(
-          hits,
-          { middleOfTheTopEdge: "transparent", windowCorner: "transparent", pageEndAwayFromTheWindowCorner: "transparent", belowTheBand: "client" },
-          `the page window's hit test along the window's top edge (the app window answers ${JSON.stringify(app)})`,
-        );
+        const band = ["middleOfTheTopEdge", "windowCorner", "pageEndAwayFromTheWindowCorner"] as const;
+        expectTrue(band.every((name) => ["top", "topLeft", "topRight"].includes(String(app[name]))), `the app window's own answers along its top edge: ${JSON.stringify(app)}`);
+        expectEqual(hits, { ...Object.fromEntries(band.map((name) => [name, app[name]])), belowTheBand: "client" }, "the page window's hit test along the window's top edge");
       } finally {
         await hostCall("tab.close", { key: EDGE_KEY });
       }

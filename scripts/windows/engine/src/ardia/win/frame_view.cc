@@ -11,15 +11,70 @@
 
 namespace ardia_win {
 
-bool AppWindowResizesFromTop(HWND page, POINT screen) {
+namespace {
+
+constexpr wchar_t kHostedPage[] = L"ArdiaHostedPage";
+
+bool IsTopEdge(LRESULT hit) {
+  return hit == HTTOP || hit == HTTOPLEFT || hit == HTTOPRIGHT;
+}
+
+WPARAM SizeCommand(WPARAM hit) {
+  if (hit == HTTOPLEFT) {
+    return SC_SIZE | WMSZ_TOPLEFT;
+  }
+  if (hit == HTTOPRIGHT) {
+    return SC_SIZE | WMSZ_TOPRIGHT;
+  }
+  return SC_SIZE | WMSZ_TOP;
+}
+
+const wchar_t* ResizeCursor(WPARAM hit) {
+  if (hit == HTTOPLEFT) {
+    return IDC_SIZENWSE;
+  }
+  if (hit == HTTOPRIGHT) {
+    return IDC_SIZENESW;
+  }
+  return IDC_SIZENS;
+}
+
+}
+
+LRESULT AppWindowHitAt(HWND page, POINT screen) {
   HWND app = page ? ::GetWindow(page, GW_OWNER) : nullptr;
   if (!app) {
-    return false;
+    return HTNOWHERE;
   }
-  const LRESULT hit = ::SendMessageW(
+  return ::SendMessageW(
       app, WM_NCHITTEST, 0,
       MAKELPARAM(static_cast<short>(screen.x), static_cast<short>(screen.y)));
-  return hit == HTTOP || hit == HTTOPLEFT || hit == HTTOPRIGHT;
+}
+
+bool TakeTopEdgePress(const MSG& msg) {
+  if (msg.message != WM_NCMOUSEMOVE && msg.message != WM_NCLBUTTONDOWN &&
+      msg.message != WM_NCLBUTTONDBLCLK) {
+    return false;
+  }
+  if (!IsTopEdge(static_cast<LRESULT>(msg.wParam))) {
+    return false;
+  }
+  HWND page = msg.hwnd ? ::GetAncestor(msg.hwnd, GA_ROOT) : nullptr;
+  HWND app = page ? ::GetWindow(page, GW_OWNER) : nullptr;
+  if (!app || !::GetPropW(page, kHostedPage)) {
+    return false;
+  }
+  if (msg.message == WM_NCMOUSEMOVE) {
+    ::SetCursor(::LoadCursorW(nullptr, ResizeCursor(msg.wParam)));
+    return true;
+  }
+  ::ReleaseCapture();
+  if (msg.message == WM_NCLBUTTONDBLCLK) {
+    ::SendMessageW(app, WM_NCLBUTTONDBLCLK, msg.wParam, msg.lParam);
+    return true;
+  }
+  ::SendMessageW(app, WM_SYSCOMMAND, SizeCommand(msg.wParam), msg.lParam);
+  return true;
 }
 
 HostedFrameView::HostedFrameView(BrowserWidget* widget,
@@ -52,7 +107,9 @@ int HostedFrameView::NonClientHitTest(const gfx::Point& point) {
   POINT screen = {static_cast<LONG>(std::floor(point.x() * scale)),
                   static_cast<LONG>(std::floor(point.y() * scale))};
   ::ClientToScreen(page, &screen);
-  return AppWindowResizesFromTop(page, screen) ? HTTRANSPARENT : HTCLIENT;
+  ::SetPropW(page, kHostedPage, reinterpret_cast<HANDLE>(1));
+  const LRESULT app_hit = AppWindowHitAt(page, screen);
+  return IsTopEdge(app_hit) ? static_cast<int>(app_hit) : HTCLIENT;
 }
 
 std::unique_ptr<BrowserFrameView> CreateHostedFrameView(
