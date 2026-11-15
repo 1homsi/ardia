@@ -43,7 +43,6 @@ final class TrayMotion {
   static let keyboardWait: Duration = .milliseconds(220)
   static let reducedMotion = MotionCurve.easeOut(duration: 0.2)
   static let keyboardGrace: Duration = .milliseconds(120)
-  static let fieldCenter = BrowseLayout.panelFieldInset + BrowseLayout.searchFieldHeight / 2
 
   enum Curve {
     case immediate
@@ -100,21 +99,21 @@ final class TrayMotion {
     arrival = BarArrival(owner: target.owner, size: target.frame.size, face: face)
   }
 
-  func emerge(from target: BarTarget?) {
+  func emerge(from target: BarTarget?, fieldCenter: CGFloat) {
     endEmergence()
     guard let target, !keyboardUp, !isCommandBar, let window = controller.view.window else { return }
     let face = window.resizableSnapshotView(from: target.frame, afterScreenUpdates: false, withCapInsets: .zero)
-    emergence = TrayEmergence(pill: controller.view.convert(target.frame, from: nil), face: face, on: controller.tray)
+    emergence = TrayEmergence(pill: controller.view.convert(target.frame, from: nil), fieldCenter: fieldCenter, face: face, on: controller.tray)
   }
 
   func close(departing: Bool, morphing look: TrayMorphLook?) {
     landingTask?.cancel()
     releaseTask?.cancel()
     defer { releaseVelocity = 0 }
-    let shownWindow = emergence.map { $0.visibleFrame(of: controller.tray, in: controller.view) }
+    let shownSurface = emergence.map { $0.shownSurface(of: controller.tray, card: card, in: controller.view) }
     endEmergence()
     if !departing, !reduceMotion, !isCommandBar, let look {
-      beginMorph(look: look, from: shownWindow)
+      beginMorph(look: look, from: shownSurface)
     } else if departing, !reduceMotion {
       heldLift = heldLift ?? liveLift
       move(.timing(Motion.departCurve)) { [self] in
@@ -154,6 +153,7 @@ final class TrayMotion {
   func dragChanged(translation: CGFloat, releasingKeyboard: Bool) {
     if !isDragging {
       isDragging = true
+      endEmergence()
       releaseTask?.cancel()
       grabbedAt = grabMidSpring()
     }
@@ -206,8 +206,8 @@ final class TrayMotion {
     )
   }
 
-  private func beginMorph(look: TrayMorphLook, from shownWindow: CGRect?) {
-    morph = TrayMorph(card: card, of: controller.tray, in: controller.view, look: look, from: shownWindow)
+  private func beginMorph(look: TrayMorphLook, from shownSurface: TrayMorph.Start?) {
+    morph = TrayMorph(card: card, of: controller.tray, in: controller.view, look: look, from: shownSurface)
     let velocity = releaseVelocity
     move(.immediate) { [self] in isClosing = true }
     awaitedFlight = velocity
@@ -305,7 +305,7 @@ final class TrayMotion {
     let departure = isDeparting ? -BrowseLayout.trayDepartLift : 0
     guard !isCommandBar else { return dragOffset + departure }
     if let emergence, !isUp, !isClosing {
-      return emergence.restingOffset(trayHeight: trayHeight, stageBottom: controller.view.bounds.maxY, fieldCenter: Self.fieldCenter) + dragOffset
+      return emergence.restingOffset(trayHeight: trayHeight, stageBottom: controller.view.bounds.maxY) + dragOffset
     }
     let restingDrop = isUp || isDeparting || reduceMotion ? 0 : trayHeight + BrowseLayout.sheetTopRadius
     return -(heldLift ?? liveLift) + dragOffset + restingDrop + departure
@@ -355,7 +355,9 @@ final class TrayMotion {
       emergence.place(on: tray, in: controller.view, card: card, isOpen: isUp)
       if isUp { awaitEmergence() }
     }
-    tray.takesTouches = isShown && !isClosing
+    let isUnrevealed = emergence != nil && !isUp
+    tray.takesTouches = isShown && !isClosing && !isUnrevealed
+    tray.accessibilityElementsHidden = isUnrevealed
     tray.accessibilityViewIsModal = isShown
     placeDim(progress: TrayDrag.progress(offset: dragOffset, travel: trayHeight + lift))
     if self.lift != lift { self.lift = lift }

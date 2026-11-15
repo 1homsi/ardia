@@ -4,6 +4,7 @@ import UIKit
 @MainActor
 final class TrayEmergence {
   let pill: CGRect
+  let fieldCenter: CGFloat
   private let lens = UIView()
   private let face: UIView?
   private var isOpening = false
@@ -13,8 +14,9 @@ final class TrayEmergence {
   static let settlePoll: Duration = .milliseconds(16)
   static let settleDeadline: Duration = .seconds(1)
 
-  init(pill: CGRect, face: UIView?, on tray: UIView) {
+  init(pill: CGRect, fieldCenter: CGFloat, face: UIView?, on tray: UIView) {
     self.pill = pill
+    self.fieldCenter = fieldCenter
     self.face = face
     lens.backgroundColor = .black
     lens.layer.cornerCurve = .continuous
@@ -28,7 +30,7 @@ final class TrayEmergence {
     }
   }
 
-  func restingOffset(trayHeight: CGFloat, stageBottom: CGFloat, fieldCenter: CGFloat) -> CGFloat {
+  func restingOffset(trayHeight: CGFloat, stageBottom: CGFloat) -> CGFloat {
     pill.midY - fieldCenter + trayHeight - stageBottom
   }
 
@@ -46,10 +48,12 @@ final class TrayEmergence {
     }
   }
 
-  func visibleFrame(of tray: UIView, in stage: UIView) -> CGRect {
-    let window = (lens.layer.presentation() ?? lens.layer).frame
+  func shownSurface(of tray: UIView, card: CGRect, in stage: UIView) -> TrayMorph.Start {
+    let lensNow = lens.layer.presentation() ?? lens.layer
     let shown = tray.layer.presentation() ?? tray.layer
-    return shown.convert(window, to: stage.layer.presentation() ?? stage.layer)
+    let window = lensNow.frame.intersection(card)
+    let frame = shown.convert(window.isNull ? card : window, to: stage.layer.presentation() ?? stage.layer)
+    return TrayMorph.Start(frame: frame, radius: min(lensNow.cornerRadius, BrowseLayout.panelRadius, frame.height / 2))
   }
 
   var isSettled: Bool {

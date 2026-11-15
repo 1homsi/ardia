@@ -76,7 +76,7 @@ struct SearchTrayHost: View {
     if shown == nil, !app.browse.trayHoldsKeyboard {
       let target = Self.barTarget(in: app)
       motion.rememberBar(target)
-      motion.emerge(from: morphsIntoBar ? target : nil)
+      motion.emerge(from: morphsIntoBar ? target : nil, fieldCenter: BrowseLayout.panelFieldInset + BrowseLayout.searchFieldHeight * fieldScale / 2)
     }
     if shown == nil || motion.isClosing { presentation += 1 }
     shown = request

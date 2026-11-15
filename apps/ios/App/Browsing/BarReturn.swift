@@ -32,6 +32,7 @@ private struct BarReturn: ViewModifier {
 
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.screenLayout) private var screenLayout
 
   func body(content: Content) -> some View {
     let grows = !isShown && !reduceMotion && slot != .centre
@@ -44,7 +45,7 @@ private struct BarReturn: ViewModifier {
 
   private var animation: Animation? {
     if reduceMotion { return Motion.barReturnFade }
-    guard isShown else { return slot == .centre && app.browse.search != nil ? nil : Motion.fade }
+    guard isShown else { return slot == .centre && app.browse.search != nil && screenLayout == .phone ? nil : Motion.fade }
     switch slot {
     case .centre: return app.browse.isBarLanding ? nil : Motion.barReturnFade
     case .leading, .trailing: return Motion.barReturn.delay(Motion.barReturnDelay)

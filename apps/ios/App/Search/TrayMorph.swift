@@ -41,10 +41,17 @@ final class TrayMorph {
   static let arrivalFade = MotionCurve.easeOut(duration: 0.15)
   static let arrivalDelay: TimeInterval = 0.12
 
-  init(card: CGRect, of tray: UIView, in stage: UIView, look: TrayMorphLook, from shownWindow: CGRect? = nil) {
-    let frame = shownWindow ?? tray.convert(card, to: stage).offsetBy(dx: 0, dy: Self.unfinishedTravel(of: tray))
+  struct Start {
+    var frame: CGRect
+    var radius: CGFloat
+  }
+
+  init(card: CGRect, of tray: UIView, in stage: UIView, look: TrayMorphLook, from start: Start? = nil) {
+    let cardFrame = tray.convert(card, to: stage).offsetBy(dx: 0, dy: Self.unfinishedTravel(of: tray))
+    let frame = start?.frame ?? cardFrame
     view.configure(look: look, contents: tray.resizableSnapshotView(from: card, afterScreenUpdates: false, withCapInsets: .zero))
-    view.shape(to: frame, radius: BrowseLayout.panelRadius)
+    view.shape(to: frame, radius: start?.radius ?? BrowseLayout.panelRadius)
+    view.contents.subviews.first?.frame.origin = CGPoint(x: cardFrame.minX - frame.minX, y: cardFrame.minY - frame.minY)
     stage.addSubview(view)
     fades = [
       Self.run(Self.contentFade) { [view] in view.contents.alpha = 0 },
