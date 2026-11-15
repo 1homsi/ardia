@@ -87,6 +87,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many page loads showed in the address field or as the loading pill, how many times the pill stayed over 10 seconds, and how many loads ended before either showed, summed up once an hour. Never which page",
       "How many times the New Tab bar opened on its own over an empty window at launch, summed up once an hour",
       "How many times ⌘T kept a New Tab bar that had opened on its own (in a new window or after closing the last tab) instead of closing it, summed up once an hour",
+      "How many addresses and searches you opened from the address bar, the New Tab page or the New Tab bar, and how many of those pages took the keyboard right away, so a keyboard-navigation extension's keys work without a click first, summed up once an hour. Never which pages",
       "How many times switching from a New Tab to a page kept the New Tab up behind it while the page drew, and how many switches went to a page on WebKit, which shows at once without it, summed up once an hour. Never which page",
       "With address bar speed: how many search suggestion requests your search engine answered, refused as unusual traffic, or failed, summed up once an hour. Never what you typed or which engine",
       "How many times you switched the update channel, and whether the check that follows offered an update, found you up to date or failed, summed up once an hour. Never which version",
