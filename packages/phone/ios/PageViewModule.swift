@@ -124,6 +124,15 @@ public final class PageViewModule: Module {
       Self.main(promise) { await PhonePages.shared.endFind(pageID) }
     }.runOnQueue(.main)
 
+    AsyncFunction("presentSystemFind") { (pageID: String, text: String?) -> Bool in
+      MainActor.assumeIsolated {
+        guard let page = PhonePages.shared.page(pageID), let interaction = page.webView?.findInteraction else { return false }
+        if let text { interaction.searchText = text }
+        page.presentFindInPage()
+        return true
+      }
+    }.runOnQueue(.main)
+
     AsyncFunction("setPageZoom") { (pageID: String, zoom: Double) -> Double in
       try MainActor.assumeIsolated {
         let page = try PhonePages.shared.require(pageID)

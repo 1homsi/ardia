@@ -62,6 +62,7 @@ type PagesNative = {
   download(pageId: string, url: string): Promise<void>;
   readableContent(pageId: string): Promise<ReadableContent | null>;
   print?(pageId: string): Promise<boolean>;
+  presentSystemFind?(pageId: string, text: string | null): Promise<boolean>;
   snapshot(pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: [number, number] }): Promise<PageSnapshot | null>;
   loadHtml(pageId: string, html: string, baseUrl: string): Promise<void>;
   scrollPosition(pageId: string): Promise<PageScrollPosition | null>;
@@ -132,6 +133,8 @@ export const pages = {
     native().revokeSitePermission?.(origin, permission ?? null) ?? Promise.resolve(false),
   print: (pageId: string): Promise<boolean> => native().print?.(pageId) ?? Promise.resolve(false),
   canPrint: (): boolean => typeof native().print === "function",
+  hasSystemFind: (): boolean => typeof native().presentSystemFind === "function",
+  presentSystemFind: (pageId: string, text?: string): Promise<boolean> => native().presentSystemFind?.(pageId, text ?? null) ?? Promise.resolve(false),
   snapshot: (pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: PageToneInsets } = {}) =>
     native().snapshot(pageId, {
       maxWidth: options.maxWidth,
