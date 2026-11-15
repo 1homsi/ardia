@@ -18,12 +18,13 @@ export type { FindResult, PageEngineEvent, PageNavigationState, PageRequest, Pag
 type PagesState = {
   navigation: Record<string, PageState>;
   tones: Record<string, PageTone>;
+  lastTones: Record<string, PageTone>;
   finds: Record<string, FindResult | null>;
   requests: Record<string, PageRequest | null>;
   fullscreen: Record<string, boolean>;
 };
 
-export const usePages = create<PagesState>()(() => ({ navigation: {}, tones: {}, finds: {}, requests: {}, fullscreen: {} }));
+export const usePages = create<PagesState>()(() => ({ navigation: {}, tones: {}, lastTones: {}, finds: {}, requests: {}, fullscreen: {} }));
 
 const handles = new Map<string, PageViewHandle>();
 
@@ -41,7 +42,7 @@ export const pageTone = (id: string) => usePages.getState().tones[id] ?? null;
 export const storeNavigation = (id: string, navigation: PageState) =>
   usePages.setState((s) => ({ navigation: { ...s.navigation, [id]: navigation } }));
 
-export const storeTone = (id: string, tone: PageTone) => usePages.setState((s) => ({ tones: { ...s.tones, [id]: tone } }));
+export const storeTone = (id: string, tone: PageTone) => usePages.setState((s) => ({ tones: { ...s.tones, [id]: tone }, lastTones: { ...s.lastTones, [id]: tone } }));
 
 export function clearTone(id: string) {
   if (!usePages.getState().tones[id]) return;
@@ -67,17 +68,19 @@ export function endPages(ids: readonly string[]) {
   usePages.setState((s) => {
     const navigation = { ...s.navigation };
     const tones = { ...s.tones };
+    const lastTones = { ...s.lastTones };
     const finds = { ...s.finds };
     const requests = { ...s.requests };
     const fullscreen = { ...s.fullscreen };
     for (const id of ids) {
       delete navigation[id];
       delete tones[id];
+      delete lastTones[id];
       delete finds[id];
       delete requests[id];
       delete fullscreen[id];
     }
-    return { navigation, tones, finds, requests, fullscreen };
+    return { navigation, tones, lastTones, finds, requests, fullscreen };
   });
   for (const id of ids) {
     handles.delete(id);
