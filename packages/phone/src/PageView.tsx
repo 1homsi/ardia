@@ -1,4 +1,4 @@
-import { requireNativeViewManager } from "expo-modules-core";
+import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
 import { forwardRef, useImperativeHandle, useRef, type Ref } from "react";
 import type { NativeSyntheticEvent, ViewProps } from "react-native";
 import { normalizeState } from "./normalize";
@@ -15,6 +15,7 @@ type NativeProps = ViewProps & {
   isPrivate?: boolean;
   savedState?: string;
   toneInsets?: [number, number];
+  obscuredInsets?: [number, number];
   onPageEvent?: (event: NativeSyntheticEvent<PageEventPayload>) => void;
 };
 
@@ -22,8 +23,12 @@ const NativePageView = requireNativeViewManager<NativeProps>("ArdiaPhonePageView
 
 export const closePage = (pageId: string) => pages.close(pageId);
 
+const obscuresInsets = requireOptionalNativeModule<{ obscuresInsets?: boolean }>("ArdiaPhonePageView")?.obscuresInsets === true;
+
+export const pageObscuresInsets = () => obscuresInsets;
+
 export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageView(props, ref) {
-  const { onPageState, onPageTone, onPageError, toneInsets, ...rest } = props;
+  const { onPageState, onPageTone, onPageError, toneInsets, obscuredInsets, ...rest } = props;
   const native = useRef<NativeHandle>(null);
   useImperativeHandle(
     ref,
@@ -51,6 +56,7 @@ export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageV
       {...rest}
       ref={native}
       toneInsets={toneInsets ? [toneInsets.top, toneInsets.bottom] : undefined}
+      obscuredInsets={obscuresInsets && obscuredInsets ? [obscuredInsets.top, obscuredInsets.bottom] : undefined}
       onPageEvent={onPageEvent}
     />
   );

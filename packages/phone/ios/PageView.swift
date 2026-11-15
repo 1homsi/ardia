@@ -13,6 +13,9 @@ final class PageView: ExpoView {
   var isPrivate = false
   var savedState: String?
   var toneInsets: (top: CGFloat, bottom: CGFloat) = (0, 0)
+  var obscuredInsets: UIEdgeInsets = .zero {
+    didSet { if obscuredInsets != oldValue { applyObscuredInsets() } }
+  }
   var swipeNavigation: PageGestures.Swipe = .anywhere
   var pullToRefresh = true
   private(set) var page: WebTab?
@@ -97,6 +100,7 @@ final class PageView: ExpoView {
     webView.frame = bounds
     webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     addSubview(webView)
+    applyObscuredInsets()
     gestures.attach(webView, page: page)
     scrollObservation = webView.scrollView.observe(\.contentOffset, options: []) { [weak self] _, _ in
       MainActor.assumeIsolated { self?.scrollMoved() }
@@ -199,6 +203,11 @@ final class PageView: ExpoView {
   override func layoutSubviews() {
     super.layoutSubviews()
     if let hostedWebView, hostedWebView.superview === self { hostedWebView.frame = bounds }
+  }
+
+  private func applyObscuredInsets() {
+    guard let hostedWebView, hostedWebView.superview === self, hostedWebView.obscuredContentInsets != obscuredInsets else { return }
+    hostedWebView.obscuredContentInsets = obscuredInsets
   }
 
   @MainActor

@@ -27,6 +27,8 @@ public final class PageViewModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaPhonePageView")
 
+    Constant("obscuresInsets") { true }
+
     Events("onPageEngineEvent")
 
     OnCreate {
@@ -315,6 +317,14 @@ public final class PageViewModule: Module {
           view.toneInsets = (CGFloat(insets[0]), CGFloat(insets[1]))
         } else {
           view.toneInsets = (0, 0)
+        }
+      }
+
+      Prop("obscuredInsets") { (view: PageView, insets: [Double]?) in
+        if let insets, insets.count == 2 {
+          view.obscuredInsets = UIEdgeInsets(top: max(CGFloat(insets[0]), 0), left: 0, bottom: max(CGFloat(insets[1]), 0), right: 0)
+        } else {
+          view.obscuredInsets = .zero
         }
       }
 

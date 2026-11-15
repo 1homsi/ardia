@@ -39,6 +39,8 @@ export type PageTone = { top: string | null; bottom: string | null };
 
 export type PageToneInsets = { top: number; bottom: number };
 
+export type PageObscuredInsets = { top: number; bottom: number };
+
 export type PageError = { code: string; message: string };
 
 export type SwipeNavigation = "anywhere" | "edges" | "off";
@@ -50,6 +52,7 @@ export type PageViewProps = ViewProps & {
   isPrivate?: boolean;
   savedState?: string;
   toneInsets?: PageToneInsets;
+  obscuredInsets?: PageObscuredInsets;
   swipeNavigation?: SwipeNavigation;
   pullToRefresh?: boolean;
   onPageState?: (state: PageState) => void;

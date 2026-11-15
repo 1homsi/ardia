@@ -15,7 +15,7 @@ export {
   type LegacyVisit,
   type LegacyVisitPage,
 } from "./legacy";
-export { closePage, PageView } from "./PageView";
+export { closePage, pageObscuresInsets, PageView } from "./PageView";
 export { pages, type LaunchArgumentValue, type LaunchOptions } from "./pages";
 export { keyboard, type KeyboardDidChange, type KeyboardWillChange } from "./keyboard";
 export { CompletingField, completingFieldIsNative, type CompletingFieldHandle, type CompletingFieldProps, type CompletionOffer } from "./completingField";
@@ -107,6 +107,7 @@ export type {
   PageSnapshot,
   PageState,
   PageTone,
+  PageObscuredInsets,
   PageToneInsets,
   PageViewHandle,
   PageViewProps,
