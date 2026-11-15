@@ -47,8 +47,7 @@ export type CreateWindowOptions = {
   linkPointer?: [number, number];
   linkApp?: string;
   background?: boolean;
-  chromeWindow?: string;
-  opensBehind?: string;
+  chromeWindow?: string; opensBehind?: string;
 };
 
 export type CloseWindowOptions = { keepsLastWindow?: boolean };
@@ -199,15 +198,13 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     if (!small) next = adoptParkedPins(next, id, next.tabs[shown]!.profileId);
     next = apply(next, activated(next, shown));
     const focused = focusedWindowOf(s);
-    if (o.opensBehind && kind === "main") {
-      next = { ...next, ui: { ...next.ui, focusOrder: s.ui.focusOrder, lastProfileId: s.ui.lastProfileId } };
-    } else if (o.background && focused && s.windows[focused]) {
+    if (o.background && focused && s.windows[focused]) {
       next = {
         ...next,
         ui: { ...next.ui, focusOrder: [focused, id, ...s.ui.focusOrder.filter((w) => w !== focused)], lastProfileId: s.ui.lastProfileId },
       };
     }
-    set(next);
+    set(o.opensBehind && kind === "main" ? { ...next, ui: { ...next.ui, focusOrder: s.ui.focusOrder, lastProfileId: s.ui.lastProfileId } } : next);
     home?.settle(first, get, () => {});
     return id;
   },
