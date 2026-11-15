@@ -17,6 +17,7 @@ import { rowFade, rowsFadeEdge, rowsOverflow, wholeRowsHeight } from "../../lib/
 import { haptics } from "../../state/app/haptics";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
+import { followTrayBack, trayBackTravel } from "../../state/search/trayBack";
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
@@ -75,6 +76,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const keyboard = useTrayKeyboard();
   const landing = useSharedValue(0);
   const depart = useSharedValue(0);
+  const back = useSharedValue(0);
   const departing = useRef(false);
   const beginDeparture = () => {
     if (!panel || reduceMotion || departing.current) return;
@@ -272,12 +274,28 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     return heldLift.value >= 0 ? heldLift.value : liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
   };
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * (1 - clampedProgress(drag.value, trayHeight + currentLift())) }), [trayHeight, safeBottom]);
+  useEffect(() => {
+    if (closing) return;
+    const stop = followTrayBack({
+      onProgress: (progress) => {
+        back.value = progress;
+      },
+      onCancel: () => {
+        back.value = withSpring(0, trayMotion.settle);
+      },
+      onCommit: () => cancelSearch(),
+    });
+    return () => {
+      stop();
+      back.value = 0;
+    };
+  }, [closing]);
   const trayStyle = useAnimatedStyle(() => {
     const lift = currentLift();
     const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
     return {
       opacity: (reduceMotion ? dim.value : 1) * (1 - depart.value),
-      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) - floatingPanelLayout.departLift * depart.value }],
+      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) - floatingPanelLayout.departLift * depart.value + back.value * trayBackTravel }],
     };
   }, [trayHeight, safeBottom, reduceMotion, panel]);
 
