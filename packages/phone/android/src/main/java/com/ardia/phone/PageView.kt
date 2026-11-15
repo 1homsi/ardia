@@ -31,6 +31,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     private var scope: CoroutineScope? = null
     private var sampled: PageTone? = null
     private var sentTone: PageTone? = null
+    private var toneSampledSinceBind = false
     private var failedId: String? = null
 
     var pageId: String? = null
@@ -82,6 +83,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
             return
         }
         page = opened
+        toneSampledSinceBind = false
         gestures.page = opened
         PhonePages.viewShows(id, this)
         val running = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -101,6 +103,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         failedId = null
         sampled = null
         sentTone = null
+        toneSampledSinceBind = false
         host.removeAllViews()
     }
 
@@ -160,6 +163,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     private fun sendTone(state: PageState) {
         if (state.failure != null) sampled = null
+        if (!PageToneGate.reports(state.themeColor, state.failure != null, toneSampledSinceBind)) return
         val tone = ErrorPages.tone(state.failure, PageTone.resolve(state.themeColor, state.backgroundColor, sampled, stored = null))
         if (tone == sentTone || (tone.top == null && tone.bottom == null && sentTone == null)) return
         sentTone = tone
@@ -178,7 +182,9 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
             delay(TONE_SETTLE_MILLIS)
             val density = resources.displayMetrics.density
             val (top, bottom) = toneInsets
-            sampled = page.sampleTone((top * density).roundToInt(), (bottom * density).roundToInt()) ?: return@collectLatest
+            val taken = page.sampleTone((top * density).roundToInt(), (bottom * density).roundToInt())
+            toneSampledSinceBind = true
+            if (taken != null) sampled = taken
             sendTone(page.state.value)
         }
     }
@@ -199,4 +205,8 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     private companion object {
         const val TONE_SETTLE_MILLIS = 250L
     }
+}
+
+internal object PageToneGate {
+    fun reports(themeColor: Int?, failed: Boolean, sampledSinceBind: Boolean): Boolean = sampledSinceBind || themeColor != null || failed
 }
