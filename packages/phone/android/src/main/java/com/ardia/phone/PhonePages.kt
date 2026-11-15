@@ -42,6 +42,17 @@ object PhonePages {
     private val popups = HashMap<String, PopupRequest>()
     private var host: WeakReference<Activity>? = null
     private val views = HashMap<String, WeakReference<PageView>>()
+    private val visuals = PageVisuals().apply {
+        onNoLongerCurrent = { id, change, millis ->
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB snapshot $id no longer current: page ${change.word} $millis ms after its capture")
+        }
+    }
+    private var drawWatched: WeakReference<android.view.View>? = null
+    private val drawWatch = android.view.ViewTreeObserver.OnDrawListener {
+        for ((id, view) in views) {
+            if (view.get() != null) visuals.noteDirty(id, page(id)?.view?.value)
+        }
+    }
 
     lateinit var sitePreferences: PhoneSitePreferences
         private set
@@ -94,6 +105,7 @@ object PhonePages {
 
     fun attach(activity: Activity) {
         host = WeakReference(activity)
+        watchDraws(activity.window.decorView)
         if (shared == null && UpgradeGate.pending(activity)) return
         engine(activity).attach(activity)
         blocking.refreshIfDue()
@@ -101,11 +113,24 @@ object PhonePages {
 
     fun detach(activity: Activity) {
         if (host?.get() === activity) host = null
+        if (drawWatched?.get() === activity.window.decorView) watchDraws(null)
         shared?.detach(activity)
         if (fullscreen.isShowing) fullscreen.hide()
     }
 
     fun hostActivity(): Activity? = host?.get()
+
+    private fun watchDraws(decor: android.view.View?) {
+        val watched = drawWatched?.get()
+        if (watched === decor) return
+        watched?.viewTreeObserver?.takeIf { it.isAlive }?.removeOnDrawListener(drawWatch)
+        decor?.viewTreeObserver?.addOnDrawListener(drawWatch)
+        drawWatched = decor?.let(::WeakReference)
+    }
+
+    fun snapshotIsCurrent(pageId: String): Boolean? = visuals.isCurrent(pageId)
+
+    fun forgetSnapshots(pageId: String) = visuals.forget(pageId)
 
     fun open(context: Context, pageId: String, setup: PageSetup): Page {
         val engine = engine(context)
@@ -193,6 +218,7 @@ object PhonePages {
 
     suspend fun snapshot(pageId: String, maxWidth: Int, quality: Int, covered: Pair<Double, Double>?): Map<String, Any?>? {
         val page = require(pageId)
+        val generation = kotlinx.coroutines.withContext(Dispatchers.Main.immediate) { visuals.generation(pageId) }
         val started = android.os.SystemClock.uptimeMillis()
         val drawn = page.snapshot(maxWidth) ?: return null
         val captured = android.os.SystemClock.uptimeMillis()
@@ -207,6 +233,7 @@ object PhonePages {
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId landed in ${android.os.SystemClock.uptimeMillis() - writeStarted} ms: generation $generation")
             scope.launch { send(pageId, "page.snapshotLanded", "uri" to uri, "generation" to generation.toDouble()) }
         } ?: return null
+        if (written["kept"] != true) visuals.captured(pageId, generation)
         val held = written["durable"] == false
         if (PhoneLab.isOn) {
             val done = android.os.SystemClock.uptimeMillis()
@@ -237,6 +264,7 @@ object PhonePages {
         permissionAsks.drop(pageId)
         watchers.remove(pageId)?.cancel()
         views.remove(pageId)
+        visuals.forget(pageId)
         val page = shared?.existing(pageId)
         if (page != null && fullscreen.owns(page.fullscreen.value)) fullscreen.hide()
         popups.entries.removeAll { it.value.openerId == pageId }
@@ -331,7 +359,12 @@ object PhonePages {
         if (watchers[page.id]?.isActive == true) return false
         val id = page.id
         watchers[id] = scope.launch {
-            launch { page.state.collect { send(id, "page.state", "state" to PagePayloads.state(app, it, page.isPrivate)) } }
+            launch {
+                page.state.collect {
+                    visuals.changed(id, PageVisuals.Change.State)
+                    send(id, "page.state", "state" to PagePayloads.state(app, it, page.isPrivate))
+                }
+            }
             launch { page.find.drop(1).filter { it == null || it.isDone }.collect { send(id, "page.find", "result" to PagePayloads.find(it)) } }
             launch { page.request.collect { request -> gateThenSend(page, request) } }
             launch {
