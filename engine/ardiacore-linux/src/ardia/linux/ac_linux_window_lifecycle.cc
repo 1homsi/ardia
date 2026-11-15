@@ -155,9 +155,8 @@ Requested RequestedSmallFrame(const std::vector<double>& size,
   requested.bounds.height = static_cast<int>(std::lround(height));
   requested.positioned = global_coordinates && work_area.width > 0 && work_area.height > 0;
   if (requested.positioned) {
-    const double lift = std::min(work_area.height * 0.05, (work_area.height - height) / 2);
     requested.bounds.x = work_area.x + static_cast<int>(std::lround((work_area.width - width) / 2));
-    requested.bounds.y = work_area.y + static_cast<int>(std::lround((work_area.height - height) / 2 - lift));
+    requested.bounds.y = work_area.y + static_cast<int>(std::lround((work_area.height - height) / 2));
   }
   return requested;
 }

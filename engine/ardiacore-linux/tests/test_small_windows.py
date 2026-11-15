@@ -43,7 +43,8 @@ class SmallWindowTests(unittest.TestCase):
         self.assertIn('window.minSize = NSSize(width: 420, height: 300)', manager)
         self.assertIn('let width = min(max(size?.width ?? 900, window.minSize.width), visible.width)', manager)
         self.assertIn('let height = min(max(size?.height ?? 640, window.minSize.height), visible.height)', manager)
-        self.assertIn('let lift = min(visible.height * 0.05, (visible.height - height) / 2)', manager)
+        self.assertIn('let origin = NSPoint(x: (visible.midX - width / 2).rounded(), y: (visible.midY - height / 2).rounded())', manager)
+        self.assertNotIn('lift', manager)
         self.assertIn('size?: [number, number];', (REPO / 'packages/shell/src/windows.ts').read_text())
 
     def test_a_small_window_without_a_frame_opens_at_its_size_on_the_openers_display(self):

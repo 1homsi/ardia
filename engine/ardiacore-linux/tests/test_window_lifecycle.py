@@ -192,24 +192,24 @@ static void MalformedFramesAreRejected() {
   assert(!RequestedFrame({1e12, 0, 800, 600}, primary, true));
 }
 
-static void ASmallWindowOpensAtItsSizeCentredAndLiftedLikeTheMac() {
+static void ASmallWindowOpensAtItsSizeCentredLikeTheMac() {
   const Rect area{0, 32, 1920, 1048};
   const auto given = RequestedSmallFrame({1000, 700}, area, true);
   assert(given.positioned && given.bounds.width == 1000 && given.bounds.height == 700);
-  assert(given.bounds.x == 460 && given.bounds.y == 32 + 174 - 52);
+  assert(given.bounds.x == 460 && given.bounds.y == 32 + 174);
   const auto standard = RequestedSmallFrame({}, area, true);
   assert(standard.bounds.width == kSmallWindowWidth && standard.bounds.height == kSmallWindowHeight);
-  assert(standard.bounds.x == 510 && standard.bounds.y == 32 + 204 - 52);
+  assert(standard.bounds.x == 510 && standard.bounds.y == 32 + 204);
   const auto tiny = RequestedSmallFrame({100, 50}, area, true);
   assert(tiny.bounds.width == kSmallWindowMinWidth && tiny.bounds.height == kSmallWindowMinHeight);
   const auto huge = RequestedSmallFrame({5000, 4000}, area, true);
   assert(huge.bounds.width == 1920 && huge.bounds.height == 1048);
   assert(huge.bounds.x == 0 && huge.bounds.y == 32);
   const auto tall = RequestedSmallFrame({900, 1040}, area, true);
-  assert(tall.bounds.height == 1040 && tall.bounds.y == 32);
+  assert(tall.bounds.height == 1040 && tall.bounds.y == 32 + 4);
   const Rect second{-1280, 200, 1280, 720};
   const auto other = RequestedSmallFrame({900, 640}, second, true);
-  assert(other.bounds.x == -1280 + 190 && other.bounds.y == 200 + 40 - 36);
+  assert(other.bounds.x == -1280 + 190 && other.bounds.y == 200 + 40);
   const auto wayland = RequestedSmallFrame({1000, 700}, area, false);
   assert(!wayland.positioned && wayland.bounds.width == 1000 && wayland.bounds.height == 700);
   assert(wayland.bounds.x == 0 && wayland.bounds.y == 0);
@@ -245,7 +245,7 @@ int main() {
   OnlyTheActivationAroundTheFirstFrameIsHandedBack();
   SharedFramesUseBottomUpPrimaryCoordinates();
   MalformedFramesAreRejected();
-  ASmallWindowOpensAtItsSizeCentredAndLiftedLikeTheMac();
+  ASmallWindowOpensAtItsSizeCentredLikeTheMac();
   FullScreenChangesAreReportedOnTransitionsOnly();
 }
 '''

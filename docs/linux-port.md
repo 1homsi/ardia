@@ -213,7 +213,7 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   window, on its command bar when its tab is blank. Once the native window has opened, the opener forgets its copy
   without closing the window, so the window lives in one store only and a tab it moves to the main window
   (Open in Ardia) arrives through the session like any other. The opener also sends the Mac's frame: the saved
-  Little Ardia size, at least 420 by 300, centred and lifted 5%. With an engine that advertises
+  Little Ardia size, at least 420 by 300, centred in the work area. With an engine that advertises
   `ArdiaShell.smallWindows` the shell does neither: the opener passes the same window and tab as `smallWindow` in the
   `openWindow` options and no frame, and the new renderer reads `windowKind` and `smallWindow` from its bootstrap
   (a relayed window has no 60 s limit). A bootstrap whose `windowKind` isn't `"small"` takes no seed at all. See
@@ -1424,7 +1424,7 @@ Both are ports of the Mac's native code (`ArdiaWebView+Peek.mm`, `ArdiaWebView+T
   listens for. Advertised as `ArdiaShell.resignActive`.
 - **Small windows.** `ArdiaShell.openWindow` with `kind: "small"` and no `frame` now opens at `size` (`[width,
   height]`, 900 by 640 without one), at least 420 by 300 and at most the work area of the opener's display, centred
-  and lifted 5% where the desktop has global coordinates (`RequestedSmallFrame`). A window that is small has the
+  in it where the desktop has global coordinates (`RequestedSmallFrame`). A window that is small has the
   Mac's minimum size, 420 by 300, through `chromium-linux-window-minimum-size.patch`
   (`BrowserView::GetMinimumSize` asks the host). The new window's bootstrap carries `windowKind` (`"small"`,
   `"browser"`, or `"settings"`/`"import"`), and, when the opener passed a `smallWindow` object in the options (up
