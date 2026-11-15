@@ -6,13 +6,18 @@ import { newIncognitoTab, newRegularTab, newTab, openArchive, openSpaces, reopen
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, LookBackdropBase, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem, useReduceMotion } from "../ui";
+import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, LookBackdropBase, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem, useDesign, useReduceMotion } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
+import { StartPage } from "./StartPage";
 
 const BAR_RESERVE = 58;
 
 export function StartScreen() {
+  return useDesign() === "redesigned" ? <StartPage /> : <OriginalStart />;
+}
+
+function OriginalStart() {
   const insets = useSafeAreaInsets();
   const trayUp = useSearchOpen();
   const hasTabs = useHasTabs();

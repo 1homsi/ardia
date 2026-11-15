@@ -20,7 +20,7 @@ import {
 import { Backdrop } from "./Backdrop";
 import { useReduceTransparency } from "./contrast";
 import { useProfileLook, useTheme } from "./theme";
-import { chromeInk, chromeLayout, tabsInk } from "./tokens";
+import { chromeInk, chromeLayout, startInk, tabsInk } from "./tokens";
 import { useReduceMotion } from "./contrast";
 
 export const SURFACES_FROST = "surfaces";
@@ -51,6 +51,7 @@ type BackdropProps = {
   incognito?: boolean;
   dark?: boolean;
   baseOutside?: boolean;
+  veiled?: boolean;
 };
 
 function useBackdropStops({ themed = false, incognito = false, dark }: BackdropProps) {
@@ -80,10 +81,17 @@ export function DeckLookBackdropBase() {
 }
 
 export function LookBackdrop(props: BackdropProps) {
-  const { themed = false, softened = false, fadesOut = false, incognito = false, baseOutside = false } = props;
+  const { themed = false, softened = false, fadesOut = false, incognito = false, baseOutside = false, veiled = false } = props;
   const { look, theme, shade, stops } = useBackdropStops(props);
   if (!lookIsNative()) {
     if (incognito) return <Backdrop colors={tabsInk.incognitoBackdrop} />;
+    if (themed && veiled && theme.start.diagonal && !shade)
+      return (
+        <>
+          <Backdrop colors={theme.start.colors} diagonal />
+          <View testID="themeVeil" pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: startInk.veil }]} />
+        </>
+      );
     if (themed)
       return (
         <Backdrop colors={theme.start.colors} diagonal={theme.start.diagonal} />

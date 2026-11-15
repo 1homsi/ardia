@@ -1106,7 +1106,7 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 | `sharing_turned_on` | `source` (settings, onboarding) | turning sharing on |
 | `app_launched` | `legacy_import` (imported, started_fresh, none), `legacy_import_failures` (failed tries before the app opened), `look_mode` (full, no_blur, no_motion, neither: the look this launch shows, after the look's budget and the system's Reduce Motion and Reduce Transparency) | each launch with sharing on |
 | `perf_launch` | `launch_ms`, `js_ms` | each launch, once the module gives the process start (`ArdiaPhoneSystem.processStartedAt()`, epoch ms) |
-| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `spaces_swiped` (a swipe in Spaces that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `tray_back_swiped` (a search tray closed with Android's predictive back swipe) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
+| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `spaces_swiped` (a swipe in Spaces or on the start page that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `tray_back_swiped` (a search tray closed with Android's predictive back swipe) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
 
 On the dashboard they are kept out of every Mac section by source and lib (`PHONE_APP_SOURCE` in `apps/dashboard/src/server/sql.ts`).
 
@@ -1191,7 +1191,7 @@ The work, most visible first. JS is the screens agent's, native the iPhone agent
 1. Page bar redesign: JS, a day; Classic through `Glass` is native (item 7). In (0043d844e); on the simulator beside main its pieces sit within a pixel of SwiftUI's, but its glass is forced dark in dark mode and private tabs where main's follows the page's tone, and its `···` and + glyphs are about 25-35% small.
 2. The page under the bar: native `PageView` inset prop, then JS lays the page full screen. Half a day; ships with item 1. Native in (`obscuredInsets`, `pageObscuresInsets()`, 86b1d53bc); JS in (ccf4e02da).
 3. Search as a floating glass panel: JS, half a day.
-4. Start page (switcher, tiles, dots, no logo): JS, a day.
+4. Start page (switcher, tiles, dots, no logo): JS, a day. Built as the redesign's `StartPage` and `StartSpaces` with `startLayout`, `startInk` and `startMotion` read from main's `TabsTokens.swift`, `SearchHomeView.swift`, `PinnedTiles.swift` and `SpaceSwitcher.swift`; render tests in both designs. Its moving parts wait for the simulator (below).
 5. Deck header and bar, Search Tabs, the new geometry: JS, a day.
 6. Spaces filtering, switching, Move to Space: JS only, a day (the sync module already carries every field).
 7. Appearance and Match My Mac: native bridges `look` from sync and gives `Glass` Classic and Reduce Transparency; JS adds the page, the two preferences and applies them to every glass surface. A day and a half. Native in: `SyncedView.look` (d2ce70978), `Glass` `surface`, `tinted` and `barShadow` (2f4e947fb).
@@ -1205,6 +1205,15 @@ The work, most visible first. JS is the screens agent's, native the iPhone agent
 15. Onboarding and Settings words, fonts and icons: JS, half a day.
 16. The light-mode veil in the JS backdrop fallback and the status-bar ink choice: JS, an hour.
 Telemetry the redesign adds: space switches, Search Tabs, the grid, the appearance choice.
+
+#### Moving parts not yet seen in frames
+
+Nothing here is done until it has been watched in the screens agent's own simulator frames beside main's SwiftUI app. Strike a line only with the frame sheet's path.
+- Search panel: the lift and fade on Go and on a row (frozen on the simulator through 2026-11-15; the page's loading line, then on React Native's JavaScript-driven Animated, committed every frame and held Reanimated's commits; the fix waits for the simulator in `screens-depart8`).
+- Start page: the tray-up fade and 0.96 scale, and the Reduce Motion fade without the scale; the bar fading out with it.
+- Start page: the sideways space pager, and its jump when a space is picked from the switcher's menu; the page dots' colour change.
+- Start page: the switcher's space menu, a folder tile's menu, a tile's Copy Link and Share menu, the plus menu.
+- Start page: the tile press scale (instant, where main springs it with `Motion.press`); the glass of the tiles, bar and capsule; the light-mode veil in the drawn fallback; the bar glyph sizes (estimated from SF sizes 16 and 18).
 
 The owner's two iPhone choices, system context menus and Apple's web-browser entitlement, are in "Waiting on the owner".
 

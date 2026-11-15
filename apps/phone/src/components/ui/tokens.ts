@@ -257,6 +257,46 @@ export const floatingPanelLayout = {
   incognitoShadow: "0px 4px 36px rgba(0, 0, 0, 0.3)",
 } as const;
 
+export const startLayout = {
+  switcherRatio: 0.44,
+  tilesGap: 45,
+  pageDotsAboveBar: 60,
+  barAboveSafeBottom: 11,
+  minSafeBottom: 20,
+  barCircle: 48,
+  barPlus: { width: 77, height: 48 },
+  barSideInset: 12,
+  barGap: 8,
+  circleGlyph: 19.2,
+  plusGlyph: 22.4,
+  tilesPerRow: 4,
+  tileSide: 20,
+  tileGap: 8,
+  tileHeight: 52,
+  tileRadius: 14,
+  tileIcon: 20,
+  tilePressScale: 0.94,
+  folderIconShare: 0.95,
+  symbolIconShare: 0.9,
+  folderInkOpacity: 0.55,
+  spaceBadge: 20,
+  badgeSymbolShare: 0.85,
+  badgeSymbolWidth: 1.25,
+  badgeEmojiShare: 0.8,
+  badgeInitialShare: 0.55,
+  titleSpacing: 8,
+  chevron: 12,
+  pageDot: 7,
+  pageDotSpacing: 21,
+  invitationPadding: 20,
+} as const;
+
+export const startInk = {
+  veil: "rgba(255,255,255,0.34)",
+  light: { pageDot: "rgba(0,0,0,0.32)", badge: "#FFFFFF", badgeInk: "#000000" },
+  dark: { pageDot: "rgba(255,255,255,0.32)", badge: "#1C1C1E", badgeInk: "#FFFFFF" },
+} as const;
+
 export const chromeLayout = { edge: 0.5, shadowRadius: 10, shadowY: 2 } as const;
 
 export const chromeInk = {

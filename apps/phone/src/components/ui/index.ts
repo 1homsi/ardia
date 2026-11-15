@@ -8,7 +8,7 @@ export { barCenterFromBottom, barHeight, deckCenterFromBottom } from "./barGeome
 export { CodeCamera } from "./CodeCamera";
 export { Favicon } from "./Favicon";
 export { LoadingLine } from "./LoadingLine";
-export { duration, settingsMotion, spring, springs, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
+export { duration, settingsMotion, spring, springs, startMotion, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
 export { ConfirmDialog, Dialog, showActionSheet, type Confirmation, type DialogButton } from "./Dialog";
 export { FloatingMenu, Menu, type MenuItem } from "./Menu";
 export { Shade } from "./Shade";
@@ -22,7 +22,7 @@ export { Symbol } from "./Symbol";
 export { placeholderTint, TabFace, tabFill } from "./TabFace";
 export { isSymbolName, type SymbolName } from "./symbolPaths";
 export { DEFAULT_PROFILE_COLOR, PROFILE_PRESETS, ProfileLookContext, rolesFor, useProfileLook, useTheme, type StartBackdrop, type Theme } from "./theme";
-export { appIconLayout, browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayout, pageInk, readerInk, readerLayout, settingsLayout, settingsTint, PROFILE_COLORS, scanInk, scanLayout, shadowRadius, spacesLayout, syncInk, tabsInk, voiceInk, voiceLayout, failureLayout, archiveCardLayout, onboardingArt, syncSketch, chromeInk, chromeLayout, floatingBarLayout, floatingPanelLayout, tabsLayout, toastLayout, trayShadow, type ColorRoles, type ProfileColor } from "./tokens";
+export { appIconLayout, browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayout, pageInk, readerInk, readerLayout, settingsLayout, settingsTint, PROFILE_COLORS, scanInk, scanLayout, shadowRadius, spacesLayout, syncInk, tabsInk, voiceInk, voiceLayout, failureLayout, archiveCardLayout, onboardingArt, syncSketch, chromeInk, chromeLayout, floatingBarLayout, floatingPanelLayout, startInk, startLayout, tabsLayout, toastLayout, trayShadow, type ColorRoles, type ProfileColor } from "./tokens";
 export { useCoverFocus } from "./coverFocus";
 export { FullSheet, SheetBackground, useSheetFrame } from "./FullSheet";
 export { SwipeToDelete } from "./SwipeToDelete";
