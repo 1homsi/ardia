@@ -16,6 +16,11 @@ object UsageConsent {
         if (!sharing) PendingCounts.clear(context)
     }
 
+    fun state(context: Context): Pair<Boolean, Long> = synchronized(this) {
+        val stored = preferences(context)
+        stored.getBoolean(SHARING, false) to stored.getLong(GENERATION, 0L)
+    }
+
     fun window(context: Context): Long? = synchronized(this) {
         val stored = preferences(context)
         if (stored.getBoolean(SHARING, false)) stored.getLong(GENERATION, 0L) else null
@@ -51,6 +56,8 @@ object PendingCounts {
         store(context).add(field, by)
         Unit
     }
+
+    fun peek(context: Context): Map<String, Int> = synchronized(this) { store(context).all() }
 
     fun take(context: Context): Map<String, Int> = synchronized(this) {
         val store = store(context)

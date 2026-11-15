@@ -19,6 +19,18 @@ class PendingCountsConsentTest {
     }
 
     @Test
+    fun theLabCanReadThePendingCountsAndTheConsentWithoutTakingThem() {
+        UsageConsent.set(app, true)
+        val (sharing, generation) = UsageConsent.state(app)
+        assertEquals(true, sharing)
+        PendingCounts.add(app, PendingCounts.TABS_SENT, UsageConsent.window(app))
+        assertEquals(mapOf("tabs_sent" to 1), PendingCounts.peek(app))
+        assertEquals("a peek leaves the count for the next take", mapOf("tabs_sent" to 1), PendingCounts.take(app))
+        UsageConsent.set(app, false)
+        assertEquals(false to generation + 1, UsageConsent.state(app))
+    }
+
+    @Test
     fun aSendWhileSharingIsOffIsNeverCounted() {
         UsageConsent.set(app, false)
         PendingCounts.add(app, PendingCounts.TABS_SENT, UsageConsent.window(app))

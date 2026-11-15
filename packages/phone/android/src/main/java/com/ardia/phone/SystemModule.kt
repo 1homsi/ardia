@@ -21,6 +21,17 @@ class SystemModule : Module() {
             UsageConsent.set(context, sharing)
         }
 
+        Function("peekPendingCounts") {
+            val context = appContext.reactContext ?: return@Function emptyMap<String, Int>()
+            PendingCounts.peek(context)
+        }
+
+        Function("usageConsent") {
+            val context = appContext.reactContext ?: return@Function null
+            val (sharing, generation) = UsageConsent.state(context)
+            mapOf("sharing" to sharing, "generation" to generation.toDouble())
+        }
+
         Function("takePendingCounts") {
             val context = appContext.reactContext ?: return@Function emptyMap<String, Int>()
             PendingCounts.take(context)
