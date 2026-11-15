@@ -221,6 +221,10 @@ internal object LookActivity {
     var sceneWorkerNanos = 0L
     @Volatile
     var scenesOffMain = 0L
+    @Volatile
+    var blendsOffMain = 0L
+    @Volatile
+    var fadeCatchUps = 0L
 }
 
 internal object DeckLayers {
@@ -430,6 +434,19 @@ internal class SceneRenderer {
         return made
     }
 
+    private val blendPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    fun blend(from: Bitmap, to: Bitmap, share: Float, target: Bitmap?): Bitmap {
+        val bitmap = target?.takeIf { it.width == from.width && it.height == from.height && it.isMutable }
+            ?: Bitmap.createBitmap(from.width, from.height, Bitmap.Config.RGBA_F16)
+        val canvas = Canvas(bitmap)
+        canvas.drawBitmap(from, 0f, 0f, null)
+        blendPaint.alpha = (share * 255f + 0.5f).toInt().coerceIn(0, 255)
+        if (blendPaint.alpha > 0) canvas.drawBitmap(to, 0f, 0f, blendPaint)
+        bitmap.setHasAlpha(false)
+        return bitmap
+    }
+
     fun render(request: SceneRequest): Bitmap {
         val bitmap = request.target?.takeIf { it.width == request.width && it.height == request.height && it.isMutable }
             ?: Bitmap.createBitmap(request.width, request.height, Bitmap.Config.RGBA_F16)
@@ -515,9 +532,12 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         sceneInFlight = false
         sceneBuffers.clear()
         previousScene = null
-        fadeFrom = null
-        fadeTo = null
-        fadeRetired = null
+        keyFrom = null
+        keyTo = null
+        keyNext = null
+        keyRetired = null
+        keyBuffers.clear()
+        blendBuffers.clear()
         paintedLook = null
         mesh = null
         blobShaders = emptyArray()
@@ -585,7 +605,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     internal fun stopMotion() {
         sceneGeneration += 1
         sceneInFlight = false
-        fadeTo = null
+        keyInFlight = false
+        blendInFlight = false
         removeCallbacks(tick)
         ownDrawPending = false
         releaseResting()
@@ -640,6 +661,16 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     private var paceMillis = 40L
     private val tick = NamedRunnable("deck tick") { advanceBlobs() }
 
+    private var tickDueAt = 0L
+
+    private fun scheduleTick(pace: Long) {
+        val now = SystemClock.uptimeMillis()
+        val due = (tickDueAt + pace).let { if (it <= now || it > now + pace) now + pace else it }
+        tickDueAt = due
+        val handler = handler
+        if (handler == null) postDelayed(tick, pace) else handler.postAtTime(tick, due)
+    }
+
     internal fun advanceBlobs() {
         if (!isAnimating) return stopMotion()
         val now = SystemClock.uptimeMillis()
@@ -669,75 +700,174 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - started
     }
 
+    private val sceneRenderer = SceneRenderer()
+    private var sceneInFlight = false
+    private var sceneGeneration = 0
+    private var previousScene: Bitmap? = null
+    private val sceneBuffers = ArrayList<Bitmap>(3)
+
     private val fades: Boolean get() = !still && LookSwitch.blobFramesPerSecond(context) == LookRules.PACED
 
-    private var fadeFrom: Bitmap? = null
-    private var fadeFromAt = 0L
-    private var fadeTo: Bitmap? = null
-    private var fadeToAt = 0L
-    private var fadeRetired: Bitmap? = null
+    private var keyFrom: Bitmap? = null
+    private var keyFromAt = 0L
+    private var keyTo: Bitmap? = null
+    private var keyToAt = 0L
+    private var keyNext: Bitmap? = null
+    private var keyNextAt = 0L
+    private var keyRetired: Bitmap? = null
+    private var keyInFlight = false
+    private var blendInFlight = false
     private var fadeLook: ProfileLook? = null
     private var fadeDark = false
+    private val keyBuffers = ArrayList<Bitmap>(5)
+    private val blendBuffers = ArrayList<Bitmap>(3)
 
-    internal val fadeScenes: Pair<Bitmap?, Bitmap?> get() = fadeFrom to fadeTo
+    internal val fadeScenes: Pair<Bitmap?, Bitmap?> get() = keyFrom to keyTo
+
+    internal val fadeQueue: Triple<Long, Long, Long> get() = Triple(keyFromAt, keyToAt, if (keyNext != null) keyNextAt else -1L)
 
     internal fun clockForTests(): Long = clock(SystemClock.uptimeMillis())
 
     private fun fadeIsStale(): Boolean {
-        val from = fadeFrom ?: return true
-        return fadeLook !== look || fadeDark != isDark || from.width != (width / SCENE_SCALE).coerceAtLeast(1) || from.height != (height / SCENE_SCALE).coerceAtLeast(1)
+        val from = keyFrom ?: return true
+        return fadeLook != look || fadeDark != isDark || from.width != (width / SCENE_SCALE).coerceAtLeast(1) || from.height != (height / SCENE_SCALE).coerceAtLeast(1)
     }
 
     private fun resetFade() {
         sceneGeneration += 1
         sceneInFlight = false
-        fadeFrom = null
-        fadeTo = null
-        fadeRetired = null
+        keyInFlight = false
+        blendInFlight = false
+        keyFrom = null
+        keyTo = null
+        keyNext = null
+        keyRetired = null
     }
 
     private fun startFade(at: Long): Boolean {
         resetFade()
         scene = null
         if (!renderScene(at)) return false
-        fadeFrom = scene
-        fadeFromAt = at
+        keyFrom = scene
+        keyFromAt = at
         fadeLook = look
         fadeDark = isDark
         return true
     }
 
+    private fun shiftFade(at: Long) {
+        val next = keyNext ?: return
+        keyRetired = keyFrom
+        keyFrom = keyTo
+        keyTo = next
+        keyNext = null
+        val late = at - keyToAt
+        keyFromAt = if (late > 0) at else keyToAt
+        keyToAt = keyFromAt + LookRules.FADE_SCENE_MILLIS
+        if (late > 0) LookActivity.fadeCatchUps += 1
+    }
+
     private fun stepFade(at: Long) {
         if (fadeIsStale() && !startFade(at)) return
-        val to = fadeTo
-        if (to != null && at >= fadeToAt) {
-            fadeRetired = fadeFrom
-            fadeFrom = to
-            fadeFromAt = fadeToAt
-            fadeTo = null
-            scene = to
-        }
-        if (fadeTo == null && !sceneInFlight) {
-            val target = fadeFromAt + LookRules.FADE_SCENE_MILLIS
-            requestScene(target, listOf(fadeFrom, fadeRetired)) { made, look, dark ->
-                if (look !== fadeLook || dark != fadeDark) return@requestScene
-                fadeTo = made
-                fadeToAt = target
+        if (keyTo != null && at >= keyToAt) shiftFade(at)
+        if (!keyInFlight) {
+            val target = when {
+                keyTo == null -> keyFromAt + LookRules.FADE_SCENE_MILLIS
+                keyNext == null -> keyToAt + LookRules.FADE_SCENE_MILLIS
+                else -> -1L
+            }
+            if (target >= 0) {
+                keyInFlight = true
+                val asked = requestKeyframe(target, listOf(keyFrom, keyTo, keyNext, keyRetired, scene)) { made ->
+                    keyInFlight = false
+                    if (made == null) return@requestKeyframe
+                    if (keyTo == null) {
+                        keyTo = made
+                        keyToAt = target
+                    } else {
+                        keyNext = made
+                        keyNextAt = target
+                    }
+                }
+                if (!asked) keyInFlight = false
             }
         }
-        showScene()
+        val from = keyFrom ?: return
+        val to = keyTo
+        if (to == null) {
+            if (scene !== from) {
+                previousScene = scene
+                scene = from
+            }
+            sceneLook = fadeLook
+            sceneDark = fadeDark
+            sceneFresh = true
+            showScene()
+            return
+        }
+        if (blendInFlight) return
+        blendInFlight = true
+        val share = fadeShare(at)
+        val generation = sceneGeneration
+        val target = blendBuffers.firstOrNull { buffer -> buffer !== scene && buffer !== previousScene && buffer.width == from.width && buffer.height == from.height }
+        val work = SceneWork.current
+        val renderer = sceneRenderer
+        work.render(Runnable {
+            val started = SystemClock.elapsedRealtimeNanos()
+            val made = runCatching { renderer.blend(from, to, share, target) }.getOrNull()
+            LookActivity.sceneWorkerNanos += SystemClock.elapsedRealtimeNanos() - started
+            LookActivity.blendsOffMain += 1
+            work.toMain(NamedRunnable("deck blend hand-back") {
+                val applied = SystemClock.elapsedRealtimeNanos()
+                blendInFlight = false
+                if (made == null || generation != sceneGeneration || !isAnimating) return@NamedRunnable
+                if (blendBuffers.none { it === made }) {
+                    blendBuffers.removeAll { it.width != made.width || it.height != made.height }
+                    blendBuffers += made
+                }
+                previousScene = scene
+                scene = made
+                sceneLook = fadeLook
+                sceneDark = fadeDark
+                sceneFresh = true
+                showScene()
+                LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - applied
+            })
+        })
     }
 
     internal fun fadeShare(at: Long): Float {
-        if (fadeTo == null || fadeToAt <= fadeFromAt) return 0f
-        return ((at - fadeFromAt).toFloat() / (fadeToAt - fadeFromAt)).coerceIn(0f, 1f)
+        if (keyTo == null || keyToAt <= keyFromAt) return 0f
+        return ((at - keyFromAt).toFloat() / (keyToAt - keyFromAt)).coerceIn(0f, 1f)
     }
 
-    private val sceneRenderer = SceneRenderer()
-    private var sceneInFlight = false
-    private var sceneGeneration = 0
-    private var previousScene: Bitmap? = null
-    private val sceneBuffers = ArrayList<Bitmap>(3)
+    private fun requestKeyframe(at: Long, inUse: List<Bitmap?>, apply: (Bitmap?) -> Unit): Boolean {
+        if (width <= 0 || height <= 0 || lookIsOff || noBlobs) return false
+        val request = sceneRequest(at, emptyList()) ?: return false
+        val free = keyBuffers.firstOrNull { buffer -> inUse.none { it === buffer } && buffer.width == request.width && buffer.height == request.height }
+        val sized = SceneRequest(request.width, request.height, request.viewWidth, request.viewHeight, request.mesh, request.shaders, request.centres, request.radius, request.blobAlpha, request.blobs, free)
+        val generation = sceneGeneration
+        val look = look
+        val dark = isDark
+        val work = SceneWork.current
+        val renderer = sceneRenderer
+        work.render(Runnable {
+            val started = SystemClock.elapsedRealtimeNanos()
+            val made = runCatching { renderer.render(sized) }.getOrNull()
+            LookActivity.sceneWorkerNanos += SystemClock.elapsedRealtimeNanos() - started
+            LookActivity.scenesOffMain += 1
+            work.toMain(NamedRunnable("deck scene hand-back") {
+                if (generation != sceneGeneration) return@NamedRunnable
+                if (made == null || look != fadeLook || dark != fadeDark) return@NamedRunnable apply(null)
+                if (keyBuffers.none { it === made }) {
+                    keyBuffers.removeAll { it.width != made.width || it.height != made.height }
+                    keyBuffers += made
+                }
+                apply(made)
+            })
+        })
+        return true
+    }
 
     private fun sceneRequest(at: Long, inUse: List<Bitmap?>): SceneRequest? {
         val w = width.toFloat()
@@ -884,14 +1014,10 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             stopMotionAfterDraw()
         } else {
             when (val delay = if (fades) LookRules.FADE_FRAME_MILLIS else LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
-                0L -> {
-                    ownDrawPending = true
-                    postInvalidateOnAnimation()
-                    postOnAnimation { enclosingSource()?.let(FrostSources::retintFrostsOf) }
-                }
+                0L -> postOnAnimation(tick)
                 else -> {
                     paceMillis = delay
-                    postDelayed(tick, delay)
+                    scheduleTick(delay)
                 }
             }
         }
@@ -910,20 +1036,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
                 canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
                 if (!fresh) renderScene(at)
             }
-            LookSwitch.BackdropDraw.Small, LookSwitch.BackdropDraw.SmallNoGrain -> if (fades) {
-                if (fadeIsStale() && !startFade(at)) return false
-                val from = fadeFrom ?: return false
-                sceneTarget.set(0f, 0f, w, h)
-                canvas.drawBitmap(from, null, sceneTarget, scenePaint)
-                val to = fadeTo
-                val share = fadeShare(at)
-                if (to != null && share > 0f) {
-                    scenePaint.alpha = (share * 255f).toInt().coerceIn(0, 255)
-                    canvas.drawBitmap(to, null, sceneTarget, scenePaint)
-                    scenePaint.alpha = 255
-                }
-                if (mode == LookSwitch.BackdropDraw.Small) drawGrain(canvas, dark)
-            } else {
+            LookSwitch.BackdropDraw.Small, LookSwitch.BackdropDraw.SmallNoGrain -> {
+                if (fades && fadeIsStale() && !startFade(at)) return false
                 val shown = scene
                 val stale = shown == null || sceneLook !== look || sceneDark != dark || shown.width != (width / SCENE_SCALE).coerceAtLeast(1) || shown.height != (height / SCENE_SCALE).coerceAtLeast(1)
                 if (!fresh && (stale || still) && !renderScene(at)) return false

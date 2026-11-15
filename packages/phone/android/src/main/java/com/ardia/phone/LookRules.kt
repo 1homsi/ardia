@@ -27,7 +27,7 @@ object LookRules {
 
     const val BLOB_STEP_SHARE = 0.01f
     const val FADE_SCENE_MILLIS = 400L
-    const val FADE_FRAME_MILLIS = 100L
+    const val FADE_FRAME_MILLIS = 75L
     const val EVERY_FRAME = -1
     const val PACED = 0
     private const val MIN_PACE_MILLIS = 16L

@@ -1055,12 +1055,16 @@ it once and turns the look down if it can't; the system settings always come fir
   backdrop's scenes drawn on the worker thread) / the window. The worker's time is the look's work on another
   core and counts the same as the main thread's; the line prints it as `… scenes drawn off the main thread in N ms
   (counted)`.
-- **How often a scene is drawn** (from sync22). With the blobs paced (the default), the worker draws a scene every
-  400 ms, one interval ahead. The deck redraws every 100 ms, cross-fading on the GPU from the older scene to the
-  newer one across the interval. A blend halfway between two scenes 400 ms apart is 0.042/255 a channel from the
-  true scene at that moment, less than one old 43 ms frame step changed it (0.047, SceneOffMainTest on this
-  machine). The lab's fixed blob rates (`Blobs N fps`, `every frame`) keep the old way, one scene per frame, to
-  compare against.
+- **How often a scene is drawn** (sync22, reworked in sync23). With the blobs paced (the default), the worker draws
+  a scene every 400 ms and keeps one more drawn ahead, so the next scene is ready before the fade needs it. On each
+  frame (every 75 ms, on a fixed timeline so the pace is what was asked) it blends the two scenes at the small
+  picture's size, and the deck draws that one picture scaled up, as before the fade. If a scene is ever late, the
+  fade holds at the scene it reached and goes on from there when the scene lands; it never jumps ahead. A blend
+  halfway between two scenes 400 ms apart is 0.042/255 a channel from the true scene at that moment, less than one
+  old 43 ms frame step changed it (0.047, SceneOffMainTest on this machine). The lab's fixed blob rates (`Blobs N
+  fps`, `every frame`) keep one scene per frame, drawn on the worker, as the yardstick. The sample lasts 3 s, so a
+  frame every 75 or 100 ms still gives the 20 frames a verdict needs, and the line counts the scenes and blends
+  drawn in it.
   The verdict uses busy, against the same 33%. It decides nothing under 20 frames unless those few frames are already over.
   Why a duty cycle: an idle deck's paced frames, drawn between vsyncs while nothing else moves, make nothing
   stutter that a person can see. What they cost is battery and heat, and that is the share of time the GPU

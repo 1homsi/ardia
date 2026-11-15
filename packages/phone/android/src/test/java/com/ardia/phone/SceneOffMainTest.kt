@@ -59,57 +59,100 @@ class SceneOffMainTest {
 
     private fun step(millis: Long = LookRules.FADE_FRAME_MILLIS) = ShadowSystemClock.advanceBy(Duration.ofMillis(millis))
 
-    private fun finishScenes() {
-        while (renders.isNotEmpty()) {
-            renders.removeAt(0).run()
+    private fun runAll() {
+        while (renders.isNotEmpty() || applies.isNotEmpty()) {
+            if (renders.isNotEmpty()) renders.removeAt(0).run()
             while (applies.isNotEmpty()) applies.removeAt(0).run()
         }
+    }
+
+    private fun frame(deck: DeckBackdropView) {
+        step()
+        deck.advanceBlobs()
+        runAll()
     }
 
     @Test
     fun theFirstTickShowsASceneAtOnceAndAsksTheWorkerForTheNextOneAFadeAhead() {
         val deck = deck()
         step()
+        val scenes = LookActivity.scenesOffMain
         deck.advanceBlobs()
         assertEquals("the deck opens with a scene already drawn", 135 to 300, deck.sceneSize)
         assertEquals("and one more scene asked of the worker", 1, renders.size)
         step()
         deck.advanceBlobs()
-        assertEquals("a tick while that scene is being drawn asks for nothing more", 1, renders.size)
-        finishScenes()
+        assertEquals("a tick while that scene is being drawn asks for no second one", 1, renders.size)
+        runAll()
+        assertEquals(scenes + 1, LookActivity.scenesOffMain)
         val (from, to) = deck.fadeScenes
         assertTrue(from != null && to != null)
         assertNotSame("the next scene is drawn into another buffer, never the one on screen", from, to)
     }
 
     @Test
-    fun aSceneIsDrawnEveryFourHundredMillisecondsAndTheFramesBetweenCrossFade() {
+    fun aSceneEveryFourHundredMillisecondsAndOneSmallBlendPerFrame() {
         val deck = deck()
-        step()
-        deck.advanceBlobs()
-        finishScenes()
-        var asked = 0
-        repeat(20) {
+        frame(deck)
+        val scenes = LookActivity.scenesOffMain
+        val blends = LookActivity.blendsOffMain
+        val frames = (2000 / LookRules.FADE_FRAME_MILLIS).toInt()
+        repeat(frames) { frame(deck) }
+        val drawn = LookActivity.scenesOffMain - scenes
+        assertTrue("two seconds of frames draw five scenes, with one more drawn a scene ahead: $drawn", drawn in 5L..6L)
+        assertEquals("and one small blend for every frame", frames.toLong(), LookActivity.blendsOffMain - blends)
+        val (from, to) = deck.fadeScenes
+        assertNotSame("what is on screen is a blend, not either scene", from, deck.shownScene)
+        assertNotSame(to, deck.shownScene)
+        assertEquals("the blend is the small picture's size", 135 to 300, deck.sceneSize)
+    }
+
+    @Test
+    fun theNextSceneIsAlwaysReadyBeforeTheFadeNeedsIt() {
+        val deck = deck()
+        frame(deck)
+        repeat(12) {
+            frame(deck)
+            val (_, toAt, nextAt) = deck.fadeQueue
+            assertTrue("a scene beyond the one being faded to is already drawn, ${it + 1} frames in", nextAt == toAt + LookRules.FADE_SCENE_MILLIS)
+        }
+    }
+
+    @Test
+    fun aLateSceneHoldsWhereTheFadeIsAndThenFadesOnFromThereWithoutAJump() {
+        val deck = deck()
+        frame(deck)
+        frame(deck)
+        val catchUps = LookActivity.fadeCatchUps
+        repeat((2 * LookRules.FADE_SCENE_MILLIS / LookRules.FADE_FRAME_MILLIS + 2).toInt()) {
             step()
             deck.advanceBlobs()
-            asked += renders.size
-            finishScenes()
+            val blend = renders.lastIndex
+            if (blend >= 0) {
+                renders.removeAt(blend).run()
+                while (applies.isNotEmpty()) applies.removeAt(0).run()
+            }
         }
-        assertEquals("two seconds of frames at 100 ms ask for five scenes, not twenty", 5, asked)
-        val (from, to) = deck.fadeScenes
-        assertTrue(from != null && to != null)
+        val held = deck.fadeShare(deck.clockForTests())
+        assertEquals("with the scene after next late, the fade holds at the scene it reached", 1f, held, 0.001f)
+        runAll()
+        step()
+        deck.advanceBlobs()
+        val resumed = deck.fadeShare(deck.clockForTests())
+        assertTrue("when it lands the fade starts again from where it held, not ahead of it: $resumed", resumed < 0.3f)
+        assertTrue("the late hand-off is counted", LookActivity.fadeCatchUps > catchUps)
+        runAll()
     }
 
     @Test
     fun theCrossFadeGoesFromTheOlderSceneToTheNewerOneAcrossItsInterval() {
         val deck = deck()
-        step()
-        deck.advanceBlobs()
-        finishScenes()
-        val start = deck.clockForTests()
-        assertEquals(0f, deck.fadeShare(start), 0.001f)
-        assertEquals(0.5f, deck.fadeShare(start + LookRules.FADE_SCENE_MILLIS / 2), 0.001f)
-        assertEquals(1f, deck.fadeShare(start + LookRules.FADE_SCENE_MILLIS), 0.001f)
+        frame(deck)
+        val (fromAt, toAt, _) = deck.fadeQueue
+        assertEquals(LookRules.FADE_SCENE_MILLIS, toAt - fromAt)
+        assertEquals(0f, deck.fadeShare(fromAt), 0.001f)
+        assertEquals(0.5f, deck.fadeShare(fromAt + LookRules.FADE_SCENE_MILLIS / 2), 0.001f)
+        assertEquals(1f, deck.fadeShare(toAt), 0.001f)
     }
 
     @Test
@@ -118,7 +161,7 @@ class SceneOffMainTest {
         step()
         deck.advanceBlobs()
         deck.stopMotion()
-        finishScenes()
+        runAll()
         assertEquals("the scene asked before the stop is not taken", null, deck.fadeScenes.second)
         step()
         deck.advanceBlobs()
@@ -128,31 +171,31 @@ class SceneOffMainTest {
     @Test
     fun theMainThreadsShareOfATickIsWellUnderAMillisecond() {
         val deck = deck()
+        frame(deck)
         val main = ArrayList<Long>()
-        val worker = ArrayList<Long>()
-        step()
-        deck.advanceBlobs()
-        finishScenes()
+        val scene = ArrayList<Long>()
+        val blend = ArrayList<Long>()
         for (i in 0 until 400) {
             step()
             val a = System.nanoTime()
             deck.advanceBlobs()
-            val b = System.nanoTime()
-            if (renders.isEmpty()) {
-                main += b - a
-                continue
+            main += System.nanoTime() - a
+            while (renders.isNotEmpty()) {
+                val scenes = LookActivity.scenesOffMain
+                val b = System.nanoTime()
+                renders.removeAt(0).run()
+                val spent = System.nanoTime() - b
+                if (LookActivity.scenesOffMain > scenes) scene += spent else blend += spent
+                val c = System.nanoTime()
+                while (applies.isNotEmpty()) applies.removeAt(0).run()
+                main[main.lastIndex] += System.nanoTime() - c
             }
-            renders.removeAt(0).run()
-            val c = System.nanoTime()
-            val handBack = System.nanoTime().also { while (applies.isNotEmpty()) applies.removeAt(0).run() }
-            val d = System.nanoTime()
-            main += (b - a) + (d - handBack)
-            worker += c - b
         }
         main.sort()
-        worker.sort()
-        println("PAGELAB scene off main on this machine: main thread ${main[main.size / 2] / 1000} us a tick (median), worker ${worker[worker.size / 2] / 1000} us a scene, ${worker.size} scenes for ${main.size} frames")
-        assertTrue("the main thread's share is a small fraction of a scene's drawing", main[main.size / 2] * 10 < worker[worker.size / 2])
+        scene.sort()
+        blend.sort()
+        println("PAGELAB scene off main on this machine: main thread ${main[main.size / 2] / 1000} us a frame (tick and hand-backs, median), worker ${scene[scene.size / 2] / 1000} us a scene and ${blend[blend.size / 2] / 1000} us a blend, ${scene.size} scenes and ${blend.size} blends for ${main.size} frames")
+        assertTrue("the main thread's share is a small fraction of a scene's drawing", main[main.size / 2] * 10 < scene[scene.size / 2])
     }
 
     private fun meanDifference(a: android.graphics.Bitmap, b: android.graphics.Bitmap): Double {

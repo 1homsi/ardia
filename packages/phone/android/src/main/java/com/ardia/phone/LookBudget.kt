@@ -158,6 +158,8 @@ internal class SampleSession(
     private var foreignBefore = 0L
     private var ticksBefore = 0L
     private var workerBefore = 0L
+    private var scenesBefore = 0L
+    private var blendsBefore = 0L
     private var finished = false
 
     fun start(): Boolean {
@@ -166,6 +168,8 @@ internal class SampleSession(
             foreignBefore = LookActivity.foreignTraversals
             ticksBefore = LookActivity.tickNanos
             workerBefore = LookActivity.sceneWorkerNanos
+            scenesBefore = LookActivity.scenesOffMain
+            blendsBefore = LookActivity.blendsOffMain
             previous = logging.current()
             val chained = ChainedPrinter(work, previous)
             logging.set(chained)
@@ -201,7 +205,7 @@ internal class SampleSession(
         val worker = (LookActivity.sceneWorkerNanos - workerBefore) / 1_000_000.0
         val longest = work.longestMessages.map { "${it.name} ${"%.1f".format(java.util.Locale.ROOT, it.nanos / 1_000_000.0)} ms" }
         val sample = synchronized(this) {
-            FrameSampler.Sample(totals.toList(), deadlines.toList(), refreshMillis, window, foreign, waits.toList(), ticks, work.nanos / 1_000_000.0, dropped, worker, work.messages, longest)
+            FrameSampler.Sample(totals.toList(), deadlines.toList(), refreshMillis, window, foreign, waits.toList(), ticks, work.nanos / 1_000_000.0, dropped, worker, work.messages, longest, LookActivity.scenesOffMain - scenesBefore, LookActivity.blendsOffMain - blendsBefore)
         }
         close(sample)
     }
@@ -221,7 +225,7 @@ internal class SampleSession(
 }
 
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double, val droppedReports: Long = 0L, val sceneWorkerMillis: Double = 0.0, val mainThreadMessages: Long = 0L, val longestMessages: List<String> = emptyList())
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double, val droppedReports: Long = 0L, val sceneWorkerMillis: Double = 0.0, val mainThreadMessages: Long = 0L, val longestMessages: List<String> = emptyList(), val sceneCount: Long = 0L, val blendCount: Long = 0L)
 
     private var active: SampleSession? = null
     private val main = Handler(Looper.getMainLooper())

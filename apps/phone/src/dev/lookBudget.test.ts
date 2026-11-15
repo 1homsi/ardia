@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createBudgetProbe, initialState, judge, LOOK_BUDGET, mode, otherWork, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample } from "../../../../packages/phone/src/lookBudgetRules.ts";
 
-const frames = (count: number, totalMs: number, deadlineMs = 16.6): FrameSample => ({ totals: Array(count).fill(totalMs), deadlines: Array(count).fill(deadlineMs) });
+const frames = (count: number, totalMs: number, deadlineMs = 16.6): FrameSample => ({ totals: Array(count).fill(totalMs), deadlines: Array(count).fill(deadlineMs), windowMs: 2000 });
 const over = judge(frames(50, 40));
 const within = judge(frames(50, 9));
 const noSystem = { reduceMotion: false, reduceTransparency: false };
@@ -12,9 +12,9 @@ test("a sample is over when the look keeps the phone busy more than a third of t
   assert.equal(over.over, true, "50 frames of 40 ms in 2 s: busy all the time");
   assert.equal(over.busyShare, 1);
   assert.equal(within.over, false, "50 frames of 9 ms in 2 s: busy 22% of the time");
-  const mostlyFast: FrameSample = { totals: [...Array(36).fill(8), ...Array(14).fill(30)], deadlines: Array(50).fill(16.6) };
+  const mostlyFast: FrameSample = { totals: [...Array(36).fill(8), ...Array(14).fill(30)], deadlines: Array(50).fill(16.6), windowMs: 2000 };
   assert.equal(judge(mostlyFast).over, true, "busy 35%: every frame's cost counts, the slow ones included");
-  const fewSlow: FrameSample = { totals: [...Array(40).fill(8), ...Array(10).fill(30)], deadlines: Array(50).fill(16.6) };
+  const fewSlow: FrameSample = { totals: [...Array(40).fill(8), ...Array(10).fill(30)], deadlines: Array(50).fill(16.6), windowMs: 2000 };
   assert.equal(judge(fewSlow).over, false, "busy 31% is within");
   const short = judge(frames(LOOK_BUDGET.minFrames - 1, 9));
   assert.equal(short.conclusive, false, "19 cheap frames are too few to say anything");
@@ -103,12 +103,38 @@ test("the backdrop's scenes drawn off the main thread are the look's work too: r
   assert.equal(without.sceneWorkerMs, undefined);
 });
 
-test("the window is the sampler's own when it sends one, and the planned two seconds otherwise", () => {
+test("the window is the sampler's own when it sends one, and the planned three seconds otherwise", () => {
   const sent = judge({ totals: Array(40).fill(10), deadlines: Array(40).fill(16.7), windowMs: 4000 });
   assert.equal(sent.busyShare, 0.1);
   const planned = judge({ totals: Array(40).fill(10), deadlines: Array(40).fill(16.7) });
   assert.equal(planned.windowMs, LOOK_BUDGET.sampleMs);
-  assert.equal(planned.busyShare, 0.2);
+  assert.equal(Math.round(planned.busyShare! * 1000) / 1000, 0.133);
+});
+
+const pacedSample = (paceMs: number, workMs: number, sceneWorkerMs: number) => {
+  const count = Math.floor(LOOK_BUDGET.sampleMs / paceMs);
+  return { totals: Array(count).fill(workMs + 0.6), deadlines: Array(count).fill(11.7), waits: Array(count).fill(0.6), refreshMs: 1000 / 120, windowMs: LOOK_BUDGET.sampleMs, mainThreadMs: 30, tickMs: 15, sceneWorkerMs };
+};
+
+test("the sampler reaches a verdict at any pacing the deck uses: a frame every 59 ms and every 100 ms both fill the window's floor", () => {
+  for (const paceMs of [59, 100]) {
+    const sample = pacedSample(paceMs, 12, 60);
+    assert.ok(sample.totals.length >= LOOK_BUDGET.minFrames, `${sample.totals.length} frames at ${paceMs} ms`);
+    const judged = judge(sample);
+    assert.equal(judged.conclusive, true, `a frame every ${paceMs} ms decides`);
+    assert.equal(judged.paceMs, LOOK_BUDGET.sampleMs / sample.totals.length);
+  }
+  const old = judge({ totals: Array(18).fill(12.6), deadlines: Array(18).fill(11.7), windowMs: 2000 });
+  assert.equal(old.conclusive, false, "sync22's 2 s window at 100 ms pacing had 18 frames and could not decide");
+});
+
+test("two agreeing measurements still degrade at slow pacing, and one alone never does", () => {
+  const heavy = judge(pacedSample(100, 30, 300));
+  assert.equal(heavy.conclusive, true);
+  assert.equal(heavy.over, true);
+  const once = record(initialState("1"), heavy, 1000);
+  assert.equal(once.apply, "full");
+  assert.equal(record(once, heavy, 2000).apply, "degraded");
 });
 
 test("the display's deadline is still held to its refresh when reported: a stretched deadline cannot look met", () => {
