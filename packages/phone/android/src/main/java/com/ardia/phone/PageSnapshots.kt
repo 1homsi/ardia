@@ -8,7 +8,7 @@ import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class PageSnapshots(context: Context, private val onRemoved: (File) -> Unit = {}) {
+class PageSnapshots(context: Context, private val onRemoved: (File) -> Int = { 0 }) {
     private val app = context.applicationContext
     private val saved = File(app.filesDir, SAVED_FOLDER)
     private val private = File(app.cacheDir, PRIVATE_FOLDER)
@@ -34,7 +34,7 @@ class PageSnapshots(context: Context, private val onRemoved: (File) -> Unit = {}
             staging.delete()
             return@withContext null
         }
-        older(folder, stem, keep = target).forEach(::remove)
+        older(folder, stem, keep = target).forEach { remove(it) }
         mapOf("path" to target.absolutePath, "uri" to "file://${target.absolutePath}", "width" to width, "height" to height, "bytes" to target.length().toDouble())
     }
 
@@ -51,9 +51,12 @@ class PageSnapshots(context: Context, private val onRemoved: (File) -> Unit = {}
         )
     }
 
-    fun delete(pageId: String) {
+    data class Removed(val files: Int, val decodedDropped: Int)
+
+    fun delete(pageId: String): Removed {
         val stem = fileStem(pageId)
-        listOf(saved, private).forEach { folder -> older(folder, stem, keep = null).sortedBy { it.lastModified() }.forEach(::remove) }
+        val found = listOf(saved, private).flatMap { folder -> older(folder, stem, keep = null).sortedBy { it.lastModified() } }
+        return Removed(found.size, found.sumOf(::remove))
     }
 
     fun files(pageId: String): List<File> {
@@ -62,12 +65,12 @@ class PageSnapshots(context: Context, private val onRemoved: (File) -> Unit = {}
     }
 
     fun endPrivateBrowsing() {
-        private.listFiles()?.forEach(::remove)
+        private.listFiles()?.forEach { remove(it) }
     }
 
-    private fun remove(file: File) {
+    private fun remove(file: File): Int {
         file.delete()
-        runCatching { onRemoved(file) }
+        return runCatching { onRemoved(file) }.getOrDefault(0)
     }
 
     private fun older(folder: File, stem: String, keep: File?): List<File> =

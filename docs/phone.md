@@ -301,8 +301,11 @@ off in the lab`.
     offline view. Turn airplane mode off and tap Try Again: the real title, colours and a new snapshot come back.
 37. **Memory after closing tabs:** as in step 27 (one tab, nine tabs, close eight), tap Memory after each stage. The
     image cache line now reads `X MB in N images (shown A MB in a, kept B MB in b)`. Each close logs
-    `PAGELAB memory page closed: dropped N decoded snapshot(s)` with N of 1 or more for a tab that had a card, and
-    the image cache after closing eight is no larger than with nine open. Then run
+    `PAGELAB memory page closed: …` and `PAGELAB memory page snapshots deleted: F file(s), dropped D decoded, …`.
+    The close and the delete run at once on different threads, so whichever runs first drops the decoded images:
+    when the delete wins, the close says `no snapshot files left (…)` and the delete line carries the drops. For
+    a tab that had a card, one of the two lines drops 1 or more; report any close of a carded tab where both say
+    0. The image cache after closing eight is no larger than with nine open. Then run
     `adb shell am send-trim-memory com.ardia.browser.android RUNNING_CRITICAL` (Android's own signal, which
     also trims the system's GPU caches; the lab's Trim only clears the image cache) and tap Memory again. Report
     all the lines, graphics included.
@@ -334,6 +337,15 @@ off in the lab`.
       of its size. The Blobs button cycles `Blobs paced`, `Blobs every frame` (Compose's rate), `Blobs 30 fps`,
       `Blobs 20 fps`. Measure look off, paced, and every frame; the budget is paced within 2 ms of look off at the
       median.
+    - From sync14 the deck bar's frosts, which sit over nothing but the backdrop, are fills tinted from the
+      backdrop's colours under them, with no blur layer: the bar's colour follows the blobs, but the blobs are
+      not seen through it. Logcat has `PAGELAB look frost … path=tinted`, and the Memory line says
+      `… holding a blur layer (3 tinted from the backdrop)` and the DECK source no longer recording. The lab's
+      `Bar frosts: tinted fill` / `Bar frosts: blur` button brings back the old blur to compare (it lasts across
+      launches; set it back to tinted afterwards). On the M3, the idle deck with the look on, paced, once each
+      way: `adb shell dumpsys gfxinfo $P reset`, 10 s untouched, then
+      `adb shell dumpsys gfxinfo $P | grep -E "Total frames|Janky|50th|90th|Slow issue"`. Report both, and a
+      deck screenshot each way in the same profile colour.
 39. **Keyboard target:** right after a fresh launch (`adb shell am force-stop $P` first), open the tray. Logcat has
     `PAGELAB keyboard will change 0.0 -> N dp in M ms` as the keyboard starts to rise, then
     `PAGELAB keyboard did change to N dp` with the same N, and the tray rises with the keyboard on that first open
@@ -458,6 +470,20 @@ off in the lab`.
     layer(s) …`; every trim the app receives now logs one such line, whatever its level, so a missing line means
     the app never got it. Come back and tap Memory: graphics should be near the look-off figure until the deck is
     shown again. Report the graphics figure after Home with the look on and off.
+54. **Graphics memory after closing tabs settles with the look off too.** In sync12 graphics stayed at 88 MB with
+    the look off after closing eight of nine tabs, and RUNNING_CRITICAL left it there, against 56 and 38 with the
+    look on. Android's renderer frees the GPU copies of let-go images and layers only after it draws a frame
+    (and keeps unused ones at least 10 s); the look's blob frames did that, a still look-off deck draws nothing,
+    and RUNNING_CRITICAL with the app in front does not reach the renderer. From sync14 the app draws one frame
+    11 s after the last close, snapshot delete or RUNNING_LOW/CRITICAL trim, and logs
+    `PAGELAB memory settle frame: one redraw 11 s after a page closed, …`.
+    - Look off (step 38's switch, force-stop), nine tabs, close eight from the deck. Straight away tap Memory and
+      run `adb shell dumpsys gfxinfo $P | grep -E "Total GPU memory|purgeable"`. Leave the deck untouched until
+      the settle line (about 11 s), then Memory and the same grep again.
+    - Then `adb shell am send-trim-memory $P RUNNING_CRITICAL`, wait for its settle line, Memory again.
+    - Expected: graphics falls after the settle line toward the look-on figure, and the purgeable part of the
+      GPU memory shrinks. Report all three Memory lines and greps; if graphics does not fall, the grep says
+      whether what remains is purgeable cache (the renderer's) or held (ours).
 
 ## Upgrade from the Compose app on Android
 
@@ -829,6 +855,7 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 - Spaces: the empty state's Sync With Mac opens Settings › Sync, not Connect; pinned tabs with a symbol show a favicon (`row.icon` never drawn); open groups, folders and devices are kept per profile only while the sheet is open (Compose keeps them across launches). `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
 - Spaces at large text and motion: rows don't wrap, icons and tiles don't grow, the switcher doesn't scroll when profiles overflow; the folder chevron, Show All and group expansion snap and the header doesn't crossfade; the banner uses Compose's icons on iPhone; rows and tiles have no accessibility action for their menu. `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
 - Page menu sheet: can't be dragged down to close (flick 800, or past 35% of its height capped at 120); it and the tab pager ignore Reduce Motion; the incoming pager card has no edge shadow though `incomingPose` computes it. `BrowsingSheet.kt`, `TrayDrag.kt`, `BrowsingRules.kt`, `TabPager.kt`. Half a day.
+- Loading placeholder under `BrowseLoadFreeze` (Compose's `PageLoadingPlaceholder`): the page cover now draws the tab's face, but the load-freeze capture still shows the page. `PageLayer.kt`. Small.
 
 ### Needs native code on Android
 

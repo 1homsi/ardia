@@ -231,8 +231,10 @@ object PhonePages {
         popups.entries.removeAll { it.value.openerId == pageId }
         shared?.close(pageId)
         if (::snapshots.isInitialized) {
-            val dropped = ImageMemory.forgetAll(snapshots.files(pageId))
-            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB memory page closed: dropped $dropped decoded snapshot(s), image cache ${ImageMemory.cache()?.let(ImageMemory::describe) ?: "unknown"}")
+            val files = snapshots.files(pageId)
+            val dropped = ImageMemory.forgetAll(files)
+            ImageMemory.settleSoon("a page closed")
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB memory page closed: ${ImageMemory.closeSummary(files.size, dropped)}, image cache ${ImageMemory.cache()?.let(ImageMemory::describe) ?: "unknown"}")
         }
     }
 

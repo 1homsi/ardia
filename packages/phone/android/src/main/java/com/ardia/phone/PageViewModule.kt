@@ -194,7 +194,10 @@ class PageViewModule : Module() {
 
         AsyncFunction("deleteSnapshots") { pageId: String ->
             PhonePages.engine(context)
-            PhonePages.snapshots.delete(pageId)
+            val removed = PhonePages.snapshots.delete(pageId)
+            if (removed.files > 0) ImageMemory.settleSoon("snapshots deleted")
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB memory page snapshots deleted: ${removed.files} file(s), dropped ${removed.decodedDropped} decoded, image cache ${ImageMemory.cache()?.let(ImageMemory::describe) ?: "unknown"}")
+            Unit
         }
 
         AsyncFunction("loadHtml") { pageId: String, html: String, baseUrl: String -> PhonePages.loadHtml(pageId, html, baseUrl) }.runOnQueue(Queues.MAIN)

@@ -17,7 +17,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class PageSnapshotsTest {
     private val removed = ArrayList<String>()
-    private val snapshots = PageSnapshots(RuntimeEnvironment.getApplication()) { removed += it.name }
+    private val snapshots = PageSnapshots(RuntimeEnvironment.getApplication()) {
+        removed += it.name
+        1
+    }
 
     private fun page(): Bitmap = Bitmap.createBitmap(64, 128, Bitmap.Config.ARGB_8888).apply {
         eraseColor(Color.WHITE)
@@ -58,8 +61,10 @@ class PageSnapshotsTest {
         Thread.sleep(2)
         val second = snapshots.write("tab-3", page(), isPrivate = false, quality = 80)!!
         assertEquals(listOf(File(first["path"] as String).name), removed)
-        snapshots.delete("tab-3")
+        assertEquals("the delete says what it found and what its decoded images gave back", PageSnapshots.Removed(files = 1, decodedDropped = 1), snapshots.delete("tab-3"))
         assertEquals(listOf(File(first["path"] as String).name, File(second["path"] as String).name), removed)
+        assertEquals(PageSnapshots.Removed(files = 0, decodedDropped = 0), snapshots.delete("tab-3"))
+        assertTrue("a close after the delete says the files were already gone", ImageMemory.closeSummary(0, 0).startsWith("no snapshot files left"))
     }
 
     @Test
