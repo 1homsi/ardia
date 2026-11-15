@@ -116,7 +116,7 @@ function LinksQuestion() {
     <StepLayout
       pageKey="links"
       title="Where do links from other apps open?"
-      subtitle="From Mail, Slack, Notes and the rest."
+      subtitle={`From ${PLATFORM_TERMS.linkSourceApps} and the rest.`}
       actions={
         <StepActions
           onContinue={() =>

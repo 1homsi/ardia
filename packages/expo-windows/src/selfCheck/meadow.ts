@@ -83,7 +83,10 @@ export const checks: Check[] = [
   {
     name: "meadow: an engine page reports whether it has WebGL2, and on which renderer",
     async run() {
-      if (!engineAvailable()) return;
+      if (!engineAvailable()) {
+        expectTrue(!webglRequired(), "the WebGL2 run needs the engine, and it isn't available");
+        return;
+      }
       const windowId = await firstWindow();
       await hostCall("tab.create", { key: PROBE_KEY, url: PROBE_URL, profile: "" }, windowId);
       try {
@@ -101,7 +104,8 @@ export const checks: Check[] = [
   {
     name: "meadow: with WebGL2 the intro's page draws its first frame, sends its tone, round-trips Skip and Mute and is closed",
     async run() {
-      if (!engineAvailable() || !webglRequired()) return;
+      if (!webglRequired()) return;
+      expectTrue(engineAvailable(), "the WebGL2 run needs the engine, and it isn't available");
       const windowId = await firstWindow();
       const intro = checkIntro(Date.now());
       const url = meadowPageUrl(intro, false, INTRO_PLACE.width / INTRO_PLACE.height);

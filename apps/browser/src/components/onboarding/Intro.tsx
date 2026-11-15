@@ -10,7 +10,7 @@ import {
 } from "../../state/onboarding/onboarding";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, StyleSheet, View } from "react-native";
+import { Animated, findNodeHandle, Image, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { CircleButton, SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
@@ -20,6 +20,8 @@ import { onboardingMotion, onboardingType } from "./tokens";
 import { EXIT, INTRO_CUES, LETTER, TAGLINE, WORDMARK } from "./introCues";
 import { INTRO_COPY, INTRO_LOOK, INTRO_MUTE } from "./introCopy";
 import { meadowIntroFor } from "./introPage";
+import { INTRO_TAB_KEYS, introHoldsKeyboard, nextIntroStop } from "./introKeys";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { noteIntroEnded, noteIntroShown, noteIntroSkipped, type IntroScene } from "../../state/telemetry/introCounts";
 
 const ICON = require("../../../assets/app-icon.png");
@@ -49,6 +51,20 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const pageGone = useRef<Promise<void>>(Promise.resolve());
   const ink = isWebDemo ? null : meadowTextStyle(tone);
   const pageIntro = useMemo(() => meadowIntroFor({ colors, muted, startedAt }), [colors, muted]);
+  const keys = useRef<View>(null);
+  const muteStop = useRef<View>(null);
+  const skipStop = useRef<View>(null);
+  const holdsKeys = introHoldsKeyboard({ live, leaving, tabReachesUnderOverlays: PLATFORM_FEATURES.tabReachesUnderOverlays });
+
+  useEffect(() => {
+    if (holdsKeys) keys.current?.focus();
+  }, [holdsKeys]);
+
+  const tab = (target: number | undefined, shift: boolean) => {
+    const stops = [muteStop, skipStop];
+    const focused = stops.findIndex((stop) => target !== undefined && stop.current !== null && findNodeHandle(stop.current) === target);
+    stops[nextIntroStop(focused, shift, stops.length)]?.current?.focus();
+  };
 
   const finish = () => {
     if (done.current) return;
@@ -168,7 +184,17 @@ export function Intro({ onDone }: { onDone: () => void }) {
         </Animated.View>
       </Animated.View>
       {live ? null : (
-        <>
+        <View
+          ref={keys}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="box-none"
+          focusable={holdsKeys}
+          enableFocusRing={false}
+          keyDownEvents={holdsKeys ? INTRO_TAB_KEYS : undefined}
+          onKeyDown={(e) => {
+            if (holdsKeys && e.nativeEvent.key === "Tab") tab((e.nativeEvent as { target?: number }).target, e.nativeEvent.shiftKey);
+          }}
+        >
           <View style={{ position: "absolute", left: INTRO_LOOK.inset, bottom: INTRO_LOOK.inset }}>
             <CircleButton
               title={muteLabel}
@@ -178,12 +204,13 @@ export function Intro({ onDone }: { onDone: () => void }) {
               symbolWeight={INTRO_MUTE.iconWeight}
               box={INTRO_MUTE.iconBox}
               onPress={() => muteTo(!muted)}
+              pressRef={muteStop}
             />
           </View>
           <View style={{ position: "absolute", right: INTRO_LOOK.inset, bottom: INTRO_LOOK.inset }} accessibilityHint={INTRO_COPY.skipHint}>
-            <SecondaryButton title={INTRO_COPY.skip} onPress={skip} />
+            <SecondaryButton title={INTRO_COPY.skip} onPress={skip} pressRef={skipStop} />
           </View>
-        </>
+        </View>
       )}
     </Animated.View>
   );
