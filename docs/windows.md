@@ -178,10 +178,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   as the Mac's lights live inside the UI there. So no band is kept free at the top: the page card starts at the page
   frame, and Settings and Import have no title bar above them.
   - Where the buttons sit comes from `windowControlsPlace` in `state/windows/layout.ts`: in the card's toolbar row, in
-    a right sidebar's header, at the end of the top tab strip, in Little Ardia's bar. Only a card with no toolbar under
-    the corner (address bar in the sidebar, sidebar on the left) keeps a 32 point band for them. They take the site's
-    toolbar colours in the toolbar, and when the toolbar hides while scrolling a smaller set fades in on the 20 point
-    strip. The room every row keeps for them (138 points: 12 to the edge, 96 of buttons, 30 to drag by) is in
+    a right sidebar's header, at the end of the top tab strip, in Little Ardia's bar. With the address bar in a left
+    sidebar they sit at the sidebar's leading end, in their own row above the header (one button and a 3 point gap
+    tall, `sidebarControlsRow`), in the same order as everywhere else (menu, minimize, maximize, close), and the card
+    reaches the page frame (#1973); the row beside them is a caption region, counted from the left (a negative third
+    value in a caption region is a width). Only a card with no toolbar and no sidebar showing (address bar in the
+    sidebar, tabs hidden) and Minimalism's band layouts keep a 32 point band for them. They take the site's toolbar
+    colours in the toolbar, and when the toolbar hides while scrolling a smaller set fades in on the 20 point strip.
+    The room every row keeps for them (171 points: 12 to the edge, 129 of buttons, 30 to drag by) is in
     `lib/platformChrome.windows.ts` and `WINDOW_CONTROLS` in `lib/windowChrome.ts`.
   - With no lights on the left, a sidebar header with nothing in it collapses to the page frame on Windows
     (`sidebarHeaderCollapsed`), so the tabs start at the top; the downloads button then sits in the sidebar's footer.

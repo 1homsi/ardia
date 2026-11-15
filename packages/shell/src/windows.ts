@@ -6,7 +6,7 @@ export const POPUP_WINDOW_PREFIX = "popup:";
 
 export const isPopupWindowId = (windowId: string | null | undefined) => typeof windowId === "string" && windowId.startsWith(POPUP_WINDOW_PREFIX);
 
-export type CaptionRegion = readonly [left: number, top: number, rightInset: number, height: number];
+export type CaptionRegion = readonly [left: number, top: number, rightInsetOrNegativeWidth: number, height: number];
 
 export type WindowControlsNative = {
   minimizeWindow(windowId: string): Promise<void>;
