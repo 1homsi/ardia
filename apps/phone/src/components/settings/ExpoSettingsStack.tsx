@@ -12,11 +12,33 @@ import { useChromeStyle } from "../../state/settings/appearance";
 import { ExpoAppearancePage } from "./ExpoAppearancePage";
 import { ExpoSiteSettingsPage } from "./ExpoSiteSettingsPage";
 import { ExpoSyncPage } from "./ExpoSyncPage";
+import { ExpoSyncConnectPage } from "./ExpoSyncConnectPage";
+import { ExpoPhrasePage } from "./ExpoPhrasePage";
+import { ExpoSearchEnginePage } from "./ExpoSearchEnginePage";
+import { ExpoFilterListPage, ExpoFilterListsPage, ExpoTrustedSitesPage } from "./ExpoBlockingPages";
+import { ExpoClearDataPage } from "./ExpoClearDataPage";
+import { ExpoAboutPage, ExpoLicensesPage } from "./ExpoAboutPages";
+import { ExpoDefaultBrowserPage, ExpoWhatsSentPage } from "./ExpoInfoPages";
 import { ExpoSettingsRoot } from "./ExpoSettingsRoot";
 import { SettingsHostedContext } from "./SettingsKit";
 import { SettingsPageFor } from "./SettingsView";
 
-const CONVERTED: Partial<Record<SettingsRoute["page"], () => React.JSX.Element>> = { appearance: ExpoAppearancePage, siteSettings: ExpoSiteSettingsPage, sync: ExpoSyncPage };
+const CONVERTED: Partial<Record<SettingsRoute["page"], (props: { route: SettingsRoute }) => React.JSX.Element>> = {
+  appearance: ExpoAppearancePage,
+  siteSettings: ExpoSiteSettingsPage,
+  sync: ExpoSyncPage,
+  syncConnect: ExpoSyncConnectPage,
+  syncWords: ExpoPhrasePage,
+  searchEngine: ExpoSearchEnginePage,
+  filterLists: ExpoFilterListsPage,
+  filterList: ExpoFilterListPage,
+  trustedSites: ExpoTrustedSitesPage,
+  clearData: ExpoClearDataPage,
+  defaultBrowser: ExpoDefaultBrowserPage,
+  about: ExpoAboutPage,
+  licenses: ExpoLicensesPage,
+  whatsSent: ExpoWhatsSentPage,
+};
 
 const TITLES: Record<SettingsRoute["page"], string> = {
   root: "Settings",
@@ -31,6 +53,8 @@ const TITLES: Record<SettingsRoute["page"], string> = {
   sync: "Sync With Mac",
   defaultBrowser: "Default Browser",
   syncConnect: "Connect to Your Mac",
+  syncWords: "Enter Words",
+  syncScan: "Scan Code",
   about: "About Ardia",
   licenses: "Open Source Licenses",
   whatsSent: PHONE_SHARING_COPY.whatsSent,
@@ -92,7 +116,7 @@ function Destination({ routeKey }: { routeKey: string }) {
   const route = settingsRouteFromKey(routeKey);
   if (!route) return null;
   const Converted = CONVERTED[route.page];
-  if (Converted) return <Converted />;
+  if (Converted) return <Converted route={route} />;
   return (
     <VStack modifiers={[navigationTitle(TITLES[route.page]), navigationBarTitleDisplayMode("inline"), ignoreSafeArea({ edges: "bottom" })]}>
       <RNHostView>

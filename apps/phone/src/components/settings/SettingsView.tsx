@@ -10,10 +10,13 @@ import { AppearancePage } from "./AppearancePage";
 import { SettingsRoot } from "./SettingsRoot";
 import { SearchEnginePage, SiteSettingsPage } from "./SitePages";
 import { SyncConnect } from "../sync/SyncConnect";
+import { SyncScan } from "../sync/SyncScan";
+import { haptics } from "../../state/app/haptics";
+import { setConnectPhrase } from "../../state/sync/connectDraft";
 import { SyncPage } from "../sync/SyncPage";
 import { DefaultBrowserPage } from "./DefaultBrowserPage";
 import { WhatsSentPage } from "./WhatsSentPage";
-import { popSettings } from "../../state/settings/nav";
+import { popSettings, pushSettings } from "../../state/settings/nav";
 import { ExpoSettingsStack } from "./ExpoSettingsStack";
 
 const push = SlideInRight.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
@@ -46,6 +49,23 @@ export function SettingsPageFor({ route }: { route: SettingsRoute }) {
       return <DefaultBrowserPage />;
     case "syncConnect":
       return <SyncConnect onClose={popSettings} onConnected={popSettings} />;
+    case "syncWords":
+      return <SyncConnect onClose={popSettings} onConnected={popSettings} />;
+    case "syncScan":
+      return (
+        <SyncScan
+          onScan={(text) => {
+            haptics.success();
+            setConnectPhrase(text);
+            popSettings();
+          }}
+          onEnterWords={() => {
+            popSettings();
+            pushSettings({ page: "syncWords" });
+          }}
+          onCancel={popSettings}
+        />
+      );
     case "about":
       return <AboutPage />;
     case "licenses":

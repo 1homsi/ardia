@@ -90,7 +90,7 @@ export function AboutPage() {
   );
 }
 
-const DATA_CREDITS = [
+export const DATA_CREDITS = [
   { name: "Ardia", use: "This app, and the Mac browser it syncs with.", license: "Apache License 2.0", url: "https://github.com/mantrakp04/ardia" },
   { name: "EasyList", use: "The list behind Block Ads.", license: "CC BY-SA 3.0 or GPLv3", url: "https://easylist.to" },
   { name: "EasyPrivacy", use: "The list behind Block Trackers.", license: "CC BY-SA 3.0 or GPLv3", url: "https://easylist.to" },
@@ -98,7 +98,7 @@ const DATA_CREDITS = [
   { name: "Public Suffix List", use: "Tells which part of an address is the site.", license: "Mozilla Public License 2.0", url: "https://publicsuffix.org" },
 ];
 
-const LIBRARY_CREDITS = libraryCredits(Platform.OS);
+export const LIBRARY_CREDITS = libraryCredits(Platform.OS);
 
 export function LicensesPage() {
   const theme = useTheme();

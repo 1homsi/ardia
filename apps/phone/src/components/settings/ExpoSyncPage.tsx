@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PlatformColor } from "react-native";
-import { Button, ConfirmationDialog, Form, HStack, Image, Label, LabeledContent, NavigationLink, ProgressView, Section, Spacer, Text, TextField, VStack, useNativeState } from "@expo/ui/swift-ui";
-import { accessibilityElement, accessibilityHidden, buttonBorderShape, buttonStyle, controlSize, disabled, font, foregroundStyle, frame, listRowBackground, listRowInsets, padding, refreshable, submitLabel, textInputAutocapitalization, tint } from "@expo/ui/swift-ui/modifiers";
+import { Button, ConfirmationDialog, Form, HStack, Image, Label, LabeledContent, NavigationLink, ProgressView, Section, Spacer, Text, TextField, useNativeState } from "@expo/ui/swift-ui";
+import { accessibilityElement, accessibilityHidden, buttonBorderShape, buttonStyle, controlSize, disabled, font, foregroundStyle, frame, padding, refreshable, submitLabel, textInputAutocapitalization, tint } from "@expo/ui/swift-ui/modifiers";
 import { copy } from "../../lib/platformCopy";
 import { haptics } from "../../state/app/haptics";
 import { settingsRouteKey, pushSettings } from "../../state/settings/nav";
@@ -9,12 +9,12 @@ import { acknowledgeSyncReset, changeSyncFolder, setDeviceName, stopSyncing, syn
 import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { useSync } from "../../state/sync/store";
 import { connectMessage, deviceIcon, deviceSeen, inboxNotice, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, shownProfile, syncHeroSubtitle, syncNowFeedback } from "../../state/sync/syncRules";
-import { modifierList, settingsChrome, SettingsHeroContent, settingsPage, settingsUIAvailable, useTheme } from "../ui";
+import { modifierList, settingsChrome, settingsPage, useTheme } from "../ui";
+import { ExpoHero } from "./ExpoSettingsParts";
 
 const FILL = Number.MAX_SAFE_INTEGER;
 const SECONDARY = { type: "hierarchical", style: "secondary" } as const;
 const NAME_SETTLE_MS = 600;
-const PAGE_INSET = 16;
 const DEVICE_SYMBOLS = { phone: "iphone", laptop: "laptopcomputer", desktop: "desktopcomputer", studio: "macstudio", mini: "macmini" } as const;
 const FEATURES = [
   { symbol: "macbook", title: "Your Mac’s Tabs" },
@@ -54,15 +54,13 @@ export function ExpoSyncPage() {
   };
   return (
     <Form modifiers={modifierList(settingsPage("Sync With Mac"), tint(PlatformColor("systemBlue")), settingsChrome(), status.isEnabled ? refreshable(syncNow) : null)}>
-      <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: PAGE_INSET, bottom: 0, trailing: PAGE_INSET })]}>
-        <Hero title="Sync With Mac" subtitle={hero.text} warning={hero.isWarning}>
-          {off ? (
-            <Button onPress={() => pushSettings({ page: "syncConnect" })} modifiers={[buttonStyle("borderedProminent"), buttonBorderShape("capsule"), controlSize("large"), tint(theme.primaryAction), foregroundStyle(theme.onPrimaryAction), padding({ top: 8 })]}>
-              <Text modifiers={[frame({ maxWidth: FILL })]}>Connect to Your Mac</Text>
-            </Button>
-          ) : null}
-        </Hero>
-      </Section>
+      <ExpoHero title="Sync With Mac" subtitle={hero.text} warning={hero.isWarning} systemImage="macbook.and.iphone" tint="sync">
+        {off ? (
+          <Button onPress={() => pushSettings({ page: "syncConnect" })} modifiers={[buttonStyle("borderedProminent"), buttonBorderShape("capsule"), controlSize("large"), tint(theme.primaryAction), foregroundStyle(theme.onPrimaryAction), padding({ top: 8 })]}>
+            <Text modifiers={[frame({ maxWidth: FILL })]}>Connect to Your Mac</Text>
+          </Button>
+        ) : null}
+      </ExpoHero>
       {off ? (
         <Section title="What You Get" footer={<Text>{copy().syncFeatureFooter}</Text>}>
           {FEATURES.map((feature) => (
@@ -153,23 +151,6 @@ export function ExpoSyncPage() {
         </>
       ) : null}
     </Form>
-  );
-}
-
-function Hero({ title, subtitle, warning, children }: { title: string; subtitle: string; warning: boolean; children?: ReactNode }) {
-  if (settingsUIAvailable()) {
-    return (
-      <SettingsHeroContent title={title} subtitle={subtitle} subtitleIsWarning={warning} systemImage="macbook.and.iphone" tint="sync">
-        {children}
-      </SettingsHeroContent>
-    );
-  }
-  return (
-    <VStack spacing={12}>
-      <Text>{title}</Text>
-      <Text>{subtitle}</Text>
-      {children}
-    </VStack>
   );
 }
 

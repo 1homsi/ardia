@@ -13,6 +13,8 @@ export type SettingsRoute =
   | { page: "sync" }
   | { page: "defaultBrowser" }
   | { page: "syncConnect" }
+  | { page: "syncWords" }
+  | { page: "syncScan" }
   | { page: "about" }
   | { page: "licenses" }
   | { page: "whatsSent" };
@@ -50,7 +52,7 @@ export function closeSettings() {
 
 export const settingsNav = () => useSettingsNav.getState();
 
-const SIMPLE_PAGES = new Set<SettingsRoute["page"]>(["root", "appearance", "searchEngine", "siteSettings", "filterLists", "myFilters", "trustedSites", "clearData", "sync", "defaultBrowser", "syncConnect", "about", "licenses", "whatsSent"]);
+const SIMPLE_PAGES = new Set<SettingsRoute["page"]>(["root", "appearance", "searchEngine", "siteSettings", "filterLists", "myFilters", "trustedSites", "clearData", "sync", "defaultBrowser", "syncConnect", "syncWords", "syncScan", "about", "licenses", "whatsSent"]);
 
 export const settingsRouteKey = (route: SettingsRoute): string => (route.page === "filterList" ? `filterList:${route.id}` : route.page);
 
