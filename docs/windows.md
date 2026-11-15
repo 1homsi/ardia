@@ -298,29 +298,6 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   shortcut still runs. The launch log says `keys escape capture on|off` and
   `keys escape sent to the open popover or drag`. The Mac's Downloads popover does not close on Escape yet
   (`PLATFORM_FEATURES.escapeClosesDownloads` is off there).
-- Keys typed right after Ctrl+T or Ctrl+L wait for the field they were meant for (#2059). The new tab's bar takes
-  focus only on its first layout, hundreds of ms after the command on a slow machine, and until then the keys went to
-  whatever had focus before (on a first launch, the hidden first tab's bar).
-  - **What's held:** from the moment the keyboard hook in `MenuKeyboard.h` dispatches `newTab` or `focusCommandBar`,
-    it holds every key event it sees in that window: virtual key, scan code and flags, down and up, with each Shift,
-    Ctrl and Alt kept by side (`KeyHold.h`).
-  - **When it replays:** once the bar that the command opened (or a bar asked for focus while it already has it)
-    reports focus after the command (`state/omnibox/fieldCommands.ts` to `ArdiaFocus.typeAheadReady`), and only while
-    the foreground window and the keyboard focus are still in that app window, never in a page. It replays the
-    recording with `SendInput`, framed from the modifiers when the hold began to the ones held now. The replayed events
-    carry a mark that the hook passes straight through. Until every one of them has come back, keys typed meanwhile
-    are held and sent after them, so the order holds.
-  - **When it drops:** the held keys are dropped, never sent elsewhere, on Escape, a mouse press, another window of
-    ours taking the keys, another shortcut, Caps Lock, Num Lock, Scroll Lock, the Windows key, IME or `VK_PACKET`
-    input, 256 held events, or 2 s with no field ready. The modifier state is then put back to what is physically
-    held.
-  - **Other cases:** a command that opens no field, such as a custom New Tab address, cancels the hold. A hidden
-    instance holds nothing.
-  - **Launch log:** `keys holding typed keys …`, `keys replayed N key events …` or `keys dropped N held key events: <why>`.
-  - **Tests:** the `first-run` part of `scripts/windows/tour.ps1` checks it with real input. It covers Ctrl+T 100 ms
-    after Get Started with typing at 30 ms a key, the New Tab page's own box, the tool tour, CPU and disk load and the
-    Go button. It also proves a hold is pending before Escape or a click on Notepad or another Ardia window, then
-    checks that no field there shows any typed letter.
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
   `MenuKeyboard.h` sends `reopenClosedTab` for a plain Ctrl+Z in a browser window (Little Ardia included, Settings and
   Import not) when Reopen isn't disabled, no command is bound to Ctrl+Z, the window itself is the active one (not a

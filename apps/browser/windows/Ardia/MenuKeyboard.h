@@ -8,7 +8,7 @@
 
 #include "Events.h"
 #include "LaunchLog.h"
-#include "KeyHold.h"
+#include "KeyProbe.h"
 #include "MenuKeys.h"
 #include "MenuPopup.h"
 #include "MenuStore.h"
@@ -50,9 +50,6 @@ struct MenuKeyboard {
   bool escapeCaptured = false;
   bool switcherCaptured = false;
   bool capturedWHeld = false;
-  std::optional<TypeAheadHold> hold;
-  UINT_PTR holdTimer = 0;
-  HHOOK holdMouseHook = nullptr;
   std::atomic<bool> textInputFocused{false};
   std::set<UINT> swallowedKeyUps;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
@@ -124,180 +121,6 @@ struct MenuKeyboard {
     else if (press.virtualKey == VK_LEFT) key = "previous";
     else if (ClosesSwitcherRow(press, repeat)) key = "close";
     if (key) EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "switcherKey"}, {"key", key}});
-    return true;
-  }
-
-  static constexpr UINT kHoldMs = 2000;
-  static constexpr UINT kReplayMs = 500;
-  static constexpr size_t kMostHeldKeys = 256;
-  static constexpr ULONG_PTR kReplayMark = 0xA4D1A7E5;
-
-  void SetHoldTimer(UINT ms, TIMERPROC done) noexcept {
-    if (holdTimer) KillTimer(nullptr, holdTimer);
-    holdTimer = SetTimer(nullptr, 0, ms, done);
-  }
-
-  void StartHold(ActiveWindow const &window) noexcept {
-    DropHold(L"a new command started");
-    if (WindowManager::Background() || !window.hwnd) return;
-    hold.emplace();
-    hold->windowId = window.id;
-    hold->root = RootOf(window.hwnd);
-    hold->startSides = hold->sides = ThreadSides();
-    hold->startedAt = GetTickCount64();
-    SetHoldTimer(kHoldMs, &MenuKeyboard::HoldTimedOut);
-    if (!holdMouseHook) holdMouseHook = SetWindowsHookExW(WH_MOUSE, &MenuKeyboard::HoldMouseProc, nullptr, GetCurrentThreadId());
-    LaunchLog::Write(L"keys", L"holding typed keys for the field the command opens");
-  }
-
-  void EndHold() noexcept {
-    if (holdTimer) {
-      KillTimer(nullptr, holdTimer);
-      holdTimer = 0;
-    }
-    if (holdMouseHook) {
-      UnhookWindowsHookEx(holdMouseHook);
-      holdMouseHook = nullptr;
-    }
-    hold.reset();
-  }
-
-  static void AddKey(std::vector<INPUT> &inputs, WORD virtualKey, WORD scan, DWORD flags) noexcept {
-    INPUT input{};
-    input.type = INPUT_KEYBOARD;
-    input.ki.wVk = virtualKey;
-    input.ki.wScan = scan;
-    input.ki.dwFlags = flags;
-    input.ki.dwExtraInfo = kReplayMark;
-    inputs.push_back(input);
-  }
-
-  static void AddSideChanges(std::vector<INPUT> &inputs, unsigned from, unsigned to) noexcept {
-    for (SideKey const &key : kSideKeys) {
-      if ((from & key.side) == (to & key.side)) continue;
-      DWORD flags = (key.extended ? KEYEVENTF_EXTENDEDKEY : 0) | ((to & key.side) ? 0 : KEYEVENTF_KEYUP);
-      AddKey(inputs, key.virtualKey, static_cast<WORD>(MapVirtualKeyW(key.virtualKey, MAPVK_VK_TO_VSC)), flags);
-    }
-  }
-
-  static UINT Inject(std::vector<INPUT> &inputs) noexcept {
-    return inputs.empty() ? 0 : SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
-  }
-
-  void DropHold(const wchar_t *why) noexcept {
-    if (!hold) return;
-    size_t held = hold->keys.size();
-    EndHold();
-    std::vector<INPUT> resync;
-    AddSideChanges(resync, ThreadSides(), PhysicalSides());
-    Inject(resync);
-    if (held) LaunchLog::Write(L"keys", L"dropped " + std::to_wstring(held) + L" held key events: " + why);
-  }
-
-  static void CALLBACK HoldTimedOut(HWND, UINT, UINT_PTR, DWORD) noexcept {
-    MenuKeyboard &keyboard = Shared();
-    if (keyboard.hold && keyboard.hold->replaying) return keyboard.DropHold(L"the replay did not come back in time");
-    keyboard.DropHold(L"no field took focus in time");
-  }
-
-  static LRESULT CALLBACK HoldMouseProc(int code, WPARAM wParam, LPARAM lParam) noexcept {
-    MenuKeyboard &keyboard = Shared();
-    if (code == HC_ACTION && keyboard.hold && !keyboard.hold->replaying) {
-      switch (wParam) {
-        case WM_LBUTTONDOWN:
-        case WM_RBUTTONDOWN:
-        case WM_MBUTTONDOWN:
-        case WM_XBUTTONDOWN:
-        case WM_NCLBUTTONDOWN:
-        case WM_NCRBUTTONDOWN:
-        case WM_NCMBUTTONDOWN:
-        case WM_NCXBUTTONDOWN:
-          keyboard.DropHold(L"a mouse press");
-          break;
-        default:
-          break;
-      }
-    }
-    return CallNextHookEx(nullptr, code, wParam, lParam);
-  }
-
-  void TypeAheadCancel(std::string const &windowId) noexcept {
-    if (hold && !hold->replaying && hold->windowId == windowId) DropHold(L"the command opens no field");
-  }
-
-  void TypeAheadReady(std::string const &windowId) noexcept {
-    if (!hold || hold->replaying || hold->windowId != windowId) return;
-    HWND foreground = GetForegroundWindow();
-    HWND focus = GetFocus();
-    if (!IsWindow(hold->root) || RootOf(foreground) != hold->root || !focus || RootOf(focus) != hold->root) return DropHold(L"the keyboard left the window that asked");
-    std::vector<INPUT> inputs;
-    AddSideChanges(inputs, ThreadSides(), hold->startSides);
-    for (HeldKey const &key : hold->keys) AddKey(inputs, key.virtualKey, key.scan, key.flags);
-    AddSideChanges(inputs, hold->sides, PhysicalSides());
-    size_t held = hold->keys.size();
-    hold->keys.clear();
-    hold->sides = PhysicalSides();
-    if (inputs.empty()) return EndHold();
-    hold->replaying = true;
-    hold->outstanding = inputs.size();
-    SetHoldTimer(kReplayMs, &MenuKeyboard::HoldTimedOut);
-    UINT sent = Inject(inputs);
-    LaunchLog::Write(L"keys", L"replayed " + std::to_wstring(held) + L" key events typed before the field took focus" + (sent == inputs.size() ? L"" : L" (some not sent)"));
-    if (sent != inputs.size()) DropHold(L"the replay could not be sent");
-  }
-
-  void NoteReplayedKey() noexcept {
-    if (!hold || !hold->replaying || !hold->outstanding || --hold->outstanding) return;
-    if (hold->keys.empty()) return EndHold();
-    std::vector<INPUT> tail;
-    for (HeldKey const &key : hold->keys) AddKey(tail, key.virtualKey, key.scan, key.flags);
-    hold->keys.clear();
-    hold->outstanding = tail.size();
-    SetHoldTimer(kReplayMs, &MenuKeyboard::HoldTimedOut);
-    if (Inject(tail) != tail.size()) DropHold(L"the keys typed during the replay could not be sent");
-  }
-
-  bool RecordHeld(UINT virtualKey, LPARAM flags, bool keyUp, UINT times = 1) noexcept {
-    if (hold->keys.size() + times > kMostHeldKeys) return DropHold(L"too many held keys"), false;
-    WORD scan = static_cast<WORD>((flags >> 16) & 0xFF);
-    DWORD flagsOut = ((flags & (1 << 24)) ? KEYEVENTF_EXTENDEDKEY : 0) | (keyUp ? KEYEVENTF_KEYUP : 0);
-    for (UINT time = 0; time < times; time++) hold->keys.push_back({static_cast<WORD>(virtualKey), scan, flagsOut});
-    return true;
-  }
-
-  bool HoldKey(UINT virtualKey, LPARAM flags, bool keyUp) noexcept {
-    if (ActiveArdiaWindow().id != hold->windowId) return DropHold(L"another window took the keyboard"), false;
-    UINT times = keyUp ? 1 : std::max<UINT>(1, static_cast<UINT>(flags & 0xFFFF));
-    if (hold->replaying) return RecordHeld(virtualKey, flags, keyUp, times);
-    switch (virtualKey) {
-      case VK_PACKET:
-      case VK_PROCESSKEY:
-      case VK_CAPITAL:
-      case VK_NUMLOCK:
-      case VK_SCROLL:
-      case VK_LWIN:
-      case VK_RWIN:
-        return DropHold(L"a key that can't be replayed as typed"), false;
-      default:
-        break;
-    }
-    if (unsigned side = SideOfKey(virtualKey, flags)) {
-      if (!RecordHeld(virtualKey, flags, keyUp)) return false;
-      hold->sides = keyUp ? (hold->sides & ~side) : (hold->sides | side);
-      return true;
-    }
-    if (keyUp) {
-      if (!hold->down.erase(virtualKey)) return false;
-      swallowedKeyUps.erase(virtualKey);
-      return RecordHeld(virtualKey, flags, true);
-    }
-    if (virtualKey == VK_ESCAPE) return DropHold(L"Escape"), false;
-    KeyPress press = ReadKeyPress(virtualKey, flags);
-    press.modifiers = ModifiersOfSides(hold->sides);
-    press.altGraph = (hold->sides & RightAlt) && (hold->sides & LeftControl);
-    if (!press.altGraph && MenuStore::Shared().Match(press)) return DropHold(L"another shortcut"), false;
-    if (!RecordHeld(virtualKey, flags, false, times)) return false;
-    hold->down.insert(virtualKey);
     return true;
   }
 
@@ -422,7 +245,6 @@ struct MenuKeyboard {
     if (!WindowManager::Shared().IsPopupWindow(window.id) && !store.EntryEnabled(*entry)) return false;
     Emit(entry->command, entry->arg, window.id);
     if (entry->command == "tabSwitcher") OpenedSwitcher(*entry, press);
-    if (entry->command == "newTab" || entry->command == "focusCommandBar") StartHold(window);
     return true;
   }
 
@@ -468,11 +290,7 @@ struct MenuKeyboard {
 
   bool HandleKey(UINT virtualKey, LPARAM flags) noexcept {
     bool keyUp = (flags & (1u << 31)) != 0;
-    if (static_cast<ULONG_PTR>(GetMessageExtraInfo()) == kReplayMark) {
-      NoteReplayedKey();
-      return false;
-    }
-    if (hold && !recording && !trackingMenu && HoldKey(virtualKey, flags, keyUp)) return true;
+    if (KeyProbe::Shared().Handle(virtualKey, keyUp)) return true;
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));

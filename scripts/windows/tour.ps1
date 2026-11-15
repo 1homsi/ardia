@@ -977,6 +977,23 @@ function Read-WindowTexts([IntPtr]$Window) {
   return ,$texts
 }
 
+function Read-EditValues([IntPtr]$Window) {
+  $values = [System.Collections.Generic.List[string]]::new()
+  if (-not (Initialize-Uia)) { return ,$values }
+  try {
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle($Window)
+    $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+    foreach ($element in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)) {
+      try {
+        if ($element.Current.IsOffscreen) { continue }
+        $pattern = $null
+        if ($element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) { $values.Add([string]$pattern.Current.Value) }
+      } catch { }
+    }
+  } catch { }
+  return ,$values
+}
+
 function Send-ClickNow([int]$X, [int]$Y) {
   [ArdiaTour]::SetCursorPos($X, $Y) | Out-Null
   [ArdiaTour]::mouse_event([uint32]2, 0, 0, 0, [UIntPtr]::Zero)
@@ -1003,6 +1020,10 @@ function Invoke-LeakStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     for ($attempt = 1; $attempt -le 2 -and -not $pending; $attempt++) {
       Focus-Window $Session $Session.Main $stop | Out-Null
       Start-Sleep -Milliseconds 300
+      if ([ArdiaTour]::GetForegroundWindow() -ne $Session.Main) {
+        $stop.Facts.Add("attempt $($attempt): the window to type in is not in front ($(Describe-Foreground)); not typing")
+        continue
+      }
       $mark = Get-LogCount $Session
       Send-QuickChord @(0x11) 0x54
       Send-HumanText $Typed $null
@@ -1054,7 +1075,71 @@ function Invoke-FirstRunLaunch([string]$Name, [string]$Exe, [scriptblock]$Body) 
   Stop-Ardia $session
 }
 
+function Invoke-KeyProbeTour {
+  $env:ARDIA_TEST = "keyProbe=1"
+  try {
+    $session = Start-Ardia "key-probe" -Onboarded
+  } finally {
+    $env:ARDIA_TEST = ""
+  }
+  if (-not (Test-Usable $session)) { Stop-Ardia $session; $script:Required.Add("key probe: no usable window"); return }
+  Invoke-Stop $session "key-probe" "Key probe: messages posted to the focused window, and the order the hook sees" {
+    param($stop)
+    $stop.Did = "Clicked the New Tab page's box, pressed F24 (the app posts Shift down, R, Shift up, P to GetFocus()) and typed x and y with real keys at once; again with Caps Lock on; then F23 (posts WM_CHAR S and t); then F22 with the box focused and with a page focused, which only logs GetFocus()."
+    $stop.Expected = "the box reads 'Rpxy', then 'rPXY' with Caps Lock, then 'St'; the hook sees the six posted messages before x and y."
+    Focus-Window $session $session.Main $stop | Out-Null
+    $box = @(Find-Edits $session.Main) | Select-Object -First 1
+    if (-not $box) { $stop.Seen = "no"; $stop.Facts.Add("no box"); return }
+    Send-Click $box.X $box.Y
+    Start-Sleep -Milliseconds 600
+    $mark = Get-LogCount $session
+    Send-Key 0x87 0
+    Send-Key 0x87 2
+    foreach ($key in 0x58, 0x59) { Send-Key $key 0; Send-Key $key 2 }
+    Start-Sleep -Milliseconds 1500
+    $plain = Read-FocusedText
+    $stop.Facts.Add("after F24 and xy: '$plain'")
+    Send-Chord @(0x11) 0x41
+    Send-Chord @() 0x08
+    Send-Key 0x14 0
+    Send-Key 0x14 2
+    Start-Sleep -Milliseconds 300
+    Send-Key 0x87 0
+    Send-Key 0x87 2
+    foreach ($key in 0x58, 0x59) { Send-Key $key 0; Send-Key $key 2 }
+    Start-Sleep -Milliseconds 1500
+    $caps = Read-FocusedText
+    Send-Key 0x14 0
+    Send-Key 0x14 2
+    $stop.Facts.Add("with Caps Lock on: '$caps'")
+    Send-Chord @(0x11) 0x41
+    Send-Chord @() 0x08
+    Send-Key 0x86 0
+    Send-Key 0x86 2
+    Start-Sleep -Milliseconds 1200
+    $chars = Read-FocusedText
+    $stop.Facts.Add("after F23: '$chars'")
+    Save-Shot $stop $session.Main | Out-Null
+    Send-Key 0x85 0
+    Send-Key 0x85 2
+    Start-Sleep -Milliseconds 400
+    $loaded = Open-Page $session $stop "example.com" "example\.com"
+    $client = Get-Client $session.Main
+    if ($client) { Send-Click ($client.X + [int]($client.Width * 0.6)) ($client.Y + [int]($client.Height * 0.6)) }
+    Start-Sleep -Milliseconds 600
+    Send-Key 0x85 0
+    Send-Key 0x85 2
+    Start-Sleep -Milliseconds 400
+    $lines = @(Get-LinesSince $session $mark "key probe")
+    $stop.Facts.Add("page loaded: $loaded")
+    $stop.Facts.Add("probe log: $($lines -join ' / ')")
+    Set-Seen $stop ($plain -eq "Rpxy" -and $chars -eq "St")
+  } | Out-Null
+  Stop-Ardia $session
+}
+
 function Invoke-FirstRunTour {
+  Invoke-KeyProbeTour
   Invoke-FirstRunLaunch "human-ctrl-t" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
@@ -1104,7 +1189,7 @@ function Invoke-FirstRunTour {
     $walk = Walk-OnboardingToOutro $session -SkipEach
     $clicked = Click-Named $session "Get Started"
     Start-Sleep -Milliseconds 100
-    Invoke-LeakStop $session "escape" "First run: Ctrl+T, typing at once, then Escape before the new field is ready" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started (clicked: $clicked), pressed Ctrl+T 100 ms later, typed qzx at once and pressed Escape straight after, then went back to the first tab with Ctrl+1 to read its bar." "qzx" { param($stop) Send-QuickChord @() 0x1B } { Send-Chord @(0x11) 0x31; Start-Sleep -Milliseconds 1200; Read-WindowTexts $session.Main } | Out-Null
+    Invoke-LeakStop $session "escape" "First run: Ctrl+T, typing at once, then Escape before the new field is ready" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started (clicked: $clicked), pressed Ctrl+T 100 ms later, typed qzx at once and pressed Escape straight after, then went back to the first tab with Ctrl+1 to read its bar." "qzx" { param($stop) Send-QuickChord @() 0x1B } { Send-Chord @(0x11) 0x31; Start-Sleep -Milliseconds 1200; Read-EditValues $session.Main } | Out-Null
   }
 
   $hogs = Start-Hogs (Join-Path $Out "hog-switch")
@@ -1136,7 +1221,7 @@ function Invoke-FirstRunTour {
         [ArdiaTour]::SetWindowPos($session.Main, [IntPtr]::Zero, 0, 0, 512, 720, 0x0040) | Out-Null
         [ArdiaTour]::SetWindowPos($second.Handle, [IntPtr]::Zero, 512, 0, 512, 720, 0x0040) | Out-Null
         Start-Sleep -Milliseconds 800
-        Invoke-LeakStop $session "switch-to-our-window" "First run under load: Ctrl+T, typing at once, then a click on our other window" "With CPU and disk hogs running, pressed Ctrl+T in the left window, typed vqz at once and clicked into the right window straight after." "vqz" { param($stop) Send-ClickNow 768 330 } { Read-WindowTexts $second.Handle } | Out-Null
+        Invoke-LeakStop $session "switch-to-our-window" "First run under load: Ctrl+T, typing at once, then a click on our other window" "With CPU and disk hogs running, pressed Ctrl+T in the left window, typed vqz at once and clicked into the right window straight after." "vqz" { param($stop) Send-ClickNow 768 330 } { Read-EditValues $second.Handle } | Out-Null
       } else {
         Write-Host "[tour] no second window opened; the switch-to-our-window stop is skipped"
         $script:Required.Add("switch-to-our-window: Ctrl+N opened no second window")

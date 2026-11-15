@@ -3,7 +3,6 @@ import { Symbol, useTheme } from "../ui";
 import { copyText, pickFiles } from "../../state/app/system";
 import { chooseFromMenu } from "../../state/app/menuChoice";
 import { dictationAvailable, startDictation } from "../../state/omnibox/textInput";
-import { barAskedWhileFocused, barBlurred, barFocused } from "../../state/omnibox/fieldCommands";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { findNodeHandle, type TextInput, type View } from "react-native";
 import { journeyBarCommitted, journeyBarFocused, journeyKeystroke, journeyNavigate, journeySuggestions } from "../../state/telemetry/journeys";
@@ -74,7 +73,6 @@ export function Omnibox({
   const input = useRef<TextInput>(null);
   const [bangEnter] = useState(createBangSubmitter);
   useEffect(() => () => bangEnter.cancel(), [bangEnter]);
-  useEffect(() => () => barBlurred(windowId, variant), [windowId, variant]);
   useEffect(() => bangEnter.cancel(), [bangEnter, typed, selected, scope]);
   const root = useRef<View>(null);
   const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing } = useBarItems({
@@ -107,7 +105,6 @@ export function Omnibox({
   if (panelOpen && !listAway) setListAway(true);
   const focusField = () => {
     if (!editing.current && fieldText.current) focusEcho.current = true;
-    if (editing.current) barAskedWhileFocused(windowId);
     input.current?.focus();
   };
   useEffect(() => {
@@ -305,8 +302,15 @@ export function Omnibox({
       }}
       onChangeText={onChangeText}
       onSubmitEditing={() => choose(current, "current", true)}
-      onFocus={() => ((editing.current = true), setListAway(false), barFocused(windowId, variant))}
-      onBlur={() => ((editing.current = false), (focusEcho.current = false), barBlurred(windowId, variant), onCancel?.())}
+      onFocus={() => {
+        editing.current = true;
+        setListAway(false);
+      }}
+      onBlur={() => {
+        editing.current = false;
+        focusEcho.current = false;
+        onCancel?.();
+      }}
       keyDownEvents={barKeyDownEvents(asksForBackspace(scope), isRemovable(current))}
       onKeyDown={onKeyDown}
     />
