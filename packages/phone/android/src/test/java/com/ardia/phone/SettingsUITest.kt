@@ -58,7 +58,7 @@ class SettingsUITest {
     @Test
     fun theModifiersRegisteredAreTheOnesTheJavaScriptCreates() {
         assertEquals(
-            listOf("ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook"),
+            listOf("ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"),
             SettingsUIModifiers.names,
         )
     }

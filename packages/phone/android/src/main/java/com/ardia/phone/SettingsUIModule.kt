@@ -164,7 +164,7 @@ internal object SettingsSurfaces {
 }
 
 internal object SettingsUIModifiers {
-    val names = listOf("ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook")
+    val names = listOf("ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins")
 
     private fun ModifierType.text(key: String): String? = runCatching { get(key)?.takeUnless { it.isNull }?.asString() }.getOrNull()
 
@@ -209,6 +209,7 @@ internal object SettingsUIModifiers {
                 }
         }
         ModifierRegistry.register("ardia.legibleInk") { _, _, _, _ -> Modifier }
+        ModifierRegistry.register("ardia.contentMargins") { _, _, _, _ -> Modifier }
         ModifierRegistry.register("ardia.profileLook") { params, _, _, _ ->
             val look = ProfileLook.of(params.text("color"), params.texts("themeColors").orEmpty(), params.texts("darkThemeColors"))
             val glass = params.flag("usesGlass") ?: true
