@@ -1711,6 +1711,208 @@ app ships with the default browser off, and one build setting turns all of it on
 `apps/phone/src/dev/defaultBrowserSwitch.test.ts` keeps this true: every configuration says `NO`, the entitlement and
 the Info.plist key come from that one setting, and the two entitlement files differ only by the web-browser key.
 
+#### Settings on Expo UI: main's SwiftUI screens, the checklist
+
+The Expo UI Settings is compared against main's SwiftUI Settings (`apps/ios/App/Settings/`, read at 654d6396f),
+screen by screen and row by row. Every row below names the SwiftUI main uses, so the Expo UI screen uses the same
+view or our extension of it. Icon rows are `SettingsRowLabel(title, systemImage:, tint:)`: a `Label` whose icon is
+`SettingsIconTile`; tints are `SettingsTint` (ArdiaDesign `SettingsTokens.swift`).
+
+Whole stack (`SettingsView.swift`):
+- `NavigationStack(path:)` with `navigationDestination(for: SettingsRoute)`; title "Settings", inline; toolbar
+  `ToolbarItem(.confirmationAction)` "Done", semibold.
+- `.tint(Palette.formAccent)` (#007AFF light, #0A84FF dark) and `.toggleStyle(SettingsSwitchStyle())`: a switch
+  tinted `systemGreen`.
+- Every page gets `.settingsChrome()`: `lookBackdrop()` (`scrollContentBackground(.hidden)` over
+  `ProfileBackdrop().ignoresSafeArea()`), `scrollEdgeEffectStyle(.hard, for: .top)`, and the navigation bar's
+  background `look.surface`, always visible.
+- Pages with a hero use `.settingsPage(title)`: the inline title stays empty until the content scrolls past 150 pt
+  (`onScrollGeometryChange`).
+- Lists are `Form` with `.contentMargins(.top, Spacing.small)` (12 pt).
+
+Root (`SettingsRootList`), sections in order:
+1. Sync row: `NavigationLink` to Sync; `SettingsIconTile("macbook.and.iphone", sync blue, baseSide 56)` (44 at
+   accessibility sizes, stacked) beside a headline title and a subheadline secondary status (`.contentTransition(.opacity)`),
+   6 pt vertical padding, one accessibility element.
+2. Shortcuts: two capsule buttons, "Archive" and "Spaces", side by side 12 pt apart (stacked at accessibility
+   sizes): body medium, full width, min height 48, `secondarySystemGroupedBackground` capsule, `PressableStyle`
+   (scale 0.94 pressed, `Motion.press` spring 0.16/1). Row background clear, zero insets, section spacing 12.
+3. Appearance: `NavigationLink` + `LabeledContent` (value: the summary, e.g. "Match My Mac" or "Blue, Glass, Dark");
+   icon "paintpalette.fill" in the profile's swatch colour.
+4. "Site Settings" ("globe", neutral #86888D); "Default Browser" ("safari.fill", #007AFF) only when
+   `DefaultBrowserStatus.isOffered`.
+5. "Search Engine" (`LabeledContent` with the engine's name, "magnifyingglass", #007AFF); `Toggle` "Search
+   Suggestions" ("text.magnifyingglass", #458AFF); `Toggle` "Auto-Open Keyboard" ("keyboard.fill", #FFC829).
+6. `Picker` "Archive Inactive Tabs" ("archivebox.fill", #B059EE) and `Picker` "Open App Links In"
+   ("arrow.up.forward.app.fill", #3EA82E), both menu pickers tinted secondary; "Clear Browsing Data" link
+   ("eraser.fill", #FF5A5F); "Export Open Tabs" ("square.and.arrow.up.fill", #0153FF): a `ShareLink` of the open
+   tabs' addresses, or a toast when there are none.
+7. "Show Onboarding" button ("hand.wave.fill", #FF901A, tinted primary); "About Ardia" link ("info", neutral).
+   Footer: the version line, centred, 16 pt above.
+
+Appearance (`AppearancePage.swift`, `ColorChoiceRows.swift`):
+- Colour: the word "Color" over nine swatches in one row (`ColorSwatch`: 26 pt circle, a 2 pt ring 3 pt out when
+  chosen, 44 pt hit height, `Motion.snappy` spring 0.2/1), then a `Toggle` "Match My Mac" when sync is on.
+- "Interface Style" section: `CheckmarkRow`s Match My Mac, Glass, Classic (a semibold checkmark in `formAccent`,
+  the row a plain `Button` tinted primary, `.isSelected` trait). Footer: "Match My Mac follows your Mac. Reduce
+  Transparency in iOS Settings always uses Classic."
+- "Light or Dark" section: `CheckmarkRow`s Match My Mac, System, Light, Dark. Footer: "Match My Mac follows your Mac.
+  System follows this device."
+
+Site Settings (`SiteSettingsPage.swift`):
+- Toggles "Block Ads" ("hand.raised.fill", #FF5A5F), "Block Trackers" ("eyeglasses", #FFC829), "Block Cookie
+  Banners" ("list.bullet.rectangle.portrait.fill", #FF901A); links "Filter Lists" (`LabeledContent` count,
+  "line.3.horizontal.decrease", neutral) and "Trusted Sites" (count, "checkmark.shield.fill", #3EA82E).
+- Pickers "Night Shade" ("moon.fill", #5856D6) and "Swipe to Navigate" ("hand.draw.fill", #458AFF); toggle "Collapse
+  Bottom Bar" ("platter.filled.bottom.and.arrow.down.iphone", #30B0C7). Footer: "Change one site from its page menu."
+- "Camera, Microphone and Location": allowed sites, "None" when empty, `.swipeActions` "Revoke" (destructive), and a
+  `confirmationDialog` titled with the host listing "Revoke <permission>" per kind. Footer about private tabs.
+
+Sync With Mac (`SyncSettingsPage.swift`): `SettingsHero` (tile 64, title2 bold, subheadline secondary, clear row) with
+"Connect to Your Mac" when not connected; "What You Get" section; an attention section ("Choose Folder…" or
+Connect Again); Devices list with `ProgressView`; "This iPhone's Name" `TextField`; "Sync Folder" `LabeledContent` +
+"Change Folder…"; destructive "Stop Syncing…" with a `ProgressView`, confirmed by `confirmationDialog` "Stop Syncing
+This Device?".
+
+Connect to Your Mac (`SyncConnectPage.swift`): `SettingsHero`; "Two Steps" section of two `SetupStepRow`s (26 pt
+numbered badge: green check when done, `formAccent` when current, tertiary fill when later; `Motion.snappy`), with
+"Scan Code" and "Enter Words" buttons and a "Connecting…" `ProgressView`; footer about the Keychain. Recovery phrase
+entry: a multiline `TextField`, a check line in `.ink(.green)` (`LegibleInk`, contrast 4.5:1 or 7:1), toolbar "Use
+Phrase". The code scanner is a full-screen camera page, not a list.
+
+Search Engine: a "From Your Mac" `LabeledContent` with footer "Set on your Mac." when synced, else a list of engines
+with checkmarks.
+
+Filter Lists: `SettingsHero`; lists with `Toggle`s and `ProgressView` while updating, footer "Checked weekly.";
+"Add a List…" (a sheet with a URL `TextField`, Cancel and Add) and "My Filters" (`LabeledContent`); destructive
+"Restore Defaults…" confirmed by a `confirmationDialog`. List detail: `Toggle` "Use This List", status rows as
+`LabeledContent`, "Source" `Link`s, destructive "Remove List…" confirmed by "Remove This List?". My Filters: a
+`TextEditor` with toolbar Revert and Apply and a "Filter Syntax" `Link`. Trusted Sites: a list with `.onDelete` and
+an `EditButton`.
+
+Clear Browsing Data: a "Time Range" `Picker`; "Clear" section of `Toggle`s History, Cache, Cookies and Site Data,
+Archived Tabs; destructive "Clear Data…" with a `ProgressView`, confirmed by a `confirmationDialog`.
+
+Default Browser: an explanation page with "How to change your default browser" and an "Open Ardia in Settings"
+button. About: `AppIconPreview` (72 pt, 22.5% continuous corners, a 0.5 pt hairline) and "Ardia", three `Link` rows
+(ardia.dev, Release Notes, Source Code), a footer, "Open Source Licenses" (each credit a `LabeledContent` and a
+`Link`).
+
+What Expo UI doesn't have and we add through its extension path (`ExpoUIView` views and
+`ViewModifierRegistry` modifiers in a module that depends on `ExpoUI`), taken from ArdiaDesign so both apps share one
+source:
+- Views: `SettingsIconTile` (already public in ArdiaDesign), `SettingsRowLabel`, `SettingsHero`, `SetupStepRow`,
+  `ColorSwatch` row, `CheckmarkRow`, `AppIconPreview`, `ProfileBackdrop`.
+- Modifiers: `settingsChrome`, `settingsPage(title)`, `lookBackdrop`, `chromeSurface(in:interactive:tinted:)` (glass
+  `.regular`/`.interactive()`, or Classic: `look.surface` or the background with a 0.5 pt stroke at 12%),
+  `SettingsSwitchStyle`, `PressableStyle`, the `LegibleInk` text style.
+- Tokens as values: `SettingsTint`, `Palette.formAccent`, `Spacing` (4, 8, 12, 16, 20, 24, 32), `Motion.press` and
+  `Motion.snappy`.
+- The app-only pieces (`SettingsRowLabel`, `SettingsHero`, `SetupStepRow`, `CheckmarkRow`, `ColorSwatch`,
+  `AppIconPreview`, `PressableStyle`, `LegibleInk`, the two modifiers) move from `apps/ios/App/Settings` into
+  ArdiaDesign first, unchanged, so main's screens and the Expo screens compile the same code.
+
+The Expo app keeps one row main has no counterpart for: What's Sent (opt-in usage stats, the owner's approval).
+
+Each Expo UI screen is checked against main's as it lands: the same rows in the same order, positions and sizes
+from captures at the same scroll, type and colours light and dark, the push and pop between pages in 60 fps frames,
+and scroll speed on the root list.
+
+#### The Expo app on TestFlight, internal group first
+
+Nothing here is run by an agent on its own: the coordinator picks the moment, and no agent uploads or touches the
+Apple developer account. This is what the build needs and how the switch is proved.
+
+**What the build is.**
+- **App record:** the same as the SwiftUI app: "Ardia", bundle id `com.ardia.browser.ios`, team `U5L5T3NGVV`, and the
+  extensions `.share`, `.widgets` and `.open`. The Expo project (`apps/phone/ios/Ardia.xcodeproj`) already uses these
+  ids and the same entitlement files in `apps/ios/Config`: the app group `group.com.ardia.browser.ios`, and the default
+  browser off (`ARDIA_DEFAULT_BROWSER = NO`).
+- **Version and build number:**
+  - The Apple version is the Mac's release version, as `docs/ios.md` › Releasing to TestFlight has it.
+  - The build number goes above the highest one App Store Connect holds. On 15 Nov that is 0.2.47 (9), uploaded that
+    day, internal "in testing", external "waiting for review" (`gh workflow run ios-release.yml -f mode=status`).
+  - So the Expo build is 0.2.47 (10) or later, or the next release version's first build.
+  - The project's committed 0.1.0 (1) is set at archive time on all four targets, as `scripts/release-ios.sh` does. It
+    is never committed.
+- **To add before the first upload:**
+  - The `ArdiaReleaseVersion` Info.plist key (`$(ARDIA_RELEASE_VERSION)`), so the version line and the channel read
+    "Ardia 0.2.47 Nightly 2 (10)" from TestFlight as the SwiftUI app's do.
+  - A release path for the Expo project. Today `scripts/release-ios.sh` and `.github/workflows/ios-release.yml`
+    archive `apps/ios`. The Expo path:
+    - adds an `app: expo` choice that archives `apps/phone/ios/Ardia.xcworkspace` in Release for a device;
+    - installs Pods first, through the pod lock locally;
+    - embeds the JavaScript bundle compiled with Hermes, from a commit, as `build-sim-app` does;
+    - exports with `Config/ExportOptions-TestFlight.plist` (app-store-connect, automatic signing, symbols on);
+    - checks the stamp: commit, not dirty, the lab off, `ArdiaReleaseVersion` and the entitlements in agreement.
+  - The test hooks must be absent. `EXPO_PUBLIC_ARDIA_LAB` is unset, the stamp says the lab is off, and the
+    `-Ardia…` launch switches are inert.
+- **Who uploads, and how 0.2.47 (9) went up:**
+  - The SwiftUI build was sent from `main` by the iOS Release workflow on 15 Nov (`gh workflow run ios-release.yml -f
+    mode=upload`). The workflow archives, signs with the stored development certificate, and uploads with the App
+    Store Connect API key the Mac release notarizes with (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`). Then,
+    because `public_testers` defaults to true, it submits the build to Public Testers for Beta App Review.
+  - The Expo build goes the same way with `-f public_testers=false`, so it reaches only the Internal group. That
+    means the owner and the team's App Store Connect users.
+  - The workflow runs from the branch that holds the Expo release path (`--ref`), or from `main` once it is merged.
+  - On a Mac, `scripts/release-ios.sh` does the same with the account Xcode is signed in to, or with `ASC_KEY`,
+    `ASC_KEY_ID` and `ASC_ISSUER`.
+- **On the owner's phone:**
+  - TestFlight installs the Expo build over the SwiftUI app, the same bundle id with a higher build, so the app's
+    container, Keychain and app group stay.
+  - At first launch the Expo app imports the SwiftUI store once, through the legacy gate. The import covers tabs,
+    saved states, the Archive, thumbnails, history and settings, in one transaction, with a receipt.
+  - It keeps sync without reconnecting: the recovery phrase in the shared Keychain, and the folder's bookmark.
+  - It leaves the SwiftUI store untouched. So installing an earlier build from TestFlight goes back to the SwiftUI app
+    with its data, minus anything done since in the Expo app.
+
+**When the Expo app replaces the SwiftUI app for public testers.** The owner has agreed, with no further OK, once
+three things hold and the coordinator's report shows them:
+1. The iPhone speed table is level with main's app ("Speed against the SwiftUI app").
+2. The upgrade from the SwiftUI app passes on a copy of real data (below).
+3. The build has been in the Internal group first.
+
+After that the next upload goes with `public_testers` on, or `-f mode=public-link -f build=<n>` sends the internal
+build.
+
+**Proving the upgrade on a copy of real data.** On a leased simulator, never the owner's phone or live profile.
+1. **Where real data comes from.**
+   - A TestFlight app's container can't be read from a Mac. So the source is the owner's Mac Ardia profile, copied
+     into a scratch folder (the repo's rule: copies only, never the live profile, nothing written back).
+   - Delete `sync.json` from the copy before anything starts, so the copy never syncs to the owner's real iCloud
+     folder.
+   - `apps/phone/scripts/phone-sync-mac.mjs start` then runs a hidden Debug instance on that copy (its data folder in
+     `<work>/mac`, which needs a `--seed <copy>` option added to the script). It turns sync on against
+     `<work>/folder`, so the phone side gets the owner's real spaces, pinned tabs and open tabs from a Mac that
+     isn't his.
+2. **Set up main's SwiftUI app as the owner uses it** (`/tmp/ardia-phone/swiftui-main.app`, onboarding done):
+   - Connect: Settings › Sync With Mac › Connect to Your Mac, Enter Words, with the phrase read from
+     `<work>/phrase.txt` straight into the field (never printed, no screenshot while it shows). Then the folder:
+     `<work>/folder` mirrored into the app's `Documents/Ardia Sync` and chosen there.
+   - Then use it: at least nine tabs, two archived, about 30 pages visited, a private tab, every Settings row moved
+     off its default, Site Settings, blocking (a trusted site, a My Filters line, one list off), the Reader's
+     settings, and Appearance.
+3. **Write down "before":**
+   - screenshots of the deck, the Archive, History, every Settings page and Sync With Mac;
+   - `mac sync`, which lists the phone's device id, name and tabs;
+   - the Keychain and folder state as the Sync page shows them.
+4. **Upgrade:** install the Expo build over it, the same bundle id with the container kept, as
+   `ios-update-launch-check` does, and launch it. The import logs one `ardia-legacy imported …` line with counts per
+   kind and no rejects beyond `notWeb` and `duplicate`.
+5. **Compare "after" with "before":**
+   - the same open tabs in the same order with the same tab selected, and the Archive's count;
+   - an old visit found in History and in search;
+   - every Settings, Site Settings, blocking, Reader and Appearance value;
+   - each tab's back history (go back once).
+6. **"No second connect", as it shows:**
+   - Sync With Mac opens straight onto the connected page: the device list with the Mac, "This iPhone's Name"
+     unchanged, the folder's name;
+   - no "Connect to Your Mac" hero or step, and no attention section ("Choose Folder…", Connect Again);
+   - `mac sync` lists exactly one iPhone, with the same device id as before, not a second device;
+   - a tab sent from the Mac arrives once, and a page opened on the phone appears under its tabs on the Mac.
+7. **Kill and relaunch twice:** no second import line, the same counts, still connected.
+8. **Clean up:** `mac stop` deletes the scratch Mac and its folder; release the lease; delete the copy of the profile.
+
 #### Sync on iPhone
 
 `ArdiaPhoneSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
