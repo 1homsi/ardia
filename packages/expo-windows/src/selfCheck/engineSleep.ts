@@ -14,6 +14,7 @@ const LOAD_MS = 20000;
 const DEVTOOLS_GONE_MS = 3000;
 const POLL_MS = 100;
 const SCROLLED_TO = 3000;
+const SCROLL_SAVED_MS = 1500;
 const LEFT = { unit: "px", x: 0, y: 40, width: 300, height: 240 };
 const RIGHT = { unit: "px", x: 310, y: 40, width: 300, height: 240 };
 
@@ -116,6 +117,7 @@ const sleepChecks: Check[] = [
         await show(quiet!, windowId, LEFT);
         const scrolled = await evaluate(quiet!, `window.scrollTo(0, ${SCROLLED_TO}); setTimeout(() => post("result", JSON.stringify(Math.round(window.scrollY))), 50);`);
         expectEqual(scrolled, SCROLLED_TO, "the page's scroll before it sleeps");
+        await pause(SCROLL_SAVED_MS);
         const address = (await listed(quiet!))?.url;
         await hide(quiet!, windowId);
         expectEqual(await keptBy(quiet!, 0), [], "nothing keeps a hidden quiet page awake once the hidden time has passed");
