@@ -28,6 +28,41 @@ on:
         description: add-tester mode only, the tester's email address
         type: string
         default: ""
+      version:
+        description: dry-run and upload modes, the release version (0.2.47 or 0.2.47-nightly.2; empty takes the Mac app's MARKETING_VERSION)
+        type: string
+        default: ""
+      app:
+        description: dry-run and upload modes, which iPhone app to build (swiftui is apps/ios, expo is apps/phone; an expo upload goes to the Internal group only, so it needs public_testers off)
+        type: choice
+        options: [swiftui, expo]
+        default: swiftui
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      build:
+        type: string
+        default: ""
+      default_browser:
+        type: boolean
+        default: false
+      public_testers:
+        type: boolean
+        default: true
+      signing_request:
+        type: string
+        default: ""
+      email:
+        type: string
+        default: ""
+      app:
+        type: string
+        default: swiftui
 
 permissions:
   contents: read
@@ -182,7 +217,14 @@ jobs:
       MODE: ${{ inputs.mode }}
       BUILD_INPUT: ${{ inputs.build }}
       DEFAULT_BROWSER: ${{ inputs.default_browser }}
+      RELEASE_VERSION: ${{ inputs.version }}
+      APP: ${{ inputs.app || 'swiftui' }}
     steps:
+      - name: Expo builds go to the Internal group first
+        if: inputs.app == 'expo' && inputs.mode == 'upload' && inputs.public_testers
+        run: |
+          echo "::error::an expo upload goes to the Internal group only until the owner moves it to public testers: run it with public_testers=false"
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -191,6 +233,15 @@ jobs:
           node-version: 24
       - name: Toolchain
         run: xcodebuild -version
+      - if: inputs.app == 'expo'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - if: inputs.app == 'expo'
+        name: The Expo app's dependencies and Pods
+        run: |
+          set -euo pipefail
+          (cd apps/phone && pnpm install --frozen-lockfile)
+          (cd apps/phone/ios && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install)
+          git diff --exit-code -- apps/phone/ios/Podfile.lock || { echo "::error::pod install changed apps/phone/ios/Podfile.lock: commit the lockfile pod install writes"; exit 1; }
       - name: App Store Connect key
         env:
           ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
@@ -230,22 +281,27 @@ jobs:
           build="$BUILD_INPUT"
           [ -n "$build" ] || build="$(node apps/ios/scripts/asc.mjs next-build)"
           echo "build=$build" >> "$GITHUB_OUTPUT"
-          echo "### Ardia for iPhone, build $build ($MODE)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Ardia for iPhone ${RELEASE_VERSION:-from MARKETING_VERSION}, build $build ($MODE)" >> "$GITHUB_STEP_SUMMARY"
       - name: Archive, sign${{ inputs.mode == 'upload' && ', upload' || '' }}
         env:
           BUILD: ${{ steps.plan.outputs.build }}
         run: |
           set -euo pipefail
           args=("$BUILD" --out "$OUT")
+          [ -z "$RELEASE_VERSION" ] || args+=(--version "$RELEASE_VERSION")
           [ "$MODE" = upload ] || args+=(--no-upload)
           [ "$DEFAULT_BROWSER" != true ] || args+=(--default-browser)
-          scripts/release-ios.sh "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$APP" = expo ]; then
+            apps/phone/scripts/release-ios "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            scripts/release-ios.sh "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
       - if: inputs.mode == 'upload'
         name: Wait for App Store Connect to process the build
         env:
           BUILD: ${{ steps.plan.outputs.build }}
         run: node apps/ios/scripts/asc.mjs wait --build "$BUILD" --timeout 2400 | tee -a "$GITHUB_STEP_SUMMARY"
-      - if: inputs.mode == 'upload' && inputs.public_testers
+      - if: inputs.mode == 'upload' && inputs.public_testers && inputs.app != 'expo'
         name: Send the build to public testers
         env:
           BUILD: ${{ steps.plan.outputs.build }}
@@ -273,5 +329,6 @@ jobs:
           path: |
             ${{ github.workspace }}/.ci/ios-release/*.log
             ${{ github.workspace }}/.ci/ios-release/export/*.plist
+            ${{ github.workspace }}/.ci/ios-release/bundle/stamp.plist
           if-no-files-found: ignore
           retention-days: 14
