@@ -7,6 +7,7 @@ import { curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowBackdrop, WindowDragRegion } from "../ui";
 import { useSettings, useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
 import { ResizeHandle } from "../sidebar/ResizeHandle";
@@ -14,7 +15,7 @@ import { dismissHoverIn } from "../../state/sidebar/hover";
 import { sidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { peekHeld, watchHolds } from "../../state/app/transientUi";
 import { noteSidebarPeek } from "../../state/telemetry/usage";
-import { noteSidebarPeekClosedWhileResizing, noteSidebarPeekResize, noteSidebarPeekRevealHeldBack, noteSidebarSlide } from "../../state/telemetry/dockCounts";
+import { noteSidebarPeekClosedWhileResizing, noteSidebarPeekResize, noteSidebarPeekRevealHeldBack, noteSidebarScreenEdge, noteSidebarSlide } from "../../state/telemetry/dockCounts";
 import { ProfileSwipe } from "./ProfileSwipe";
 import { ARC_HIDE_MS, DOCK_SLIDE, SHADOWS } from "./tokens";
 import {
@@ -106,10 +107,10 @@ export function DockedLayout({
   children: ReactNode;
 }) {
   const windowId = useWindowId();
-  const [open, sidebarWidth, addressBar] = useSidebarDockState(windowId);
+  const [open, addressBar] = useSidebarDockState(windowId);
   const right = useSidebarSide(windowId) === "right";
   const dragWidth = useSidebarUi((u) => u.dragWidth[windowId]);
-  const width = dragWidth ?? sidebarWidth;
+  const width = useSidebarWidth(windowId);
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
   const toolbarLights = useToolbarLightsCenter();
   const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : toolbarLights;
@@ -232,6 +233,7 @@ function SidebarDock({
     if (!watching) return;
     const sub = onWindowEvent((e) => {
       if (e.type !== "sidebarEdge" || e.id !== windowId) return;
+      if (e.screenEdge) noteSidebarScreenEdge(e.screenEdge);
       const at = latestReveal.current;
       if (e.over && !edgeEventReveals(at.state, e.point[0], at.right, at.windowWidth, at.band)) return;
       edgeOver.current = e.over;

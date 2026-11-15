@@ -1,7 +1,7 @@
 import type { AddressInput, SavedAddress, SavedCard } from "../autofill";
 import type { EngineBookmark, BookmarkOp } from "../bookmarks";
 import type { CastDialog, CastRoute, DeviceChooser } from "../media";
-import type { ContentBlockerState, ContentBlockerStats } from "../contentBlocker";
+import type { AddedFilterList, ContentBlockerState, ContentBlockerStats } from "../contentBlocker";
 import type {
   ActionPopupRequest, ActionState, ChromeSearchEngine, ExtensionActionChange, ExtensionInstallPrompt, ExtensionPackage, ExtensionsChange, ExtensionsLoadHealth, ExtensionsSyncApplied, ExtensionsSyncApply,
   ExtensionsSyncState, ExtensionSyncIntent, InstalledExtension, SidePanelRequest, TabsRequest,
@@ -129,7 +129,7 @@ export type EngineCalls = {
   "extensions.loadHealth": [Profile, ExtensionsLoadHealth];
 
   "search.engines": [Profile, { list: { engines: ChromeSearchEngine[] } }];
-  "search.setEngineName": [{ name: string }, null];
+  "search.setEngineName": [{ name: string; keyword?: string; url?: string }, null];
   "search.suggest": [Profile & { url: string; id: number }, { status: number; body?: string; netError?: number; stopped?: true }];
   "search.stopSuggest": [Profile & { id: number }, Done];
 
@@ -154,6 +154,8 @@ export type EngineCalls = {
   "contentBlocker.state": [{}, ContentBlockerState];
   "contentBlocker.setEnabled": [{ enabled: boolean }, null];
   "contentBlocker.setListEnabled": [{ id: string; enabled: boolean }, null];
+  "contentBlocker.addList": [{ url: string }, AddedFilterList];
+  "contentBlocker.removeList": [{ id: string }, null];
   "contentBlocker.isAllowed": [{ host: string }, boolean];
   "contentBlocker.setAllowed": [{ host: string; allowed: boolean }, null];
   "contentBlocker.hiddenElements": [{ profile: string }, string[]];
@@ -183,8 +185,10 @@ export type EngineCalls = {
   "webView.setPeekOtherSiteTabs": [{ tabIds: string[] }, null];
   "webView.setSelectionPopover": [{ enabled: boolean }, null];
   "webView.setBlockAutoplayEverywhere": [{ enabled: boolean }, null];
+  "webView.setFairPlayInChromium": [{ enabled: boolean }, null];
   "webView.setCommandScrollZoom": [{ enabled: boolean }, null];
   "webView.setLittleArdiaOpensNewTabLinks": [{ enabled: boolean }, null];
+  "webView.setPopupsOpenAsTabs": [{ enabled: boolean }, null];
   "webView.setAutoPictureInPicture": [{ enabled: boolean }, null];
   "webView.setVideoUpscaling": [{ enabled: boolean }, null];
   "webView.setVideoUpscalingTestConditions": [{ lowPower?: boolean; thermalPressure?: boolean }, null];

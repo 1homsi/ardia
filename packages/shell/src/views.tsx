@@ -31,11 +31,22 @@ export type FadeLabelProps = ViewProps & {
   fontFamily?: string;
   color?: string;
   fadeWidth?: number;
+  strikethrough?: boolean;
 };
 
 export const FadeLabel = requireNativeViewManager<FadeLabelProps>("ArdiaFadeLabel");
 
 export const ActivitySpinner = requireNativeViewManager<ViewProps>("ArdiaActivitySpinner");
+
+export type FolderIconProps = ViewProps & {
+  open: boolean;
+  stroke?: string;
+  face?: string;
+  insideTop?: string;
+  insideBottom?: string;
+};
+
+export const FolderIcon = requireNativeViewManager<FolderIconProps>("ArdiaFolderIcon");
 
 export type ContextMenuAreaProps = ViewProps & {
   onContextMenu?: () => void;

@@ -113,6 +113,11 @@ export const generalRows = {
     {
       section: "Profile switcher",
       rows: {
+        showProfileDots: {
+          title: "Show profile dots",
+          description: "The dots at the bottom of the sidebar that switch profiles. Swiping and ⌃1–⌃9 still work.",
+          keywords: ["dots", "pager", "profile switcher", "page dots", "sidebar footer", "hide"],
+        },
         switcherIcons: {
           title: "Show profile icons instead of dots",
           description: "As in Arc: the switcher at the bottom of the sidebar shows each profile's symbol or emoji, and a profile without one keeps its dot. Right-click the switcher to pick an icon.",
@@ -205,6 +210,11 @@ export const generalRows = {
           description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows its icon faded, as sleeping tabs do. Clicking it loads the page.",
           keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
         },
+        strikeSleepingTabs: {
+          title: "Strike through sleeping tabs",
+          description: "A tab Memory Saver or the ardia command put to sleep shows its title struck through and dimmed, in the sidebar and across the top, until its page loads again. A tab whose icon is faded as unloaded, with Fade icons of unloaded tabs on or a closed Top App without its tile, shows it too.",
+          keywords: ["strikethrough", "strike", "line through", "crossed out", "asleep", "sleeping", "discarded", "unloaded", "memory saver", "dim", "title"],
+        },
       },
     },
     {
@@ -250,6 +260,11 @@ export const generalRows = {
           keywords: ["arc", "multiple windows", "same tabs", "sync windows", "shared sidebar", "unpinned"],
         },
         warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
+        keepTopAppsRunning: {
+          title: "Keep Top Apps running when closed",
+          description: "⌘W on a Top App switches away from it and leaves its page loaded, so a site like Slack keeps its notifications. A Top App split with another pinned tab stays together and loaded. Choose Unload from its right-click menu to put it to sleep. Off, as in Dia, ⌘W unloads it. Memory Saver can still put a page to sleep unless the site is in its Always keep these sites active list.",
+          keywords: ["top apps", "pinned tiles", "favorites", "essentials", "cmd w", "close", "unload", "keep loaded", "keep running", "background", "arc"],
+        },
         tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
         sidebarMediaControls: {
@@ -282,8 +297,18 @@ export const generalRows = {
         },
         newTabLinksOpenIn: {
           title: "Open new-tab links in",
-          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
+          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and pop-ups stay windows unless Open pop-up windows as tabs is on. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
           keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
+        },
+        popupsOpenAsTabs: {
+          title: "Open pop-up windows as tabs",
+          description: "A page that opens a pop-up window, like Outlook's Open in New Window or a sign-in pop-up, opens it as a tab next to the page instead. The page can still talk to it, and closing it brings you back. Extension pop-ups stay windows.",
+          keywords: ["popup", "pop-up", "pop up", "window.open", "new window", "outlook", "sign in", "oauth", "as tab", "links"],
+        },
+        peekButtons: {
+          title: "Show Peek buttons",
+          description: "Close, Open as Tab and Split View sit in the Peek's title bar, or float beside it on the left or right.",
+          keywords: ["peek", "buttons", "close", "expand", "split view", "left", "right", "side", "position", "arc", "zen"],
         },
         peekModifier: {
           advanced: true,

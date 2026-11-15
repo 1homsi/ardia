@@ -270,6 +270,10 @@ def run_local(command: str, args: list[str], root: Path, options: dict, dir_fd_f
             data = plugins.call(root, positional[0], positional[1], payload)
             return Result(data if isinstance(data, dict) else {"result": data}, json.dumps(data, ensure_ascii=False, indent=2))
         raise Usage(f"Unknown plugin subcommand: {action}")
+    if command == "flow":
+        from ardia_cli.browse import flows
+
+        return flows.run_local(root, args)
     if command == "notes":
         from ardia_cli import notes
 
@@ -300,6 +304,12 @@ def run_local(command: str, args: list[str], root: Path, options: dict, dir_fd_f
             return Result({"sessions": rows}, "\n".join(lines) if rows else "No active sessions")
         return None
     return None
+
+
+def flow_runs_locally(args: list[str]) -> bool:
+    from ardia_cli.browse import flows
+
+    return flows.runs_locally(args)
 
 
 def notes_need_page(args: list[str]) -> bool:
@@ -361,6 +371,7 @@ def read_beside(request: dict, config: dict, namespace: str, endpoint_key: str, 
         os.close(dir_fd)
     request = {**request, "options": {**request["options"], "_session": beside}}
     request.pop("beside_if_busy", None)
+    request["patient_queue"] = True
     answer = client.request(sock, request)
     answer.setdefault("metrics", {})["read_beside_busy"] = True
     return answer
@@ -474,7 +485,8 @@ def run(argv: list[str]) -> int:
 
         local_auth = command == "auth" and (args[:1] or ["list"])[0] in LOCAL_AUTH
         local_notes = command == "notes" and not notes_need_page(args)
-        if local_auth or local_notes or command == "plugin" or (command == "read" and read_runs_locally(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
+        local_flow = command == "flow" and flow_runs_locally(args)
+        if local_auth or local_notes or local_flow or command == "plugin" or (command == "read" and read_runs_locally(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
             result = run_local(command, args, root, options, dir_fd_factory, None)
             if result is not None:
                 return print_result(result, as_json, options)
@@ -521,7 +533,8 @@ def run(argv: list[str]) -> int:
     except paths.PathError as error:
         return print_error(BrowseError(str(error)), as_json)
     except KeyboardInterrupt:
-        sys.stderr.write("✗ interrupted\n")
+        sys.stderr.write("✗ interrupted\n" if rest[0] != "script" else
+                         "✗ interrupted. Whatever the script had put in `state` is kept: `ardia browse script 'return state'` prints it\n")
         return 130
     telemetry.note_answer(answer)
     write(answer.get("out") or "", sys.stdout)

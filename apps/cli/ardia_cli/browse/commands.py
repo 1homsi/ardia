@@ -9,6 +9,7 @@ import secrets
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from ardia_cli.browse import actions, changes, snapshot
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Gated, OutcomeUnknown, Usage
@@ -22,7 +23,7 @@ ALIASES = {
 MUTATING = {
     "open", "click", "dblclick", "type", "fill", "press", "keyboard", "keydown", "keyup", "hover", "check", "uncheck",
     "select", "drag", "upload", "download", "scroll", "scrollintoview", "mouse", "back", "forward", "reload", "tab",
-    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close", "script",
+    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close", "script", "flow",
 }
 KNOWN_SCHEMES = ("http", "https", "about", "data", "file", "blob", "chrome", "view-source")
 LOOPBACK = re.compile(r"^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?(/|$)")
@@ -145,7 +146,7 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
                 state = await page.call("() => document.readyState", frame=main, read=True)
             except BrowseError as error:
                 if error.code == "tab_detached":
-                    raise
+                    await page.state.reattach(page)
                 return False
             frame_loader = page.loader(main)
             if loader is not None and frame_loader != loader:
@@ -154,6 +155,30 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
         return False
 
     await wait_until(ready, timeout, 0.05, f"the page to reach {until}")
+
+
+FAILED_HOSTS_KEPT = 50
+DROPPED_CONNECTION = re.compile(r"ERR_(EMPTY_RESPONSE|CONNECTION_(RESET|CLOSED|REFUSED|TIMED_OUT)|TIMED_OUT|HTTP2_PROTOCOL_ERROR|SSL_PROTOCOL_ERROR|QUIC_PROTOCOL_ERROR)")
+
+
+def failed_navigation(ctx: Ctx, url: str, error_text: str) -> BrowseError:
+    from ardia_cli import command_metrics
+
+    host = urlsplit(url).hostname or url
+    message = f"Navigation to {url} failed: {error_text}"
+    if DROPPED_CONNECTION.search(error_text):
+        failures = ctx.state.extras.setdefault("failed_navigations", {})
+        failures[host] = failures.pop(host, 0) + 1
+        while len(failures) > FAILED_HOSTS_KEPT:
+            failures.pop(next(iter(failures)))
+        command_metrics.flag("navigation_dropped_hint", True)
+        again = f" ({failures[host]} failures on {host} in this session)" if failures[host] > 1 else ""
+        message += (f". The site dropped the connection{again}; sites often do this to automated or foreign traffic, and the same URL "
+                    "rarely loads on a retry. Try another way in: the site's other hosts or pages, `read --http <url>`, "
+                    "its public API or feed, an archived copy, or another source with the same data, and name the source you used")
+    elif "ERR_NAME_NOT_RESOLVED" in error_text:
+        message += f". {host} has no address: check the spelling, or search for the site's current address"
+    return BrowseError(message, code="navigation_failed")
 
 
 async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
@@ -165,7 +190,7 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
         except Gated:
             raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one", code="policy_refused") from None
         if result.get("errorText"):
-            raise BrowseError(f"Navigation to {url} failed: {result['errorText']}", code="navigation_failed")
+            raise failed_navigation(ctx, url, result["errorText"])
         await page.recovered(ctx.timeout)
         return
     before = await readpages.before_navigating(page, url)
@@ -174,7 +199,7 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
     except Gated:
         raise BrowseError(f"Ardia's policy only lets the ardia command open web pages (http, https, data, about:blank); {url} isn't one", code="policy_refused") from None
     if result.get("errorText"):
-        raise BrowseError(f"Navigation to {url} failed: {result['errorText']}", code="navigation_failed")
+        raise failed_navigation(ctx, url, result["errorText"])
     loader = result.get("loaderId")
     page.state.load_note = None
     if loader:
@@ -190,6 +215,7 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
                                     "its content so far is here, and `wait --load load` waits for the rest")
     else:
         await readpages.after_same_document(page, before, asyncio.get_running_loop().time() + ctx.timeout)
+    await page.state.reattach(page)
     await page.refresh_frames()
 
 
@@ -360,6 +386,7 @@ async def add_init_script(ctx: Ctx, page, source: str, tag: str | None) -> str:
     result = await page.send("Page.addScriptToEvaluateOnNewDocument", {"source": source})
     identifier = result["identifier"]
     page.init_scripts[identifier] = tag or source
+    page.script_sources[identifier] = source
     ctx.state.extras.setdefault("init_sources", {})[identifier] = source
     ctx.state.leases.add("init")
     return identifier
@@ -430,6 +457,7 @@ async def cmd_open(ctx: Ctx, argv):
         await changes.settled(page, lambda: navigate(ctx, page, url))
     elif url and not fresh_tab:
         await navigate(ctx, page, url)
+    page = await state.reattach(page)
     if show and (reporting or not fresh_tab):
         page = await show_tab(ctx, page)
     background = await page.takes_input() if fresh_tab and not show else None
@@ -526,6 +554,7 @@ async def cmd_pushstate(ctx: Ctx, argv):
 @command("snapshot")
 async def cmd_snapshot(ctx: Ctx, argv):
     from ardia_cli import notes
+    from ardia_cli.browse import flows
 
     options, args = parse(
         argv,
@@ -553,6 +582,10 @@ async def cmd_snapshot(ctx: Ctx, argv):
             body = changes.render(report)
     root = ctx.state.config.get("data_root")
     site, header = notes.header(Path(root), page.url) if root else (None, None)
+    saved = flows.hint(ctx.state, page.url)
+    if saved:
+        data["flows"] = saved
+        body = saved + "\n" + body
     if header:
         data["notes"] = {"site": site, "header": header}
         body = header + "\n" + body
@@ -615,7 +648,7 @@ def consent_note(ctx: Ctx, result: Result) -> Result:
     note, ctx.state.consent_dismissed = ctx.state.consent_dismissed, None
     if note:
         result.data["dismissed"] = note
-        result.text = f"{result.text or '✓ Done'}\nA consent banner was in the way: {note}"
+        result.text = f"{result.text or '✓ Done'}\n{note}"
     fallback, ctx.state.click_note = getattr(ctx.state, "click_note", None), None
     if fallback:
         result.data["domClick"] = fallback
@@ -1015,11 +1048,18 @@ def glob_match(pattern: str, url: str) -> bool:
     return re.fullmatch(regex, url) is not None
 
 
-async def evaluate_main(page, expression: str):
-    result = await page.send("Runtime.evaluate", {"expression": expression, "returnByValue": True, "awaitPromise": True, "userGesture": False}, timeout=60, mutation=True)
+EVAL_TIMEOUT = 60.0
+UNQUOTED_ATTRIBUTE = re.compile(r"\[[^\]\"'=]+=[^\]\"']*[\s/:.,;][^\]\"']*\]")
+
+
+async def evaluate_main(page, expression: str, timeout: float = EVAL_TIMEOUT):
+    result = await page.send("Runtime.evaluate", {"expression": expression, "returnByValue": True, "awaitPromise": True, "userGesture": False}, timeout=timeout, mutation=True)
     if "exceptionDetails" in result:
         details = result["exceptionDetails"]
         description = (details.get("exception") or {}).get("description") or details.get("text") or "error"
+        if "is not a valid selector" in description and UNQUOTED_ATTRIBUTE.search(description):
+            description += ('\n  An attribute value with spaces or punctuation needs quotes in CSS: a[href*="/path/"], '
+                            '[aria-label="Two words"]. ardia browse\'s own selectors (click, find, get) quote it for you')
         raise BrowseError(f"Evaluation error: {description}", code="page_script_error")
     remote = result.get("result") or {}
     if remote.get("type") == "undefined":
@@ -1031,18 +1071,31 @@ async def evaluate_main(page, expression: str):
 
 @command("eval")
 async def cmd_eval(ctx: Ctx, argv):
-    options, args = parse(argv, {"--base64": "bool", "--stdin": "bool"}, {"-b": "--base64"})
+    from ardia_cli.browse.script import MAX_TIMEOUT, parse_timeout
+
+    options, args = parse(argv, {"--base64": "bool", "--stdin": "bool", "--timeout": "value"}, {"-b": "--base64"})
+    limit = parse_timeout(options["timeout"]) if options.get("timeout") else EVAL_TIMEOUT
     if options.get("stdin"):
         script = ctx.stdin or ""
     else:
-        need(args, 1, "eval <js> | -b <base64> | --stdin")
+        need(args, 1, "eval <js> | -b <base64> | --stdin [--timeout 2m]")
         script = " ".join(args)
         if options.get("base64"):
             script = base64.b64decode(script).decode("utf-8")
     page = await ctx.state.page()
     if FETCHING.search(script):
         hint_once(ctx.state, "fetch", FETCH_HINT)
-    value = await evaluate_main(page, script)
+    try:
+        value = await evaluate_main(page, script, limit)
+    except OutcomeUnknown as error:
+        if "didn't answer Runtime.evaluate" not in error.message:
+            raise
+        from ardia_cli import command_metrics
+
+        command_metrics.flag("eval_timed_out", True)
+        raise OutcomeUnknown("`eval`", f"The page's code didn't finish within {limit:g} s (eval waits for the promise it returns) and may still "
+                             f"be running in the page. Give it longer with `eval --timeout 5m` (up to {MAX_TIMEOUT / 60:g}m), "
+                             "or split the work into smaller batches") from None
     origin = page.frames.get(page.main_frame, {}).get("origin") or ""
     return Result({"origin": origin + "/" if origin and not origin.endswith("/") else origin, "result": value}, render_json(value), page_content=True)
 
@@ -1125,6 +1178,7 @@ async def cmd_is(ctx: Ctx, argv):
 FIND_ACTIONS = ("click", "fill", "type", "press", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
 FIND_LOCATORS = ("role", "text", "label", "placeholder", "alt", "title", "testid", "first", "last", "nth")
 MAX_CANDIDATES = 8
+CLOSE_ENOUGH = 0.6
 BATCH_DEFAULT_CAP = 6000
 SHOWN_HOLD = 0.3
 FIND_WAIT = 1.5
@@ -1261,6 +1315,24 @@ def role_candidates(nodes: list, role: str, name: str | None, exact: bool) -> tu
     return [item for item in of_role if target in plain(item[1])], "partial"
 
 
+def closest_names(wanted: str, names: list[str]) -> list[str]:
+    target = plain(wanted)
+    words = set(re.findall(r"\w+", target))
+
+    def likeness(text: str) -> float:
+        own = plain(text)
+        shared = len(words & set(re.findall(r"\w+", own))) / max(len(words), 1)
+        return shared + difflib.SequenceMatcher(None, target, own).ratio()
+
+    ranked = sorted(range(len(names)), key=lambda index: (-likeness(names[index]), index))
+    if ranked and likeness(names[ranked[0]]) >= CLOSE_ENOUGH:
+        from ardia_cli import command_metrics
+
+        command_metrics.flag("find_closest_names", True)
+        return [names[index] for index in ranked[:MAX_CANDIDATES]]
+    return names[:MAX_CANDIDATES]
+
+
 async def find_role(ctx, page, frame, role, name, exact):
     tree = await page.send("Accessibility.getFullAXTree", {"frameId": frame}, timeout=60)
     nodes = tree.get("nodes") or []
@@ -1275,7 +1347,8 @@ async def find_role(ctx, page, frame, role, name, exact):
         element, node_name = resolved[0]
         return element, shown, node_name
     if not resolved:
-        close = list(dict.fromkeys(node_name for _, node_name in role_candidates(nodes, role, None, False)[0] if node_name))[:MAX_CANDIDATES]
+        names = list(dict.fromkeys(node_name for _, node_name in role_candidates(nodes, role, None, False)[0] if node_name))
+        close = closest_names(name, names) if name is not None else names[:MAX_CANDIDATES]
         named = f' named "{name}"' if name is not None else ""
         hint = f"; the {shown}s here are: " + ", ".join(f'"{snapshot.shown_name(text)}"' for text in close) if close and name is not None else ""
         raise BrowseError(f"No {shown}{named} on this page{hint}", data={"candidates": close}, code="not_found")
@@ -1527,6 +1600,11 @@ DEVICES = {
 }
 
 
+async def overridden(page, method: str, params: dict):
+    await page.send(method, params)
+    page.overrides[method] = params
+
+
 @command("set")
 async def cmd_set(ctx: Ctx, argv):
     _, args = parse(argv)
@@ -1543,13 +1621,14 @@ async def cmd_set(ctx: Ctx, argv):
                     return Result({"reset": True, "tabId": tab, "url": fresh.url}, f"✓ Viewport reset: the page was reloaded in a new background tab [{tab}]")
                 with contextlib.suppress(BrowseError):
                     await page.send("Emulation.clearDeviceMetricsOverride")
+                page.overrides.pop("Emulation.setDeviceMetricsOverride", None)
                 ctx.state.leases.discard("emulation")
                 return Result({"reset": True}, "✓ Viewport reset")
             need(args, 3, "set viewport <w> <h> [scale] | reset")
             width, height = int(args[1]), int(args[2])
             scale = float(args[3]) if len(args) > 3 else 1.0
             offscreen = await go_offscreen(ctx, page)
-            await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
+            await overridden(page, "Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
             if not offscreen:
                 ctx.state.leases.add("emulation")
             from ardia_cli import command_metrics
@@ -1562,28 +1641,28 @@ async def cmd_set(ctx: Ctx, argv):
             if device is None:
                 raise BrowseError(f"Unknown device: {' '.join(args[1:])} ({', '.join(sorted(DEVICES))})")
             width, height, scale, mobile, agent = device
-            await page.send("Emulation.setTouchEmulationEnabled", {"enabled": mobile})
-            await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": mobile})
+            await overridden(page, "Emulation.setTouchEmulationEnabled", {"enabled": mobile})
+            await overridden(page, "Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": mobile})
             if agent:
-                await page.send("Emulation.setUserAgentOverride", {"userAgent": agent})
+                await overridden(page, "Emulation.setUserAgentOverride", {"userAgent": agent})
             ctx.state.leases.add("emulation")
             return Result({"device": " ".join(args[1:]), "width": width, "height": height})
         if setting == "geo":
             need(args, 3, "set geo <lat> <lng>")
-            await page.send("Emulation.setGeolocationOverride", {"latitude": float(args[1]), "longitude": float(args[2]), "accuracy": 10})
+            await overridden(page, "Emulation.setGeolocationOverride", {"latitude": float(args[1]), "longitude": float(args[2]), "accuracy": 10})
             ctx.state.leases.add("emulation")
             return Result({"latitude": float(args[1]), "longitude": float(args[2])})
         if setting == "offline":
             offline = (args[1] if len(args) > 1 else "on").lower() in ("on", "true", "1")
             await page.enable_network()
-            await page.send("Network.emulateNetworkConditions", {"offline": offline, "latency": 0, "downloadThroughput": -1, "uploadThroughput": -1})
+            await overridden(page, "Network.emulateNetworkConditions", {"offline": offline, "latency": 0, "downloadThroughput": -1, "uploadThroughput": -1})
             ctx.state.leases.add("emulation")
             return Result({"offline": offline})
         if setting == "headers":
             need(args, 2, "set headers <json>")
             headers = json.loads(" ".join(args[1:]))
             await page.enable_network()
-            await page.send("Network.setExtraHTTPHeaders", {"headers": headers})
+            await overridden(page, "Network.setExtraHTTPHeaders", {"headers": headers})
             ctx.state.leases.add("emulation")
             return Result({"headers": sorted(headers)})
         if setting in ("credentials", "auth"):
@@ -1599,7 +1678,7 @@ async def cmd_set(ctx: Ctx, argv):
                 features.append({"name": "prefers-color-scheme", "value": scheme})
             if "reduced-motion" in args[1:]:
                 features.append({"name": "prefers-reduced-motion", "value": "reduce"})
-            await page.send("Emulation.setEmulatedMedia", {"features": features})
+            await overridden(page, "Emulation.setEmulatedMedia", {"features": features})
             ctx.state.leases.add("emulation")
             return Result({"features": features})
     except Gated as error:
@@ -1750,8 +1829,10 @@ async def cmd_removeinitscript(ctx: Ctx, argv):
     page = await ctx.state.page()
     if args[0] not in page.init_scripts:
         raise BrowseError(f"No init script {args[0]} in this tab")
-    await page.send("Page.removeScriptToEvaluateOnNewDocument", {"identifier": args[0]})
+    await page.send("Page.removeScriptToEvaluateOnNewDocument", {"identifier": page.script_ids.get(args[0], args[0])})
     page.init_scripts.pop(args[0], None)
+    page.script_sources.pop(args[0], None)
+    page.script_ids.pop(args[0], None)
     ctx.state.extras.get("init_sources", {}).pop(args[0], None)
     if not any(p.init_scripts for p in ctx.state.pages.values()):
         ctx.state.leases.discard("init")
@@ -1763,6 +1844,13 @@ async def cmd_read(ctx: Ctx, argv):
     from ardia_cli.browse import readpages, readurl
 
     options, args = parse(argv, readpages.flags(), readpages.ALIASES)
+    if options.get("data"):
+        from ardia_cli.browse import pagedata
+
+        if args or options.get("links") is not None:
+            raise Usage("read --data reads this tab's embedded JSON; open the page first, then run `read --data`")
+        page = await ctx.state.page()
+        return await pagedata.run(ctx, page, ctx.state.frame_for(page) or page.main_frame, options)
     if readpages.scrolls(options):
         return await readpages.run_scroll(ctx, options, args)
     if readpages.single_fetch(options, args):
@@ -1908,9 +1996,55 @@ async def cmd_session(ctx: Ctx, argv):
     return Result({"session": ctx.state.session}, ctx.state.session)
 
 
+def batch_out(item: list[str], name: str) -> tuple[list[str], str | None]:
+    from ardia_cli.browse import outfile
+
+    if name not in outfile.TAKES_OUT:
+        return item, None
+    return outfile.take_out(item, item[0])
+
+
+def save_batch_line(ctx: Ctx, name: str, result, path: str) -> str:
+    from ardia_cli import command_metrics
+    from ardia_cli.browse import outfile
+
+    if name in outfile.AS_TEXT:
+        text, summary = result.text or "", "its text"
+    else:
+        text, summary = outfile.content(name, result.data or {}, Path(path))
+    if not text.strip():
+        return f"✗ {name} returned nothing to save, so {path} wasn't written"
+    try:
+        target = outfile.save(ctx.path(path), text)
+    except (OSError, Usage) as error:
+        reason = error.message if isinstance(error, Usage) else (error.strerror or str(error))
+        return f"✗ Couldn't write {path}: {reason}\n{result.text or ''}"
+    command_metrics.flag("saved_to_file", True)
+    command_metrics.flag("batch_line_saved", True)
+    return f"✓ Saved to {target} ({len(text):,} characters): {summary}"
+
+
+def save_batch(ctx: Ctx, path: str, text: str, outcomes: list[dict]) -> str:
+    from ardia_cli import command_metrics
+    from ardia_cli.browse import outfile
+
+    failed = [f"✗ {' '.join(outcome['command'])}: {outcome['error']}" for outcome in outcomes if not outcome["success"]]
+    if not text.strip():
+        return "\n".join([f"✗ The batch printed nothing, so {path} wasn't written", *failed])
+    try:
+        target = outfile.save(ctx.path(path), text)
+    except (OSError, Usage) as error:
+        reason = error.message if isinstance(error, Usage) else (error.strerror or str(error))
+        return f"✗ Couldn't write {path}: {reason}\n{text}"
+    command_metrics.flag("saved_to_file", True)
+    command_metrics.flag("batch_saved", True)
+    lines = len(outcomes) - len(failed)
+    return "\n".join([f"✓ Saved the output of {lines} of {len(outcomes)} lines to {target} ({len(text):,} characters)", *failed])
+
+
 @command("batch")
 async def cmd_batch(ctx: Ctx, argv):
-    options, args = parse(argv, {"--bail": "bool"})
+    options, args = parse(argv, {"--bail": "bool", "--out": "value"})
     lines = args if args else [line for line in (ctx.stdin or "").splitlines() if line.strip() and not line.lstrip().startswith("#")]
     runs = []
     for line in lines:
@@ -1937,6 +2071,7 @@ async def cmd_batch(ctx: Ctx, argv):
                 break
             continue
         try:
+            item, saving = batch_out(item, name)
             command, line_options = batch_line_options(item)
         except Usage as error:
             outcomes.append({"command": item, "success": False, "result": None, "error": error.message, "code": error.code})
@@ -1956,6 +2091,8 @@ async def cmd_batch(ctx: Ctx, argv):
                    "error": error.message if error else ("the command reported a failure" if failed else None), "text": result.text if result else None}
         if error is not None and error.code:
             outcome["code"] = error.code
+        if saving and outcome["success"]:
+            outcome["text"] = save_batch_line(ctx, name, result, saving)
         outcomes.append(outcome)
         if isinstance(error, (OutcomeUnknown, ConnectionLost)):
             outcomes.extend({"command": rest, "success": False, "result": None, "error": "not run: an earlier command's outcome is unknown",
@@ -1970,6 +2107,8 @@ async def cmd_batch(ctx: Ctx, argv):
             outcomes.append({"command": ["close"], "success": False, "result": None, "code": "not_run", "text": None,
                              "error": "close not run: an earlier line failed or didn't run, so the session stays open"})
     text = "\n\n".join((outcome["text"] if outcome["success"] or outcome.get("text") else f"✗ {outcome['error']}") or "" for outcome in outcomes)
+    if options.get("out"):
+        text = save_batch(ctx, options["out"], text, outcomes)
     for outcome in outcomes:
         outcome.pop("text", None)
     result = Result({"results": outcomes}, text)
