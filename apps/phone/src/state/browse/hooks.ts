@@ -13,3 +13,5 @@ export const usePageTone = (id: string | null): PageTone | null => usePages((s) 
 export const useFrozenOrder = () => useBrowse((s) => s.frozenOrder);
 
 export const useOpeningTab = () => useBrowse((s) => s.opening);
+
+export const useLeavingTab = () => useBrowse((s) => s.leaving);

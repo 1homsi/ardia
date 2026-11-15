@@ -7,6 +7,8 @@ import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { POOF, poofCentreY } from "../../lib/poof";
+import { whenPicturePainted } from "../../lib/shownSnapshots";
+import { countUsage } from "../../state/telemetry/telemetry";
 import { PoofBurst, type PoofSpec } from "./PoofBurst";
 import { haptics } from "../../state/app/haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,6 +37,8 @@ import {
   closeAllFromDeck,
   closeTabFromDeck,
   consumeDeckEntrance,
+  peekDeckEntrance,
+  deckEntered,
   leaveIncognito,
   newIncognitoTab,
   newRegularTab,
@@ -78,6 +82,11 @@ export function TabDeck() {
   const hasArchive = useHasArchivedTabs();
   const syncEnabled = useSyncEnabled();
   const [order, setOrder] = useState<string[]>(() => live.map((t) => t.id));
+  const [entering] = useState(() => {
+    const id = peekDeckEntrance();
+    const index = id ? order.indexOf(id) : -1;
+    return index < 0 ? null : { index, holdsForPicture: Boolean(live[index]?.snapshotFileName) };
+  });
   const [phase, setPhase] = useState<Phase>({ kind: "settled", id: null });
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
   const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number } | null>(null);
@@ -108,9 +117,9 @@ export function TabDeck() {
     deckPhase.value = DECK_PHASE.settled;
     expandedIndex.value = -1;
   };
-  const scroll = useSharedValue(initialDeckScroll(order.length));
-  const scaleProgress = useSharedValue(1);
-  const positionProgress = useSharedValue(1);
+  const scroll = useSharedValue(entering ? openingDeckScroll(entering.index, order.length) : initialDeckScroll(order.length));
+  const scaleProgress = useSharedValue(entering ? 0 : 1);
+  const positionProgress = useSharedValue(entering ? 0 : 1);
   const dragIndex = useSharedValue(-1);
   const dragLift = useSharedValue(0);
   const flyIndex = useSharedValue(-1);
@@ -124,7 +133,7 @@ export function TabDeck() {
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
   const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
-  const cardsOpacity = useSharedValue(1);
+  const cardsOpacity = useSharedValue(entering && !entering.holdsForPicture ? 1 : 0);
   const cardsStyle = useAnimatedStyle(() => ({ opacity: cardsOpacity.value }));
   const chromeStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
   const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
@@ -135,8 +144,7 @@ export function TabDeck() {
   useEffect(() => {
     const entrance = consumeDeckEntrance();
     const index = entrance ? order.indexOf(entrance) : -1;
-    if (index < 0) {
-      cardsOpacity.value = 0;
+    if (!entrance || index < 0) {
       cardsOpacity.value = withTiming(1, { duration: tabsMotion.fade });
       return;
     }
@@ -146,12 +154,32 @@ export function TabDeck() {
     enterPhase({ kind: "opening", id: entrance });
     scaleProgress.value = 0;
     positionProgress.value = 0;
-    scaleProgress.value = withSpring(1, tabsMotion.openScale);
-    positionProgress.value = withSpring(1, tabsMotion.openPosition, (finished) => {
-      if (!finished) return;
-      settlePhase();
-      runOnJS(setPhase)({ kind: "settled", id: null });
+    const shrink = () => {
+      cardsOpacity.value = 1;
+      scaleProgress.value = withSpring(1, tabsMotion.openScale);
+      positionProgress.value = withSpring(1, tabsMotion.openPosition, (finished) => {
+        if (!finished) return;
+        settlePhase();
+        runOnJS(setPhase)({ kind: "settled", id: null });
+        runOnJS(deckEntered)(entrance);
+      });
+    };
+    const picture = tabs.get(entrance)?.snapshotFileName;
+    if (!picture) {
+      shrink();
+      return () => deckEntered(entrance);
+    }
+    cardsOpacity.value = 0;
+    let frame = 0;
+    const stopWaiting = whenPicturePainted(picture, ENTRANCE_PAINT_CAP_MS, (painted) => {
+      if (!painted && !tabs.get(entrance)?.isPrivate) countUsage("deck_pictures_late");
+      frame = requestAnimationFrame(shrink);
     });
+    return () => {
+      stopWaiting();
+      cancelAnimationFrame(frame);
+      deckEntered(entrance);
+    };
   }, []);
 
   useEffect(() => {
@@ -457,7 +485,7 @@ export function TabDeck() {
           }}
         >
           <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
-            <Animated.View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }, cardsStyle]} collapsable={false}>
+            <Animated.View testID="deckCards" style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }, cardsStyle]} collapsable={false}>
               {order.map((id, index) => {
                 const tab = tabs.get(id);
                 if (!tab || hidden.current.has(id) || !deckCardMounted(index, anchor)) return null;
@@ -545,6 +573,7 @@ const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
 const OPEN_MOUNT_CAP_MS = 150;
+const ENTRANCE_PAINT_CAP_MS = 250;
 
 const DECK_RENDER_REACH = 6;
 const DECK_GESTURE_REACH = 3;

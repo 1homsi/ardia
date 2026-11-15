@@ -54,9 +54,9 @@ import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad,
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
 
-type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null; opening: string | null };
+type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null; opening: string | null; leaving: string | null };
 
-export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null, opening: null }));
+export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null, opening: null, leaving: null }));
 
 const lastVisits = new Map<string, Visit>();
 
@@ -259,14 +259,21 @@ export async function showDeck() {
     const fresh = coverIsCapturable(loading.get(selected) === false, covered) ? captureSnapshot(selected).then(() => readyPicture(selected)) : earlier;
     await Promise.race([fresh, new Promise((done) => setTimeout(done, DECK_SNAPSHOT_WAIT_MS))]);
   }
-  useBrowse.setState({ surface: "deck", deckEntrance: surface === "browsing" ? selected : null, frozenOrder: null, opening: null });
+  const leaving = surface === "browsing" ? selected : null;
+  useBrowse.setState({ surface: "deck", deckEntrance: leaving, frozenOrder: null, opening: null, leaving });
 }
+
+export const peekDeckEntrance = () => useBrowse.getState().deckEntrance;
 
 export const consumeDeckEntrance = () => {
   const entrance = useBrowse.getState().deckEntrance;
   if (entrance) useBrowse.setState({ deckEntrance: null });
   return entrance;
 };
+
+export function deckEntered(id: string) {
+  if (useBrowse.getState().leaving === id) useBrowse.setState({ leaving: null });
+}
 
 export function leaveDeck() {
   const tab = selectedTab(currentTabs());

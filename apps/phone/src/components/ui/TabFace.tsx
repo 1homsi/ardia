@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
-import { noteSnapshotShown, snapshotWasShown } from "../../lib/shownSnapshots";
+import { notePicturePainted, noteSnapshotShown, snapshotWasShown } from "../../lib/shownSnapshots";
 import { tabsMotion } from "./motion";
 import { isDarkColor } from "../../lib/color";
 import { Favicon } from "./Favicon";
@@ -79,6 +79,7 @@ function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: Reac
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
           if (width > 0 && height > 0) setAspect(width / height);
+          requestAnimationFrame(() => notePicturePainted(uri));
           if (snapshotWasShown(uri)) {
             appear.value = 1;
             setCovered(false);
@@ -91,6 +92,7 @@ function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: Reac
         }}
         style={[aspect ? [styles.snapshot, { aspectRatio: aspect }] : StyleSheet.absoluteFill, appearing]}
         resizeMode="cover"
+        fadeDuration={0}
       />
     </View>
   );

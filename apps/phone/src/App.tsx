@@ -24,7 +24,7 @@ import { bootApp, useBoot } from "./state/app/boot";
 import { startLinks } from "./state/links/links";
 import { useBaseSystemBars, useSystemBars } from "./state/app/systemBars";
 import { useSearchOpen } from "./state/search/hooks";
-import { useOpeningTab, useSheet, useSurface } from "./state/browse/hooks";
+import { useLeavingTab, useOpeningTab, useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { VoiceSearchView } from "./components/search/VoiceSearchView";
@@ -89,7 +89,8 @@ export function Surfaces() {
   const sheet = useSheet();
   const tab = useSelectedTab();
   const opening = useOpeningTab();
-  const pageUnderDeck = surface === "deck" && tab !== null && tab.id === opening;
+  const leaving = useLeavingTab();
+  const pageUnderDeck = surface === "deck" && tab !== null && (tab.id === opening || tab.id === leaving);
   const settingsOpen = useSettingsNav((s) => s.open);
   const onboarding = useOnboarding((s) => s.showing);
   const searching = useSearchOpen();
