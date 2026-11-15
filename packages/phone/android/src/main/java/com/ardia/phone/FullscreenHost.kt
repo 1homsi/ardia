@@ -10,10 +10,17 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.ardia.browser.FullscreenVideo
 
+internal object FullscreenRotation {
+    const val whileShowing = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+
+    fun afterward(held: Int): Int = if (held == whileShowing) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else held
+}
+
 class FullscreenHost {
     private var shown: FullscreenVideo? = null
     private var frame: FrameLayout? = null
     private var activity: Activity? = null
+    private var heldOrientation: Int? = null
 
     val isShowing: Boolean get() = shown != null
 
@@ -33,14 +40,19 @@ class FullscreenHost {
         shown = video
         frame = holder
         this.activity = activity
+        heldOrientation = activity.requestedOrientation
+        activity.requestedOrientation = FullscreenRotation.whileShowing
     }
 
     fun hide() {
         val holder = frame
         val activity = activity
+        val orientation = heldOrientation
         shown = null
         frame = null
         this.activity = null
+        heldOrientation = null
+        if (activity != null && orientation != null) activity.requestedOrientation = FullscreenRotation.afterward(orientation)
         holder ?: return
         holder.removeAllViews()
         (holder.parent as? ViewGroup)?.removeView(holder)
