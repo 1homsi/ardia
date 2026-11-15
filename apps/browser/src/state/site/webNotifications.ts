@@ -14,7 +14,7 @@ import { webviews } from "../../platform/webviews";
 import { withDeadline } from "../../lib/deadline";
 import { isSilenced } from "../tabs/mute";
 import { noteNotificationShown } from "../automation/notificationEvents";
-import { noteWebNotificationFromShim } from "../telemetry/usage";
+import { noteWebNotificationFromShim } from "../telemetry/webNotificationCounts";
 import { recordWebNotificationPost } from "../telemetry/webNotificationFailures";
 
 const shown = new Map<string, string>();

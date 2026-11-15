@@ -24,6 +24,7 @@ const { WEB_NOTIFICATION_FAILED, recordWebNotificationPost, webNotificationFailu
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { showWebNotification } = await import("../site/webNotifications.ts");
+const { takeFocusFeatureCounts } = await import("./focusFeatureCounts.ts");
 
 const S = () => useBrowser.getState();
 const SENT = { titleLength: 12, bodyLength: 40, iconRequested: true, iconSent: false };
@@ -121,4 +122,9 @@ test("a website notification macOS accepts writes no failure record", async () =
   showWebNotification(tabId, { id: "n2", ...TEXT, icon: null, tag: "", silent: false, requireInteraction: false, origin: "https://other.example", tabId, isMainFrame: true });
   await untilPosted(2);
   assert.equal((await failures()).length, before);
+});
+
+test("every website notification that reached the page script is counted once, then the count resets", () => {
+  assert.equal(takeFocusFeatureCounts().web_notifications_from_shim, 2);
+  assert.equal(takeFocusFeatureCounts().web_notifications_from_shim, 0);
 });
