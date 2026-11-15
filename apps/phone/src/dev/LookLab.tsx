@@ -36,6 +36,7 @@ export function LookLab() {
   const [budget, setBudget] = useState(() => lookBudget.describe());
   const [blurOverBackdrop, setBlurOverBackdrop] = useState(() => lookLab.blurOverBackdrop());
   const [backdropDraw, setBackdropDraw] = useState(() => lookLab.backdropDraw());
+  const [deckLayers, setDeckLayers] = useState(() => lookLab.deckLayers());
   const budgetAction = (run: () => void) => {
     run();
     const now = lookBudget.describe();
@@ -83,6 +84,7 @@ export function LookLab() {
             setBackdropDraw(lookLab.setBackdropDraw(next) ?? backdropDraw);
           }}
         />
+        <Button label={deckLayers ? "Deck layers: on" : "Deck layers: off"} onPress={() => setDeckLayers(lookLab.setDeckLayers(!deckLayers) ?? deckLayers)} />
         <Button
           label={blurOverBackdrop ? "Bar frosts: blur" : "Bar frosts: tinted fill"}
           onPress={() => setBlurOverBackdrop(lookLab.setBlurOverBackdrop(!blurOverBackdrop) ?? blurOverBackdrop)}

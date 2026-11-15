@@ -114,6 +114,26 @@ class FrostTintTest {
     }
 
     @Test
+    fun theRestingDeckIsWhatTheDeckDrawsAfterItsBackdropBranch() {
+        val root = FrameLayout(activity).at(0, 0, 1080, 2400)
+        val backdropBranch = FrameLayout(activity).at(0, 0, 1080, 2400)
+        val base = FrameLayout(activity).at(0, 0, 1080, 2400)
+        val source = FrostSourceView(activity, appContext).at(0, 0, 1080, 2400)
+        val backdrop = DeckBackdropView(activity, appContext).at(0, 0, 1080, 2400)
+        source.addView(backdrop)
+        backdropBranch.addView(base)
+        backdropBranch.addView(source)
+        val cards = FrameLayout(activity).at(0, 0, 1080, 2400)
+        val bar = FrameLayout(activity).at(0, 2200, 1080, 200)
+        val gone = FrameLayout(activity).apply { visibility = android.view.View.GONE }.at(0, 0, 10, 10)
+        root.addView(backdropBranch)
+        root.addView(cards)
+        root.addView(bar)
+        root.addView(gone)
+        assertEquals("the cards and the bar, not the base under the backdrop or a gone view", listOf<android.view.View>(cards, bar), DeckLayers.restingContent(backdrop))
+    }
+
+    @Test
     fun aFrostOffScreenHoldsNoLayerAndAsksNothingOfItsSource() {
         val offScreen = FrostPage.choose(blurSupported = true, reduceTransparency = false, hasSource = true, sourceHasContent = true, hardware = true, insideSource = false, holdsPage = false, pageMode = FrostSources.PageMode.Solid, onScreen = false)
         assertEquals(FrostPage.Path.Fallback, offScreen.path)

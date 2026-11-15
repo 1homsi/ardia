@@ -70,6 +70,8 @@ class LookModule : Module() {
                 "sourceRecordings" to LookActivity.sourceRecordings,
                 "blurLayerRenders" to LookActivity.blurLayerRenders,
                 "retints" to LookActivity.retints,
+                "restingLayerHolds" to LookActivity.restingLayerHolds,
+                "restingLayered" to LookActivity.restingLayered,
             )
         }
 
@@ -103,6 +105,18 @@ class LookModule : Module() {
             android.util.Log.i("PAGELAB", "PAGELAB look backdrop drawn as ${draw.label}")
             DeckBackdrops.all().forEach { it.invalidate() }
             draw.name.lowercase()
+        }
+
+        Function("setDeckLayers") { on: Boolean ->
+            val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
+            LookSwitch.setDeckLayers(context, on)
+            android.util.Log.i("PAGELAB", "PAGELAB look resting deck ${if (on) "held on layers while the blobs move" else "redrawn with every blob frame"}")
+            on
+        }
+
+        Function("deckLayers") {
+            val context = appContext.reactContext ?: return@Function true
+            LookSwitch.deckLayers(context)
         }
 
         Function("backdropDraw") {

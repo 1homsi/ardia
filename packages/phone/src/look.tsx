@@ -36,6 +36,8 @@ type LookNative = {
   setBlurOverBackdrop?: (blur: boolean) => boolean;
   setBackdropDraw?: (draw: BackdropDraw) => BackdropDraw;
   backdropDraw?: () => BackdropDraw;
+  setDeckLayers?: (on: boolean) => boolean;
+  deckLayers?: () => boolean;
   blurOverBackdrop?: () => boolean;
   lookCounts?: () => LookCounts;
 };
@@ -58,6 +60,8 @@ export type LookCounts = {
   sourceRecordings?: number;
   blurLayerRenders?: number;
   retints?: number;
+  restingLayerHolds?: number;
+  restingLayered?: number;
 };
 
 const lookNative = requireOptionalNativeModule<LookNative>("ArdiaPhoneLook");
@@ -76,6 +80,8 @@ export const lookLab = {
   blurOverBackdrop: (): boolean => lookNative?.blurOverBackdrop?.() ?? false,
   setBackdropDraw: (draw: BackdropDraw): BackdropDraw | null => lookNative?.setBackdropDraw?.(draw) ?? null,
   backdropDraw: (): BackdropDraw => lookNative?.backdropDraw?.() ?? "small",
+  setDeckLayers: (on: boolean): boolean | null => lookNative?.setDeckLayers?.(on) ?? null,
+  deckLayers: (): boolean => lookNative?.deckLayers?.() ?? true,
 };
 
 const views = new Map<string, ComponentType<object>>();

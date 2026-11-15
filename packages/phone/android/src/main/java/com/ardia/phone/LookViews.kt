@@ -203,6 +203,25 @@ internal object LookActivity {
     var blurLayerRenders = 0L
     @Volatile
     var retints = 0L
+    @Volatile
+    var restingLayerHolds = 0L
+    @Volatile
+    var restingLayered = 0
+}
+
+internal object DeckLayers {
+    fun restingContent(backdrop: View): List<View> {
+        var child: View = backdrop
+        var parent = child.parent as? android.view.ViewGroup
+        while (parent != null) {
+            val at = parent.indexOfChild(child)
+            val later = (at + 1 until parent.childCount).map(parent::getChildAt).filter { it.visibility == View.VISIBLE && it.width > 0 && it.height > 0 }
+            if (later.isNotEmpty()) return later
+            child = parent
+            parent = parent.parent as? android.view.ViewGroup
+        }
+        return emptyList()
+    }
 }
 
 internal object DeckBackdrops {
@@ -292,8 +311,37 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     private var lastOthersDrew = 0L
     private var ownDrawPending = false
     private val counted = ViewTreeObserver.OnPreDrawListener {
-        if (ownDrawPending) ownDrawPending = false else lastOthersDrew = SystemClock.uptimeMillis()
+        if (ownDrawPending) {
+            ownDrawPending = false
+        } else {
+            lastOthersDrew = SystemClock.uptimeMillis()
+            releaseResting()
+        }
         true
+    }
+
+    private val layered = ArrayList<Pair<View, Int>>()
+
+    private fun holdRestingOnLayers() {
+        if (layered.isNotEmpty() || !LookSwitch.deckLayers(context)) return
+        for (view in DeckLayers.restingContent(this)) {
+            if (view.layerType == LAYER_TYPE_HARDWARE) continue
+            layered += view to view.layerType
+            view.setLayerType(LAYER_TYPE_HARDWARE, null)
+        }
+        if (layered.isEmpty()) return
+        LookActivity.restingLayerHolds += 1
+        LookActivity.restingLayered = layered.size
+        if (PhoneLab.isOn && LookActivity.restingLayerHolds <= 3) {
+            android.util.Log.i("PAGELAB", "PAGELAB look deck holds its resting content on ${layered.size} layer(s) while the blobs move: ${layered.joinToString { (view, _) -> "${FrameTrace.label(view)} ${view.width}x${view.height}" }}")
+        }
+    }
+
+    private fun releaseResting() {
+        if (layered.isEmpty()) return
+        for ((view, type) in layered) view.setLayerType(type, null)
+        layered.clear()
+        LookActivity.restingLayered = 0
     }
     private var clockBase = 0L
     private var runningSince = SystemClock.uptimeMillis()
@@ -325,6 +373,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             moveOn(now)
             sceneFresh = renderScene(clock(now))
             ownDrawPending = true
+            holdRestingOnLayers()
             invalidate()
             enclosingSource()?.let(FrostSources::retintFrostsOf)
         }
@@ -342,6 +391,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         DeckBackdrops.detach(this)
         viewTreeObserver.removeOnPreDrawListener(counted)
         removeCallbacks(tick)
+        releaseResting()
         super.onDetachedFromWindow()
     }
 

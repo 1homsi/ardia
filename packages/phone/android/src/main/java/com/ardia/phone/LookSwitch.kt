@@ -10,6 +10,21 @@ object LookSwitch {
     private const val KEY_BLOB_RATE = "look.blobFramesPerSecond"
     private const val KEY_BLUR_OVER_BACKDROP = "look.blurOverBackdrop"
     private const val KEY_BACKDROP_DRAW = "look.backdropDraw"
+    private const val KEY_DECK_LAYERS = "look.deckLayers"
+
+    @Volatile
+    private var knownDeckLayers: Boolean? = null
+
+    fun deckLayers(context: Context, lab: Boolean = PhoneLab.isOn): Boolean {
+        if (!lab) return true
+        return knownDeckLayers ?: (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getBoolean(KEY_DECK_LAYERS, true).also { knownDeckLayers = it }
+    }
+
+    fun setDeckLayers(context: Context, on: Boolean, lab: Boolean = PhoneLab.isOn) {
+        check(lab) { "holding the resting deck on layers is a lab switch" }
+        (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean(KEY_DECK_LAYERS, on).commit()
+        knownDeckLayers = on
+    }
 
     @Volatile
     private var knownBlurOverBackdrop: Boolean? = null
@@ -86,5 +101,6 @@ object LookSwitch {
         knownRate = null
         knownBlurOverBackdrop = null
         knownBackdropDraw = null
+        knownDeckLayers = null
     }
 }
