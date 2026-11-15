@@ -391,7 +391,7 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
 namespace ardia_host {
 
 void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaWebView *opener) {
-  if (opener && ArdiaWebView.popupsOpenAsTabs) return [opener openedPopupTab:tab];
+  if ([opener opensPopupsAsTabs]) return [opener openedPopupTab:tab];
   ArdiaPopupWindow *popup = [[ArdiaPopupWindow alloc] initWithTab:tab opener:opener];
   if (!popup) {
     if (opener) [opener openedTab:tab adoptId:[ArdiaTabRegistry offerTab:tab] disposition:@"foreground"];

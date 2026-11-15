@@ -7,6 +7,16 @@ const { openFromPage } = await import("./openFromPage.ts");
 const { takePopupTabCounts } = await import("../telemetry/popupTabCounts.ts");
 
 const S = () => useBrowser.getState();
+const PERSONAL = { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
+
+function windowWithTab() {
+  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  const w = S().createWindow({ url: "https://a.example/" });
+  const page = S().windows[w].tabIds[0];
+  return { w, page, ref: (tabId) => ({ windowId: w, profileId: S().windows[w].profileId, tabId }) };
+}
+
+const popupTabOf = (url) => Object.keys(S().tabs).find((id) => S().tabs[id].url === url);
 
 test("pop-ups stay windows unless the switch is on, and config.json can set it", () => {
   assert.equal(DEFAULT_SETTINGS.popupsOpenAsTabs, false);
@@ -14,13 +24,28 @@ test("pop-ups stay windows unless the switch is on, and config.json can set it",
 });
 
 test("a pop-up the engine hands over as a tab opens next to its page and is counted; a link tab is not", () => {
-  S().hydrate({});
-  const w = S().createWindow({ url: "https://a.example/" });
-  const page = S().windows[w].tabIds[0];
+  const { w, ref, page } = windowWithTab();
   takePopupTabCounts();
-  openFromPage({ url: "https://a.example/popup", disposition: "foreground", popup: true }, { windowId: w, profileId: S().windows[w].profileId, tabId: page });
-  openFromPage({ url: "https://a.example/link", disposition: "foreground", linkWait: "matched" }, { windowId: w, profileId: S().windows[w].profileId, tabId: page });
+  openFromPage({ url: "https://a.example/popup", disposition: "foreground", popup: true }, ref(page));
+  openFromPage({ url: "https://a.example/link", disposition: "foreground", linkWait: "matched" }, ref(page));
   const urls = S().windows[w].tabIds.map((id) => S().tabs[id].url);
   assert.ok(urls.includes("https://a.example/popup"));
   assert.deepEqual(takePopupTabCounts(), { popups_opened_as_tabs: 1 });
+});
+
+test("a pop-up from a Peek keeps the Peek's page as a tab, opens in front of it, and closing it goes back there", () => {
+  const { w, page, ref } = windowWithTab();
+  const peek = S().openPeek(page, "https://signin.example/start");
+  takePopupTabCounts();
+  openFromPage({ url: "https://signin.example/popup", disposition: "foreground", popup: true }, ref(peek));
+  const popup = popupTabOf("https://signin.example/popup");
+  assert.ok(popup);
+  assert.ok(S().tabs[peek], "the page that opened the pop-up is still open");
+  assert.equal(S().peeks[w], undefined);
+  assert.deepEqual(S().windows[w].tabIds.slice(0, 3), [page, peek, popup]);
+  assert.equal(S().tabs[popup].openerId, peek);
+  assert.equal(S().windows[w].activeTabIds.default, popup);
+  assert.deepEqual(takePopupTabCounts(), { popups_opened_as_tabs: 1 });
+  S().closeTab(popup);
+  assert.equal(S().windows[w].activeTabIds.default, peek);
 });

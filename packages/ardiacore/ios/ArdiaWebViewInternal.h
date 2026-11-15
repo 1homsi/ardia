@@ -180,7 +180,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
 - (void)openedLinkTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
 - (void)openedPopupTab:(ArdiaCoreTab *)tab;
-+ (BOOL)popupsOpenAsTabs;
+- (BOOL)opensPopupsAsTabs;
 - (void)announceOpenedTab:(ArdiaCoreTab *)tab
                   adoptId:(NSString *)adoptId
               disposition:(NSString *)disposition

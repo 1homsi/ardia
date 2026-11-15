@@ -9,17 +9,13 @@ using namespace ardia_web_view;
 namespace {
 
 const char kPageReportsKey = 0;
+const char kPopupTabKey = 0;
 BOOL gLittleArdiaOpensNewTabLinks = NO;
 BOOL gPopupsOpenAsTabs = NO;
 const CFTimeInterval kNewTabLinkSeconds = 2;
 const NSUInteger kNewTabLinksKept = 4;
 const int kNewTabLinkTries = 8;
 const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
-
-NSMutableSet<NSString *> *PopupTabAdoptIds() {
-  static NSMutableSet *ids = [NSMutableSet set];
-  return ids;
-}
 }
 
 @interface ArdiaStashedPageReports : NSObject {
@@ -197,14 +193,13 @@ NSMutableSet<NSString *> *PopupTabAdoptIds() {
   gPopupsOpenAsTabs = enabled;
 }
 
-+ (BOOL)popupsOpenAsTabs {
-  return gPopupsOpenAsTabs;
+- (BOOL)opensPopupsAsTabs {
+  return gPopupsOpenAsTabs && ![self.window.identifier isEqualToString:@"ardia.window.small"];
 }
 
 - (void)openedPopupTab:(ArdiaCoreTab *)tab {
-  NSString *adoptId = [ArdiaTabRegistry offerTab:tab];
-  [PopupTabAdoptIds() addObject:adoptId];
-  [self announceOpenedTab:tab adoptId:adoptId disposition:@"foreground" link:NO tries:0];
+  objc_setAssociatedObject(tab, &kPopupTabKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  [self announceOpenedTab:tab adoptId:[ArdiaTabRegistry offerTab:tab] disposition:@"foreground" link:NO tries:0];
 }
 
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition {
@@ -325,8 +320,8 @@ NSMutableSet<NSString *> *PopupTabAdoptIds() {
   if (tab.profile.offTheRecord) payload[@"profile"] = ardia_host::OriginalProfileNameOf(tab.profile);
   if (clicked) payload[@"point"] = RecentClickPoint(self);
   if (linkWait) payload[@"linkWait"] = linkWait;
-  if ([PopupTabAdoptIds() containsObject:adoptId]) {
-    [PopupTabAdoptIds() removeObject:adoptId];
+  if (objc_getAssociatedObject(tab, &kPopupTabKey)) {
+    objc_setAssociatedObject(tab, &kPopupTabKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     payload[@"popup"] = @YES;
   }
   [self emit:@"openWindow" payload:payload];
