@@ -639,15 +639,18 @@ function Test-PageHoldsPlace([System.Diagnostics.Process]$Process, [string]$Layo
   $byY = [int](90 * $scale)
   $failures = @()
   $appHome = Get-WindowRect $Process
-  $steps = @("move", "async move", "resize", "move command")
+  $steps = @("move", "async move", "move without notice", "resize")
+  if (-not $maximized) { $steps += "move command" }
   foreach ($step in $steps) {
     $before = Get-PageInsets $Process $page
     $pageRect = Get-HandleRect $page
     if (-not $before -or -not $pageRect) { $failures += "page place ($Layout, $step): a window was gone before the step"; break }
+    $called = $true
     switch ($step) {
-      "move" { [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, $pageRect.Left + $byX, $pageRect.Top + $byY, 0, 0, 0x0215) | Out-Null }
-      "async move" { [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, $pageRect.Left + $byX, $pageRect.Top + $byY, 0, 0, 0x4215) | Out-Null }
-      "resize" { [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, 0, 0, ($pageRect.Right - $pageRect.Left) - $byX, ($pageRect.Bottom - $pageRect.Top) - $byY, 0x0216) | Out-Null }
+      "move" { $called = [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, $pageRect.Left + $byX, $pageRect.Top + $byY, 0, 0, 0x0215) }
+      "async move" { $called = [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, $pageRect.Left + $byX, $pageRect.Top + $byY, 0, 0, 0x4215) }
+      "move without notice" { $called = [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, $pageRect.Left + $byX, $pageRect.Top + $byY, 0, 0, 0x0615) }
+      "resize" { $called = [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, 0, 0, ($pageRect.Right - $pageRect.Left) - $byX, ($pageRect.Bottom - $pageRect.Top) - $byY, 0x0216) }
       "move command" {
         $pressX = $pageRect.Left + [int](300 * $scale)
         $pressY = $pageRect.Top + [int](380 * $scale)
@@ -655,7 +658,7 @@ function Test-PageHoldsPlace([System.Diagnostics.Process]$Process, [string]$Layo
         Start-Sleep -Milliseconds 250
         [ArdiaInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 150
-        [ArdiaInput]::PostMessage($page, 0x0112, [IntPtr]0xF012, [IntPtr](($pressY -shl 16) -bor ($pressX -band 0xFFFF))) | Out-Null
+        $called = [ArdiaInput]::PostMessage($page, 0x0112, [IntPtr]0xF012, [IntPtr](($pressY -shl 16) -bor ($pressX -band 0xFFFF)))
         Start-Sleep -Milliseconds 300
         $screen = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
         foreach ($i in 1..12) {
@@ -671,16 +674,28 @@ function Test-PageHoldsPlace([System.Diagnostics.Process]$Process, [string]$Layo
         [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
       }
     }
-    Start-Sleep -Milliseconds 1500
+    if (-not $called) { $failures += "page place ($Layout, $step): the call to the page window failed, so the step proves nothing"; continue }
+    $samples = @()
+    foreach ($i in 1..30) {
+      Start-Sleep -Milliseconds 100
+      $sample = Get-PageInsets $Process $page
+      if ($sample) { $samples += $sample.Text }
+    }
     $after = Get-PageInsets $Process $page
     if (-not $after) { $failures += "page place ($Layout, $step): a window was gone after the step"; break }
     Save-Screenshot (Join-Path $Out "page-place-$Layout-$($step -replace ' ', '-').png")
+    $away = @($samples | Where-Object { $_ -ne $before.Text } | Select-Object -Unique)
     $appMoved = "$($after.App.Left - $before.App.Left),$($after.App.Top - $before.App.Top),$($after.App.Right - $before.App.Right),$($after.App.Bottom - $before.App.Bottom)"
-    Write-Host "Page place ($Layout, $step): the page's insets in the app window went from $($before.Text) to $($after.Text); the app window's edges moved by $appMoved."
+    Write-Host "Page place ($Layout, $step): the page's insets in the app window were $($before.Text), then $($after.Text) after 3 s, away from their place in $($away.Count) distinct samples ($($away -join ' ')); the app window's edges moved by $appMoved."
     if ($after.Text -ne $before.Text) { $failures += "page place ($Layout, $step): the page window left its place in the app window, insets $($before.Text) became $($after.Text) (#2051)" }
-    $wanted = if ($maximized -or $step -eq "async move") { $null } elseif ($step -eq "resize") { "0,0,$(-$byX),$(-$byY)" } else { "$byX,$byY,$byX,$byY" }
-    if ($wanted -and $appMoved -ne $wanted) { $failures += "page place ($Layout, $step): the app window's edges moved by $appMoved, not $wanted, so the page's move or resize did not reach the app window" }
-    if (-not $maximized) {
+    if ($step -in @("move", "async move", "resize") -and $away.Count -gt 0) { $failures += "page place ($Layout, $step): the page window left its place for a while, insets $($away -join ' ') instead of $($before.Text) (#2051)" }
+    $wanted = if ($step -eq "move command") { "$byX,$byY,$byX,$byY" } else { "0,0,0,0" }
+    $parts = $appMoved -split ","
+    $wantedParts = $wanted -split ","
+    $close = $true
+    foreach ($i in 0..3) { if ([Math]::Abs([int]$parts[$i] - [int]$wantedParts[$i]) -gt 3) { $close = $false } }
+    if (-not $close) { $failures += "page place ($Layout, $step): the app window's edges moved by $appMoved, not $wanted" }
+    if (-not $maximized -and $appMoved -ne "0,0,0,0") {
       [ArdiaInput]::SetWindowPos($handle, [IntPtr]::Zero, $appHome.Left, $appHome.Top, $appHome.Right - $appHome.Left, $appHome.Bottom - $appHome.Top, 0x0214) | Out-Null
       Start-Sleep -Milliseconds 1200
     }
