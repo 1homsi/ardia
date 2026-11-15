@@ -39,9 +39,13 @@ class FrameTraceTest {
 
     @Test
     fun theLineSaysHowManyFramesAndWhoWasRedrawn() {
-        val line = FrameTrace.line(FrameTrace.Result(frames = 150, seconds = 5.0, passes = 150, layouts = 150, nothingRedrawn = 0, redrawn = listOf("DeckBackdropView" to 150)))
-        assertEquals("PAGELAB idle frames: 150 frame(s) drawn in 5.0 s, 150 draw pass(es), 150 layout pass(es), 0 pass(es) with no view redrawn; redrawn: DeckBackdropView x150", line)
-        assertTrue(FrameTrace.line(FrameTrace.Result(0, 5.0, 0, 0, 0, emptyList())).endsWith("redrawn: nothing"))
+        val line = FrameTrace.line(FrameTrace.Result(frames = 150, seconds = 5.0, passes = 150, layouts = 150, nothingRedrawn = 0, redrawn = listOf("DeckBackdropView" to 150), look = listOf("DeckBackdropView" to 150)))
+        assertEquals("PAGELAB idle frames: 150 frame(s) drawn in 5.0 s, 150 draw pass(es), 150 layout pass(es), 0 pass(es) with no view redrawn; look views redrawn: DeckBackdropView x150; redrawn: nothing", line)
+        assertTrue(FrameTrace.line(FrameTrace.Result(0, 5.0, 0, 0, 0, emptyList())).endsWith("look views redrawn: none; redrawn: nothing"))
+        val cards = (1..20).map { "ReactViewGroup @$it" to 30 }
+        val scroll = FrameTrace.line(FrameTrace.Result(30, 5.0, 30, 0, 0, cards, look = listOf("FrostView" to 2)))
+        assertTrue(scroll, scroll.contains("look views redrawn: FrostView x2; redrawn: ReactViewGroup @1 x30"))
+        assertTrue("the look views come first and in full; the rest stop at 16 and say how many more", scroll.endsWith("ReactViewGroup @16 x30 and 4 more"))
     }
 
     @Test

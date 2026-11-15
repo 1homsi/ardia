@@ -38,7 +38,7 @@ type LookNative = {
   lookCounts?: () => LookCounts;
 };
 
-export type BackdropDraw = "small" | "full" | "flat";
+export type BackdropDraw = "small" | "smallnograin" | "full" | "flat";
 
 export type LookCounts = {
   sources: number;
@@ -52,6 +52,10 @@ export type LookCounts = {
   layerNames?: string[];
   heldStill?: number;
   tinted?: number;
+  backdropFrames?: number;
+  sourceRecordings?: number;
+  blurLayerRenders?: number;
+  retints?: number;
 };
 
 const lookNative = requireOptionalNativeModule<LookNative>("ArdiaPhoneLook");

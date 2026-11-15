@@ -187,6 +187,17 @@ internal object GrainOver {
     }
 }
 
+internal object LookActivity {
+    @Volatile
+    var backdropFrames = 0L
+    @Volatile
+    var sourceRecordings = 0L
+    @Volatile
+    var blurLayerRenders = 0L
+    @Volatile
+    var retints = 0L
+}
+
 internal object DeckBackdrops {
     private val shown = java.util.WeakHashMap<DeckBackdropView, Unit>()
 
@@ -352,6 +363,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look deck first frame ${width}x$height ${if (dark) "dark" else "light"} ${if (still) "still" else "moving"}")
         }
         frames += 1
+        LookActivity.backdropFrames += 1
         if (lookIsOff) {
             canvas.drawColor(LookSwitch.flatDeck(look, dark).toArgb())
             return
@@ -394,12 +406,12 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
                 canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
                 if (!fresh) renderScene(at)
             }
-            LookSwitch.BackdropDraw.Small -> {
+            LookSwitch.BackdropDraw.Small, LookSwitch.BackdropDraw.SmallNoGrain -> {
                 if (!fresh && !renderScene(at)) return false
                 val small = scene ?: return false
                 sceneTarget.set(0f, 0f, w, h)
                 canvas.drawBitmap(small, null, sceneTarget, scenePaint)
-                drawGrain(canvas, dark)
+                if (mode == LookSwitch.BackdropDraw.Small) drawGrain(canvas, dark)
             }
             LookSwitch.BackdropDraw.Flat -> {
                 canvas.drawColor(LookSwitch.flatDeck(look, dark).toArgb())
@@ -462,6 +474,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         canvas.scale(sceneWidth / w, sceneHeight / h)
         sceneAt = Long.MIN_VALUE
         if (!drawScene(canvas, look, dark, w, h, at)) return false
+        bitmap.setHasAlpha(false)
         bitmap.getPixels(scenePixels, 0, sceneWidth, 0, 0, sceneWidth, sceneHeight)
         sceneAt = at
         sceneLook = look
@@ -714,6 +727,7 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
             return
         }
         val node = recorder ?: RenderNode("ardiaFrostSource").also { recorder = it }
+        LookActivity.sourceRecordings += 1
         node.setPosition(0, 0, width, height)
         val recording = node.beginRecording(width, height)
         try {
@@ -936,6 +950,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             layerWidth = ceil((width + margin * 2) / scale).toInt()
             layerHeight = ceil((height + margin * 2) / scale).toInt()
             layerNode.setPosition(0, 0, layerWidth, layerHeight)
+            LookActivity.blurLayerRenders += 1
             val recording = layerNode.beginRecording()
             try {
                 recording.scale(1f / scale, 1f / scale)
@@ -1002,6 +1017,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             return
         }
         retints += 1
+        LookActivity.retints += 1
         invalidate()
     }
 

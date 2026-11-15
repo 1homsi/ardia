@@ -8,48 +8,68 @@ const within = judge(frames(50, 9));
 const noSystem = { reduceMotion: false, reduceTransparency: false };
 const day = 24 * 60 * 60 * 1000;
 
-test("a sample is over when its median frame misses the deadline or a quarter of its frames do, and too few frames decide nothing", () => {
-  assert.equal(over.over, true);
-  assert.equal(within.over, false);
+test("a sample is over when the look keeps the phone busy more than a third of the time, and a few cheap frames decide nothing", () => {
+  assert.equal(over.over, true, "50 frames of 40 ms in 2 s: busy all the time");
+  assert.equal(over.busyShare, 1);
+  assert.equal(within.over, false, "50 frames of 9 ms in 2 s: busy 22% of the time");
   const mostlyFast: FrameSample = { totals: [...Array(36).fill(8), ...Array(14).fill(30)], deadlines: Array(50).fill(16.6) };
-  assert.equal(judge(mostlyFast).over, true, "28% missed although the median is fast");
-  const fewMissed: FrameSample = { totals: [...Array(40).fill(8), ...Array(10).fill(30)], deadlines: Array(50).fill(16.6) };
-  assert.equal(judge(fewMissed).over, false, "20% missed is within");
-  const short = judge(frames(LOOK_BUDGET.minFrames - 1, 40));
-  assert.equal(short.conclusive, false);
+  assert.equal(judge(mostlyFast).over, true, "busy 35%: every frame's cost counts, the slow ones included");
+  const fewSlow: FrameSample = { totals: [...Array(40).fill(8), ...Array(10).fill(30)], deadlines: Array(50).fill(16.6) };
+  assert.equal(judge(fewSlow).over, false, "busy 31% is within");
+  const short = judge(frames(LOOK_BUDGET.minFrames - 1, 9));
+  assert.equal(short.conclusive, false, "19 cheap frames are too few to say anything");
   assert.equal(short.over, false);
+  const struggling = judge(frames(12, 150));
+  assert.equal(struggling.conclusive, true, "a phone that drew only 12 frames because each took 150 ms has said enough");
+  assert.equal(struggling.over, true);
 });
 
-test("a paced deck is judged by what each drawn frame cost against the system's deadline, never by the vsyncs it skips", () => {
-  const pacedTwoSeconds = (costMs: number) => frames(40, costMs, 11.7);
-  const cheap = judge(pacedTwoSeconds(9));
-  assert.equal(cheap.over, false, "40 frames in 2 s leave most vsyncs without a frame, and 9 ms frames are still within");
-  assert.equal(cheap.missedShare, 0);
-  assert.deepEqual(Object.keys(pacedTwoSeconds(9)).sort(), ["deadlines", "totals"], "a sample carries no timestamps, so a gap cannot count");
-  const f4Sync13 = judge(pacedTwoSeconds(32.1));
-  assert.equal(f4Sync13.over, true);
-  assert.equal(f4Sync13.missedShare, 1);
-  assert.equal(judge(frames(40, 10, 8.3)).over, true, "the deadline is the frame's own, so a 10 ms frame misses a plain 120 Hz interval");
+test("a paced deck is judged by its duty cycle: the display's deadline is reported but decides nothing", () => {
+  const pacedTwoSeconds = (costMs: number, count = 39) => ({ totals: Array(count).fill(costMs), deadlines: Array(count).fill(11.7), refreshMs: 1000 / 120, windowMs: 2000 });
+  const f4Sync15 = judge(pacedTwoSeconds(28.9));
+  assert.equal(f4Sync15.over, true, "39 frames of 28.9 ms in 2 s");
+  assert.ok(Math.abs(f4Sync15.busyShare! - 0.56) < 0.01, `busy ${f4Sync15.busyShare}`);
+  assert.equal(f4Sync15.keepsUp, true);
+  assert.equal(f4Sync15.missedShare, 1, "every frame missed the display's deadline, which is reported only");
+  const sixteen = judge(pacedTwoSeconds(16));
+  assert.equal(sixteen.over, false, "16 ms paced frames miss every 120 Hz deadline but keep the phone busy 31% of the time");
+  assert.equal(sixteen.missedShare, 1);
+  const eighteen = judge(pacedTwoSeconds(18));
+  assert.equal(eighteen.over, true, "18 ms frames at that pace: busy 35%");
+  const m3 = judge({ totals: Array(37).fill(48.4), deadlines: Array(37).fill(16.7), refreshMs: 1000 / 60, windowMs: 2000 });
+  assert.equal(m3.over, true);
+  assert.deepEqual(Object.keys(pacedTwoSeconds(9)).sort(), ["deadlines", "refreshMs", "totals", "windowMs"], "a sample carries no timestamps, so a gap between frames cannot count");
 });
 
-test("each frame is held to the display's refresh, read once: a deadline the system stretched cannot pass a slow phone", () => {
+test("a phone that cannot keep up at all fails even when its few frames add up to little", () => {
+  const slow = judge({ totals: Array(20).fill(110), deadlines: Array(20).fill(16.7), windowMs: 2000 });
+  assert.equal(slow.paceMs, 100);
+  assert.equal(slow.keepsUp, false, "the median frame, 110 ms, is longer than the 100 ms pace it was drawn at");
+  assert.equal(slow.over, true);
+  const oneSpike = judge({ totals: [...Array(39).fill(6), 400], deadlines: Array(40).fill(11.7), windowMs: 2000 });
+  assert.equal(oneSpike.keepsUp, true, "one 400 ms frame among 6 ms ones is not a phone that cannot keep up");
+  assert.equal(oneSpike.over, false, `busy ${oneSpike.busyShare}`);
+});
+
+test("the window is the sampler's own when it sends one, and the planned two seconds otherwise", () => {
+  const sent = judge({ totals: Array(40).fill(10), deadlines: Array(40).fill(16.7), windowMs: 4000 });
+  assert.equal(sent.busyShare, 0.1);
+  const planned = judge({ totals: Array(40).fill(10), deadlines: Array(40).fill(16.7) });
+  assert.equal(planned.windowMs, LOOK_BUDGET.sampleMs);
+  assert.equal(planned.busyShare, 0.2);
+});
+
+test("the display's deadline is still held to its refresh when reported: a stretched deadline cannot look met", () => {
   const m3First: FrameSample = { totals: Array(37).fill(49.5), deadlines: Array(37).fill(33.2), refreshMs: 1000 / 60 };
   const judged = judge(m3First);
-  assert.equal(judged.deadlineMs, 1000 / 60, "sync14's M3 sample measured against 33.2 ms is held to its 60 Hz display");
+  assert.equal(judged.deadlineMs, 1000 / 60);
   assert.equal(judged.stretched, 37);
-  assert.equal(judged.over, true);
-  const halvedButCheap: FrameSample = { totals: Array(40).fill(20), deadlines: Array(40).fill(33.2), refreshMs: 1000 / 60 };
-  assert.equal(judge(halvedButCheap).over, true, "20 ms frames pass a 33.2 ms deadline but miss the 60 Hz display");
+  assert.equal(judged.missedShare, 1);
   const f4: FrameSample = { totals: Array(40).fill(9), deadlines: Array(40).fill(11.7), refreshMs: 1000 / 120 };
-  assert.equal(judge(f4).deadlineMs, 11.7, "the frame's own deadline stands when it agrees with the display, latch slack included");
+  assert.equal(judge(f4).deadlineMs, 11.7);
   assert.equal(judge(f4).stretched, 0);
-  assert.equal(judge(f4).over, false);
-  const loweredDisplay: FrameSample = { totals: Array(40).fill(20), deadlines: Array(40).fill(33.3), refreshMs: 33.3 };
-  assert.equal(judge(loweredDisplay).deadlineMs, 1000 / 60, "a display reported below 60 Hz is held to 60 Hz");
-  assert.equal(judge(loweredDisplay).over, true);
   const iPhone: FrameSample = { totals: Array(40).fill(9), deadlines: Array(40).fill(16.7) };
-  assert.equal(judge(iPhone).refreshMs, undefined, "a phone that sends no refresh keeps its own deadlines");
-  assert.equal(judge(iPhone).deadlineMs, 16.7);
+  assert.equal(judge(iPhone).refreshMs, undefined);
 });
 
 test("one bad measurement never degrades; two on separate deck opens do, and the look changes only for the next build", () => {

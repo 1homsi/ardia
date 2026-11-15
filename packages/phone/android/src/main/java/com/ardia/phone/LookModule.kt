@@ -48,7 +48,7 @@ class LookModule : Module() {
                 return@AsyncFunction
             }
             FrameSampler.sample(activity, millis.toLong().coerceIn(100L, 10_000L)) { sample ->
-                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis) })
+                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis, "windowMs" to it.windowMillis) })
             }
         }.runOnQueue(Queues.MAIN)
 
@@ -66,6 +66,10 @@ class LookModule : Module() {
                 "layerNames" to counts.layerNames,
                 "heldStill" to counts.heldStill,
                 "tinted" to counts.tinted,
+                "backdropFrames" to LookActivity.backdropFrames,
+                "sourceRecordings" to LookActivity.sourceRecordings,
+                "blurLayerRenders" to LookActivity.blurLayerRenders,
+                "retints" to LookActivity.retints,
             )
         }
 

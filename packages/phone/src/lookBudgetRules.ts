@@ -3,12 +3,14 @@ export const LOOK_BUDGET = {
   sampleMs: 2000,
   minFrames: 20,
   maxMissedShare: 0.25,
+  maxBusyShare: 1 / 3,
+  fewestFramesWhenBusy: 3,
   slowestRefreshMs: 1000 / 60,
   latchSlack: 1.5,
   retryAfterMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
-export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number };
+export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number };
 
 export type Judgement = {
   conclusive: boolean;
@@ -19,6 +21,10 @@ export type Judgement = {
   missedShare: number;
   refreshMs?: number;
   stretched?: number;
+  windowMs?: number;
+  busyShare?: number;
+  paceMs?: number;
+  keepsUp?: boolean;
 };
 
 export type BudgetVerdict = "unknown" | "pass" | "fail";
@@ -61,9 +67,14 @@ export function judge(sample: FrameSample): Judgement {
   const deadlineMs = median(deadlines);
   const missed = totals.filter((total, index) => total > deadlines[index]!).length;
   const missedShare = frames === 0 ? 0 : missed / frames;
-  const conclusive = frames >= LOOK_BUDGET.minFrames;
-  const over = conclusive && (medianMs > deadlineMs || missedShare > LOOK_BUDGET.maxMissedShare);
-  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }) };
+  const windowMs = sample.windowMs !== undefined && sample.windowMs > 0 ? sample.windowMs : LOOK_BUDGET.sampleMs;
+  const busyShare = totals.reduce((sum, total) => sum + total, 0) / windowMs;
+  const paceMs = frames === 0 ? windowMs : windowMs / frames;
+  const keepsUp = medianMs <= paceMs;
+  const tooBusy = busyShare > LOOK_BUDGET.maxBusyShare;
+  const conclusive = frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp));
+  const over = conclusive && (tooBusy || !keepsUp);
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { requireOptionalNativeModule } from "expo-modules-core";
-import { createBudgetProbe, judge, mode, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample, type LookMode, type SystemLook } from "./lookBudgetRules";
+import { createBudgetProbe, judge, LOOK_BUDGET, mode, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample, type LookMode, type SystemLook } from "./lookBudgetRules";
 import { labLog } from "./system";
 
 type BudgetNative = {
@@ -38,9 +38,16 @@ function save(next: BudgetState) {
 const refreshNote = (last: NonNullable<BudgetState["last"]>) =>
   last.refreshMs === undefined ? "" : ` (display ${Math.round(1000 / last.refreshMs)} Hz${last.stretched ? `, ${last.stretched} stretched deadline(s) held to ${last.refreshMs.toFixed(1)} ms` : ""})`;
 
+const percent = (share: number) => `${Math.round(share * 100)}%`;
+
+const dutyNote = (last: NonNullable<BudgetState["last"]>) =>
+  last.busyShare === undefined || last.paceMs === undefined || last.windowMs === undefined
+    ? ""
+    : `, busy ${percent(last.busyShare)} of the time (limit ${percent(LOOK_BUDGET.maxBusyShare)}), one frame every ${last.paceMs.toFixed(0)} ms over ${(last.windowMs / 1000).toFixed(1)} s, ${last.keepsUp ? "keeps up" : "cannot keep up: the median frame is longer than the pace"}`;
+
 const describe = (next: BudgetState) =>
   `verdict ${next.verdict}, next build ${next.apply}${next.pendingOver ? ", one failing measurement waiting for a second" : ""}` +
-  (next.last ? `, last ${next.last.frames} frames, median ${next.last.medianMs.toFixed(1)} ms against ${next.last.deadlineMs.toFixed(1)} ms${refreshNote(next.last)}, ${Math.round(next.last.missedShare * 100)}% missed` : "");
+  (next.last ? `, last ${next.last.frames} frames, median ${next.last.medianMs.toFixed(1)} ms${dutyNote(next.last)}; against the display's deadline ${next.last.deadlineMs.toFixed(1)} ms${refreshNote(next.last)}, ${percent(next.last.missedShare)} missed (not judged)` : "");
 
 
 export const lookBudget = {

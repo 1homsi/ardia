@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.SystemClock
 import android.view.FrameMetrics
 import android.view.Window
 import org.json.JSONObject
@@ -57,7 +58,7 @@ object LookBudget {
 }
 
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double)
 
     fun sample(activity: Activity, millis: Long, done: (Sample?) -> Unit) {
         val window: Window = activity.window ?: return done(null)
@@ -72,11 +73,12 @@ internal object FrameSampler {
             val deadline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) metrics.getMetric(FrameMetrics.DEADLINE).toDouble() else interval
             deadlines += (if (deadline > 0) deadline else interval) / 1_000_000.0
         }
+        val started = SystemClock.uptimeMillis()
         window.addOnFrameMetricsAvailableListener(listener, handler)
         Handler(Looper.getMainLooper()).postDelayed({
             runCatching { window.removeOnFrameMetricsAvailableListener(listener) }
             handler.post {
-                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0))
+                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble()))
                 thread.quitSafely()
             }
         }, millis)

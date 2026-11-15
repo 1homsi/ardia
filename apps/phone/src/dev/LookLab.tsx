@@ -77,9 +77,9 @@ export function LookLab() {
       <Text style={styles.caption}>Look budget: {budget}. A change applies from the next time the deck is built.</Text>
       <View style={styles.row}>
         <Button
-          label={`Backdrop: ${backdropDraw === "small" ? "small image" : backdropDraw === "full" ? "full size" : "flat colour"}`}
+          label={`Backdrop: ${backdropDraw === "small" ? "small image" : backdropDraw === "smallnograin" ? "small, no grain" : backdropDraw === "full" ? "full size" : "flat colour"}`}
           onPress={() => {
-            const next = backdropDraw === "small" ? "full" : backdropDraw === "full" ? "flat" : "small";
+            const next = backdropDraw === "small" ? "smallnograin" : backdropDraw === "smallnograin" ? "full" : backdropDraw === "full" ? "flat" : "small";
             setBackdropDraw(lookLab.setBackdropDraw(next) ?? backdropDraw);
           }}
         />

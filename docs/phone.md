@@ -343,6 +343,24 @@ off in the lab`.
       The Compose app draws its blobs every frame and blurs each bar frost every frame too, so "every frame" is
       parity; the capped runs tell whether a cap is worth its look. Also, from the look-on run, the idle deck:
       `adb shell dumpsys gfxinfo $P reset`, leave the deck untouched for 10 s, then the same grep.
+    - From sync16 the backdrop draws its mesh and blobs into a small image (an eighth each way, 135 x 300 on a
+      1080 x 2400 phone) and scales it up, with the grain a static layer over it. The deck's draw line ends
+      `backdrop drawn as a small image scaled up (scene 135x300)`. While it holds still under a scroll the GPU
+      replays one opaque scaled bitmap and the grain texture, not the gradients. The lab's `Backdrop:` button
+      cycles `small image` (the default), `small, no grain` (the grain's share), `full size` (sync15's drawing,
+      as Compose draws it) and `flat colour` (a flat fill repainted at the blobs' pace, so the cards and the bar
+      above are recomposited exactly as often while the backdrop itself costs nothing). Force-stop after each
+      switch. On both phones, with the look on and paced, on the idle deck, once per mode:
+      `adb shell dumpsys gfxinfo $P reset`, 10 s untouched, then
+      `adb shell dumpsys gfxinfo $P | grep -E "Total frames|Janky|50th|90th|gpu|Slow issue"`. The target on the F4
+      is a 50th percentile under 8.3 ms with `small image`. Then, per mode, the deck scroll (`sched-scroll.txt`, or
+      the Deck speed script's step 2) with the full look forced, against look off: sync15's M3 scrolled at 77 to
+      81% janky with the full look against 29 to 47% off, with nothing of the look redrawing, so the held
+      backdrop's replay was the cost; `small image` should bring it near look off. `flat colour` against `small image` gives the
+      backdrop's own cost, and `flat colour` alone what recompositing the rest costs. If `flat colour` is itself
+      near 8 ms, report it: the cards then need to be held on layers while the deck rests. Also run the FRAMES
+      broadcast on the idle deck in each mode: the look views should be `DeckBackdropView` at the paced rate and
+      each bar `FrostView` far less often, since a tinted frost redraws only when its colour changes.
     - When the Compose app is installed (before an upgrade run), do the look-on run on its deck too, the same
       30 s, and the idle 10 s, and take a light-mode deck screenshot in the same profile colour: both apps' blobs
       come from the same `ProfileLook.deckBlobs` and `DeckBackdropStyle` numbers (light blobs at 0.86 to 0.9
@@ -468,19 +486,15 @@ off in the lab`.
       its blobs and frosts. Only after closing and opening the deck again (or force-stop and reopen) does it
       stand still with plain fills, and then the Memory line reads 0 recording, 0 holding a layer, 0 animating.
       Report if anything changed while the deck stayed open.
-    - Expected from sync14, where the bar frosts are tinted fills and an idle deck frame is only the backdrop
-      (mesh, three blobs, grain): the F4 measures `within` once and keeps the look (sync13 measured 32.1 and
-      31.2 ms against 11.7, with three re-blurs in each frame). The M3 is the open question: sync12 drew an
-      idle frame in 73 ms. If the backdrop alone still misses its deadline there, it measures `over` twice and
-      degrades, which is the rule working. Either way the median says how far over or under it is, so report
-      it. Report both phones' lines and the lab's text.
-    - The `against Y ms` is held to the display: from sync16 the line ends `(display N Hz)`. Each frame counts
-      Android's own deadline for it (FrameMetrics `DEADLINE`, e.g. 11.7 ms on the F4's 120 Hz panel) only while
-      that is within 1.5 refresh intervals of the display's rate, read once when the sample starts and never
-      slower than 60 Hz. A longer deadline (sync14's M3 had `against 33.2 ms` on a 60 Hz screen) is held to one
-      interval, and the line adds `K stretched deadline(s) held to X ms`. Each frame's figure is what that frame
-      cost, from its vsync to the GPU finishing it (`TOTAL_DURATION`). A deck paced at 20 to 25 frames a second
-      is judged by the frames it draws, never by the vsyncs it skips.
+    - From sync16 the verdict is the look's duty cycle, not each frame against the display's deadline. The line
+      reads `… last N frames, median X ms, busy B% of the time (limit 33%), one frame every P ms over 2.0 s,
+      keeps up; against the display's deadline D ms (display H Hz), M% missed (not judged)`. A sample is over
+      when the backdrop's frames add up to more than a third of the window, or when its median frame is longer
+      than the pace it is drawn at (the phone cannot keep up).
+    - Expected in sync16, with the backdrop drawn as a small image: the F4 is `within`. sync15 measured 28.9 ms
+      frames, busy 56%, and it passes once a frame costs under about 16 ms. The M3 is the open question (sync14
+      drew 48 to 69 ms frames). If it measures `over` twice it degrades, which is the rule working. Report
+      both phones' lines, with the busy share and the median, and the lab's text.
     - The lab's controls: Budget: force degraded (from the next build the look is still and solid), Budget: force
       full, Budget: measured (back to what was measured), Budget: reset (forget everything and measure again on
       the next deck open). Check each takes effect only after the deck is rebuilt.
@@ -489,8 +503,9 @@ off in the lab`.
 52. **An idle app draws nothing** (sync11's look-off deck drew 1825 frames in 30 s with nothing changing). With the
     deck open and untouched, run `adb shell am broadcast -a com.ardia.phone.FRAMES -p com.ardia.browser.android
     --ei seconds 5` and keep hands off for 5 s. Logcat (`-s PAGELAB`) has `PAGELAB idle frames: N frame(s) drawn in
-    5.0 s, … draw pass(es), … layout pass(es), … with no view redrawn; redrawn: <view> xN, …`, naming the deepest
-    views that were redrawn and how often. Do it with the look off (expected: 0 frames, nothing redrawn), with the
+    5.0 s, … draw pass(es), … layout pass(es), … with no view redrawn; look views redrawn: <view> xN, …; redrawn:
+    <view> xN, … and K more`. The look views (backdrops, frosts, frost sources) are listed first and in full,
+    then up to 16 of the deepest other views that were redrawn, and how often. Do it with the look off (expected: 0 frames, nothing redrawn), with the
     look on (expected: the deck backdrop at its paced rate, about 25 a second, and nothing else), and on a page
     left still. Report every line; any view other than the deck backdrop, or any layout passes, is the leak to
     chase.
@@ -517,6 +532,11 @@ off in the lab`.
       when the scroll starts and stops: the backdrop holds still while anything else draws;
     - from the `PAGELAB perf deck scroll` lines, check the look field reads `recording 0 holding 0 animating 0`
       (sync13 read `1 3 1`);
+    - the look field must read 0 / 0 / 0 on every `PAGELAB perf` line for a scroll, a card open, a deck open and a
+      tray open, in every run of every step. Treat any non-zero as a bug and report the line with the step and the
+      time. The field is the look's state when the window ends, so a window that outlasts the motion (a short
+      swipe in a 1.2 s window) can catch the backdrop moving again after it held still. Note when the motion
+      ended against the window, so a true cost and a late snapshot can be told apart;
     - report, per run, the janky share, the 50th, 90th and 99th percentiles, and the slow issue-draw commands.
       Look on should now be within a point or two of look off. If it is not, the FRAMES line names what is still
       being redrawn.
@@ -810,8 +830,14 @@ it once and turns the look down if it can't; the system settings always come fir
   frames it draws. An idle deck with
   the look off draws no frames at all, so every frame in the sample is the look's own. A sample that overlaps
   anything else is dropped, and one deck open gives at most one measurement.
-- **The verdict.** A sample is over budget when its median frame misses the frame's deadline or more than a
-  quarter of its frames do, and decides nothing under 20 frames. Two over-budget samples on separate deck opens
+- **The verdict.** A sample is over budget when the look keeps the phone busy more than a third of the time
+  (the sum of its frames' costs over the window), or when its median frame is longer than the pace it was drawn
+  at (it cannot keep up at all). It decides nothing under 20 frames unless those few frames are already over.
+  Why a duty cycle: an idle deck's paced frames, drawn between vsyncs while nothing else moves, make nothing
+  stutter that a person can see. What they cost is battery and heat, and that is the share of time the GPU
+  and CPU spend on them. The sum counts every frame, slow ones included, since heat is the total. The keep-up
+  check uses the median, so one slow frame can't fail a phone. Each frame's own deadline, held to the
+  display's refresh, is still reported but decides nothing. Two over-budget samples on separate deck opens
   degrade the phone; one good sample between them starts the agreement over.
 - **What degraded means.** Frosts become their fills and the deck stands still, by the same paths Reduce
   Transparency and Reduce Motion take, which leave nothing behind (no recording, no blur layer, no redraws). Reduce

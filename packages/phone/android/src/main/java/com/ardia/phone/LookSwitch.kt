@@ -27,6 +27,7 @@ object LookSwitch {
 
     enum class BackdropDraw(val label: String) {
         Small("a small image scaled up"),
+        SmallNoGrain("a small image scaled up, without the grain"),
         Full("full size, as Compose draws it"),
         Flat("a flat colour at the blobs' pace, to measure what redrawing the rest costs"),
     }
