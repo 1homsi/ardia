@@ -12,6 +12,7 @@ declare module "react-test-renderer" {
   export type ReactTestRenderer = {
     root: ReactTestInstance;
     toJSON(): unknown;
+    update(element: ReactElement): void;
     unmount(): void;
   };
 

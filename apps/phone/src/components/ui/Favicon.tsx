@@ -30,20 +30,22 @@ export const Favicon = memo(function Favicon({ iconUrl, pageUrl, size }: Props) 
   const dark = useTheme().dark;
   const [failures, setFailures] = useState(0);
   const candidates = useMemo(() => faviconCandidates(iconUrl, pageUrl).filter((url) => !failedIcons.has(url)), [iconUrl, pageUrl, failures]);
-  const [chosen, setChosen] = useState<Chosen>(null);
+  const asked = `${dark ? "d" : "l"}|${candidates.join(" ")}`;
+  const [answer, setAnswer] = useState<{ asked: string; chosen: Chosen }>({ asked: "", chosen: null });
   useEffect(() => {
     if (!readsLooks) {
-      setChosen(candidates[0] ? { url: candidates[0], backing: null } : "none");
+      setAnswer({ asked, chosen: candidates[0] ? { url: candidates[0], backing: null } : "none" });
       return;
     }
     let live = true;
     void firstUsable(candidates, (url) => lookOf(url, dark)).then((found) => {
-      if (live) setChosen(found ?? "none");
+      if (live) setAnswer({ asked, chosen: found ?? "none" });
     });
     return () => {
       live = false;
     };
-  }, [candidates, dark]);
+  }, [asked]);
+  const chosen = answer.asked === asked ? answer.chosen : null;
   const corner = size * 0.26;
   if (!chosen || chosen === "none") return <MonogramTile pageUrl={pageUrl} size={size} corner={corner} />;
   const plate = chosen.backing ? (chosen.backing === "light" ? faviconInk.lightPlate : faviconInk.darkPlate) : null;
