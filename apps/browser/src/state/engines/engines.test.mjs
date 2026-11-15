@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chosenEngine, engineForUrl, engineMark, offersSiteEngineSwitch, protectedVideoSite, recommendedEngineFor, ruleFor, siteOf, tabEngine, typedNavigationEngine, visitRecorder } from "./engines.ts";
+import { chosenEngine, engineForUrl, engineMark, offersEngineChoice, protectedVideoSite, recommendedEngineFor, ruleFor, siteOf, tabEngine, typedNavigationEngine, visitRecorder } from "./engines.ts";
 import { makeTab, snapshotTab } from "../browser/model.ts";
 import { carriableCookies, cookieAddresses } from "./signInCookies.ts";
 
@@ -246,7 +246,6 @@ test("partitioned, nameless and expired cookies stay behind; session cookies com
   assert.deepEqual(carriableCookies([kept, session, partitioned, opaque, expired, nameless], now), [kept, session]);
 });
 
-test("Site Controls offers the other engine for http and https pages only", () => {
-  for (const url of ["https://example.com/page", "http://example.com:8080/"]) assert.equal(offersSiteEngineSwitch(url), true, url);
-  for (const url of ["file:///Users/me/page.html", "ardia://settings", "chrome://flags", "about:blank", "data:text/html,hi", "", null, undefined]) assert.equal(offersSiteEngineSwitch(url), false, String(url));
+test("the Mac always offers a page engine choice, so Site Controls keeps Opens in for every page, local files included", () => {
+  assert.equal(offersEngineChoice(), true);
 });

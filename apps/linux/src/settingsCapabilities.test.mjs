@@ -84,8 +84,8 @@ test("every engine decision is Chromium on Linux even with stored WebKit setting
     assert.equal(engines.engineForUrl(s, url), "chromium");
     assert.equal(engines.typedNavigationEngine(s, s.tabs.t2, url), "chromium");
     assert.equal(engines.canSwitchEngine(url), false);
-    assert.equal(engines.offersSiteEngineSwitch(url), false);
   }
+  assert.equal(engines.offersEngineChoice(), false);
   assert.equal(engines.chosenEngine(s, "chrome://settings"), undefined);
   assert.equal(engines.siteOf, sharedEngines.siteOf);
   assert.equal(engines.ENGINE_NAMES, sharedEngines.ENGINE_NAMES);
