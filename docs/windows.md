@@ -847,17 +847,22 @@ sealed exactly as `packages/sync/ios/Core/SyncCrypto.swift` seals it. The engine
 - Passwords are off on Windows (`PLATFORM_FEATURES.syncsPasswords`: no What Syncs row, the type never syncs, and
   the Mac's synced passwords stay in the vault untouched). Chromium turns `kSkipUndecryptablePasswords` on by default
   on Windows only, and Ardia keeps it on: Settings, export and autofill read through the affiliation path, which still
-  leaves out a login it can't decrypt. The plain login read is strict on Windows
-  (`chromium-win-strict-login-list.patch`, `chromium-win-keep-every-login.patch`): it fails when any login can't be
-  decrypted, and when an ordinary login (not a site never to save, not a federated sign-in) has an empty stored
-  password, because Chromium decrypts an empty blob to an empty password and Sync's read would drop it. It holds for
-  every caller of that read, so no caller has to remember a flag. Chromium never deletes a login it can't decrypt on
-  Windows: `LoginDatabase::DeleteUndecryptableLogins`, the only code that does, deletes nothing, so neither
-  `kClearUndecryptablePasswords` nor `kClearUndecryptablePasswordsOnSync` can turn it on, from the command line or
-  anywhere else. `ac_passwords_logins` answers the full list (empty means no passwords), "undecryptable" or
-  "unreadable"; "closed" and "no password store" mean the profile isn't ready. Sync must treat every error as "skip
-  this cycle, delete nothing" before passwords are turned on (#1425). The Mac drops an empty-blob login silently
-  (#1933).
+  leaves out a login it can't decrypt. The plain login read is strict on Windows (`chromium-win-strict-login-list.patch`):
+  it fails when any login can't be decrypted, for every caller of that read, so no caller has to remember a flag.
+  Chromium never deletes a login it can't decrypt on Windows (`chromium-win-keep-every-login.patch`):
+  `LoginDatabase::DeleteUndecryptableLogins`, the only code that does, deletes nothing, so neither
+  `kClearUndecryptablePasswords` nor `kClearUndecryptablePasswordsOnSync` can turn it on. That rule is proven from the
+  source, not exercised: a test instance's `--user-data-dir` already skips Chromium's cleanup.
+  `ac_passwords_logins` answers the full list (empty means no passwords), "undecryptable" or "unreadable"; "closed"
+  and "no password store" mean the profile isn't ready. Sites never to save and federated sign-ins have no password
+  and are left out. An ordinary login whose stored password is empty is listed with `"passwordless": true` and no
+  password: Chromium stores such logins (an imported one with an empty password, a username-only one), and on disk
+  they look the same as a damaged blob, so the engine lists them and Sync decides. The native side passes it on
+  unsealed (`SyncLogins::SealedLogins`), and Sync's password adapter neither uploads it nor reads it as a deletion
+  (`ignore`), and doesn't write a synced password over it. Before passwords sync on Windows (#1425), Sync must treat
+  every error as "skip this cycle, delete nothing", and decide what a passwordless login means: one it never knew
+  stays local; one it knew with a password is local damage, so it must not upload the blank or delete the remote
+  copy (repairing it from the remote copy is the feedback thread's call). The Mac drops such a login silently (#1933).
 - Passwords, once the engine lists them: `ac_passwords_logins` is called and its reply sealed in C++ (`SyncSystem.h`),
   and a synced password is opened only to hand it to `ac_passwords_add`. The Mac's vault files carry plaintext `p` in `pw:` records, as the Mac
   writes them; `SyncLogins.h` swaps them for sealed `s` before JS sees a document (escaped keys included; a login it

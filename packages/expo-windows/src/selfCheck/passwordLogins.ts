@@ -11,18 +11,31 @@ type Reply = { error?: unknown; logins?: unknown; passwords?: unknown };
 
 const call = async (name: string, args: object = {}) => JSON.parse(await engineCallJson(name, "", JSON.stringify(args))) as Reply;
 
-const entries = (list: unknown, origin: "realm" | "origin") =>
+type Entry = Record<string, unknown>;
+
+const isEntry = (entry: unknown): entry is Entry => typeof entry === "object" && entry !== null;
+
+const nameOf = (realm: unknown) => new RegExp(`${OURS}([a-z]+)\\.`).exec(String(realm ?? ""))?.[1];
+
+const entries = (list: unknown, origin: "realm" | "origin", label: (entry: Entry, name: string) => string = (_, name) => name) =>
   Array.isArray(list)
     ? list
-        .map((entry) => (typeof entry === "object" && entry !== null ? String((entry as Record<string, unknown>)[origin] ?? "") : ""))
-        .map((realm) => new RegExp(`${OURS}([a-z]+)\\.`).exec(realm)?.[1])
-        .filter((name): name is string => name !== undefined)
+        .filter(isEntry)
+        .flatMap((entry) => {
+          const name = nameOf(entry[origin]);
+          return name === undefined ? [] : [label(entry, name)];
+        })
         .sort()
     : null;
 
+const loginLabel = (entry: Entry, name: string) => {
+  if (entry.passwordless === true && !("password" in entry)) return `${name}, passwordless`;
+  return typeof entry.password === "string" && entry.password.length > 0 ? name : `${name}, malformed`;
+};
+
 const syncRead = async () => {
   const reply = await call("ac_passwords_logins");
-  return reply.error !== undefined ? { error: reply.error } : { logins: entries(reply.logins, "realm") };
+  return reply.error !== undefined ? { error: reply.error } : { logins: entries(reply.logins, "realm", loginLabel) };
 };
 
 const settingsList = async () => {
@@ -61,9 +74,9 @@ const stages: Record<string, Check[]> = {
   ],
   emptyPasswordLogin: [
     {
-      name: "passwords: with one saved login whose stored password is empty, Sync's read fails as undecryptable while Settings still lists the other",
+      name: "passwords: a saved login whose stored password is empty is listed as passwordless, so Sync's read stays whole and the other login is listed as it is",
       async run() {
-        expectEqual(await syncRead(), { error: "undecryptable" }, "ac_passwords_logins with an empty password blob");
+        expectEqual(await syncRead(), { logins: ["one", "two, passwordless"] }, "ac_passwords_logins with an empty password blob");
         const settings = await settingsList();
         expectTrue(Array.isArray(settings.passwords) && settings.passwords.includes("one"), `ac_passwords_list with an empty password blob gave ${JSON.stringify(settings)}`);
       },
