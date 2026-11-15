@@ -131,8 +131,7 @@ The Expo app has the Compose app's entry points (`docs/android.md`), from its ow
   and `SystemSnapshots` compile in place in the Expo app, with its `res-system` resources and a small
   `ardia-design` library for `ProfileLook`, `Monogram` and `Colors`. `SystemExport` writes the widgets'
   snapshot from the wrapped sync controller, as the Compose app does; demo mode feeds no widgets.
-- **Not ported.** The share sheet's Send to Your Mac (sharing opens the page in Ardia instead), and the Color
-  setting's tint of the widgets.
+- **Not ported.** Nothing: the share sheet (Open, Search, Send to Your Mac) and the widgets' Color tint are in.
 - **Files.** A file request carries `offersPhoto`, `offersVideo` and `capturesDirectly` (the Compose app's
   `FileChooserPlan`); the answers `takePhoto` and `recordVideo` capture through the shared capture provider.
 - **Open App Links In.** A global default (`pages.appLinksDefault`, `setAppLinksDefault`) with each site on,
@@ -963,7 +962,7 @@ target height as its animation starts (5bf60a7fa); the onboarding step across a 
 Inline completion is in and waits on a phone (the checklist below). What is left:
 
 - Search tray: no predictive back (the tray follows the back gesture down 72 dp); React Native's back handler gives no progress. `SearchTrayHost.kt` `PredictiveBackHandler`. A day.
-- Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
+- Share sheet (done): sharing text to Ardia opens Compose's own share sheet (`ShareSheetModel`, `ShareSheetView`, compiled into the Expo app) over the sharing app: Open in Ardia, or Search in Ardia for plain text, and Send to Your Mac (or Your Devices) for a link while sync is on. `PhoneShareActivity` sends through the native sync controller, waiting up to 20 s for it to load as Compose does, and opens links through `ardia://` in the main activity.
 - Bottom bar: the tab thumbnail lags because a tab's picture is taken `SNAPSHOT_SETTLE_MS` (700 ms) after its page settles, so a tab left sooner keeps its old picture; Compose shows the cover it grabbed on the way out (`BottomBar.kt` `TabThumbnail`, `covers.image`). The capture-to-file path is native and short; the lab's `PAGELAB snapshot …` line now says `captured in N ms, written in M ms`. The fix is in `store.ts`: capture the leaving tab's cover as it is left.
 - Page permission order (done): as Compose, a site's camera, microphone or location request first asks Android when it doesn't hold the permission; the site's Allow dialog reaches JavaScript only once Android grants it (approximate location is enough), and a refusal ends the request without a dialog. Native: `PhonePages.gateThenSend`, `SitePermissionGate`.
 - Pull to refresh (done natively): the pull settles on Compose's snappy spring (response 0.3 s, damping 0.86) and the spinner is Compose's loading accent (#6395FC, #4A77D4 dark). The swipe-to-navigate target takes `surfaceColor` from PageView, falling back to black or white until the screens pass the profile's surface. `PageGestures.kt` `SnappySpring`.
