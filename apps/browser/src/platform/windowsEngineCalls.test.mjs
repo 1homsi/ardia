@@ -534,3 +534,17 @@ test("the window list answers an empty list where the engine has none, so a call
   assert.equal(await moduleDefaults.ArdiaWindows.call("list"), "[]");
   assert.equal(rows.missing.windows.includes("list"), true);
 });
+
+test("an event only the Windows host sends is declared apart from the Mac's, and Windows does send it", () => {
+  const api = read("packages/ardiacore/src/engine/api.ts");
+  const bodyOf = (name) => api.slice(api.indexOf(`export type ${name} = {`), api.indexOf("\n};", api.indexOf(`export type ${name} = {`)));
+  const keysOf = (body) => [...body.matchAll(/^ {2}"([a-zA-Z]+\.[a-zA-Z]+)":/gm)].map((m) => m[1]);
+  const windowsOnly = keysOf(bodyOf("WindowsHostEvents"));
+  assert.ok(windowsOnly.length > 0);
+  const mac = new Set(keysOf(bodyOf("EngineEvents")));
+  const sent = readdirSync(new URL(windowsDomains + "../", repo)).filter((file) => /\.tsx?$/.test(file)).map((file) => read("packages/expo-windows/src/engine/" + file)).join("\n");
+  for (const name of windowsOnly) {
+    assert.equal(mac.has(name), false, `${name} is also in the Mac's events`);
+    assert.ok(sent.includes(`name: "${name}"`), `Windows never sends ${name}`);
+  }
+});

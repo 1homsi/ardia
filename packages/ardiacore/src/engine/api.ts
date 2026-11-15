@@ -211,7 +211,6 @@ export type EngineEvents = {
   "engine.cliControl": CliControlStatus;
   "engine.hoverLost": HoverLostEpisode;
   "tabs.strips": TabStripTransaction;
-  "tabs.windowRequest": WindowRequest;
   "downloads.changed": Download;
   "permissions.requested": PermissionRequest;
   "permissions.dismissed": { id: string };
@@ -231,4 +230,8 @@ export type EngineEvents = {
   "media.deviceChooser": DeviceChooser;
   "media.castDialog": CastDialog;
   "media.castRoutes": { profile: string; routes: CastRoute[] };
+};
+
+export type WindowsHostEvents = {
+  "tabs.windowRequest": WindowRequest;
 };
