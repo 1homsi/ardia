@@ -41,11 +41,12 @@ class ForeignDrawsTest {
     private val badge = View(activity)
     private val canvas by lazy { Canvas(Bitmap.createBitmap(root.rootView.width.coerceAtLeast(1), root.rootView.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)) }
 
-    private fun show() {
+    private fun show(more: () -> Unit = {}) {
         card.addView(cardText, FrameLayout.LayoutParams(40, 20))
         root.addView(deck, FrameLayout.LayoutParams(200, 400))
         root.addView(card, FrameLayout.LayoutParams(120, 80))
         root.addView(badge, FrameLayout.LayoutParams(20, 20))
+        more()
         activity.setContentView(root)
         layoutAndDraw()
         deck.judgeTraversal()
@@ -62,6 +63,69 @@ class ForeignDrawsTest {
     private fun quiet() = ShadowSystemClock.advanceBy(Duration.ofMillis(LookRules.QUIET_BEFORE_MOVING_MILLIS + 50))
 
     private fun frame(): Boolean = deck.judgeTraversal().also { layoutAndDraw() }
+
+    private val under = FrameLayout(activity)
+    private val field = View(activity)
+    private val hiddenSheet = FrameLayout(activity)
+    private val sheetField = View(activity)
+    private val clearSheet = FrameLayout(activity)
+    private val clearField = View(activity)
+    private val away = View(activity)
+
+    private fun showWithHiddenFields() {
+        under.addView(field, FrameLayout.LayoutParams(160, 40))
+        hiddenSheet.addView(sheetField, FrameLayout.LayoutParams(160, 40))
+        hiddenSheet.visibility = View.INVISIBLE
+        clearSheet.addView(clearField, FrameLayout.LayoutParams(160, 40))
+        clearSheet.alpha = 0f
+        away.translationX = 1000f
+        show {
+            root.addView(under, 0, FrameLayout.LayoutParams(200, 400))
+            root.addView(hiddenSheet, FrameLayout.LayoutParams(200, 100))
+            root.addView(clearSheet, FrameLayout.LayoutParams(200, 100))
+            root.addView(away, FrameLayout.LayoutParams(40, 40))
+        }
+    }
+
+    private fun blinkAll() {
+        field.invalidate()
+        sheetField.invalidate()
+        clearField.invalidate()
+        away.invalidate()
+    }
+
+    @Test
+    fun aCaretBlinkingWhereNobodyCanSeeItNeitherStopsTheBlobsNorTaintsASample() {
+        showWithHiddenFields()
+        deck.advanceBlobs()
+        assertFalse(frame())
+        val before = LookActivity.foreignTraversals
+        repeat(6) {
+            quiet()
+            blinkAll()
+            assertFalse("a field under the deck, in a hidden sheet, at zero alpha or off screen is nobody's frame to see", frame())
+        }
+        assertEquals(before, LookActivity.foreignTraversals)
+        deck.advanceBlobs()
+        blinkAll()
+        assertFalse("a tick in the same frame as the hidden blinks is still the backdrop's own", frame())
+        deck.advanceBlobs()
+        assertFalse("the blobs keep moving: no quiet second was needed", deck.heldStill)
+    }
+
+    @Test
+    fun theSameBlinkOnScreenOverTheDeckStillCounts() {
+        showWithHiddenFields()
+        deck.advanceBlobs()
+        assertFalse(frame())
+        quiet()
+        hiddenSheet.visibility = View.VISIBLE
+        frame()
+        quiet()
+        deck.advanceBlobs()
+        sheetField.invalidate()
+        assertTrue("a field the user can see redrawing over the deck is foreign", frame())
+    }
 
     @Test
     fun aTickOnItsOwnIsTheBackdropsFrame() {

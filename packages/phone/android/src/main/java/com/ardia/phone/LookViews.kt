@@ -262,24 +262,77 @@ internal class ForeignDraws(private val dirty: (View) -> Boolean = View::isDirty
         return before != null && before != now
     }
 
-    fun first(root: View, own: Collection<View>): View? {
+    private val seenRect = android.graphics.Rect()
+    private val deckRect = android.graphics.Rect()
+
+    fun first(root: View, own: Collection<View>, deck: View? = null): View? {
         val explained = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<View, Boolean>())
         for (view in own) {
             var at: View? = view
             while (at != null && explained.add(at)) at = at.parent as? View
         }
-        return walk(root, explained)
+        val area = if (deck != null && deck.getGlobalVisibleRect(deckRect)) deckRect else null
+        return walk(root, explained, deck, area)
     }
 
-    private fun walk(view: View, explained: Set<View>): View? {
+    private fun walk(view: View, explained: Set<View>, deck: View?, area: android.graphics.Rect?): View? {
         val movedItself = moved(view)
-        if (view !in explained) return if (movedItself || dirty(view)) view else null
-        var found: View? = if (movedItself) view else null
+        if (view !in explained) return foreignWithin(view, movedItself, deck, area)
+        var found: View? = if (movedItself && seen(view, deck, area)) view else null
         if (view is android.view.ViewGroup) for (index in 0 until view.childCount) {
-            val other = walk(view.getChildAt(index), explained)
+            val other = walk(view.getChildAt(index), explained, deck, area)
             if (found == null) found = other
         }
         return found
+    }
+
+    private fun foreignWithin(view: View, movedItself: Boolean, deck: View?, area: android.graphics.Rect?): View? {
+        if (!seen(view, deck, area)) return null
+        if (movedItself) return view
+        if (!dirty(view)) return null
+        if (view !is android.view.ViewGroup) return view
+        var anyDirtyChild = false
+        var found: View? = null
+        for (index in 0 until view.childCount) {
+            val child = view.getChildAt(index)
+            val childMoved = moved(child)
+            if (childMoved || dirty(child)) anyDirtyChild = true
+            val other = if (childMoved || dirty(child)) foreignWithin(child, childMoved, deck, area) else null
+            if (found == null) found = other
+        }
+        return if (anyDirtyChild) found else view
+    }
+
+    private fun seen(view: View, deck: View?, area: android.graphics.Rect?): Boolean {
+        if (!view.isShown) return false
+        var at: View? = view
+        while (at != null) {
+            if (at.alpha <= 0f) return false
+            at = at.parent as? View
+        }
+        if (!view.getGlobalVisibleRect(seenRect)) return false
+        if (area == null || deck == null) return true
+        if (!android.graphics.Rect.intersects(seenRect, area)) return false
+        return !(area.contains(seenRect) && DrawOrder.before(view, deck))
+    }
+}
+
+internal object DrawOrder {
+    private fun path(view: View): List<View> = generateSequence(view) { it.parent as? View }.toList().asReversed()
+
+    fun before(first: View, second: View): Boolean {
+        val a = path(first)
+        val b = path(second)
+        var depth = 0
+        while (depth < a.size && depth < b.size && a[depth] === b[depth]) depth += 1
+        if (depth == 0 || depth >= a.size || depth >= b.size) return false
+        val parent = a[depth - 1] as? android.view.ViewGroup ?: return false
+        val x = a[depth]
+        val y = b[depth]
+        val zx = x.z
+        val zy = y.z
+        if (zx != zy) return zx < zy
+        return parent.indexOfChild(x) < parent.indexOfChild(y)
     }
 }
 
@@ -394,8 +447,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         own += this
         own += justLayered
         enclosingSource()?.let { own += FrostSources.frostsOf(it) }
-        val other = foreignDraws.first(rootView, own)
-        val ours = ownDrawPending && other == null
+        val other = foreignDraws.first(rootView, own, this)
+        val ours = other == null
         ownDrawPending = false
         justLayered.clear()
         if (ours) return false
