@@ -387,6 +387,19 @@ test("deleting a profile's data removes its folder, or clears its data and waits
   assert.deepEqual(quiet.removed, []);
 });
 
+test("clearing browsing data fails when the engine says some of it stayed, so the dialog stays open as on the Mac", async () => {
+  const all = hostedEngine("removed", () => '{"ok":true}');
+  assert.equal(await calling(all, "profiles")("clearBrowsingData", { types: ["history"], since: 5 }, "work"), null);
+  assert.deepEqual(all.calls, [{ name: "ac_browsing_data_clear", profile: "work", args: { types: ["history"], since: 5 } }]);
+  const some = hostedEngine("removed", () => '{"ok":false}');
+  await assert.rejects(calling(some, "profiles")("clearBrowsingData", { types: ["siteData"], since: 0 }, "work"), /could not be cleared/);
+  const refused = hostedEngine("removed", () => '{"error":"unknown type"}');
+  await assert.rejects(calling(refused, "profiles")("clearBrowsingData", { types: ["nothing"], since: 0 }, "work"), /unknown type/);
+  const none = hostedEngine("removed", () => '{"ok":false}');
+  assert.equal(await calling(none, "profiles")("clearBrowsingData", { types: [], since: 0 }, "work"), null);
+  assert.deepEqual(none.calls, []);
+});
+
 test("a profile's folder is removed only where native and the engine agree Chromium keeps its data", async () => {
   for (const nativeFolder of ["D:\\Elsewhere\\User Data", null]) {
     const engine = hostedEngine("removed", undefined, { nativeFolder });

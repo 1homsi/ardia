@@ -107,12 +107,13 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       noteShowStep(key, latest.current.visible === false ? "place: not visible" : "place: hidden by full screen");
       if (shown.current.visible) {
         shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
-        showPage(key, false, null);
+        showPage(key, false, null, windowId);
       }
       return;
     }
     if (!view.current) noteShowStep(key, "place: no view");
     view.current?.measureInWindow((x, y, width, height) => {
+      if (!view.current) return noteShowStep(key, "place: measured after the view was gone");
       if (latest.current.visible === false || hiddenByFullScreen(windowId, key) || !(width > 0) || !(height > 0)) return noteShowStep(key, `place: measured ${width}x${height}, visible ${latest.current.visible !== false}`);
       const page = { x, y, width, height };
       const shape: PageShape = fullScreen.current
@@ -124,7 +125,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
           };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return noteShowStep(key, "place: deduped");
-      if (!showPage(key, true, shape)) return noteShowStep(key, `place: not taken ${width}x${height}`);
+      if (!showPage(key, true, shape, windowId)) return noteShowStep(key, `place: not taken ${width}x${height}`);
       noteShowStep(key, `place: show ${width}x${height}`);
       shown.current = { visible: true, placed, shows: shown.current.shows + 1 };
     });
