@@ -94,7 +94,7 @@ onIos("on iPhone Appearance is main's page on Expo UI: Color with nine swatches,
   unmount(root);
 });
 
-onIos("Archive and Spaces stay two buttons 8 points apart with no plain button style, so main's pressable style is the one applied and a screen reader finds both; the Sync row has main's 6-point vertical padding", () => {
+onIos("Archive and Spaces sit 12 points apart with only main's pressable style, no plain style or ink that would blank their labels; the Sync row has main's 6-point vertical padding and 14-point gap", () => {
   openSettings();
   const root = renderSurface(<SettingsView />);
   const types = (node: ReactTestInstance) => ((node.props.modifiers as { $type: string }[] | undefined) ?? []).map((modifier) => modifier.$type);
@@ -103,8 +103,9 @@ onIos("Archive and Spaces stay two buttons 8 points apart with no plain button s
   for (const button of shortcuts) expect(types(button)).not.toContain("buttonStyle");
   const holds = (node: ReactTestInstance, title: string) => node.findAll((inner) => typeof inner.type === "string" && (inner.props.text === title || inner.props.children === title)).length > 0;
   const pair = hosts(root, (props) => typeof props.spacing === "number").filter((node) => holds(node, "Archive") && holds(node, "Spaces"));
-  expect(pair.at(-1)?.props.spacing).toBe(8);
-  const syncStack = hosts(root, (props) => props.spacing === 10 && Array.isArray(props.modifiers) && (props.modifiers as { $type: string }[]).some((modifier) => modifier.$type === "padding"))[0];
+  expect(pair.at(-1)?.props.spacing).toBe(12);
+  for (const button of shortcuts) expect(types(button)).not.toContain("foregroundStyle");
+  const syncStack = hosts(root, (props) => props.spacing === 14 && Array.isArray(props.modifiers) && (props.modifiers as { $type: string }[]).some((modifier) => modifier.$type === "padding"))[0];
   expect((syncStack?.props.modifiers as { $type: string; vertical?: number }[]).find((modifier) => modifier.$type === "padding")?.vertical).toBe(6);
   unmount(root);
 });

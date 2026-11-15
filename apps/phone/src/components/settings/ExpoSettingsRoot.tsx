@@ -15,7 +15,7 @@ import { closeSettings, settingsRouteKey, type SettingsRoute } from "../../state
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
-import { contentMargins, modifierList, pressableStyle, PROFILE_COLORS, settingsChrome, SettingsIconTile, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
+import { contentMargins, modifierList, pressableStyle, PROFILE_COLORS, settingsChrome, settingsLayout, SettingsIconTile, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
 import { ExpoRowLabel } from "./ExpoRowLabel";
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
@@ -25,7 +25,7 @@ const APP_LINKS = [
 ] as const;
 const SHORTCUT_FILL = PlatformColor("secondarySystemGroupedBackground");
 const SYNC_TILE = 56;
-const TOP_SECTION_SPACING = 16;
+const TOP_SECTION_SPACING = 12;
 
 const link = (route: SettingsRoute) => settingsRouteKey(route);
 const colorName = (choice: string) => PROFILE_COLORS[choice as ProfileColor]?.name ?? choice;
@@ -48,14 +48,14 @@ export function ExpoSettingsRoot() {
   const appearance = useAppearanceSummary(colorName);
   return (
     <Toolbar>
-      <Form modifiers={modifierList(navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome(), contentMargins({ edges: "top", length: 12 }))}>
+      <Form modifiers={modifierList(navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome(), contentMargins({ edges: "top", length: settingsLayout.expoListTop }))}>
         <Section modifiers={[listSectionSpacing(TOP_SECTION_SPACING)]}>
           <NavigationLink value={link({ page: "sync" })}>
             <SyncRow />
           </NavigationLink>
         </Section>
         <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }), listSectionSpacing(TOP_SECTION_SPACING)]}>
-          <HStack spacing={8}>
+          <HStack spacing={12}>
             <Shortcut title="Archive" onPress={() => leaveFor(openArchive)} />
             <Shortcut title="Spaces" onPress={() => leaveFor(openSpaces)} />
           </HStack>
@@ -159,7 +159,7 @@ function SyncRow() {
   const warningInk = useWarningInk();
   const line = syncRowSubtitle(useSyncStatus());
   return (
-    <HStack spacing={10} modifiers={[padding({ vertical: 6 }), accessibilityElement("combine")]}>
+    <HStack spacing={14} modifiers={[padding({ vertical: 6 }), accessibilityElement("combine")]}>
       {settingsUIAvailable() ? (
         <SettingsIconTile systemImage="macbook.and.iphone" tint="sync" baseSide={SYNC_TILE} />
       ) : (
@@ -175,7 +175,7 @@ function SyncRow() {
 
 function Shortcut({ title, onPress }: { title: string; onPress: () => void }) {
   return (
-    <Button onPress={onPress} modifiers={modifierList(pressableStyle(), foregroundStyle({ type: "hierarchical", style: "primary" }))}>
+    <Button onPress={onPress} modifiers={modifierList(pressableStyle())}>
       <Text modifiers={[font({ textStyle: "body", weight: "medium" }), frame({ maxWidth: Number.MAX_SAFE_INTEGER, minHeight: 48 }), background(SHORTCUT_FILL), clipShape("capsule")]}>{title}</Text>
     </Button>
   );
