@@ -122,6 +122,7 @@ export const SYMBOLS = {
   exclamationmarkTriangle: [{ d: "M12 3.5L21.5 20h-19zM12 9.5v5M12 17.3h.01", stroke: STROKE }],
   exclamationmarkTriangleFill: [{ d: "M12 2.6L22.3 20.6H1.7Z" + roundRect(11.05, 8.6, 1.9, 6.4, 0.95) + circle(12, 17.4, 1.1), fill: true, evenOdd: true }],
   arrowDownCircleFill: [{ d: circle(12, 12, 9.6) + "M11.05 6.6H12.95V12.6H16.1L12 17L7.9 12.6H11.05Z", fill: true, evenOdd: true }],
+  eyeglassesThin: [{ d: "M5.2 10h2.7a2.6 2.6 0 0 1 2.6 2.6v1.0a2.6 2.6 0 0 1 -2.6 2.6h-2.7a2.6 2.6 0 0 1 -2.6 -2.6v-1.0a2.6 2.6 0 0 1 2.6 -2.6zM16.1 10h2.7a2.6 2.6 0 0 1 2.6 2.6v1.0a2.6 2.6 0 0 1 -2.6 2.6h-2.7a2.6 2.6 0 0 1 -2.6 -2.6v-1.0a2.6 2.6 0 0 1 2.6 -2.6zM10.5 12.4q1.5-1.3 3 0M2.6 11.4l-1.1-1.9M21.4 11.4l1.1-1.9", stroke: 1.1 }],
   eyeglasses: [{ d: circle(6.3, 13.5, 3.6) + circle(17.7, 13.5, 3.6) + "M9.9 13.2a2.6 2.6 0 0 1 4.2 0" + line(2.7, 13, 4.4, 7.5) + line(21.3, 13, 19.6, 7.5), stroke: STROKE }],
   info: [
     { d: circle(12, 6.3, 1.5), fill: true },

@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
-import { browseLayout, Favicon, font, radius, screenReaderActions, space, Symbol, tabsMotion, type ColorRoles, type SymbolName } from "../ui";
+import { browseLayout, Favicon, font, radius, screenReaderActions, space, Symbol, tabsMotion, useDesign, type ColorRoles, type SymbolName } from "../ui";
 
 const FAVICON_SIZE = 20;
 
@@ -58,6 +58,7 @@ const MENU_ACTION = "menu";
 const LARGE_TEXT = 1.5;
 
 function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow; typed: string; roles: ColorRoles; interactive: boolean; onRefine: (row: TrayRow) => void }) {
+  const design = useDesign();
   const large = useWindowDimensions().fontScale > LARGE_TEXT;
   return (
     <>
@@ -89,7 +90,7 @@ function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow
           </>
         )}
       </View>
-      {row.kind === "query" ? (
+      {row.kind === "query" && design === "original" ? (
         interactive ? (
           <Pressable accessibilityRole="button" accessibilityLabel={`Refine ${row.title}`} onPress={() => onRefine(row)} style={styles.refine}>
             <View style={styles.refineGlyph}>

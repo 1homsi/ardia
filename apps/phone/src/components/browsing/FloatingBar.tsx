@@ -74,7 +74,7 @@ export function FloatingBar({ tab, order, roles, dark, showsPlus, onTabs, onTabs
               Not Secure
             </Text>
           ) : address.isPrivate ? (
-            <Symbol name="eyeglasses" size={floatingBarLayout.privateSymbol} color={ink.secondary} />
+            <Symbol name="eyeglassesThin" size={floatingBarLayout.privateSymbol} color={ink.secondary} />
           ) : address.pageUrl ? (
             <Favicon iconUrl={address.iconUrl} pageUrl={address.pageUrl} size={floatingBarLayout.siteIcon} />
           ) : null}

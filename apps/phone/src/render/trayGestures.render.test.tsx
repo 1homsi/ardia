@@ -1,3 +1,5 @@
+import { appDesign, DesignProvider } from "../components/ui";
+import type { Design } from "../lib/design";
 import { StyleSheet } from "react-native";
 import { State } from "react-native-gesture-handler";
 import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
@@ -25,12 +27,16 @@ const rows = queries(["otters", "otter facts", "otter videos"]);
 const manyRows = queries(["otters", "otter facts", "otter videos", "otters cafe", "otters club", "otters meaning", "otters in india"]);
 const ROOM_ABOVE_KEYBOARD = 200;
 
-function openTray(shownRows: TrayRow[] = rows, room: number = ROW_HEIGHT * shownRows.length) {
+function openTray(shownRows: TrayRow[] = rows, room: number = ROW_HEIGHT * shownRows.length, design: Design = appDesign) {
   withTabs(1);
   browse.useBrowse.setState({ surface: "start" });
   presentSearch("start", "otter");
   useSearch.setState({ rows: shownRows, text: "otter" });
-  const root = renderSurface(<SearchTray />);
+  const root = renderSurface(
+    <DesignProvider design={design}>
+      <SearchTray />
+    </DesignProvider>,
+  );
   act(() => {
     root.root.findAll((node) => node.props.testID === "trayRows" && typeof node.props.onLayout === "function")[0]?.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 393, height: room } } });
   });
@@ -79,9 +85,9 @@ describe("the tray's touches", () => {
     unmount(root);
   });
 
-  test("a tap on a row's refine arrow fills the field with that search instead of opening it", () => {
+  test("in the original design a tap on a row's refine arrow fills the field with that search instead of opening it (main's redesign has no arrow)", () => {
     const refine = jest.spyOn(search, "setSearchText").mockImplementation(() => undefined);
-    const root = openTray();
+    const root = openTray(rows, undefined, "original");
     const arrow = root.root.findAll((node) => node.props.accessibilityLabel === "Refine otter facts" && typeof node.props.onPress === "function")[0]!;
     act(() => arrow.props.onPress({}));
     expect(refine).toHaveBeenCalledWith("otter facts ");

@@ -3,6 +3,7 @@ import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { SearchTray } from "../components/search/SearchTray";
 import { DesignProvider } from "../components/ui";
+import * as browse from "../state/browse/store";
 import { dismissSearch, presentSearch } from "../state/search/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
 
@@ -60,4 +61,38 @@ test("in the redesign a submitted search lifts the panel 120 points and fades it
   act(() => jest.advanceTimersByTime(150));
   expect(getAnimatedStyle(panel()!).opacity).toBe(0);
   unmount(root);
+});
+
+test("in the redesign the field is white with a half-point edge, as main's searchField is, and rows have no refine arrow", () => {
+  act(() => presentSearch("page", "otter"));
+  const root = renderSurface(
+    <DesignProvider design="redesigned">
+      <SearchTray />
+    </DesignProvider>,
+  );
+  const field = root.root.findAll((node) => typeof node.type === "string" && StyleSheet.flatten(node.props.style)?.borderWidth === 0.5 && StyleSheet.flatten(node.props.style)?.minHeight !== undefined)[0];
+  expect(StyleSheet.flatten(field!.props.style)).toMatchObject({ backgroundColor: "#FFFFFF", borderColor: "rgba(0,0,0,0.06)" });
+  expect(root.root.findAll((node) => typeof node.props.accessibilityLabel === "string" && node.props.accessibilityLabel.startsWith("Refine ") && typeof node.props.onPress === "function")).toHaveLength(0);
+  unmount(root);
+});
+
+test("pressing Go starts the panel's departure from the submit itself", () => {
+  jest.spyOn(browse, "submitSearch").mockImplementation(() => {
+    dismissSearch("submitted");
+    return true;
+  });
+  act(() => presentSearch("page", "otters"));
+  const root = renderSurface(
+    <DesignProvider design="redesigned">
+      <SearchTray />
+    </DesignProvider>,
+  );
+  act(() => jest.advanceTimersByTime(600));
+  const input = root.root.findAll((node) => typeof node.props.onSubmitEditing === "function" || (typeof node.props.onSubmit === "function" && node.props.testID === "completingField"))[0]!;
+  act(() => (input.props.onSubmitEditing ? input.props.onSubmitEditing({ nativeEvent: { text: "otters" } }) : input.props.onSubmit("otters")));
+  act(() => jest.advanceTimersByTime(100));
+  const opacity = getAnimatedStyle(host(root, "trayPanel")!).opacity as number;
+  expect(opacity).toBeLessThan(1);
+  unmount(root);
+  jest.restoreAllMocks();
 });

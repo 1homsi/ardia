@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -75,6 +75,16 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const keyboard = useTrayKeyboard();
   const landing = useSharedValue(0);
   const depart = useSharedValue(0);
+  const departing = useRef(false);
+  const beginDeparture = () => {
+    if (!panel || reduceMotion || departing.current) return;
+    departing.current = true;
+    runOnUI(() => {
+      "worklet";
+      if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, bottomNow.value, hasLanded.value, false);
+    })();
+    depart.value = withTiming(1, { duration: floatingPanelLayout.departMs, easing: tabsCurve.depart });
+  };
   const hasLanded = useSharedValue(false);
   const isClosing = useSharedValue(closing);
   const dim = useSharedValue(0);
@@ -207,13 +217,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     if (!closing) return;
     isClosing.value = true;
     const departs = panel && !reduceMotion && searchState().ending === "submitted";
-    if (departs) {
-      runOnUI(() => {
-        "worklet";
-        if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, bottomNow.value, hasLanded.value, false);
-      })();
-      depart.value = withTiming(1, { duration: floatingPanelLayout.departMs, easing: tabsCurve.depart });
-    }
+    if (departs) beginDeparture();
     putKeyboardAway();
     const followsKeyboard = keyboardIsUp(keyboard.height.value) && heldLift.value < 0;
     if (!departs) landing.value = followsKeyboard
@@ -278,6 +282,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   }, [trayHeight, safeBottom, reduceMotion, panel]);
 
   return (
+    <DepartContext.Provider value={beginDeparture}>
     <View style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"}>
       <Animated.View testID="trayDim" style={[StyleSheet.absoluteFill, dimStyle]}>
         <Pressable
@@ -346,10 +351,32 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
       </Animated.View>
       )}
     </View>
+    </DepartContext.Provider>
   );
 }
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+const DepartContext = createContext<() => void>(() => undefined);
+
+function useLeavingActions() {
+  const depart = useContext(DepartContext);
+  const departIfLeft = () => {
+    const now = searchState();
+    if (!now.open && now.ending === "submitted") depart();
+  };
+  return {
+    submit: (text: string) => {
+      const opened = submitSearch(text);
+      if (opened) departIfLeft();
+      return opened;
+    },
+    activate: (row: TrayRow) => {
+      activateRow(row);
+      departIfLeft();
+    },
+  };
+}
 
 const putKeyboardAway = () => {
   trayInput?.blur();
@@ -389,7 +416,10 @@ function TrayField() {
 }
 
 function FieldInput({ first }: { first: boolean }) {
+  const leaving = useLeavingActions();
   const theme = useTrayTheme();
+  const panelField = useDesign() === "redesigned";
+  const incognitoField = useIncognito();
   const initialText = useSearchInitialText();
   const [start] = useState(() => searchState().text);
   const [hasText, setHasText] = useState(start.length > 0);
@@ -403,7 +433,7 @@ function FieldInput({ first }: { first: boolean }) {
 
   return (
     <View style={useDesign() === "redesigned" ? styles.panelFieldArea : styles.fieldArea}>
-      <View style={[styles.field, { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
+      <View style={[styles.field, panelField ? (theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight) : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
         <TrayInput
           ref={(field) => {
             input.current = field;
@@ -421,7 +451,7 @@ function FieldInput({ first }: { first: boolean }) {
           }}
           onSubmit={(text) => {
             if (submitted.current) return;
-            if (submitSearch(text)) submitted.current = true;
+            if (leaving.submit(text)) submitted.current = true;
           }}
         />
         {hasText ? (
@@ -470,6 +500,7 @@ function IncognitoToggle() {
 }
 
 function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
+  const leaving = useLeavingActions();
   const theme = useTrayTheme();
   const rows = useSearchRows();
   const typed = useSearchText();
@@ -537,7 +568,7 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
       >
         {rows.map((row, index) => (
           <View key={index} onLayout={(event) => measure(index, event.nativeEvent.layout)}>
-            <SuggestionRow row={row} typed={typed} roles={theme} menu={trayRowActions(row)} onActivate={activateRow} onRefine={refine} onMenu={showMenu} />
+            <SuggestionRow row={row} typed={typed} roles={theme} menu={trayRowActions(row)} onActivate={leaving.activate} onRefine={refine} onMenu={showMenu} />
           </View>
         ))}
       </ScrollView>
@@ -556,6 +587,7 @@ type ScrubbedProps = {
 };
 
 function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: ScrubbedProps) {
+  const leaving = useLeavingActions();
   const theme = useTrayTheme();
   const latest = useRef({ rows, budget });
   latest.current = { rows, budget };
@@ -577,7 +609,7 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
     const frame = measured.current[index];
     if (frame && rowsOverflow(frame.bottom, latest.current.budget) && !useTabs.getState().incognito) countUsage("tray_hidden_rows_opened");
     haptics.confirm();
-    activateRow(row);
+    leaving.activate(row);
   };
   const tick = () => haptics.selection();
   const openMenu = (row: TrayRow, y: number) => {
@@ -660,7 +692,7 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
               onMeasure(index, event.nativeEvent.layout);
             }}
           >
-            <SuggestionRow row={row} typed={typed} roles={theme} highlightsPress={false} menu={trayRowActions(row)} onActivate={activateRow} onRefine={onRefine} onMenu={openMenu} />
+            <SuggestionRow row={row} typed={typed} roles={theme} highlightsPress={false} menu={trayRowActions(row)} onActivate={leaving.activate} onRefine={onRefine} onMenu={openMenu} />
           </View>
         ))}
       </FadeView>
@@ -687,6 +719,8 @@ const styles = StyleSheet.create({
     borderRadius: floatingPanelLayout.radius,
     borderCurve: "continuous",
   },
+  panelFieldLight: { backgroundColor: floatingPanelLayout.fieldLight.fill, borderColor: floatingPanelLayout.fieldLight.edge, borderWidth: floatingPanelLayout.fieldEdge },
+  panelFieldDark: { backgroundColor: floatingPanelLayout.fieldDark.fill, borderColor: floatingPanelLayout.fieldDark.edge, borderWidth: floatingPanelLayout.fieldEdge },
   panelFieldArea: { paddingHorizontal: floatingPanelLayout.fieldInset, paddingTop: floatingPanelLayout.fieldInset, paddingBottom: floatingPanelLayout.fieldBottom },
   field: {
     minHeight: browseLayout.searchFieldHeight,

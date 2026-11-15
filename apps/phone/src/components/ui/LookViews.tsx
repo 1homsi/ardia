@@ -203,7 +203,7 @@ export function ChromeSurface({
   const theme = useTheme();
   if (glassIsNative()) {
     return (
-      <Glass testID={testID} source={SURFACES_FROST} shape={shape} interactive={interactive} tinted={tinted} surface="glass" barShadow={barShadow} {...lookColors(look, incognito)} dark={dark ?? (incognito || theme.dark)} style={[style, { borderRadius: cornerRadius }]}>
+      <Glass testID={testID} source={SURFACES_FROST} shape={shape} cornerRadius={cornerRadius} interactive={interactive} tinted={tinted} surface="glass" barShadow={barShadow} {...lookColors(look, incognito)} dark={dark ?? (incognito || theme.dark)} style={[style, { borderRadius: cornerRadius }]}>
         {children}
       </Glass>
     );
