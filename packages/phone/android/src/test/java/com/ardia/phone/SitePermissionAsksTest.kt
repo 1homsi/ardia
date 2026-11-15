@@ -1,6 +1,7 @@
 package com.ardia.phone
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -113,6 +114,22 @@ class SitePermissionAsksTest {
         world.gateOn()
         assertEquals(1, world.asked.size)
         assertEquals(listOf("a" to true), world.answers)
+    }
+
+    @Test
+    fun theSameRequestHeldAgainIsRecognisedSoItIsNotLoggedOrQueuedTwice() {
+        val world = World().apply { gateOn() }
+        val request = Any()
+        world.current["a"] = true
+        val ask = SitePermissionAsks.Ask("a", camera, wanted = { world.current["a"] == true }, granted = { false }, request = request) {}
+        world.asks.hold(ask)
+        assertTrue(world.asks.holds("a", request))
+        assertFalse("another request from the same page is a new one", world.asks.holds("a", Any()))
+        world.shown += "a"
+        world.asks.pump()
+        assertTrue("still held while Android is asked", world.asks.holds("a", request))
+        world.asked[0].second(emptyMap())
+        assertFalse(world.asks.holds("a", request))
     }
 
     @Test

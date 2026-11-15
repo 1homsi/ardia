@@ -309,12 +309,14 @@ object PhonePages {
             send(id, "page.request", "request" to PagePayloads.request(app, request))
             return
         }
+        if (permissionAsks.holds(id, request)) return
         if (PhoneLab.isOn && !isOnScreen(id)) android.util.Log.i("PAGELAB", "PAGELAB page request ${PagePayloads.permission(kind.permission)} from a page not on screen: Android is asked once the page shows")
         permissionAsks.hold(SitePermissionAsks.Ask(
             pageId = id,
             needed = needed,
             wanted = { !request.isAnswered && page.request.value === request && shared?.existing(id) === page },
             granted = { held -> SitePermissionGate.granted(kind.permission, held) },
+            request = request,
         ) { granted ->
             if (granted) {
                 send(id, "page.request", "request" to PagePayloads.request(app, request))

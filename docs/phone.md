@@ -275,7 +275,11 @@ off in the lab`.
     (`POST ardia.dev/otel/v1/logs -> 200`). Turn it off: no more lines. The same switch is on onboarding's last
     steps (Settings › Show Onboarding). Settings › What’s Sent lists what is counted. A lab release build sends to
     ardia.dev with environment test.
-27. **Memory after tabs close:** `adb shell am broadcast -a com.ardia.phone.MEMORY -p com.ardia.browser.android`
+27. **Memory after tabs close** (the lab broadcasts here and below, MEMORY, FRAMES, TRIM and DECK_PARTS, are
+    answered while Ardia is in front. From sync20d its receiver also stays registered in the background, but
+    Android 14 and later, and MIUI's freezer, hold a broadcast to a cached app until it is back on screen. For the
+    background itself use `adb shell dumpsys gfxinfo $P` and `dumpsys meminfo $P`.)
+    `adb shell am broadcast -a com.ardia.phone.MEMORY -p com.ardia.browser.android`
     and `adb logcat -d -s PAGELAB | grep "PAGELAB memory"` (or System › Memory) at four points, after a
     force-stop and cold start each time you start over: with one tab; after opening nine tabs and visiting each;
     after closing eight of them; and after `adb shell am broadcast -a com.ardia.phone.TRIM -p

@@ -6,7 +6,7 @@ internal class SitePermissionAsks(
     private val visible: (pageId: String) -> Boolean,
     private val held: (Array<String>) -> Map<String, Boolean>,
 ) {
-    class Ask(val pageId: String, val needed: Array<String>, val wanted: () -> Boolean, val granted: (Map<String, Boolean>) -> Boolean, val answer: (Boolean) -> Unit) {
+    class Ask(val pageId: String, val needed: Array<String>, val wanted: () -> Boolean, val granted: (Map<String, Boolean>) -> Boolean, val request: Any? = null, val answer: (Boolean) -> Unit) {
         internal var done = false
         internal var attempts = 0
     }
@@ -21,6 +21,9 @@ internal class SitePermissionAsks(
     private var asking: Ask? = null
 
     val pending: Int get() = waiting.size + (if (asking != null) 1 else 0)
+
+    fun holds(pageId: String, request: Any): Boolean =
+        waiting.any { it.pageId == pageId && it.request === request && !it.done } || asking?.let { it.pageId == pageId && it.request === request && !it.done } == true
 
     fun hold(ask: Ask) {
         drop(ask.pageId)

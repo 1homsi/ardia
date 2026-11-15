@@ -52,13 +52,12 @@ class SystemModule : Module() {
         OnDestroy {
             listener?.let(PhoneSystemLinks::stopListening)
             listener = null
+            PhoneA11yDump.stopListening()
         }
 
         OnActivityEntersForeground {
             appContext.reactContext?.applicationContext?.let { app -> PhoneA11yDump.listen(app) { appContext.currentActivity } }
         }
-
-        OnActivityEntersBackground { PhoneA11yDump.stopListening() }
 
         Function("processStartedAt") { ProcessStart.epochMillis() }
 
