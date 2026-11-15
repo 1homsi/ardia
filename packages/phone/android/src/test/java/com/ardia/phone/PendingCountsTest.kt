@@ -14,9 +14,10 @@ class PendingCountsTest {
 
     @Test
     fun sendsMadeWhileTheAppWasNotRunningWaitUntilItTakesThemOnce() {
+        UsageConsent.set(app, true)
         assertEquals(emptyMap<String, Int>(), PendingCounts.take(app))
-        PendingCounts.add(app, PendingCounts.TABS_SENT)
-        PendingCounts.add(app, PendingCounts.TABS_SENT)
+        PendingCounts.add(app, PendingCounts.TABS_SENT, UsageConsent.window(app))
+        PendingCounts.add(app, PendingCounts.TABS_SENT, UsageConsent.window(app))
         assertEquals(mapOf("tabs_sent" to 2), PendingCounts.take(app))
         assertEquals("taken once, then empty", emptyMap<String, Int>(), PendingCounts.take(app))
     }

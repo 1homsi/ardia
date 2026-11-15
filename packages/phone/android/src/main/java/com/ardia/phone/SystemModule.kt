@@ -16,6 +16,11 @@ class SystemModule : Module() {
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", line)
         }
 
+        Function("setUsageConsent") { sharing: Boolean ->
+            val context = appContext.reactContext ?: return@Function Unit
+            UsageConsent.set(context, sharing)
+        }
+
         Function("takePendingCounts") {
             val context = appContext.reactContext ?: return@Function emptyMap<String, Int>()
             PendingCounts.take(context)

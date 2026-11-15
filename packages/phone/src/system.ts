@@ -28,6 +28,7 @@ type SystemNative = {
   displayCornerRadius?(): number | null;
   setWidgetColorChoice?(choice: string | null): void;
   takePendingCounts?(): Record<string, number>;
+  setUsageConsent?(sharing: boolean): void;
 };
 
 const native = requireOptionalNativeModule<SystemNative>("ArdiaPhoneSystem");
@@ -43,6 +44,7 @@ export const system = {
   displayCornerRadius: (): number | null => native?.displayCornerRadius?.() ?? null,
   setWidgetColorChoice: (choice: string | null): void => native?.setWidgetColorChoice?.(choice),
   takePendingCounts: (): Record<string, number> => native?.takePendingCounts?.() ?? {},
+  setUsageConsent: (sharing: boolean): void => native?.setUsageConsent?.(sharing),
   setHidesFromRecents: async (hidden: boolean): Promise<boolean> => (native?.setHidesFromRecents ? native.setHidesFromRecents(hidden) : false),
   addLinkListener: (listener: (link: SystemLink) => void): Subscription =>
     native ? native.addListener("onSystemLink", (link) => listener(normalize(link))) : { remove() {} },

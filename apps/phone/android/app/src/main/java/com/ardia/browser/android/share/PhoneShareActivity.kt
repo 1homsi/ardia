@@ -73,6 +73,7 @@ object PhoneShare {
     suspend fun send(context: Context, page: SharedPage, device: SystemDevice): Boolean {
         val url = page.url ?: return false
         if (!PhoneBrowsingSource.isSyncable(url)) return false
+        val countingWindow = com.ardia.phone.UsageConsent.window(context)
         val sync = runCatching { PhoneSync.controller(context, demo = false) }.getOrNull() ?: return false
         val target = withTimeoutOrNull(SYNC_WAIT_MILLIS) {
             while (sync.state.value.isEnabled && sync.state.value.phase != SyncPhase.Updated && sync.snapshot.value.devices.none { it.id == device.id }) delay(POLL_MILLIS)
@@ -80,7 +81,7 @@ object PhoneShare {
         } ?: return false
         if (!sync.state.value.isEnabled) return false
         val sent = runCatching { sync.send(url, page.displayTitle, target) }.getOrDefault(false)
-        if (sent) com.ardia.phone.PendingCounts.add(context, com.ardia.phone.PendingCounts.TABS_SENT)
+        if (sent) com.ardia.phone.PendingCounts.add(context, com.ardia.phone.PendingCounts.TABS_SENT, countingWindow)
         return sent
     }
 }
