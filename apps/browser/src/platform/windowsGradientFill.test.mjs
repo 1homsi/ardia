@@ -84,3 +84,19 @@ test("a gradient-only Surface cuts no page window, and every gradient drawn sits
   assert.deepEqual(using(/<GradientFill\b/), ["../components/toolbar/FieldLoadFill.tsx"], "only the field glow draws a GradientFill");
   assert.deepEqual(using(/<FieldLoadFill\b/), ["../components/littleArdia/SmallChrome.tsx", "../components/toolbar/Toolbar.tsx"], "the glow sits in the toolbar, sidebar and Little Ardia fields");
 });
+
+test("a gradient brush that fails reports it once, at once, and every mounted layer reading it draws the striped fallback", () => {
+  assert.match(source("../../windows/Ardia/GradientView.h"), /void Fail\(std::wstring const &reason\) noexcept \{\n\s+Materials::MarkGradientFailed\(\);/);
+  const failures = source("../../windows/Ardia/GradientFailures.h");
+  assert.match(failures, /if \(GradientFailed\(\)\.exchange\(true\)\) return;/);
+  assert.match(failures, /EmitEvent\(context, L"ArdiaMaterials", L"gradientFailed", /);
+  assert.match(source("../../windows/Ardia/MaterialSupport.h"), /inline std::atomic<bool> &GradientFailed\(\) noexcept \{/);
+  assert.match(source("../../windows/Ardia/MaterialsModule.h"), /m_context = context;\n\s+Materials::ReportGradientFailuresTo\(context\);/);
+  assert.match(source("../../windows/Ardia/MaterialsModule.h"), /answer\.gradient = Materials::GradientAvailable\(\);/);
+  assert.match(source("../../windows/Ardia/Ardia.cpp"), /Ardia::Materials::ReportGradientFailuresTo\(nullptr\);\n  host\.engine = nullptr;\n  SetFocus\(nullptr\);\n  if \(host\.queue\) host\.queue\.ShutdownQueue\(\);/);
+  assert.ok(source("../../windows/Ardia/Ardia.vcxproj").includes('<ClInclude Include="GradientFailures.h" />'));
+  const surface = source("../../../../packages/expo-windows/src/views/Surface.tsx");
+  assert.match(surface, /const \[draws, setDraws\] = useState\(gradientDrawsNow\);\n\s+useEffect\(\(\) => \(draws \? followGradientFailure\(\(\) => setDraws\(false\)\) : undefined\), \[draws\]\);/);
+  assert.match(surface, /if \(!useGradientDraws\(\)\) return <StripedGradient /);
+  assert.doesNotMatch(surface, /setTimeout|watchGradientFailure/);
+});

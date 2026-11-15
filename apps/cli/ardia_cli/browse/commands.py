@@ -145,7 +145,7 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
                 state = await page.call("() => document.readyState", frame=main, read=True)
             except BrowseError as error:
                 if error.code == "tab_detached":
-                    raise
+                    await page.state.reattach(page)
                 return False
             frame_loader = page.loader(main)
             if loader is not None and frame_loader != loader:
@@ -190,6 +190,7 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
                                     "its content so far is here, and `wait --load load` waits for the rest")
     else:
         await readpages.after_same_document(page, before, asyncio.get_running_loop().time() + ctx.timeout)
+    await page.state.reattach(page)
     await page.refresh_frames()
 
 
@@ -360,6 +361,7 @@ async def add_init_script(ctx: Ctx, page, source: str, tag: str | None) -> str:
     result = await page.send("Page.addScriptToEvaluateOnNewDocument", {"source": source})
     identifier = result["identifier"]
     page.init_scripts[identifier] = tag or source
+    page.script_sources[identifier] = source
     ctx.state.extras.setdefault("init_sources", {})[identifier] = source
     ctx.state.leases.add("init")
     return identifier
@@ -430,6 +432,7 @@ async def cmd_open(ctx: Ctx, argv):
         await changes.settled(page, lambda: navigate(ctx, page, url))
     elif url and not fresh_tab:
         await navigate(ctx, page, url)
+    page = await state.reattach(page)
     if show and (reporting or not fresh_tab):
         page = await show_tab(ctx, page)
     background = await page.takes_input() if fresh_tab and not show else None
@@ -620,7 +623,7 @@ def consent_note(ctx: Ctx, result: Result) -> Result:
     note, ctx.state.consent_dismissed = ctx.state.consent_dismissed, None
     if note:
         result.data["dismissed"] = note
-        result.text = f"{result.text or '✓ Done'}\nA consent banner was in the way: {note}"
+        result.text = f"{result.text or '✓ Done'}\n{note}"
     fallback, ctx.state.click_note = getattr(ctx.state, "click_note", None), None
     if fallback:
         result.data["domClick"] = fallback
@@ -1532,6 +1535,11 @@ DEVICES = {
 }
 
 
+async def overridden(page, method: str, params: dict):
+    await page.send(method, params)
+    page.overrides[method] = params
+
+
 @command("set")
 async def cmd_set(ctx: Ctx, argv):
     _, args = parse(argv)
@@ -1548,13 +1556,14 @@ async def cmd_set(ctx: Ctx, argv):
                     return Result({"reset": True, "tabId": tab, "url": fresh.url}, f"✓ Viewport reset: the page was reloaded in a new background tab [{tab}]")
                 with contextlib.suppress(BrowseError):
                     await page.send("Emulation.clearDeviceMetricsOverride")
+                page.overrides.pop("Emulation.setDeviceMetricsOverride", None)
                 ctx.state.leases.discard("emulation")
                 return Result({"reset": True}, "✓ Viewport reset")
             need(args, 3, "set viewport <w> <h> [scale] | reset")
             width, height = int(args[1]), int(args[2])
             scale = float(args[3]) if len(args) > 3 else 1.0
             offscreen = await go_offscreen(ctx, page)
-            await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
+            await overridden(page, "Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
             if not offscreen:
                 ctx.state.leases.add("emulation")
             from ardia_cli import command_metrics
@@ -1567,28 +1576,28 @@ async def cmd_set(ctx: Ctx, argv):
             if device is None:
                 raise BrowseError(f"Unknown device: {' '.join(args[1:])} ({', '.join(sorted(DEVICES))})")
             width, height, scale, mobile, agent = device
-            await page.send("Emulation.setTouchEmulationEnabled", {"enabled": mobile})
-            await page.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": mobile})
+            await overridden(page, "Emulation.setTouchEmulationEnabled", {"enabled": mobile})
+            await overridden(page, "Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": scale, "mobile": mobile})
             if agent:
-                await page.send("Emulation.setUserAgentOverride", {"userAgent": agent})
+                await overridden(page, "Emulation.setUserAgentOverride", {"userAgent": agent})
             ctx.state.leases.add("emulation")
             return Result({"device": " ".join(args[1:]), "width": width, "height": height})
         if setting == "geo":
             need(args, 3, "set geo <lat> <lng>")
-            await page.send("Emulation.setGeolocationOverride", {"latitude": float(args[1]), "longitude": float(args[2]), "accuracy": 10})
+            await overridden(page, "Emulation.setGeolocationOverride", {"latitude": float(args[1]), "longitude": float(args[2]), "accuracy": 10})
             ctx.state.leases.add("emulation")
             return Result({"latitude": float(args[1]), "longitude": float(args[2])})
         if setting == "offline":
             offline = (args[1] if len(args) > 1 else "on").lower() in ("on", "true", "1")
             await page.enable_network()
-            await page.send("Network.emulateNetworkConditions", {"offline": offline, "latency": 0, "downloadThroughput": -1, "uploadThroughput": -1})
+            await overridden(page, "Network.emulateNetworkConditions", {"offline": offline, "latency": 0, "downloadThroughput": -1, "uploadThroughput": -1})
             ctx.state.leases.add("emulation")
             return Result({"offline": offline})
         if setting == "headers":
             need(args, 2, "set headers <json>")
             headers = json.loads(" ".join(args[1:]))
             await page.enable_network()
-            await page.send("Network.setExtraHTTPHeaders", {"headers": headers})
+            await overridden(page, "Network.setExtraHTTPHeaders", {"headers": headers})
             ctx.state.leases.add("emulation")
             return Result({"headers": sorted(headers)})
         if setting in ("credentials", "auth"):
@@ -1604,7 +1613,7 @@ async def cmd_set(ctx: Ctx, argv):
                 features.append({"name": "prefers-color-scheme", "value": scheme})
             if "reduced-motion" in args[1:]:
                 features.append({"name": "prefers-reduced-motion", "value": "reduce"})
-            await page.send("Emulation.setEmulatedMedia", {"features": features})
+            await overridden(page, "Emulation.setEmulatedMedia", {"features": features})
             ctx.state.leases.add("emulation")
             return Result({"features": features})
     except Gated as error:
@@ -1755,8 +1764,10 @@ async def cmd_removeinitscript(ctx: Ctx, argv):
     page = await ctx.state.page()
     if args[0] not in page.init_scripts:
         raise BrowseError(f"No init script {args[0]} in this tab")
-    await page.send("Page.removeScriptToEvaluateOnNewDocument", {"identifier": args[0]})
+    await page.send("Page.removeScriptToEvaluateOnNewDocument", {"identifier": page.script_ids.get(args[0], args[0])})
     page.init_scripts.pop(args[0], None)
+    page.script_sources.pop(args[0], None)
+    page.script_ids.pop(args[0], None)
     ctx.state.extras.get("init_sources", {}).pop(args[0], None)
     if not any(p.init_scripts for p in ctx.state.pages.values()):
         ctx.state.leases.discard("init")

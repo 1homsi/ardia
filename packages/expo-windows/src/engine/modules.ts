@@ -1,6 +1,7 @@
 import { engineDomainModules } from "./domains";
 import { setCover, setPageRadius } from "./covers";
-import { discardOffered, followPage, parkPage, releasePage } from "./pages";
+import { discardOffered } from "./host";
+import { followPage, parkPage, releasePage } from "./pages";
 
 const pageCovers = {
   set: (windowId: string, id: string, x: number, y: number, width: number, height: number, radius = 0) => setCover(windowId, id, { x, y, width, height, radius }),

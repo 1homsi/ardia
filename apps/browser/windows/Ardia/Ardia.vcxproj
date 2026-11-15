@@ -126,6 +126,7 @@
     <ClInclude Include="MaterialViews.h" />
     <ClInclude Include="MaterialViewParts.h" />
     <ClInclude Include="GradientView.h" />
+    <ClInclude Include="GradientFailures.h" />
     <ClInclude Include="MaterialsModule.h" />
     <ClInclude Include="VectorGeometry.h" />
     <ClInclude Include="VectorIconView.h" />
