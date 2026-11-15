@@ -7,7 +7,8 @@ Swift code that already exists. Both phones run it: Android and the iPhone.
 ## Layout
 
 ```
-apps/phone/                 the app: Expo 54, React Native 0.81.6 (the Mac's versions), new architecture, Hermes
+apps/phone/                 the app, and the root of its own pnpm workspace with packages/phone: Expo 54, React
+                            Native 0.81.6 (moving to Expo 58, React Native 0.88), new architecture, Hermes
   android/                  the Android project, checked in (application id com.ardia.browser.android, minSdk 29,
                             arm64-v8a and x86_64)
   src/                      the Mac's folder rules (docs/conventions.md): components/ui, components/<feature>,
@@ -24,6 +25,20 @@ packages/phone/             @ardia/phone-native, the Expo module package
 ```
 
 `@ardia/core` is imported straight from `src/mobile.ts`; no bundle, no script engine.
+
+The phone is its own pnpm workspace, apart from the Mac's, so the two apps can run different Expo and React Native
+versions (decided 2026-11-15 for the move to Expo 58 and React Native 0.88, which the Mac can't follow: Expo 58 has no
+macOS and react-native-macos stops at 0.83):
+- `apps/phone/pnpm-workspace.yaml` holds `apps/phone` and `packages/phone`, with its own `pnpm-lock.yaml` and a
+  hoisted `apps/phone/node_modules`. `@ardia/core` comes in as `link:../../packages/core`; it imports only `node:`
+  modules. The root workspace leaves both out. Install with `scripts/agent/locked pod -- pnpm -C apps/phone install`.
+- Nothing of the Mac's is on the phone's resolution path. Metro reads only `apps/phone/node_modules` and watches
+  `packages/phone` and `packages/core`. TypeScript maps every bare import there first (`paths` in the three
+  tsconfigs; Expo's `tsconfigPaths` is off, so Metro ignores them). Jest's `test/render/resolver.js` resolves a bare
+  import from `packages/phone` as if from `apps/phone`.
+- Why not one workspace: with the hoisted linker one copy of `react-native` and `expo-modules-core` sits at the root,
+  and whichever version pnpm picks is what `packages/phone` (whose React Native is a peer) and Expo's autolinking see.
+  A Mac dependency change could flip it, and one install rewrote both apps' trees.
 
 ## The page view
 

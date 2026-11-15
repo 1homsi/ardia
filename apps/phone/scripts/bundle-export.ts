@@ -4,9 +4,9 @@
 //   node apps/phone/scripts/bundle-export.ts create [--commit REV] [--root REPO] [--no-install]
 //   node apps/phone/scripts/bundle-export.ts remove DIR
 //
-// create resolves REV (default HEAD), extracts the phone app, its workspace packages, the root manifest, the
-// workspace file, the lockfile and the patches from that commit with git archive into a new folder under the
-// system temp folder, runs pnpm install --offline --frozen-lockfile there for @ardia/phone and its dependencies,
+// create resolves REV (default HEAD), extracts the phone app with its own workspace file and lockfile, its
+// packages and the patches from that commit with git archive into a new folder under the system temp folder,
+// runs pnpm install --offline --frozen-lockfile in the phone's workspace there,
 // and prints {"dir": …, "commit": …}. Pass the dir to Gradle as -PardiaBundleExport=DIR. remove deletes a folder
 // that create made, and refuses anything else.
 import { execFileSync } from "node:child_process";
@@ -16,9 +16,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const exportPaths = [
-  "package.json",
-  "pnpm-workspace.yaml",
-  "pnpm-lock.yaml",
   "patches",
   "apps/phone",
   ":(exclude)apps/phone/android",
@@ -47,7 +44,7 @@ export function createExport(root: string, rev = "HEAD", options: { install?: bo
     execFileSync("tar", ["-x", "-f", "-", "-C", dir], { input: archive });
     fs.writeFileSync(path.join(dir, EXPORT_RECORD), JSON.stringify({ commit }));
     if (options.install !== false) {
-      execFileSync("pnpm", ["install", "--offline", "--frozen-lockfile", "--filter", "@ardia/phone...", "--reporter=silent"], { cwd: dir, stdio: ["ignore", 2, 2] });
+      execFileSync("pnpm", ["install", "--offline", "--frozen-lockfile", "--reporter=silent"], { cwd: path.join(dir, "apps/phone"), stdio: ["ignore", 2, 2] });
     }
     return { dir, commit };
   } catch (error) {

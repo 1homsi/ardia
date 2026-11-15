@@ -30,7 +30,8 @@ export const watchedPaths = [
   "packages/phone/package.json",
   "packages/core/src",
   "packages/core/package.json",
-  "pnpm-lock.yaml",
+  "apps/phone/pnpm-lock.yaml",
+  "apps/phone/pnpm-workspace.yaml",
 ];
 
 export const nativePaths = [
@@ -39,7 +40,8 @@ export const nativePaths = [
   "packages/phone/android",
   "packages/phone/expo-module.config.json",
   "apps/android/app/src/main",
-  "pnpm-lock.yaml",
+  "apps/phone/pnpm-lock.yaml",
+  "apps/phone/pnpm-workspace.yaml",
   "patches",
 ];
 

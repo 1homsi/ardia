@@ -1,0 +1,13 @@
+packages:
+  - "."
+  - "../../packages/phone"
+
+nodeLinker: hoisted
+
+autoInstallPeers: false
+
+patchedDependencies:
+  expo-modules-core@3.0.30: ../../patches/expo-modules-core@3.0.30.patch
+
+allowBuilds:
+  esbuild: false

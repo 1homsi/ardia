@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 export const APP_DIR = join(import.meta.dirname, "..");
 const REPO_DIR = join(APP_DIR, "..", "..");
-const LOCKFILE = join(REPO_DIR, "pnpm-lock.yaml");
+const LOCKFILE = join(APP_DIR, "pnpm-lock.yaml");
 const MODULE_GRADLE = join(REPO_DIR, "packages", "phone", "android", "build.gradle");
 export const CREDITS_FILE = join(APP_DIR, "src", "state", "settings", "credits.json");
 
@@ -36,7 +36,7 @@ export function gradleArtifacts(gradle: string): string[] {
 
 export function creditInputs(): string {
   const lockfile = readFileSync(LOCKFILE, "utf8");
-  const inputs = [importerBlock(lockfile, "apps/phone"), importerBlock(lockfile, "packages/core"), gradleArtifacts(readFileSync(MODULE_GRADLE, "utf8")).join("\n")];
+  const inputs = [importerBlock(lockfile, "."), gradleArtifacts(readFileSync(MODULE_GRADLE, "utf8")).join("\n")];
   return createHash("sha256").update(inputs.join("\n---\n")).digest("hex");
 }
 

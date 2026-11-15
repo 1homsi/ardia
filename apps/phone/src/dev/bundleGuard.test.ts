@@ -28,7 +28,7 @@ function repo(): { root: string; state: string; write: (file: string, text: stri
   write("packages/phone/src/index.ts", "export {};\n");
   write("packages/core/src/index.ts", "export {};\n");
   write("apps/phone/package.json", "{}\n");
-  write("pnpm-lock.yaml", "lockfileVersion: 9\n");
+  write("apps/phone/pnpm-lock.yaml", "lockfileVersion: 9\n");
   write("packages/phone/ios/SyncModule.swift", "let a = 1\n");
   write(".gitignore", "build/\n");
   git("add", "-A");
@@ -70,8 +70,8 @@ test("a modified, a staged and an untracked file under the bundled trees each re
 
 test("a changed lockfile refuses", () => {
   const { root, write } = repo();
-  write("pnpm-lock.yaml", "lockfileVersion: 10\n");
-  assert.match(refusal(() => check(root)), /pnpm-lock\.yaml/);
+  write("apps/phone/pnpm-lock.yaml", "lockfileVersion: 10\n");
+  assert.match(refusal(() => check(root)), /apps\/phone\/pnpm-lock\.yaml/);
 });
 
 test("another agent's native files and ignored output do not block the bundle", () => {
