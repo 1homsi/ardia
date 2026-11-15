@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "ardia/core/ac_host_visibility.h"
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/context_menu.h"
 #include "ardia/win/hooks.h"
@@ -661,6 +662,8 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
     Place(window, hosted);
   }
   hosted.shown = key;
+  ardiacore::NoteTabInShownSlot(contents);
+  ardiacore::NoteTabShownByHost(contents, true);
   return Ok();
 }
 
@@ -1060,6 +1063,7 @@ void Host::Hide(Browser* browser, Hosted& hosted) {
     }
   }
   if (content::WebContents* shown = Find(hosted.shown)) {
+    ardiacore::NoteTabShownByHost(shown, false);
     if (ExclusiveAccessManager* manager =
             ExclusiveAccessManager::From(browser)) {
       manager->OnTabDeactivated(shown);

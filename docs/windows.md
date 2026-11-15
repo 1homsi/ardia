@@ -1056,9 +1056,8 @@ App side, an agent can do these now:
    pop-up's window (not yet seen in the VM).
 8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
-10. Dragging a pinned extension to reorder the toolbar (main's #1935) doesn't keep its new place until the Windows
-    engine is rebuilt with `pinnedIndex` in `ac_extensions.cc` (by reading; not tried on Windows). S, the next engine
-    build.
+10. Dragging a pinned extension to reorder the toolbar (main's #1935): the engine takes `pinnedIndex` since
+    `windows-engine-20261115-3`; that the new order sticks, and the drag itself, are untried on Windows. S.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - password sync on Windows: the engine's login read is ready (#1918); Sync still has to handle its errors before
