@@ -46,7 +46,6 @@ export type WindowsNative = {
   addListener(name: "onWindowEvent", listener: (e: WindowEvent) => void): EventSubscription;
   openWindow(id: string, options: OpenWindowOptions): Promise<void>;
   closeWindow(id: string): Promise<void>;
-  requestClose(id: string): Promise<void>;
   animateWindowClose(id: string, after: string | null): Promise<void>;
   focusWindow(id: string): Promise<void>;
   restoreFullScreen(ids: string[], focus: string | null): Promise<void>;
