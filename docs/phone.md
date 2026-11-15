@@ -1758,6 +1758,9 @@ Watch your own frames before you hand a change on. The loop, for any agent:
      (a537518c…), and our taps and launches crossed, which spoiled a memory reading. Before measuring, check the
      device id `device_open` returned against the other agents' lease ids, and the udid's device type against the
      model you asked for (`plutil -extract deviceType raw ~/.simlock/devices/ios/<udid>/device.plist`).
+   - One model per agent, always the same: the iPhone agent leases only `simlock:ios:iPhone 17 Pro`, the screens agent only `simlock:ios:iPhone 18 Pro`, the coordinator only `simlock:ios:iPhone 17`; on Android the Android agent takes Pixel 8 and the screens agent Pixel 9. A refused lease means wait, never another model.
+   - Before the first install on a lease, print its udid and list its installed apps: a lease starts empty, so an app already there is someone's live session. Close the lease without touching it and tell the coordinator.
+   - Why: Simlock has twice handed one simulator to two agents while both were active (a537518c…, then 97D6E59E… on 2026-11-16, where one agent's install wiped the other's connected test app).
    - Close Search is pressed by coordinate, above the panel (e.g. `press 200 120`), in both apps: a press by its ref
      taps the centre of its full-screen frame, which the panel covers, so it closes neither ours nor main's. That says
      nothing about VoiceOver, whose activate runs the dim's accessibility action (92e0f865c); that needs a device.
