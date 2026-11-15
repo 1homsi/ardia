@@ -4,16 +4,9 @@ import { live, setAccount, updateConfig } from "../../browser/src/state/live/sto
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "../../browser/src/state/live/types";
 import { hostLiveClient, type LiveClient } from "./hostLive.ts";
 
-export type LiveSource = {
-  id: LiveSourceId;
-  name: string;
-  kind: LiveFolder["kind"];
-  site: string;
-  fetch(folder: LiveFolder): Promise<LiveItem[]>;
-  resolveGone?(items: LiveItem[]): Promise<Record<string, CompletionState>>;
-};
+import type { DeviceFlow, LiveSource } from "../../browser/src/state/live/sources";
 
-export type DeviceFlow = { userCode: string; verificationUri: string; expiresAt: number; done: Promise<void>; cancel(): void };
+export type { DeviceFlow, LiveSource };
 
 type Viewer = { login: string; name: string | null; avatarUrl: string };
 type DevicePoll = { status: "pending" } | { status: "slowDown"; interval?: number } | { status: "connected"; viewer: Viewer | null };

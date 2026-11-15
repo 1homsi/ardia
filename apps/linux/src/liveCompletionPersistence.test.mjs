@@ -139,3 +139,22 @@ test("releasing a shown repo lands with its refresh, so the completion timer sti
   assert.deepEqual(payload.items.f, []);
   assert.equal(payload.completed.f[0].item.id, "i");
 });
+
+test("a refresh that finds a new repo while new repos stay hidden still lands what the followed repos fetched", async (context) => {
+  await reset(context);
+  const followed = { ...item, id: "followed", pr: { number: 3, repo: "acme/old" } };
+  const discovered = { ...item, id: "discovered", pr: { number: 4, repo: "acme/new" } };
+  payload = { ...payload, folders: { f: { ...folder, showNewRepos: false, shownRepos: ["github:acme/old"], hiddenRepos: [] } } };
+  revision++; emit();
+  const previousFetch = SOURCES.github.fetch;
+  SOURCES.github.fetch = async () => [followed, discovered];
+  try {
+    await refreshFolder("f"); await flushLinuxDocuments();
+  } finally { SOURCES.github.fetch = previousFetch; }
+  const refreshes = requests.filter((request) => request.operations[0].type === "refresh");
+  assert.equal(refreshes.length, 1);
+  assert.equal(receipts.get(refreshes[0].requestId).superseded, false);
+  assert.deepEqual(payload.folders.f.hiddenRepos, ["github:acme/new"]);
+  assert.ok(payload.items.f.some((entry) => entry.id === "followed"));
+  assert.ok(!payload.items.f.some((entry) => entry.id === "discovered"));
+});

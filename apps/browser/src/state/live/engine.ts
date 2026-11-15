@@ -43,14 +43,19 @@ export function manualRefresh(folderId: string): Promise<void> {
   return refreshFolder(folderId);
 }
 
+function claimRefresh(folderId: string) {
+  const refresh = beginLiveRefresh(folderId);
+  return refresh?.catch((error: unknown) => { console.warn("Couldn't claim the live folder refresh", error); return null; }).then((fence) => {
+    if (fence === null && live().folders[folderId]) setStatus(folderId, { state: "idle" });
+    return fence;
+  });
+}
+
 async function run(folderId: string) {
   if (!live().folders[folderId]) return;
-  const refresh = beginLiveRefresh(folderId);
-  const fence = refresh ? await refresh.catch((error: unknown) => { console.warn("Couldn't claim the live folder refresh", error); return null; }) : undefined;
-  if (fence === null) {
-    if (live().folders[folderId]) setStatus(folderId, { state: "idle" });
-    return;
-  }
+  const claim = claimRefresh(folderId);
+  let fence = claim ? await claim : undefined;
+  if (fence === null) return;
   const folder = live().folders[folderId];
   if (!folder) return;
   const before = live();
@@ -84,7 +89,13 @@ async function run(folderId: string) {
     Object.assign(gone, await resolve(missing.filter((it) => it.source === source)).catch(() => ({})));
   }
 
+  const folderBeforeHiding = live().folders[folderId];
   hideNewRepos(folderId, fetched);
+  if (fence !== undefined && folderBeforeHiding === folder && live().folders[folderId] !== folderBeforeHiding) {
+    const reclaim = claimRefresh(folderId);
+    fence = reclaim ? await reclaim : undefined;
+    if (fence === null || !live().folders[folderId]) return;
+  }
   const current = live();
   const prev = current.items[folderId] ?? [];
   const animating = new Set(current.completing[folderId] ?? []);
