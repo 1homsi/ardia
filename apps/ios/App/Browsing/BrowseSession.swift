@@ -41,7 +41,11 @@ final class BrowseSession {
 
   var barSidesShown: Bool { search == nil }
   var barCentreShown: Bool {
-    search == nil && !(trayHoldsKeyboard && searchEnding == .cancelled && bar.morphsIntoBar)
+    search == nil && !(trayHoldsKeyboard && searchLandsInBar)
+  }
+
+  var searchLandsInBar: Bool {
+    searchEnding == .cancelled && bar.morphsIntoBar
   }
 
   struct StepRequest: Equatable {

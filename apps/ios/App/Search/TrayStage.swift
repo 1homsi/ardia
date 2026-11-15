@@ -22,7 +22,7 @@ final class TrayStageController: UIViewController {
   let stageView = TrayStageView()
   var onResize: (() -> Void)?
   private(set) var trayHeight: CGFloat = 0
-  private var placedIn: [CGFloat] = []
+  private var placedIn: [CGFloat?] = []
   private(set) var commandTop: CGFloat?
   private let host = UIHostingController<AnyView?>(rootView: nil)
 
@@ -73,7 +73,7 @@ final class TrayStageController: UIViewController {
     tray.center = CGPoint(x: bounds.midX, y: commandTop ?? bounds.maxY)
     host.view.frame = tray.bounds
     trayHeight = height
-    let space = [height, bounds.width, bounds.height, view.window?.safeAreaInsets.bottom ?? 0]
+    let space: [CGFloat?] = [height, bounds.width, bounds.height, view.window?.safeAreaInsets.bottom ?? 0, commandTop]
     guard space != placedIn else { return }
     placedIn = space
     onResize?()

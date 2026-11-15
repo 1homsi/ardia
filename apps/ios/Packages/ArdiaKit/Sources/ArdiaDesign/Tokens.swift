@@ -7,9 +7,7 @@ public enum Palette {
   public static let onPrimaryAction = Color.adaptive(light: .white, dark: .black)
   public static let success = Color.adaptive(light: Color(hex: 0x34C759), dark: Color(hex: 0x30D158))
   public static let panel = Color.adaptive(light: .white, dark: Color(hex: 0x2A2A2A))
-  public static let panelBorder = Color.adaptive(light: .black.opacity(0.1), dark: .white.opacity(0.1))
   public static let toast = Color.adaptive(light: .white.opacity(0.92), dark: Color(hex: 0x2C2A2B, opacity: 0.9))
-  public static let toastShadow = Color.adaptive(light: .black.opacity(0.18), dark: .black.opacity(0.5))
 }
 
 public enum Spacing {
@@ -71,6 +69,27 @@ public struct MotionCurve: Sendable {
 
   public var animation: Animation {
     .timingCurve(start.x, start.y, end.x, end.y, duration: duration)
+  }
+}
+
+extension Spring {
+  static let fullyThere: CGFloat = 0.98
+  static let progressSearchStep: Double = 0.002
+
+  public func criticalProgress(at time: Double) -> Double {
+    let omega = 2 * Double.pi / duration
+    return 1 - (1 + omega * time) * exp(-omega * time)
+  }
+
+  public func time(toReach progress: CGFloat) -> CFTimeInterval {
+    let target = min(max(progress, 0), Self.fullyThere)
+    guard target > 0 else { return 0 }
+    var time = 0.0
+    while time < settlingDuration {
+      if criticalProgress(at: time) >= Double(target) { return time }
+      time += Self.progressSearchStep
+    }
+    return settlingDuration
   }
 }
 

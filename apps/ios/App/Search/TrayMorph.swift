@@ -11,7 +11,7 @@ final class TrayMorph {
   private var folding: [UIViewPropertyAnimator] = []
   private var fades: [UIViewPropertyAnimator] = []
 
-  static let landedTolerance: CGFloat = 0.17
+  private static let landedTolerance: CGFloat = 0.17
 
   struct Start {
     var frame: CGRect
@@ -26,7 +26,7 @@ final class TrayMorph {
     return Self.gap(between: shown, and: destination) > Self.landedTolerance
   }
 
-  init(card: CGRect, fieldCenter: CGFloat, of tray: UIView, in stage: UIView, look: TrayMorphLook, from start: Start? = nil) {
+  init(card: CGRect, fieldCenter: CGFloat, of tray: UIView, in stage: UIView, look: TrayMorphLook, from start: Start?) {
     let cardFrame = tray.convert(card, to: stage).offsetBy(dx: 0, dy: Self.unfinishedTravel(of: tray))
     let snapshot = tray.resizableSnapshotView(from: card, afterScreenUpdates: false, withCapInsets: .zero)
     view = TrayMorphView(look: look, contents: snapshot, cardSize: card.size, fieldCenter: fieldCenter)
@@ -131,9 +131,9 @@ struct TrayMorphLook {
 }
 
 final class TrayMorphView: UIView {
-  let tint = UIView()
-  let contents = UIView()
-  let faceSlot = UIView()
+  fileprivate let tint = UIView()
+  fileprivate let contents = UIView()
+  fileprivate let faceSlot = UIView()
   private let surface: UIView
   private let classicFill: UIColor?
   private let cardSize: CGSize

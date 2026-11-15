@@ -25,14 +25,11 @@ public enum BrowsePalette {
   public static let popover = Palette.panel
   public static let loadingBorder = Palette.accent
   public static let findError = Color(hex: 0xC93333)
-  public static let fieldFill = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.12))
   public static let fieldStroke = Color.adaptive(light: .black.opacity(0.06), dark: .white.opacity(0.08))
   public static let searchAccent = Palette.formAccent
   public static let rowIcon = Color.adaptive(light: .black.opacity(0.42), dark: .white.opacity(0.5))
   public static let incognitoSheet = Color(hex: 0x151517)
-  public static let incognitoField = Color.white.opacity(0.12)
-  public static let incognitoCaption = Color.white.opacity(0.55)
-  public static let toolbarTile = Color.adaptive(light: .black.opacity(0.05), dark: .white.opacity(0.08))
+  public static let rowHighlight = Color.adaptive(light: .black.opacity(0.05), dark: .white.opacity(0.08))
   public static let notSecure = Color.adaptive(light: Color(hex: 0xF7931E), dark: Color(hex: 0xFF9F0A))
   public static let searchField = Color.adaptive(light: .white, dark: .white.opacity(0.12))
   public static let classicBarShadow = Color.adaptive(light: .black.opacity(0.12), dark: .black.opacity(0.4))
@@ -40,15 +37,10 @@ public enum BrowsePalette {
 
 public enum BrowseLayout {
   public static let sheetTopRadius: CGFloat = 40
-  public static let sheetTintShare: Double = 0.8
   public static let searchFieldHeight: CGFloat = 47.5
-  public static let searchFieldInset: CGFloat = 15
   public static let suggestionPitch: CGFloat = 58.5
   public static let suggestionIcon: CGFloat = 15
   public static let sheetAboveKeyboard: CGFloat = 274
-  public static let trayFieldTop: CGFloat = 15
-  public static let trayDim: Double = 0.28
-  public static let logoSize: CGFloat = 132
   public static let barControl: CGFloat = 48
   public static let barGap: CGFloat = 8
   public static let barEdgeInset: CGFloat = 12
@@ -70,51 +62,27 @@ public enum BrowseLayout {
   public static let tabStackRadius: CGFloat = 5
   public static let tabStackTile = CGSize(width: 20, height: 26)
   public static let barBottomGap: CGFloat = 21.5
-  public static let trayDepartLift: CGFloat = 120
   public static let barReturnScale: CGFloat = 0.8
   public static let barReturnShift: CGFloat = 12
   public static let hitTarget: CGFloat = 44
   public static let barHeight: CGFloat = 75
   public static let progressHeight: CGFloat = 2.5
-  public static let toolbarTile: CGFloat = 78
 }
 
 public extension Motion {
   static let searchRise = rise
   static let surfaceSwap = Animation.easeOut(duration: 0.18)
   static let surfaceFade = fade
-  static let trayDimCurve = MotionCurve.easeOut(duration: 0.2)
-  static let trayDim = trayDimCurve.animation
-  static let trayDismiss = leave
-  static let departCurve = MotionCurve(0.2, 0, 0, 1, duration: 0.2)
-  static let depart = departCurve.animation
-  static let traySettle = smooth
   static let barReturn = smooth
   static let barReturnDelay: Double = 0.12
   static let barReturnFade = fade
   static let barLeave = Animation.easeOut(duration: 0.1)
-  static let trayWiden = Spring(response: 0.18, dampingRatio: 1)
-  static let trayDeepen = Spring(response: 0.24, dampingRatio: 1)
-  static let trayOpenWiden = Spring(response: 0.12, dampingRatio: 1)
-  static let trayFold = Spring(response: 0.1, dampingRatio: 1)
-  static let trayFoldBeforeNarrowing: CGFloat = 0.8
-  static let trayFaceFade = MotionCurve.easeOut(duration: 0.06)
-  static let trayFaceLead: Double = 0.04
-  static let trayFaceArrival = MotionCurve.easeOut(duration: 0.1)
-  static let trayFaceArrivalDelay: Double = 0.02
-  static let trayContentFade = MotionCurve.easeOut(duration: 0.035)
-  static let trayTintFade = MotionCurve(0.42, 0, 0.58, 1, duration: 0.16)
-  static let trayShadowIn = MotionCurve.easeOut(duration: 0.15)
-  static let trayFoldLag: Double = 1.0 / 60
-  static let trayHandOff = MotionCurve.easeOut(duration: 0.1)
-  static let trayRevealCurve = MotionCurve.easeOut(duration: 0.12)
-  static let trayRevealFieldDelay: Double = 0.06
-  static let trayRevealField = trayRevealCurve.animation.delay(trayRevealFieldDelay)
-  static let trayRevealRows = trayRevealCurve.animation.delay(0.09)
   static let resultsIn = Animation.easeOut(duration: 0.1)
   static let pager = smooth
   static let press = Animation.spring(response: 0.16, dampingFraction: 1)
   static let barCollapse = smooth
+  static let reducedMotion = Animation.easeOut(duration: 0.2)
+  static let reducedMotionCurve = MotionCurve.easeOut(duration: 0.2)
   static let progressReveal = Animation.easeOut(duration: 0.15)
   static let progressAdvance = Animation.easeOut(duration: 0.3)
   static let progressFill = Animation.easeOut(duration: 0.15)

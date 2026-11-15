@@ -4,8 +4,8 @@ import UIKit
 
 @MainActor
 final class TrayEmergence {
-  let pill: CGRect
-  let fieldCenter: CGFloat
+  private let pill: CGRect
+  private let fieldCenter: CGFloat
   private let mask = UIView()
   private let cardLens = UIView()
   private let fieldLens = UIView()
@@ -19,12 +19,12 @@ final class TrayEmergence {
     let to: Value
   }
 
-  static let shadowRoom: CGFloat = 18
-  static let fieldClearance: CGFloat = 1
-  static let settlePoll: Duration = .milliseconds(16)
-  static let settleDeadline: Duration = .seconds(1)
+  private static let shadowRoom: CGFloat = 18
+  private static let fieldClearance: CGFloat = 1
+  private static let settlePoll: Duration = .milliseconds(16)
+  private static let settleDeadline: Duration = .seconds(1)
 
-  var isSettled: Bool {
+  private var isSettled: Bool {
     let lensesIdle = [cardLens, fieldLens, shadowLens].allSatisfy { ($0.layer.animationKeys() ?? []).isEmpty }
     guard isOpening, lensesIdle else { return false }
     guard let face else { return true }

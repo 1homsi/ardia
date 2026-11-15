@@ -36,7 +36,7 @@ struct SearchHomeView: View {
       }
     }
     .ignoresSafeArea(.keyboard)
-    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.searchRise, value: isTrayUp)
+    .animation(reduceMotion ? Motion.reducedMotion : Motion.searchRise, value: isTrayUp)
     .accessibilityHidden(isTrayUp)
     .preferredColorScheme(app.isIncognito ? .dark : nil)
     .task {

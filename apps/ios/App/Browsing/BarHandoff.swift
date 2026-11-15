@@ -51,11 +51,11 @@ struct BarAnchor: Equatable {
 }
 
 struct BarFaceImage {
-  let owner: BarOwner
-  let content: BarFace.Content
-  let isDark: Bool
-  let size: CGSize
-  let image: UIImage
+  private let owner: BarOwner
+  private let content: BarFace.Content
+  private let isDark: Bool
+  private let size: CGSize
+  private let image: UIImage
 
   init(image: UIImage, of anchor: BarAnchor) {
     owner = anchor.owner

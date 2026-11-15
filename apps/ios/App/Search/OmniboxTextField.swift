@@ -10,7 +10,7 @@ struct OmniboxTextField: UIViewRepresentable {
   var placeholder: String
   var isIncognito: Bool
   var selectsAllOnFocus: Bool
-  var reveal = TrayReveal()
+  var reveal: TrayReveal
   var onSubmit: (String) -> Void
 
   func makeCoordinator() -> Coordinator {
@@ -66,10 +66,7 @@ struct OmniboxTextField: UIViewRepresentable {
     coordinator.offer(completion, to: field)
     field.wantsFocus = isFocused
     if isFocused, !field.isFirstResponder, field.window != nil {
-      DispatchQueue.main.async {
-        guard self.isFocused, !field.isFirstResponder else { return }
-        field.becomeFirstResponder()
-      }
+      field.becomeFirstResponderNextTurn(ifStillWanted: { self.isFocused })
     } else if !isFocused, field.isFirstResponder {
       if reveal.isLeaving { field.freezeAppearance() }
       DispatchQueue.main.async {
@@ -83,14 +80,13 @@ struct OmniboxTextField: UIViewRepresentable {
     let placeholderStyle = PlaceholderStyle(text: isFocused ? placeholder : "", isIncognito: isIncognito)
     if field.placeholderStyle != placeholderStyle {
       field.placeholderStyle = placeholderStyle
-      let placeholderColor = isIncognito ? UIColor.white.withAlphaComponent(0.45) : UIColor(BrowsePalette.foregroundTertiary)
+      let placeholderColor = isIncognito ? UIColor.incognitoPlaceholder : UIColor(BrowsePalette.foregroundTertiary)
       field.attributedPlaceholder = placeholderStyle.text.isEmpty
         ? nil
         : NSAttributedString(string: placeholderStyle.text, attributes: [.foregroundColor: placeholderColor])
     }
     field.textColor = isIncognito ? .white : UIColor(BrowsePalette.foregroundPrimary)
     field.tintColor = UIColor(BrowsePalette.searchAccent)
-    field.completionColor = UIColor(BrowsePalette.searchAccent).withAlphaComponent(0.3)
     field.keyboardAppearance = isIncognito ? .dark : .default
   }
 
@@ -160,7 +156,7 @@ struct OmniboxTextField: UIViewRepresentable {
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
       guard let field = textField as? CompletingTextField else { return true }
       let submitted = field.editor.display
-      guard !submitted.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+      guard SearchInput.submission(from: submitted) != nil else { return false }
       parent.onSubmit(submitted)
       return false
     }
@@ -198,7 +194,7 @@ struct PlaceholderStyle: Equatable {
 final class CompletingTextField: UITextField {
   var editor = InlineCompletionEditor()
   var placeholderStyle: PlaceholderStyle?
-  var completionColor = UIColor.systemBlue.withAlphaComponent(0.3)
+  private let completionColor = UIColor(BrowsePalette.searchAccent).withAlphaComponent(0.3)
   private(set) var isApplyingCompletion = false
   var wantsFocus = false
   var typedLength: Int { (editor.typed as NSString).length }
@@ -208,8 +204,12 @@ final class CompletingTextField: UITextField {
   override func didMoveToWindow() {
     super.didMoveToWindow()
     guard wantsFocus, window != nil else { return }
+    becomeFirstResponderNextTurn(ifStillWanted: { [weak self] in self?.wantsFocus == true && self?.window != nil })
+  }
+
+  func becomeFirstResponderNextTurn(ifStillWanted isWanted: @escaping () -> Bool) {
     DispatchQueue.main.async { [weak self] in
-      guard let self, self.wantsFocus, self.window != nil, !self.isFirstResponder else { return }
+      guard let self, isWanted(), !self.isFirstResponder else { return }
       self.becomeFirstResponder()
     }
   }

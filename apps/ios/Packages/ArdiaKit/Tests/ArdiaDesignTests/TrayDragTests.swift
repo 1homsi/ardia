@@ -20,9 +20,9 @@ struct TrayDragTests {
     #expect(!TrayDrag.shouldDismiss(translation: 40, velocity: 60, trayHeight: 274))
   }
 
-  @Test func `a slow drag past the distance dismisses`() {
-    let distance = TrayDrag.dismissDistance(trayHeight: 274)
-    #expect(TrayDrag.shouldDismiss(translation: distance + 1, velocity: 0, trayHeight: 274))
+  @Test func `a slow drag past about a third of the tray dismisses`() {
+    #expect(!TrayDrag.shouldDismiss(translation: 90, velocity: 0, trayHeight: 274))
+    #expect(TrayDrag.shouldDismiss(translation: 100, velocity: 0, trayHeight: 274))
   }
 
   @Test func `a flick down dismisses from a short distance`() {
@@ -38,8 +38,13 @@ struct TrayDragTests {
   }
 
   @Test func `a compact tray needs a proportionally shorter drag`() {
-    #expect(TrayDrag.dismissDistance(trayHeight: 78) < TrayDrag.dismissDistance(trayHeight: 274))
-    #expect(TrayDrag.dismissDistance(trayHeight: 2000) == TrayDrag.distanceCap)
+    #expect(TrayDrag.shouldDismiss(translation: 40, velocity: 0, trayHeight: 78))
+    #expect(!TrayDrag.shouldDismiss(translation: 40, velocity: 0, trayHeight: 274))
+  }
+
+  @Test func `a very tall tray still dismisses from a capped distance`() {
+    #expect(!TrayDrag.shouldDismiss(translation: 110, velocity: 0, trayHeight: 2000))
+    #expect(TrayDrag.shouldDismiss(translation: 125, velocity: 0, trayHeight: 2000))
   }
 
   @Test func `the keyboard waits for a deliberate pull`() {

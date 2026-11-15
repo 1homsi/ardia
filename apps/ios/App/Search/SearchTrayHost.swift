@@ -17,9 +17,9 @@ struct SearchTrayHost: View {
   @State private var removalTask: Task<Void, Never>?
   @State private var barSnapshotTask: Task<Void, Never>?
 
-  static let removalPoll: Duration = .milliseconds(16)
-  static let removalDeadline: Duration = .seconds(1.5)
-  static let barRest: Duration = .milliseconds(350)
+  private static let removalPoll: Duration = .milliseconds(16)
+  private static let removalDeadline: Duration = .seconds(1.5)
+  private static let barRest: Duration = .milliseconds(350)
 
   var body: some View {
     GeometryReader { proxy in
@@ -85,14 +85,14 @@ struct SearchTrayHost: View {
     if shown == nil, !app.browse.trayHoldsKeyboard {
       let anchor = app.barAnchor
       barSnapshotTask?.cancel()
-      motion.emerge(from: morphsIntoBar ? anchor : nil, fieldCenter: BrowseLayout.panelFieldInset + BrowseLayout.searchFieldHeight * fieldScale / 2)
+      motion.emerge(from: morphsIntoBar ? anchor : nil, fieldCenter: BrowseLayout.panelFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight * fieldScale))
     }
     if shown == nil || motion.isClosing { presentation += 1 }
     shown = request
     reserveBarPill()
     app.browse.trayHoldsKeyboard = true
     app.browse.bar.stopLanding()
-    motion.present(dimLevel: request.origin == .page ? BrowseLayout.trayDim : 0.001) { [app] in app.cancelSearch() }
+    motion.present(dimLevel: request.origin == .page ? BrowseLayout.trayDim : BrowseLayout.trayInvisibleDim) { [app] in app.cancelSearch() }
   }
 
   private func refreshRecents() {
@@ -118,7 +118,7 @@ struct SearchTrayHost: View {
   }
 
   private func finish() {
-    let lands = motion.isLanding
+    let lands = motion.isFlyingToBar
     motion.finish()
     shown = nil
     if lands { app.browse.bar.land(for: Motion.trayHandOff.duration) } else { app.browse.bar.stopLanding() }
@@ -127,8 +127,8 @@ struct SearchTrayHost: View {
   }
 
   private var exit: TrayExit {
-    if app.browse.searchEnding == .submitted { return .depart }
-    return morphLook.map(TrayExit.morph) ?? .drop
+    if app.browse.searchLandsInBar { return .morph(morphLook) }
+    return app.browse.searchEnding == .submitted ? .depart : .drop
   }
 
   private var morphsIntoBar: Bool {
@@ -155,8 +155,7 @@ struct SearchTrayHost: View {
     app.browse.bar.morphsIntoBar = morphsIntoBar
   }
 
-  private var morphLook: TrayMorphLook? {
-    guard app.browse.bar.morphsIntoBar else { return nil }
+  private var morphLook: TrayMorphLook {
     let isIncognito = app.isIncognito
     return TrayMorphLook(
       usesGlass: usesGlass,
@@ -176,16 +175,12 @@ struct SearchTrayHost: View {
         if releasesKeyboard { motion.isFocused = false }
       }
       .onEnded { value in
-        guard motion.isDragging else { return }
-        let translation = motion.dragEnded(translation: value.translation.height)
-        let trayVelocity = TrayDrag.trayVelocity(translation: translation, fingerVelocity: value.velocity.height)
-        if TrayDrag.shouldDismiss(translation: translation, velocity: value.velocity.height, trayHeight: motion.trayHeight) {
-          motion.releaseVelocity = trayVelocity
-          app.cancelSearch()
-        } else {
-          if motion.heldLift != nil, !app.settings.isShowingOnboarding { motion.isFocused = true }
-          motion.settle(velocity: trayVelocity)
-        }
+        let release = motion.release(
+          translation: value.translation.height,
+          fingerVelocity: value.velocity.height,
+          refocusesHeldKeyboard: app.searchFieldMayFocus
+        )
+        if release == .dismiss { app.cancelSearch() }
       }
   }
 }

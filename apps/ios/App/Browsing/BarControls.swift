@@ -162,7 +162,6 @@ struct BarAddressLabel: View {
 
 struct BarAddressField: View {
   let address: BarAddress
-  var showsMenu = true
   let onAddress: () -> Void
   let onMore: () -> Void
 
@@ -178,10 +177,8 @@ struct BarAddressField: View {
       .accessibilityLabel(address.isInsecure ? Text("Address, Not Secure") : Text("Address"))
       .accessibilityValue(Text(address.host))
       .accessibilityHint("Opens search with this page’s address.")
-      if showsMenu {
-        BarMenuButton(action: onMore)
-          .padding(.trailing, BrowseLayout.barMenuTrail)
-      }
+      BarMenuButton(action: onMore)
+        .padding(.trailing, BrowseLayout.barMenuTrail)
     }
     .frame(height: BrowseLayout.barControl)
     .frame(maxWidth: .infinity)

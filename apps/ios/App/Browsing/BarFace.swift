@@ -34,7 +34,7 @@ struct BarFace: View {
     .frame(width: size.width, height: size.height)
   }
 
-  var address: BarAddress? {
+  private var address: BarAddress? {
     switch content {
     case .address(let address), .collapsedAddress(let address): address
     case .plus: nil

@@ -11,16 +11,16 @@ final class TrayMotion {
   private(set) var isClosing = false
   var isFocused = false
   @ObservationIgnored var reduceMotion = false
-  @ObservationIgnored var releaseVelocity: CGFloat = 0
   @ObservationIgnored var barAnchor: () -> BarAnchor? = { nil }
   @ObservationIgnored var barFace: BarFaceImage?
-  @ObservationIgnored private(set) var isDragging = false
-  @ObservationIgnored private(set) var heldLift: CGFloat?
   @ObservationIgnored private(set) lazy var controller: TrayStageController = {
     let controller = TrayStageController()
     controller.onResize = { [weak self] in self?.place() }
     return controller
   }()
+  @ObservationIgnored private var isDragging = false
+  @ObservationIgnored private var heldLift: CGFloat?
+  @ObservationIgnored private var releaseVelocity: CGFloat = 0
   @ObservationIgnored private var keyboard: KeyboardTracker?
   @ObservationIgnored private var keyboardHeight: CGFloat = 0
   @ObservationIgnored private var isShown = false
@@ -33,18 +33,26 @@ final class TrayMotion {
   @ObservationIgnored private var landingTask: Task<Void, Never>?
   @ObservationIgnored private var rise: UIViewPropertyAnimator?
   @ObservationIgnored private var releaseTask: Task<Void, Never>?
-  @ObservationIgnored private var fieldCenter = BrowseLayout.panelFieldInset + BrowseLayout.searchFieldHeight / 2
+  @ObservationIgnored private var fieldCenter = BrowseLayout.panelFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight)
   @ObservationIgnored private var emergence: TrayEmergence?
   @ObservationIgnored private var morph: TrayMorph?
   @ObservationIgnored private var fadingMorph: TrayMorph?
   @ObservationIgnored private var pendingFlight: PendingFlight?
 
-  static let keyboardThreshold: CGFloat = 120
-  static let keyboardWait: Duration = .milliseconds(220)
-  static let reducedMotion = MotionCurve.easeOut(duration: 0.2)
-  static let keyboardGrace: Duration = .milliseconds(50)
+  private static let keyboardThreshold: CGFloat = 120
+  private static let keyboardWait: Duration = .milliseconds(220)
+  private static let keyboardGrace: Duration = .milliseconds(50)
+  private static let heldLiftGrace: Duration = .milliseconds(650)
+  private static let heldLiftTolerance: CGFloat = 2
+  private static let stillReleaseSpeed: CGFloat = 1
+  private static let commandBarTuckedScale: CGFloat = 0.96
 
-  enum Curve {
+  enum Release {
+    case dismiss
+    case stay
+  }
+
+  private enum Curve {
     case immediate
     case spring(Spring, velocity: CGFloat)
     case timing(MotionCurve)
@@ -55,9 +63,9 @@ final class TrayMotion {
     var fallback: Task<Void, Never>?
   }
 
-  var keyboardUp: Bool { keyboardHeight > Self.keyboardThreshold }
-  var trayHeight: CGFloat { controller.trayHeight }
-  var isLanding: Bool { morph?.hasDestination == true }
+  private var keyboardUp: Bool { keyboardHeight > 0 }
+  private var trayHeight: CGFloat { controller.trayHeight }
+  var isFlyingToBar: Bool { morph?.hasDestination == true }
 
   var hasSettled: Bool {
     guard !keyboardUp, pendingFlight == nil else { return false }
@@ -92,7 +100,7 @@ final class TrayMotion {
     landingTask = Task { [weak self] in
       try? await Task.sleep(for: Self.keyboardWait)
       guard let self, !Task.isCancelled, isShown, !isClosing, !hasLanded else { return }
-      rise = move(.timing(reduceMotion ? Self.reducedMotion : Motion.riseCurve)) { [self] in self.hasLanded = true }
+      rise = move(.timing(reduceMotion ? Motion.reducedMotionCurve : Motion.riseCurve)) { [self] in self.hasLanded = true }
     }
   }
 
@@ -123,9 +131,9 @@ final class TrayMotion {
     } else {
       let travel = trayHeight + (heldLift ?? 0) + BrowseLayout.sheetTopRadius
       let slidesOut = heldLift != nil && !reduceMotion
-      let distance = (slidesOut ? max(travel - dragOffset, 0) : 0) + (reduceMotion ? 0 : trayHeight + BrowseLayout.sheetTopRadius)
+      let distance = (slidesOut ? max(travel - dragOffset, 0) : 0) + (reduceMotion ? 0 : offscreenDrop)
       let velocity = Motion.relativeVelocity(releaseVelocity, over: distance)
-      move(reduceMotion ? .timing(Self.reducedMotion) : .spring(Motion.leaveSpring, velocity: velocity)) { [self] in
+      move(reduceMotion ? .timing(Motion.reducedMotionCurve) : .spring(Motion.leaveSpring, velocity: velocity)) { [self] in
         isClosing = true
         if slidesOut { dragOffset = max(dragOffset, travel) }
       }
@@ -159,19 +167,32 @@ final class TrayMotion {
     move(.immediate) { [self] in dragOffset = TrayDrag.offset(for: grabbedAt + translation) }
   }
 
-  func dragEnded(translation: CGFloat) -> CGFloat {
+  func release(translation: CGFloat, fingerVelocity: CGFloat, refocusesHeldKeyboard: @autoclosure () -> Bool) -> Release {
+    guard isDragging else { return .stay }
+    let travelled = endDrag(translation: translation)
+    let trayVelocity = TrayDrag.trayVelocity(translation: travelled, fingerVelocity: fingerVelocity)
+    if TrayDrag.shouldDismiss(translation: travelled, velocity: fingerVelocity, trayHeight: trayHeight) {
+      releaseVelocity = trayVelocity
+      return .dismiss
+    }
+    if heldLift != nil, refocusesHeldKeyboard() { isFocused = true }
+    settle(velocity: trayVelocity)
+    return .stay
+  }
+
+  private func endDrag(translation: CGFloat) -> CGFloat {
     isDragging = false
     defer { grabbedAt = 0 }
     return grabbedAt + translation
   }
 
-  func settle(velocity trayVelocity: CGFloat) {
+  private func settle(velocity trayVelocity: CGFloat) {
     let wasHolding = heldLift != nil
     let velocity = Motion.relativeVelocity(trayVelocity, over: -dragOffset)
-    move(reduceMotion ? .timing(Self.reducedMotion) : .spring(Motion.smoothSpring, velocity: velocity)) { [self] in dragOffset = 0 }
+    move(reduceMotion ? .timing(Motion.reducedMotionCurve) : .spring(Motion.smoothSpring, velocity: velocity)) { [self] in dragOffset = 0 }
     guard wasHolding else { return }
     releaseTask = Task { [weak self] in
-      try? await Task.sleep(for: .milliseconds(650))
+      try? await Task.sleep(for: Self.heldLiftGrace)
       guard let self, !Task.isCancelled, !isDragging, heldLift != nil else { return }
       move(.spring(Motion.smoothSpring, velocity: 0)) { [self] in self.heldLift = nil }
     }
@@ -187,7 +208,7 @@ final class TrayMotion {
       UIView.performWithoutAnimation { rise.stopAnimation(true) }
     }
     rise = nil
-    if !isDragging, let held = heldLift, abs(liveLift - held) < 2 {
+    if !isDragging, let held = heldLift, abs(liveLift - held) < Self.heldLiftTolerance {
       heldLift = nil
     }
     controller.keyboardSentinel.center.y = height
@@ -240,7 +261,7 @@ final class TrayMotion {
     }
     let target = controller.view.convert(anchor.frame, from: nil)
     let face = face(fitting: anchor)
-    if abs(velocity) < 1, let clock = KeyboardClock(layer: controller.keyboardSentinel.layer) {
+    if abs(velocity) < Self.stillReleaseSpeed, let clock = KeyboardClock(layer: controller.keyboardSentinel.layer) {
       morph.fly(to: target, style: anchor.style, carrying: face, timing: clock.timing, duration: clock.duration)
     } else {
       let distance = target.midY - morph.view.frame.midY
@@ -280,7 +301,6 @@ final class TrayMotion {
   }
 
   private func endEmergence() {
-    emergence?.fadeFace(from: CACurrentMediaTime())
     emergence?.end(on: controller.tray)
     emergence = nil
     if !revealsContents { revealsContents = true }
@@ -307,13 +327,15 @@ final class TrayMotion {
 
   private var isCommandBar: Bool { controller.commandTop != nil }
 
+  private var offscreenDrop: CGFloat { trayHeight + BrowseLayout.sheetTopRadius }
+
   private var trayOffset: CGFloat {
     let departure = isDeparting ? -BrowseLayout.trayDepartLift : 0
     guard !isCommandBar else { return dragOffset + departure }
     if let emergence, !isUp, !isClosing {
       return emergence.restingOffset(trayHeight: trayHeight, stageBottom: controller.view.bounds.maxY) + dragOffset
     }
-    let restingDrop = isUp || isDeparting || reduceMotion ? 0 : trayHeight + BrowseLayout.sheetTopRadius
+    let restingDrop = isUp || isDeparting || reduceMotion ? 0 : offscreenDrop
     return -(heldLift ?? liveLift) + dragOffset + restingDrop + departure
   }
 
@@ -353,7 +375,7 @@ final class TrayMotion {
   private func place() {
     let tray = controller.tray
     let lift = heldLift ?? liveLift
-    let scale: CGFloat = isCommandBar && !isUp && !reduceMotion ? 0.96 : 1
+    let scale: CGFloat = isCommandBar && !isUp && !reduceMotion ? Self.commandBarTuckedScale : 1
     tray.isHidden = !isShown
     tray.transform = CGAffineTransform(translationX: 0, y: trayOffset).scaledBy(x: scale, y: scale)
     tray.alpha = trayAlpha

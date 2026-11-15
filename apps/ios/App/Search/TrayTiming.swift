@@ -13,30 +13,12 @@ extension MotionCurve {
 }
 
 extension Spring {
-  static let fullyThere: CGFloat = 0.98
-
   var timingParameters: UISpringTimingParameters {
     UISpringTimingParameters(duration: duration, bounce: bounce)
   }
 
   func timingParameters(initialVelocity: CGFloat) -> UISpringTimingParameters {
     UISpringTimingParameters(duration: duration, bounce: bounce, initialVelocity: CGVector(dx: 0, dy: initialVelocity))
-  }
-
-  func criticalProgress(at time: Double) -> Double {
-    let omega = 2 * Double.pi / duration
-    return 1 - (1 + omega * time) * exp(-omega * time)
-  }
-
-  func time(toReach progress: CGFloat) -> CFTimeInterval {
-    let target = min(max(progress, 0), Self.fullyThere)
-    guard target > 0 else { return 0 }
-    var time = 0.0
-    while time < settlingDuration {
-      if criticalProgress(at: time) >= Double(target) { return time }
-      time += 0.002
-    }
-    return settlingDuration
   }
 }
 

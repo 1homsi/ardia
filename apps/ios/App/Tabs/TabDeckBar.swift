@@ -6,8 +6,8 @@ struct StartBar: View {
   let plus: PlusActions
   let tabs: () -> Void
   let settings: () -> Void
-  var sidesShown = true
-  var centreShown = true
+  let sidesShown: Bool
+  let centreShown: Bool
 
   @Environment(\.screenLayout) private var screenLayout
 
@@ -28,14 +28,14 @@ struct StartBar: View {
       GlassCircleButton(symbol: "square.on.square", label: "Tabs", action: tabs)
         .barReturn(.leading, isShown: sidesShown)
       Spacer(minLength: TabsLayout.barGap)
-      PlusButton(actions: plus, width: TabsLayout.barPlus.width)
+      PlusButton(actions: plus, width: TabsLayout.barPlusWidth)
         .reportsBarAnchor(.start, face: .plus)
         .barReturn(.centre, isShown: centreShown)
       Spacer(minLength: TabsLayout.barGap)
       GlassCircleButton(symbol: "gearshape", label: "Settings", action: settings)
         .barReturn(.trailing, isShown: sidesShown)
     }
-    .padding(.horizontal, geometry.safeSide + TabsLayout.barSideInset)
+    .padding(.horizontal, geometry.safeSide + BrowseLayout.barEdgeInset)
     .frame(width: geometry.container.width)
     .position(x: geometry.container.width / 2, y: geometry.barCenterY)
   }
@@ -55,7 +55,7 @@ struct DeckBottomBar: View {
       SearchTabsField(query: $query, focus: searchFocus)
       PlusButton(actions: plus, width: TabsLayout.barCircle)
     }
-    .padding(.horizontal, geometry.safeSide + TabsLayout.barSideInset)
+    .padding(.horizontal, geometry.safeSide + BrowseLayout.barEdgeInset)
   }
 }
 

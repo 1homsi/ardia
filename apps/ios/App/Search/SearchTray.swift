@@ -7,10 +7,9 @@ struct SearchTray<Drag: Gesture>: View {
   @Binding var isFocused: Bool
   let maxHeight: CGFloat
   let dismissDrag: Drag
-  var reveal = TrayReveal()
+  let reveal: TrayReveal
 
   @Environment(AppModel.self) private var app
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
@@ -100,7 +99,7 @@ struct SearchTray<Drag: Gesture>: View {
         if text.isEmpty, !isFocused {
           Text("Search...")
             .font(.system(size: placeholderSize))
-            .foregroundStyle(isIncognito ? Color.white.opacity(0.45) : BrowsePalette.foregroundTertiary)
+            .foregroundStyle(isIncognito ? BrowsePalette.incognitoPlaceholder : BrowsePalette.foregroundTertiary)
             .lineLimit(1)
             .padding(.leading, CompletingTextField.horizontalInset)
             .allowsHitTesting(false)
@@ -122,7 +121,7 @@ struct SearchTray<Drag: Gesture>: View {
         .fill(isIncognito ? BrowsePalette.incognitoField : BrowsePalette.searchField)
         .overlay {
           Capsule(style: .continuous)
-            .strokeBorder(isIncognito ? Color.white.opacity(0.1) : BrowsePalette.fieldStroke, lineWidth: 0.5)
+            .strokeBorder(isIncognito ? BrowsePalette.incognitoFieldStroke : BrowsePalette.fieldStroke, lineWidth: 0.5)
         }
     }
   }
@@ -246,18 +245,16 @@ struct SearchTray<Drag: Gesture>: View {
     switch suggestion.kind {
     case .query:
       Button(isIncognito ? "Search in New Tab" : "Search in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyes") {
-        leave()
-        app.isIncognito.toggle()
-        app.openSearch(suggestion.query)
+        openSwitchingMode { app.activate(suggestion) }
       }
     case .calculation:
-      if let value = suggestion.copyValue {
-        Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = value }
+      if suggestion.copyValue != nil {
+        Button("Copy", systemImage: "doc.on.doc") { activate(suggestion) }
       }
     default:
       if let link = suggestion.url.flatMap(URL.init(string:)) {
         Button(isIncognito ? "Open in New Tab" : "Open in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyes") {
-          openSwitchingMode(link)
+          openSwitchingMode { app.openPage(link, origin: .typed) }
         }
         Button("Copy Link", systemImage: "link") {
           app.web.copyLink(link)
@@ -270,10 +267,10 @@ struct SearchTray<Drag: Gesture>: View {
     }
   }
 
-  private func openSwitchingMode(_ link: URL) {
+  private func openSwitchingMode(_ open: () -> Void) {
     leave()
     app.isIncognito.toggle()
-    app.openPage(link, origin: .typed)
+    open()
   }
 
   private func scrub(_ rows: [SearchSuggestion]) -> some Gesture {
@@ -309,7 +306,7 @@ struct SearchTray<Drag: Gesture>: View {
     guard point.y <= rowsBudget else { return nil }
     return rows.first { suggestion in
       guard let frame = rowFrames[suggestion.id] else { return false }
-      return frame.minY <= point.y && point.y < frame.maxY && frame.minX - 8 <= point.x && point.x <= frame.maxX + 8
+      return frame.minY <= point.y && point.y < frame.maxY && frame.minX - Spacing.tight <= point.x && point.x <= frame.maxX + Spacing.tight
     }?.id
   }
 
@@ -321,7 +318,7 @@ struct SearchTray<Drag: Gesture>: View {
   }
 
   private var mayFocus: Bool {
-    !app.settings.isShowingOnboarding && !app.browse.isVoicePresented
+    !reveal.isLeaving && app.searchFieldMayFocus
   }
 
   private func rebuildModel() {
@@ -335,12 +332,16 @@ struct SearchTray<Drag: Gesture>: View {
     let model = model
     Task {
       let resolution = await model?.resolve(value)
-      guard resolution != nil || SearchInput.resolve(value) != nil else { return }
+      guard isStillPresented, resolution != nil || SearchInput.resolve(value) != nil else { return }
       isSubmitting = true
       text = value
       leave()
       app.submitSearch(value, resolution: resolution)
     }
+  }
+
+  private var isStillPresented: Bool {
+    app.browse.search != nil
   }
 
   private func activate(_ suggestion: SearchSuggestion) {
@@ -362,9 +363,9 @@ enum TrayPanel {
 }
 
 struct TrayReveal {
-  var revealsContents = true
-  var isLeaving = false
-  var onReveal: (CFTimeInterval) -> Void = { _ in }
+  var revealsContents: Bool
+  var isLeaving: Bool
+  var onReveal: (CFTimeInterval) -> Void
 }
 
 extension View {
