@@ -9,9 +9,12 @@ import { nativeLookColors } from "../../lib/profileLook";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { LookBackdrop, modifierList, profileLook, settingsUIAvailable, useProfileLook, usesGlass } from "../ui";
 import { useChromeStyle } from "../../state/settings/appearance";
+import { ExpoAppearancePage } from "./ExpoAppearancePage";
 import { ExpoSettingsRoot } from "./ExpoSettingsRoot";
 import { SettingsHostedContext } from "./SettingsKit";
 import { SettingsPageFor } from "./SettingsView";
+
+const CONVERTED: Partial<Record<SettingsRoute["page"], () => React.JSX.Element>> = { appearance: ExpoAppearancePage };
 
 const TITLES: Record<SettingsRoute["page"], string> = {
   root: "Settings",
@@ -49,7 +52,7 @@ export function ExpoSettingsStack() {
           <ExpoSettingsRoot />
           {path.map((key) => (
             <NavigationDestination key={key} value={key}>
-              <HostedPage routeKey={key} />
+              <Destination routeKey={key} />
             </NavigationDestination>
           ))}
         </NavigationStack>
@@ -58,9 +61,11 @@ export function ExpoSettingsStack() {
   );
 }
 
-function HostedPage({ routeKey }: { routeKey: string }) {
+function Destination({ routeKey }: { routeKey: string }) {
   const route = settingsRouteFromKey(routeKey);
   if (!route) return null;
+  const Converted = CONVERTED[route.page];
+  if (Converted) return <Converted />;
   return (
     <VStack modifiers={[navigationTitle(TITLES[route.page]), navigationBarTitleDisplayMode("inline"), ignoreSafeArea({ edges: "bottom" })]}>
       <RNHostView>

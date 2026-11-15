@@ -114,7 +114,7 @@ onAndroid("the hand-built redesigned Settings, which Android keeps until its tur
   unmount(root);
 });
 
-test("the Appearance page has main's choices: Color, Interface Style (Match My Mac, Glass, Classic) and Light or Dark (Match My Mac, System, Light, Dark), with main's footers", () => {
+onAndroid("on the hand-built Appearance Android keeps, the page has main's choices: Color, Interface Style (Match My Mac, Glass, Classic) and Light or Dark (Match My Mac, System, Light, Dark), with main's footers", () => {
   openSettings({ page: "appearance" });
   const root = settings("redesigned");
   const text = textOf(root);
@@ -133,7 +133,7 @@ test("the Appearance page has main's choices: Color, Interface Style (Match My M
   unmount(synced);
 });
 
-test("choosing on the page checks the row and keeps the choice in the settings store", () => {
+onAndroid("on the hand-built Appearance Android keeps, choosing on the page checks the row and keeps the choice in the settings store", () => {
   openSettings({ page: "appearance" });
   const root = settings("redesigned");
   const styleRows = () => root.root.findAll((node) => node.props.accessibilityRole === "button" && node.props.accessibilityState && typeof node.props.onPress === "function").slice(0, 3);

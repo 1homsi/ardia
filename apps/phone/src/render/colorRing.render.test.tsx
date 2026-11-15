@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { SettingsView } from "../components/settings/SettingsView";
@@ -28,7 +29,9 @@ const ringOf = (root: ReturnType<typeof renderSurface>, name: string): ReactTest
   return radio.findAll((node) => node.props.testID === "swatchRing" && typeof node.type === "string")[0]!;
 };
 
-test("picking a colour fades its swatch ring in and the old one out on Compose's snappy spring, instead of snapping", () => {
+const onAndroid = Platform.OS === "android" ? test : test.skip;
+
+onAndroid("on the hand-built Appearance Android keeps, picking a colour fades its swatch ring in and the old one out on Compose's snappy spring, instead of snapping", () => {
   const root = renderSurface(<SettingsView />);
   const plum = PROFILE_COLORS.plum.name;
   const other = Object.values(PROFILE_COLORS).find((color) => color.name !== plum)!.name;

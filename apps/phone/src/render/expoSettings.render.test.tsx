@@ -57,7 +57,7 @@ onIos("the native stack's path is the settings store's stack, so a push from any
   act(() => pushSettings({ page: "appearance" }));
   expect(stackOf(root).props.path).toEqual(["appearance"]);
   const destination = hosts(root, (props) => props.name === "destination" && (props.extraProps as { value?: string } | undefined)?.value === "appearance")[0]!;
-  expect(destination.findAll((node) => typeof node.type === "string" && node.props.children === "Interface Style")).toHaveLength(1);
+  expect(destination.findAll((node) => typeof node.type === "string" && node.props.title === "Interface Style")).toHaveLength(1);
   expect(root.root.findAll((node) => node.props.testID === "settingsTitle")).toHaveLength(0);
   act(() => stackOf(root).props.onPathChange({ nativeEvent: { path: [] } }));
   expect(settingsNav().stack).toEqual([{ page: "root" }]);
@@ -74,5 +74,22 @@ onIos("a switch on the root writes its preference, and Done closes Settings", ()
   expect(done).toBeDefined();
   act(() => (done!.props.onButtonPress ?? done!.props.onPress)({ nativeEvent: {} }));
   expect(settingsNav().open).toBe(false);
+  unmount(root);
+});
+
+onIos("on iPhone Appearance is main's page on Expo UI: Color with nine swatches, Interface Style and Light or Dark with main's footers, the chosen rows marked selected, and a tap writing the choice", () => {
+  openSettings({ page: "appearance" });
+  const root = renderSurface(<SettingsView />);
+  const sections = hosts(root, (props) => typeof props.title === "string" && ["Interface Style", "Light or Dark"].includes(props.title as string));
+  expect(sections.map((node) => node.props.title)).toEqual(["Interface Style", "Light or Dark"]);
+  const footers = hosts(root, (props) => typeof props.text === "string" && (props.text as string).startsWith("Match My Mac follows your Mac.")).map((node) => node.props.text);
+  expect(footers).toEqual(["Match My Mac follows your Mac. Reduce Transparency in iOS Settings always uses Classic.", "Match My Mac follows your Mac. System follows this device."]);
+  const buttons = (root: Root) => hosts(root, (props) => Array.isArray(props.modifiers) && (props.modifiers as { $type: string }[]).some((modifier) => modifier.$type === "accessibilityAddTraits"));
+  const traitsOf = (node: ReactTestInstance) => ((node.props.modifiers as { $type: string; traits?: string[] }[]).find((modifier) => modifier.$type === "accessibilityAddTraits")?.traits ?? []);
+  expect(buttons(root).length).toBe(9 + 3 + 4);
+  expect(buttons(root).filter((node) => traitsOf(node).includes("isSelected"))).toHaveLength(3);
+  const glass = buttons(root).find((node) => node.findAll((inner) => typeof inner.props.text === "string" && (inner.props.text as string).startsWith("Glass")).length > 0)!;
+  act(() => (glass.props.onButtonPress ?? glass.props.onPress)({ nativeEvent: {} }));
+  expect(usePreferences.getState().interfaceStyle).toBe("glass");
   unmount(root);
 });
