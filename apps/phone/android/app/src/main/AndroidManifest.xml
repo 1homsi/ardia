@@ -26,6 +26,8 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <profileable android:shell="${ardiaProfileable}" tools:targetApi="29" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|fontScale|assetsPaths"
