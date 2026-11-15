@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 const { folderSymbolFor } = await import("../../../../packages/expo-windows/src/views/folderSymbol.ts");
+const { labelTextStyle } = await import("../../../../packages/expo-windows/src/views/labelStyle.ts");
 
 const repo = new URL("../../../../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, repo), "utf8");
@@ -37,4 +38,12 @@ test("a group's folder is the folder symbol, filled while open, sized to its box
   assert.deepEqual(folderSymbolFor(false, 16), { name: "folder", size: 12.8 });
   assert.deepEqual(folderSymbolFor(true, 20), { name: "folder.fill", size: 16 });
   assert.deepEqual(folderSymbolFor(false, undefined), { name: "folder", size: 12.8 });
+});
+
+test("a label asked to strike its text through draws the line, and one not asked draws none", () => {
+  assert.equal(labelTextStyle({ strikethrough: true }, false).textDecorationLine, "line-through");
+  assert.equal("textDecorationLine" in labelTextStyle({}, false), false);
+  assert.equal("textDecorationLine" in labelTextStyle({ strikethrough: false }, true), false);
+  assert.deepEqual(labelTextStyle({ fontSize: 15, weight: "semibold", color: "#112233" }, true), { fontSize: 15, fontWeight: "600", fontVariant: ["tabular-nums"], color: "#112233" });
+  assert.equal(labelTextStyle({}, true).color, "rgba(255,255,255,0.85)");
 });
