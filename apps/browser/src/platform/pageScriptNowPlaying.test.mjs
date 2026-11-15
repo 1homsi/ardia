@@ -77,3 +77,14 @@ test("media that takes over from the element the card followed picks up where th
   next.currentTime = 1;
   assert.equal(timelineReport(timeline, next, 11_000).position, 51);
 });
+
+test("a preloaded track the site's position was set over still takes over from where the playing one got to", () => {
+  const first = video(0), next = video(0);
+  const timeline = setAt(30, { media: [[first, 0], [next, 0]] });
+  assert.equal(anchorStartedMedia(timeline, first, null, 0), null, "the first one keeps the anchor it was set with");
+  first.currentTime = 20;
+  assert.equal(anchorStartedMedia(timeline, next, first, 20_000), 50);
+  next.currentTime = 1;
+  assert.equal(timelineReport(timeline, next, 21_000).position, 51);
+  assert.equal(anchorStartedMedia(timeline, next, next, 30_000), null, "resuming the one it follows moves nothing");
+});

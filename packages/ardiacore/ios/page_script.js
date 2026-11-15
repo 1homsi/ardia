@@ -354,8 +354,9 @@
   const anchorStartedMedia = (timeline, m, followed, now) => {
     const started = timeline.started;
     timeline.started = true;
-    if (timeline.mediaTimes.has(m)) return null;
-    const position = started ? timelineNow(timeline, mediaAdvanceOf(followed, timeline), now).position : timeline.position;
+    const followedAdvance = followed === m ? null : mediaAdvanceOf(followed, timeline);
+    if (timeline.mediaTimes.has(m) && followedAdvance == null) return null;
+    const position = started ? timelineNow(timeline, followedAdvance, now).position : timeline.position;
     timeline.mediaTimes.set(m, m.currentTime - (position - timeline.position));
     return position;
   };
