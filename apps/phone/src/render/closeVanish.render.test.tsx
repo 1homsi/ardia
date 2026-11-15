@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { TabDeck } from "../components/tabs/TabDeck";
@@ -22,23 +21,24 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-test("a closing card leaves with its puff: gone by half its fly-away instead of fading as a hard-edged ghost to the end, and softened on Android as the puff is", () => {
+test("a closing card fades as one layer while it rises and shrinks, as Compose's does, with no blur of its own and no faster fade, so no pale hard-edged rectangle is left around the puff", () => {
   const root = renderSurface(<TabDeck />);
   const cards = () => root.root.findAll((node) => node.props.testID === "deckCard" && typeof node.type === "string");
+  for (const card of cards()) expect(card.props.needsOffscreenAlphaCompositing).toBe(true);
   act(() => sendDeckCommand({ kind: "closeFocused" }));
-  let blurred = 0;
-  let faded = Infinity;
-  for (let frame = 0; frame < 6; frame++) {
+  const seen: number[] = [];
+  let blurred = false;
+  for (let frame = 0; frame < 7; frame++) {
     act(() => jest.advanceTimersByTime(16));
     for (const card of cards()) {
-      const style = getAnimatedStyle(card) as { opacity?: number; filter?: { blur?: number }[] };
-      const blur = style.filter?.[0]?.blur ?? 0;
-      if (blur > 0 || (style.opacity ?? 1) < 1) faded = Math.min(faded, style.opacity ?? 1);
-      blurred = Math.max(blurred, blur);
+      const style = getAnimatedStyle(card) as { opacity?: number; filter?: unknown[] };
+      if ((style.filter?.length ?? 0) > 0) blurred = true;
+      const opacity = style.opacity ?? 1;
+      if (opacity < 1) seen.push(opacity);
     }
   }
-  expect(faded).toBe(0);
-  if (Platform.OS === "android") expect(blurred).toBeGreaterThan(2);
-  else expect(blurred).toBe(0);
+  expect(blurred).toBe(false);
+  expect(seen.some((opacity) => opacity > 0.1 && opacity < 0.9)).toBe(true);
+  for (let i = 1; i < seen.length; i++) expect(seen[i]!).toBeLessThanOrEqual(seen[i - 1]! + 1e-6);
   unmount(root);
 });

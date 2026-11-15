@@ -137,6 +137,23 @@ export const scrollAfterRemoving = (removed: number, scroll: number, remaining: 
   return Math.min(Math.max(shifted, 0), remaining - 1);
 };
 
+export type DeckSlots = Readonly<Record<string, number>>;
+
+export function deckSlot(id: string, index: number, from: DeckSlots, shift: number, gap: number): number {
+  "worklet";
+  const was = from[id];
+  if (was === undefined) return index;
+  const start = was + shift;
+  return start + (index - start) * gap;
+}
+
+export function deckSlotsNow(ids: readonly string[], from: DeckSlots, shift: number, gap: number): DeckSlots {
+  "worklet";
+  const now: Record<string, number> = {};
+  for (let i = 0; i < ids.length; i++) now[ids[i]!] = deckSlot(ids[i]!, i, from, shift, gap);
+  return now;
+}
+
 export function scrollAfterClosing(position: number, remaining: number, onlyTail: boolean): number {
   return onlyTail ? Math.min(position, initialDeckScroll(remaining)) : position;
 }

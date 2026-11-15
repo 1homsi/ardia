@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  deckSlot,
+  deckSlotsNow,
   archiveCardEdgeY,
   deckScrollActionTarget,
   deckBarBand,
@@ -183,4 +185,17 @@ test("an opening card's picture starts where the page view sat when it was captu
   assert.ok(Math.abs(band.height * scale - 80) < 1e-9);
   assert.equal(band.grown, 1);
   assert.equal(deckBarBand(g, 80, 1).grown, 0);
+});
+
+test("a card's slot starts where it was drawn and ends at its new index, and a second close in the middle of the slide starts from where the first had got to", () => {
+  const first = deckSlotsNow(["a", "b", "c", "d"], {}, 0, 1);
+  assert.deepEqual(first, { a: 0, b: 1, c: 2, d: 3 });
+  assert.equal(deckSlot("c", 1, first, 0, 0), 2);
+  assert.equal(deckSlot("c", 1, first, 0, 1), 1);
+  const midway = deckSlotsNow(["a", "c", "d"], first, 0, 0.5);
+  assert.deepEqual(midway, { a: 0, c: 1.5, d: 2.5 });
+  assert.equal(deckSlot("d", 1, midway, 0, 0), 2.5);
+  assert.equal(deckSlot("d", 1, midway, 0, 1), 1);
+  assert.equal(deckSlot("e", 2, midway, 0, 0), 2);
+  assert.equal(deckSlot("a", 0, first, -1, 0), -1);
 });

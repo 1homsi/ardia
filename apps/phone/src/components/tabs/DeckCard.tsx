@@ -1,14 +1,13 @@
 import { memo } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
-import { DECK, DECK_HEADER, deckBarBand, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
+import { DECK, DECK_HEADER, deckBarBand, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckSlot, deckVisibleWidth, lerp, titleReveal, type DeckGeometry, type DeckSlots } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
-import { POOF } from "../../lib/poof";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
 import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
@@ -40,12 +39,12 @@ export function deckRole(phase: number, expanded: number, index: number): DeckRo
 }
 
 const EXPANDED_Z = 100_000;
-const VANISH_FADE_RATE = 2;
-const CARD_BLURS_AWAY = Platform.OS === "android";
 
 export type DeckMotion = {
   orderIds: SharedValue<readonly string[]>;
   shiftBy: SharedValue<number>;
+  fromSlots: SharedValue<DeckSlots>;
+  gap: SharedValue<number>;
   phase: SharedValue<number>;
   expandedIndex: SharedValue<number>;
   scroll: SharedValue<number>;
@@ -98,7 +97,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
   const fade = Math.min(Math.max(vanish, 0), 1);
   y += lift;
   scale *= 1 - 0.28 * fade;
-  opacity *= Math.max(0, 1 - fade * VANISH_FADE_RATE);
+  opacity *= 1 - fade;
   const settle = role === "stay" ? 1 : Math.max(0, (pp - 0.7) / 0.3);
   const liftFade = Math.max(0, 1 + lift / 120);
   return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift, vanish: fade };
@@ -108,29 +107,13 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
   countRender("DeckCard");
   const theme = useTheme();
   const tone = shownTone(usePageTone(tab.id), tab.themeColorHex);
-  const reduceMotion = useReducedMotion();
-  const { orderIds, shiftBy, phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
+  const { orderIds, shiftBy, fromSlots, gap, phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
   const id = tab.id;
 
   const at = useDerivedValue(() => orderIds.value.indexOf(id), [id]);
-  const place = useSharedValue(index);
-  useAnimatedReaction(
-    () => at.value,
-    (to, from) => {
-      if (to < 0 || to === from) return;
-      if (from === null || from < 0) {
-        place.value = to;
-        return;
-      }
-      place.value = from + shiftBy.value;
-      place.value = reduceMotion ? withTiming(to, { duration: tabsMotion.fade }) : withSpring(to, tabsMotion.gapClose);
-    },
-    [reduceMotion],
-  );
-
   const vanished = useSharedValue(false);
   useAnimatedReaction(
-    () => at.value >= 0 && flyIndex.value === at.value && flyVanish.value * VANISH_FADE_RATE >= 1,
+    () => at.value >= 0 && flyIndex.value === at.value && flyVanish.value >= 1,
     (gone) => {
       if (gone) vanished.value = true;
     },
@@ -143,7 +126,8 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
     const flying = listed && flyIndex.value === i;
     const lift = listed && dragIndex.value === i ? dragLift.value : flying ? flyLift.value : 0;
     const isLast = i === orderIds.value.length - 1;
-    const p = cardPose(g, role, place.value - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : vanished.value || !listed ? 1 : 0, isLast);
+    const slot = listed ? deckSlot(id, i, fromSlots.value, shiftBy.value, gap.value) : 0;
+    const p = cardPose(g, role, slot - scroll.value, scaleProgress.value, positionProgress.value, lift, flying ? flyVanish.value : vanished.value || !listed ? 1 : 0, isLast);
     const top = p.y - (g.cardHeight * p.scale) / 2 - tabsLayout.headerGap - tabsLayout.headerHeight;
     return { pose: p, top, place: deckHeaderPlacement(p.x - (g.cardWidth * p.scale) / 2, p.visible), z: Math.max(i, 0) * 2 + (role === "expanded" ? EXPANDED_Z : 0), expanded: role === "expanded" };
   }, [g, id]);
@@ -152,7 +136,6 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
     return {
       zIndex: placed.value.z,
       opacity: p.opacity,
-      ...(CARD_BLURS_AWAY ? { filter: p.vanish > 0 ? [{ blur: POOF.blurFrom + POOF.blurGrow * p.vanish }] : [] } : {}),
       borderRadius: p.corner / Math.max(p.scale, 0.01),
       transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
     };
@@ -194,6 +177,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
     <>
       <Animated.View
         testID="deckCard"
+        needsOffscreenAlphaCompositing
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         style={[

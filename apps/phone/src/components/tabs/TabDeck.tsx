@@ -31,6 +31,8 @@ import {
   openingDeckScroll,
   scrollAfterClosing,
   scrollAfterRemoving,
+  deckSlotsNow,
+  type DeckSlots,
 } from "../../lib/deckGeometry";
 import {
   beginOpeningTab,
@@ -127,9 +129,11 @@ export function TabDeck() {
   const flyVanish = useSharedValue(0);
   const orderIds = useSharedValue<readonly string[]>(order);
   const shiftBy = useSharedValue(0);
+  const fromSlots = useSharedValue<DeckSlots>({});
+  const gap = useSharedValue(1);
   const motion = useMemo<DeckMotion>(
-    () => ({ orderIds, shiftBy, phase: deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
-    [orderIds, shiftBy, deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
+    () => ({ orderIds, shiftBy, fromSlots, gap, phase: deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
+    [orderIds, shiftBy, fromSlots, gap, deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
   const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
@@ -197,8 +201,9 @@ export function TabDeck() {
     const after = scrollAfterClosing(stays >= 0 ? stays : scrollAfterRemoving(removedAt, Math.round(before), next.length), next.length, onlyTail);
     for (const id of hidden.current) if (!alive.has(id)) hidden.current.delete(id);
     const expanded = phase.id ? next.indexOf(phase.id) : -1;
-    runOnUI((ids: readonly string[], to: number, by: number, expandedAt: number, keepsExpanded: boolean) => {
+    runOnUI((ids: readonly string[], to: number, by: number, expandedAt: number, keepsExpanded: boolean, reduced: boolean) => {
       "worklet";
+      fromSlots.value = deckSlotsNow(orderIds.value, fromSlots.value, shiftBy.value, gap.value);
       flyIndex.value = -1;
       flyVanish.value = 0;
       flyLift.value = 0;
@@ -206,7 +211,9 @@ export function TabDeck() {
       if (keepsExpanded) expandedIndex.value = expandedAt;
       orderIds.value = ids;
       scroll.value = to;
-    })(next, after, after - before, expanded, phase.id !== null);
+      gap.value = 0;
+      gap.value = reduced ? withTiming(1, { duration: tabsMotion.fade }) : withSpring(1, tabsMotion.gapClose);
+    })(next, after, after - before, expanded, phase.id !== null, reduceMotion);
     setAnchor(Math.round(after));
     setOrder(next);
   }, [live]);
