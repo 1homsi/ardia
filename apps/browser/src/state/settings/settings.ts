@@ -1,8 +1,10 @@
 import {
   allEngines,
   controllingExtensionEngine,
+  appUrlRoute,
   engineById,
   extensionEngineId,
+  fixupUrl,
   makeCustomEngine,
   resolveInput,
   validateEngine,
@@ -18,6 +20,7 @@ import { fromLegacyUrl } from "../../lib/legacy";
 import type { BrowserState } from "../browser/store";
 import { DEFAULT_SIDEBAR_WIDTH, PAGE_FRAME, validPageFrame } from "../../lib/windowLayout";
 import { SIDEBAR_TEXT_SIZES } from "../../lib/themeLook";
+import { TAB_CORNERS, validTabCorners } from "../../lib/tabCorners";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import type { SavedObject } from "../../lib/savedDocument";
 import type { JsonSchema } from "../../lib/jsonSchema";
@@ -89,6 +92,7 @@ export const SETTING_SPECS = {
   appLinksFirst: flag(false, SYNCED),
   newTabOpens: oneOf(["page", "commandBar"], "page", SYNCED),
   reuseEmptyNewTab: flag(false, SYNCED),
+  newTabUrl: text("", SYNCED),
   warnBeforeClosingLastTab: flag(true, SYNCED),
   undoReopensClosedTab: flag(false, SYNCED),
   warnBeforeMovingTabsToProfile: flag(true, SYNCED),
@@ -101,6 +105,7 @@ export const SETTING_SPECS = {
   peekModifier: oneOf(["alt", "shift", "off"], "shift", SYNCED),
   peekLinksToOtherSites: flag(true, SYNCED),
   newTabLinksOpenIn: oneOf(["tab", "peek", "littleArdia"], "peek", SYNCED),
+  peekButtons: oneOf(["top", "left", "right"], "top", SYNCED),
   splitLinkModifier: oneOf(["altShift", "alt"], "altShift", SYNCED),
   autoGroupMeetingTabs: flag(true, SYNCED),
   cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
@@ -114,6 +119,7 @@ export const SETTING_SPECS = {
   neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   showTranslateButton: flag(true, SYNCED),
   autoPictureInPicture: flag(true, SYNCED),
+  blockAutoplayEverywhere: flag(false, SYNCED),
   commandScrollZoom: flag(true, SYNCED),
   videoUpscaling: flag(true, SYNCED),
   sidebarMediaControls: flag(true, SYNCED),
@@ -133,6 +139,7 @@ export const SETTING_SPECS = {
   glassTintAmount: fraction(0.8, SYNCED),
   pageScrollBars: oneOf(["system", "thin"], "system", SYNCED),
   fadeUnloadedTabs: flag(false, SYNCED),
+  strikeSleepingTabs: flag(false, SYNCED),
   warnBeforeClosingTabGroup: flag(true, SYNCED),
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
   unloadProfilesAfter: oneOf(["never", "5m", "15m", "1h", "2h"], "never"),
@@ -155,6 +162,7 @@ export const SETTING_SPECS = {
   addressBarButtons: oneOf(["hover", "always"], "hover", SYNCED),
   pageFrame: shaped<number>(PAGE_FRAME.default, validPageFrame, { type: "integer", minimum: PAGE_FRAME.min, maximum: PAGE_FRAME.max }, SYNCED),
   borderlessMode: flag(false, SYNCED),
+  tabCornerRadius: shaped<number | null>(null, validTabCorners, { type: ["integer", "null"], minimum: TAB_CORNERS.min, maximum: TAB_CORNERS.max }, SYNCED),
   minimalismMode: flag(false, SYNCED),
   pageFrameZeroInFullScreen: flag(false, SYNCED),
   pageFrameZeroWhenTabsHidden: flag(false, SYNCED),
@@ -172,6 +180,7 @@ export const SETTING_SPECS = {
   pageEngine: oneOf(["chromium", "webkit"], "chromium"),
   websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit"), recordOf({ type: "string", enum: ["chromium", "webkit"] })),
   protectedVideoInWebKit: flag(true),
+  fairPlayInChromium: flag(false),
   launchActions: shaped<string[]>([], (v) => isStringList(v) && v.length <= 20, { type: "array", items: { type: "string" }, maxItems: 20 }),
   omniboxProviders: shaped<ProviderEntry[]>([], isProviderEntryList, PROVIDERS_SCHEMA),
   readerTextSize: oneOf(READER_SIZE_NAMES, "medium", SYNCED),
@@ -188,6 +197,7 @@ export const NO_SETTINGS_META: SettingsMeta = { chosen: [], inferred: [] };
 
 export type BatterySaverWhen = Settings["batterySaverWhen"];
 export type PeekModifier = Settings["peekModifier"];
+export type PeekButtons = Settings["peekButtons"];
 export type SplitLinkModifier = Settings["splitLinkModifier"];
 
 export const splitLinkModifierOf = (settings: Pick<Settings, "peekModifier" | "splitLinkModifier">): SplitLinkModifier =>
@@ -249,6 +259,14 @@ export function searchUrlPrefix(settings: Settings): string {
 }
 
 export const resolveTyped = (settings: Settings, input: string): string => resolveInput(fromLegacyUrl(input.trim()), searchUrlPrefix(settings));
+
+export function customNewTabUrl(settings: Pick<Settings, "newTabOpens" | "minimalismMode" | "newTabUrl">): string | undefined {
+  if (newTabOpensOf(settings) !== "page") return undefined;
+  const url = fixupUrl(fromLegacyUrl(settings.newTabUrl.trim()));
+  return url && opensAsNewTab(url) ? url : undefined;
+}
+
+const opensAsNewTab = (url: string) => /^https?:\/\/[^/?#]/i.test(url) || url === "about:blank" || appUrlRoute(url)?.kind === "page";
 
 function validateCustomEngine(settings: Settings, input: EngineInput, ignoreId?: string): string | null {
   return validateEngine(input, searchEngines(settings), ignoreId);
