@@ -202,24 +202,14 @@ object PhonePages {
         val frame = kotlinx.coroutines.withContext(Dispatchers.Main.immediate) { views[pageId]?.get()?.let(::frameInWindow) }
         val decoded = picture.copy(Bitmap.Config.ARGB_8888, false)
         val writeStarted = android.os.SystemClock.uptimeMillis()
-        val written = snapshots.writeAhead(pageId, picture, page.isPrivate, quality, scope) { file, ok ->
-            if (ok) scope.launch {
-                if (shared?.existing(pageId) == null) {
-                    file.delete()
-                    ImageMemory.forget(file)
-                }
-            }
-            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${if (ok) "written" else "NOT written"} in ${android.os.SystemClock.uptimeMillis() - writeStarted} ms in the background: ${file.name}")
-        }
-        if (written == null) {
-            decoded?.recycle()
-            return null
-        }
-        val held = written["kept"] != true && decoded != null && ImageMemory.holdDecoded(written["uri"] as String, decoded)
-        if (!held) decoded?.recycle()
+        val written = snapshots.publish(pageId, page, picture, decoded, page.isPrivate, quality, ImageMemory::pinDecoded) { uri, generation ->
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId landed in ${android.os.SystemClock.uptimeMillis() - writeStarted} ms: generation $generation")
+            scope.launch { send(pageId, "page.snapshotLanded", "uri" to uri, "generation" to generation.toDouble()) }
+        } ?: return null
+        val held = written["durable"] == false
         if (PhoneLab.isOn) {
             val done = android.os.SystemClock.uptimeMillis()
-            android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${picture.width}x${picture.height} by ${if (route == CaptureRoute.WindowCopy) "window copy" else "view draw"}, captured in ${captured - started} ms, ${if (held) "decoded picture held in the image cache" else "not held"} and resolved ${done - captured} ms later (the JPEG is written after), page view in window ${frame ?: "unknown"} (dp), top inset cropped ${insets?.first ?: 0.0} dp")
+            android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${picture.width}x${picture.height} by ${if (route == CaptureRoute.WindowCopy) "window copy" else "view draw"}, captured in ${captured - started} ms, ${if (held) "decoded picture pinned in the image cache, resolved before its JPEG lands" else if (written["kept"] == true) "blank, the previous picture kept" else "not pinned, resolved once its JPEG landed"} ${done - captured} ms after capture, page view in window ${frame ?: "unknown"} (dp), top inset cropped ${insets?.first ?: 0.0} dp")
         }
         return written + ("route" to if (route == CaptureRoute.WindowCopy) "windowCopy" else "draw") + ("frame" to frame)
     }
@@ -248,6 +238,7 @@ object PhonePages {
         val page = shared?.existing(pageId)
         if (page != null && fullscreen.owns(page.fullscreen.value)) fullscreen.hide()
         popups.entries.removeAll { it.value.openerId == pageId }
+        if (::snapshots.isInitialized && page != null) snapshots.close(pageId, page)
         shared?.close(pageId)
         if (::snapshots.isInitialized) {
             val files = snapshots.files(pageId)

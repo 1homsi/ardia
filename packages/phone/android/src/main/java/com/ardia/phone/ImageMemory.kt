@@ -32,8 +32,8 @@ object ImageMemory {
             null,
         )
 
-    fun holdDecoded(uri: String, bitmap: Bitmap): Boolean = runCatching {
-        if (!Fresco.hasBeenInitialized()) return false
+    fun pinDecoded(uri: String, bitmap: Bitmap): PageSnapshots.Held? = runCatching {
+        if (!Fresco.hasBeenInitialized()) return null
         val image: com.facebook.imagepipeline.image.CloseableImage = com.facebook.imagepipeline.image.CloseableStaticBitmap.of(
             bitmap,
             com.facebook.imagepipeline.bitmaps.SimpleBitmapReleaser.getInstance(),
@@ -41,13 +41,13 @@ object ImageMemory {
             0,
         )
         val reference = com.facebook.common.references.CloseableReference.of(image)
-        try {
-            Fresco.getImagePipeline().bitmapMemoryCache.cache(decodedKey(uri), reference)?.close()
+        val pinned = try {
+            Fresco.getImagePipeline().bitmapMemoryCache.cache(decodedKey(uri), reference)
         } finally {
             reference.close()
         }
-        true
-    }.getOrDefault(false)
+        pinned?.let { PageSnapshots.Held { it.close() } }
+    }.getOrNull()
 
     data class Cache(val bytes: Int, val count: Int, val inUseBytes: Int, val keptBytes: Int, val keptCount: Int)
 

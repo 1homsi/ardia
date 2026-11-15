@@ -17,10 +17,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class PageSnapshotsTest {
     private val removed = ArrayList<String>()
-    private val snapshots = PageSnapshots(RuntimeEnvironment.getApplication()) {
+    private val snapshots = PageSnapshots(RuntimeEnvironment.getApplication(), onRemoved = {
         removed += it.name
         1
-    }
+    })
 
     private fun page(): Bitmap = Bitmap.createBitmap(64, 128, Bitmap.Config.ARGB_8888).apply {
         eraseColor(Color.WHITE)

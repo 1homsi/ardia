@@ -134,6 +134,8 @@ export type PageSnapshot = {
   route?: "draw" | "windowCopy";
   bytes?: number;
   kept?: boolean;
+  durable?: boolean;
+  generation?: number;
   frame?: { x: number; y: number; width: number; height: number } | null;
 };
 
@@ -174,6 +176,7 @@ export type PageEngineEvent =
     }
   | { name: "page.longPress"; pageId: string; target: PressTarget; x: number; y: number }
   | { name: "page.closeRequested"; pageId: string }
+  | { name: "page.snapshotLanded"; pageId: string; uri: string; generation: number }
   | { name: "page.externalAppMissing"; pageId: string; url: string }
   | { name: "page.desktop"; pageId: string; line: string }
   | { name: "pages.privateSessionEnded" };

@@ -443,7 +443,7 @@ function Lab() {
               <Text style={styles.status}>no snapshot</Text>
             ) : (
               <>
-                <Image source={{ uri: snapshot.uri }} style={styles.snapshot} accessibilityLabel="Snapshot image" />
+                <Image source={{ uri: snapshot.uri }} resizeMethod="scale" style={styles.snapshot} accessibilityLabel="Snapshot image" />
                 <Text style={styles.status}>
                   {snapshot.width}×{snapshot.height}
                 </Text>
