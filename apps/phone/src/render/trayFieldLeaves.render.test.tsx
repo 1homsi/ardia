@@ -1,0 +1,40 @@
+import { act } from "react-test-renderer";
+import { SearchTray } from "../components/search/SearchTray";
+import { DesignProvider } from "../components/ui";
+import type { Design } from "../lib/design";
+import { dismissSearch, presentSearch } from "../state/search/store";
+import { renderSurface, unmount, withTabs } from "../../test/render/harness";
+
+beforeEach(() => {
+  jest.useFakeTimers();
+  withTabs(2);
+});
+
+afterEach(() => {
+  act(() => jest.runOnlyPendingTimers());
+  jest.useRealTimers();
+});
+
+const editableFields = (root: ReturnType<typeof renderSurface>) => root.root.findAll((node) => (node.type === "TextInput" || node.type === ("ArdiaPhoneCompletingField" as never)) && typeof node.type === "string");
+
+for (const design of ["redesigned", "original"] as Design[]) {
+  test(`in the ${design} design, once the tray starts to leave it holds no editable field, so nothing hidden keeps focus or a blinking caret; the words typed stay on show while it leaves`, () => {
+    act(() => presentSearch("page", "otters"));
+    const root = renderSurface(
+      <DesignProvider design={design}>
+        <SearchTray />
+      </DesignProvider>,
+    );
+    act(() => jest.advanceTimersByTime(600));
+    expect(editableFields(root).length).toBe(1);
+    act(() => dismissSearch());
+    act(() => jest.advanceTimersByTime(16));
+    expect(editableFields(root)).toHaveLength(0);
+    const leaving = root.root.findAll((node) => node.props.testID === "trayFieldLeaving" && typeof node.type === "string");
+    expect(leaving).toHaveLength(1);
+    expect(leaving[0]!.props.children).toBe("otters");
+    act(() => jest.advanceTimersByTime(2000));
+    expect(editableFields(root)).toHaveLength(0);
+    unmount(root);
+  });
+}

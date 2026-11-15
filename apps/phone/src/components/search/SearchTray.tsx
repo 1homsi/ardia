@@ -341,7 +341,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
           <View style={{ height: trayHeight, borderRadius: floatingPanelLayout.radius, overflow: "hidden" }}>
             <GestureDetector gesture={dismissDrag}>
               <View collapsable={false}>
-                <TrayField key={session} />
+                <TrayField key={session} closing={closing} />
               </View>
             </GestureDetector>
             <TrayRows dismissDrag={dismissDrag} />
@@ -367,7 +367,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
         <View style={{ height: trayHeight }}>
           <GestureDetector gesture={dismissDrag}>
             <View collapsable={false}>
-              <TrayField key={session} />
+              <TrayField key={session} closing={closing} />
             </View>
           </GestureDetector>
           <TrayRows dismissDrag={dismissDrag} />
@@ -434,12 +434,12 @@ const focusTray = () => trayInput?.focus();
 
 const mayFocusTray = () => !useOnboarding.getState().showing && !useVoice.getState().presented;
 
-function TrayField() {
+function TrayField({ closing }: { closing: boolean }) {
   const version = useSearchFieldVersion();
-  return <FieldInput key={version} first={version === 0} />;
+  return <FieldInput key={version} first={version === 0} closing={closing} />;
 }
 
-function FieldInput({ first }: { first: boolean }) {
+function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
   const leaving = useLeavingActions();
   const theme = useTrayTheme();
   const panelField = useDesign() === "redesigned";
@@ -450,14 +450,26 @@ function FieldInput({ first }: { first: boolean }) {
   const input = useRef<TrayInputHandle | null>(null);
   const submitted = useRef(false);
 
+  const [fieldGone, dropField] = useState(false);
   useEffect(() => {
+    if (closing) {
+      input.current?.blur();
+      dropField(true);
+      return;
+    }
     const focus = setTimeout(() => input.current?.focus(), 0);
     return () => clearTimeout(focus);
-  }, []);
+  }, [closing]);
+  const lastText = useRef(start);
 
   return (
     <View style={useDesign() === "redesigned" ? styles.panelFieldArea : styles.fieldArea}>
       <View style={[styles.field, panelField ? (theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight) : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
+        {fieldGone ? (
+          <Text testID="trayFieldLeaving" numberOfLines={1} style={[font.title3, styles.input, styles.leavingText, { color: lastText.current ? theme.foregroundPrimary : theme.foregroundTertiary }]}>
+            {lastText.current || "Search…"}
+          </Text>
+        ) : (
         <TrayInput
           ref={(field) => {
             input.current = field;
@@ -470,6 +482,7 @@ function FieldInput({ first }: { first: boolean }) {
           placeholderColor={theme.foregroundTertiary}
           accent={theme.formAccent}
           onTyped={(text) => {
+            lastText.current = text;
             if (text.length > 0 !== hasText) setHasText(text.length > 0);
             typeSearch(text);
           }}
@@ -478,6 +491,7 @@ function FieldInput({ first }: { first: boolean }) {
             if (leaving.submit(text)) submitted.current = true;
           }}
         />
+        )}
         {hasText ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => setSearchText("")}>
             <Symbol name="xmarkCircleFill" size={18} color={theme.foregroundTertiary} />
@@ -758,6 +772,7 @@ const styles = StyleSheet.create({
     paddingRight: browseLayout.fieldTrailing,
   },
   input: { flex: 1, paddingVertical: 0, minHeight: browseLayout.searchFieldHeight },
+  leavingText: { textAlignVertical: "center", lineHeight: browseLayout.searchFieldHeight },
   accessory: { width: browseLayout.accessory.width, height: browseLayout.accessory.height, alignItems: "center", justifyContent: "center" },
   rows: { flex: 1 },
   incognito: {
