@@ -465,7 +465,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         val dark = isDark
         val kept = scene?.takeIf { it.width == sceneWidth && it.height == sceneHeight }
         if (kept != null && at == sceneAt && look === sceneLook && dark == sceneDark) return true
-        val bitmap = kept ?: Bitmap.createBitmap(sceneWidth, sceneHeight, Bitmap.Config.ARGB_8888).also {
+        val bitmap = kept ?: Bitmap.createBitmap(sceneWidth, sceneHeight, Bitmap.Config.RGBA_F16).also {
             scene = it
             scenePixels = IntArray(sceneWidth * sceneHeight)
         }
@@ -484,7 +484,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
 
     private fun drawGrain(canvas: Canvas, dark: Boolean) {
         val base = FrostTint.lightness(mesh?.let { it.getPixel(it.width / 2, it.height / 2) } ?: LookSwitch.flatDeck(look, dark).toArgb())
-        val paint = LookPaint.grainOver(density, DeckBackdropStyle.grainOpacity(dark), dark, base)
+        val paint = LookPaint.grainOver(density, DeckBackdropStyle.grainOpacity(dark) * if (dark) SMALL_GRAIN_DARK else SMALL_GRAIN_LIGHT, dark, base)
         if (!canvas.isHardwareAccelerated) {
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
             return
@@ -533,6 +533,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
 
     companion object {
         const val SCENE_SCALE = 8
+        const val SMALL_GRAIN_LIGHT = 1.12f
+        const val SMALL_GRAIN_DARK = 1.4f
     }
 
     private fun angle(index: Int, now: Long): Float {
@@ -742,6 +744,7 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
 
 internal object FrostPage {
     const val SOURCE_NOT_DRAWN = "source not drawn yet"
+    const val OFF_SCREEN = "off screen: nothing to blur until it is seen"
 
     fun holdsPage(view: View, sized: (View) -> Boolean = { it.width > 0 && it.height > 0 }): Boolean {
         if (view.visibility != View.VISIBLE) return false
@@ -768,8 +771,10 @@ internal object FrostPage {
         holdsPage: Boolean,
         pageMode: FrostSources.PageMode,
         lookOff: Boolean = false,
+        onScreen: Boolean = true,
     ): Choice = when {
         lookOff -> Choice(Path.Fallback, "look turned off in the lab")
+        !onScreen -> Choice(Path.Fallback, OFF_SCREEN)
         reduceTransparency -> Choice(Path.Fallback, "reduce transparency")
         budgetDegraded -> Choice(Path.Fallback, "look budget: this phone measured over budget")
         hasSource && onlyBackdropUnder && (!blurOverBackdrop || !blurSupported) -> Choice(Path.Tinted, "only the backdrop under it: a fill tinted from the backdrop's colours, no blur")
@@ -843,7 +848,19 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
     private val there = IntArray(2)
     private var lastOffset = Long.MIN_VALUE
 
+    private val seen = Rect()
+
+    private fun onScreen(): Boolean = isAttachedToWindow && width > 0 && height > 0 && getGlobalVisibleRect(seen)
+
     private val moved = ViewTreeObserver.OnPreDrawListener {
+        if (lastChoice?.reason == FrostPage.OFF_SCREEN) {
+            if (onScreen()) invalidate()
+            return@OnPreDrawListener true
+        }
+        if (lastChoice?.path == FrostPage.Path.Live && !onScreen()) {
+            invalidate()
+            return@OnPreDrawListener true
+        }
         if (lastChoice?.path != FrostPage.Path.Live) return@OnPreDrawListener true
         val from = FrostSources.find(source)
         if (from != null) {
@@ -934,6 +951,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             holdsPage = blurs && from?.holdsPage == true,
             pageMode = FrostSources.pageMode,
             lookOff = lookIsOff,
+            onScreen = onScreen(),
         )
         report(choice, from?.finding?.why)
         if (choice.path == FrostPage.Path.Live && from != null) {

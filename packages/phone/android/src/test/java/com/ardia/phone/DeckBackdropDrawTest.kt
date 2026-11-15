@@ -68,6 +68,27 @@ class DeckBackdropDrawTest {
         }
     }
 
+    private fun columnSteps(bitmap: Bitmap): DoubleArray {
+        val columns = DoubleArray(8)
+        val counts = IntArray(8)
+        for (y in bitmap.height * 5 / 6 until bitmap.height * 5 / 6 + 100) for (x in 0 until bitmap.width - 1) {
+            val p = bitmap.getPixel(x, y)
+            val q = bitmap.getPixel(x + 1, y)
+            columns[x % 8] += (abs(Color.red(p) - Color.red(q)) + abs(Color.green(p) - Color.green(q)) + abs(Color.blue(p) - Color.blue(q))) / 3.0
+            counts[x % 8] += 1
+        }
+        return DoubleArray(8) { columns[it] / counts[it] }
+    }
+
+    @Test
+    fun theScaledUpSceneHasNoStepsOnItsEightPixelGrid() {
+        for (dark in listOf(false, true)) {
+            val steps = columnSteps(painted(deck(1080, 2400, dark), LookSwitch.BackdropDraw.SmallNoGrain))
+            val mean = steps.average()
+            assertTrue("dark $dark: steps by x mod 8 ${steps.joinToString { "%.3f".format(it) }}", steps.all { it <= mean * 1.6 + 0.01 })
+        }
+    }
+
     @Test
     fun grainOverIsTheOverlayBlendDoneWithoutReadingTheScreen() {
         fun overlay(base: Float, grain: Float, opacity: Float): Float {

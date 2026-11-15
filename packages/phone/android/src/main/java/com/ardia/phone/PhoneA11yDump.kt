@@ -17,6 +17,7 @@ object PhoneA11yDump {
     const val MEMORY_ACTION = "com.ardia.phone.MEMORY"
     const val TRIM_ACTION = "com.ardia.phone.TRIM"
     const val FRAMES_ACTION = "com.ardia.phone.FRAMES"
+    const val DECK_PARTS_ACTION = "com.ardia.phone.DECK_PARTS"
     private const val TAG = "PAGELAB"
     private const val PREFIX = "PAGELAB a11y "
 
@@ -62,6 +63,17 @@ object PhoneA11yDump {
                             FrameTrace.trace(shown, seconds * 1000L) { result -> Log.i(TAG, FrameTrace.line(result)) }
                         }
                     }
+                    DECK_PARTS_ACTION -> {
+                        val shown = activity()
+                        val name = intent.getStringExtra("part")
+                        val part = DeckParts.parse(name)
+                        when {
+                            shown == null -> Log.i(TAG, "PAGELAB deck parts: no activity in front")
+                            name == null || name == "inventory" -> shown.window?.decorView?.let { Log.i(TAG, DeckParts.line(DeckParts.inventory(it))) }
+                            part == null -> Log.i(TAG, "PAGELAB deck parts: no part named $name; parts: inventory, ${DeckParts.Part.entries.joinToString { it.name.lowercase() }}")
+                            else -> Log.i(TAG, DeckParts.apply(shown, part))
+                        }
+                    }
                     else -> dump(activity())
                 }
             }
@@ -70,6 +82,7 @@ object PhoneA11yDump {
             addAction(MEMORY_ACTION)
             addAction(TRIM_ACTION)
             addAction(FRAMES_ACTION)
+            addAction(DECK_PARTS_ACTION)
         }
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
         registered = context to receiver

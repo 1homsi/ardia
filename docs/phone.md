@@ -814,6 +814,26 @@ Run it once with the look off (lab › Look) and once with it on, at animator sc
 5. `adb logcat -d -s PAGELAB | grep "PAGELAB perf" > perf-<look>.txt`.
 6. Report from each gfxinfo file: janky frames %, 50th and 90th percentiles, GPU 50th percentile, "Number Slow UI thread" and "Number Slow issue draw commands". From the perf lines, the median js and ui p50 per interaction and the renders.
 
+#### Deck parts (lab build, from sync17)
+
+To find what a deck frame costs, take the deck's parts away one at a time while the backdrop repaints at its
+pace (lab › Look › Backdrop: flat colour, budget forced full), and measure each with the idle gfxinfo and
+framestats. `adb shell am broadcast -a com.ardia.phone.DECK_PARTS -p $P --es part <part>` logs
+`PAGELAB deck parts: …`: what it changed, then an inventory of the shown views (how many are drawn offscreen
+every frame because they are partly transparent and overlap with no layer, listed by size and alpha; hardware
+layers and their pixels; views with elevation; outline and overflow clips; image views and how many are
+pictures; fade views; look views) and the parts applied so far. Parts accumulate until `restore`:
+- `inventory`: the inventory only, nothing changed;
+- `shadows`: elevation and translationZ set to 0;
+- `clips`: clipToOutline off and overflow-hidden views set visible;
+- `snapshots`: image views 100 dp and wider hidden (the page pictures, not favicons);
+- `alpha`: the partly transparent views made opaque, so none is drawn offscreen;
+- `layers`: the same views held on hardware layers instead (keeps their alpha);
+- `bar`: the deck bar's plates hidden;
+- `headers`: the card headers (fade views) hidden;
+- `restore`: everything put back.
+JavaScript re-renders can put a prop back, so apply a part on the settled deck and measure right away.
+
 ## The look's budget
 
 The look (the deck's moving blobs and the frosts) must cost a phone no more than it can carry. A phone measures

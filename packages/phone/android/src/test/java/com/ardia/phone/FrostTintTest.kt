@@ -114,6 +114,15 @@ class FrostTintTest {
     }
 
     @Test
+    fun aFrostOffScreenHoldsNoLayerAndAsksNothingOfItsSource() {
+        val offScreen = FrostPage.choose(blurSupported = true, reduceTransparency = false, hasSource = true, sourceHasContent = true, hardware = true, insideSource = false, holdsPage = false, pageMode = FrostSources.PageMode.Solid, onScreen = false)
+        assertEquals(FrostPage.Path.Fallback, offScreen.path)
+        assertEquals(FrostPage.OFF_SCREEN, offScreen.reason)
+        val seen = FrostPage.choose(blurSupported = true, reduceTransparency = false, hasSource = true, sourceHasContent = true, hardware = true, insideSource = false, holdsPage = false, pageMode = FrostSources.PageMode.Solid, onScreen = true)
+        assertEquals(FrostPage.Path.Live, seen.path)
+    }
+
+    @Test
     fun theLabSwitchForBlurOverTheBackdropIsLabOnlyAndOffByDefault() {
         assertFalse(LookSwitch.blurOverBackdrop(activity, lab = true))
         LookSwitch.setBlurOverBackdrop(activity, true, lab = true)
