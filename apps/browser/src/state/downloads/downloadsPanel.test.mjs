@@ -20,13 +20,18 @@ function oneWindow() {
 }
 const isOpen = (w) => !!S().windowUi[w]?.downloadsOpen;
 
-test("a new download leaves the Downloads panel closed, as Dia's button does", () => {
+test("a new download opens the Downloads panel, and a click on the page still goes through", () => {
   const w = oneWindow();
   S().upsertDownload(download("one"));
+  assert.equal(isOpen(w), true);
+  dismissDownloadsByPress(w);
+  assert.equal(isOpen(w), false, "the press on the next link closes the panel and reaches the page");
   S().upsertDownload(download("two"));
+  assert.equal(isOpen(w), true, "the second download opens it again");
+  setDownloadsOpen(w, false);
   S().upsertDownload({ ...download("one"), state: "finished" });
   assert.equal(S().downloads.length, 2);
-  assert.equal(isOpen(w), false);
+  assert.equal(isOpen(w), false, "an update to a listed download doesn't reopen it");
 });
 
 test("a download held for Keep or Discard opens the panel once", () => {

@@ -4,6 +4,7 @@ import type {
   CallArgs,
   CallName,
   CallResult,
+  ChromeWindowState,
   CliControlStatus,
   CliTabTarget,
   EngineBookmark,
@@ -61,6 +62,7 @@ export const emitEvent = <E extends EventName>(name: E, data: EngineEvents[E]) =
   eventsOf(domain).emit(domain, { name, data });
 };
 
+export const chromeWindowList: ChromeWindowState[] = [];
 export const engineCalls: { domain: string; verb: string; profile: string }[] = [];
 export const loadedEngineProfiles = new Set<string>([""]);
 export const idleProfileUnloads = new Map<string, { status: "released" | "pending" | "busy"; tabs: string[] }>();
@@ -346,7 +348,7 @@ const fakeModules = {
       discardOffered: async (adoptId: string) => (discardedOffers.push(adoptId), true),
     },
   )),
-  ArdiaWindows: domain("windows", { list: () => [], dev: () => "" }),
+  ArdiaWindows: domain("windows", { list: () => chromeWindowList, dev: () => "" }),
   ArdiaDownloads: domain("downloads", {
     cancel: ({ id }) => (cancelledDownloads.push(id), null),
     pause: () => null,
