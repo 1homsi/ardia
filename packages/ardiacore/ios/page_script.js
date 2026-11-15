@@ -244,9 +244,10 @@
       return;
     }
     if (e.type === "play" || e.type === "playing") {
+      const followed = active;
       active = m;
       watchRemoval(m);
-      const joinedAt = timeline && anchorStartedMedia(timeline, m, performance.now());
+      const joinedAt = timeline && anchorStartedMedia(timeline, m, followed, performance.now());
       if (joinedAt != null) restartTimelineClock(joinedAt);
     }
     noteHeard(m);
@@ -349,11 +350,11 @@
     return { position: Math.max(0, Math.min(reported.duration, position)), duration: reported.duration };
   };
   const mediaTimesOf = (media) => new WeakMap(media.map((m) => [m, m.currentTime]));
-  const anchorStartedMedia = (timeline, m, now) => {
+  const anchorStartedMedia = (timeline, m, followed, now) => {
     const started = timeline.started;
     timeline.started = true;
     if (timeline.mediaTimes.has(m)) return null;
-    const position = started ? clockPosition(timeline.playbackRate, timeline.clock, now) : timeline.position;
+    const position = started ? timelineNow(timeline, mediaAdvanceOf(followed, timeline), now).position : timeline.position;
     timeline.mediaTimes.set(m, m.currentTime - (position - timeline.position));
     return position;
   };
