@@ -132,6 +132,26 @@ struct AppIconPreviewView: ExpoSwiftUI.View {
   }
 }
 
+struct SettingsShortcutItem: Record {
+  @Field var id: String = ""
+  @Field var title: String = ""
+}
+
+final class SettingsShortcutsProps: UIBaseViewProps {
+  @Field var shortcuts: [SettingsShortcutItem] = []
+  var onShortcutPress = EventDispatcher()
+}
+
+struct SettingsShortcutsView: ExpoSwiftUI.View {
+  @ObservedObject var props: SettingsShortcutsProps
+
+  var body: some View {
+    SettingsShortcuts(props.shortcuts.map { SettingsShortcut(id: $0.id, title: $0.title) }) { shortcut in
+      props.onShortcutPress(["id": shortcut.id])
+    }
+  }
+}
+
 struct SettingsChromeModifier: ViewModifier, Record {
   func body(content: Content) -> some View {
     content.ardiaSettingsChrome()
@@ -164,7 +184,7 @@ struct ChromeSurfaceModifier: ViewModifier, Record {
 
 struct SettingsSwitchStyleModifier: ViewModifier, Record {
   func body(content: Content) -> some View {
-    content.toggleStyle(SettingsSwitchStyle())
+    content.toggleStyle(.switch).tint(Color(.systemGreen))
   }
 }
 
@@ -259,5 +279,6 @@ public final class SettingsUIModule: Module {
     ExpoUIView(ColorSwatchView.self)
     ExpoUIView(CheckmarkLabelView.self)
     ExpoUIView(AppIconPreviewView.self)
+    ExpoUIView(SettingsShortcutsView.self)
   }
 }

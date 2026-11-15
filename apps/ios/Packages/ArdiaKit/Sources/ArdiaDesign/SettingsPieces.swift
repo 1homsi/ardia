@@ -370,3 +370,45 @@ public struct PressableStyle: ButtonStyle {
       .animation(Motion.press, value: configuration.isPressed)
   }
 }
+
+public struct SettingsShortcut: Identifiable, Equatable {
+  public var id: String
+  public var title: String
+
+  public init(id: String, title: String) {
+    self.id = id
+    self.title = title
+  }
+}
+
+public struct SettingsShortcuts: View {
+  public var shortcuts: [SettingsShortcut]
+  public var action: (SettingsShortcut) -> Void
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+  public init(_ shortcuts: [SettingsShortcut], action: @escaping (SettingsShortcut) -> Void) {
+    self.shortcuts = shortcuts
+    self.action = action
+  }
+
+  public var body: some View {
+    let layout = dynamicTypeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(spacing: Spacing.small))
+      : AnyLayout(HStackLayout(spacing: Spacing.small))
+    layout {
+      ForEach(shortcuts) { shortcut in
+        Button {
+          action(shortcut)
+        } label: {
+          Text(LocalizedStringKey(shortcut.title))
+            .font(.body.weight(.medium))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(Color(.secondarySystemGroupedBackground), in: .capsule)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(PressableStyle())
+        .foregroundStyle(.primary)
+      }
+    }
+  }
+}

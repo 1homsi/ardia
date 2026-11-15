@@ -58,6 +58,14 @@ export const CheckmarkLabel = piece<SettingsPieceProps & { title: string; isChec
 
 export const AppIconPreview = piece<SettingsPieceProps & { side?: number }>("AppIconPreviewView");
 
+export type SettingsShortcutItem = { id: string; title: string };
+
+const NativeShortcuts = piece<SettingsPieceProps & { shortcuts: SettingsShortcutItem[]; onShortcutPress: (event: { nativeEvent: { id: string } }) => void }>("SettingsShortcutsView");
+
+export function SettingsShortcuts({ onPress, ...props }: SettingsPieceProps & { shortcuts: SettingsShortcutItem[]; onPress: (id: string) => void }) {
+  return createElement(NativeShortcuts, { ...props, onShortcutPress: (event: { nativeEvent: { id: string } }) => onPress(event.nativeEvent.id) });
+}
+
 const ardia = (name: string, params: Record<string, unknown> = {}): ModifierConfig | null => (settingsUIAvailable() ? modifierHelpers().createModifier(`ardia.${name}`, params) : null);
 
 export const settingsChrome = () => ardia("settingsChrome");
