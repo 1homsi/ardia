@@ -457,9 +457,9 @@ while ($true) {
     while ($reader.ReadLine()) { }
     $path = if ($request) { $request.Split(" ")[1] } else { "" }
     if ($Log -and $path) { Add-Content -LiteralPath $Log -Value $path }
-    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event" }[$path]
+    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event"; "/event/fullscreen" = "event"; "/event/windowed" = "event" }[$path]
     $status = if ($name -eq "event") { "204 No Content" } elseif ($name) { "200 OK" } else { "404 Not Found" }
-    $text = if ($name -eq "event") { "" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
+    $text = if ($name -eq "event") { "" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}#full{position:absolute;left:40px;top:320px;width:160px;height:40px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><button id=full>full screen</button><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart')); document.getElementById('full').addEventListener('click', (event) => { event.stopPropagation(); document.documentElement.requestFullscreen(); }); addEventListener('fullscreenchange', () => report(document.fullscreenElement ? 'fullscreen' : 'windowed'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($text)
     $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
     $stream.Write($head, 0, $head.Length)
@@ -677,6 +677,10 @@ function Test-PageHoldsPlace([System.Diagnostics.Process]$Process, [string]$Layo
       }
     }
     if (-not $called) { $failures += "page place ($Layout, $step): the call to the page window failed, so the step proves nothing"; continue }
+    if ($step -in @("move", "resize")) {
+      $atReturn = Get-PageInsets $Process $page
+      if ($atReturn -and $atReturn.Text -ne $before.Text) { $failures += "page place ($Layout, $step): when the call returned the page window had already left its place, insets $($atReturn.Text) instead of $($before.Text), so the change was let through instead of refused (#2051)" }
+    }
     $samples = @()
     foreach ($i in 1..30) {
       Start-Sleep -Milliseconds 100
@@ -702,6 +706,25 @@ function Test-PageHoldsPlace([System.Diagnostics.Process]$Process, [string]$Layo
       Start-Sleep -Milliseconds 1200
     }
   }
+  if ($maximized) { return $failures }
+  $before = Get-PageInsets $Process $page
+  $pageRect = Get-HandleRect $page
+  $events = @(Get-PageEvents).Count
+  Send-Click ($pageRect.Left + [int](120 * $scale)) ($pageRect.Top + [int](340 * $scale))
+  if (-not (Wait-PageEvent "fullscreen" $events 5000)) { return $failures + "page place ($Layout, full screen): the page never went full screen from its button (events: $(@(Get-PageEvents | Select-Object -Skip $events) -join ', '))" }
+  Start-Sleep -Milliseconds 1500
+  $whileFull = Get-HandleRect $page
+  Save-Screenshot (Join-Path $Out "page-place-$Layout-full-screen.png")
+  [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+  [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+  if (-not (Wait-PageEvent "windowed" $events 5000)) { return $failures + "page place ($Layout, full screen): Escape never took the page out of full screen" }
+  Start-Sleep -Milliseconds 2500
+  $after = Get-PageInsets $Process $page
+  Save-Screenshot (Join-Path $Out "page-place-$Layout-after-full-screen.png")
+  $fullText = if ($whileFull) { "$($whileFull.Left),$($whileFull.Top),$($whileFull.Right),$($whileFull.Bottom)" } else { "unknown" }
+  Write-Host "Page place ($Layout, full screen): the page window was at $fullText while full screen; its insets in the app window were $($before.Text) before and $($after.Text) after leaving it; the app window's edges moved by $($after.App.Left - $before.App.Left),$($after.App.Top - $before.App.Top),$($after.App.Right - $before.App.Right),$($after.App.Bottom - $before.App.Bottom)."
+  if (-not $after -or $after.Text -ne $before.Text) { $failures += "page place ($Layout, full screen): after leaving full screen the page's insets were $($after.Text), not $($before.Text)" }
+  if ($after -and ($after.App.Left -ne $before.App.Left -or $after.App.Top -ne $before.App.Top -or $after.App.Right -ne $before.App.Right -or $after.App.Bottom -ne $before.App.Bottom)) { $failures += "page place ($Layout, full screen): the app window did not come back to its place after full screen" }
   return $failures
 }
 
