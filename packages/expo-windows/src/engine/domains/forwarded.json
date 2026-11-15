@@ -95,6 +95,7 @@
       "setFairPlayInChromium",
       "setVideoUpscaling",
       "setVideoUpscalingTestConditions",
+      "takeContentDrift",
       "videoUpscalingState"
     ],
     "windows": ["list", "dev"]
