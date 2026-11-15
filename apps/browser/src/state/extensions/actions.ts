@@ -32,7 +32,7 @@ import { extensionPageUrl, extensionProfile, extensionsProfileId, isPrivate, pag
 import { errorText } from "../../lib/errors";
 import { noteUnpackedInstall } from "../telemetry/exportCounts";
 import { PLATFORM_TERMS } from "../../lib/platformTerms";
-import { movedToolbarOrder, toolbarOrder } from "./toolbarOrder";
+import { movedToolbarOrder, toolbarOrder, type ToolbarDrag } from "./toolbarOrder";
 
 export * from "./sidePanels";
 export * from "./store";
@@ -160,6 +160,12 @@ export async function setPinned(profile: string, id: string, pinned: boolean) {
   patchExtension(profile, id, { pinned });
   const done = await changed(pinned ? "pin" : "unpin", () => configureExtension(id, profile, { pinned }));
   if (!done) await refreshExtensions(profile);
+}
+
+export const setToolbarDrag = (windowId: string, drag: ToolbarDrag | null) => useExtensions.setState({ toolbarDrag: drag && { ...drag, windowId } });
+
+export function endToolbarDrag(windowId: string) {
+  if (useExtensions.getState().toolbarDrag?.windowId === windowId) useExtensions.setState({ toolbarDrag: null });
 }
 
 export async function moveToolbarExtension(windowId: string, id: string, to: number, via: "drag" | "menu") {

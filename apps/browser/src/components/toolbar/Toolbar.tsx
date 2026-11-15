@@ -36,7 +36,7 @@ import { useShortcutHint, withShortcut } from "../../state/commands/commandShort
 import { buttonMotion, curve, usePressScaleMotion } from "../ui/motion";
 import { FieldLoadFill } from "./FieldLoadFill";
 import { fieldButtonsShown, sidebarFieldButtons } from "./fieldButtons";
-import { useExtensions } from "../../state/extensions/store";
+import { useFieldExtensionsHeld } from "../../state/extensions/store";
 import { noteSiteControls } from "../../state/telemetry/usage";
 import { HistoryButton, ReloadButton } from "./NavButtons";
 import { FIELD_LOAD, TOOLBAR_MOTION } from "./tokens";
@@ -253,8 +253,8 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
   const theme = useTheme();
   const field = useUrlField(tab, windowId, onFocus);
   const { insecure, hovered, popover, toggleSiteControls } = field;
-  const extensionPopup = useExtensions((e) => e.popup?.windowId === windowId);
-  const shown = sidebarFieldButtons({ mode: useSettings((s) => s.addressBarButtons), hovered, insecure: !!insecure, extensionPopup });
+  const extensionsHeld = useFieldExtensionsHeld(windowId);
+  const shown = sidebarFieldButtons({ mode: useSettings((s) => s.addressBarButtons), hovered, insecure: !!insecure, extensionsHeld });
   const openSiteControls = () => {
     if (popover !== "siteControls") noteSiteControls("sidebarField");
     toggleSiteControls();

@@ -13,7 +13,7 @@ test("the address bar's buttons show on hover by default, and always when asked"
   assert.equal(fieldButtonsShown("always", true), true);
 });
 
-const sidebar = (o) => sidebarFieldButtons({ mode: "hover", hovered: false, insecure: false, extensionPopup: false, ...o });
+const sidebar = (o) => sidebarFieldButtons({ mode: "hover", hovered: false, insecure: false, extensionsHeld: false, ...o });
 
 test("with buttons on hover, the sidebar address field shows only the address until the pointer is over it, then Site Controls, Bookmark and the extensions on the right", () => {
   assert.deepEqual(sidebar(), { leading: false, siteControls: false, page: false, extensions: false });
@@ -23,7 +23,7 @@ test("with buttons on hover, the sidebar address field shows only the address un
 test("the sidebar field always shows the not-secure lock on the left, and an open extension popup keeps the extensions shown", () => {
   assert.deepEqual(sidebar({ insecure: true }), { leading: true, siteControls: false, page: false, extensions: false });
   assert.deepEqual(sidebar({ insecure: true, hovered: true }), { leading: true, siteControls: false, page: true, extensions: true });
-  assert.equal(sidebar({ extensionPopup: true }).extensions, true);
+  assert.equal(sidebar({ extensionsHeld: true }).extensions, true);
 });
 
 test("with buttons always shown, the sidebar field keeps Site Controls on the left and its extensions, as before", () => {
