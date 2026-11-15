@@ -2113,18 +2113,44 @@ Apple developer account. This is what the build needs and how the switch is prov
   - So the Expo build is 0.2.47 (10) or later, or the next release version's first build.
   - The project's committed 0.1.0 (1) is set at archive time on all four targets, as `scripts/release-ios.sh` does. It
     is never committed.
-- **To add before the first upload:**
-  - The `ArdiaReleaseVersion` Info.plist key (`$(ARDIA_RELEASE_VERSION)`), so the version line and the channel read
-    "Ardia 0.2.47 Nightly 2 (10)" from TestFlight as the SwiftUI app's do.
-  - A release path for the Expo project. Today `scripts/release-ios.sh` and `.github/workflows/ios-release.yml`
-    archive `apps/ios`. The Expo path:
-    - adds an `app: expo` choice that archives `apps/phone/ios/Ardia.xcworkspace` in Release for a device;
-    - installs Pods first, through the pod lock locally;
-    - embeds the JavaScript bundle compiled with Hermes, from a commit, as `build-sim-app` does;
-    - exports with `Config/ExportOptions-TestFlight.plist` (app-store-connect, automatic signing, symbols on);
-    - checks the stamp: commit, not dirty, the lab off, `ArdiaReleaseVersion` and the entitlements in agreement.
-  - The test hooks must be absent. `EXPO_PUBLIC_ARDIA_LAB` is unset, the stamp says the lab is off, and the
-    `-Ardia…` launch switches are inert.
+- **The release path** (9ac589838, 6dfe58539):
+  - `apps/phone/scripts/release-ios <build> --version <release> [--unsigned | --no-upload]` is the Expo counterpart
+    of `scripts/release-ios.sh`. It archives `apps/phone/ios/Ardia.xcworkspace` for a device in Release, with the
+    release version on every target and `ArdiaReleaseVersion` in the app.
+  - The commit's JavaScript is compiled with Hermes with the lab off, handed to the bundle phase through
+    `ARDIA_PREBUILT_BUNDLE`, and stamped.
+  - It refuses an uncommitted native tree or Pods behind `Podfile.lock`.
+  - It checks the versions and build on all four targets, the three extensions, the stamp, Hermes bytecode, the test
+    hooks off, the stripped frameworks, the app's dSYM matching its binary, default browser off and, when signed, the
+    app group and web-browser entitlements.
+  - The Settings footer follows main's `AppVersionLabel`: "Ardia 0.2.47 Nightly 2 (10)" from TestFlight.
+  - `.github/workflows/ios-release.yml` gains `app: expo`. It installs the app's packages and Pods on the `xcode-27`
+    runner and runs that script. An Expo upload with `public_testers` on is refused, so it can only reach the
+    Internal group.
+- **Proved without the Apple account** (2026-11-16): `release-ios 10 --version 0.2.47 --unsigned` on this Mac.
+  - Every check passed, at 56.5 MB installed.
+  - Every target reads 0.2.47 (10). The stamp gives JS 9ac589838, dirty no, native clean.
+  - The dSYMs for the app, its extensions and ExpoModulesJSI are kept. The strip phase ran.
+- **What is left to press, in order. None of it is an agent's to do on its own:**
+  1. **Push this branch** (`git push origin t3/unify-expo-architecture`). GitHub holds e508d5cc5, without the release
+     path. Or merge the branch into `main`.
+  2. **A CI dry run**, which signs with the team's stored certificate but uploads nothing: `gh workflow run
+     ios-release.yml --ref t3/unify-expo-architecture -f mode=dry-run -f app=expo -f version=<release version>`.
+     - It runs from the branch: `ios-release.yml` exists on `main`, so it can be dispatched, and the run uses the
+       branch's copy.
+     - It needs the repository secrets the SwiftUI path uses: `NOTARY_KEY_P8`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`
+       (the App Store Connect key), and `IOS_DEVELOPMENT_P12` with `IOS_DEVELOPMENT_P12_PASSWORD` (the development
+       certificate).
+     - It runs on GitHub's `xcode-27` runner, with Xcode 27.1 and CocoaPods.
+     - It is the first time this project signs with the team's identity. Automatic signing for the same four bundle
+       ids as main's app should reuse their profiles. The run's logs show it.
+  3. **The upload, the owner's moment:** `gh workflow run ios-release.yml --ref t3/unify-expo-architecture -f
+     mode=upload -f app=expo -f public_testers=false -f version=<release version>`.
+     - The build number is taken above App Store Connect's highest, from 10 on, unless `-f build=` sets it.
+     - The release version must be the train the owner wants. 0.2.47 still has builds in review, so the next Mac
+       release version is cleaner.
+  4. **On the owner's phone:** install it from TestFlight over the SwiftUI app. Settings' footer should read "Ardia
+     <version> Nightly (<build>)".
 - **Who uploads, and how 0.2.47 (9) went up:**
   - The SwiftUI build was sent from `main` by the iOS Release workflow on 15 Nov (`gh workflow run ios-release.yml -f
     mode=upload`). The workflow archives, signs with the stored development certificate, and uploads with the App
