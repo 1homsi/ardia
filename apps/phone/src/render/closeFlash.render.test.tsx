@@ -25,6 +25,7 @@ const motion = (): DeckMotion => ({
   flyIndex: makeMutable(-1),
   flyLift: makeMutable(0),
   flyVanish: makeMutable(0),
+  covering: makeMutable(""),
 });
 
 test("a card that has vanished stays vanished when the deck resets its fly-away values before React removes the card, so the closed card never flashes back at its old place", () => {

@@ -63,7 +63,7 @@ import { pinToMac, sendTab, sendTargetsFor, spaceMoveTargets } from "../../state
 import { currentTabs, moveTabToSpace } from "../../state/tabs/store";
 import { tabMatchesQuery } from "../../state/tabs/tabModels";
 import { DeckBar } from "./DeckBar";
-import { DECK_PHASE, DeckCard, type DeckMotion } from "./DeckCard";
+import { DECK_PHASE, DeckCard, OPENING_CARD_RESPONSE, OpeningCard, type DeckMotion } from "./DeckCard";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
 import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
 import { ArchiveCapsule, ArchiveIntervalCard } from "./ArchiveIntervalCard";
@@ -186,13 +186,15 @@ export const TabDeck = memo(function TabDeck() {
   const flyIndex = useSharedValue(-1);
   const flyLift = useSharedValue(0);
   const flyVanish = useSharedValue(0);
+  const covering = useSharedValue("");
+  const [openingCard, setOpeningCard] = useState<{ id: string; x: number; y: number } | null>(null);
   const orderIds = useSharedValue<readonly string[]>(first.ids);
   const shiftBy = useSharedValue(0);
   const fromSlots = useSharedValue<DeckSlots>({});
   const gap = useSharedValue(1);
   const motion = useMemo<DeckMotion>(
-    () => ({ orderIds, shiftBy, fromSlots, gap, phase: deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
-    [orderIds, shiftBy, fromSlots, gap, deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
+    () => ({ orderIds, shiftBy, fromSlots, gap, phase: deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish, covering }),
+    [orderIds, shiftBy, fromSlots, gap, deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish, covering],
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
   const backdropStyle = useAnimatedStyle(() => ({ opacity: deckPhase.value === DECK_PHASE.closing ? 1 : Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
@@ -238,6 +240,9 @@ export const TabDeck = memo(function TabDeck() {
     hidden.current.clear();
     openingId.current = null;
     landing.value = false;
+    covering.value = "";
+    prepared.current = null;
+    setOpeningCard(null);
     placeCards(order, deckScrollFor(order, heldSelected));
     deckPhase.value = DECK_PHASE.settled;
     expandedIndex.value = -1;
@@ -426,6 +431,8 @@ export const TabDeck = memo(function TabDeck() {
     enterPhase({ kind: "closing", id });
     openingId.current = id;
     handedOver.current = null;
+    prepared.current = null;
+    setOpeningCard({ id, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + (redesigned ? cardsShift.value : 0) });
     requestAnimationFrame(() => {
       if (openingId.current !== id) return;
       landing.value = true;
@@ -449,21 +456,42 @@ export const TabDeck = memo(function TabDeck() {
     },
   );
 
-  const handOver = (id: string) => {
-    if (openingId.current !== id || handedOver.current === id) return;
-    handedOver.current = id;
+  const prepared = useRef<{ id: string; ready: boolean; landed: boolean } | null>(null);
+  const finishOpen = (id: string) =>
+    requestAnimationFrame(() => {
+      if (openingId.current === id) settledOpen(id);
+    });
+  const prepareHandOver = (id: string) => {
+    if (openingId.current !== id || prepared.current?.id === id) return;
+    const state = { id, ready: false, landed: false };
+    prepared.current = state;
     beginOpeningTab(id);
     const picture = tabs.get(id)?.snapshotFileName ?? null;
     let waiting = picture ? 2 : 1;
     const ready = () => {
       waiting -= 1;
-      if (waiting > 0) return;
-      requestAnimationFrame(() => {
-        if (openingId.current === id) settledOpen(id);
-      });
+      if (waiting > 0 || prepared.current !== state) return;
+      state.ready = true;
+      if (state.landed) finishOpen(id);
     };
     whenPageLaidOut(id, HANDOVER_CAP_MS, ready);
     if (picture) whenPicturePainted(pictureKey(`cover:${id}`, picture), HANDOVER_CAP_MS, ready);
+  };
+  const openingCardGrowing = (id: string) => {
+    covering.value = id;
+    setTimeout(() => prepareHandOver(id), PAGE_MOUNT_AFTER_GROWTH_MS);
+    setTimeout(() => handOver(id), criticalSpringLandsMs(OPENING_CARD_RESPONSE, CARD_LANDED));
+  };
+
+  const handOver = (id: string) => {
+    if (openingId.current !== id || handedOver.current === id) return;
+    handedOver.current = id;
+    prepareHandOver(id);
+    const state = prepared.current;
+    if (!state || state.id !== id) return;
+    state.landed = true;
+    if (state.ready) finishOpen(id);
+    else if (!tabs.get(id)?.isPrivate) countUsage("card_opens_waited");
   };
 
   const remove = (id: string) => {
@@ -783,6 +811,7 @@ export const TabDeck = memo(function TabDeck() {
         {poofs.map((spec) => (
           <PoofBurst key={spec.id} spec={spec} />
         ))}
+        {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} onGrowing={() => openingCardGrowing(openingCard.id)} /> : null}
       </Shade>
       <DeckLookProbe
         busy={phase.kind !== "settled" || menu !== null || headerMenu !== null || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck" || archiveCard}
@@ -838,6 +867,13 @@ const flickTick = () => haptics.tap();
 const DECK_FROST = "deck";
 const HANDOVER_CAP_MS = 250;
 const CARD_LANDED = 0.02;
+const PAGE_MOUNT_AFTER_GROWTH_MS = 34;
+
+const criticalSpringLandsMs = (response: number, within: number) => {
+  let x = 1;
+  for (let step = 0; step < 24; step++) x -= ((1 + x) * Math.exp(-x) - within) / (-x * Math.exp(-x));
+  return (x * response * 1000) / (2 * Math.PI);
+};
 const ENTRANCE_PAINT_CAP_MS = 250;
 const ENTRANCE_CAPTURE_CAP_MS = 180;
 

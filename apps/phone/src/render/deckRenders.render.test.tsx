@@ -100,19 +100,25 @@ test("a touch in the band above the deck bar starts no card gesture, the clearan
   unmount(root);
 });
 
-test("a card hands over to its page once it is within 2% of full size, not when its spring comes to rest, so the page takes over as the card lands", () => {
+test("an opening card grows as one Core Animation move from its deck place to full screen; the page is prepared two frames after it starts, and takes over only once the card has landed", () => {
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<TabDeck />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
-  let handedAt = -1;
-  for (let frame = 1; frame <= 30 && handedAt < 0; frame++) {
+  const overlay = () => root.root.findAll((node) => node.props.testID === "openingCard" && typeof node.type === "string")[0];
+  act(() => jest.advanceTimersByTime(16));
+  const first = overlay();
+  expect(first).toBeTruthy();
+  let preparedAt = -1;
+  let switchedAt = -1;
+  for (let frame = 2; frame <= 40 && switchedAt < 0; frame++) {
     act(() => jest.advanceTimersByTime(16));
-    if (useBrowse.getState().opening !== null) handedAt = frame * 16;
+    if (preparedAt < 0 && useBrowse.getState().opening !== null) preparedAt = frame * 16;
+    if (useBrowse.getState().surface === "browsing") switchedAt = frame * 16;
   }
-  expect(useBrowse.getState().opening).toBeTruthy();
-  const [landed, rest] = Platform.OS === "ios" ? [192, 216] : [304, 336];
-  expect(handedAt).toBeGreaterThan(120);
-  expect(handedAt).toBeLessThanOrEqual(landed);
-  expect(handedAt).toBeLessThan(rest);
+  const [landed, rest] = Platform.OS === "ios" ? [168, 216] : [280, 336];
+  expect(preparedAt).toBeGreaterThan(0);
+  expect(preparedAt).toBeLessThanOrEqual(96);
+  expect(switchedAt).toBeGreaterThanOrEqual(landed);
+  expect(switchedAt).toBeLessThanOrEqual(Math.max(rest, 250 + 64));
   unmount(root);
 });

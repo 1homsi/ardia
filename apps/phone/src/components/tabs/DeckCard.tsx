@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, type SharedValue } from "react-native-reanimated";
@@ -9,7 +9,7 @@ import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
-import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor } from "../ui";
+import { barHeight, FadeView, Favicon, font, iPhoneOr, MotionView, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor, type MotionCurve } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -55,6 +55,7 @@ export type DeckMotion = {
   flyIndex: SharedValue<number>;
   flyLift: SharedValue<number>;
   flyVanish: SharedValue<number>;
+  covering: SharedValue<string>;
 };
 
 type Props = {
@@ -108,7 +109,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
   const theme = useTheme();
   const design = useDesign();
   const tone = shownTone(useHeldPageTone(tab.id), tab.themeColorHex);
-  const { orderIds, shiftBy, fromSlots, gap, phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish } = motion;
+  const { orderIds, shiftBy, fromSlots, gap, phase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish, covering } = motion;
   const id = tab.id;
 
   const at = useDerivedValue(() => orderIds.value.indexOf(id), [id]);
@@ -136,7 +137,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
     const p = placed.value.pose;
     return {
       zIndex: placed.value.z,
-      opacity: p.opacity,
+      opacity: covering.value === id ? 0 : p.opacity,
       borderRadius: p.corner / Math.max(p.scale, 0.01),
       transform: [{ translateX: p.x - g.cardWidth / 2 }, { translateY: p.y - g.cardHeight / 2 }, { scale: p.scale }],
     };
@@ -237,6 +238,53 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
   );
 }, sameCard);
 
+export const OPENING_CARD_RESPONSE = iPhoneOr(0.18, 0.3);
+export const OPENING_CARD_MOTION: MotionCurve = { type: "spring", response: OPENING_CARD_RESPONSE, dampingFraction: 1 };
+
+type OpeningCardProps = { tab: BrowserTab; geometry: DeckGeometry; centerX: number; centerY: number; onGrowing: () => void };
+
+export function OpeningCard({ tab, geometry: g, centerX, centerY, onGrowing }: OpeningCardProps) {
+  const theme = useTheme();
+  const design = useDesign();
+  const toneNow = shownTone(useHeldPageTone(tab.id), tab.themeColorHex);
+  const [tone] = useState(toneNow);
+  const underBars = usePageUnderBars();
+  const [grown, setGrown] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setGrown(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  useEffect(() => {
+    if (grown) onGrowing();
+  }, [grown]);
+  const pageTop = (tab.snapshotFileName ? snapshotPageTop(tab.snapshotFileName) : null) ?? (underBars ? 0 : g.safeTop);
+  const full = g.width / Math.max(g.cardWidth, 1);
+  const bar = deckBarBand(g, barHeight(g.safeBottom), 1);
+  const host = display(tab.url).host;
+  const title = tab.title || host || "New Tab";
+  const to = grown ? { translateX: 0, translateY: 0, scale: full, cornerRadius: DECK.displayCornerRadius / full } : { translateX: centerX - g.width / 2, translateY: centerY - g.height / 2, scale: 1, cornerRadius: DECK.cardRadius };
+  return (
+    <MotionView
+      testID="openingCard"
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      to={to}
+      motion={OPENING_CARD_MOTION}
+      style={[styles.opening, { left: (g.width - g.cardWidth) / 2, top: (g.height - g.cardHeight) / 2, width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface }]}
+    >
+      <MotionView testID="openingCardFace" style={StyleSheet.absoluteFill} to={{ translateY: grown ? deckStatusStrip(g, 0, pageTop) : 0 }} motion={OPENING_CARD_MOTION}>
+        <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} paintedAs={`deck:${tab.id}`} />
+      </MotionView>
+      {underBars ? null : (
+        <MotionView testID="openingCardBand" style={[styles.openingBand, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }]} to={{ translateY: grown ? 0 : bar.height }} motion={OPENING_CARD_MOTION}>
+          {design === "original" ? <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
+        </MotionView>
+      )}
+    </MotionView>
+  );
+}
+
 const CARD_ELEVATION = 14;
 const HEADER_ROW_ROOM = 2000;
 const CARD_SHADOW_BLUR = 36;
@@ -262,6 +310,8 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: CARD_ELEVATION, shadowColor: tabsInk.cardShadow }, default: { boxShadow: `-2px 4px ${CARD_SHADOW_BLUR}px ${tabsInk.cardShadow}` } }),
   },
   band: { position: "absolute", left: 0, right: 0, bottom: 0, transformOrigin: "bottom" },
+  opening: { position: "absolute", zIndex: 1_000_000, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
+  openingBand: { position: "absolute", left: 0, right: 0, bottom: 0 },
   badge: {
     position: "absolute",
     top: RECEIVED_INSET,
