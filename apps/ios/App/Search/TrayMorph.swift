@@ -29,7 +29,7 @@ final class TrayMorph {
   static let arrival: CGFloat = 2
 
   init(card: CGRect, of tray: UIView, in stage: UIView, look: TrayMorphLook) {
-    let frame = tray.convert(card, to: stage)
+    let frame = tray.convert(card, to: stage).offsetBy(dx: 0, dy: Self.unfinishedTravel(of: tray))
     view.configure(look: look, contents: tray.resizableSnapshotView(from: card, afterScreenUpdates: false, withCapInsets: .zero))
     view.shape(to: frame, radius: BrowseLayout.panelRadius)
     stage.addSubview(view)
@@ -43,8 +43,13 @@ final class TrayMorph {
 
   var isMoving: Bool {
     guard let flight, flight.isRunning else { return false }
-    guard let destination else { return true }
-    return Self.gap(between: view.layer.presentation()?.frame ?? view.frame, and: destination) > Self.arrival
+    guard let destination, let shown = view.layer.presentation()?.frame else { return true }
+    return Self.gap(between: shown, and: destination) > Self.arrival
+  }
+
+  private static func unfinishedTravel(of view: UIView) -> CGFloat {
+    guard let shown = view.layer.presentation() else { return 0 }
+    return shown.affineTransform().ty - view.transform.ty
   }
 
   private static func gap(between shown: CGRect, and target: CGRect) -> CGFloat {
