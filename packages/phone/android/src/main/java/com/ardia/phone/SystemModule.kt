@@ -16,6 +16,11 @@ class SystemModule : Module() {
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", line)
         }
 
+        Function("takePendingCounts") {
+            val context = appContext.reactContext ?: return@Function emptyMap<String, Int>()
+            PendingCounts.take(context)
+        }
+
         Function("setWidgetColorChoice") { choice: String? ->
             val context = appContext.reactContext ?: return@Function Unit
             WidgetColorChoice.set(context, choice)

@@ -79,6 +79,8 @@ object PhoneShare {
             sync.snapshot.value.devices.firstOrNull { it.id == device.id }
         } ?: return false
         if (!sync.state.value.isEnabled) return false
-        return runCatching { sync.send(url, page.displayTitle, target) }.getOrDefault(false)
+        val sent = runCatching { sync.send(url, page.displayTitle, target) }.getOrDefault(false)
+        if (sent) com.ardia.phone.PendingCounts.add(context, com.ardia.phone.PendingCounts.TABS_SENT)
+        return sent
     }
 }
