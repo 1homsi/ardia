@@ -25,6 +25,7 @@ export type SidebarEdgeWatch = { running: boolean; windows: string[] };
 
 export type AppWindowsOnWindows = {
   quit(): Promise<void>;
+  requestClose(id: string): Promise<void>;
   setPageFullScreen(windowId: string, on: boolean): Promise<unknown>;
   beginWindowDrag(rootTag: number): Promise<void>;
   pressDragArea(rootTag: number): Promise<void>;
