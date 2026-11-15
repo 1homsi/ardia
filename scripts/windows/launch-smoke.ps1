@@ -591,6 +591,8 @@ function Test-PageDragStays([System.Diagnostics.Process]$Process, [string]$Layou
     @{ Name = "link"; X = $pageRect.Left + [int](70 * $scale); Y = $pageRect.Top + [int](250 * $scale); ByX = [int](200 * $scale); ByY = [int](80 * $scale); Event = "dragstart" }
   )
   foreach ($target in $targets) {
+    Send-Click ($pageRect.Left + [int](300 * $scale)) ($pageRect.Top + [int](380 * $scale))
+    Start-Sleep -Milliseconds 300
     $appBefore = Get-WindowRect $Process
     $pageBefore = Get-HandleRect $page
     $events = @(Get-PageEvents).Count
@@ -615,10 +617,10 @@ function Test-PageDragStays([System.Diagnostics.Process]$Process, [string]$Layou
 }
 
 function Get-PageInsets([System.Diagnostics.Process]$Process, [IntPtr]$Page) {
-  $app = Get-WindowRect $Process
-  $page = Get-HandleRect $Page
-  if (-not $app -or -not $page) { return $null }
-  return [pscustomobject]@{ App = $app; Text = "$($page.Left - $app.Left),$($page.Top - $app.Top),$($app.Right - $page.Right),$($app.Bottom - $page.Bottom)" }
+  $appRect = Get-WindowRect $Process
+  $pageRect = Get-HandleRect $Page
+  if (-not $appRect -or -not $pageRect) { return $null }
+  return [pscustomobject]@{ App = $appRect; Text = "$($pageRect.Left - $appRect.Left),$($pageRect.Top - $appRect.Top),$($appRect.Right - $pageRect.Right),$($appRect.Bottom - $pageRect.Bottom)" }
 }
 
 function Test-PageHoldsPlace([System.Diagnostics.Process]$Process, [string]$Layout) {
