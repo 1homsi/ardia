@@ -887,7 +887,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 
 - Onboarding sync step: a symbol instead of the Mac-and-phone QR picture; the connect screen pops in (Compose slides it up, SwiftUI a sheet) and "Connected." doesn't crossfade. `SyncScanIllustration.kt`/`.swift`, `OnboardingSteps.swift`. Half a day.
 - Sync: the scanner draws inside the sheet (both apps full screen) with a full rounded border instead of corner arms, wrong "can't scan" icons and a popping "Not an Ardia sync code". `SettingsComponents.kt` `warningInk`, `SyncCodeScanner.kt`/`.swift`, `SyncConnectPage.swift`. Small.
-- Sync: Enter Words replaces the page instead of pushing one, its counter and footer don't crossfade, and on iPhone the keyboard isn't ASCII and doesn't dismiss on scroll; connect steps pop instead of animating. `RecoveryPhraseEntryPage` in `SyncPages.kt`, `RecoveryPhraseEntryPage.swift`, `SyncConnectPage.swift`. Small.
 
 ### Needs native code on Android
 

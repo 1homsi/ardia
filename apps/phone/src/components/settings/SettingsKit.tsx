@@ -5,9 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
 import { duration, FloatingMenu, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, ToggleTrack, useTheme, type MenuItem, type SymbolName } from "../ui";
 
-type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown>; heroTitle?: boolean; overlay?: ReactNode };
+type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown>; heroTitle?: boolean; overlay?: ReactNode; dismissesKeyboard?: boolean };
 
-export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh, heroTitle = false, overlay }: PageProps) {
+export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh, heroTitle = false, overlay, dismissesKeyboard = false }: PageProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const list = useRef<ScrollView>(null);
@@ -65,6 +65,7 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
           onScrollEndDrag={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           onMomentumScrollEnd={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={dismissesKeyboard ? "on-drag" : "none"}
           refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} /> : undefined}
           {...sheetList}
           scrollEventThrottle={16}
