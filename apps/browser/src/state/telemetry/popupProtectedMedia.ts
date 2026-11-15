@@ -12,7 +12,8 @@ let pending = none();
 
 export function notePopupProtectedMedia(media: PopupProtectedMedia | undefined) {
   const family: Family = FAMILIES.find((candidate) => candidate === media?.family) ?? "other";
-  pending[`${family}:${media?.listed === true ? "listed" : "unlisted"}`] += 1;
+  const key = `${family}:${media?.listed === true ? "listed" : "unlisted"}`;
+  pending[key] = (pending[key] ?? 0) + 1;
 }
 
 export function takePopupProtectedMediaCounts() {
