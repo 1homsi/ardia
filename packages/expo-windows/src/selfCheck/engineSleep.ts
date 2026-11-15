@@ -2,7 +2,7 @@ import type { WindowsNative } from "@ardia/shell";
 import { engineAvailable, hostCall, onEngineTopic } from "../engine/host";
 import { requireNativeModule } from "../modules";
 import { httpPagesPort } from "./engineBackForward";
-import type { ListedTab } from "./engineHost";
+import type { ListedTab, TabEvent } from "./engineHost";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 const VISIBLE = 4;
@@ -73,7 +73,7 @@ export const keptBy = (key: string, seconds: number) =>
     (kept) => !(Array.isArray(kept) && kept.length === 1 && kept[0] === DEVTOOLS_OPEN),
   );
 
-type HeardEvent = { key?: unknown; name?: unknown; data?: Record<string, unknown>; opener?: unknown; url?: unknown };
+type HeardEvent = Omit<TabEvent, "data"> & { data?: Record<string, unknown>; opener?: unknown; url?: unknown; fromClick?: unknown };
 
 export function heard(topic: string, wanted: (event: HeardEvent) => boolean, what: string): Promise<HeardEvent> {
   return new Promise((resolve, reject) => {
@@ -210,7 +210,7 @@ const sleepChecks: Check[] = [
           await click(page!, 110, 90);
           const tab = await opened;
           expectTrue(String(tab.url).endsWith("/b"), "the new tab opens the link's address");
-          expectEqual((tab as { fromClick?: unknown }).fromClick, true, "the woken page's link script saw the click (fromClick)");
+          expectEqual(tab.fromClick, true, "the woken page's link script saw the click (fromClick)");
           const ask = heard("tab", (event) => event.key === page && event.name === "externalApp", "an app-link ask from a click");
           await click(page!, 110, 150);
           expectEqual((await ask).data?.url, "ardia-sleep-check-link:woke", "the app-link ask");
