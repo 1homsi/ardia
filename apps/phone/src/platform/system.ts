@@ -3,7 +3,7 @@ import { getStringAsync, hasStringAsync, setStringAsync } from "expo-clipboard";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { AndroidHaptics, impactAsync, ImpactFeedbackStyle, notificationAsync, NotificationFeedbackType, performAndroidHapticsAsync, selectionAsync } from "expo-haptics";
 import { getLocales } from "expo-localization";
-import { Linking, Platform, Share } from "react-native";
+import { Image, Linking, Platform, Share } from "react-native";
 
 export const copyText = (text: string) => setStringAsync(text);
 
@@ -55,3 +55,5 @@ export async function clipboardOffer(): Promise<ClipboardOffer | null> {
   if (readsClipOffers) return clipboard.offer();
   return (await hasStringAsync()) ? "text" : null;
 }
+
+export const prefetchImage = (uri: string): Promise<boolean> => Image.prefetch(uri);

@@ -44,7 +44,8 @@ import {
 } from "../tabs/store";
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
-import { copyText, pasteText } from "../../platform/system";
+import { copyText, pasteText, prefetchImage } from "../../platform/system";
+import { noteSnapshotShown } from "../../lib/shownSnapshots";
 import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
 import { countUsage } from "../telemetry/telemetry";
@@ -235,8 +236,10 @@ export async function showDeck() {
   const selected = currentTabs().selectedId;
   const covered = pageCovered();
   dismissSearch();
-  if (surface === "browsing" && selected && coverIsCapturable(loading.get(selected) === false, covered)) {
-    await Promise.race([captureSnapshot(selected), new Promise((done) => setTimeout(done, DECK_SNAPSHOT_WAIT_MS))]);
+  if (surface === "browsing" && selected) {
+    const earlier = readyPicture(selected);
+    const fresh = coverIsCapturable(loading.get(selected) === false, covered) ? captureSnapshot(selected).then(() => readyPicture(selected)) : earlier;
+    await Promise.race([fresh, new Promise((done) => setTimeout(done, DECK_SNAPSHOT_WAIT_MS))]);
   }
   useBrowse.setState({ surface: "deck", deckEntrance: surface === "browsing" ? selected : null, frozenOrder: null, opening: null });
 }
@@ -340,6 +343,13 @@ export function captureCurrentCover() {
   const id = currentTabs().selectedId;
   if (!id || !coverIsCapturable(loading.get(id) === false, false)) return;
   void captureSnapshot(id);
+}
+
+async function readyPicture(id: string) {
+  const uri = findTab(currentTabs(), id)?.snapshotFileName;
+  if (!uri) return;
+  noteSnapshotShown(uri);
+  await settled(() => prefetchImage(uri), false);
 }
 
 export async function captureSnapshot(id: string) {

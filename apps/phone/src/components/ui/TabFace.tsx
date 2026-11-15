@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
+import { noteSnapshotShown, snapshotWasShown } from "../../lib/shownSnapshots";
 import { tabsMotion } from "./motion";
 import { isDarkColor } from "../../lib/color";
 import { Favicon } from "./Favicon";
@@ -64,11 +65,9 @@ function PlainFace({ tab, title, host, fill, roles, compact }: { tab: TabFaceTab
   );
 }
 
-const shownSnapshots = new Set<string>();
-
 function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: ReactNode }) {
   const [aspect, setAspect] = useState<number | null>(null);
-  const [wasShown] = useState(() => shownSnapshots.has(uri));
+  const [wasShown] = useState(() => snapshotWasShown(uri));
   const [covered, setCovered] = useState(!wasShown);
   const appear = useSharedValue(wasShown ? 1 : 0);
   const appearing = useAnimatedStyle(() => ({ opacity: appear.value }));
@@ -80,12 +79,12 @@ function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: Reac
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
           if (width > 0 && height > 0) setAspect(width / height);
-          if (shownSnapshots.has(uri)) {
+          if (snapshotWasShown(uri)) {
             appear.value = 1;
             setCovered(false);
             return;
           }
-          shownSnapshots.add(uri);
+          noteSnapshotShown(uri);
           appear.value = withTiming(1, { duration: tabsMotion.fade }, (finished) => {
             if (finished) runOnJS(setCovered)(false);
           });
