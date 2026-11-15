@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import { DeviceEventEmitter, turboModules } from "../test-native/reactNative.ts";
 
 const calls = [];
@@ -337,5 +337,27 @@ test("a tab a lone private pop-up opens is closed at once: no window of its priv
   await settle();
   assert.equal(reopens.length, before, "no window is asked for");
   assert.ok(calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:75"), "the private tab is closed, never put in a regular window");
+  await popup.done();
+});
+
+test("a tab a lone pop-up opens is closed in the engine, not left hidden and running, when no page of its profile listens within the wait", async () => {
+  const { BROWSER_WINDOW_WAIT_MS } = await import("../../../../packages/expo-windows/src/engine/requestHosts.ts");
+  const popup = await lonePopup("ardiacore:76");
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    emitTopic("tab.opened", { adopt: "ardiacore:77", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
+    mock.timers.tick(BROWSER_WINDOW_WAIT_MS - 1);
+    assert.ok(!calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:77"), "it still waits just before the deadline");
+    mock.timers.tick(1);
+  } finally {
+    mock.timers.reset();
+  }
+  await settle();
+  assert.ok(calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:77"), "at the deadline the offered tab is closed in the engine");
+  const events = [];
+  const late = mountPage("late-page", { url: "https://app.example/", profile: "p-work", windowId: "main-late" }, (name, data) => events.push([name, data]));
+  await settle();
+  assert.equal(events.filter(([name]) => name === "openWindow").length, 0, "a page that listens later doesn't get a tab that is gone");
+  late();
   await popup.done();
 });
