@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import com.ardia.phone.PhoneSystemLinks
+import com.ardia.phone.ReactBack
 import com.ardia.phone.RestorableState
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -12,9 +13,13 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+    @Suppress("DEPRECATION")
+    private val reactBack = ReactBack { onBackPressed() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         RestorableState.restore(savedInstanceState)
         super.onCreate(null)
+        onBackPressedDispatcher.addCallback(this, reactBack)
         PhoneSystemLinks.activityStarted(intent, restored = savedInstanceState != null)
     }
 
@@ -39,6 +44,6 @@ class MainActivity : ReactActivity() {
 
     override fun invokeDefaultOnBackPressed() {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R && moveTaskToBack(false)) return
-        super.invokeDefaultOnBackPressed()
+        reactBack.bypassed { super.invokeDefaultOnBackPressed() }
     }
 }

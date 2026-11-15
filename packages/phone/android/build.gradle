@@ -191,6 +191,7 @@ android {
   }
   testOptions {
     unitTests.returnDefaultValues = true
+    unitTests.includeAndroidResources = true
     unitTests.all { test ->
       test.systemProperty("ardia.syncFixtures", syncFixtures.absolutePath)
       test.systemProperty("ardia.phoneSchema", phoneSchema.absolutePath)
