@@ -27,15 +27,15 @@ export default {
   setup: `return sleep(1500).then(() => done());`,
   external: readPage,
   act: `const typeUrl = (text) => [...text].reduce((p, ch) => p.then(() => dw("type:" + ch)).then(() => sleep(45)), Promise.resolve());
-const press = (k) => key(k, 0, k, KEYCODES[k]);
+const pressKey = (k) => key(k, 0, k, KEYCODES[k]);
 const activeUrl = () => { const t = st().tabs[st().windows[W].activeTabIds[st().windows[W].profileId]]; return t ? t.url : null; };
 return sleep(600)
   .then(() => { mark("go"); return key("⌘T", CMD, "t", 17); })
   .then(() => sleep(800)).then(() => typeUrl(${JSON.stringify(SITE)})).then(() => sleep(450))
   .then(() => key("↩", 0, String.fromCharCode(13), 36))
   .then(() => sleep(1600))
-  .then(() => ["j", "j", "j", "j"].reduce((p, k) => p.then(() => press(k)).then(() => sleep(750)), Promise.resolve()))
-  .then(() => sleep(350)).then(() => press("k")).then(() => sleep(1700))
+  .then(() => ["j", "j", "j", "j"].reduce((p, k) => p.then(() => pressKey(k)).then(() => sleep(750)), Promise.resolve()))
+  .then(() => sleep(350)).then(() => pressKey("k")).then(() => sleep(1700))
   .then(() => done({ url: activeUrl() }));`,
   tail: 600,
 };
