@@ -3,7 +3,8 @@ param(
   [Parameter(Mandatory = $true)][string]$Out,
   [int]$Seconds = 25,
   [int]$SelfCheckSeconds = 120,
-  [switch]$NoInput
+  [switch]$NoInput,
+  [ValidateSet("all", "launch", "gate")][string]$Part = "all"
 )
 
 $ErrorActionPreference = "Stop"
@@ -411,6 +412,7 @@ function New-DataDirectory([string]$Name) {
   return $directory
 }
 
+if ($Part -ne "gate") {
 $env:ARDIA_DATA_DIR = New-DataDirectory "launch-data"
 $env:ARDIA_BACKGROUND = ""
 $process = Start-Process -FilePath $App -ArgumentList "--log-file=`"$log`"" -PassThru
@@ -668,6 +670,7 @@ if (Test-Path $checkLog) {
 } else {
   $failures += "the self-check wrote no log"
 }
+}
 
 function Invoke-LoginData([string]$Sql) {
   $database = Join-Path $env:ARDIA_DATA_DIR "Chromium\Default\Login Data"
@@ -707,7 +710,7 @@ function Invoke-SelfCheckStage([string]$Stage) {
   return ""
 }
 
-if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")) {
+if ($Part -ne "gate" -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll"))) {
   $secondLogin = "https://ardia-self-check-two.example%"
   $otherKinds = "CREATE TEMP TABLE ardia_kinds AS SELECT * FROM logins WHERE signon_realm LIKE 'https://ardia-self-check-one.example%';" +
     " UPDATE ardia_kinds SET id = NULL, signon_realm = 'https://ardia-self-check-never.example/', origin_url = 'https://ardia-self-check-never.example/', username_value = '', password_value = X'', blacklisted_by_user = 1;" +
@@ -729,7 +732,7 @@ if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -Literal
   }
 }
 
-if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")) {
+if ($Part -ne "gate" -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll"))) {
   $warpLog = Join-Path $Out "self-check-warp.log"
   $env:ARDIA_TEST = "selfCheckOnly=meadow:,meadowWebGL=required"
   $warp = Start-Process -FilePath $App -ArgumentList "--self-check", "--ignore-gpu-blocklist", "--use-angle=d3d11-warp", "--log-file=`"$warpLog`"" -PassThru
@@ -873,6 +876,7 @@ function Test-ATestInstance([string]$DataDirectory, [string]$Case) {
   } finally { Stop-GateLaunch $run }
 }
 
+if ($Part -ne "launch") {
 $gateData = New-DataDirectory "gate-scratch"
 $marker = Join-Path (Split-Path -Parent $gateApp) "Ardia.test-build"
 Remove-Item -Force -LiteralPath $marker
@@ -900,6 +904,7 @@ if ($withEngine -and $env:GITHUB_ACTIONS -eq "true") {
   Test-ExtensionRunsInATestInstance $extension 9341
 }
 if ($withEngine) { Test-ATestInstance (New-DataDirectory "gate-test-instance") "a scratch folder with the marker" }
+}
 $env:ARDIA_DATA_DIR = ""
 $env:ARDIA_BACKGROUND = ""
 
@@ -907,4 +912,5 @@ if ($failures.Count) {
   $failures | ForEach-Object { Write-Host "::error::$_" }
   exit 1
 }
-Write-Host "The app launched, rendered its first window, stayed up for $Seconds s, and passed its self-check."
+if ($Part -ne "gate") { Write-Host "The app launched, rendered its first window, stayed up for $Seconds s, and passed its self-check." }
+if ($Part -ne "launch") { Write-Host "The test gate refused what it must and let a test instance through." }
