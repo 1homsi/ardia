@@ -276,3 +276,13 @@ test("Chrome decides each sleep: a tab it keeps, or whose answer doesn't come in
   assert.equal(takeTabSleepCounts().tabs_slept_over_budget_reopened, 0);
   webviews.clear();
 });
+
+test("a page the budget sees that isn't a tab, such as a pop-up window's page on Windows, is never asked to sleep", async () => {
+  const { tabsOverBudget } = await import("./loadedTabBudget.ts");
+  const now = Date.now() + 72 * 60 * minute;
+  const { ids, active } = windowOfHiddenTabs(3, now);
+  const popupPage = "popup:w-1:page";
+  const over = tabsOverBudget(S(), [popupPage, active, ...ids], { tabs: 1, hiddenMs: 0 }, now);
+  assert.ok(!over.includes(popupPage), "the pop-up's page is never a candidate");
+  assert.deepEqual(over, [ids[2], ids[1], ids[0]], "the hidden tabs still are");
+});
