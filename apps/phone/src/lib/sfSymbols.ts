@@ -27,6 +27,7 @@ const SF_SYMBOLS: Record<string, string> = {
   archivebox: "archivebox",
   "archivebox.fill": "archivebox",
   "square.stack": "squareStack",
+  "square.grid.2x2": "squareGrid2x2",
   "square.on.square": "squareOnSquare",
   "doc.on.doc": "docOnDoc",
   "doc.text": "docText",

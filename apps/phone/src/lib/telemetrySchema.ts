@@ -50,6 +50,7 @@ export const EVENT_FIELDS = {
     tray_hidden_rows_opened: { kind: "count" },
     deck_pictures_late: { kind: "count" },
     tray_back_swiped: { kind: "count" },
+    search_tabs_opened: { kind: "count" },
   },
 } as const satisfies Record<string, Record<string, FieldRule>>;
 
@@ -143,7 +144,7 @@ export function resourceFor(device: DeviceFacts): Record<(typeof RESOURCE_FIELDS
   };
 }
 
-export const COUNTED = ["tabs_opened", "searches", "pins_to_mac", "tabs_sent", "page_processes_gone", "links_given_up", "pages_reloaded_online", "spaces_swiped", "tray_hidden_rows_opened", "deck_pictures_late", "tray_back_swiped"] as const;
+export const COUNTED = ["tabs_opened", "searches", "pins_to_mac", "tabs_sent", "page_processes_gone", "links_given_up", "pages_reloaded_online", "spaces_swiped", "tray_hidden_rows_opened", "deck_pictures_late", "tray_back_swiped", "search_tabs_opened"] as const;
 
 export type Counted = (typeof COUNTED)[number];
 
@@ -163,7 +164,7 @@ export type DailyCounts = { day: string } & Record<Counted, number>;
 
 export const utcDay = (at: number) => new Date(at).toISOString().slice(0, 10);
 
-export const emptyDay = (day: string): DailyCounts => ({ day, tabs_opened: 0, searches: 0, pins_to_mac: 0, tabs_sent: 0, page_processes_gone: 0, links_given_up: 0, pages_reloaded_online: 0, spaces_swiped: 0, tray_hidden_rows_opened: 0, deck_pictures_late: 0, tray_back_swiped: 0 });
+export const emptyDay = (day: string): DailyCounts => ({ day, tabs_opened: 0, searches: 0, pins_to_mac: 0, tabs_sent: 0, page_processes_gone: 0, links_given_up: 0, pages_reloaded_online: 0, spaces_swiped: 0, tray_hidden_rows_opened: 0, deck_pictures_late: 0, tray_back_swiped: 0, search_tabs_opened: 0 });
 
 const anyCounted = (counts: DailyCounts) => COUNTED.some((field) => counts[field] > 0);
 
@@ -179,7 +180,7 @@ export function counted(state: DailyCounts | null, field: Counted, today: string
 }
 
 export function usageProps(counts: DailyCounts): EventProps<"usage_counts"> {
-  return { tabs_opened: counts.tabs_opened, searches: counts.searches, pins_to_mac: counts.pins_to_mac, tabs_sent: counts.tabs_sent, page_processes_gone: counts.page_processes_gone, links_given_up: counts.links_given_up, pages_reloaded_online: counts.pages_reloaded_online, spaces_swiped: counts.spaces_swiped, tray_hidden_rows_opened: counts.tray_hidden_rows_opened, deck_pictures_late: counts.deck_pictures_late, tray_back_swiped: counts.tray_back_swiped };
+  return { tabs_opened: counts.tabs_opened, searches: counts.searches, pins_to_mac: counts.pins_to_mac, tabs_sent: counts.tabs_sent, page_processes_gone: counts.page_processes_gone, links_given_up: counts.links_given_up, pages_reloaded_online: counts.pages_reloaded_online, spaces_swiped: counts.spaces_swiped, tray_hidden_rows_opened: counts.tray_hidden_rows_opened, deck_pictures_late: counts.deck_pictures_late, tray_back_swiped: counts.tray_back_swiped, search_tabs_opened: counts.search_tabs_opened };
 }
 
 export function parseDaily(raw: string | null | undefined): DailyCounts | null {

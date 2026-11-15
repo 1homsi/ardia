@@ -1,14 +1,14 @@
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { capsule, font, space, Symbol, tabsInk, tabsLayout, useTheme } from "../ui";
 
-export function DeckEmpty({ centerY, showsArchive, onArchive }: { centerY: number; showsArchive: boolean; onArchive: () => void }) {
+export function DeckEmpty({ centerY, showsArchive, onArchive, searching = false }: { centerY: number; showsArchive: boolean; onArchive: () => void; searching?: boolean }) {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   return (
     <View style={[styles.empty, { top: centerY - space.huge * 2, left: (width - tabsLayout.emptyWidth) / 2, width: tabsLayout.emptyWidth }]}>
-      <Text style={[font.title3, styles.emptyTitle, { color: theme.headerText }]}>No Open Tabs</Text>
-      <Text style={[font.subheadline, styles.centered, { color: theme.secondaryLabel }]}>Tabs you open appear here. Inactive tabs move to the Archive.</Text>
-      {showsArchive ? (
+      <Text style={[font.title3, styles.emptyTitle, { color: theme.headerText }]}>{searching ? "No Matching Tabs" : "No Open Tabs"}</Text>
+      {searching ? null : <Text style={[font.subheadline, styles.centered, { color: theme.secondaryLabel }]}>Tabs you open appear here. Inactive tabs move to the Archive.</Text>}
+      {showsArchive && !searching ? (
         <Pressable accessibilityRole="button" onPress={onArchive} style={styles.archive}>
           <Text style={[font.subheadline, styles.bold, { color: theme.formAccent }]}>Open Archive</Text>
         </Pressable>

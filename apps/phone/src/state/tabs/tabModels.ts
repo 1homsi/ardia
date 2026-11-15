@@ -95,6 +95,15 @@ export const titleAfterFailedLoad = (beforeLoad: string | undefined, current: st
 
 export const coverIsCapturable = (finishedLoading: boolean | undefined, covered: boolean) => finishedLoading === true && !covered;
 
+const folded = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase();
+
+export function tabMatchesQuery(tab: Pick<BrowserTab, "title" | "url" | "isPrivate">, query: string): boolean {
+  const needle = folded(query.trim());
+  if (!needle) return true;
+  const title = tab.isPrivate ? `Incognito ${tab.title}` : tab.title;
+  return folded(title).includes(needle) || folded(tab.url).includes(needle);
+}
+
 export const ARCHIVE_CARD_THRESHOLD = 8;
 
 export const offersArchiveCard = (alreadyShown: boolean, openTabs: number) => !alreadyShown && openTabs >= ARCHIVE_CARD_THRESHOLD;

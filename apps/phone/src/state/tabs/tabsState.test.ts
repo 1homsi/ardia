@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AUTO_ARCHIVE_INTERVALS, coverIsCapturable, offersArchiveCard, isAutoArchiveDue, pageStatePatch, POSITION_STEP, titleAfterFailedLoad } from "./tabModels.ts";
+import { AUTO_ARCHIVE_INTERVALS, coverIsCapturable, offersArchiveCard, isAutoArchiveDue, pageStatePatch, POSITION_STEP, tabMatchesQuery, titleAfterFailedLoad } from "./tabModels.ts";
 import {
   isPrivateOnScreen,
   archiveTabs,
@@ -263,4 +263,15 @@ test("the deck offers the archive card once, the first time it settles with eigh
   assert.equal(offersArchiveCard(false, 7), false);
   assert.equal(offersArchiveCard(false, 8), true);
   assert.equal(offersArchiveCard(true, 20), false);
+});
+
+test("Search Tabs matches a tab's title or address as main's TabText.matches does: ignoring case and accents, and a private tab also by the word Incognito", () => {
+  const tab = { title: "Café Menu", url: "https://example.com/lunch", isPrivate: false };
+  assert.equal(tabMatchesQuery(tab, "cafe"), true);
+  assert.equal(tabMatchesQuery(tab, "EXAMPLE"), true);
+  assert.equal(tabMatchesQuery(tab, "  lunch "), true);
+  assert.equal(tabMatchesQuery(tab, "dinner"), false);
+  assert.equal(tabMatchesQuery(tab, "incognito"), false);
+  assert.equal(tabMatchesQuery({ ...tab, isPrivate: true }, "incognito"), true);
+  assert.equal(tabMatchesQuery(tab, "   "), true);
 });

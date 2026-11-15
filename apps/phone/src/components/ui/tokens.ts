@@ -291,6 +291,43 @@ export const startLayout = {
   invitationPadding: 20,
 } as const;
 
+export const deckChromeLayout = {
+  headerCircle: 44,
+  headerCenter: 26,
+  headerSide: 12,
+  headerGap: 8,
+  menuGap: 8,
+  pillHeight: 38,
+  pillPadding: 14,
+  pillSpacing: 8,
+  pillGlyph: 16,
+  barCircle: 48,
+  barSideInset: 12,
+  barGap: 8,
+  searchLead: 13,
+  searchTrail: 16,
+  searchTrailFilled: 8,
+  searchSpacing: 8,
+  searchGlyph: 16.8,
+  clearGlyph: 22.8,
+  clearHit: 32,
+  archiveCenter: 78.5,
+  archiveHeight: 43,
+  archiveMaxWidth: 560,
+  archiveLead: 16,
+  archiveTrail: 8,
+  archiveSpacing: 4,
+  archiveText: 14,
+  archiveTextMinScale: 0.8,
+  archivePickerSpacing: 3,
+  archivePickerHeight: 36,
+  archiveChevron: 13.2,
+  archiveDismiss: 36,
+  archiveDismissGlyph: 15.6,
+} as const;
+
+export const deckChromeInk = { pill: "#FFFFFF" } as const;
+
 export const startInk = {
   veil: "rgba(255,255,255,0.34)",
   light: { pageDot: "rgba(0,0,0,0.32)", badge: "#FFFFFF", badgeInk: "#000000" },

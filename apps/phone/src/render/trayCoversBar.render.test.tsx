@@ -29,7 +29,11 @@ const plain = (root: Root) => root.root.findAll((node) => node.props.testID === 
 
 test("while the tray covers the deck, the deck bar's three buttons hold no frost, so the tray's rise blurs one layer instead of four", () => {
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
-  const root = renderSurface(<TabDeck />);
+  const root = renderSurface(
+    <DesignProvider design="original">
+      <TabDeck />
+    </DesignProvider>,
+  );
   expect(frosts(root)).toBe(3);
   act(() => presentSearch("page", ""));
   expect(frosts(root)).toBe(0);

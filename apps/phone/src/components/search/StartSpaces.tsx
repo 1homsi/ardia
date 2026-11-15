@@ -138,21 +138,12 @@ function StartSpacePage({
 }) {
   const switcherY = geometry.height * startLayout.switcherRatio;
   const anchor = useRef<View>(null);
-  const roles = rolesFor(dark);
   const many = spaces.length > 1;
   const openMenu = () => {
     menuOpenedHaptic();
     onMenu({ anchor, items: spaces.map((other) => ({ label: other.name, icon: spaceMenuSymbol(other) ?? undefined, checked: other.syncId === profile.syncId, onPress: () => onChoose(other.syncId) })) });
   };
-  const title = (
-    <View style={styles.title}>
-      <SpaceGlyph space={profile} dark={dark} />
-      <Text style={[font.body, styles.headline, { color: roles.headerText }]} numberOfLines={1}>
-        {profile.name}
-      </Text>
-      {many ? <Symbol name="chevronDown" size={startLayout.chevron} color={roles.secondaryLabel} /> : null}
-    </View>
-  );
+  const title = <SpaceTitle space={profile} dark={dark} showsChevron={many} />;
   return (
     <View style={{ width: geometry.width, height: geometry.height }} pointerEvents="box-none">
       <View testID="startSwitcher" ref={anchor} pointerEvents="box-none" style={[styles.switcherRow, { top: switcherY - browseLayout.hitTarget / 2, height: browseLayout.hitTarget }]}>
@@ -246,6 +237,19 @@ function TileIcon({ tile, isFolder, dark }: { tile: PinnedTile; isFolder: boolea
   return <Favicon iconUrl={null} pageUrl={tile.url} size={startLayout.tileIcon} />;
 }
 
+export function SpaceTitle({ space: profile, dark, showsChevron }: { space: SyncedProfile; dark: boolean; showsChevron: boolean }) {
+  const roles = rolesFor(dark);
+  return (
+    <View style={styles.title}>
+      <SpaceGlyph space={profile} dark={dark} />
+      <Text style={[font.body, styles.headline, { color: roles.headerText }]} numberOfLines={1}>
+        {profile.name}
+      </Text>
+      {showsChevron ? <Symbol name="chevronDown" size={startLayout.chevron} color={roles.secondaryLabel} /> : null}
+    </View>
+  );
+}
+
 function SpaceGlyph({ space: profile, dark }: { space: SyncedProfile; dark: boolean }) {
   const ink = dark ? startInk.dark : startInk.light;
   const size = startLayout.spaceBadge;
@@ -314,7 +318,7 @@ function symbolOf(icon: string | null): SymbolName | null {
   return symbol && isSymbolName(symbol) ? symbol : null;
 }
 
-function spaceMenuSymbol(profile: SyncedProfile): SymbolName | null {
+export function spaceMenuSymbol(profile: SyncedProfile): SymbolName | null {
   return symbolOf(profile.icon);
 }
 

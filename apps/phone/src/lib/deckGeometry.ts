@@ -1,3 +1,5 @@
+import type { Design } from "./design";
+
 export type DeckGeometry = {
   width: number;
   height: number;
@@ -27,6 +29,8 @@ export const DECK = {
   displayCornerRadius: 55,
 } as const;
 
+export const DECK_REDESIGN = { barReserve: 67, chromeGap: 21, minSafeBottom: 20, barAboveSafeBottom: 11 } as const;
+
 export const BUTTON_NAVIGATION_INSET = 32;
 const BAR_HALF_HEIGHT = 22;
 const BAR_GAP = 6;
@@ -43,12 +47,14 @@ function reach(peek: number, spacing: number): number {
   return value;
 }
 
-export function deckGeometry(width: number, height: number, safeTop: number, safeBottom: number, safeSide = 0, os: string = "android"): DeckGeometry {
+export function deckGeometry(width: number, height: number, safeTop: number, safeBottom: number, safeSide = 0, os: string = "android", design: Design = "original", chromeHeight = 0): DeckGeometry {
   const w = Math.max(width, 1);
   const h = Math.max(height, 1);
-  const bandTop = safeTop + DECK.topReserve + DECK.headerHeight;
-  const barCenter = deckBarCenterFromBottom(safeBottom, os);
-  const bandBottom = h - barCenter + BAR_GAP - DECK.barReserve + 24;
+  const redesigned = design === "redesigned";
+  const bottom = Math.max(safeBottom, DECK_REDESIGN.minSafeBottom);
+  const bandTop = redesigned ? safeTop + chromeHeight + DECK_REDESIGN.chromeGap + DECK.headerHeight : safeTop + DECK.topReserve + DECK.headerHeight;
+  const barCenter = redesigned ? bottom + DECK_REDESIGN.barAboveSafeBottom : deckBarCenterFromBottom(safeBottom, os);
+  const bandBottom = redesigned ? h - bottom - DECK_REDESIGN.barReserve + 24 : h - barCenter + BAR_GAP - DECK.barReserve + 24;
   const band = Math.max(bandBottom - bandTop, 120);
   const aspect = h / w;
   const cardWidth = Math.min(w * DECK.cardWidthRatio, band / aspect);

@@ -1,6 +1,7 @@
 import { StyleSheet } from "react-native";
 import { act } from "react-test-renderer";
 import { TabDeck } from "../components/tabs/TabDeck";
+import { DesignProvider } from "../components/ui";
 import { useArchiveCard } from "../state/browse/archiveCard";
 import { useBrowse } from "../state/browse/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
@@ -12,6 +13,12 @@ beforeEach(() => {
   useArchiveCard.setState({ showing: true });
 });
 
+const originalDeck = () => (
+  <DesignProvider design="original">
+    <TabDeck />
+  </DesignProvider>
+);
+
 afterEach(() => {
   useArchiveCard.setState({ showing: false });
   act(() => jest.runOnlyPendingTimers());
@@ -19,7 +26,7 @@ afterEach(() => {
 });
 
 test("the Archive card's bottom edge sits above the deck bar's top, both placed from the top so a three-button navigation bar can't drop the card onto the buttons", () => {
-  const root = renderSurface(<TabDeck />);
+  const root = renderSurface(originalDeck());
   const place = StyleSheet.flatten(root.root.findAll((node) => node.props.testID === "archiveCardPlace" && typeof node.type === "string")[0]!.props.style);
   expect(place.top).toBe(0);
   expect(place.bottom).toBeUndefined();
@@ -33,7 +40,7 @@ test("the Archive card's bottom edge sits above the deck bar's top, both placed 
 });
 
 test("the + menu opens above the + button measured against the deck's real height, which on a three-button phone is taller than the window", () => {
-  const root = renderSurface(<TabDeck />);
+  const root = renderSurface(originalDeck());
   const deck = root.root.findAll((node) => typeof node.type === "string" && typeof node.props.onLayout === "function" && StyleSheet.flatten(node.props.style)?.position === "absolute")[0]!;
   const windowHeight = 873;
   const navigationBar = 48;

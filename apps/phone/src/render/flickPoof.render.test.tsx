@@ -1,8 +1,11 @@
+import { Platform } from "react-native";
 import { State } from "react-native-gesture-handler";
 import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act, type ReactTestInstance } from "react-test-renderer";
+import { deckHeaderBottom } from "../components/tabs/DeckHeader";
 import { TabDeck } from "../components/tabs/TabDeck";
+import { appDesign } from "../components/ui";
 import { deckGeometry } from "../lib/deckGeometry";
 import { POOF } from "../lib/poof";
 import * as browse from "../state/browse/store";
@@ -46,7 +49,7 @@ const puffCentre = (burst: ReactTestInstance) => {
   return centres.reduce((sum, y) => sum + y, 0) / centres.length;
 };
 
-const g = deckGeometry(393, 873, 40, 24);
+const g = deckGeometry(393, 873, 40, 24, 0, Platform.OS, appDesign, deckHeaderBottom());
 const size = g.cardWidth * POOF.sizeShare;
 
 const flick = (rise: number) =>

@@ -52,6 +52,8 @@ export const trayMotion = {
 
 export const startMotion = { rise: 360, reduced: 200, trayScale: 0.96, pageDot: 200 } as const;
 
+export const deckChromeMotion = { pill: spring(0.2, 1), pillScale: 0.9, chromeShift: spring(0.18, 1), keyboard: 300, archiveScale: 0.96 } as const;
+
 export const toastMotion = { snappy: spring(0.3, 0.86) } as const;
 
 export const settingsMotion = { swatchRing: spring(0.3, 0.86), titleFade: { stiffness: 1500, damping: 2 * Math.sqrt(1500), mass: 1 } } as const;

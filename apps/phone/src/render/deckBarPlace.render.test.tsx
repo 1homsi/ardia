@@ -1,7 +1,7 @@
 import { Dimensions, Platform, StyleSheet } from "react-native";
 import { act } from "react-test-renderer";
 import { TabDeck } from "../components/tabs/TabDeck";
-import { tabsLayout } from "../components/ui";
+import { DesignProvider, tabsLayout } from "../components/ui";
 import { setRootSize, useRootSize } from "../state/app/rootSize";
 import { useArchiveCard } from "../state/browse/archiveCard";
 import { useBrowse } from "../state/browse/store";
@@ -41,6 +41,12 @@ function onPhone(shape: Shape) {
   setRootSize(SCREEN.width, SCREEN.height);
 }
 
+const originalDeck = () => (
+  <DesignProvider design="original">
+    <TabDeck />
+  </DesignProvider>
+);
+
 function barCenterY(root: ReturnType<typeof renderSurface>) {
   let bar = root.root.findAll((node) => node.props.accessibilityLabel === "New Tab" && typeof node.type === "string")[0]!.parent;
   while (bar && StyleSheet.flatten(bar.props.style)?.position !== "absolute") bar = bar.parent;
@@ -52,7 +58,7 @@ const expectedCenterFromBottom = (navigation: number) => (Platform.OS === "andro
 
 test.each([THREE_BUTTONS, GESTURES])("with $name the deck bar is placed from the screen the deck covers, not from a window that leaves out the system bars", (shape) => {
   onPhone(shape);
-  const root = renderSurface(<TabDeck />);
+  const root = renderSurface(originalDeck());
   const fromBottom = SCREEN.height - barCenterY(root);
   expect(fromBottom).toBeCloseTo(expectedCenterFromBottom(shape.navigation), 1);
   expect(fromBottom).toBeLessThan(shape.navigation + 40);
@@ -61,7 +67,7 @@ test.each([THREE_BUTTONS, GESTURES])("with $name the deck bar is placed from the
 
 test("on gesture navigation the bar sits exactly where Compose's does: max(inset, 20) + 6 above the screen's bottom", () => {
   onPhone(GESTURES);
-  const root = renderSurface(<TabDeck />);
+  const root = renderSurface(originalDeck());
   expect(SCREEN.height - barCenterY(root)).toBeCloseTo(composeCenterFromBottom(GESTURES.navigation), 1);
   unmount(root);
 });
@@ -69,7 +75,7 @@ test("on gesture navigation the bar sits exactly where Compose's does: max(inset
 test("with three-button navigation the Archive card still sits just above the bar", () => {
   onPhone(THREE_BUTTONS);
   useArchiveCard.setState({ showing: true });
-  const root = renderSurface(<TabDeck />);
+  const root = renderSurface(originalDeck());
   const place = StyleSheet.flatten(root.root.findAll((node) => node.props.testID === "archiveCardPlace" && typeof node.type === "string")[0]!.props.style);
   const barTop = barCenterY(root) - tabsLayout.barPlus.height / 2 - 2;
   expect(place.height).toBeLessThan(barTop);

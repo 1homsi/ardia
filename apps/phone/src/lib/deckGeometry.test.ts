@@ -208,3 +208,17 @@ test("a tab that arrives while the deck is open takes its place in the live orde
   assert.deepEqual(mergeDeckOrder(["a", "b", "c"], ["a", "c"]), ["a", "c"]);
   assert.deepEqual(mergeDeckOrder(["a", "sel"], ["x", "a", "y", "z", "sel"]), ["x", "a", "y", "z", "sel"]);
 });
+
+test("in the redesign the cards sit under main's header, about 24 points lower, and the bar centres 11 points above max(safe bottom, 20), as main's TabsDeckGeometry", () => {
+  const original = deckGeometry(402, 874, 62, 34, 0, "ios");
+  const header = deckGeometry(402, 874, 62, 34, 0, "ios", "redesigned", 48);
+  assert.equal(header.barCenterY, 874 - 34 - 11);
+  assert.equal(header.cardCenterY, (62 + 48 + 21 + 20 + (874 - 34 - 67 + 24)) / 2);
+  assert.equal(header.cardCenterY - original.cardCenterY, 24);
+  assert.equal(header.cardWidth, original.cardWidth);
+  const archive = deckGeometry(402, 874, 62, 34, 0, "ios", "redesigned", 100);
+  assert.equal(archive.cardCenterY - header.cardCenterY, 26);
+  const homeButton = deckGeometry(375, 667, 20, 0, 0, "ios", "redesigned", 48);
+  assert.equal(homeButton.barCenterY, 667 - 20 - 11);
+  assert.deepEqual(deckGeometry(412, 915, 48, 24, 0, "android", "original", 48), pixel7);
+});
