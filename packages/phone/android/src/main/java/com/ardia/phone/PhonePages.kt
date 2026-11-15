@@ -192,7 +192,9 @@ object PhonePages {
 
     suspend fun snapshot(pageId: String, maxWidth: Int, quality: Int, covered: Pair<Double, Double>?): Map<String, Any?>? {
         val page = require(pageId)
+        val started = android.os.SystemClock.uptimeMillis()
         val drawn = page.snapshot(maxWidth) ?: return null
+        val captured = android.os.SystemClock.uptimeMillis()
         val route = (page as? WebViewPage)?.lastCaptureRoute
         val web = page.view.value
         val insets = covered ?: views[pageId]?.get()?.toneInsets
@@ -200,7 +202,8 @@ object PhonePages {
         val frame = kotlinx.coroutines.withContext(Dispatchers.Main.immediate) { views[pageId]?.get()?.let(::frameInWindow) }
         val written = snapshots.write(pageId, picture, page.isPrivate, quality) ?: return null
         if (PhoneLab.isOn) {
-            android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${picture.width}x${picture.height} by ${if (route == CaptureRoute.WindowCopy) "window copy" else "view draw"}, page view in window ${frame ?: "unknown"} (dp), top inset cropped ${insets?.first ?: 0.0} dp")
+            val done = android.os.SystemClock.uptimeMillis()
+            android.util.Log.i("PAGELAB", "PAGELAB snapshot $pageId ${picture.width}x${picture.height} by ${if (route == CaptureRoute.WindowCopy) "window copy" else "view draw"}, captured in ${captured - started} ms, written in ${done - captured} ms, page view in window ${frame ?: "unknown"} (dp), top inset cropped ${insets?.first ?: 0.0} dp")
         }
         return written + ("route" to if (route == CaptureRoute.WindowCopy) "windowCopy" else "draw") + ("frame" to frame)
     }
