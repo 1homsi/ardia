@@ -14,6 +14,18 @@ public enum TrayDrag {
     return -rubberBand(-translation, limit: upwardLimit)
   }
 
+  public static func translation(for offset: CGFloat) -> CGFloat {
+    guard offset < 0 else { return offset }
+    let stretch = min(-offset / upwardLimit, 0.99)
+    return -upwardLimit * stretch / (1 - stretch)
+  }
+
+  public static func trayVelocity(translation: CGFloat, fingerVelocity: CGFloat) -> CGFloat {
+    guard translation < 0 else { return fingerVelocity }
+    let stretch = -translation / upwardLimit + 1
+    return fingerVelocity / (stretch * stretch)
+  }
+
   public static func rubberBand(_ distance: CGFloat, limit: CGFloat) -> CGFloat {
     guard distance > 0, limit > 0 else { return 0 }
     return limit * (1 - 1 / (distance / limit + 1))

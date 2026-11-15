@@ -5,84 +5,31 @@ struct SearchTrayHost: View {
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.screenLayout) private var screenLayout
+  @Environment(\.profileLook) private var look
+  @Environment(\.usesGlass) private var usesGlass
   @ScaledMetric(relativeTo: .title3) private var fieldScale: CGFloat = 1
   @State private var shown: BrowseSession.SearchRequest?
   @State private var presentation = 0
-  @State private var isFocused = false
-  @State private var isClosing = false
-  @State private var isDeparting = false
-  @State private var currentLift: CGFloat = 0
-  @State private var isClosingAnimationDone = true
-  @State private var keyboardMoves = 0
-  @State private var keyboardSettledMove = 0
-  @State private var hasLanded = false
-  @State private var keyboard = KeyboardTracker()
-  @State private var keyboardHeight: CGFloat = 0
-  @State private var dragOffset: CGFloat = 0
-  @State private var isDragging = false
-  @State private var heldLift: CGFloat?
-  @State private var trayHeight: CGFloat = 0
-  @State private var settleTask: Task<Void, Never>?
-  @State private var landingTask: Task<Void, Never>?
+  @State private var motion = TrayMotion()
   @State private var removalTask: Task<Void, Never>?
 
-  static let keyboardThreshold: CGFloat = 120
-  static let keyboardWait: Duration = .milliseconds(220)
   static let removalPoll: Duration = .milliseconds(16)
   static let removalDeadline: Duration = .seconds(1.5)
 
   var body: some View {
-    ZStack {
-      keyboardProbe
-      tray
-    }
-  }
-
-  private var tray: some View {
     GeometryReader { proxy in
-      let safeBottom = proxy.safeAreaInsets.bottom
-      let keyboardUp = keyboardHeight > Self.keyboardThreshold
-      let restsWithoutKeyboard = hasLanded && !keyboardUp && !isClosing
-      let liveLift = restsWithoutKeyboard ? max(keyboardHeight, safeBottom) : keyboardHeight
-      let isUp = keyboardUp || (!isClosing && hasLanded)
-      let lift = heldLift ?? liveLift
-      let command = screenLayout.isWide ? CommandBarPlacement(proxy: proxy, lift: lift) : nil
-      let maxHeight = command?.maxHeight ?? maxHeight(in: proxy, lift: lift)
-      let progress = TrayDrag.progress(offset: dragOffset, travel: trayHeight + lift)
-      let restingDrop = isUp || isDeparting || reduceMotion || command != nil ? 0 : maxHeight + BrowseLayout.sheetTopRadius
-      let departure = isDeparting ? -BrowseLayout.trayDepartLift : 0
-      ZStack(alignment: .bottom) {
-        if let shown {
-          dim(over: shown)
-            .opacity(isUp ? 1 - progress : 0)
-            .animation(reduceMotion ? Motion.surfaceFade : Motion.trayDim, value: isUp)
-            .allowsHitTesting(isUp && !isClosing)
-            .ignoresSafeArea()
-          SearchTray(request: shown, isFocused: $isFocused, maxHeight: maxHeight, dismissDrag: dismissDrag(lift: liveLift))
-            .id(presentation)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { trayHeight = $0 }
-            .modifier(CommandBarFrame(placement: command, isUp: isUp))
-            .offset(y: (command == nil ? safeBottom - lift + dragOffset + restingDrop : dragOffset) + departure)
-            .opacity(isDeparting ? 0 : isUp || (!reduceMotion && command == nil) ? 1 : 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: command == nil ? .bottom : .top)
-            .allowsHitTesting(!isClosing)
-            .accessibilityAddTraits(.isModal)
-        }
-      }
-      .onChange(of: liveLift, initial: true) { _, live in
-        currentLift = live
-        guard shown != nil else { return }
-        if live > Self.keyboardThreshold, !isClosing, !hasLanded {
-          landingTask?.cancel()
-          hasLanded = true
-        }
-        if !isDragging, let held = heldLift, abs(live - held) < 2 {
-          heldLift = nil
-        }
-      }
+      let command = screenLayout.isWide ? CommandBarPlacement(proxy: proxy, lift: motion.lift) : nil
+      let maxHeight = command?.maxHeight ?? maxHeight(in: proxy)
+      TrayStage(
+        motion: motion,
+        content: shown.map { tray(for: $0, maxHeight: maxHeight, isCommandBar: command != nil) },
+        commandTop: command.map { proxy.safeAreaInsets.top + $0.top }
+      )
+      .ignoresSafeArea()
     }
     .ignoresSafeArea(.keyboard)
-    .onAppear { keyboard.start() }
+    .onAppear { motion.startTrackingKeyboard() }
+    .onChange(of: reduceMotion, initial: true) { _, reduced in motion.reduceMotion = reduced }
     .task { await SearchSuggestionsModel.loadRecents(from: app.tabs) }
     .onChange(of: app.browse.search, initial: true) { _, request in
       if let request {
@@ -93,62 +40,34 @@ struct SearchTrayHost: View {
     }
   }
 
-  private var keyboardProbe: some View {
-    Color.clear
-      .onChange(of: keyboard.changes, initial: true) { _, _ in
-        let overlap = keyboard.overlap
-        let target = overlap > Self.keyboardThreshold ? overlap : 0
-        guard target != keyboardHeight else { return }
-        keyboardMoves += 1
-        let move = keyboardMoves
-        withAnimation(keyboard.animation) {
-          keyboardHeight = target
-        } completion: {
-          keyboardSettledMove = max(keyboardSettledMove, move)
-        }
-      }
-      .allowsHitTesting(false)
-      .accessibilityHidden(true)
+  private func tray(for request: BrowseSession.SearchRequest, maxHeight: CGFloat, isCommandBar: Bool) -> AnyView {
+    AnyView(
+      SearchTray(request: request, isFocused: focus, maxHeight: maxHeight, dismissDrag: dismissDrag)
+        .id(presentation)
+        .padding(.horizontal, isCommandBar ? DuoLayout.commandSide : 0)
+        .environment(app)
+        .environment(\.screenLayout, screenLayout)
+        .environment(\.profileLook, look)
+        .environment(\.usesGlass, usesGlass)
+    )
   }
 
-  private func dim(over request: BrowseSession.SearchRequest) -> some View {
-    Color.black
-      .opacity(request.origin == .page ? BrowseLayout.trayDim : 0.001)
-      .contentShape(.rect)
-      .onTapGesture { app.cancelSearch() }
-      .accessibilityLabel("Close Search")
-      .accessibilityAddTraits(.isButton)
+  private var focus: Binding<Bool> {
+    Binding { motion.isFocused } set: { motion.isFocused = $0 }
   }
 
-  private func maxHeight(in proxy: GeometryProxy, lift: CGFloat) -> CGFloat {
+  private func maxHeight(in proxy: GeometryProxy) -> CGFloat {
     let preferred = BrowseLayout.sheetAboveKeyboard + BrowseLayout.searchFieldHeight * (fieldScale - 1)
-    let available = proxy.size.height + proxy.safeAreaInsets.bottom - lift - Spacing.tight - BrowseLayout.panelAboveKeyboard
+    let available = proxy.size.height + proxy.safeAreaInsets.bottom - motion.lift - Spacing.tight - BrowseLayout.panelAboveKeyboard
     return max(min(preferred, available), 0)
   }
 
   private func present(_ request: BrowseSession.SearchRequest) {
     removalTask?.cancel()
-    settleTask?.cancel()
-    var transaction = Transaction()
-    transaction.disablesAnimations = true
-    withTransaction(transaction) {
-      if shown == nil || isClosing { presentation += 1 }
-      shown = request
-      isClosing = false
-      isDeparting = false
-      isClosingAnimationDone = true
-      hasLanded = keyboardHeight > Self.keyboardThreshold
-      dragOffset = 0
-      heldLift = nil
-      isDragging = false
-    }
+    if shown == nil || motion.isClosing { presentation += 1 }
+    shown = request
     app.browse.trayHoldsKeyboard = true
-    landingTask?.cancel()
-    landingTask = Task {
-      try? await Task.sleep(for: Self.keyboardWait)
-      guard !Task.isCancelled, shown != nil, !isClosing, !hasLanded else { return }
-      withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.searchRise) { hasLanded = true }
-    }
+    motion.present(dimLevel: request.origin == .page ? BrowseLayout.trayDim : 0.001) { [app] in app.cancelSearch() }
   }
 
   private func refreshRecents() {
@@ -162,109 +81,48 @@ struct SearchTrayHost: View {
   }
 
   private func beginClosing() {
-    guard !isClosing else { return }
-    landingTask?.cancel()
-    settleTask?.cancel()
-    isFocused = false
-    isClosingAnimationDone = false
-    if app.browse.searchEnding == .submitted, !reduceMotion {
-      depart()
-    } else if keyboardHeight > Self.keyboardThreshold, heldLift == nil {
-      isClosing = true
-      isClosingAnimationDone = true
-    } else {
-      let travel = trayHeight + (heldLift ?? 0) + BrowseLayout.sheetTopRadius
-      withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.trayDismiss) {
-        isClosing = true
-        if heldLift != nil, !reduceMotion { dragOffset = max(dragOffset, travel) }
-      } completion: {
-        isClosingAnimationDone = true
-      }
-    }
+    guard !motion.isClosing else { return }
+    motion.isFocused = false
+    motion.close(departing: app.browse.searchEnding == .submitted)
     removalTask?.cancel()
     removalTask = Task {
       let deadline = ContinuousClock.now + Self.removalDeadline
-      while !hasSettledAfterClosing, ContinuousClock.now < deadline {
+      while !motion.hasSettled, ContinuousClock.now < deadline {
         try? await Task.sleep(for: Self.removalPoll)
         if Task.isCancelled { return }
       }
-      guard !Task.isCancelled, isClosing else { return }
+      guard !Task.isCancelled, motion.isClosing else { return }
       finish()
       refreshRecents()
     }
   }
 
-  private var hasSettledAfterClosing: Bool {
-    isClosingAnimationDone && keyboardHeight <= Self.keyboardThreshold && keyboardSettledMove == keyboardMoves
-  }
-
-  private func depart() {
-    var transaction = Transaction()
-    transaction.disablesAnimations = true
-    withTransaction(transaction) {
-      heldLift = heldLift ?? currentLift
-    }
-    withAnimation(Motion.depart) {
-      isClosing = true
-      isDeparting = true
-    } completion: {
-      isClosingAnimationDone = true
-    }
-  }
-
   private func finish() {
-    var transaction = Transaction()
-    transaction.disablesAnimations = true
-    withTransaction(transaction) {
-      shown = nil
-      isClosing = false
-      isDeparting = false
-      isClosingAnimationDone = true
-      hasLanded = false
-      dragOffset = 0
-      heldLift = nil
-      isDragging = false
-    }
+    motion.finish()
+    shown = nil
     app.browse.trayHoldsKeyboard = false
   }
 
-  private func dismissDrag(lift: CGFloat) -> some Gesture {
+  private var dismissDrag: some Gesture {
     DragGesture(minimumDistance: 6, coordinateSpace: .global)
       .onChanged { value in
-        guard !isClosing else { return }
+        guard !motion.isClosing else { return }
         let translation = value.translation.height
-        if !isDragging {
-          isDragging = true
-          settleTask?.cancel()
-        }
-        if TrayDrag.releasesKeyboard(translation: translation), isFocused {
-          if heldLift == nil { heldLift = lift }
-          isFocused = false
-        }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) { dragOffset = TrayDrag.offset(for: translation) }
+        let releasesKeyboard = TrayDrag.releasesKeyboard(translation: translation) && motion.isFocused
+        motion.dragChanged(translation: translation, releasingKeyboard: releasesKeyboard)
+        if releasesKeyboard { motion.isFocused = false }
       }
       .onEnded { value in
-        guard isDragging else { return }
-        isDragging = false
-        if TrayDrag.shouldDismiss(translation: value.translation.height, velocity: value.velocity.height, trayHeight: trayHeight) {
+        guard motion.isDragging else { return }
+        let translation = motion.dragEnded(translation: value.translation.height)
+        let trayVelocity = TrayDrag.trayVelocity(translation: translation, fingerVelocity: value.velocity.height)
+        if TrayDrag.shouldDismiss(translation: translation, velocity: value.velocity.height, trayHeight: motion.trayHeight) {
+          motion.releaseVelocity = trayVelocity
           app.cancelSearch()
         } else {
-          settle()
+          if motion.heldLift != nil, !app.settings.isShowingOnboarding { motion.isFocused = true }
+          motion.settle(velocity: trayVelocity)
         }
       }
-  }
-
-  private func settle() {
-    let wasHolding = heldLift != nil
-    if wasHolding, !app.settings.isShowingOnboarding { isFocused = true }
-    withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.traySettle) { dragOffset = 0 }
-    guard wasHolding else { return }
-    settleTask = Task {
-      try? await Task.sleep(for: .milliseconds(650))
-      guard !Task.isCancelled, !isDragging else { return }
-      withAnimation(Motion.traySettle) { heldLift = nil }
-    }
   }
 }

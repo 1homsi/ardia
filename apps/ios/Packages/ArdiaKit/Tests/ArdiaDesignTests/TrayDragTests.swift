@@ -48,6 +48,23 @@ struct TrayDragTests {
     #expect(TrayDrag.releasesKeyboard(translation: 20))
   }
 
+  @Test func `a grabbed offset maps back to the drag that made it`() {
+    for translation: CGFloat in [-120, -40, -5, 0, 30, 200] {
+      #expect(abs(TrayDrag.translation(for: TrayDrag.offset(for: translation)) - translation) < 0.001)
+    }
+  }
+
+  @Test func `a downward release hands the tray the finger's speed`() {
+    #expect(TrayDrag.trayVelocity(translation: 80, fingerVelocity: 900) == 900)
+  }
+
+  @Test func `an upward release hands over the damped speed the tray actually had`() {
+    let step: CGFloat = 0.01
+    let translation: CGFloat = -50
+    let measured = (TrayDrag.offset(for: translation + step) - TrayDrag.offset(for: translation)) / step
+    #expect(abs(TrayDrag.trayVelocity(translation: translation, fingerVelocity: 1) - measured) < 0.001)
+  }
+
   @Test func `progress is clamped to the travel`() {
     #expect(TrayDrag.progress(offset: -10, travel: 300) == 0)
     #expect(TrayDrag.progress(offset: 150, travel: 300) == 0.5)

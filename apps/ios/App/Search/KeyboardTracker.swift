@@ -1,32 +1,24 @@
-import Observation
-import SwiftUI
 import UIKit
 
 @MainActor
-@Observable
 final class KeyboardTracker {
-  private(set) var animation: Animation? = KeyboardTracker.animation(duration: 0.25, curve: KeyboardTracker.systemCurve)
-  private(set) var overlap: CGFloat = 0
-  private(set) var changes = 0
-  @ObservationIgnored private var observers: [NSObjectProtocol] = []
+  private let minimumHeight: CGFloat
+  private let onMove: (CGFloat) -> Void
+  private var observers: [NSObjectProtocol] = []
+  private var height: CGFloat = 0
 
-  static let systemCurve = 7
+  init(minimumHeight: CGFloat, onMove: @escaping (CGFloat) -> Void) {
+    self.minimumHeight = minimumHeight
+    self.onMove = onMove
+  }
 
   func start() {
     guard observers.isEmpty else { return }
     for name in [UIResponder.keyboardWillChangeFrameNotification, UIResponder.keyboardWillHideNotification] {
       let observer = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] notification in
-        let info = notification.userInfo ?? [:]
-        let duration = (info[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
-        let curve = (info[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int) ?? Self.systemCurve
-        let end = (info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+        let end = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
         let hiding = notification.name == UIResponder.keyboardWillHideNotification
-        MainActor.assumeIsolated {
-          guard let self else { return }
-          self.animation = Self.animation(duration: duration, curve: curve)
-          self.overlap = hiding ? 0 : Self.overlap(of: end)
-          self.changes += 1
-        }
+        MainActor.assumeIsolated { self?.keyboardWillMove(overlap: hiding ? 0 : Self.overlap(of: end)) }
       }
       observers.append(observer)
     }
@@ -43,11 +35,10 @@ final class KeyboardTracker {
     return max(0, window.bounds.maxY - local.minY)
   }
 
-  static func animation(duration: Double, curve: Int) -> Animation? {
-    guard duration > 0 else { return nil }
-    if curve == systemCurve {
-      return Animation(KeyboardCurve(rate: KeyboardCurve.rateTimesDuration / duration))
-    }
-    return .easeInOut(duration: duration)
+  private func keyboardWillMove(overlap: CGFloat) {
+    let target = overlap > minimumHeight ? overlap : 0
+    guard target != height else { return }
+    height = target
+    onMove(target)
   }
 }

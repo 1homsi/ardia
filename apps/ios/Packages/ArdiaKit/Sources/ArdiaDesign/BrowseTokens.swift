@@ -82,9 +82,11 @@ public extension Motion {
   static let searchRise = rise
   static let surfaceSwap = Animation.easeOut(duration: 0.18)
   static let surfaceFade = fade
-  static let trayDim = Animation.easeOut(duration: 0.2)
+  static let trayDimCurve = MotionCurve.easeOut(duration: 0.2)
+  static let trayDim = trayDimCurve.animation
   static let trayDismiss = leave
-  static let depart = Animation.timingCurve(0.2, 0, 0, 1, duration: 0.2)
+  static let departCurve = MotionCurve(0.2, 0, 0, 1, duration: 0.2)
+  static let depart = departCurve.animation
   static let traySettle = smooth
   static let resultsIn = Animation.easeOut(duration: 0.1)
   static let pager = smooth

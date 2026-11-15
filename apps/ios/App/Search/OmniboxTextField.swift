@@ -55,7 +55,10 @@ struct OmniboxTextField: UIViewRepresentable {
         field.becomeFirstResponder()
       }
     } else if !isFocused, field.isFirstResponder {
-      field.resignFirstResponder()
+      DispatchQueue.main.async {
+        guard !self.isFocused, field.isFirstResponder else { return }
+        field.resignFirstResponder()
+      }
     }
   }
 
