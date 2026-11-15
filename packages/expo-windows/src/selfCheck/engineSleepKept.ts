@@ -52,13 +52,19 @@ const keptChecks: Check[] = [
       }),
   },
   {
-    name: "engine sleep: a hidden page with a WebRTC data channel is kept as in use",
+    name: "engine sleep: a hidden page with an open WebSocket is kept as in use, and sleeps once the socket is closed",
     run: () =>
-      withPages(["rtc"], async ([page], windowId) => {
+      withPages(["socket"], async ([page], windowId) => {
         await show(page!, windowId, LEFT);
-        await evaluate(page!, `window.ardiaPeer = new RTCPeerConnection(); window.ardiaChannel = window.ardiaPeer.createDataChannel("ardia"); post("result", "null");`);
+        const opened = await evaluate(
+          page!,
+          `const ws = new WebSocket("ws://" + location.host + "/ws"); window.ardiaSocket = ws; ws.onopen = () => post("result", JSON.stringify("open")); ws.onerror = () => post("result", JSON.stringify("error"));`,
+        );
+        expectEqual(opened, "open", "the WebSocket to the loopback server");
         await hide(page!, windowId);
-        await keptWithin(page!, LIVE_CONNECTION, `kept while it has a live connection (${LIVE_CONNECTION})`);
+        await keptWithin(page!, LIVE_CONNECTION, `kept while its WebSocket is open (${LIVE_CONNECTION})`);
+        await evaluate(page!, `window.ardiaSocket.close(); post("result", "null");`);
+        expectEqual(await sleepsWithin(page!, "the page sleeps once its WebSocket is closed"), [], "after the socket closed");
       }),
   },
   {

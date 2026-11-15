@@ -5,12 +5,14 @@
 #include "ardia/win/tab_calls.h"
 #include "base/functional/function_ref.h"
 #include "base/memory/scoped_refptr.h"
+#include "chrome/browser/devtools/devtools_window.h"
 #include "components/performance_manager/public/graph/frame_node.h"
 #include "components/performance_manager/public/graph/page_node.h"
 #include "content/public/browser/ardia_live_connection.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "third_party/blink/public/mojom/frame/sudden_termination_disabler_type.mojom.h"
 
 namespace performance_manager::policies {
 extern bool (*g_ardia_keeps_page)(const PageNode* page_node);
@@ -32,11 +34,9 @@ void VisitFrames(const FrameNode* frame,
 }
 
 bool InspectedByAnotherClient(content::WebContents* contents) {
-  if (!content::DevToolsAgentHost::HasFor(contents)) {
-    return false;
+  if (DevToolsWindow::GetInstanceForInspectedWebContents(contents)) {
+    return true;
   }
-  scoped_refptr<content::DevToolsAgentHost> host =
-      content::DevToolsAgentHost::GetOrCreateFor(contents);
   std::vector<const content::DevToolsAgentHostClient*> ours;
   if (const PageLinks* links = PageLinks::FromWebContents(contents)) {
     ours.push_back(links);
@@ -45,7 +45,28 @@ bool InspectedByAnotherClient(content::WebContents* contents) {
           EngineDevToolsClient(contents)) {
     ours.push_back(caller);
   }
-  return host && content::ArdiaHasOtherDevToolsClient(host.get(), ours);
+  if (content::DevToolsAgentHost::HasFor(contents)) {
+    scoped_refptr<content::DevToolsAgentHost> page =
+        content::DevToolsAgentHost::GetOrCreateFor(contents);
+    if (page && content::ArdiaHasOtherDevToolsClient(page.get(), ours)) {
+      return true;
+    }
+  }
+  scoped_refptr<content::DevToolsAgentHost> tab =
+      content::DevToolsAgentHost::GetOrCreateForTab(contents);
+  return tab && content::ArdiaHasOtherDevToolsClient(tab.get(), ours);
+}
+
+bool HasBeforeUnloadHandler(content::WebContents* contents) {
+  bool handler = false;
+  contents->GetPrimaryMainFrame()->ForEachRenderFrameHost(
+      [&handler](content::RenderFrameHost* frame) {
+        handler = handler ||
+                  frame->GetSuddenTerminationDisablerState(
+                      blink::mojom::SuddenTerminationDisablerType::
+                          kBeforeUnloadHandler);
+      });
+  return handler;
 }
 
 bool HasLiveConnection(const PageNode* page, content::WebContents* contents) {
@@ -53,7 +74,7 @@ bool HasLiveConnection(const PageNode* page, content::WebContents* contents) {
   if (contents) {
     contents->GetPrimaryMainFrame()->ForEachRenderFrameHost(
         [&live](content::RenderFrameHost* frame) {
-          live = live || content::ArdiaFrameHasLiveConnection(frame);
+          live = live || content::ArdiaFrameHasOpenConnection(frame);
         });
   }
   return live;
@@ -70,13 +91,11 @@ std::vector<int> KeptBy(const PageNode* page) {
   if (!page) {
     return codes;
   }
-  bool unsaved = false;
   bool used = false;
   bool web_lock = false;
   bool indexed_db_lock = false;
   for (const FrameNode* main : page->GetMainFrameNodes()) {
     VisitFrames(main, [&](const FrameNode* frame) {
-      unsaved = unsaved || frame->HasNonemptyBeforeUnload();
       used = used || frame->HadUserActivation();
       web_lock = web_lock || frame->IsHoldingWebLock();
       indexed_db_lock =
@@ -87,7 +106,7 @@ std::vector<int> KeptBy(const PageNode* page) {
   if (contents && Host::Get()->OpensLivePage(contents.get())) {
     codes.push_back(kOpensLivePage);
   }
-  if (unsaved && used) {
+  if (used && contents && HasBeforeUnloadHandler(contents.get())) {
     codes.push_back(kUnsavedAfterUse);
   }
   if (web_lock) {

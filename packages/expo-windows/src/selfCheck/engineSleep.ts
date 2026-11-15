@@ -14,7 +14,6 @@ const USER_EDITS = 27;
 const TITLE = "sleep page";
 const LINKS_TITLE = "links page";
 const OPENS_LIVE_PAGE = 100;
-const SHIFT = 8;
 const EVENT_MS = 8000;
 const POPUP_NAME = "ardia-sleep-check-popup";
 const LOAD_MS = 20000;
@@ -200,28 +199,21 @@ const sleepChecks: Check[] = [
       }),
   },
   {
-    name: "engine sleep: a tab that slept once still opens a Peek, a new tab and an app-link ask from a click",
+    name: "engine sleep: a tab that slept once still opens a new tab its link script saw clicked (the script Peek runs in) and an app-link ask",
     run: () =>
       withPages(
         ["links"],
         async ([page], windowId) => {
-          const config = await hostCall<{ peek?: unknown }>("peek.config", {});
-          if (config.peek !== "shift") await hostCall("peek.config", { peek: "shift" });
-          try {
-            await show(page!, windowId, LEFT);
-            await sleepOnce(page!, windowId, LINKS_TITLE);
-            const peek = heard("tab", (event) => event.key === page && event.name === "openWindow" && event.data?.disposition === "peek", "a Peek from a shift-click");
-            await click(page!, 110, 30, SHIFT);
-            expectTrue(String((await peek).data?.url).endsWith("/a"), "the Peek opens the link's address");
-            const opened = heard("tab.opened", (event) => event.opener === page, "a new tab from a target=_blank click");
-            await click(page!, 110, 90);
-            expectTrue(String((await opened).url).endsWith("/b"), "the new tab opens the link's address");
-            const ask = heard("tab", (event) => event.key === page && event.name === "externalApp", "an app-link ask from a click");
-            await click(page!, 110, 150);
-            expectEqual((await ask).data?.url, "ardia-sleep-check-link:woke", "the app-link ask");
-          } finally {
-            if (config.peek !== "shift") await hostCall("peek.config", { peek: config.peek }).catch(() => null);
-          }
+          await show(page!, windowId, LEFT);
+          await sleepOnce(page!, windowId, LINKS_TITLE);
+          const opened = heard("tab.opened", (event) => event.opener === page, "a new tab from a target=_blank click");
+          await click(page!, 110, 90);
+          const tab = await opened;
+          expectTrue(String(tab.url).endsWith("/b"), "the new tab opens the link's address");
+          expectEqual((tab as { fromClick?: unknown }).fromClick, true, "the woken page's link script saw the click (fromClick)");
+          const ask = heard("tab", (event) => event.key === page && event.name === "externalApp", "an app-link ask from a click");
+          await click(page!, 110, 150);
+          expectEqual((await ask).data?.url, "ardia-sleep-check-link:woke", "the app-link ask");
         },
         "links",
         LINKS_TITLE,
