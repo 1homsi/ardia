@@ -12,7 +12,7 @@
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/ac_calls.h"
 #include "ardia/win/external_apps.h"
-#include "ardia/win/host.h"
+#include "ardia/win/kept_pages.h"
 #include "ardia/win/tab_events.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
@@ -87,7 +87,6 @@ namespace ardia_win {
 namespace {
 
 constexpr size_t kMaxEvaluationResultBytes = 4 * 1024 * 1024;
-constexpr int kOpensLivePage = 100;
 
 constexpr char kEvaluationStart[] =
     "new Promise((resolve) => {(function(post){'use strict';\n";
@@ -570,7 +569,6 @@ void ShowDevTools(content::WebContents* contents,
     DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::Show(),
                                        DevToolsOpenedByAction::kUnknown);
   }
-  SyncUserDevTools(contents);
   std::move(reply).Run(Ok());
 }
 
@@ -753,10 +751,11 @@ void SleepIfHidden(content::WebContents* contents,
   if (!eligibility || !discarding) {
     return AnswerKeptBy(std::move(reply), std::move(unavailable));
   }
-  SyncUserDevTools(contents);
-  if (Host::Get()->OpensLivePage(contents)) {
+  if (std::vector<int> kept = KeptBy(page.get()); !kept.empty()) {
     base::ListValue codes;
-    codes.Append(kOpensLivePage);
+    for (int code : kept) {
+      codes.Append(code);
+    }
     return AnswerKeptBy(std::move(reply), std::move(codes));
   }
   const auto reason =
@@ -778,6 +777,66 @@ void SleepIfHidden(content::WebContents* contents,
     return AnswerKeptBy(std::move(reply), std::move(unavailable));
   }
   AnswerKeptBy(std::move(reply), base::ListValue());
+}
+
+class TestDevToolsClient
+    : public content::DevToolsAgentHostClient,
+      public content::WebContentsUserData<TestDevToolsClient> {
+ public:
+  ~TestDevToolsClient() override { Detach(); }
+
+  bool Attach() {
+    if (host_) {
+      return true;
+    }
+    host_ = content::DevToolsAgentHost::GetOrCreateFor(&GetWebContents());
+    if (!host_ || !host_->AttachClient(this)) {
+      host_ = nullptr;
+      return false;
+    }
+    return true;
+  }
+
+  void Detach() {
+    if (scoped_refptr<content::DevToolsAgentHost> host = std::move(host_)) {
+      host->DetachClient(this);
+    }
+  }
+
+  void DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
+                               base::span<const uint8_t> message) override {}
+  void AgentHostClosed(content::DevToolsAgentHost* agent_host) override {
+    host_ = nullptr;
+  }
+
+ private:
+  friend class content::WebContentsUserData<TestDevToolsClient>;
+
+  explicit TestDevToolsClient(content::WebContents* contents)
+      : content::WebContentsUserData<TestDevToolsClient>(*contents) {}
+
+  scoped_refptr<content::DevToolsAgentHost> host_;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
+};
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(TestDevToolsClient);
+
+void TestClientForTest(content::WebContents* contents,
+                       const base::DictValue& args,
+                       Reply reply) {
+  if (!ardiacore::TestInstance()) {
+    std::move(reply).Run(Error("testClient is for test instances"));
+    return;
+  }
+  TestDevToolsClient::CreateForWebContents(contents);
+  TestDevToolsClient* client = TestDevToolsClient::FromWebContents(contents);
+  if (args.FindBool("attach").value_or(false)) {
+    std::move(reply).Run(client->Attach() ? Ok()
+                                          : Error("can't attach to the tab"));
+    return;
+  }
+  client->Detach();
+  std::move(reply).Run(Ok());
 }
 
 void ClickForTest(content::WebContents* contents,
@@ -897,6 +956,7 @@ constexpr NamedMethod kMethods[] = {
     {"sleepIfHidden", &SleepIfHidden},
     {"insertText", &InsertTextForTest},
     {"clickForTest", &ClickForTest},
+    {"testClient", &TestClientForTest},
     {"setFrozen", &SetFrozen},
     {"resolveUnresponsive", &ResolveUnresponsive},
     {"externalAppAlive", &ExternalAppAliveCall},
@@ -905,10 +965,14 @@ constexpr NamedMethod kMethods[] = {
 
 }
 
-void SyncUserDevTools(content::WebContents* contents) {
-  performance_manager::PageLiveStateDecorator::SetIsDevToolsOpen(
-      contents,
-      DevToolsWindow::GetInstanceForInspectedWebContents(contents) != nullptr);
+void UnmarkEngineDevTools(content::WebContents* contents) {
+  performance_manager::PageLiveStateDecorator::SetIsDevToolsOpen(contents,
+                                                                 false);
+}
+
+const content::DevToolsAgentHostClient* EngineDevToolsClient(
+    content::WebContents* contents) {
+  return DevToolsCaller::FromWebContents(contents);
 }
 
 bool CallTabMethod(content::WebContents* contents,

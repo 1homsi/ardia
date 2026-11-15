@@ -17,6 +17,7 @@
 #include "ardia/win/frame_view.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/host.h"
+#include "ardia/win/kept_pages.h"
 #include "ardia/win/test_gate.h"
 #include "base/base_switches.h"
 #include "base/command_line.h"
@@ -476,6 +477,7 @@ void BeforeChromeMain() {
     return;
   }
   AddLaunchSwitches(command_line);
+  ardia_win::AskBeforeDiscards();
   g_ardia_win_hosts_normal_windows = true;
   g_ardia_win_frame_view = &CreateHostedFrameView;
   g_ardia_win_add_main_parts = &AddMainParts;

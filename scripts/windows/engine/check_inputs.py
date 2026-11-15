@@ -6,7 +6,8 @@ series_win.py takes them, and lists every problem with the file and line it come
   each `skip` names a shared patch, and the patches Windows applies, in order, are accepted-patches.txt;
 - ardia-layer-win.patch applies to engine/chromium/src/chrome/browser/ardia without fuzz;
 - the layer's BUILD.gn has what the Windows build file is made from, the sources Windows compiles from it are
-  accepted-layer-sources.txt and all exist, and every engine call in the Windows call table is defined in one of them.
+  accepted-layer-sources.txt and all exist, and every engine call in the Windows call table is defined in one of them;
+- engine/ardiacore's ac_launch_switches.cc still has what launch_switches_source() turns into the Windows copy.
 
 A change to an accepted list is accepted on purpose: run with --accept and commit the lists.
 
@@ -36,6 +37,8 @@ def attempt(problems, step):
         problems.append(str(error))
     except SystemExit as error:
         problems.append(str(error.code))
+    except OSError as error:
+        problems.append(f'{error.filename or ""}: {error.strerror or error}')
     return None
 
 
@@ -91,6 +94,7 @@ def main():
     problems = []
     patches = patch_names(problems)
     sources = layer_sources(problems)
+    attempt(problems, build.launch_switches_source)
     if args.accept:
         with open(ACCEPTED_PATCHES, 'w') as f:
             f.write(''.join(f'{name}\n' for name in patches))

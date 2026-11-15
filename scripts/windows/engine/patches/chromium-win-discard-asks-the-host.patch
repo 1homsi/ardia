@@ -1,0 +1,26 @@
+--- a/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
++++ b/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
+@@ -27,6 +27,9 @@
+ 
+ namespace performance_manager::policies {
+ 
++// Ardia: the embedding app's own reasons to keep a page, asked for every discard but one the user asked for.
++bool (*g_ardia_keeps_page)(const PageNode* page_node) = nullptr;
++
+ namespace {
+ 
+ BASE_FEATURE(kIgnoreDiscardAttemptMarker, base::FEATURE_DISABLED_BY_DEFAULT);
+@@ -437,6 +440,13 @@
+ 
+   if (page_node->HadUserEdits()) {
+     add_reason_and_update_result(CannotDiscardReason::kUserEdits,
++                                 CanDiscardResult::kProtected);
++  }
++
++  // Ardia: a page the app keeps (unsaved work, a live connection or lock, a live pop-up, a DevTools client) is protected.
++  if (g_ardia_keeps_page && discard_reason != DiscardReason::EXTERNAL &&
++      g_ardia_keeps_page(page_node)) {
++    add_reason_and_update_result(CannotDiscardReason::kExtensionProtected,
+                                  CanDiscardResult::kProtected);
+   }
+ 

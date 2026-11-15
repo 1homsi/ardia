@@ -248,6 +248,8 @@ a Windows build needs.
 | `chromium-win-hosted-page-fills-window.patch` | applies (Windows only, `series-win`) | Windows only | A hosted window has no rounded page frame or insets: the page fills it |
 | `chromium-win-hosted-no-browser-shortcuts.patch` | applies (Windows only, `series-win`) | Windows only | Chrome's own accelerators are off in hosted windows, so Ctrl+L and the rest reach the app |
 | `chromium-win-relaunch-to-app.patch` | applies (Windows only, `series-win`) | Windows only | A second launch's command line goes to `//ardia/win` instead of Chrome's startup, which would open nothing under `--no-startup-window` |
+| `chromium-win-discard-asks-the-host.patch` | applies (Windows only, `series-win`) | OS-neutral | Every discard but one the user asked for (Chrome's Memory Saver timer, memory-pressure discards, the app's `sleepIfHidden`) asks `//ardia/win`'s `g_ardia_keeps_page`; a page the app keeps counts as protected (`kExtensionProtected`), so an urgent discard takes it only when nothing unprotected is left, as with Chrome's own form-input protection |
+| `chromium-win-devtools-other-clients.patch` | applies (Windows only, `series-win`) | OS-neutral | `content::ArdiaHasOtherDevToolsClient`: whether a DevTools client other than the engine's own is attached to a page, so the engine's always-attached Peek client doesn't count as DevTools open |
 
 Every patch that applies does so strictly (`git apply`, no fuzz). 72 of the Mac series' 73 apply; the one left out is a
 Mac-only keychain patch. Four Windows-only patches follow them (`series-win`). The file classes above come from paths, so a

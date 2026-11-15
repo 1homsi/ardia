@@ -7,6 +7,7 @@ import { expectEqual, expectTrue, type Check } from "./check";
 const VISIBLE = 4;
 const RECENTLY_VISIBLE = 7;
 const DEVTOOLS_OPEN = 24;
+const INSPECTED_BY_ANOTHER_CLIENT = 105;
 const FORM_INTERACTIONS = 26;
 const USER_EDITS = 27;
 const TITLE = "sleep page";
@@ -20,12 +21,12 @@ const DEVTOOLS_GONE_MS = 3000;
 const POLL_MS = 100;
 const SCROLLED_TO = 3000;
 const SCROLL_SAVED_MS = 1500;
-const LEFT = { unit: "px", x: 0, y: 40, width: 300, height: 240 };
-const RIGHT = { unit: "px", x: 310, y: 40, width: 300, height: 240 };
+export const LEFT = { unit: "px", x: 0, y: 40, width: 300, height: 240 };
+export const RIGHT = { unit: "px", x: 310, y: 40, width: 300, height: 240 };
 
 type Listed = { key?: unknown; title?: unknown; loading?: unknown; discarded?: unknown; url?: unknown };
 
-const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+export const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const firstWindow = async () => {
   const ids = await requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows").windowIds();
@@ -33,9 +34,11 @@ const firstWindow = async () => {
   return ids[0]!;
 };
 
-const listed = async (key: string) => (await hostCall<{ tabs?: Listed[] }>("tabs.list")).tabs?.find((tab) => tab.key === key);
+const popupPages = async () => ((await hostCall<{ tabs?: Listed[] }>("tabs.list")).tabs ?? []).map((tab) => String(tab.key)).filter((key) => key.startsWith("popup:"));
 
-async function until<T>(what: string, ms: number, read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
+export const listed = async (key: string) => (await hostCall<{ tabs?: Listed[] }>("tabs.list")).tabs?.find((tab) => tab.key === key);
+
+export async function until<T>(what: string, ms: number, read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
   const by = Date.now() + ms;
   let value = await read();
   while (!done(value)) {
@@ -46,14 +49,14 @@ async function until<T>(what: string, ms: number, read: () => Promise<T>, done: 
   return value;
 }
 
-const loaded = (key: string, title = TITLE) => until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === title && tab.loading === false && tab.discarded !== true);
+export const loaded = (key: string, title = TITLE) => until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === title && tab.loading === false && tab.discarded !== true);
 
-const evaluate = async (key: string, code: string) => {
-  const reply = await hostCall<{ result?: unknown }>("tab.call", { key, method: "evaluate", code });
+export const evaluate = async (key: string, code: string, userGesture = false) => {
+  const reply = await hostCall<{ result?: unknown }>("tab.call", { key, method: "evaluate", code, userGesture });
   return typeof reply.result === "string" ? (JSON.parse(reply.result) as unknown) : null;
 };
 
-const keptBy = (key: string, seconds: number) =>
+export const keptBy = (key: string, seconds: number) =>
   until(
     `the page ${key} is asked to sleep with no DevTools session left from the check's own calls`,
     DEVTOOLS_GONE_MS,
@@ -63,7 +66,7 @@ const keptBy = (key: string, seconds: number) =>
 
 type HeardEvent = { key?: unknown; name?: unknown; data?: Record<string, unknown>; opener?: unknown; url?: unknown };
 
-function heard(topic: string, wanted: (event: HeardEvent) => boolean, what: string): Promise<HeardEvent> {
+export function heard(topic: string, wanted: (event: HeardEvent) => boolean, what: string): Promise<HeardEvent> {
   return new Promise((resolve, reject) => {
     const watching = onEngineTopic(topic, (event: HeardEvent) => {
       if (!wanted(event)) return;
@@ -78,7 +81,7 @@ function heard(topic: string, wanted: (event: HeardEvent) => boolean, what: stri
   });
 }
 
-const click = (key: string, x: number, y: number, modifiers = 0) => hostCall("tab.call", { key, method: "clickForTest", x, y, modifiers });
+export const click = (key: string, x: number, y: number, modifiers = 0) => hostCall("tab.call", { key, method: "clickForTest", x, y, modifiers });
 
 async function sleepOnce(key: string, windowId: string, title: string) {
   await hide(key, windowId);
@@ -88,7 +91,7 @@ async function sleepOnce(key: string, windowId: string, title: string) {
   await loaded(key, title);
 }
 
-async function withPages(names: string[], run: (keys: string[], windowId: string) => Promise<void>, path = "sleep", title = TITLE) {
+export async function withPages(names: string[], run: (keys: string[], windowId: string) => Promise<void>, path = "sleep", title = TITLE) {
   const port = httpPagesPort();
   expectTrue(port, "the launch has no loopback page server (test httpPages)");
   const windowId = await firstWindow();
@@ -102,8 +105,8 @@ async function withPages(names: string[], run: (keys: string[], windowId: string
   }
 }
 
-const show = (key: string, windowId: string, place: object) => hostCall("tab.show", { key, visible: true, ...place }, windowId);
-const hide = (key: string, windowId: string) => hostCall("tab.show", { key, visible: false }, windowId);
+export const show = (key: string, windowId: string, place: object) => hostCall("tab.show", { key, visible: true, ...place }, windowId);
+export const hide = (key: string, windowId: string) => hostCall("tab.show", { key, visible: false }, windowId);
 
 const sleepChecks: Check[] = [
   {
@@ -171,7 +174,7 @@ const sleepChecks: Check[] = [
         let open = true;
         try {
           const kept = await hostCall<{ keptBy?: unknown }>("tab.call", { key: page!, method: "sleepIfHidden", seconds: 0 });
-          expectTrue(Array.isArray(kept.keptBy) && kept.keptBy.includes(DEVTOOLS_OPEN), `kept while its DevTools window is open (${DEVTOOLS_OPEN}): ${JSON.stringify(kept.keptBy)}`);
+          expectTrue(Array.isArray(kept.keptBy) && kept.keptBy.includes(INSPECTED_BY_ANOTHER_CLIENT), `kept while its DevTools window is open (${INSPECTED_BY_ANOTHER_CLIENT}): ${JSON.stringify(kept.keptBy)}`);
           await hostCall("tab.call", { key: page!, method: "showDevTools", panel: "toggle" });
           open = false;
           const after = await until(
@@ -219,9 +222,11 @@ const sleepChecks: Check[] = [
     run: () =>
       withPages(["opener"], async ([page], windowId) => {
         await show(page!, windowId, LEFT);
+        const popupsBefore = await popupPages();
         const opened = heard("tab.opened", (event) => event.opener === page, "the pop-up");
         expectEqual(await evaluate(page!, `post("result", JSON.stringify(!!window.open("about:blank", "${POPUP_NAME}", "width=320,height=240")));`), true, "window.open returns a window");
         await opened;
+        await until("the pop-up is adopted into its window", LOAD_MS, () => popupPages(), (keys) => keys.some((key) => !popupsBefore.includes(key)));
         await hide(page!, windowId);
         try {
           const kept = await keptBy(page!, 0);

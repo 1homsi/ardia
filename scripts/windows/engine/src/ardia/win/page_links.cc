@@ -271,7 +271,7 @@ bool PageLinks::Attach() {
     host_ = nullptr;
     return false;
   }
-  SyncUserDevTools(&GetWebContents());
+  UnmarkEngineDevTools(&GetWebContents());
   return true;
 }
 

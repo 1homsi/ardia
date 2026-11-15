@@ -1205,6 +1205,13 @@ bool Host::OpensLivePage(const content::WebContents* contents) const {
       return true;
     }
   }
+  for (const auto& [id, offer] : offers_) {
+    content::WebContents* offered = offer.contents.get();
+    content::RenderFrameHost* opener = offered ? offered->GetOpener() : nullptr;
+    if (opener && content::WebContents::FromRenderFrameHost(opener) == contents) {
+      return true;
+    }
+  }
   return false;
 }
 

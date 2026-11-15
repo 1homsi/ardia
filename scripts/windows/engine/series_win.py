@@ -246,6 +246,14 @@ def windows_sources(text):
         if re.match(r'^ardia_sources \+?= \[$', stripped):
             listing = all(blocks)
             continue
+        assigned = re.match(r'^sources \+?= (.+)$', stripped)
+        if assigned and all(blocks):
+            if assigned.group(1) == '[':
+                listing = True
+                continue
+            if assigned.group(1) != 'ardia_sources':
+                raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), n)}: the Windows build can\'t read sources it would '
+                                 f'compile: `{stripped}`')
         if stripped.startswith('}') and stripped != '}':
             raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), n)}: the Windows build can\'t read `{stripped}`')
         if stripped == '}':
@@ -285,7 +293,10 @@ def engine_calls(layer):
     names = set()
     for rel in windows_sources(ardia_build_file()):
         if rel.endswith('.cc'):
-            text = open(os.path.join(layer, rel), encoding='utf-8').read()
+            path = os.path.join(layer, rel)
+            if not os.path.isfile(path):
+                raise InputError(f'{LAYER_BUILD}: Windows compiles `{rel}`, which is not in the layer')
+            text = open(path, encoding='utf-8').read()
             names.update(re.findall(r'^AC_(?:PROFILE|ARGS|ENGINE)_CALL\((ac_\w+)', text, re.M))
     return sorted(names)
 
