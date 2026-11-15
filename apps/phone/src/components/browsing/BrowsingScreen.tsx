@@ -134,6 +134,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
                     tab={tab}
                     order={order}
                     roles={rolesFor(barDark)}
+                    dark={barDark}
                     showsPlus={!searching}
                     onTabs={showDeck}
                     onTabsMenu={openTabsMenu}

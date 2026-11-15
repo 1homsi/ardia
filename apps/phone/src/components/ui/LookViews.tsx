@@ -181,6 +181,7 @@ export function ChromeSurface({
   cornerRadius,
   incognito = false,
   barShadow = false,
+  dark,
   testID,
   style,
   children,
@@ -189,6 +190,7 @@ export function ChromeSurface({
   cornerRadius: number;
   incognito?: boolean;
   barShadow?: boolean;
+  dark?: boolean;
   testID?: string;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
@@ -197,12 +199,12 @@ export function ChromeSurface({
   const theme = useTheme();
   if (glassIsNative()) {
     return (
-      <Glass testID={testID} source={SURFACES_FROST} shape={shape} interactive surface="glass" barShadow={barShadow} {...lookColors(look, incognito)} dark={incognito || theme.dark} style={[style, { borderRadius: cornerRadius }]}>
+      <Glass testID={testID} source={SURFACES_FROST} shape={shape} interactive surface="glass" barShadow={barShadow} {...lookColors(look, incognito)} dark={dark ?? (incognito || theme.dark)} style={[style, { borderRadius: cornerRadius }]}>
         {children}
       </Glass>
     );
   }
-  const ink = incognito || theme.dark ? chromeInk.dark : chromeInk.light;
+  const ink = dark ?? (incognito || theme.dark) ? chromeInk.dark : chromeInk.light;
   return (
     <View
       testID={testID}

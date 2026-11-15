@@ -228,6 +228,8 @@ export const floatingBarLayout = {
   bottomGap: 21.5,
   glyph: 19,
   menuGlyph: 17,
+  plusSymbol: 23.6,
+  menuSymbol: 23.3,
   addressLead: 13,
   addressSpacing: 6,
   siteIcon: 16,

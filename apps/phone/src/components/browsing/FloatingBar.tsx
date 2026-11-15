@@ -2,13 +2,14 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { haptics } from "../../state/app/haptics";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, PressScale, Symbol, useTheme, type ColorRoles } from "../ui";
+import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, PressScale, Symbol, type ColorRoles } from "../ui";
 import { TabStack } from "./BottomBar";
 
 type Props = {
   tab: BrowserTab;
   order: BrowserTab[];
   roles: ColorRoles;
+  dark: boolean;
   showsPlus: boolean;
   onTabs: () => void;
   onTabsMenu: () => void;
@@ -32,9 +33,8 @@ export function barAddress(tab: BrowserTab): BarAddress {
   };
 }
 
-export function FloatingBar({ tab, order, roles, showsPlus, onTabs, onTabsMenu, onStep, onAddress, onPlus, onMore }: Props) {
-  const theme = useTheme();
-  const ink = theme.dark || tab.isPrivate ? chromeInk.dark : chromeInk.light;
+export function FloatingBar({ tab, order, roles, dark, showsPlus, onTabs, onTabsMenu, onStep, onAddress, onPlus, onMore }: Props) {
+  const ink = dark ? chromeInk.dark : chromeInk.light;
   const address = barAddress(tab);
   const count = order.length;
   const size = floatingBarLayout.control;
@@ -54,13 +54,13 @@ export function FloatingBar({ tab, order, roles, showsPlus, onTabs, onTabsMenu, 
         onLongPress={onTabsMenu}
         style={styles.circleHit}
       >
-        <ChromeSurface testID="floatingBarTabs" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} barShadow style={styles.circle}>
+        <ChromeSurface testID="floatingBarTabs" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
           <View pointerEvents="none">
             <TabStack tabs={order.slice(-2)} roles={roles} />
           </View>
         </ChromeSurface>
       </PressScale>
-      <ChromeSurface testID="floatingBarAddress" shape="capsule" cornerRadius={capsule(size)} incognito={tab.isPrivate} barShadow style={styles.address}>
+      <ChromeSurface testID="floatingBarAddress" shape="capsule" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.address}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={address.insecure ? "Address, Not Secure" : "Address"}
@@ -83,14 +83,14 @@ export function FloatingBar({ tab, order, roles, showsPlus, onTabs, onTabsMenu, 
           </Text>
         </Pressable>
         <PressScale label="Page Menu" onPress={onMore} onPressIn={haptics.barPress} style={styles.menu}>
-          <Symbol name="ellipsis" size={floatingBarLayout.menuGlyph} color={ink.foreground} />
+          <Symbol name="ellipsis" size={floatingBarLayout.menuSymbol} color={ink.foreground} />
         </PressScale>
       </ChromeSurface>
       <View style={styles.circleHit}>
         {showsPlus ? (
           <PressScale label="New Search" onPress={onPlus} onPressIn={haptics.barPress} style={styles.circleHit}>
-            <ChromeSurface testID="floatingBarPlus" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} barShadow style={styles.circle}>
-              <Symbol name="plus" size={floatingBarLayout.glyph} color={ink.foreground} />
+            <ChromeSurface testID="floatingBarPlus" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
+              <Symbol name="plus" size={floatingBarLayout.plusSymbol} color={ink.foreground} />
             </ChromeSurface>
           </PressScale>
         ) : null}

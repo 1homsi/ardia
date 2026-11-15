@@ -3,7 +3,8 @@ import { act } from "react-test-renderer";
 import { BottomBar } from "../components/browsing/BottomBar";
 import { BrowsingScreen } from "../components/browsing/BrowsingScreen";
 import { barAddress, FloatingBar } from "../components/browsing/FloatingBar";
-import { appDesign, DesignProvider } from "../components/ui";
+import { appDesign, DesignProvider, Symbol } from "../components/ui";
+import { storeTone } from "../state/pages/store";
 import { DESIGNS, designFor, type Design } from "../lib/design";
 import * as pageActions from "../state/page/actions";
 import { useBrowse } from "../state/browse/store";
@@ -110,4 +111,19 @@ test("where the page view can't take obscured insets, and in the original design
     expect(StyleSheet.flatten(host(root, "pageArea")!.props.style).marginBottom).toBeGreaterThan(0);
     unmount(root);
   }
+});
+
+test("the bar's glass and glyphs follow the page's sampled bottom colour, not the app's scheme or a private tab, and its glyphs are SF's sizes", () => {
+  const tab = currentTabs().open[0]!;
+  act(() => storeTone(tab.id, { top: "#FFFFFF", bottom: "#FFFFFF" }));
+  const light = page("redesigned", { ...tab, isPrivate: true });
+  expect(StyleSheet.flatten(host(light, "floatingBarTabs")!.props.style).backgroundColor).toBe("#FFFFFF");
+  const symbols = light.root.findAll((node) => node.type === Symbol);
+  expect(symbols.find((node) => node.props.name === "ellipsis")!.props.size).toBeCloseTo(23.3);
+  expect(symbols.find((node) => node.props.name === "plus")!.props.size).toBeCloseTo(23.6);
+  unmount(light);
+  act(() => storeTone(tab.id, { top: "#101418", bottom: "#101418" }));
+  const dark = page("redesigned", tab);
+  expect(StyleSheet.flatten(host(dark, "floatingBarTabs")!.props.style).backgroundColor).toBe("#000000");
+  unmount(dark);
 });
