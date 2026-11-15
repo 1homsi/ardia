@@ -28,6 +28,8 @@
 #include "ardia/linux/ac_linux_auto_pip_service.h"
 #include "ardia/linux/ac_linux_automation_window.h"
 #include "ardia/linux/ac_linux_capture.h"
+#include "ardia/linux/ac_linux_crash_dumps.h"
+#include "ardia/linux/ac_linux_crash_dumps_core.h"
 #include "ardia/linux/ac_linux_autoplay.h"
 #include "ardia/linux/ac_linux_web_store.h"
 #include "ardia/linux/ac_linux_background_dialogs.h"
@@ -3207,6 +3209,9 @@ base::DictValue ShellHostView::Bootstrap() const {
   capabilities.Append("ArdiaShell.fetchBangList");
   if (!is_utility()) {
     for (const char* capability : ardia::linux_report::kReportCapabilities) capabilities.Append(capability);
+  }
+  if (!is_utility()) {
+    for (const char* capability : ardia::linux_crash::kCrashCapabilities) capabilities.Append(capability);
   }
   base::DictValue native_modules;
   native_modules.Set("ArdiaApp", base::DictValue().Set("systemInfo", std::move(info)));
@@ -6496,6 +6501,14 @@ void ShellHostView::Invoke(
     return ardiacore::LinuxSystemInvoke(method, values, std::move(done));
   }
   if (method == ardia::linux_bang_list::kCall) return ardiacore::FetchLinuxBangList(values, std::move(done));
+  if (ardiacore::LinuxCrashInvokes(method)) {
+    if (is_utility() || private_window() || !private_window_.empty()) {
+      return std::move(done).Run(false, base::Value(base::DictValue()
+          .Set("code", "ERR_UNAVAILABLE")
+          .Set("message", "Crash dumps are read only by a regular browser window")));
+    }
+    return ardiacore::LinuxCrashInvoke(method, values, std::move(done));
+  }
   if (ardiacore::LinuxReportInvokes(method)) {
     return ardiacore::LinuxReportInvoke(
         method, values, profile() ? DocumentDirectory(profile()) : base::FilePath(), id_,
@@ -7993,6 +8006,7 @@ void StartLinuxHost() {
   if (std::exchange(started, true)) return;
   ardiacore::InitializeLinuxLaunchConfig();
   ardiacore::DecideTestGateAtStartup();
+  ardiacore::AnnotateLinuxCrashVersion();
   ardiacore::InstallLinuxBackgroundFileDialogs();
   g_ardia_auto_picture_in_picture_off = true;
   ardia::InstallCliVisibleTabs();

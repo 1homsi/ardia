@@ -9,6 +9,8 @@ const PER_PROCESS_KIND = 5;
 const READ_AT_MOST = 16;
 const IMAGES_AT_MOST = 24;
 const SIMULATED_SIGNAL = 0xffffffff;
+const VERSION_KEY = "ardia-ver";
+const APP_VERSION = /^\d+\.\d+\.\d+(?:-[a-z]+\.\d+)?$/;
 
 const SIGNALS: Record<number, string> = { 4: "SIGILL", 5: "SIGTRAP", 6: "SIGABRT", 7: "SIGBUS", 8: "SIGFPE", 11: "SIGSEGV", 31: "SIGSYS" };
 
@@ -58,6 +60,8 @@ export function linuxCrashReport(dump: Minidump, entry: CrashDumpEntry): CrashRe
   if (signal) report.signal = signal;
   if (subtype) report.exceptionSubtype = subtype;
   if (process !== "browser" && dump.annotations.ver) report.engineVersion = dump.annotations.ver;
+  const version = dump.annotations[VERSION_KEY];
+  if (process === "browser" && version && APP_VERSION.test(version)) report.appVersion = version;
   if (dump.processStart !== null && dump.time >= dump.processStart) report.uptimeSeconds = Math.round((dump.time - dump.processStart) / 1000);
   const images = bundledImages(dump);
   if (images.length) report.images = images;

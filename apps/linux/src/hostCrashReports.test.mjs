@@ -53,7 +53,7 @@ const utf16 = (blob, text) => blob.put(struct(4 + text.length * 2, (v) => {
   for (let i = 0; i < text.length; i++) v.setUint16(4 + i * 2, text.charCodeAt(i), true);
 }));
 
-function minidump({ time = 1_794_770_653, created = 1_794_770_649, ptype = "renderer", signal = 11, code = 1, rip, rsp, rbp, stack = [], modules = defaultModules() }) {
+function minidump({ time = 1_794_770_653, created = 1_794_770_649, ptype = "renderer", version, signal = 11, code = 1, rip, rsp, rbp, stack = [], modules = defaultModules() }) {
   const blob = new Blob();
   const streams = [];
   blob.put(new Uint8Array(32));
@@ -98,11 +98,16 @@ function minidump({ time = 1_794_770_653, created = 1_794_770_649, ptype = "rend
   const verKey = utf8(blob, "ver");
   const verValue = utf8(blob, "157.0.8103.50");
   const simple = blob.put(struct(12, (v) => { v.setUint32(0, 1, true); v.setUint32(4, verKey, true); v.setUint32(8, verValue, true); }));
-  const ptypeName = utf8(blob, "ptype");
-  const ptypeBytes = new TextEncoder().encode(ptype);
-  const ptypeValue = blob.put(struct(4 + ptypeBytes.length, (v) => { v.setUint32(0, ptypeBytes.length, true); new Uint8Array(v.buffer).set(ptypeBytes, 4); }));
-  const objects = blob.put(struct(16, (v) => { v.setUint32(0, 1, true); v.setUint32(4, ptypeName, true); v.setUint16(8, 1, true); v.setUint32(12, ptypeValue, true); }));
-  const moduleInfo = blob.put(struct(28, (v) => { v.setUint32(0, 1, true); v.setUint32(20, 16, true); v.setUint32(24, objects, true); }));
+  const annotated = Object.entries({ ptype, ...(version ? { "ardia-ver": version } : {}) }).map(([key, value]) => {
+    const bytes = new TextEncoder().encode(value);
+    return [utf8(blob, key), blob.put(struct(4 + bytes.length, (v) => { v.setUint32(0, bytes.length, true); new Uint8Array(v.buffer).set(bytes, 4); }))];
+  });
+  const objectsSize = 4 + annotated.length * 12;
+  const objects = blob.put(struct(objectsSize, (v) => {
+    v.setUint32(0, annotated.length, true);
+    annotated.forEach(([name, value], i) => { v.setUint32(4 + i * 12, name, true); v.setUint16(8 + i * 12, 1, true); v.setUint32(12 + i * 12, value, true); });
+  }));
+  const moduleInfo = blob.put(struct(28, (v) => { v.setUint32(0, 1, true); v.setUint32(20, objectsSize, true); v.setUint32(24, objects, true); }));
   const moduleList = blob.put(struct(16, (v) => { v.setUint32(0, 1, true); v.setUint32(4, 0, true); v.setUint32(8, 28, true); v.setUint32(12, moduleInfo, true); }));
   streams.push([0x43500001, 64, blob.put(struct(64, (v) => {
     v.setUint32(0, 1, true);
@@ -214,6 +219,15 @@ test("a browser crash inside libc, whose frame pointer libc reused, still walks 
     { image: "chrome", offset: 0xa5d_3680 },
     { image: "chrome", offset: 0x311_537d },
   ]);
+});
+
+test("a browser crash carries the Ardia version the engine annotated, and a helper or a malformed version doesn't", () => {
+  const browser = linuxCrashReport(parseMinidump(minidump({ ...chainedStack(), ptype: "browser", version: "0.2.47-nightly.3" })), { id: "v", time: 1 });
+  assert.equal(browser.appVersion, "0.2.47-nightly.3");
+  const helper = linuxCrashReport(parseMinidump(minidump({ ...chainedStack(), version: "0.2.47-nightly.3" })), { id: "h", time: 1 });
+  assert.equal(helper.appVersion, undefined);
+  const malformed = linuxCrashReport(parseMinidump(minidump({ ...chainedStack(), ptype: "browser", version: "<b>0.2</b>" })), { id: "m", time: 1 });
+  assert.equal(malformed.appVersion, undefined);
 });
 
 test("a GPU and an unknown helper map to the Mac's process kinds, and an address outside every module has no image", () => {

@@ -1285,16 +1285,20 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
   `BREAKPAD_DUMP_LOCATION`, which Chromium reads before it starts the handler, so a test instance never leaves its
   dumps for the everyday profile to report). An unbranded build never has consent to upload, so the dumps stay on the
   computer. At launch the telemetry owner asks for the dumps written since its cursor (`ArdiaApp.crashReports`,
-  `hostCrashReports.ts`): with an engine that advertises `crash.dumps`, the shell lists them
-  (`ArdiaCrash.list(since)`, each `{id, time}`) and reads up to the newest 16 (`ArdiaCrash.read(id)`, the dump as
-  base64), parses each one (`minidump.ts`) and keeps the newest five of the browser and five of the other processes,
-  as the Mac does. A report carries the process kind (from Chromium's `ptype` annotation), the signal and its code
-  (`SIGSEGV`, `SEGV_MAPERR`), the engine version, the process's uptime, the build IDs of the files beside `chrome`,
-  and the crashing thread's frames as file plus offset: a frame-pointer walk from the signal's registers (Linux builds
-  keep frame pointers), and when libc reused the frame pointer, from the first frame record on the stack. A dump
-  written without a crash (`DumpWithoutCrashing`) is skipped. Nothing else from the dump leaves the shell: it holds
-  stack memory, which can hold page content. The shared client sends it under the same consent as the Mac (sharing on
-  only); `chrome` is stripped, so its frames are offsets, named later against the engine's symbols by build ID.
+  `hostCrashReports.ts`). The engine advertises `crash.dumps` to regular browser windows and serves two calls from
+  Chromium's crashpad database (`chrome::DIR_CRASH_DUMPS`, `ac_linux_crash_dumps.cc`) on the thread pool:
+  `ArdiaCrash.list(since)` answers the pending and completed reports written after `since` as `{id, time}` (the dump's
+  modification time in milliseconds), the newest 32; `ArdiaCrash.read(id)` answers one dump as base64, or null when
+  it's gone or over 8 MiB. Settings and private windows are refused. The shell reads up to the newest 16, parses each
+  one (`minidump.ts`) and keeps the newest five of the browser and five of the other processes, as the Mac does. A
+  report carries the process kind (from Chromium's `ptype` annotation), the signal and its code (`SIGSEGV`,
+  `SEGV_MAPERR`), the engine version (Ardia's own version for a browser crash, from the `ardia-ver` annotation the
+  engine sets at startup from `VERSION`), the process's uptime, the build IDs of the files beside `chrome`, and the
+  crashing thread's frames as file plus offset: a frame-pointer walk from the signal's registers (Linux builds keep
+  frame pointers), and when libc reused the frame pointer, from the first frame record on the stack. A dump written
+  without a crash (`DumpWithoutCrashing`) is skipped. Nothing else from the dump leaves the shell: it holds stack
+  memory, which can hold page content. The shared client sends it under the same consent as the Mac (sharing on only);
+  `chrome` is stripped, so its frames are offsets, named later against the engine's symbols by build ID.
 - **One owner for the choice.** A window that isn't the telemetry owner (Settings, a second browser window) doesn't
   write `telemetry.json`. Turning sharing on or off, dismissing the new-tab question, starting or stopping a report's
   14-day watch and making the first anonymous ID are `choice` requests the owner runs (`telemetryChoice.ts`,
@@ -1774,11 +1778,8 @@ These were open at the time of the PR.
   has no recording, trace or crash reports. The engine only accepts `https://ardia.dev/api/feedback`:
   there is no override for a local feedback server, and a background instance sends nothing, so the sheet can't be
   exercised end to end from a hidden instance yet.
-- **Crash reports.** The published engine writes the dumps (checked: a renderer crash and a browser crash each left
-  one in `pending/`, with uploads off) but doesn't list or read them for the shell yet (`crash.dumps`), so
-  `ArdiaApp.crashReports` still answers an empty list. The parser has run on those real dumps, not inside a built
-  engine. Browser crashes carry no Ardia version (the dump knows only Chromium's), only x86-64 dumps get frames, and
-  nothing is named until the engine's symbols are kept by build ID.
+- **Crash reports.** Only x86-64 dumps get frames, and frames are named only from the symbols archive the engine was
+  published with (`scripts/linux/symbolize.py`). An engine older than `crash.dumps` answers no crash reports.
 - **Ardia's notifications.** A desktop without a notification service falls back to Chromium's own popups, as sites'
   notifications do. A click activates the window through the same Wayland activation path as above.
 - **Launch at login** starts Ardia as any launch does; it doesn't start hidden. A system-wide
