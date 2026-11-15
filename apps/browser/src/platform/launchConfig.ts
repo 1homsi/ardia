@@ -22,3 +22,8 @@ export const introStartDelayMs = (): number => {
 export const devTestValue = (key: string): string | null => (typeof __DEV__ !== "undefined" && __DEV__ ? testValue(key) : null);
 
 export const reloadLaunchConfigForTests = () => void (config = null);
+
+export const httpPagesPort = (): string | null => {
+  const port = testValue("httpPages");
+  return port && /^\d+$/.test(port) ? port : null;
+};
