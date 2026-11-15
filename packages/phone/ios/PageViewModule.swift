@@ -161,6 +161,10 @@ public final class PageViewModule: Module {
       }
     }.runOnQueue(.main)
 
+    AsyncFunction("print") { (pageID: String) -> Bool in
+      MainActor.assumeIsolated { PhonePages.shared.print(pageID) }
+    }.runOnQueue(.main)
+
     AsyncFunction("readableContent") { (pageID: String, promise: Promise) in
       Self.main(promise) { () -> [String: Any?]? in
         let page = try PhonePages.shared.require(pageID)
@@ -511,5 +515,6 @@ public final class DownloadsModule: Module {
         return true
       }
     }.runOnQueue(.main)
+
   }
 }

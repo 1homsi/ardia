@@ -54,6 +54,7 @@ type PagesNative = {
   setDesktopSite(pageId: string, enabled: boolean): Promise<void>;
   download(pageId: string, url: string): Promise<void>;
   readableContent(pageId: string): Promise<ReadableContent | null>;
+  print?(pageId: string): Promise<boolean>;
   snapshot(pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: [number, number] }): Promise<PageSnapshot | null>;
   loadHtml(pageId: string, html: string, baseUrl: string): Promise<void>;
   scrollPosition(pageId: string): Promise<PageScrollPosition | null>;
@@ -117,6 +118,8 @@ export const pages = {
   setDesktopSite: (pageId: string, enabled: boolean) => native().setDesktopSite(pageId, enabled),
   download: (pageId: string, url: string) => native().download(pageId, url),
   readableContent: (pageId: string) => native().readableContent(pageId),
+  print: (pageId: string): Promise<boolean> => native().print?.(pageId) ?? Promise.resolve(false),
+  canPrint: (): boolean => typeof native().print === "function",
   snapshot: (pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: PageToneInsets } = {}) =>
     native().snapshot(pageId, {
       maxWidth: options.maxWidth,

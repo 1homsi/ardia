@@ -120,6 +120,17 @@ final class PhonePages {
     ]
   }
 
+  func print(_ pageID: String) -> Bool {
+    guard let page = page(pageID), let address = page.url?.absoluteString, BrowserURL.isSyncable(address), let webView = page.webView else { return false }
+    let info = UIPrintInfo.printInfo()
+    info.outputType = .general
+    info.jobName = page.title.isEmpty ? (BrowserURL.host(of: address) ?? address) : page.title
+    let controller = UIPrintInteractionController.shared
+    controller.printInfo = info
+    controller.printFormatter = webView.viewPrintFormatter()
+    return controller.present(animated: true)
+  }
+
   func page(_ pageID: String) -> WebTab? {
     tabIDs[pageID].flatMap(engine.existingWebTab)
   }
