@@ -586,13 +586,14 @@ function Test-PageDragStays([System.Diagnostics.Process]$Process, [string]$Layou
   $targets = @(
     @{ Name = "text"; X = $pageRect.Left + [int](60 * $scale); Y = $pageRect.Top + [int](132 * $scale); ByX = [int](240 * $scale); ByY = [int](20 * $scale); Event = "selected" },
     @{ Name = "empty area"; X = $pageRect.Left + [int](300 * $scale); Y = $pageRect.Top + [int](380 * $scale); ByX = [int](220 * $scale); ByY = [int](90 * $scale); Event = "released" },
+    @{ Name = "text after a long press"; X = $pageRect.Left + [int](60 * $scale); Y = $pageRect.Top + [int](132 * $scale); ByX = [int](240 * $scale); ByY = [int](20 * $scale); Event = "selected"; Hold = 1200 },
     @{ Name = "link"; X = $pageRect.Left + [int](70 * $scale); Y = $pageRect.Top + [int](250 * $scale); ByX = [int](200 * $scale); ByY = [int](80 * $scale); Event = "dragstart" }
   )
   foreach ($target in $targets) {
     $appBefore = Get-WindowRect $Process
     $pageBefore = Get-HandleRect $page
     $events = @(Get-PageEvents).Count
-    Send-Drag $target.X $target.Y $target.ByX $target.ByY 200
+    Send-Drag $target.X $target.Y $target.ByX $target.ByY $(if ($target.Hold) { $target.Hold } else { 200 })
     Start-Sleep -Milliseconds 700
     [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
     [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
@@ -676,7 +677,13 @@ if ($Part -ne "gate" -and $withEngineForEdge -and -not $NoInput -and $httpPagesU
     try {
       Start-Sleep -Seconds 12
       if ($dragApp.HasExited) { $failures += "page drag ($($layout.Name)): the app exited on its own (exit code $($dragApp.ExitCode))" }
-      else { Test-PageDragStays $dragApp $layout.Name | ForEach-Object { $failures += $_ } }
+      else {
+        Test-PageDragStays $dragApp $layout.Name | ForEach-Object { $failures += $_ }
+        $dragApp.Refresh()
+        [ArdiaInput]::ShowWindow($dragApp.MainWindowHandle, 3) | Out-Null
+        Start-Sleep -Seconds 2
+        Test-PageDragStays $dragApp "$($layout.Name)-maximized" | ForEach-Object { $failures += $_ }
+      }
     } finally {
       if (-not $dragApp.HasExited) {
         Stop-Process -Id $dragApp.Id -Force
