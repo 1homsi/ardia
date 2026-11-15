@@ -883,6 +883,7 @@ const { Clock } = __require("packages/sync/src/hlc.ts");
 const { syncScope, visible } = __require("packages/sync/src/scope.ts");
 const { emptyScope } = __require("packages/sync/src/scopeState.ts");
 const { bookmarksAdapter, deviceAdapter, deviceTabsAdapter, historyAdapter, historyExpired, HISTORY_WINDOW_MS, isWebUrl, sendsAdapter, SEND_LIFETIME_MS, DAY_MS } = __require("packages/sync/src/companion/adapters.ts");
+const { fromLegacyUrl } = __require("packages/sync/src/companion/legacy.ts");
 const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("packages/sync/src/companion/view.ts");
 const { host, loaded, save, viewIsNew } = __require("packages/sync/src/companion/state.ts");
 
@@ -1153,14 +1154,27 @@ function companionAcknowledge(input                                             
   return { saved: save(true) };
 }
 
+function hasBookmarkFor(c                , scope        , url        ) {
+  const removing = new Set(c.bookmarks.filter((o) => o.scope === scope && o.op === "remove").map((o) => `bm:${o.key}`));
+  if (c.bookmarks.some((o) => o.scope === scope && o.op === "add" && o.value.u === url)) return true;
+  const state = c.scopes[scope];
+  if (!state) return false;
+  for (const [key, value] of visible(state, "bm:")) {
+    const bookmark = value                        ;
+    if (!removing.has(key) && bookmark?.k === "u" && typeof bookmark.u === "string" && fromLegacyUrl(bookmark.u) === url) return true;
+  }
+  return false;
+}
+
 function companionAddBookmark(input                                                                    ) {
   const c = loaded();
   if (!isLive(input.profile)) return refused;
   const scope = scopeFor(input.profile);
+  if (hasBookmarkFor(c, scope, input.u)) return { saved: true, existing: true };
   if (!c.bookmarks.some((o) => o.scope === scope && o.key === input.key)) {
     c.bookmarks.push({ scope, op: "add", key: input.key, value: { k: "u", p: "other", t: input.t, u: input.u, a: input.at } });
   }
-  return { saved: save(true) };
+  return { saved: save(true), existing: false };
 }
 
 function companionRemoveBookmark(input                                  ) {
@@ -1461,6 +1475,40 @@ function bookmarksAdapter(ctx                 )          {
 }
 
 });
+__define("packages/sync/src/companion/legacy.ts", function (exports, __require) {
+  __export(exports, "fromLegacyUrl", () => fromLegacyUrl);
+  __export(exports, "fromLegacy", () => fromLegacy);
+const LEGACY_URLS                     = [
+  ["netnyahoo://yahu", "ardia://game"],
+  ["chrome://yahu", "chrome://game"],
+  ["netnyahoo://", "ardia://"],
+];
+
+function fromLegacyUrl(url        )         {
+  const lower = url.toLowerCase();
+  for (const prefix of ["", "view-source:"]) {
+    for (const [old, now] of LEGACY_URLS) {
+      if (!lower.startsWith(prefix + old)) continue;
+      const rest = url.slice(prefix.length + old.length);
+      if (!old.endsWith("://") && rest && !"/?#".includes(rest[0] )) continue;
+      return url.slice(0, prefix.length) + now + rest;
+    }
+  }
+  return url;
+}
+
+function fromLegacy   (value   )    {
+  if (typeof value === "string") return fromLegacyUrl(value)     ;
+  if (Array.isArray(value)) return value.map(fromLegacy)     ;
+  if (value && typeof value === "object") {
+    const out                          = {};
+    for (const [key, v] of Object.entries(value                           )) out[key] = fromLegacy(v);
+    return out     ;
+  }
+  return value;
+}
+
+});
 __define("packages/sync/src/companion/view.ts", function (exports, __require) {
   __export(exports, "MAX_HISTORY_ITEMS", () => MAX_HISTORY_ITEMS);
   __export(exports, "liveProfiles", () => liveProfiles);
@@ -1503,7 +1551,8 @@ const MAX_HISTORY_ITEMS = 2_000;
                          
   
                                                                                                                                                      
-                                                                                                 
+                                                                                                                    
+                                                                                                                        
 
 const str = (v         , fallback = "") => (typeof v === "string" ? v : fallback);
 const optStr = (v         ) => (typeof v === "string" && v ? v : null);
@@ -1776,11 +1825,23 @@ function historyList(scope                        )                {
   return out.sort((a, z) => z.lastVisit - a.lastVisit || (a.url < z.url ? -1 : 1)).slice(0, MAX_HISTORY_ITEMS);
 }
 
+function settingOf(app            , name        )          {
+  const record = app.records[`set:${name}`]?.v                                      ;
+  return record && typeof record === "object" ? fromLegacy(record.v) : undefined;
+}
+
+function oneOf                  (value         , choices              )           {
+  return typeof value === "string" && (choices                     ).includes(value) ? (value     ) : null;
+}
+
+function lookOf(app            )                  {
+  const interfaceStyle = oneOf(settingOf(app, "interfaceStyle"), ["glass", "classic"]         );
+  const appearance = oneOf(settingOf(app, "appearance"), ["auto", "light", "dark"]         );
+  return interfaceStyle === null && appearance === null ? null : { interfaceStyle, appearance };
+}
+
 function searchOf(app            )                    {
-  const setting = (name        ) => {
-    const record = app.records[`set:${name}`]?.v                                      ;
-    return record && typeof record === "object" ? fromLegacy(record.v) : undefined;
-  };
+  const setting = (name        ) => settingOf(app, name);
   const engine = setting("searchEngine");
   const customUrl = setting("customSearchUrl");
   const custom = setting("customSearchEngines");
@@ -1798,7 +1859,7 @@ function searchOf(app            )                    {
 
 function buildView(scopes                            , me        )       {
   const app = scopes.app;
-  if (!app) return { devices: [], profiles: [], search: null };
+  if (!app) return { devices: [], profiles: [], search: null, look: null };
   const lastSeen = new Map                ();
   for (const scope of Object.values(scopes)) {
     for (const [device, at] of Object.entries(scope.seen)) lastSeen.set(device, Math.max(at, lastSeen.get(device) ?? 0));
@@ -1837,41 +1898,7 @@ function buildView(scopes                            , me        )       {
     };
   });
   profileList.sort((a, z) => Number(z.isDefault) - Number(a.isDefault) || a.name.localeCompare(z.name) || (a.syncId < z.syncId ? -1 : 1));
-  return { devices: deviceList, profiles: profileList, search: searchOf(app) };
-}
-
-});
-__define("packages/sync/src/companion/legacy.ts", function (exports, __require) {
-  __export(exports, "fromLegacyUrl", () => fromLegacyUrl);
-  __export(exports, "fromLegacy", () => fromLegacy);
-const LEGACY_URLS                     = [
-  ["netnyahoo://yahu", "ardia://game"],
-  ["chrome://yahu", "chrome://game"],
-  ["netnyahoo://", "ardia://"],
-];
-
-function fromLegacyUrl(url        )         {
-  const lower = url.toLowerCase();
-  for (const prefix of ["", "view-source:"]) {
-    for (const [old, now] of LEGACY_URLS) {
-      if (!lower.startsWith(prefix + old)) continue;
-      const rest = url.slice(prefix.length + old.length);
-      if (!old.endsWith("://") && rest && !"/?#".includes(rest[0] )) continue;
-      return url.slice(0, prefix.length) + now + rest;
-    }
-  }
-  return url;
-}
-
-function fromLegacy   (value   )    {
-  if (typeof value === "string") return fromLegacyUrl(value)     ;
-  if (Array.isArray(value)) return value.map(fromLegacy)     ;
-  if (value && typeof value === "object") {
-    const out                          = {};
-    for (const [key, v] of Object.entries(value                           )) out[key] = fromLegacy(v);
-    return out     ;
-  }
-  return value;
+  return { devices: deviceList, profiles: profileList, search: searchOf(app), look: lookOf(app) };
 }
 
 });
