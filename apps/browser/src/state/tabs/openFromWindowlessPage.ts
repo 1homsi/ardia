@@ -6,20 +6,24 @@ import { isOpenRegularWindow } from "../windows/small";
 import { asAdoptId } from "./adoptIds";
 import { openFromPage } from "./openFromPage";
 
-const BACKGROUND = new Set<OpenWindowRequest["disposition"]>(["background"]);
+type Disposition = OpenWindowRequest["disposition"];
+
+const NEEDS_A_TAB = new Set<Disposition>(["current", "peek"]);
+const INTO_THE_WINDOW = new Set<Disposition>(["foreground", "split"]);
 
 const dropOffered = (request: OpenWindowRequest) => {
   if (request.adoptId) void discardOffered(request.adoptId).catch(() => false);
 };
 
-export function openFromWindowlessPage(request: OpenWindowRequest, profile: string) {
+export function openFromWindowlessPage(asked: OpenWindowRequest, profile: string) {
+  const request: OpenWindowRequest = NEEDS_A_TAB.has(asked.disposition) ? { ...asked, disposition: "foreground" } : asked;
   const s = useBrowser.getState();
   const profileId = s.profileOrder.find((id) => engineProfile(s, id) === profile);
   if (!profileId) return dropOffered(request);
   const windowId = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].find((id) => isOpenRegularWindow(s.windows[id]) && s.windows[id]!.profileId === profileId);
   if (windowId) {
     openFromPage(request, { windowId, profileId });
-    if (!BACKGROUND.has(request.disposition)) focus(windowId);
+    if (INTO_THE_WINDOW.has(request.disposition)) focus(windowId);
     return;
   }
   if (request.disposition === "incognito") {

@@ -115,3 +115,23 @@ test("a link a lone pop-up opens in a private window opens a private window of i
   assert.ok(privateWindow, "a private window opens");
   assert.deepEqual(stub.discardedOffers, ["ardiacore:8"]);
 });
+
+test("a new window a lone pop-up asks for comes forward, not the profile's existing empty window", async () => {
+  S().updateSettings({ newTabOpens: "commandBar" });
+  const empty = S().createWindow({ profileId: "work" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  stub.windows.focused = null;
+  openFromWindowlessPage({ ...offered("ardiacore:9"), disposition: "window" }, "work");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const made = adoptedTab("ardiacore:9")?.windowId;
+  assert.ok(made && made !== empty, "the tab is in a new window");
+  assert.notEqual(stub.windows.focused, empty, "the old window isn't brought back over it");
+  S().updateSettings({ newTabOpens: "newTab" });
+});
+
+test("a peek or current-tab request from a lone pop-up, which has no tab to peek from or navigate, opens as a foreground tab", () => {
+  const w = S().createWindow({ url: "https://work.example/", profileId: "work" });
+  openFromWindowlessPage({ ...offered("ardiacore:10"), disposition: "peek" }, "work");
+  assert.equal(adoptedTab("ardiacore:10")?.windowId, w);
+  assert.equal(stub.windows.focused, w);
+});
