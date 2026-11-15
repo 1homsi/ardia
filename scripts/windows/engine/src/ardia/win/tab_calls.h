@@ -12,6 +12,8 @@ class WebContents;
 
 namespace ardia_win {
 
+void SyncUserDevTools(content::WebContents* contents);
+
 bool CallTabMethod(content::WebContents* contents,
                    const std::string& method,
                    const base::DictValue& args,

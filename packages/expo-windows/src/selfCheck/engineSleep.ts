@@ -127,6 +127,31 @@ const sleepChecks: Check[] = [
         expectEqual(back, SCROLLED_TO, "the scroll after it wakes");
       }),
   },
+  {
+    name: "engine sleep: a hidden page whose DevTools window is open is kept, and sleeps once that window is closed",
+    run: () =>
+      withPages(["devtools"], async ([page], windowId) => {
+        await show(page!, windowId, LEFT);
+        await hide(page!, windowId);
+        await hostCall("tab.call", { key: page!, method: "showDevTools" });
+        let open = true;
+        try {
+          const kept = await hostCall<{ keptBy?: unknown }>("tab.call", { key: page!, method: "sleepIfHidden", seconds: 0 });
+          expectTrue(Array.isArray(kept.keptBy) && kept.keptBy.includes(DEVTOOLS_OPEN), `kept while its DevTools window is open (${DEVTOOLS_OPEN}): ${JSON.stringify(kept.keptBy)}`);
+          await hostCall("tab.call", { key: page!, method: "showDevTools", panel: "toggle" });
+          open = false;
+          const after = await until(
+            "the page sleeps once its DevTools window is closed",
+            DEVTOOLS_GONE_MS,
+            async () => (await hostCall<{ keptBy?: unknown }>("tab.call", { key: page!, method: "sleepIfHidden", seconds: 0 })).keptBy,
+            (keptBy) => Array.isArray(keptBy) && keptBy.length === 0,
+          );
+          expectEqual(after, [], "nothing keeps it once the window is closed");
+        } finally {
+          if (open) await hostCall("tab.call", { key: page!, method: "showDevTools", panel: "toggle" }).catch(() => null);
+        }
+      }),
+  },
 ];
 
 export const checks: Check[] = engineAvailable() ? sleepChecks : [];

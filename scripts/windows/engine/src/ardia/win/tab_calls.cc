@@ -43,6 +43,7 @@
 #include "chrome/common/content_restriction.h"
 #include "chrome/common/pref_names.h"
 #include "components/blocked_content/popup_blocker_tab_helper.h"
+#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/page_node.h"
 #include "components/performance_manager/public/performance_manager.h"
@@ -567,6 +568,7 @@ void ShowDevTools(content::WebContents* contents,
     DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::Show(),
                                        DevToolsOpenedByAction::kUnknown);
   }
+  SyncUserDevTools(contents);
   std::move(reply).Run(Ok());
 }
 
@@ -749,6 +751,7 @@ void SleepIfHidden(content::WebContents* contents,
   if (!eligibility || !discarding) {
     return AnswerKeptBy(std::move(reply), std::move(unavailable));
   }
+  SyncUserDevTools(contents);
   const auto reason =
       policies::DiscardEligibilityPolicy::DiscardReason::PROACTIVE;
   const double seconds = args.FindDouble("seconds").value_or(0);
@@ -858,6 +861,12 @@ constexpr NamedMethod kMethods[] = {
     {"externalAppForget", &ExternalAppForgetCall},
 };
 
+}
+
+void SyncUserDevTools(content::WebContents* contents) {
+  performance_manager::PageLiveStateDecorator::SetIsDevToolsOpen(
+      contents,
+      DevToolsWindow::GetInstanceForInspectedWebContents(contents) != nullptr);
 }
 
 bool CallTabMethod(content::WebContents* contents,
