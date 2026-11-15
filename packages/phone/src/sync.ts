@@ -111,6 +111,7 @@ type SyncNative = {
   stopSyncing(): Promise<void>;
   acknowledgeReset(): Promise<void>;
   syncNow(): Promise<void>;
+  isCycleRunning?(): Promise<boolean>;
   setDeviceName(name: string): Promise<void>;
   selectProfile(profileSyncId: string | null): Promise<void>;
   receivers(profileSyncId: string | null): Promise<SyncedDevice[]>;
@@ -142,6 +143,8 @@ export const sync = {
   stopSyncing: () => native().stopSyncing(),
   acknowledgeReset: () => native().acknowledgeReset(),
   syncNow: () => native().syncNow(),
+  isCycleRunning: (): Promise<boolean> => native().isCycleRunning?.() ?? Promise.resolve(false),
+  knowsCycle: (): boolean => typeof native().isCycleRunning === "function",
   setDeviceName: (name: string) => native().setDeviceName(name),
   selectProfile: (profileSyncId: string | null) => native().selectProfile(profileSyncId),
   receivers: (profileSyncId: string | null = null) => native().receivers(profileSyncId),

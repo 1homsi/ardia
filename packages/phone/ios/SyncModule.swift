@@ -42,6 +42,10 @@ public final class SyncModule: Module {
       PageViewModule.main(promise) { SyncPayloads.object(SyncPayloads.view(await PhoneSyncHost.shared.ready())) }
     }
 
+    AsyncFunction("isCycleRunning") { (promise: Promise) in
+      PageViewModule.main(promise) { await PhoneSyncHost.shared.ready().isCycleRunning }
+    }
+
     AsyncFunction("incoming") { (promise: Promise) in
       PageViewModule.main(promise) { PhoneSyncHost.shared.incoming.map(SyncPayloads.received) }
     }
