@@ -233,7 +233,6 @@ object PhonePages {
         if (::snapshots.isInitialized) {
             val files = snapshots.files(pageId)
             val dropped = ImageMemory.forgetAll(files)
-            ImageMemory.settleSoon("a page closed")
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB memory page closed: ${ImageMemory.closeSummary(files.size, dropped)}, image cache ${ImageMemory.cache()?.let(ImageMemory::describe) ?: "unknown"}")
         }
     }

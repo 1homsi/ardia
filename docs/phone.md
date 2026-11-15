@@ -354,7 +354,12 @@ off in the lab`.
       median.
     - From sync14 the deck bar's frosts, which sit over nothing but the backdrop, are fills tinted from the
       backdrop's colours under them, with no blur layer: the bar's colour follows the blobs, but the blobs are
-      not seen through it. Logcat has `PAGELAB look frost … path=tinted`, and the Memory line says
+      not seen through it. Logcat has, at each deck build and for each frost, `PAGELAB look frost … path=… (why);
+      source deck: …`, which says what the frost found in its source. For the bar it should read `path=tinted
+      … source deck: only the deck backdrop shows: N view(s) under it hidden by it, M over it that draw
+      nothing`. When it reads anything else, report the line: it names the view that kept the blur (sync14's
+      bar stayed `path=live` because an empty view sat beside the backdrop, which sync15 ignores). The Memory
+      line says
       `… holding a blur layer (3 tinted from the backdrop)` and the DECK source no longer recording. The lab's
       `Bar frosts: tinted fill` / `Bar frosts: blur` button brings back the old blur to compare (it lasts across
       launches; set it back to tinted afterwards). On the M3, the idle deck with the look on, paced, once each
@@ -493,20 +498,14 @@ off in the lab`.
     layer(s) …`; every trim the app receives now logs one such line, whatever its level, so a missing line means
     the app never got it. Come back and tap Memory: graphics should be near the look-off figure until the deck is
     shown again. Report the graphics figure after Home with the look on and off.
-54. **Graphics memory after closing tabs settles with the look off too.** In sync12 graphics stayed at 88 MB with
-    the look off after closing eight of nine tabs, and RUNNING_CRITICAL left it there, against 56 and 38 with the
-    look on. Android's renderer frees the GPU copies of let-go images and layers only after it draws a frame
-    (and keeps unused ones at least 10 s); the look's blob frames did that, a still look-off deck draws nothing,
-    and RUNNING_CRITICAL with the app in front does not reach the renderer. From sync14 the app draws one frame
-    11 s after the last close, snapshot delete or RUNNING_LOW/CRITICAL trim, and logs
-    `PAGELAB memory settle frame: one redraw 11 s after a page closed, …`.
-    - Look off (step 38's switch, force-stop), nine tabs, close eight from the deck. Straight away tap Memory and
-      run `adb shell dumpsys gfxinfo $P | grep -E "Total GPU memory|purgeable"`. Leave the deck untouched until
-      the settle line (about 11 s), then Memory and the same grep again.
-    - Then `adb shell am send-trim-memory $P RUNNING_CRITICAL`, wait for its settle line, Memory again.
-    - Expected: graphics falls after the settle line toward the look-on figure, and the purgeable part of the
-      GPU memory shrinks. Report all three Memory lines and greps; if graphics does not fall, the grep says
-      whether what remains is purgeable cache (the renderer's) or held (ours).
+54. **Graphics memory after closing tabs (settled in sync14).** With the look off, graphics stays at about 88 to
+    90 MB after closing eight of nine tabs, against 45 to 56 MB with the look on. sync14's F4 showed what it is:
+    GPU memory 105 MB, of which about 100 MB purgeable. It is the renderer's own cache of textures it no longer
+    needs, which Android takes back on its own: at UI_HIDDEN (Home), under memory pressure, or when the app
+    goes to the background. No public API asks the renderer to trim while the app is in front, and sync14's
+    one redraw after closes did not shrink it, so that redraw is gone from sync15. Nothing to run. Report it
+    only if graphics after Home stays above about 30 MB, or `dumpsys gfxinfo $P` shows a large GPU total that
+    is not purgeable.
 55. **Deck scroll, look on against look off** (from sync14). Run the Deck speed script's step 2 (`## Deck speed`)
     four times on each phone, two with the look off and two with it on (paced, budget forced full on a phone
     that degraded). Force-stop between look switches. In each look-on run also:

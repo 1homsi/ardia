@@ -1,13 +1,6 @@
 package com.ardia.phone
 
-import android.app.Activity
 import android.app.ActivityManager
-import android.app.Application
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.SystemClock
-import java.lang.ref.WeakReference
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.res.Configuration
@@ -20,31 +13,6 @@ import java.io.File
 
 object ImageMemory {
     private var watching = false
-
-    const val SETTLE_AFTER_MILLIS = 11_000L
-
-    private val main = Handler(Looper.getMainLooper())
-    private var shown: WeakReference<Activity>? = null
-    private var settleAskedAt = 0L
-    private var settleReason = ""
-    private val settle = Runnable {
-        val decor = shown?.get()?.window?.decorView
-            ?: (FrostSources.allSources() + DeckBackdrops.all()).firstOrNull { it.isAttachedToWindow && it.isShown }?.rootView
-            ?: return@Runnable
-        decor.invalidate()
-        if (PhoneLab.isOn) {
-            Log.i("PAGELAB", "PAGELAB memory settle frame: one redraw ${(SystemClock.uptimeMillis() - settleAskedAt) / 1000} s after $settleReason, so the renderer frees the GPU memory of images and layers let go of since its last frame")
-        }
-    }
-
-    fun settleSoon(reason: String) {
-        settleAskedAt = SystemClock.uptimeMillis()
-        settleReason = reason
-        main.removeCallbacks(settle)
-        main.postDelayed(settle, SETTLE_AFTER_MILLIS)
-    }
-
-    fun settlesAfterTrim(level: Int): Boolean = clearsOn(level) && level < ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN
 
     fun clearsOn(level: Int): Boolean =
         level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW || level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL || level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
@@ -89,27 +57,11 @@ object ImageMemory {
     fun watch(context: Context) {
         if (watching) return
         watching = true
-        (context.applicationContext as? Application)?.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(activity: Activity) {
-                shown = WeakReference(activity)
-            }
-
-            override fun onActivityPaused(activity: Activity) {
-                if (shown?.get() === activity) shown = null
-            }
-
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-            override fun onActivityStarted(activity: Activity) = Unit
-            override fun onActivityStopped(activity: Activity) = Unit
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-            override fun onActivityDestroyed(activity: Activity) = Unit
-        })
         context.applicationContext.registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
                 val cleared = clearsOn(level)
                 if (cleared) clear()
                 val look = LookMemory.release(level)
-                if (settlesAfterTrim(level)) settleSoon("trim level $level")
                 if (PhoneLab.isOn) {
                     Log.i("PAGELAB", "PAGELAB memory trim received: level $level (${levelName(level)}); ${if (cleared) "image cache cleared" else "image cache kept"}; $look")
                 }

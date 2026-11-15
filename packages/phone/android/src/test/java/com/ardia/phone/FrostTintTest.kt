@@ -6,6 +6,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import expo.modules.kotlin.AppContext
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -25,6 +26,9 @@ class FrostTintTest {
         unsafe.javaClass.getMethod("allocateInstance", Class::class.java).invoke(unsafe, AppContext::class.java) as AppContext
     }
 
+    @Before
+    fun reactFlags() = com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests.setUp()
+
     @After
     fun reset() = LookSwitch.forgetForTests()
 
@@ -38,18 +42,61 @@ class FrostTintTest {
         assertEquals(128f, Color.red(half).toFloat(), 1f)
     }
 
+    private fun <T : android.view.View> T.at(left: Int, top: Int, width: Int, height: Int): T = apply { layout(left, top, left + width, top + height) }
+
+    private fun deckSourceAsTheAppBuildsIt(): Pair<FrostSourceView, DeckBackdropView> {
+        val source = FrostSourceView(activity, appContext).at(0, 0, 1080, 2400)
+        val base = com.facebook.react.views.view.ReactViewGroup(activity).apply { setBackgroundColor(Color.rgb(240, 200, 220)) }.at(0, 0, 1080, 2400)
+        val backdrop = DeckBackdropView(activity, appContext).at(0, 0, 1080, 2400)
+        source.addView(base)
+        source.addView(backdrop)
+        return source to backdrop
+    }
+
     @Test
-    fun aSourceHoldingOnlyTheBackdropIsKnownAndOneWithCardsIsNot() {
-        val deckSource = FrostSourceView(activity, appContext).apply { addView(DeckBackdropView(activity, appContext)) }
-        assertTrue(FrostTint.onlyBackdrop(deckSource))
-        val wrapped = FrostSourceView(activity, appContext).apply { addView(FrameLayout(activity).apply { addView(DeckBackdropView(activity, appContext)) }) }
-        assertTrue("a plain wrapper around the backdrop still counts", FrostTint.onlyBackdrop(wrapped))
-        val withCards = FrostSourceView(activity, appContext).apply {
-            addView(DeckBackdropView(activity, appContext))
-            addView(TextView(activity))
-        }
-        assertFalse(FrostTint.onlyBackdrop(withCards))
-        assertFalse("an empty source is not a backdrop", FrostTint.onlyBackdrop(FrostSourceView(activity, appContext)))
+    fun theDeckSourceAsTheAppMountsItHoldsOnlyTheBackdropBecauseTheColouredBaseIsUnderIt() {
+        val (source, backdrop) = deckSourceAsTheAppBuildsIt()
+        val found = FrostTint.inspect(source)
+        assertEquals(backdrop, found.backdrop)
+        assertTrue(found.why, found.why.startsWith("only the deck backdrop shows: 1 view(s) under it"))
+        val alone = FrostSourceView(activity, appContext).at(0, 0, 1080, 2400)
+        val only = DeckBackdropView(activity, appContext).at(0, 0, 1080, 2400)
+        alone.addView(only)
+        assertEquals("sync15's shape, with the base beside the source (63001023d)", only, FrostTint.inspect(alone).backdrop)
+    }
+
+    @Test
+    fun harmlessSiblingsOverTheBackdropDoNotDefeatTheTint() {
+        val (source, backdrop) = deckSourceAsTheAppBuildsIt()
+        source.addView(com.facebook.react.views.view.ReactViewGroup(activity).at(0, 0, 1080, 2400))
+        source.addView(android.view.View(activity).at(0, 0, 10, 10))
+        source.addView(TextView(activity).apply { text = "hidden"; visibility = android.view.View.GONE }.at(0, 0, 100, 100))
+        source.addView(FilmGrainView(activity, appContext).at(0, 0, 1080, 2400))
+        val wrapped = FrostSourceView(activity, appContext).at(0, 0, 1080, 2400)
+        val wrapper = FrameLayout(activity).at(0, 0, 1080, 2400)
+        val inner = DeckBackdropView(activity, appContext).at(0, 0, 1080, 2400)
+        wrapper.addView(inner)
+        wrapped.addView(wrapper)
+        assertEquals(backdrop, FrostTint.inspect(source).backdrop)
+        assertEquals("a plain wrapper around the backdrop still counts", inner, FrostTint.inspect(wrapped).backdrop)
+    }
+
+    @Test
+    fun anythingThatDrawsOverTheBackdropOrABackdropThatDoesNotCoverTheSourceKeepsTheBlurAndSaysWhy() {
+        val (withCards, _) = deckSourceAsTheAppBuildsIt()
+        withCards.addView(TextView(activity).apply { text = "card" }.at(0, 0, 300, 100))
+        val cards = FrostTint.inspect(withCards)
+        assertEquals(null, cards.backdrop)
+        assertTrue(cards.why, cards.why.startsWith("TextView 300x100 draws over the deck backdrop"))
+        val (tinted, _) = deckSourceAsTheAppBuildsIt()
+        tinted.addView(com.facebook.react.views.view.ReactViewGroup(activity).apply { setBackgroundColor(Color.BLACK) }.at(0, 0, 1080, 300))
+        assertTrue(FrostTint.inspect(tinted).why.contains("with a background draws over"))
+        val short = FrostSourceView(activity, appContext).at(0, 0, 1080, 2400)
+        short.addView(DeckBackdropView(activity, appContext).at(0, 0, 1080, 1200))
+        assertTrue(FrostTint.inspect(short).why.startsWith("the deck backdrop covers 0,0 to 1080,1200 of 1080x2400"))
+        val empty = FrostTint.inspect(FrostSourceView(activity, appContext).at(0, 0, 1080, 2400))
+        assertEquals(null, empty.backdrop)
+        assertTrue(empty.why.startsWith("no deck backdrop in it"))
     }
 
     @Test

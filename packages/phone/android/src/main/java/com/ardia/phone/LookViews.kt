@@ -540,23 +540,20 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
             return pageHeld
         }
 
-    private var backdropKnown = false
-    private var onlyBackdrop = false
+    private var knownFinding: FrostTint.Finding? = null
 
-    internal val holdsOnlyBackdrop: Boolean
-        get() {
-            if (!backdropKnown) {
-                onlyBackdrop = FrostTint.onlyBackdrop(this)
-                backdropKnown = true
-            }
-            return onlyBackdrop
-        }
+    internal val finding: FrostTint.Finding
+        get() = knownFinding ?: FrostTint.inspect(this).also { knownFinding = it }
 
-    internal fun backdrop(): DeckBackdropView? = FrostTint.firstBackdrop(this)
+    internal val holdsOnlyBackdrop: Boolean get() = finding.backdrop != null
+
+    internal fun backdrop(): DeckBackdropView? = finding.backdrop
 
     private val laidOut = ViewTreeObserver.OnGlobalLayoutListener {
         pageKnown = false
-        backdropKnown = false
+        val before = knownFinding
+        knownFinding = null
+        if (before != null && before != finding) FrostSources.redrawFrostsOf(this)
     }
 
     private fun stopRecording() {
@@ -766,13 +763,16 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         return choice.path == FrostPage.Path.Live || choice.reason == FrostPage.SOURCE_NOT_DRAWN
     }
 
-    private fun report(choice: FrostPage.Choice) {
-        if (choice == lastChoice) return
+    private var reportedFinding: String? = null
+
+    private fun report(choice: FrostPage.Choice, found: String?) {
+        if (choice == lastChoice && found == reportedFinding) return
         val wanted = wantsSource()
         lastChoice = choice
+        reportedFinding = found
         if (wantsSource() != wanted) FrostSources.sourceChanged(source)
         if (PhoneLab.isOn) {
-            android.util.Log.i("PAGELAB", "PAGELAB look frost $logLabel ${width}x$height path=${choice.path.name.lowercase()} (${choice.reason})")
+            android.util.Log.i("PAGELAB", "PAGELAB look frost $logLabel ${width}x$height path=${choice.path.name.lowercase()} (${choice.reason}); source ${source ?: "none"}: ${found ?: "not found"}")
         }
     }
 
@@ -799,7 +799,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             pageMode = FrostSources.pageMode,
             lookOff = lookIsOff,
         )
-        report(choice)
+        report(choice, from?.finding?.why)
         if (choice.path == FrostPage.Path.Live && from != null) {
             if (isShown) scheduleRefresh(from.holdsPage)
             val layerNode = blurNode ?: RenderNode("ardiaFrost").also { blurNode = it }
@@ -1019,24 +1019,54 @@ internal object FrostTint {
         return Color.rgb(over(saturate(r), Color.red(tint)), over(saturate(g), Color.green(tint)), over(saturate(b), Color.blue(tint)))
     }
 
-    fun onlyBackdrop(view: View): Boolean {
-        if (view is LookView) return view is DeckBackdropView || view is ProfileBackdropView || view is FilmGrainView
-        if (view !is android.view.ViewGroup) return false
-        if (view !is FrostSourceView && view.background != null) return false
-        var any = false
-        for (index in 0 until view.childCount) {
-            val child = view.getChildAt(index)
-            if (child.visibility == View.GONE) continue
-            if (!onlyBackdrop(child)) return false
-            any = true
+    data class Finding(val backdrop: DeckBackdropView?, val why: String)
+
+    fun inspect(source: android.view.ViewGroup): Finding {
+        val drawn = ArrayList<View>()
+        for (index in 0 until source.childCount) collectDrawn(source.getChildAt(index), drawn)
+        if (drawn.size > MOST_VIEWS) return Finding(null, "more than $MOST_VIEWS views drawn: blur it")
+        val at = drawn.indexOfFirst { it is DeckBackdropView }
+        if (at < 0) return Finding(null, "no deck backdrop in it, ${drawn.size} view(s) drawn: blur it")
+        val backdrop = drawn[at] as DeckBackdropView
+        val box = boundsIn(backdrop, source)
+        if (box[0] > 0 || box[1] > 0 || box[2] < source.width || box[3] < source.height) {
+            return Finding(null, "the deck backdrop covers ${box[0]},${box[1]} to ${box[2]},${box[3]} of ${source.width}x${source.height}: blur it")
         }
-        return any
+        val wrappers = generateSequence<android.view.ViewParent>(backdrop.parent) { it.parent }.takeWhile { it !== source }.toSet<Any>()
+        val under = drawn.subList(0, at).count { it !in wrappers }
+        val above = drawn.subList(at + 1, drawn.size)
+        val drawing = above.firstOrNull { !drawsNothingOver(it) }
+        if (drawing != null) return Finding(null, "${describe(drawing)} draws over the deck backdrop: blur it")
+        return Finding(backdrop, "only the deck backdrop shows: $under view(s) under it hidden by it, ${above.size} over it that draw nothing")
     }
 
-    fun firstBackdrop(view: View): DeckBackdropView? {
-        if (view is DeckBackdropView) return view
-        if (view !is android.view.ViewGroup) return null
-        for (index in 0 until view.childCount) firstBackdrop(view.getChildAt(index))?.let { return it }
-        return null
+    private const val MOST_VIEWS = 32
+
+    private fun collectDrawn(view: View, into: MutableList<View>) {
+        if (into.size > MOST_VIEWS || view.visibility != View.VISIBLE || view.alpha == 0f || view.width == 0 || view.height == 0) return
+        into += view
+        if (view is android.view.ViewGroup) for (index in 0 until view.childCount) collectDrawn(view.getChildAt(index), into)
     }
+
+    private fun drawsNothingOver(view: View): Boolean {
+        if (view is FilmGrainView) return true
+        if (view is LookView) return false
+        if (view.background != null || view.foreground != null) return false
+        return view is android.view.ViewGroup || view.javaClass == View::class.java
+    }
+
+    private fun boundsIn(view: View, ancestor: View): IntArray {
+        var left = 0
+        var top = 0
+        var current: View = view
+        while (current !== ancestor) {
+            left += current.left
+            top += current.top
+            current = current.parent as? View ?: break
+        }
+        return intArrayOf(left, top, left + view.width, top + view.height)
+    }
+
+    private fun describe(view: View): String =
+        "${view.javaClass.simpleName} ${view.width}x${view.height}${if (view.background != null) " with a background" else ""}${if (view.foreground != null) " with a foreground" else ""}"
 }
