@@ -1,4 +1,4 @@
-import { Dot, Panel, Symbol, Button, tabularNums, Text, useHover } from "../ui";
+import { Dot, Panel, Symbol, Button, tabularNums, Text, useHover, reduceMotion } from "../ui";
 import { useShallow } from "zustand/react/shallow";
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated, Image, Pressable, View } from "react-native";
@@ -92,28 +92,32 @@ const isLive = (session: Session) => session.duration === null;
 function useExpansion(want: boolean, motion: PlayerMotion) {
   const [expanded, setExpanded] = useState(false);
   const [slot, setSlot] = useState<"row" | "expanded">("row");
+  const closing = useRef(false);
   useEffect(() => {
     if (want === expanded) return;
     if (want) return setExpanded(true);
     const timer = setTimeout(() => setExpanded(false), COLLAPSE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [want, expanded]);
-  useEffect(() => {
-    if (expanded) noteSidebarPlayerExpand();
-  }, [expanded]);
   useLayoutEffect(() => {
     if (slot === "expanded") {
       if (expanded) return void motion.overhang.setValue(0);
       return setSlot("row");
     }
     motion.overhang.setValue(1);
+    if (expanded) noteSidebarPlayerExpand(closing.current);
+    closing.current = !expanded;
     const run = Animated.timing(motion.progress, {
       toValue: expanded ? 1 : 0,
-      duration: expanded ? EXPAND_MS : COLLAPSE_MS,
+      duration: reduceMotion() !== false ? 0 : expanded ? EXPAND_MS : COLLAPSE_MS,
       easing: curve.fade,
       useNativeDriver: true,
     });
-    run.start(({ finished }) => finished && expanded && setSlot("expanded"));
+    run.start(({ finished }) => {
+      if (!finished) return;
+      if (expanded) setSlot("expanded");
+      else closing.current = false;
+    });
     return () => run.stop();
   }, [expanded, slot]);
   useLayoutEffect(
@@ -306,7 +310,7 @@ export function SidebarPlayer({ tabId, motion, docked }: { tabId: string; motion
                   <GlassFill radius={radius.panel} state={want ? "lit" : "rest"} />
                 </View>
               ) : (
-                <Panel fill={tokens.groupFill} radius={radius.panel} border={tokens.groupStroke} style={{ flex: 1 }} />
+                <Panel fill={want ? tokens.groupFillEmphasized : tokens.groupFill} radius={radius.panel} border={tokens.groupStroke} style={{ flex: 1 }} />
               )}
             </Animated.View>
             <Animated.View
