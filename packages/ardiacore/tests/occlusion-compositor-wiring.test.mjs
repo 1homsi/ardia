@@ -10,7 +10,11 @@ const patch = existsSync(patchUrl) ? readFileSync(patchUrl, "utf8") : "";
 const series = read("../../../engine/patches/series")
   .split("\n")
   .map((line) => line.trim())
-  .filter((line) => line && !line.startsWith("#"));
+  .filter((line) => line && !line.startsWith("#"))
+  .map((line) => {
+    const [kind, name, platform = "all"] = line.split(/\s+/);
+    return { kind, name, platform };
+  });
 const patchLines = patch.split("\n");
 const added = patchLines.filter((line) => line.startsWith("+") && !line.startsWith("+++")).map((line) => line.slice(1).trim());
 const removed = patchLines.filter((line) => line.startsWith("-") && !line.startsWith("---")).map((line) => line.slice(1).trim());
@@ -28,9 +32,16 @@ const block = (start) => {
 
 test("the occlusion patch is applied right after keep-old-frame, which it builds on", () => {
   requirePatch();
-  const at = series.indexOf(`chromium ${keepOldFrame}`);
+  const at = series.findIndex((step) => step.kind === "chromium" && step.name === keepOldFrame);
   assert.ok(at >= 0, `${keepOldFrame} is not in the series`);
-  assert.equal(series[at + 1], `chromium ${patchName}`);
+  assert.deepEqual(series[at + 1], { kind: "chromium", name: patchName, platform: series[at].platform });
+});
+
+test("the occlusion patch is applied on the Mac engine only, as keep-old-frame and the Mac compositor file it edits are", () => {
+  requirePatch();
+  const step = series.find((entry) => entry.kind === "chromium" && entry.name === patchName);
+  assert.equal(step?.platform, "mac");
+  assert.ok(patch.includes("--- a/content/browser/renderer_host/browser_compositor_view_mac.mm"));
 });
 
 test("a hidden host whose view is still visible keeps its own compositor, so its last frame stays on screen", () => {
