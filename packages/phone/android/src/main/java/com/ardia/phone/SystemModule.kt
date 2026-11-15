@@ -16,6 +16,11 @@ class SystemModule : Module() {
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", line)
         }
 
+        Function("setWidgetColorChoice") { choice: String? ->
+            val context = appContext.reactContext ?: return@Function Unit
+            WidgetColorChoice.set(context, choice)
+        }
+
         Function("displayCornerRadius") {
             val insets = appContext.currentActivity?.window?.decorView?.rootWindowInsets
             val radius = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && insets != null) insets.getRoundedCorner(android.view.RoundedCorner.POSITION_TOP_LEFT)?.radius else null

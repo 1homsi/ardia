@@ -968,7 +968,7 @@ Inline completion is in and waits on a phone (the checklist below). What is left
 - Page permission order (done): as Compose, a site's camera, microphone or location request first asks Android when it doesn't hold the permission; the site's Allow dialog reaches JavaScript only once Android grants it (approximate location is enough), and a refusal ends the request without a dialog. Native: `PhonePages.gateThenSend`, `SitePermissionGate`.
 - Pull to refresh (done natively): the pull settles on Compose's snappy spring (response 0.3 s, damping 0.86) and the spinner is Compose's loading accent (#6395FC, #4A77D4 dark). The swipe-to-navigate target takes `surfaceColor` from PageView, falling back to black or white until the screens pass the profile's surface. `PageGestures.kt` `SnappySpring`.
 - Tab pager corner radius: `system.displayCornerRadius()` gives the display's real top corner in points on Android 12+ (`WindowInsets.getRoundedCorner`, as Compose's `rememberDisplayCornerRadius`), null before that or on a square screen; the pager uses it in place of the fixed 55 when not null. Native done; `TabPager.tsx` swaps the constant.
-- Widgets and the Color setting, to confirm: 0cc83c7ab gave the widgets day and night colours from `WidgetColors`, which take a profile look; whether the Expo app hands them the chosen colour is not checked. Small if it doesn't.
+- Widgets and the Color setting: checked, they did not take it (SystemExport passed no colour choice; Compose passes `settings.colorChoice`). Native done: `system.setWidgetColorChoice(choice)` stores it (`WidgetColorChoice`, kept across launches) and the widget export combines it as Compose does; the screens call it when the Color preference changes and at launch.
 
 ### The iPhone redesign
 

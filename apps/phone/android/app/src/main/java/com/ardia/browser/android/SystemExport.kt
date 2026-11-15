@@ -26,7 +26,7 @@ object SystemExport {
                 sync ?: return@collectLatest
                 val demo = PhoneSync.isDemo
                 val exporter = SystemSnapshotExporter(app, if (demo) SystemStore.demo(app) else SystemStore.shared(app), publishes = !demo)
-                combine(sync.state, sync.snapshot, sync.selectedProfile) { state, snapshot, selected -> SystemSnapshots.of(state, snapshot, selected, null) }
+                combine(sync.state, sync.snapshot, sync.selectedProfile, com.ardia.phone.WidgetColorChoice.flow(app)) { state, snapshot, selected, colorChoice -> SystemSnapshots.of(state, snapshot, selected, colorChoice) }
                     .distinctUntilChanged()
                     .collectLatest { runCatching { exporter.export(it) } }
             }
