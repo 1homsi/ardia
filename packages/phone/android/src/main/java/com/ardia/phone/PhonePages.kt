@@ -260,13 +260,40 @@ object PhonePages {
 
     fun saveState(pageId: String): String? = page(pageId)?.saveState()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
 
+    var androidPermissionGate: ((Array<String>, (Map<String, Boolean>) -> Unit) -> Unit)? = null
+
+    private fun gateThenSend(page: Page, request: com.ardia.browser.PageRequest?) {
+        val id = page.id
+        val kind = request?.kind
+        val gate = androidPermissionGate
+        if (request == null || kind !is com.ardia.browser.PageRequest.Kind.Permission || gate == null) {
+            send(id, "page.request", "request" to request?.let { PagePayloads.request(app, it) })
+            return
+        }
+        val needed = PagePayloads.androidPermissions(kind.permission)
+        val held = needed.associateWith { androidx.core.content.ContextCompat.checkSelfPermission(app, it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+        if (SitePermissionGate.granted(kind.permission, held)) {
+            send(id, "page.request", "request" to PagePayloads.request(app, request))
+            return
+        }
+        gate(needed) { results ->
+            if (request.isAnswered || page.request.value !== request) return@gate
+            if (SitePermissionGate.granted(kind.permission, held + results.filterValues { it })) {
+                send(id, "page.request", "request" to PagePayloads.request(app, request))
+            } else {
+                if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB page request ${PagePayloads.permission(kind.permission)} refused by Android: the site's request ends without a dialog")
+                request.dismiss()
+            }
+        }
+    }
+
     private fun watch(page: Page) {
         if (watchers[page.id]?.isActive == true) return
         val id = page.id
         watchers[id] = scope.launch {
             launch { page.state.collect { send(id, "page.state", "state" to PagePayloads.state(app, it, page.isPrivate)) } }
             launch { page.find.drop(1).filter { it == null || it.isDone }.collect { send(id, "page.find", "result" to PagePayloads.find(it)) } }
-            launch { page.request.collect { request -> send(id, "page.request", "request" to request?.let { PagePayloads.request(app, it) }) } }
+            launch { page.request.collect { request -> gateThenSend(page, request) } }
             launch {
                 var shown: com.ardia.browser.FullscreenVideo? = null
                 page.fullscreen.drop(1).collect { video ->

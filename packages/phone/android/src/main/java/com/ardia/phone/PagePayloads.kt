@@ -179,3 +179,10 @@ object PagePayloads {
 
     fun badArgs(message: String) = CodedException("ERR_BAD_ARGS", message, null)
 }
+
+internal object SitePermissionGate {
+    fun granted(permission: com.ardia.browser.SitePermission, held: Map<String, Boolean>): Boolean = when (permission) {
+        com.ardia.browser.SitePermission.Location -> held[android.Manifest.permission.ACCESS_FINE_LOCATION] == true || held[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        else -> PagePayloads.androidPermissions(permission).all { held[it] == true }
+    }
+}

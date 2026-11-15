@@ -66,10 +66,12 @@ class PageViewModule : Module() {
 
         OnCreate {
             PhonePages.pageSink = { sendEvent("onPageEngineEvent", it) }
+            PhonePages.androidPermissionGate = ::askAndroidFor
         }
 
         OnDestroy {
             PhonePages.pageSink = null
+            PhonePages.androidPermissionGate = null
         }
 
         OnActivityEntersForeground {
@@ -342,6 +344,18 @@ class PageViewModule : Module() {
 
             AsyncFunction("stopLoading") { view: PageView -> view.page?.stop() }
         }
+    }
+
+    private fun askAndroidFor(permissions: Array<String>, done: (Map<String, Boolean>) -> Unit) {
+        val manager = appContext.permissions
+        if (manager == null) {
+            appContext.mainQueue.launch { done(emptyMap()) }
+            return
+        }
+        manager.askForPermissions({ results ->
+            val granted = permissions.associateWith { results[it]?.status == PermissionsStatus.GRANTED }
+            appContext.mainQueue.launch { done(granted) }
+        }, *permissions)
     }
 
     private fun askAndroid(permissions: Array<String>, done: (Boolean) -> Unit) {
