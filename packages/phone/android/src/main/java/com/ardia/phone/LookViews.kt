@@ -940,7 +940,7 @@ internal object LookMemory {
             holdingLayers = layered.size,
             layerBytes = layered.sumOf { it.layerWidth.toLong() * it.layerHeight * 4 },
             decks = decks.size,
-            animating = decks.count { it.isAnimating },
+            animating = decks.count { it.isAnimating && !it.heldStill },
             recordingNames = sources.filter { it.isRecording }.map { it.sourceId ?: "?" },
             layerNames = layered.map { it.logLabel },
             heldStill = decks.count { it.heldStill },

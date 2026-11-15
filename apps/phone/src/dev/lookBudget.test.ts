@@ -20,6 +20,18 @@ test("a sample is over when its median frame misses the deadline or a quarter of
   assert.equal(short.over, false);
 });
 
+test("a paced deck is judged by what each drawn frame cost against the system's deadline, never by the vsyncs it skips", () => {
+  const pacedTwoSeconds = (costMs: number) => frames(40, costMs, 11.7);
+  const cheap = judge(pacedTwoSeconds(9));
+  assert.equal(cheap.over, false, "40 frames in 2 s leave most vsyncs without a frame, and 9 ms frames are still within");
+  assert.equal(cheap.missedShare, 0);
+  assert.deepEqual(Object.keys(pacedTwoSeconds(9)).sort(), ["deadlines", "totals"], "a sample carries no timestamps, so a gap cannot count");
+  const f4Sync13 = judge(pacedTwoSeconds(32.1));
+  assert.equal(f4Sync13.over, true);
+  assert.equal(f4Sync13.missedShare, 1);
+  assert.equal(judge(frames(40, 10, 8.3)).over, true, "the deadline is the frame's own, so a 10 ms frame misses a plain 120 Hz interval");
+});
+
 test("one bad measurement never degrades; two on separate deck opens do, and the look changes only for the next build", () => {
   let state = initialState("1");
   state = record(state, over, 1000);
