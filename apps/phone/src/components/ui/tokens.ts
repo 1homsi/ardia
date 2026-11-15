@@ -230,12 +230,12 @@ export const floatingBarLayout = {
   menuGlyph: 17,
   plusSymbol: 23.6,
   menuSymbol: 23.3,
+  privateSymbol: 28,
   addressLead: 13,
   addressSpacing: 6,
   siteIcon: 16,
   hostText: 15,
   warningText: 13,
-  privateIconShare: 0.92,
   maxTextScale: 1.35,
 } as const;
 
