@@ -25,7 +25,7 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 74 rows, 50 work, 8 work with a difference, 1 is broken, 4 do nothing, 7 are not offered
+who and on which build. Of the 74 rows, 51 work, 8 work with a difference, 4 do nothing, 7 are not offered
 and 4 were not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
@@ -1023,14 +1023,15 @@ App side, an agent can do these now:
 1. A new tab opened with an address (Ctrl+T, the address, Enter) gets no keyboard (#1689). S, with the engine
    thread.
 2. Onboarding: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812). S.
-3. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
+3. Warn before quitting doesn't ask when Settings or Import is the last window (#1803). S.
 4. The app's own page, link and image menus instead of Chromium's (#1518). M.
 5. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
    needs). M each once the engine reports them.
-6. The intro's animated meadow (#1737) hasn't drawn on any Windows machine: the VM has no GPU and the engine no
-   SwiftShader, so it falls back to the poster. S once a software or real GPU path is proven.
+6. The intro's animated meadow (#1737) isn't merged yet: it draws on software rendering (CI on both CPUs, and the
+   VM), and no real GPU has run it. S.
 7. Quitting with a file picker open waits 2 s and leaves the dialog's thread running (#1747). S.
 8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
+9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - `ac_passwords_logins` answering on Windows, where Chromium's `kSkipUndecryptablePasswords` is on by default (password
@@ -1047,8 +1048,8 @@ Decisions for Shivam:
 - publishing a `windows-alpha` release, so Check for Updates has something to find (#1517);
 - signing, or a per-machine install (#1659).
 
-With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 3 and 8 are bugs a user
-hits, and 4 to 6 are visible differences with Chromium's own UI. Everything else in the table works or differs only
+With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 3 and 7 to 9 are bugs or
+gaps a user hits, and 4 to 6 are visible differences from the Mac. Everything else in the table works or differs only
 where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work
