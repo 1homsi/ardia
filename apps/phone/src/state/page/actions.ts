@@ -198,16 +198,18 @@ export const setReaderSerif = (serif: boolean) => setPreference("readerSerif", s
 export const setReaderTheme = (theme: "light" | "sepia" | "dark") => setPreference("readerTheme", theme);
 
 const usesSystemFind = () => {
-  const value = launchValues().ArdiaSystemFind;
-  return (value === true || value === "YES") && pages.hasSystemFind();
+  const value = launchValues().ArdiaAppFind;
+  return value !== true && value !== "YES" && pages.hasSystemFind();
 };
 
 export function showFind() {
   if (usesSystemFind()) {
+    countUsage("find_opened_system");
     usePageUi.setState({ menuOpen: false });
     setTimeout(() => withPage((id) => pages.presentSystemFind(id)), FIND_AFTER_MENU_MS);
     return;
   }
+  countUsage("find_opened_bar");
   if (!copy().findWaitsForMenu) {
     usePageUi.setState({ menuOpen: false, findOpen: true, findQuery: "" });
     return;
