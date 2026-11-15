@@ -73,10 +73,6 @@ test("only Windows quits when its last window closes", () => {
   assert.match(source("../../lib/platformFeatures.ts"), /quitsWithLastWindow: false\b/);
 });
 
-test("closing a window's last tab asks the quit question unless the last-tab confirm just asked", () => {
-  const actions = readFileSync(new URL("../browser/actions.ts", import.meta.url), "utf8");
-  assert.match(actions, /if \(last && !asksTabs && quitWarningMayAsk\(\) && \(await askBeforeQuitting\(w\.id\)\) === "cancelled"\) return;\n  const now = store\(\);/);
-});
 
 test("an open pop-up keeps Ardia running: closing the last browser window neither asks nor quits, and closing the last pop-up does", () => {
   assert.deepEqual(staying(["w1", "popup:a1"], ["w1"]), ["popup:a1"], "a pop-up window stays open after the last browser window closes");
@@ -189,4 +185,70 @@ test("on Windows, Settings or Import as the last window asks before closing: Can
   assert.deepEqual(seen.cancelled, askedThenClosed, "Import's Cancel button during an import asks the same question");
   assert.deepEqual(seen.job, { before: false, afterCancel: false, afterQuit: true }, "the import keeps running after the question is cancelled, and stops once the user agrees to quit");
   assert.deepEqual(seen.besideBrowser, { asked: 0, open: false, browserOpen: true }, "with a browser window open, Settings closes without asking");
+});
+
+const BROWSER_WINDOW_CLOSES = `
+const { useBrowser } = await import("./src/state/browser/store.ts");
+const { requestWindowClose } = await import("./src/state/windows/windowClose.ts");
+const { closeTab } = await import("./src/state/browser/actions.ts");
+const { shellNativeModules, windows } = await import("./src/test-native/shell.ts");
+const S = () => useBrowser.getState();
+const settle = async () => { for (let turn = 0; turn < 12; turn++) await new Promise((resolve) => setTimeout(resolve, 0)); };
+const asked = [];
+let answer = { confirmed: false, suppressed: false };
+shellNativeModules.ArdiaDialogs.confirm = (options) => { asked.push(options.title); return Promise.resolve(answer); };
+const fresh = (settings) => {
+  S().hydrate({ profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, profileOrder: ["default"] });
+  S().updateSettings({ warnBeforeQuitting: true, warnBeforeClosingWindow: true, warnBeforeClosingLastTab: true, ...settings });
+  windows.open.clear();
+  asked.length = 0;
+};
+const seen = {};
+
+fresh();
+const other = S().createWindow({ url: "https://other.example/" });
+const lone = S().createWindow({ url: "https://a.example/" });
+S().newTab(lone, { url: "https://b.example/" });
+windows.open.set(lone, {});
+answer = { confirmed: false, suppressed: false };
+requestWindowClose(lone);
+await settle();
+seen.windowCancelled = { asked: [...asked], open: !!S().windows[lone] };
+answer = { confirmed: true, suppressed: true };
+requestWindowClose(lone);
+await settle();
+seen.windowQuit = { asked: [...asked], open: !!S().windows[lone], otherOpen: !!S().windows[other], warnBeforeQuitting: S().settings.warnBeforeQuitting, warnBeforeClosingWindow: S().settings.warnBeforeClosingWindow };
+
+fresh();
+const single = S().createWindow({ url: "https://a.example/" });
+windows.open.set(single, {});
+answer = { confirmed: true, suppressed: false };
+await closeTab(S().windows[single].tabIds[0]);
+await settle();
+seen.lastTabAsksTabs = { asked: [...asked], open: !!S().windows[single] };
+
+fresh({ warnBeforeClosingLastTab: false });
+const plain = S().createWindow({ url: "https://a.example/" });
+windows.open.set(plain, {});
+answer = { confirmed: false, suppressed: false };
+await closeTab(S().windows[plain].tabIds[0]);
+await settle();
+seen.lastTabQuitCancelled = { asked: [...asked], open: !!S().windows[plain] };
+answer = { confirmed: true, suppressed: false };
+await closeTab(S().windows[plain].tabIds[0]);
+await settle();
+seen.lastTabQuit = { asked: [...asked], open: !!S().windows[plain] };
+console.log(JSON.stringify(seen));
+`;
+
+test("on Windows, a browser window's close asks the quit question first: Cancel keeps it, a confirmed quit skips the tabs question and Don't ask again turns the quit warning off; a last tab asks the tabs question, or the quit question when that one is off", () => {
+  const run = spawnSync(process.execPath, ["--no-warnings", "--import", "./src/test-loader.mjs", "--import", `data:text/javascript,${encodeURIComponent(ON_WINDOWS)}`, "--input-type=module", "-e", BROWSER_WINDOW_CLOSES], { cwd: fileURLToPath(new URL("../../../", import.meta.url)), encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  const seen = JSON.parse(run.stdout.trim().split("\n").at(-1));
+  const quit = QUIT_WARNING.title;
+  assert.deepEqual(seen.windowCancelled, { asked: [quit], open: true }, "the quit question comes first, and Cancel keeps the window");
+  assert.deepEqual(seen.windowQuit, { asked: [quit, quit], open: false, otherOpen: true, warnBeforeQuitting: false, warnBeforeClosingWindow: true }, "a confirmed quit closes the window without the tabs question, and its checkbox turns only the quit warning off");
+  assert.deepEqual(seen.lastTabAsksTabs, { asked: ["Close 1 tab?"], open: false }, "the last-tab confirm asks instead of the quit question");
+  assert.deepEqual(seen.lastTabQuitCancelled, { asked: [quit], open: true }, "with the last-tab confirm off, the quit question asks, and Cancel keeps the tab");
+  assert.deepEqual(seen.lastTabQuit, { asked: [quit, quit], open: false }, "Quit closes it");
 });
