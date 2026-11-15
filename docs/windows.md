@@ -69,7 +69,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
 | Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here) | #1531, #1708 |
 | A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
-| Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
+| Pop-up windows from pages | Works: the pop-up stays a tab of its opener's window, so `window.opener` and `postMessage` keep working, and shows in a pop-up window the app draws, sized and placed as the page asked | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
 
 **Pages**
@@ -211,7 +211,11 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     without a reply; a no cancels the quit.
   - Warn before quitting asks when closing a browser window would quit the app: the setting is on, the instance
     isn't hidden, and no other window stays open: `windowIds()` less the browser windows the UI has closed or is
-    closing (Settings and Import count while listed). Little Ardia's own closes (Ctrl+W, Escape) and Ctrl+W on a
+    closing (Settings, Import and pop-up windows count while listed). A pop-up keeps Ardia running like any window:
+    closing the last browser window with a pop-up open neither asks nor quits, and the user closing that pop-up (its
+    button, Alt+F4, Ctrl+W, the system menu) is the close that quits and asks. A page that closes itself
+    (`window.close()`) closes its pop-up window at once, so in the last window it quits without asking: the question
+    protects what is still open, and nothing is. Little Ardia's own closes (Ctrl+W, Escape) and Ctrl+W on a
     window's last tab ask the same way; when the last-tab confirm asks, it stands in for the quit question.
     Windows has no Quit command, so these are the only places it asks; the Mac asks on ⌘Q and never on a window's
     close. It asks before the window closes, so a Cancel leaves the window and the app as they were and no quit
@@ -521,7 +525,26 @@ is plain Chromium.
   events do. The panel closes on a click in the page through `OutsidePressArea`, which page presses reach
   (`pagePress`); the full-window backdrop it also has only sees presses in the app's own surface.
 - Chromium's own UI still shows where the app has none on Windows yet: the page's right-click menu, JavaScript
-  dialogs, the status bubble for a hovered link, and popup windows a page opens.
+  dialogs and the status bubble for a hovered link. The right-click menu is Chromium's, as on the Mac, but the engine
+  (`ardia/win/context_menu.cc`) leaves out what Windows can't do: Open link in split view, Cast, reading mode, listen
+  to this page, the QR code, send to your devices, Lens, and opening a link as another Chromium profile; Save as
+  shows no Ctrl+S, which is Ardia's Hide Tabs on Windows. Its search item still names Chromium's default engine.
+- A tab or pop-up a page opens (`target=_blank`, `window.open`, with a size or not) never becomes a Chromium pop-up
+  window and never shows in its opener's place: `Navigate()` (`chromium-win-hosted-popups-and-menus.patch`) asks the
+  host, which inserts it as a background tab of the opener's hosted window (the opener stays the active, visible tab)
+  and offers it to the app with `tab.opened` (`foreground` as the page asked, and for a pop-up `window: true` and
+  `popup: {x, y, width, height}`, only what the page asked for). A blocked pop-up the user lets through opens as a tab,
+  as before. The host tracks every offer until the app adopts or discards it; offers whose app window closes are
+  closed with it. The app acknowledges each `tab.opened` it handled (`tab.offerHeard`, in `engine/host.ts`) and then
+  owns the decision, so a background tab it keeps for later stays; an offer nobody acknowledged within 30 s (4 s in a
+  test instance) is closed, whatever lost it.
+- A pop-up window takes focus only if, when it opens, its opener's app window is the foreground window and the
+  opener's page holds the keyboard (`keyboard.page`, asked by `WindowManager.h` at that moment, the same rule as page
+  focus in #1658); a pop-up from a pop-up is placed and focused by that pop-up, while its tabs and prompts go to the
+  main page. Otherwise it shows just above its opener's window and that window's pages, without activating, and never
+  above another application's window. The Mac shows such a pop-up in front of its Ardia windows and makes it key
+  within Ardia; Windows shows it in the same place but leaves the keyboard where it was.
+  `host.info` counts Chromium pop-up windows in `popupBrowsers`, which the self-check expects to stay 0.
 - CI takes its engine from a GitHub release: `scripts/windows/engine/prebuilt.json` names the release and each
   CPU's zip with its SHA-256, `fetch-engine.ps1` downloads and checks it, and the Windows workflow assembles the app
   with it, launches it with the self-check (which then loads a page through the engine) and runs the tour's pages
