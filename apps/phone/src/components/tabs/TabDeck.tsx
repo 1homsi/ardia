@@ -654,7 +654,7 @@ export const TabDeck = memo(function TabDeck() {
     <View
       testID="tabDeck"
       style={[StyleSheet.absoluteFill, shown ? null : styles.hidden]}
-      pointerEvents={shown ? "auto" : "none"}
+      pointerEvents={shown ? "auto" : "none"} collapsable={false}
       importantForAccessibility={shown ? "auto" : "no-hide-descendants"}
       accessibilityElementsHidden={!shown}
       onLayout={(event) => {
@@ -711,7 +711,7 @@ export const TabDeck = memo(function TabDeck() {
           )
         ) : null}
         {redesigned ? (
-          <Animated.View style={[StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"}>
+          <Animated.View style={[StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false}>
             <DeckHeader
               safeTop={g.safeTop}
               safeSide={0}
@@ -733,13 +733,13 @@ export const TabDeck = memo(function TabDeck() {
             />
           </Animated.View>
         ) : privateCount > 0 ? (
-          <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"}>
+          <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false}>
             <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} />
           </Animated.View>
         ) : null}
         {redesigned ? null : (
           <Animated.View
-            pointerEvents={phase.kind === "settled" ? "box-none" : "none"}
+            pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false}
             style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }, chromeStyle]}
           >
             <DeckBar

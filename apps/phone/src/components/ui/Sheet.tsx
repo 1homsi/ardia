@@ -123,7 +123,7 @@ export function Sheet({ open, onDismiss, onHidden, fill, children }: Props) {
   return (
     <View
       style={StyleSheet.absoluteFill}
-      pointerEvents={open ? "box-none" : "none"}
+      pointerEvents={open ? "box-none" : "none"} collapsable={false}
     >
       <Animated.View style={[StyleSheet.absoluteFill, dim]}>
         <Pressable

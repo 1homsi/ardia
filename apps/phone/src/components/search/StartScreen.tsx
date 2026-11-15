@@ -62,7 +62,7 @@ function OriginalStart() {
         </Animated.View>
       </View>
       <Animated.View
-        pointerEvents={trayUp ? "none" : "box-none"}
+        pointerEvents={trayUp ? "none" : "box-none"} collapsable={false}
         importantForAccessibility={trayUp ? "no-hide-descendants" : "auto"}
         accessibilityElementsHidden={trayUp}
         style={[styles.deck, { bottom: center - browseLayout.hitTarget / 2, paddingHorizontal: tabsLayout.barSideInset - 4 }, barStyle]}
