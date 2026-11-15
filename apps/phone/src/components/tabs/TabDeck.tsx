@@ -267,6 +267,7 @@ export const TabDeck = memo(function TabDeck() {
       cardsOpacity.value = 1;
       scaleProgress.value = moveTo(1, tabsMotion.openScale);
       positionProgress.value = moveTo(1, tabsMotion.openPosition, (finished) => {
+        "worklet";
         if (!finished) return;
         settlePhase();
         runOnJS(setPhase)(SETTLED);

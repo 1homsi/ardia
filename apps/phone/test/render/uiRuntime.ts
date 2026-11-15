@@ -52,3 +52,13 @@ export function onUiThread<T>(value: T): T {
   trust(copy);
   return copy as unknown as T;
 }
+
+export function workletOnly<T>(value: T): T {
+  if (typeof value !== "function") return value;
+  const fn = value as unknown as Worklet;
+  if (fn.__workletHash || trusted.has(fn)) return value;
+  const name = fn.name || "anonymous";
+  return (() => {
+    throw new Error(`[Worklets] Tried to synchronously call a Remote Function. Called "${name}" on the UI Runtime.`);
+  }) as unknown as T;
+}

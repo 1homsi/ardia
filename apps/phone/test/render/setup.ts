@@ -8,7 +8,7 @@ require("react-native-reanimated").setUpTests();
 
 jest.mock("react-native-reanimated", () => {
   const actual = jest.requireActual("react-native-reanimated");
-  const { onUiThread, fromRemote, trust } = jest.requireActual("./uiRuntime");
+  const { onUiThread, fromRemote, trust, workletOnly } = jest.requireActual("./uiRuntime");
   const ui = onUiThread;
   for (const value of Object.values(actual)) if (typeof value === "function") trust(value);
   const runOnJS = trust((fn: unknown) => actual.runOnJS(fromRemote(fn)));
@@ -21,9 +21,9 @@ jest.mock("react-native-reanimated", () => {
     useDerivedValue: (updater: unknown, ...rest: unknown[]) => actual.useDerivedValue(ui(updater), ...rest),
     useAnimatedReaction: (prepare: unknown, react: unknown, ...rest: unknown[]) => actual.useAnimatedReaction(ui(prepare), ui(react), ...rest),
     useFrameCallback: (callback: unknown, ...rest: unknown[]) => actual.useFrameCallback(ui(callback), ...rest),
-    withTiming: trust((to: unknown, config: unknown, done: unknown) => actual.withTiming(to, config, ui(done))),
-    withSpring: trust((to: unknown, config: unknown, done: unknown) => actual.withSpring(to, config, ui(done))),
-    withDecay: trust((config: unknown, done: unknown) => actual.withDecay(config, ui(done))),
+    withTiming: trust((to: unknown, config: unknown, done: unknown) => actual.withTiming(to, config, ui(workletOnly(done)))),
+    withSpring: trust((to: unknown, config: unknown, done: unknown) => actual.withSpring(to, config, ui(workletOnly(done)))),
+    withDecay: trust((config: unknown, done: unknown) => actual.withDecay(config, ui(workletOnly(done)))),
   };
 });
 
