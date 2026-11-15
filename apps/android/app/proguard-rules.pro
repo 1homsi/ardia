@@ -19,5 +19,8 @@
 -keep class * extends androidx.work.ListenableWorker {
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
+-keep class * extends androidx.room.RoomDatabase {
+    <init>();
+}
 -dontwarn com.facebook.proguard.annotations.DoNotStrip
 -dontwarn com.facebook.jni.annotations.DoNotStrip
