@@ -17,8 +17,10 @@ const listens = (page: RequestPage | undefined): page is RequestPage => !!page &
 
 export const listeningBrowserPages = <Candidate extends RequestPage>(all: Iterable<Candidate>): Candidate[] => [...all].filter(listens);
 
+const servesProfile = (page: RequestPage, profile: string | undefined) => profile === undefined || takerOfOpenedTab([page], profile) === page;
+
 export function requestHost<Candidate extends RequestPage>(opener: Candidate | undefined, profile: string | undefined, all: Iterable<Candidate>): Candidate | undefined {
-  if (listens(opener)) return opener;
+  if (listens(opener) && servesProfile(opener, profile)) return opener;
   return takerOfOpenedTab(listeningBrowserPages(all), profile);
 }
 
