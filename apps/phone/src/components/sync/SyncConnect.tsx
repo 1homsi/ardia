@@ -1,66 +1,19 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import {
-  ActivityIndicator,
-  BackHandler,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import {
-  canPickSyncFolderFirst,
-  checkPhrase,
-  connectSync,
-  syncConnectSession,
-} from "../../state/sync/actions";
-import {
-  IDLE_CONNECT,
-  type ConnectState,
-} from "../../state/sync/connectSession";
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { canPickSyncFolderFirst, checkPhrase, connectSync, syncConnectSession } from "../../state/sync/actions";
+import { IDLE_CONNECT, type ConnectState } from "../../state/sync/connectSession";
 import { haptics } from "../../state/app/haptics";
-import {
-  chooseFolderTitle,
-  setupStepLabel,
-  connectMessage,
-  MAC_HINT,
-  phraseFooter,
-} from "../../state/sync/syncRules";
-import {
-  capsule,
-  font,
-  radius,
-  settingsLayout,
-  space,
-  spacesLayout,
-  Symbol,
-  tabsMotion,
-  useTheme,
-} from "../ui";
-import {
-  BarButton,
-  CrossfadeText,
-  Group,
-  SettingsPage,
-} from "../settings/SettingsKit";
-import Animated, {
-  FadeIn,
-  FadeOut,
-  SlideInRight,
-  SlideOutRight,
-  useReducedMotion,
-} from "react-native-reanimated";
+import { chooseFolderTitle, setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
+import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, tabsMotion, useTheme } from "../ui";
+import { BarButton, CrossfadeText, Group, SettingsPage } from "../settings/SettingsKit";
+import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutRight, useReducedMotion } from "react-native-reanimated";
 import { CapsuleButton, PasteAction, SyncHero } from "./SyncPage";
 import { SyncScan } from "./SyncScan";
 import { copy } from "../../lib/platformCopy";
 import type { ConnectResult } from "../../platform/sync";
 import { canScanCodes } from "../../state/sync/scan";
 
-type FlowProps = {
-  onClose: () => void;
-  onConnected: () => void;
-  closes?: boolean;
-};
+type FlowProps = { onClose: () => void; onConnected: () => void; closes?: boolean };
 
 export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const [phrase, setPhrase] = useState("");
@@ -69,17 +22,10 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const [scans] = useState(canScanCodes);
   const [connecting, setConnecting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<ConnectResult["result"] | null>(
-    null,
-  );
+  const [lastResult, setLastResult] = useState<ConnectResult["result"] | null>(null);
   const hasPhrase = phrase.length > 0 && checkPhrase(phrase).isValid;
-  const [session] = useState(() =>
-    canPickSyncFolderFirst() ? syncConnectSession() : null,
-  );
-  const picked = useSyncExternalStore(
-    session?.subscribe ?? noSubscription,
-    session?.state ?? idleConnect,
-  );
+  const [session] = useState(() => (canPickSyncFolderFirst() ? syncConnectSession() : null));
+  const picked = useSyncExternalStore(session?.subscribe ?? noSubscription, session?.state ?? idleConnect);
   const busy = connecting || picked.connecting;
   const reduceMotion = useReducedMotion();
 
@@ -97,8 +43,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   useEffect(() => () => session?.abandon(), [session]);
 
   useEffect(() => {
-    if (session && hasPhrase)
-      void session.connectIfReady(phrase).then(finished);
+    if (session && hasPhrase) void session.connectIfReady(phrase).then(finished);
   }, [session, phrase, hasPhrase]);
 
   useEffect(() => {
@@ -149,16 +94,8 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const words = entering ? (
     <Animated.View
       testID="enterWordsPushed"
-      entering={
-        reduceMotion
-          ? FadeIn.duration(tabsMotion.fade)
-          : SlideInRight.duration(PUSH_MS)
-      }
-      exiting={
-        reduceMotion
-          ? FadeOut.duration(tabsMotion.fade)
-          : SlideOutRight.duration(PUSH_MS)
-      }
+      entering={reduceMotion ? FadeIn.duration(tabsMotion.fade) : SlideInRight.duration(PUSH_MS)}
+      exiting={reduceMotion ? FadeOut.duration(tabsMotion.fade) : SlideOutRight.duration(PUSH_MS)}
       style={StyleSheet.absoluteFill}
     >
       <PhraseEntry
@@ -174,71 +111,23 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   ) : null;
   return (
     <View style={StyleSheet.absoluteFill}>
-      <View
-        style={StyleSheet.absoluteFill}
-        importantForAccessibility={entering ? "no-hide-descendants" : "auto"}
-        accessibilityElementsHidden={entering}
-      >
-        <SettingsPage
-          title="Connect to Your Mac"
-          onBack={closes || busy ? undefined : onClose}
-          leading={
-            closes ? (
-              <BarButton title="Close" onPress={onClose} enabled={!busy} />
-            ) : undefined
-          }
-        >
-          <SyncHero
-            title="Connect to Your Mac"
-            subtitle="Two steps, and your Mac’s tabs are here."
-          />
+      <View style={StyleSheet.absoluteFill} importantForAccessibility={entering ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={entering}>
+        <SettingsPage title="Connect to Your Mac" onBack={closes || busy ? undefined : onClose} leading={closes ? <BarButton title="Close" onPress={onClose} enabled={!busy} /> : undefined}>
+          <SyncHero title="Connect to Your Mac" subtitle="Two steps, and your Mac’s tabs are here." />
           <Group header="Two Steps" footer={copy().phraseStays}>
-            <Step
-              number={1}
-              title="Show the code on your Mac"
-              detail={MAC_HINT}
-              done={hasPhrase}
-              current
-            >
+            <Step number={1} title="Show the code on your Mac" detail={MAC_HINT} done={hasPhrase} current>
               {hasPhrase ? (
-                <Animated.View
-                  key="added"
-                  entering={STEP_IN}
-                  exiting={STEP_OUT}
-                >
+                <Animated.View key="added" entering={STEP_IN} exiting={STEP_OUT}>
                   <PhraseAdded onChange={() => setEntering(true)} />
                 </Animated.View>
               ) : (
-                <Animated.View
-                  key="ways"
-                  entering={STEP_IN}
-                  exiting={STEP_OUT}
-                  style={styles.ways}
-                >
-                  {scans ? (
-                    <CapsuleButton
-                      title="Scan Code"
-                      icon="qrcodeViewfinder"
-                      prominent
-                      onPress={() => setScanning(true)}
-                    />
-                  ) : null}
-                  <CapsuleButton
-                    title="Enter Words"
-                    icon="textCursor"
-                    prominent={!scans}
-                    onPress={() => setEntering(true)}
-                  />
+                <Animated.View key="ways" entering={STEP_IN} exiting={STEP_OUT} style={styles.ways}>
+                  {scans ? <CapsuleButton title="Scan Code" icon="qrcodeViewfinder" prominent onPress={() => setScanning(true)} /> : null}
+                  <CapsuleButton title="Enter Words" icon="textCursor" prominent={!scans} onPress={() => setEntering(true)} />
                 </Animated.View>
               )}
             </Step>
-            <Step
-              number={2}
-              title="Choose the Ardia Sync folder"
-              detail={copy().chooseFolderDetail}
-              done={false}
-              current={hasPhrase}
-            >
+            <Step number={2} title="Choose the Ardia Sync folder" detail={copy().chooseFolderDetail} done={false} current={hasPhrase}>
               {session ? (
                 <>
                   {picked.folder && !picked.connecting ? (
@@ -251,20 +140,9 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
                       <Connecting />
                     </Animated.View>
                   ) : (
-                    <CapsuleButton
-                      title={
-                        picked.folder
-                          ? "Choose Another Folder…"
-                          : "Choose Folder…"
-                      }
-                      onPress={() =>
-                        void session.pickFolder(phrase).then(finished)
-                      }
-                    />
+                    <CapsuleButton title={picked.folder ? "Choose Another Folder…" : "Choose Folder…"} onPress={() => void session.pickFolder(phrase).then(finished)} />
                   )}
-                  {picked.failure && connectMessage(picked.failure) ? (
-                    <Problem text={connectMessage(picked.failure)!} />
-                  ) : null}
+                  {picked.failure && connectMessage(picked.failure) ? <Problem text={connectMessage(picked.failure)!} /> : null}
                 </>
               ) : (
                 <>
@@ -273,11 +151,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
                       <Connecting />
                     </Animated.View>
                   ) : (
-                    <CapsuleButton
-                      title={chooseFolderTitle(lastResult)}
-                      enabled={hasPhrase}
-                      onPress={() => void connect()}
-                    />
+                    <CapsuleButton title={chooseFolderTitle(lastResult)} enabled={hasPhrase} onPress={() => void connect()} />
                   )}
                   {failure ? <Problem text={failure} /> : null}
                 </>
@@ -291,58 +165,17 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   );
 }
 
-function Step({
-  number,
-  title,
-  detail,
-  done,
-  current,
-  children,
-}: {
-  number: number;
-  title: string;
-  detail: string;
-  done: boolean;
-  current: boolean;
-  children: React.ReactNode;
-}) {
+function Step({ number, title, detail, done, current, children }: { number: number; title: string; detail: string; done: boolean; current: boolean; children: React.ReactNode }) {
   const theme = useTheme();
-  const ink = done
-    ? theme.switchOn
-    : current
-      ? theme.formAccent
-      : theme.tertiaryLabel;
+  const ink = done ? theme.switchOn : current ? theme.formAccent : theme.tertiaryLabel;
   return (
     <View style={styles.step}>
-      <View
-        accessible
-        accessibilityLabel={setupStepLabel(number, done, current)}
-        style={[
-          styles.badge,
-          { borderColor: ink, backgroundColor: done ? ink : undefined },
-        ]}
-      >
-        {done ? (
-          <Symbol name="checkmark" size={14} color={theme.groupFill} />
-        ) : (
-          <Text style={[font.footnote, styles.bold, { color: ink }]}>
-            {number}
-          </Text>
-        )}
+      <View accessible accessibilityLabel={setupStepLabel(number, done, current)} style={[styles.badge, { borderColor: ink, backgroundColor: done ? ink : undefined }]}>
+        {done ? <Symbol name="checkmark" size={14} color={theme.groupFill} /> : <Text style={[font.footnote, styles.bold, { color: ink }]}>{number}</Text>}
       </View>
       <View style={styles.stepBody}>
-        <Text
-          style={[
-            font.body,
-            styles.bold,
-            { color: current || done ? theme.label : theme.secondaryLabel },
-          ]}
-        >
-          {title}
-        </Text>
-        <Text style={[font.footnote, { color: theme.secondaryLabel }]}>
-          {detail}
-        </Text>
+        <Text style={[font.body, styles.bold, { color: current || done ? theme.label : theme.secondaryLabel }]}>{title}</Text>
+        <Text style={[font.footnote, { color: theme.secondaryLabel }]}>{detail}</Text>
         <View style={styles.stepActions}>{children}</View>
       </View>
     </View>
@@ -354,16 +187,7 @@ function PhraseAdded({ onChange }: { onChange: () => void }) {
   return (
     <View style={styles.added}>
       <Symbol name="checkmarkCircle" size={18} color={theme.switchOn} />
-      <Text
-        style={[
-          font.subheadline,
-          styles.medium,
-          styles.fill,
-          { color: theme.switchOn },
-        ]}
-      >
-        Recovery phrase added
-      </Text>
+      <Text style={[font.subheadline, styles.medium, styles.fill, { color: theme.switchOn }]}>Recovery phrase added</Text>
       <BarButton title="Change" onPress={onChange} />
     </View>
   );
@@ -382,15 +206,7 @@ function PickedFolder({ name }: { name: string }) {
   return (
     <View style={styles.added}>
       <Symbol name="folderFill" size={16} color={theme.secondaryLabel} />
-      <Text
-        style={[
-          font.subheadline,
-          styles.medium,
-          { color: theme.secondaryLabel },
-        ]}
-      >
-        {name}
-      </Text>
+      <Text style={[font.subheadline, styles.medium, { color: theme.secondaryLabel }]}>{name}</Text>
     </View>
   );
 }
@@ -400,9 +216,7 @@ function Connecting() {
   return (
     <View style={styles.added}>
       <ActivityIndicator size="small" color={theme.secondaryLabel} />
-      <Text style={[font.subheadline, { color: theme.secondaryLabel }]}>
-        Connecting…
-      </Text>
+      <Text style={[font.subheadline, { color: theme.secondaryLabel }]}>Connecting…</Text>
     </View>
   );
 }
@@ -410,24 +224,13 @@ function Connecting() {
 function Problem({ text }: { text: string }) {
   const theme = useTheme();
   return (
-    <Text
-      accessibilityLiveRegion="polite"
-      style={[font.subheadline, { color: theme.destructive }]}
-    >
+    <Text accessibilityLiveRegion="polite" style={[font.subheadline, { color: theme.destructive }]}>
       {text}
     </Text>
   );
 }
 
-function PhraseEntry({
-  initial,
-  onUse,
-  onBack,
-}: {
-  initial: string;
-  onUse: (phrase: string) => void;
-  onBack: () => void;
-}) {
+function PhraseEntry({ initial, onUse, onBack }: { initial: string; onUse: (phrase: string) => void; onBack: () => void }) {
   const theme = useTheme();
   const [draft, setDraft] = useState(initial);
   const check = checkPhrase(draft);
@@ -435,53 +238,16 @@ function PhraseEntry({
   useEffect(() => {
     if (check.isValid) haptics.success();
   }, [check.isValid]);
-  const footerInk =
-    footer.tone === "problem"
-      ? theme.destructive
-      : footer.tone === "good"
-        ? theme.switchOn
-        : theme.secondaryLabel;
+  const footerInk = footer.tone === "problem" ? theme.destructive : footer.tone === "good" ? theme.switchOn : theme.secondaryLabel;
   const use = () => {
     if (check.isValid) onUse(draft);
   };
   return (
-    <SettingsPage
-      title="Enter Words"
-      onBack={onBack}
-      dismissesKeyboard={Platform.OS === "ios"}
-      trailing={
-        <BarButton
-          title="Use Phrase"
-          emphasized
-          enabled={check.isValid}
-          onPress={use}
-        />
-      }
-    >
+    <SettingsPage title="Enter Words" onBack={onBack} dismissesKeyboard={Platform.OS === "ios"} trailing={<BarButton title="Use Phrase" emphasized enabled={check.isValid} onPress={use} />}>
       <View style={styles.phrase}>
         <View style={styles.phraseHeader}>
-          <Text
-            style={[
-              font.footnote,
-              styles.fill,
-              { color: theme.secondaryLabel },
-            ]}
-          >
-            Recovery Phrase
-          </Text>
-          <CrossfadeText
-            testID="phraseCounter"
-            text={check.counterText}
-            style={[
-              font.footnote,
-              styles.digits,
-              {
-                color: check.isTooLong
-                  ? theme.destructive
-                  : theme.secondaryLabel,
-              },
-            ]}
-          />
+          <Text style={[font.footnote, styles.fill, { color: theme.secondaryLabel }]}>Recovery Phrase</Text>
+          <CrossfadeText testID="phraseCounter" text={check.counterText} style={[font.footnote, styles.digits, { color: check.isTooLong ? theme.destructive : theme.secondaryLabel }]} />
         </View>
         <View style={[styles.field, { backgroundColor: theme.groupFill }]}>
           <TextInput
@@ -497,24 +263,14 @@ function PhraseEntry({
             autoComplete="off"
             importantForAutofill="no"
             spellCheck={false}
-            keyboardType={
-              Platform.OS === "android" ? "visible-password" : "ascii-capable"
-            }
+            keyboardType={Platform.OS === "android" ? "visible-password" : "ascii-capable"}
             textContentType="none"
             onSubmitEditing={use}
             style={[font.body, styles.phraseInput, { color: theme.label }]}
           />
         </View>
-        <View
-          accessibilityLiveRegion="polite"
-          accessible
-          accessibilityLabel={footer.text}
-        >
-          <CrossfadeText
-            testID="phraseFooter"
-            text={footer.text}
-            style={[font.footnote, styles.footer, { color: footerInk }]}
-          />
+        <View accessibilityLiveRegion="polite" accessible accessibilityLabel={footer.text}>
+          <CrossfadeText testID="phraseFooter" text={footer.text} style={[font.footnote, styles.footer, { color: footerInk }]} />
         </View>
       </View>
       {!draft ? (
@@ -531,38 +287,15 @@ const styles = StyleSheet.create({
   medium: { fontWeight: "500" },
   fill: { flex: 1 },
   digits: { fontVariant: ["tabular-nums"] },
-  step: {
-    flexDirection: "row",
-    gap: space.m,
-    paddingHorizontal: settingsLayout.rowInset,
-    paddingVertical: space.m,
-  },
-  badge: {
-    width: spacesLayout.stepBadge,
-    height: spacesLayout.stepBadge,
-    borderRadius: capsule(spacesLayout.stepBadge),
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  step: { flexDirection: "row", gap: space.m, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.m },
+  badge: { width: spacesLayout.stepBadge, height: spacesLayout.stepBadge, borderRadius: capsule(spacesLayout.stepBadge), borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   stepBody: { flex: 1, gap: space.xs },
   stepActions: { gap: space.s, paddingTop: space.xs },
   added: { flexDirection: "row", alignItems: "center", gap: space.s },
   phrase: { paddingHorizontal: space.l, gap: space.s },
-  phraseHeader: {
-    flexDirection: "row",
-    paddingHorizontal: settingsLayout.rowInset,
-  },
-  field: {
-    borderRadius: radius.card,
-    paddingHorizontal: settingsLayout.rowInset,
-    paddingVertical: space.s,
-  },
-  phraseInput: {
-    minHeight: 140,
-    textAlignVertical: "top",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
+  phraseHeader: { flexDirection: "row", paddingHorizontal: settingsLayout.rowInset },
+  field: { borderRadius: radius.card, paddingHorizontal: settingsLayout.rowInset, paddingVertical: space.s },
+  phraseInput: { minHeight: 140, textAlignVertical: "top", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   footer: { paddingHorizontal: settingsLayout.rowInset },
   paste: { alignItems: "center", paddingHorizontal: space.huge },
   ways: { gap: space.s },
