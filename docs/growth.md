@@ -180,7 +180,10 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     10 GB, whole GB above), `ctx_memory_pressure` (`normal`, `warning`, `critical`), `ctx_page_processes_gone`,
     `ctx_webui_page` (the built-in page the active tab was on: the host and first path segment of an `ardia://` or
     `chrome://` URL, like `settings/cookies` or `history`, never a query or hash; null on any web page, and on a
-    sample saved by an older version), `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
+    sample saved by an older version), `ctx_webui_pages` (the last 3 different built-in pages the session was on, newest
+    first, each as `page:minutes` with the page in the same shape as `ctx_webui_page` and the minutes counted back from
+    the crash, like `flags:8,downloads:17,settings/cookies:22`; null when none, and on a sample saved by an older
+    version), `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
     sampled at or before the crash (the report's `captureTime`; the file's date only decides which reports are new)
     in the session that crashed, else none. Native exception reasons are never sent, only the exception's type, name
     and stack (older builds sent a scrubbed reason in `$exception_values`). Before 0.2.45-nightly.3 a report from an
@@ -224,6 +227,14 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     data only, to find which built-in page a crash happens on (#1244: adding a third-party cookie exception on
     `ardia://settings/cookies`). The crash property cleaner lets a `webui_page` value through only in the shape
     `host` or `host/segment` (letters, digits, dashes); anything else is scrubbed like any string.
+  - The saved context also holds the last 3 different built-in pages with the time each was left or last seen
+    (`webui_pages`, `page@epoch-ms` joined by commas, newest first), so a crash after leaving
+    `ardia://settings/cookies` still shows it. A page seen again moves to the front; going to a web page keeps them.
+    Reading it back drops any entry that isn't a `host` or `host/segment` page and a time, and keeps at most 3.
+    `ctx_webui_pages` is worked out at the crash from the same saved context. The crash property cleaner lets it
+    through only as 1 to 3 `page:minutes` entries. Added with #1244, data only.
+  - The release build keeps the Chromium Framework's symbols (see `docs/releasing.md`), listed by the same UUIDs as
+    the `crash_images` sent with a native crash, so its frames can be named. Nothing is sent from the app for this.
   - The dashboard's health table credits app crashes to `crashed_version` and lists a version that has crashes but no
     usage in the window, with no rate.
 - **Checks of the pipeline:** send with service `ardia-selftest` (or version `0.0.0-selftest`); the views

@@ -197,7 +197,7 @@ fi
 [ -f "$cli_tarball.sha256" ] || die "no $cli_tarball.sha256 from --phase build"
 
 "$stages/export-sign.sh" "$dist" "$archive" "$identity" "$cli_tarball.sha256" ${provisioning_profile:+"$provisioning_profile"}
-"$stages/verify.sh" "$app" "$archive" "$version" "$release_build"
+"$stages/verify.sh" "$app" "$archive" "$version" "$release_build" "$dist/symbols"
 [ "$phase" = sign ] || "$stages/launch-check.sh" "$app"
 if [ "$notarize" = 1 ]; then
   echo "==> Notarize app"
