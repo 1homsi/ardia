@@ -9,6 +9,7 @@ import { notePageAsked, notePageSettled } from "./dialogPages";
 import { noteShowStep } from "./showTrace";
 import { popupFeatures } from "./popupPlacement";
 import { isPopupWindowId, onPopupWindowClosed, openPopupWindow, popupOpenerKey, type PopupWindowInfo } from "./popupWindows";
+import { dropKeptFollow, keepFollow, spendKeptFollow } from "./keptFollow";
 
 export type PageListener = (name: string, data: unknown) => void;
 export type PageRect = Omit<CoverRect, "radius">;
@@ -49,7 +50,6 @@ const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
 let lastAskedToFocus: Page | null = null;
-let followBeforeMount = "";
 type ExternalAppAnswers = {
   ask: (profile: string, page: string, data: unknown) => Promise<ExternalAppRequest | null>;
   forget: (id: string) => void;
@@ -146,7 +146,7 @@ function listen() {
     const page = pages.get(event.key);
     if (!page) return;
     if (event.name === "pagePress") {
-      followBeforeMount = "";
+      dropKeptFollow();
       lastAskedToFocus = page;
       page.focusAsked = 0;
       for (const pressed of [...pressListeners]) pressed(page.windowId);
@@ -230,6 +230,11 @@ function sendShow(page: Page): Promise<unknown> | undefined {
   });
 }
 
+function followNow(page: Page) {
+  lastAskedToFocus = page;
+  page.focusArgs = { follow: true };
+}
+
 const focusWaits = (page: Page) => lastAskedToFocus === page && page.focusAsked > 0 && Date.now() - page.focusAsked < FOCUS_WAITS_FOR_SHOW_MS;
 
 function askShow(page: Page, args: ShowArgs) {
@@ -238,7 +243,9 @@ function askShow(page: Page, args: ShowArgs) {
     page.ready.then((opened) => {
       if (!opened || page.show !== args) return noteShowStep(page.key, opened ? "askShow: superseded" : "askShow: not opened");
       const sent = sendShow(page);
-      if (!args.visible || !focusWaits(page)) return sent;
+      const kept = args.visible && spendKeptFollow(page.key, page.windowId);
+      if (kept) followNow(page);
+      if (!args.visible || !(kept || focusWaits(page))) return sent;
       page.focusAsked = 0;
       const focusArgs = page.focusArgs;
       if (fieldFocusedIn(page.windowId, page.key)) return sent;
@@ -274,12 +281,6 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
     notePageAsked(key);
     page.ready = begin(page, from);
     pages.set(key, page);
-    if (followBeforeMount === key) {
-      followBeforeMount = "";
-      lastAskedToFocus = page;
-      page.focusArgs = { follow: true };
-      page.focusAsked = Date.now();
-    }
   } else if (page.windowId !== from.windowId) {
     noteShowStep(key, `mount: window ${page.windowId} to ${from.windowId}`);
     page.windowId = from.windowId;
@@ -357,7 +358,7 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   if (method === "loadUrl" && args.url === page.started.url && Date.now() - page.started.at < SAME_LOAD_MS) return Promise.resolve(null);
   if (method === "loadUrl") noteLoadAsked(page.opening, args.url);
   if (method === "focus") {
-    followBeforeMount = "";
+    dropKeptFollow();
     lastAskedToFocus = page;
     page.focusArgs = args;
     page.focusAsked = page.show?.visible ? 0 : Date.now();
@@ -368,10 +369,10 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }
 
-export function followPage(key: string) {
+export function followPage(key: string, windowId = "") {
   const page = pages.get(key);
-  if (page && !page.closed) return void callPage(key, "focus", { follow: true });
-  followBeforeMount = key;
+  if (page && !page.closed && page.show?.visible && page.show === page.showSent && (!windowId || page.windowId === windowId)) return void callPage(key, "focus", { follow: true });
+  keepFollow(key);
   lastAskedToFocus = null;
 }
 

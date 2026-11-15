@@ -2,13 +2,14 @@ import type { AppNative, WindowsNative } from "@ardia/shell";
 import { engineAvailable, hostCall, onEngineTopic } from "../engine/host";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
+import type { ListedTab as HostListedTab } from "./engineHost";
 
 const CACHE_KEY = "self-check-cached-page";
 const LOAD_MS = 20000;
 const CACHED_MS = 3000;
 const ASK_ATTEMPTS = 4;
 
-type ListedTab = { key: string; title: string };
+type ListedTab = Pick<HostListedTab, "key" | "title">;
 
 const httpPagesPort = () => {
   const port = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().test?.httpPages;
