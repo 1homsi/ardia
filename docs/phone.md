@@ -1632,7 +1632,10 @@ The question is whether the Expo app is slower than the SwiftUI app it replaces 
 app, built Release for the same simulator (`/tmp/ardia-phone/swiftui-main.app`), against a Release `build-sim-app`
 build of the Expo app from head.
 
-Measured 2026-11-15 on one leased iPhone 17 Pro simulator (iOS 27), Expo at 5fbcd2308 and SwiftUI from main, at a
+Two runs so far: on Expo 54 / React Native 0.81 (first table) and on Expo 58 / React Native 0.88 (second table), so
+the upgrade's own effect shows. The 0.88 table is the current one.
+
+Expo 54 / React Native 0.81: measured 2026-11-15 on one leased iPhone 17 Pro simulator (iOS 27), Expo at 5fbcd2308 and SwiftUI from main, at a
 load under 10 and under `scripts/agent/locked perflab`. Each timed row is the median of five recordings, taken in
 four rounds that alternate the apps. Times run from the first frame that changes to the last change before 0.5 s of
 stillness. The recordings, frame scripts and pages are in `/tmp/ardia-phone-shots/iphone-agent-speed/`
@@ -1658,6 +1661,36 @@ What to fix before a device run, from these numbers:
   agent's card handover.
 - **Deck, search panel and pager** run 15–31% longer, which reads as the animations' set lengths and springs, not
   frame drops. Each is worth matching to SwiftUI's timing curve by curve.
+
+Expo 58 / React Native 0.88: measured 2026-11-15, Expo at dc1bdecad (with the screens agent's main-token motion, 15c4af926,
+and the card handover fix) against the same SwiftUI build, same simulator model, same method and pages, four
+alternating rounds, five recordings per measure. The load stayed under 15 for rounds one to three; the last
+SwiftUI round ended at 72, so its rows lean slow. Recordings and the analysis: `/tmp/ardia-phone-shots/iphone-agent-speed-088/`.
+
+| Measure | SwiftUI | Expo 58 | Difference | Judgement | Against 0.81 |
+|---|---|---|---|---|---|
+| App size on disk (simulator build, `du -sk`) | 46.4 MB | 86.4 MB | +40.0 MB (+86%) | larger | Up from 72.0 MB: the app binary 29.1 MB (was 17.6; the new architecture's C++ and ExpoUI's SwiftUI link in statically), React Native's frameworks 20.2 MB (16.9), the bundle 5.4 MB, the extensions 21.0 MB as before |
+| Cold launch, first frame to settled | 403 ms | 405 ms | +2 ms | level | level; still mostly iOS's launch zoom |
+| Deck opening from a page, settled | 217 ms | 137 ms | −80 ms | faster | from +31%: the deck now runs main's arrive curve over 190 ms, which moves hard for 150 ms; main's spring has a longer tail |
+| Card opening from the deck, settled | 172 ms | 293 ms | +121 ms (+70%) | slower | from 3×; the 64 pt jump is gone, and the bar's late arrival at about 290 ms is what remains |
+| Search panel open to keyboard up and focused | 568 ms | 423 ms | −145 ms (−26%) | faster | from +15%: main's rise curve over 360 ms |
+| Search submitted to the page's first paint (cached) | 130 ms | 83 ms | −47 ms | faster | as before, WebKit's own time |
+| Search submitted to settled | 498 ms | 282 ms | −216 ms (−43%) | faster | |
+| Tab swipe in the pager, settled (the 250 ms drag included) | 855 ms | 803 ms | −52 ms (−6%) | level | from +16%: main's 0.26/1 spring |
+| Back and forward by edge swipe | cannot be measured | cannot be measured | | | needs a device |
+| Deck scrolling, frames over 34 ms per scripted swipe pair | 0 of 36–50 | 0 of 32–66 | none in either | level | weak on a simulator |
+| Memory after nine tabs (app + WebKit) | 318 MB (124–129 + 189–194) | 360–415 MB (161–190 + 199–225) | +42 to +97 MB | higher | was lower on 0.81; the app process is 37–61 MB above SwiftUI's and WebKit 10–31 MB |
+| Memory after a minute idle on the deck | 387–390 MB (186–189 + 201) | 356–401 MB (155–183 + 201–218) | −34 to +11 MB | level | |
+
+What 0.88 leaves to fix, from these numbers:
+- **Card opening** is still the one timed gap: 293 ms against 172. The growth now matches; the bar arrives about four
+  frames after full size. The screens agent has it.
+- **Memory after nine tabs** is higher than SwiftUI's and higher than on 0.81. Hermes V1 and Reanimated 4.7 had a
+  known memory regression before Expo 57.0.17; 58.0.25 should carry the fix. Worth a device check before the owner's
+  phone, and an Instruments allocation trace of the app process.
+- **Size** grew by 14 MB with the upgrade and ExpoUI; a device download is thinned and compressed, so measure the
+  App Store Connect size when the internal build goes up.
+- **The search panel's lift** still holds 230–320 ms on submit (not a row here; recorded separately).
 
 The method:
 - **Setup:**
