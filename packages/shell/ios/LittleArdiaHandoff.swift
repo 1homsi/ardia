@@ -5,11 +5,7 @@ import ObjectiveC
 final class LittleArdiaHandoff {
   static let shared = LittleArdiaHandoff()
 
-  private static let openerWindow: TimeInterval = 3
-  private static let launchSettleTime: TimeInterval = 2
-  private var lastOtherApp: NSRunningApplication?
-  private var openerSeenAt = Date.distantPast
-  private var appLinkOpenedAt = Date.distantPast
+  private static let ignoredSchemes: Set<String> = ["http", "https", "file", "x-apple.systempreferences"]
   private var returnApps: [String: NSRunningApplication] = [:]
   private var started = false
 
@@ -17,23 +13,11 @@ final class LittleArdiaHandoff {
     guard !started else { return }
     started = true
     watchAppLinks()
-    note(NSWorkspace.shared.frontmostApplication)
-    NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) {
-      [weak self] note in
-      self?.note(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
-    }
-    NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-      self?.openerSeenAt = Date()
-    }
   }
 
   func opened(_ id: String, linkFrom bundleId: String?) {
     let linkApp = bundleId.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
-    let front = NSWorkspace.shared.frontmostApplication
-    let cameFrom = linkApp
-      ?? (front != nil && front != NSRunningApplication.current
-        ? front
-        : Date().timeIntervalSince(openerSeenAt) < Self.openerWindow ? lastOtherApp : nil)
+    let cameFrom = linkApp ?? NSWorkspace.shared.frontmostApplication
     returnApps[id] = cameFrom?.activationPolicy == .regular && cameFrom != NSRunningApplication.current ? cameFrom : nil
   }
 
@@ -44,9 +28,7 @@ final class LittleArdiaHandoff {
   func closing(_ id: String, replacedBy replacement: String?, keyWindow: Bool) {
     guard let app = returnApps.removeValue(forKey: id) else { return }
     if let replacement, replacement != id { return returnApps[replacement] = app }
-    guard keyWindow, NSApp.isActive, !app.isTerminated,
-      Date().timeIntervalSince(appLinkOpenedAt) > Self.launchSettleTime
-    else { return }
+    guard keyWindow, NSApp.isActive, !app.isTerminated else { return }
     if LaunchConfig.shared.background {
       NSLog("[littleArdia] closing returns to %@ (background mode, not activated)", app.bundleIdentifier ?? "")
     } else if !app.activate(from: NSRunningApplication.current) {
@@ -55,19 +37,19 @@ final class LittleArdiaHandoff {
     ShellEvents.send(.app, ["type": "littleArdiaReturnedToApp"])
   }
 
-  private func note(_ app: NSRunningApplication?) {
-    guard let app, app != NSRunningApplication.current, app.activationPolicy == .regular else { return }
-    lastOtherApp = app
-  }
-
   private func isAppLink(_ url: URL) -> Bool {
     guard let scheme = url.scheme?.lowercased() else { return false }
-    return !["http", "https", "file"].contains(scheme)
+    return !Self.ignoredSchemes.contains(scheme)
   }
 
   private func appLinkLaunched(from little: String?) {
-    appLinkOpenedAt = Date()
+    if let little { returnApps[little] = nil }
     ShellEvents.send(.app, ["type": "appLinkOpened", "windowId": little ?? NSNull()])
+  }
+
+  private func keyLittleArdia() -> String? {
+    guard Thread.isMainThread, WindowManager.shared.keyWindowKind == .small else { return nil }
+    return WindowManager.shared.keyWindowId
   }
 
   private func watchAppLinks() {
@@ -79,10 +61,14 @@ final class LittleArdiaHandoff {
       workspace, url, configuration, done in
       let handoff = LittleArdiaHandoff.shared
       guard handoff.isAppLink(url) else { return original(workspace, selector, url, configuration, done) }
-      let little = WindowManager.shared.keyWindowKind == .small ? WindowManager.shared.keyWindowId : nil
+      let little = handoff.keyLittleArdia()
       if LaunchConfig.shared.background {
         NSLog("[littleArdia] app link %@: (background mode, not opened)", url.scheme ?? "")
-        return handoff.appLinkLaunched(from: little)
+        DispatchQueue.main.async {
+          handoff.appLinkLaunched(from: little)
+          done?(nil, CocoaError(.userCancelled))
+        }
+        return
       }
       original(workspace, selector, url, configuration) { app, error in
         if error == nil { DispatchQueue.main.async { handoff.appLinkLaunched(from: little) } }
