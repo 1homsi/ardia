@@ -19,7 +19,7 @@ react {
     root = file(bundleProjectRoot)
     entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", bundleProjectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
     reactNativeDir = new File(reactNativePackage).getParentFile().getAbsoluteFile()
-    hermesCommand = new File(reactNativePackage).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
+    hermesCommand = new File(nodeResolve("require.resolve('hermes-compiler/package.json', { paths: [require.resolve('react-native/package.json')] })")).getParentFile().getAbsolutePath() + "/hermesc/%OS-BIN%/hermesc"
     codegenDir = new File(nodeResolve("require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })")).getParentFile().getAbsoluteFile()
     enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
     cliFile = new File(nodeResolve("require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json', { paths: [${groovy.json.JsonOutput.toJson(bundleProjectRoot)}] })] })"))
@@ -112,7 +112,7 @@ android {
             signingConfig signingConfigs.debug
             shrinkResources((findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false').toBoolean())
             minifyEnabled enableMinifyInReleaseBuilds
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             crunchPngs((findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true').toBoolean())
         }
     }

@@ -28,7 +28,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|fontScale"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|fontScale|assetsPaths"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"

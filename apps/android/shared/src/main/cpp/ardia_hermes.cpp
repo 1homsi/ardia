@@ -246,11 +246,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_ardia_shared_ScriptEngine_nativeCreate(JNIEnv *env, jobject self) {
-#ifdef ARDIA_REACT_NATIVE_HERMES
-  auto config = ::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withEnableBlockScoping(true).withES6Class(true).build();
-#else
   auto config = ::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).withEnableAsyncGenerators(true).build();
-#endif
   auto engine = std::make_unique<Engine>();
   try {
     engine->runtime = facebook::hermes::makeHermesRuntime(config);
@@ -258,7 +254,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_ardia_shared_ScriptEngine_nativeCrea
     Scope scope(*raw, env, self);
     jsi::Runtime &rt = *raw->runtime;
     rt.global().setProperty(rt, "__log", hostFunction(rt, "__log", 1, [](jsi::Runtime &rt, const jsi::Value &, const jsi::Value *args, size_t count) {
-#if !defined(ARDIA_REACT_NATIVE_HERMES) || defined(ARDIA_SCRIPT_LOGS)
+#ifndef ARDIA_SCRIPT_QUIET
       if (count > 0) __android_log_print(ANDROID_LOG_DEBUG, "ArdiaJS", "%s", utf8(jsText(rt, args[0])).c_str());
 #endif
       return jsi::Value::undefined();

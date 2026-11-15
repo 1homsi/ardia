@@ -85,7 +85,7 @@ else
   source="export of the commit"
 fi
 echo "bundling $commit from the $source"
-[ "$r8" = "1" ] && gradleArgs+=(-Pandroid.enableMinifyInReleaseBuilds=true)
+gradleArgs+=(-Pandroid.enableMinifyInReleaseBuilds=$([ "$r8" = "1" ] && echo true || echo false))
 gradleArgs+=(-PreactNativeArchitectures="$abis")
 case ",$compress," in *,libs,*) gradleArgs+=(-Pexpo.useLegacyPackaging=true) ;; esac
 case ",$compress," in *,dex,*) gradleArgs+=(-PardiaCompressDex=true) ;; esac

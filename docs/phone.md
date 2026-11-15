@@ -83,20 +83,19 @@ now, stop, the reset notice, device name, profile, send, pin to Mac, incoming se
 cycle on its own thread; `MainApplication` is the `SyncControllerOwner`, so WorkManager's `SyncWorker` (every 15
 minutes, and a flush after the app leaves the screen) runs it without React Native.
 
-- **Runtime.** `ardia_hermes.cpp` builds against React Native 0.81's prefab Hermes, JSI and fbjni
-  (`ARDIA_REACT_NATIVE_HERMES` picks the runtime options that Hermes has), so the process has one Hermes and sync
-  gets its own runtime instance. `libardiahermes.so` needs only the `libhermes.so`, `libjsi.so` and
-  `libfbjni.so` the app ships.
-- **Bytecode.** React Native 0.81's `hermesc` rejects `async` functions and classes in `ardia-sync.js`, and
-  its hidden `-block-scoping` flag crashes on it; there is no `-Xes6-block-scoping` in that compiler. So
-  `CompileSyncBundle` (`packages/phone/android/build.gradle`) runs the bundle through Babel's class, block-scoping
-  and async-to-generator transforms, the ones React Native applies to app code for this Hermes, then compiles it
-  with React Native 0.81's `hermesc`, pinned by sha256. The Compose app compiles the same source with
-  `hermes-compiler` 0.88.1 and `-Xes6-block-scoping`. The step proves the two cannot differ: Babel must leave
-  no `let`, `const`, class, `async` or `await` (each loop variable a closure captures becomes its own `_loop`
-  function, so a binding per pass does not depend on the engine); closures in loops, through the same
-  transform, must keep each pass's value; the whole companion suite (`packages/sync/src/companion`) runs
-  against the transpiled bundle; and the transpiled bundle must make the same host calls as the original.
+- **Runtime.** `ardia_hermes.cpp` builds against React Native 0.88's prefab Hermes V1 (`hermes-engine::hermesvm`),
+  JSI and fbjni, the same Hermes line the Compose app ships (260318099.0.5), so the process has one Hermes and
+  sync gets its own runtime instance. `libardiahermes.so` needs only the `libhermesvm.so`, `libjsi.so` and
+  `libfbjni.so` the app ships. A store build defines `ARDIA_SCRIPT_QUIET`, so the sync script's `__log` writes
+  nothing to logcat; a lab build logs it as `ArdiaJS`.
+- **Bytecode.** `CompileSyncBundle` (`packages/phone/android/build.gradle`) compiles `ardia-sync.js` as it is, with
+  `hermes-compiler`'s `hermesc` and `-Xes6-block-scoping`, as the Compose app does. It refuses to run unless
+  `hermes-compiler` and React Native's Hermes (`sdks/hermes-engine/version.properties`) are both 260318099.0.5 and
+  the `hermesc` binary matches its pinned sha256, so the bytecode always matches the runtime that loads it. The
+  whole companion suite (`packages/sync/src/companion`) runs against the bundle first. Under React Native 0.81 the
+  bundle went through Babel's class, block-scoping and async transforms because that Hermes rejected them; Hermes V1
+  runs them natively, so the Babel step and its pins are gone. A lab build also compiles the runtime checks
+  (`sync-runtime-checks.js`) and the results Node gives for them, which the lab compares with Hermes V1's on the phone.
 - **The phone's data.** Sync reads the app's `browser.db` (`filesDir/SQLite`, written by expo-sqlite) read-only
   on its own thread: open web tabs, the 30 newest per profile, and visits grouped by address and profile. A
   missing database is an empty phone; one that cannot be read fails the cycle. The app never writes private

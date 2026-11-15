@@ -34,60 +34,53 @@ def cameraXVersion = '1.6.0'
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
 def architectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64').split(',').collect { it.trim() }
 def reactNative = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).parentFile
-def phoneApp = file("${repository}/apps/phone")
 
 abstract class CompileSyncBundle extends DefaultTask {
-  static final String REACT_NATIVE_VERSION = '0.81.6'
+  static final String HERMES_VERSION = '260318099.0.5'
   static final Map<String, String> HERMESC_SHA256 = [
-    'osx-bin/hermesc': '71b5e25546a50a453d2d35af7e29061b964a3b422d04d56d60a4e8d27cf3b8be',
-    'linux64-bin/hermesc': 'b4c37f09410c6c6c0ce90df00eb270dc257d2184c85ca320382ebe06057f2a14',
-    'win64-bin/hermesc.exe': 'a8c491973bcc3899e96a866380a8165a0e5e308bf123445d11def2450ee6e27f',
+    'osx-bin/hermesc': '692d632cd4093b5225ed9194de0c223a9129b1f852515a0d86907e834c57950e',
+    'linux64-bin/hermesc': '779ca1886d05cb2f6cda2e90d6ec5dfb0f69563a1734c9404c955009876a6f50',
+    'win64-bin/hermesc.exe': '8b65a5a2d61379d32eacf516c4cf0ee7799d5d45c1720bebe75ff6f250915754',
   ]
   static final byte[] HERMES_BYTECODE_MAGIC = [(byte) 0xC6, (byte) 0x1F, (byte) 0xBC, (byte) 0x03, (byte) 0xC1, (byte) 0x03, (byte) 0x19, (byte) 0x1F] as byte[]
 
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getBundle()
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getHermesc()
   @Input abstract Property<String> getHermescPath()
-  @Input abstract Property<String> getReactNativeVersion()
-  @Input abstract Property<String> getBabelVersion()
-  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getTranspileScript()
-  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getCheckScript()
+  @Input abstract Property<String> getCompilerVersion()
+  @Input abstract Property<String> getEngineVersion()
   @InputFiles @PathSensitive(PathSensitivity.NONE) abstract ConfigurableFileCollection getCompanionHooks()
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getCompanionTests()
-  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getBabelPins()
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getRuntimeChecks()
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getMakeChecksScript()
   @Input abstract Property<Boolean> getLab()
-  @Internal abstract DirectoryProperty getPhoneApp()
   @OutputDirectory abstract DirectoryProperty getOutputDir()
   @Inject abstract ExecOperations getExec()
 
   @TaskAction
   void compile() {
-    if (reactNativeVersion.get() != REACT_NATIVE_VERSION) throw new GradleException("ardia-sync.hbc is pinned to React Native ${REACT_NATIVE_VERSION}'s hermesc, found ${reactNativeVersion.get()}")
+    if (compilerVersion.get() != HERMES_VERSION || engineVersion.get() != HERMES_VERSION) throw new GradleException("ardia-sync.hbc is pinned to Hermes ${HERMES_VERSION}, found hermes-compiler ${compilerVersion.get()} and React Native's Hermes ${engineVersion.get()}")
     def compiler = hermesc.get().asFile
     def expected = HERMESC_SHA256[hermescPath.get()]
     def actual = java.security.MessageDigest.getInstance('SHA-256').digest(compiler.bytes).encodeHex().toString()
-    if (expected == null || actual != expected) throw new GradleException("${compiler} is not React Native ${REACT_NATIVE_VERSION}'s hermesc: sha256 ${actual}")
+    if (expected == null || actual != expected) throw new GradleException("${compiler} is not hermes-compiler ${HERMES_VERSION}'s hermesc: sha256 ${actual}")
     def work = new File(temporaryDir, 'work')
     work.deleteDir()
     work.mkdirs()
-    def transpiled = new File(work, 'ardia-sync.js')
+    def source = bundle.get().asFile
     def bytecode = new File(work, 'ardia-sync.hbc')
-    exec.exec { commandLine 'node', transpileScript.get().asFile.absolutePath, bundle.get().asFile.absolutePath, transpiled.absolutePath, phoneApp.get().asFile.absolutePath }
-    exec.exec { commandLine 'node', checkScript.get().asFile.absolutePath, bundle.get().asFile.absolutePath, transpiled.absolutePath, phoneApp.get().asFile.absolutePath }
     def register = companionHooks.files.find { it.name == 'sync-bundle-register.mjs' }
     exec.exec {
-      environment 'ARDIA_SYNC_BUNDLE', transpiled.absolutePath
+      environment 'ARDIA_SYNC_BUNDLE', source.absolutePath
       commandLine 'node', '--import', register.toURI().toString(), '--test', '--test-reporter=dot', companionTests.get().asFile.absolutePath
     }
-    exec.exec { commandLine compiler.absolutePath, '-emit-binary', '-O', '-w', '-out', bytecode.absolutePath, transpiled.absolutePath }
+    hermes(compiler, source, bytecode)
     checkBytecode(bytecode)
     def results = [bytecode]
     if (lab.get()) {
-      exec.exec { commandLine 'node', makeChecksScript.get().asFile.absolutePath, runtimeChecks.get().asFile.absolutePath, work.absolutePath, phoneApp.get().asFile.absolutePath }
+      exec.exec { commandLine 'node', makeChecksScript.get().asFile.absolutePath, runtimeChecks.get().asFile.absolutePath, work.absolutePath }
       def checksBytecode = new File(work, 'ardia-sync-checks.hbc')
-      exec.exec { commandLine compiler.absolutePath, '-emit-binary', '-O', '-w', '-out', checksBytecode.absolutePath, new File(work, 'ardia-sync-checks.js').absolutePath }
+      hermes(compiler, new File(work, 'ardia-sync-checks.js'), checksBytecode)
       checkBytecode(checksBytecode, 256)
       results += [checksBytecode, new File(work, 'ardia-sync-checks.json')]
     }
@@ -102,6 +95,10 @@ abstract class CompileSyncBundle extends DefaultTask {
     }
   }
 
+  void hermes(File compiler, File input, File output) {
+    exec.exec { commandLine compiler.absolutePath, '-emit-binary', '-O', '-Xes6-block-scoping', '-w', '-out', output.absolutePath, input.absolutePath }
+  }
+
   private static void checkBytecode(File bytecode, long smallest = 1024) {
     def head = new byte[8]
     bytecode.withInputStream { it.read(head) }
@@ -110,26 +107,23 @@ abstract class CompileSyncBundle extends DefaultTask {
 }
 
 def hermescPath = System.getProperty('os.name').toLowerCase().contains('mac') ? 'osx-bin/hermesc' : (System.getProperty('os.name').toLowerCase().contains('win') ? 'win64-bin/hermesc.exe' : 'linux64-bin/hermesc')
-def babelVersion = new groovy.json.JsonSlurper().parse(new File(["node", "--print", "require.resolve('@babel/core/package.json', { paths: [require.resolve('@react-native/babel-preset/package.json', { paths: [require.resolve('babel-preset-expo/package.json')] })] })"].execute(null, phoneApp).text.trim())).version
-def reactNativeVersion = new groovy.json.JsonSlurper().parse(new File(reactNative, 'package.json')).version
+def hermesCompiler = new File(["node", "--print", "require.resolve('hermes-compiler/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).parentFile
+def hermesCompilerVersion = new groovy.json.JsonSlurper().parse(new File(hermesCompiler, 'package.json')).version
+def hermesEngineVersion = new File(reactNative, 'sdks/hermes-engine/version.properties').readLines().find { it.startsWith('HERMES_VERSION_NAME=') }?.substring('HERMES_VERSION_NAME='.length())?.trim() ?: 'unknown'
 
 androidComponents {
   onVariants(selector().all()) { variant ->
     def task = tasks.register("compile${variant.name.capitalize()}SyncBundle", CompileSyncBundle) {
       bundle.set(syncBundle)
-      hermesc.set(new File(reactNative, "sdks/hermesc/${hermescPath}"))
+      hermesc.set(new File(hermesCompiler, "hermesc/${hermescPath}"))
       it.hermescPath.set(hermescPath)
-      it.reactNativeVersion.set(reactNativeVersion)
-      it.babelVersion.set(babelVersion)
-      transpileScript.set(file("${projectDir}/scripts/transpile-sync-bundle.mjs"))
-      checkScript.set(file("${projectDir}/scripts/check-sync-bundle.mjs"))
+      compilerVersion.set(hermesCompilerVersion)
+      engineVersion.set(hermesEngineVersion)
       companionHooks.from(file("${projectDir}/scripts/sync-bundle-register.mjs"), file("${projectDir}/scripts/sync-bundle-hooks.mjs"))
       companionTests.set(file("${repository}/packages/sync/src/companion/companion.test.ts"))
-      babelPins.set(file("${projectDir}/scripts/sync-babel-pins.json"))
       runtimeChecks.set(file("${projectDir}/scripts/sync-runtime-checks.js"))
       makeChecksScript.set(file("${projectDir}/scripts/make-sync-checks.mjs"))
       lab.set(findProperty('ardiaLab') == 'true')
-      it.phoneApp.set(phoneApp)
     }
     variant.sources.assets?.addGeneratedSourceDirectory(task, { CompileSyncBundle compile -> compile.outputDir })
   }
@@ -185,6 +179,7 @@ android {
       "**/libfbjni.so",
       "**/libjsi.so",
       "**/libhermes.so",
+      "**/libhermesvm.so",
       "**/libhermestooling.so",
       "**/libreactnative.so",
     ]
@@ -213,6 +208,7 @@ dependencies {
   implementation "com.facebook.react:react-android"
   implementation "com.facebook.react:hermes-android"
   implementation "androidx.annotation:annotation:1.9.1"
+  implementation "androidx.activity:activity:1.13.0"
   implementation "androidx.core:core:1.16.0"
   implementation "androidx.webkit:webkit:1.18.0"
   implementation "androidx.work:work-runtime-ktx:2.10.5"
