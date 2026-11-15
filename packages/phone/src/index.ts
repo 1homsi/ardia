@@ -23,6 +23,7 @@ export { CompletingField, completingFieldIsNative, type CompletingFieldHandle, t
 export { ScrollActions, type ScrollActionDirection, type ScrollActionsProps } from "./accessibility";
 export { FadeView, fadeIsNative, type FadeEdge, type FadeViewProps } from "./fade";
 export { PasteButton, pasteButtonIsNative, type PasteButtonProps } from "./pasteButton";
+export { actionSheet, ContextMenuView, nativeMenusAvailable, type ActionSheetAction, type ActionSheetOptions, type ContextMenuProps, type MenuAppearance, type MenuItem } from "./menus";
 export { sync } from "./sync";
 export { syncLab, type SyncRuntimeCheck } from "./syncLab";
 export { labLog, restorableState, system, systemLab, type SystemLink, type SystemLinkSource } from "./system";

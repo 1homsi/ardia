@@ -26,6 +26,7 @@ import { TelemetryLab } from "./TelemetryLab";
 import { UpgradeLab } from "./UpgradeLab";
 import { CompletionLab } from "./CompletionLab";
 import { VoiceLab } from "./VoiceLab";
+import { MenuLab } from "./MenuLab";
 
 const labPage = `<!doctype html><meta name="viewport" content="width=device-width"><title>Page Lab</title>
 <body style="font:16px sans-serif;padding:12px">
@@ -98,6 +99,7 @@ function Lab() {
   const [pullToRefresh, setPullToRefresh] = useState(true);
   const [showVoice, setShowVoice] = useState(false);
   const [showLook, setShowLook] = useState(false);
+  const [showMenus, setShowMenus] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showCompletion, setShowCompletion] = useState(false);
   const [url, setUrl] = useState(LAB_URL);
@@ -293,6 +295,7 @@ function Lab() {
         {showScan && <ScanLab note={note} />}
         {showVoice && <VoiceLab note={note} />}
         {showLook && <LookLab />}
+        {showMenus && <MenuLab note={note} />}
         {showUpgrade && <UpgradeLab note={note} />}
         {showCompletion && <CompletionLab note={note} />}
         <Text style={styles.status} numberOfLines={2}>
@@ -343,6 +346,7 @@ function Lab() {
           <Button label={showScan ? "Hide scanner" : "Scanner"} active={showScan} onPress={() => setShowScan((shown) => !shown)} />
           <Button label={showVoice ? "Hide voice" : "Voice"} active={showVoice} onPress={() => setShowVoice((shown) => !shown)} />
           <Button label={showLook ? "Hide look" : "Look"} active={showLook} onPress={() => setShowLook((shown) => !shown)} />
+          <Button label={showMenus ? "Hide menus" : "Menus"} active={showMenus} onPress={() => setShowMenus((shown) => !shown)} />
           <Button label={showUpgrade ? "Hide upgrade" : "Upgrade"} active={showUpgrade} onPress={() => setShowUpgrade((shown) => !shown)} />
           <Button label={showCompletion ? "Hide completion" : "Completion"} active={showCompletion} onPress={() => setShowCompletion((shown) => !shown)} />
           <Button label="Discard others" onPress={() => run("discard background", async () => {
