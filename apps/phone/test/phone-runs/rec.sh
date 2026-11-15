@@ -11,7 +11,7 @@ if [ $# -lt 4 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
   [ $# -ge 1 ] && exit 0 || exit 64
 fi
 out="$1"; name="$2"; seconds="$3"; command="$4"
-: "${S:?set S to the phone's serial}" "${T:?set T to a folder on the phone}" "${LOG:?set LOG to the session log}"
+: "${S:?set S to the phone serial}" "${T:?set T to a folder on the phone}" "${LOG:?set LOG to the session log}"
 mkdir -p "$out"
 scale=$(adb -s "$S" shell settings get global animator_duration_scale | tr -d '\r')
 [ "$scale" = "1.0" ] || [ "$scale" = "1" ] || { echo "animator scale $scale, not 1: not recording" >&2; exit 1; }

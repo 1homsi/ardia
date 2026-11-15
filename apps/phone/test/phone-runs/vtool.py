@@ -32,7 +32,14 @@ def frame_walls(video):
             count, = struct.unpack_from("<I", data, 28)
             stamps = struct.unpack_from("<%dq" % count, data, 32)
             return [(stamp + offset) / 1e9 for stamp in stamps]
-    return None
+    whole = open(video, "rb").read()
+    at = whole.find(MAGIC)
+    if at < 0:
+        return None
+    offset, = struct.unpack_from("<q", whole, at + 20)
+    count, = struct.unpack_from("<I", whole, at + 28)
+    stamps = struct.unpack_from("<%dq" % count, whole, at + 32)
+    return [(stamp + offset) / 1e9 for stamp in stamps]
 
 
 def presentation_times(video):
