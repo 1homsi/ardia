@@ -2,7 +2,7 @@ import { act } from "react-test-renderer";
 import { SearchTray } from "../components/search/SearchTray";
 import { DesignProvider } from "../components/ui";
 import type { Design } from "../lib/design";
-import { dismissSearch, presentSearch } from "../state/search/store";
+import { dismissSearch, presentSearch, useSearch } from "../state/search/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 beforeEach(() => {
@@ -59,3 +59,19 @@ for (const design of ["redesigned", "original"] as Design[]) {
     unmount(root);
   });
 }
+
+test("a screen reader closes search with Close Search's own activate action, without a touch reaching the dim", () => {
+  act(() => presentSearch("page", "otters"));
+  const root = renderSurface(
+    <DesignProvider design="redesigned">
+      <SearchTray />
+    </DesignProvider>,
+  );
+  act(() => jest.advanceTimersByTime(600));
+  const close = root.root.findAll((node) => node.props.accessibilityLabel === "Close Search" && typeof node.props.onAccessibilityAction === "function")[0]!;
+  expect(close.props.accessibilityActions).toEqual([{ name: "activate" }]);
+  expect(useSearch.getState().open).toBe(true);
+  act(() => close.props.onAccessibilityAction({ nativeEvent: { actionName: "activate" } }));
+  expect(useSearch.getState().open).toBe(false);
+  unmount(root);
+});

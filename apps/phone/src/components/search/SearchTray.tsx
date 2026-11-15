@@ -312,6 +312,8 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
         <Pressable
           accessibilityLabel="Close Search"
           accessibilityRole="button"
+          accessibilityActions={ACTIVATE}
+          onAccessibilityAction={(event) => event.nativeEvent.actionName === "activate" && closeFromTouch()}
           onPressIn={closeOnPressIn}
           onPress={closeOnPress}
           style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
@@ -380,6 +382,8 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 }
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+const ACTIVATE = [{ name: "activate" as const }];
 
 const DepartContext = createContext<() => void>(() => undefined);
 
