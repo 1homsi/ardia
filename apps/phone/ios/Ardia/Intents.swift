@@ -1,7 +1,7 @@
 import AppIntents
 import ArdiaBrowser
 import ArdiaDesign
-import ArdiaPhoneNative
+internal import ArdiaPhoneNative
 import CoreSpotlight
 import Foundation
 import SQLite3

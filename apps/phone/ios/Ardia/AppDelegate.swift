@@ -1,10 +1,10 @@
-import ArdiaPhoneNative
-import Expo
+internal import ArdiaPhoneNative
+internal import Expo
 import React
 import ReactAppDependencyProvider
 
 @main
-class AppDelegate: ExpoAppDelegate {
+class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
   @objc var window: UIWindow?
@@ -21,7 +21,6 @@ class AppDelegate: ExpoAppDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
-    bindReactNativeFactory(factory)
     PhoneSyncHost.shared.launch()
     sceneAdoption = NotificationCenter.default.addObserver(forName: UIScene.willConnectNotification, object: nil, queue: nil) { note in
       guard let scene = note.object as? UIScene else { return }
