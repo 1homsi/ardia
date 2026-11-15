@@ -405,10 +405,14 @@ the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fall
   choice when nothing answered (no hook fit, a route hook's profile is gone, or a program hook gave no answer in
   time). With no Everything Else choice the link takes Ardia's usual routing.
 - **A rule** is `from` (an app by bundle id, or by name when it has none; `null` is any app), a link condition (`any`,
-  a `site` host that also takes its subdomains, matched as `*://*.<host>/*`, or a userscript match `pattern`), a profile
+  a `site` host that also takes its subdomains, matched as `*://*.<host>/*`, or a `pattern`), a profile
   id (`null` is the profile used last) and `open` (`tab`, `window`, `littleArdia`). Profiles are stored by id, so a
   rename keeps the rule; a rule or fallback whose profile was deleted, or is private, doesn't apply and the link
   goes on down the list.
+- **Patterns.** A pattern with `://` (or `<all_urls>`) is a userscript match pattern. One without is a wildcard, case
+  blind, where `*` is any run of characters: with no `/` it matches the link's host (`*git*`, `*.github.com`), with one
+  it matches host, path and query (`github.com/ardia/*`), and one with no `*` matches anywhere in that text (`github`
+  is `*github*`). Spaces are refused.
 - **No approval.** The user makes these rules in Settings, so they count as approved. hooks.json route hooks still need
   approval in Advanced › Automation; the pane lists them read-only with their state.
 - **The hold.** An enabled rule or an Everything Else choice turns the incoming-link hold on, reported again on every
@@ -424,7 +428,8 @@ the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fall
 - Code: `state/airTraffic/rules.ts` (the pure matching and the saved document), `store.ts`, `sourceApps.ts`,
   `preview.ts`; the pane is `components/settings/panes/AirTraffic.tsx`.
 - Telemetry: `usage_counts.air_traffic_rule_links` and `air_traffic_fallback_links`, and `settings_snapshot`'s
-  `air_traffic_rules` (enabled rules) and `air_traffic_fallback` (true or false).
+  `air_traffic_rules` (enabled rules), `air_traffic_wildcard_rules` (enabled rules with a wildcard pattern) and
+  `air_traffic_fallback` (true or false).
 
 ## Approvals
 
