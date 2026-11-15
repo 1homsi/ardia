@@ -1,3 +1,4 @@
+import { displayHost } from "@ardia/core";
 import { isFields } from "../../lib/decode";
 import { sourceMatches, type LinkSource } from "../../lib/linkSource";
 import { globMatches, matchesUrl, parseMatchPattern, type MatchSpec } from "../../lib/matchPattern";
@@ -50,8 +51,9 @@ function wildcardMatches(pattern: string, url: string): boolean {
   if (!parts?.host) return false;
   const lower = pattern.toLowerCase();
   const glob = lower.includes("*") ? lower : `*${lower}*`;
-  if (!glob.includes("/")) return globMatches(glob, parts.host);
-  return globMatches(glob, `${parts.host}${parts.path}${parts.query}`.toLowerCase());
+  const hosts = new Set([parts.host, displayHost(parts.host)]);
+  const rest = glob.includes("/") ? `${parts.path}${parts.query}`.toLowerCase() : "";
+  return [...hosts].some((host) => globMatches(glob, `${host}${rest}`));
 }
 
 const compiled = new Map<string, MatchSpec | null>();

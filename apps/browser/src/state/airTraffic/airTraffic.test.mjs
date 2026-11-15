@@ -75,6 +75,8 @@ test("a pattern without a scheme is a wildcard over the link", () => {
     ["github", ["https://GitHub.com/x", "https://gist.github.com/"], ["https://example.com/"]],
     ["github.com/ardia/*", ["https://github.com/ardia/x", "http://github.com/ardia/"], ["https://github.com/other/x", "https://evil.example/github.com/ardia/x"]],
     ["*.github.com", ["https://gist.github.com/x"], ["https://github.com/x", "https://example.com/?q=a.github.com"]],
+    ["*.bücher.de", ["https://shop.bücher.de/", "https://shop.xn--bcher-kva.de/x"], ["https://shop.bucher.de/"]],
+    ["bücher.de/*", ["https://bücher.de/a"], ["https://example.com/bücher.de/a"]],
   ]) {
     assert.equal(rules.patternProblem(pattern), null, pattern);
     fresh({ rules: [rule({ when: { kind: "pattern", pattern }, open: "window" })] });
