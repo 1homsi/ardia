@@ -1036,19 +1036,21 @@ App side, an agent can do these now:
    thread.
 2. Changing a Windows contrast theme while Settings is open crashes Ardia, inside the Windows App SDK (#1900). S once
    the cause is seen on Windows.
-3. Onboarding: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812). S.
-4. A pop-up left as the only window drops its open-in-another-app prompt and the tabs it opens (#1910). S, with the
+3. A pop-up left as the only window drops its open-in-another-app prompt and the tabs it opens (#1910). S, with the
    engine thread.
-5. The window's top edge doesn't resize where the page reaches it, as in Minimalism mode (#1888). S, in the engine.
-6. The theme's grain draws nothing, and the sidebar and toolbar don't blur what is behind them (#1921). M.
-7. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise
+4. The window's top edge doesn't resize where the page reaches it, as in Minimalism mode (#1888). S, in the engine.
+5. The theme's grain draws nothing, and the sidebar and toolbar don't blur what is behind them (#1921). M.
+6. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise
    trimmed as on the Mac since #1811). S.
-8. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
+7. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
    needs). M each once the engine reports them. A pop-up's prompts go to its opener's window, as on the Mac's
    `ArdiaPopupWindow` (else any window of its profile). Today Chromium's own prompt shows, most likely in the
    pop-up's window (not yet seen in the VM).
-9. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
-10. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
+8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
+9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
+10. Dragging a pinned extension to reorder the toolbar (main's #1935) doesn't keep its new place until the Windows
+    engine is rebuilt with `pinnedIndex` in `ac_extensions.cc` (by reading; not tried on Windows). S, the next engine
+    build.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - password sync on Windows: the engine's login read is ready (#1918); Sync still has to handle its errors before
@@ -1065,8 +1067,8 @@ Decisions for Shivam:
 - publishing a `windows-alpha` release, so Check for Updates has something to find (#1517);
 - signing, or a per-machine install (#1659).
 
-With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 5 and 10 are bugs a
-user hits, and 6 to 9 are visible differences from the Mac. Everything else in the table works or differs only
+With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 4, 9 and 10 are
+bugs a user hits, and 5 to 8 are visible differences from the Mac. Everything else in the table works or differs only
 where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work

@@ -528,3 +528,9 @@ test("deleting the original profile's data names each step that failed", async (
   const nothing = originalProfileEngine({ failing: "ac_browsing_data_clear" });
   assert.deepEqual((await calling(nothing.engine, "profiles")("deleteData", {}, "")).remaining, ORIGINAL_STEPS.slice(0, 2));
 });
+
+test("the window list answers an empty list where the engine has none, so a caller that searches it never meets null", async () => {
+  const { moduleDefaults } = await import("../../../../packages/expo-windows/src/defaults.ts");
+  assert.equal(await moduleDefaults.ArdiaWindows.call("list"), "[]");
+  assert.equal(rows.missing.windows.includes("list"), true);
+});
