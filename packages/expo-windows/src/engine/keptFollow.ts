@@ -1,4 +1,4 @@
-import { fieldFocusedAnywhere, onFieldAsked } from "../appKeyboard";
+import { fieldKeepsKeyboardFrom, focusedFieldInAnotherTab, onFieldAsked } from "../appKeyboard";
 
 export type KeptFollows = { kept: number; used: number; dropped: number };
 
@@ -15,7 +15,9 @@ export function keepFollow(key: string) {
   counts.kept += 1;
   if (watchingFields) return;
   watchingFields = true;
-  onFieldAsked(dropKeptFollow);
+  onFieldAsked(() => {
+    if (!focusedFieldInAnotherTab(keptFor)) dropKeptFollow();
+  });
 }
 
 export function dropKeptFollow() {
@@ -24,9 +26,9 @@ export function dropKeptFollow() {
   counts.dropped += 1;
 }
 
-export function spendKeptFollow(key: string): boolean {
+export function spendKeptFollow(key: string, windowId: string): boolean {
   if (!keptFor || keptFor !== key) return false;
-  if (fieldFocusedAnywhere()) return (dropKeptFollow(), false);
+  if (fieldKeepsKeyboardFrom(windowId, key)) return (dropKeptFollow(), false);
   keptFor = "";
   counts.used += 1;
   return true;

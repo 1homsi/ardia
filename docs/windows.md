@@ -479,10 +479,12 @@ is plain Chromium.
   `TabContentArea`, whose `contentAreaOf` prop the field walk reads) doesn't count either, since the new page replaces
   it; the sidebar, the command bar, the find bar and the toolbar keep the keyboard. A tab that has no page yet when
   it is switched to (a sleeping or unloaded tab, a new tab opened with an address) keeps the ask until its page mounts
-  and shows, however long the page takes to open (`engine/keptFollow.ts`, #1689, not seen on Windows yet). The ask is
-  used once. It is dropped when another tab is followed or focused, a page is pressed, or any app text field takes
-  the keyboard or has it when the page shows. `keyboard_follows_kept`, `keyboard_follows_used` and
-  `keyboard_follows_dropped` in the hourly `usage_counts` count them. The engine host carries
+  and shows, however long the page takes to open (`engine/keptFollow.ts`, #1689, not seen on Windows yet). A shown
+  tab that gets its first address (Enter in its New Tab page's search box, or in the command bar over it) asks again.
+  The ask is used once. It is dropped when another tab is followed or focused, a page is pressed, or a field takes the
+  keyboard or holds it when the page shows: the rule above for fields of the page's window, so another tab's content
+  area doesn't count, and any field at all in another window, such as Settings. `keyboard_follows_kept`,
+  `keyboard_follows_used` and `keyboard_follows_dropped` in the hourly `usage_counts` count them. The engine host carries
   it out only if the keyboard is already in that app window (its own UI or its pages), only while one of the app's
   windows is the foreground window, and never in a background instance. A focus it can't carry out because Ardia
   isn't in front is kept for that window and given when the window is activated again; it is dropped when the window

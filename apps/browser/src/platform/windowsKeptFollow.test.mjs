@@ -19,6 +19,7 @@ turboModules.ArdiaEngineHost = {
 const { mountPage, showPage, followPage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
 const { takeKeptFollows } = await import("../../../../packages/expo-windows/src/engine/keptFollow.ts");
 const { noteFieldAsked, readFocusedFieldWith } = await import("../../../../packages/expo-windows/src/appKeyboard.ts");
+const { startKeyboardFollows } = await import("../state/focus/keyboardFollows.ts");
 
 const settle = async () => {
   for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0));
@@ -119,6 +120,91 @@ test("dropped when a text field of the app takes the keyboard, even after it let
   showPage("kf-field", true, shape);
   await settle();
   assert.deepEqual(followed("kf-field"), [], "the address field took the keyboard after the switch");
+  await unmountAll();
+});
+
+test("a field in another tab's content area of the same window doesn't drop it: an empty split pane's search field stays mounted", async () => {
+  const splitSearch = { field: { id: "split-search" }, windowId: "w", contentAreaOf: "kf-empty-pane" };
+  focused = splitSearch;
+  followPage("kf-other-pane");
+  noteFieldAsked("w");
+  mount("kf-other-pane");
+  showPage("kf-other-pane", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-other-pane"), followedOnce("kf-other-pane"), "the pane's search field still reads as focused, and the page gets the keyboard");
+  await unmountAll();
+});
+
+test("the New Tab page search box of the tab being left doesn't drop it, asked again or still focused when the page shows", async () => {
+  followPage("kf-from-ntp");
+  focused = { field: { id: "hero" }, windowId: "w", contentAreaOf: "kf-left-ntp" };
+  noteFieldAsked("w");
+  mount("kf-from-ntp");
+  showPage("kf-from-ntp", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-from-ntp"), followedOnce("kf-from-ntp"));
+  await unmountAll();
+});
+
+test("a field in the showing page's own content area, or the window's own chrome, still keeps the keyboard, as fieldFocusedIn decided before", async () => {
+  followPage("kf-own-area");
+  focused = { field: { id: "own-hero" }, windowId: "w", contentAreaOf: "kf-own-area" };
+  mount("kf-own-area");
+  showPage("kf-own-area", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-own-area"), [], "its own content area's field");
+  followPage("kf-chrome");
+  focused = { field: { id: "sidebar-address" }, windowId: "w" };
+  mount("kf-chrome");
+  showPage("kf-chrome", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-chrome"), [], "the window's address field");
+  await unmountAll();
+});
+
+function ctrlT() {
+  let state = { windows: { w: { profileId: "p", activeTabIds: { p: "kf-before" } } }, peeks: {}, tabs: { "kf-before": { url: "https://before.example/" } } };
+  const listeners = new Set();
+  const store = {
+    getState: () => state,
+    subscribe: (listener) => (listeners.add(listener), () => listeners.delete(listener)),
+    set(patch) {
+      const prev = state;
+      state = { ...state, ...patch };
+      for (const listener of listeners) listener(state, prev);
+    },
+  };
+  const stop = startKeyboardFollows(followPage, store);
+  const shows = (tabId, url) => ({ windows: { w: { profileId: "p", activeTabIds: { p: tabId } } }, tabs: { ...state.tabs, [tabId]: { url } } });
+  return { store, stop, shows };
+}
+
+test("Ctrl+T with a New Tab page, an address in its search box, Enter: the box takes the keyboard, then the page gets it when it shows", async () => {
+  const { store, stop, shows } = ctrlT();
+  store.set(shows("kf-ntp", ""));
+  const hero = { field: { id: "ntp-hero" }, windowId: "w", contentAreaOf: "kf-ntp" };
+  focused = hero;
+  noteFieldAsked("w");
+  store.set(shows("kf-ntp", "https://typed.example/"));
+  focused = null;
+  mount("kf-ntp");
+  showPage("kf-ntp", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-ntp"), followedOnce("kf-ntp"), "Enter navigates the same tab, which asks again; the New Tab page and its box unmount in that render, so no field reads as focused at the show");
+  stop();
+  await unmountAll();
+});
+
+test("Ctrl+T with the command bar, an address, Enter: the bar's field is focused when the new tab is shown, gone when its page shows", async () => {
+  const { store, stop, shows } = ctrlT();
+  focused = { field: { id: "command-bar" }, windowId: "w" };
+  store.set(shows("kf-bar-tab", "https://typed.example/"));
+  focused = null;
+  mount("kf-bar-tab");
+  showPage("kf-bar-tab", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-bar-tab"), followedOnce("kf-bar-tab"), "the closing bar's field doesn't drop the ask; it only blocks while it still holds the keyboard");
+  stop();
   await unmountAll();
 });
 

@@ -16,9 +16,15 @@ export function onFieldAsked(listener: () => void): () => void {
   return () => void fieldAskedListeners.delete(listener);
 }
 
-export function fieldFocusedAnywhere(): boolean {
+export function fieldKeepsKeyboardFrom(windowId: string, forTab: string): boolean {
   const focused = readFocusedField();
-  return !!focused && pressedOver.get(focused.windowId) !== focused.field;
+  if (focused?.windowId && focused.windowId !== windowId) return pressedOver.get(focused.windowId) !== focused.field;
+  return fieldFocusedIn(windowId, forTab);
+}
+
+export function focusedFieldInAnotherTab(tab: string): boolean {
+  const contentAreaOf = readFocusedField()?.contentAreaOf;
+  return !!contentAreaOf && contentAreaOf !== tab;
 }
 
 export function readFocusedFieldWith(read: () => FocusedField) {

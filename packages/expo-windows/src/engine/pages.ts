@@ -244,7 +244,7 @@ function askShow(page: Page, args: ShowArgs) {
     page.ready.then((opened) => {
       if (!opened || page.show !== args) return noteShowStep(page.key, opened ? "askShow: superseded" : "askShow: not opened");
       const sent = sendShow(page);
-      if (args.visible && spendKeptFollow(page.key)) followNow(page);
+      if (args.visible && spendKeptFollow(page.key, page.windowId)) followNow(page);
       if (!args.visible || !focusWaits(page)) return sent;
       page.focusAsked = 0;
       const focusArgs = page.focusArgs;
