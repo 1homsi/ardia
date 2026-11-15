@@ -211,6 +211,7 @@ function ExtensionButton({ ext, index, pitch, reorder, windowId, tabId, ready, p
   const dragging = drag?.id === ext.id;
   const target = dragging ? Math.max(0, Math.min((reorder!.count - 1) * pitch, index * pitch + drag!.dx)) : index * pitch + makeRoomShift(index, drag, pitch, reorder?.count ?? 0);
   const left = useSlotLeft(target, dragging, () => void measure());
+  const shownPalette = useMemo(() => (drag && !dragging ? { ...palette, hover: ink.clear } : palette), [palette, drag && !dragging]);
   return (
     <Animated.View
       ref={ref}
@@ -223,7 +224,7 @@ function ExtensionButton({ ext, index, pitch, reorder, windowId, tabId, ready, p
         <Button
           variant="icon"
           look="extension"
-          palette={palette}
+          palette={shownPalette}
           active={open}
           tooltip={title}
           onPressIn={pressMotion.onPressIn}
