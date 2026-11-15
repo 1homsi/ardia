@@ -239,6 +239,19 @@ export const floatingBarLayout = {
   maxTextScale: 1.35,
 } as const;
 
+export const floatingPanelLayout = {
+  inset: 8,
+  radius: 26,
+  aboveKeyboard: 8,
+  fieldInset: 9,
+  fieldBottom: 1,
+  tintShare: 0.55,
+  incognitoShare: 0.85,
+  incognitoFill: "#151517",
+  shadow: "0px 4px 36px rgba(0, 0, 0, 0.1)",
+  incognitoShadow: "0px 4px 36px rgba(0, 0, 0, 0.3)",
+} as const;
+
 export const chromeLayout = { edge: 0.5, shadowRadius: 10, shadowY: 2 } as const;
 
 export const chromeInk = {

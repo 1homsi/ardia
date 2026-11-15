@@ -20,7 +20,7 @@ import { searchState, setSearchText, typeSearch } from "../../state/search/store
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -84,7 +84,9 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safeBottom = insets.bottom;
   const preferred = SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
-  const trayHeight = trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s);
+  const panel = useDesign() === "redesigned";
+  const reduceTransparency = useReduceTransparency();
+  const trayHeight = trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s + (panel ? floatingPanelLayout.aboveKeyboard : 0));
   const extend = window.height;
   const closedOnPressIn = useRef(false);
   const closeFromTouch = () => {
@@ -262,9 +264,9 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
     return {
       opacity: reduceMotion ? dim.value : 1,
-      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, radius.sheet) }],
+      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) }],
     };
-  }, [trayHeight, safeBottom, reduceMotion]);
+  }, [trayHeight, safeBottom, reduceMotion, panel]);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"}>
@@ -277,6 +279,37 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
           style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
         />
       </Animated.View>
+      {panel ? (
+        <Animated.View
+          testID="trayPanel"
+          style={[
+            styles.panel,
+            { height: trayHeight, boxShadow: incognito ? floatingPanelLayout.incognitoShadow : floatingPanelLayout.shadow },
+            trayStyle,
+          ]}
+        >
+          <ChromeSurface shape="rounded" cornerRadius={floatingPanelLayout.radius} interactive={false} tinted incognito={incognito} style={StyleSheet.absoluteFill} />
+          <View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                borderRadius: floatingPanelLayout.radius,
+                backgroundColor: incognito ? floatingPanelLayout.incognitoFill : theme.surface,
+                opacity: reduceTransparency ? 1 : incognito ? floatingPanelLayout.incognitoShare : floatingPanelLayout.tintShare,
+              },
+            ]}
+          />
+          <View style={{ height: trayHeight, borderRadius: floatingPanelLayout.radius, overflow: "hidden" }}>
+            <GestureDetector gesture={dismissDrag}>
+              <View collapsable={false}>
+                <TrayField key={session} />
+              </View>
+            </GestureDetector>
+            <TrayRows dismissDrag={dismissDrag} />
+          </View>
+        </Animated.View>
+      ) : (
       <Animated.View
         style={[
           styles.sheet,
@@ -302,6 +335,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
           <TrayRows dismissDrag={dismissDrag} />
         </View>
       </Animated.View>
+      )}
     </View>
   );
 }
@@ -359,7 +393,7 @@ function FieldInput({ first }: { first: boolean }) {
   }, []);
 
   return (
-    <View style={styles.fieldArea}>
+    <View style={useDesign() === "redesigned" ? styles.panelFieldArea : styles.fieldArea}>
       <View style={[styles.field, { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
         <TrayInput
           ref={(field) => {
@@ -636,6 +670,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   fieldArea: { paddingHorizontal: browseLayout.searchFieldInset, paddingTop: browseLayout.trayFieldTop, paddingBottom: space.s },
+  panel: {
+    position: "absolute",
+    left: floatingPanelLayout.inset,
+    right: floatingPanelLayout.inset,
+    bottom: floatingPanelLayout.aboveKeyboard,
+    borderRadius: floatingPanelLayout.radius,
+    borderCurve: "continuous",
+  },
+  panelFieldArea: { paddingHorizontal: floatingPanelLayout.fieldInset, paddingTop: floatingPanelLayout.fieldInset, paddingBottom: floatingPanelLayout.fieldBottom },
   field: {
     minHeight: browseLayout.searchFieldHeight,
     borderRadius: capsule(browseLayout.searchFieldHeight),
