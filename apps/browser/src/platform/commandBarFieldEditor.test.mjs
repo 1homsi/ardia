@@ -2,9 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-// The command bar (⌘T / ⌘L) edits in RCTUIPlainPasteFieldEditor, a field editor the react-native-macos patch builds by hand. AppKit's shared field
-// editor records undo (allowsUndo is YES); a bare NSTextView does not (NO), so with the bar focused Edit › Undo and Redo were disabled and ⌘Z did
-// nothing (#1332). The app can't run here, so this reads the patch the way the other source-reading tests read Swift.
 const patch = readFileSync(new URL("../../../../patches/react-native-macos@0.81.9.patch", import.meta.url), "utf8");
 const added = patch
   .split("\n")
