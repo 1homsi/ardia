@@ -834,6 +834,9 @@ base::DictValue Host::ListTabs() {
     tab.Set("url", contents->GetVisibleURL().spec());
     tab.Set("title", base::UTF16ToUTF8(contents->GetTitle()));
     tab.Set("loading", contents->IsLoading());
+    tab.Set("discarded", contents->WasDiscarded());
+    tab.Set("visible",
+            contents->GetVisibility() == content::Visibility::VISIBLE);
     tab.Set("session",
             PrivateSessions::Get()->SessionNumber(Profile::FromBrowserContext(
                 contents->GetBrowserContext())));

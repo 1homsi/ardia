@@ -29,6 +29,9 @@
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
 #include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/performance_manager/policies/cannot_discard_reason.h"
+#include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
+#include "chrome/browser/performance_manager/policies/page_discarding_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
@@ -40,6 +43,9 @@
 #include "chrome/common/content_restriction.h"
 #include "chrome/common/pref_names.h"
 #include "components/blocked_content/popup_blocker_tab_helper.h"
+#include "components/performance_manager/public/graph/graph.h"
+#include "components/performance_manager/public/graph/page_node.h"
+#include "components/performance_manager/public/performance_manager.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/find_in_page/find_types.h"
@@ -716,6 +722,72 @@ void Discard(content::WebContents* contents,
   std::move(reply).Run(std::move(result));
 }
 
+void AnswerKeptBy(Reply reply, base::ListValue kept_by) {
+  base::DictValue result;
+  result.Set("keptBy", std::move(kept_by));
+  std::move(reply).Run(std::move(result));
+}
+
+void SleepIfHidden(content::WebContents* contents,
+                   const base::DictValue& args,
+                   Reply reply) {
+  namespace policies = performance_manager::policies;
+  using performance_manager::PerformanceManager;
+  base::ListValue unavailable;
+  unavailable.Append(-1);
+  if (!PerformanceManager::IsAvailable()) {
+    return AnswerKeptBy(std::move(reply), std::move(unavailable));
+  }
+  base::WeakPtr<performance_manager::PageNode> page =
+      PerformanceManager::GetPrimaryPageNodeForWebContents(contents);
+  if (!page) {
+    return AnswerKeptBy(std::move(reply), std::move(unavailable));
+  }
+  performance_manager::Graph* graph = page->GetGraph();
+  auto* eligibility = policies::DiscardEligibilityPolicy::GetFromGraph(graph);
+  auto* discarding = policies::PageDiscardingHelper::GetFromGraph(graph);
+  if (!eligibility || !discarding) {
+    return AnswerKeptBy(std::move(reply), std::move(unavailable));
+  }
+  const auto reason =
+      policies::DiscardEligibilityPolicy::DiscardReason::PROACTIVE;
+  const double seconds = args.FindDouble("seconds").value_or(0);
+  std::vector<policies::CannotDiscardReason> kept_by;
+  if (eligibility->CanDiscardWithCustomRecentVisibilityWindow(
+          page.get(), reason, base::Seconds(seconds), &kept_by) !=
+      policies::CanDiscardResult::kEligible) {
+    base::ListValue codes;
+    for (policies::CannotDiscardReason kept : kept_by) {
+      codes.Append(static_cast<int>(kept));
+    }
+    return AnswerKeptBy(std::move(reply),
+                        codes.empty() ? std::move(unavailable)
+                                      : std::move(codes));
+  }
+  if (!discarding->ImmediatelyDiscardMultiplePages({page.get()}, reason)) {
+    return AnswerKeptBy(std::move(reply), std::move(unavailable));
+  }
+  AnswerKeptBy(std::move(reply), base::ListValue());
+}
+
+void InsertTextForTest(content::WebContents* contents,
+                       const base::DictValue& args,
+                       Reply reply) {
+  if (!ardiacore::TestInstance()) {
+    std::move(reply).Run(Error("insertText is for test instances"));
+    return;
+  }
+  base::DictValue params;
+  params.Set("text", Text(args, "text"));
+  CallDevTools(contents, "Input.insertText", std::move(params), std::nullopt,
+               base::BindOnce(
+                   [](Reply reply, std::optional<base::DictValue> result,
+                      std::optional<std::string> error) {
+                     std::move(reply).Run(error ? Error(*error) : Ok());
+                   },
+                   std::move(reply)));
+}
+
 void SetFrozen(content::WebContents* contents,
                const base::DictValue& args,
                Reply reply) {
@@ -778,6 +850,8 @@ constexpr NamedMethod kMethods[] = {
     {"pageCookies", &PageCookies},
     {"openBlockedPopup", &OpenBlockedPopup},
     {"discard", &Discard},
+    {"sleepIfHidden", &SleepIfHidden},
+    {"insertText", &InsertTextForTest},
     {"setFrozen", &SetFrozen},
     {"resolveUnresponsive", &ResolveUnresponsive},
     {"externalAppAlive", &ExternalAppAliveCall},
