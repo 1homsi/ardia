@@ -519,8 +519,8 @@ function Test-TopEdgeResize([System.Diagnostics.Process]$Process) {
   [ArdiaInput]::GetClassName([ArdiaInput]::WindowFromPoint($press), $class, 256) | Out-Null
   $under = $class.ToString()
   Write-Host "Top edge: the window under ($($press.X), $($press.Y)) is $under."
-  if (-not $under.StartsWith("Chrome_")) { return @("top edge: the press point is over $under, not a page window, so the drag would prove nothing") }
   Save-Screenshot (Join-Path $Out "top-edge-before.png")
+  if (-not $under.StartsWith("Chrome_")) { return @("top edge: the press point is over $under, not a page window, so the drag would prove nothing") }
   Send-Drag $press.X $press.Y 0 40 300
   Start-Sleep -Milliseconds 700
   Save-Screenshot (Join-Path $Out "top-edge-after.png")
@@ -536,7 +536,7 @@ $edgeLog = Join-Path $Out "top-edge.log"
 $env:ARDIA_DATA_DIR = New-DataDirectory "top-edge-data"
 $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
-Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"minimalismMode":true,"sidebarSide":"right"}}' -Encoding utf8NoBOM
+Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"minimalismMode":true,"sidebarSide":"right","openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
 if ($withEngineForEdge -and -not $NoInput -and $httpPagesUp) {
   $edge = Start-Process -FilePath $App -ArgumentList "--log-file=`"$edgeLog`"", "http://127.0.0.1:$httpPagesPort/a" -PassThru
   $env:ARDIA_CONFIG_DIR = ""
