@@ -46,6 +46,7 @@ export {
   type FrostVariant,
   type GlassProps,
   type GlassShape,
+  type GlassSurface,
   type LookColors,
   type ProfileBackdropProps,
 } from "./look";

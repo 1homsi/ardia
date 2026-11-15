@@ -21,7 +21,9 @@ export type FrostProps = ViewProps &
 
 export type GlassShape = "capsule" | "circle" | "rounded";
 
-export type GlassProps = FrostProps & { shape?: GlassShape; tint?: string; interactive?: boolean };
+export type GlassSurface = "glass" | "classic";
+
+export type GlassProps = FrostProps & { shape?: GlassShape; tint?: string; interactive?: boolean; surface?: GlassSurface; tinted?: boolean; barShadow?: boolean };
 
 type LookNative = {
   hasGlass?: () => boolean;
@@ -113,7 +115,8 @@ const NativeGlass = look<GlassProps>("Glass");
 
 export function Glass(props: GlassProps) {
   if (hasNativeGlass) return createElement(NativeGlass, props);
-  const { shape, tint, interactive, ...frost } = props;
+  const { shape, tint, interactive, surface, tinted, barShadow, ...frost } = props;
   const cornerRadius = frost.cornerRadius ?? (shape === "rounded" ? 0 : 999);
-  return createElement(Frost, { ...frost, variant: frost.variant ?? "glass", cornerRadius });
+  const classic = surface === "classic" || frost.reduceTransparency === true;
+  return createElement(Frost, { ...frost, variant: frost.variant ?? "glass", cornerRadius, reduceTransparency: classic ? true : frost.reduceTransparency });
 }

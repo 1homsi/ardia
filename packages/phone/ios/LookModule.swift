@@ -68,6 +68,12 @@ public final class LookModule: Module {
       Prop("interactive") { (view: GlassView, value: Bool?) in view.interactive = value ?? true }
       Prop("dark") { (view: GlassView, value: Bool?) in view.dark = value }
       Prop("reduceTransparency") { (view: GlassView, value: Bool?) in view.reduceTransparency = value == true }
+      Prop("surface") { (view: GlassView, value: String?) in view.surface = GlassView.Surface(rawValue: value ?? "") ?? .glass }
+      Prop("tinted") { (view: GlassView, value: Bool?) in view.tinted = value == true }
+      Prop("barShadow") { (view: GlassView, value: Bool?) in view.barShadow = value == true }
+      Prop("color") { (view: GlassView, value: String?) in view.colors.color = value }
+      Prop("themeColors") { (view: GlassView, value: [String]?) in view.colors.themeColors = value }
+      Prop("darkThemeColors") { (view: GlassView, value: [String]?) in view.colors.darkThemeColors = value }
       OnViewDidUpdateProps { (view: GlassView) in view.render() }
     }
 
@@ -213,21 +219,38 @@ final class GlassView: ExpoView {
     case rounded
   }
 
+  enum Surface: String {
+    case glass
+    case classic
+  }
+
+  static let classicEdge = UIColor.label.withAlphaComponent(0.12)
+  static let classicEdgeWidth: CGFloat = 0.5
+  static let classicShadowRadius: CGFloat = 10
+  static let classicShadowOffset = CGSize(width: 0, height: 2)
+
   var shape: Shape = .capsule
   var cornerRadius: CGFloat = 0
   var tint: UIColor?
   var interactive = true
   var dark: Bool?
   var reduceTransparency = false
+  var surface: Surface = .glass
+  var tinted = false
+  var barShadow = false
+  var colors = LookColors()
 
   private let effectView = UIVisualEffectView()
-  private var applied: (tint: UIColor?, interactive: Bool, solid: Bool)?
+  private var applied: (tint: UIColor?, interactive: Bool, classic: Bool, tinted: Bool, colors: LookColors)?
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     backgroundColor = .clear
     effectView.isAccessibilityElement = false
     super.insertSubview(effectView, at: 0)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: GlassView, _: UITraitCollection) in
+      view.applyClassicEdgeAndShadow()
+    }
   }
 
   override func insertSubview(_ view: UIView, at index: Int) {
@@ -245,19 +268,19 @@ final class GlassView: ExpoView {
     applyShape()
   }
 
-  var isSolid: Bool { reduceTransparency }
+  var isSolid: Bool { reduceTransparency || surface == .classic }
 
   func render() {
     overrideUserInterfaceStyle = dark.map { $0 ? .dark : .light } ?? .unspecified
-    let solid = isSolid
-    if let applied, applied.tint == tint, applied.interactive == interactive, applied.solid == solid {
+    let classic = isSolid
+    if let applied, applied.tint == tint, applied.interactive == interactive, applied.classic == classic, applied.tinted == tinted, applied.colors == colors {
       applyShape()
       return
     }
-    applied = (tint, interactive, solid)
-    if solid {
+    applied = (tint, interactive, classic, tinted, colors)
+    if classic {
       effectView.effect = nil
-      effectView.backgroundColor = (tint ?? .secondarySystemBackground).withAlphaComponent(1)
+      effectView.backgroundColor = tinted ? UIColor(colors.look.surface) : .systemBackground
     } else {
       let glass = UIGlassEffect(style: .regular)
       glass.isInteractive = interactive
@@ -276,7 +299,30 @@ final class GlassView: ExpoView {
       effectView.cornerConfiguration = .uniformCorners(radius: .fixed(Double(cornerRadius)))
     }
     effectView.clipsToBounds = isSolid
-    effectView.layer.cornerRadius = isSolid ? (shape == .rounded ? cornerRadius : min(bounds.width, bounds.height) / 2) : 0
+    effectView.layer.cornerRadius = isSolid ? classicRadius : 0
+    effectView.layer.cornerCurve = .continuous
+    applyClassicEdgeAndShadow()
+  }
+
+  private var classicRadius: CGFloat {
+    shape == .rounded ? cornerRadius : min(bounds.width, bounds.height) / 2
+  }
+
+  private func applyClassicEdgeAndShadow() {
+    let classic = isSolid
+    effectView.layer.borderWidth = classic ? Self.classicEdgeWidth : 0
+    effectView.layer.borderColor = classic ? Self.classicEdge.resolvedColor(with: traitCollection).cgColor : nil
+    let shadows = classic && barShadow
+    layer.shadowOpacity = shadows ? 1 : 0
+    guard shadows else {
+      layer.shadowPath = nil
+      return
+    }
+    let dark = traitCollection.userInterfaceStyle == .dark
+    layer.shadowColor = UIColor.black.withAlphaComponent(dark ? 0.4 : 0.12).cgColor
+    layer.shadowRadius = Self.classicShadowRadius / 2
+    layer.shadowOffset = Self.classicShadowOffset
+    layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: classicRadius).cgPath
   }
 }
 
