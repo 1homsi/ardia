@@ -87,7 +87,8 @@ test("a file dialog cancelled at quit closes through Close and, if still open, t
   assert.match(source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts") , /await Promise\.race\(\[held, settled\(GIVE_UP_MS\)\]\);/);
   const held = source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts");
   assert.match(held, /if \(when === "shown"\) expectTrue\(await dialogWindowShown\(SHOWN_MS\), /, "the shown case waits for the dialog's own window, not only for the dialog thread to start");
-  assert.match(held, /run: \(\) => heldFileDialogCancels\(false, "starting"\),/);
+  assert.match(held, /run: \(\) => heldFileDialogCancels\(false, "atOnce"\),/);
+  assert.doesNotMatch(held, /while it is still starting/, "no check claims a cancel during startup it can't force");
   assert.match(held, /\$\{shownAtCancel \? "its window shown" : "still starting"\} at its cancel/);
   assert.match(native("ModalThread.h"), /if \(dialog && IsWindowVisible\(dialog\)\) shown\+\+;/);
   assert.match(native("DialogsModule.h"), /int shownCount\(\) noexcept \{ return DialogParts::ShownDialogCount\(\); \}/);

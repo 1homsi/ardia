@@ -82,7 +82,7 @@ async function dialogWindowShown(withinMs: number) {
   return false;
 }
 
-type CancelWhen = "shown" | "starting";
+type CancelWhen = "shown" | "atOnce";
 
 async function heldFileDialogCancels(save: boolean, when: CancelWhen) {
   const kind = save ? "save panel" : "file picker";
@@ -115,8 +115,8 @@ export const checks: Check[] = [
     run: () => heldFileDialogCancels(true, "shown"),
   },
   {
-    name: "a file picker the app cancels while it is still starting closes too, once its window would have shown",
-    run: () => heldFileDialogCancels(false, "starting"),
+    name: "a file picker the app cancels the moment its thread starts closes too (the log says whether its window had shown by then)",
+    run: () => heldFileDialogCancels(false, "atOnce"),
   },
   {
     name: "a second dialog for the same window waits until the first closes",
