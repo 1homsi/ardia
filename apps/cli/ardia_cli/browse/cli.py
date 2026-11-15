@@ -371,6 +371,7 @@ def read_beside(request: dict, config: dict, namespace: str, endpoint_key: str, 
         os.close(dir_fd)
     request = {**request, "options": {**request["options"], "_session": beside}}
     request.pop("beside_if_busy", None)
+    request["patient_queue"] = True
     answer = client.request(sock, request)
     answer.setdefault("metrics", {})["read_beside_busy"] = True
     return answer
@@ -532,7 +533,8 @@ def run(argv: list[str]) -> int:
     except paths.PathError as error:
         return print_error(BrowseError(str(error)), as_json)
     except KeyboardInterrupt:
-        sys.stderr.write("✗ interrupted\n")
+        sys.stderr.write("✗ interrupted\n" if rest[0] != "script" else
+                         "✗ interrupted. Whatever the script had put in `state` is kept: `ardia browse script 'return state'` prints it\n")
         return 130
     telemetry.note_answer(answer)
     write(answer.get("out") or "", sys.stdout)
