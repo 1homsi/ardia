@@ -2223,6 +2223,11 @@ so no real profile holds more history than that. How far it got:
   Evidence, with both stores, the Preferences plist, screenshots, trees and `mac sync` output:
   `/tmp/ardia-phone-shots/iphone-standin-upgrade/`.
 
+**A fresh connect on 0.88** (2026-11-16, the Expo build at cb2876bc7, clean install on lease cfc7a246, a scratch Mac
+seeded from the stand-in). Onboarding's Connect to Your Mac took the phrase (Enter Words, `fill --text-stdin`) and On My
+iPhone › Ardia Sync, and showed "Connected." The Mac listed one new phone (ci7pa7gk…). A tab sent from the Mac arrived
+once, marked from "shiv". A page opened on the phone appeared under its tabs on the Mac within one sync.
+
 **The stand-in run's before and after** (the real run reads the same things the same way):
 
 | Check | Before: main's SwiftUI app | After: the Expo build (a987eb84b) |
