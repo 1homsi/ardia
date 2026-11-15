@@ -39,6 +39,9 @@ int main() {
   auto kept = watch.Update(400);
   assert(kept.empty());
   assert(watch.NextCheckSeconds(400) == kActivePollSeconds);
+  assert((watch.IdleAmong({300, 900}) == std::vector<double>{300}));
+  assert(watch.IdleAmong({900}).empty());
+  assert(watch.IdleAmong({42}).empty());
   watch.Watch({});
   assert(watch.empty());
   IdleWatch far;
@@ -78,6 +81,14 @@ class SystemSignalsTests(unittest.TestCase):
             self.assertIn(f'.Append("{capability}")', bootstrap)
         self.assertIn('host->Event("ArdiaSystemSignals", "onSystemSignal"', host)
         self.assertIn('ardia::LinuxSystemSignals::Get().WatchIdle(id_, {});', host)
+
+    def test_a_watcher_that_registers_while_the_user_is_already_idle_hears_it_at_once(self):
+        signals = (LINUX / 'ac_linux_system_signals.cc').read_text()
+        watch = signals[signals.index('void LinuxSystemSignals::WatchIdle('):signals.index('void LinuxSystemSignals::Poll()')]
+        replay = watch.index('for (double threshold : idle_.IdleAmong(kept)) {')
+        self.assertLess(watch.index('idle_.Watch(all);'), replay)
+        self.assertLess(replay, watch.index('Poll();'), 'the replay goes first, so Poll only adds what changed since')
+        self.assertIn('.Set("threshold", threshold).Set("idle", true)', watch[replay:])
         build = (LINUX / 'BUILD.gn').read_text()
         for name in ['"ac_linux_system_signals.cc"', '"ac_linux_idle_policy.h"']:
             self.assertIn(name, build)

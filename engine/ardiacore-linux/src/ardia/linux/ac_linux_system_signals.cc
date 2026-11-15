@@ -73,6 +73,9 @@ void LinuxSystemSignals::WatchIdle(int watcher, const std::vector<double>& thres
   std::set<double> all;
   for (const auto& [id, set] : wanted_) all.insert(set.begin(), set.end());
   idle_.Watch(all);
+  for (double threshold : idle_.IdleAmong(kept)) {
+    Send(base::DictValue().Set("type", "idle").Set("threshold", threshold).Set("idle", true));
+  }
   poll_.Stop();
   if (!idle_.empty()) Poll();
 }

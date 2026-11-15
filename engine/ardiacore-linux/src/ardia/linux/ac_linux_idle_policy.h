@@ -40,6 +40,15 @@ class IdleWatch {
 
   bool empty() const { return idle_.empty(); }
 
+  std::vector<double> IdleAmong(const std::set<double>& thresholds) const {
+    std::vector<double> idle;
+    for (double threshold : thresholds) {
+      const auto found = idle_.find(threshold);
+      if (found != idle_.end() && found->second) idle.push_back(threshold);
+    }
+    return idle;
+  }
+
   std::vector<std::pair<double, bool>> Update(double idle_seconds) {
     std::vector<std::pair<double, bool>> changed;
     for (auto& [threshold, was] : idle_) {
