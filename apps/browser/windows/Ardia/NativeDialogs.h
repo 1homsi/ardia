@@ -58,23 +58,78 @@ inline HWND FileDialogWindow(IFileDialog *dialog) noexcept {
   return found;
 }
 
+struct FirstFolderEvents : winrt::implements<FirstFolderEvents, ::IFileDialogEvents> {
+  HRESULT __stdcall OnFileOk(IFileDialog *) noexcept override { return S_OK; }
+  HRESULT __stdcall OnFolderChanging(IFileDialog *, IShellItem *) noexcept override { return S_OK; }
+  HRESULT __stdcall OnFolderChange(IFileDialog *) noexcept override {
+    ModalWatch::NoteFirstFolder();
+    return S_OK;
+  }
+  HRESULT __stdcall OnSelectionChange(IFileDialog *) noexcept override { return S_OK; }
+  HRESULT __stdcall OnShareViolation(IFileDialog *, IShellItem *, FDE_SHAREVIOLATION_RESPONSE *response) noexcept override {
+    if (response) *response = FDESVR_DEFAULT;
+    return S_OK;
+  }
+  HRESULT __stdcall OnTypeChange(IFileDialog *) noexcept override { return S_OK; }
+  HRESULT __stdcall OnOverwrite(IFileDialog *, IShellItem *, FDE_OVERWRITE_RESPONSE *response) noexcept override {
+    if (response) *response = FDEOR_DEFAULT;
+    return S_OK;
+  }
+};
+
 struct FileDialogWatch {
-  FileDialogWatch(IFileDialog *dialog, std::string_view kind) noexcept : timing(kind) {
+  FileDialogWatch(IFileDialog *dialog, std::string_view kind) noexcept : timing(kind), m_dialog(dialog) {
+    ModalWatch::OpensFolders();
+    try {
+      winrt::com_ptr<::IFileDialogEvents> events = winrt::make_self<FirstFolderEvents>().as<::IFileDialogEvents>();
+      if (FAILED(dialog->Advise(events.get(), &m_events))) m_events = 0;
+    } catch (...) {
+      m_events = 0;
+    }
     ModalWatch::OnAbandon([this, dialog] {
       timing.cancelledAt = GetTickCount64();
       NoteCancel(timing.kind, L"cancelled (Close: " + HexResult(dialog->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED))) + L")");
-      ModalWatch::OnStubborn([this, dialog] {
-        HWND window = FileDialogWindow(dialog);
-        timing.byWindow = window && PostMessageW(window, WM_COMMAND, IDCANCEL, 0);
-        NoteCancel(timing.kind, timing.byWindow ? L"still open " + std::to_wstring(StubbornAfterMs) + L" ms after Close: sent Cancel to its window" : std::wstring{L"still open after Close, and no window to send Cancel to"});
-      });
+      CancelThroughWindow(dialog);
+      ModalWatch::OnStubborn([this, dialog] { CancelThroughWindow(dialog); });
     });
   }
-  ~FileDialogWatch() noexcept { ModalWatch::Disarm(); }
+
+  void CancelThroughWindow(IFileDialog *dialog) noexcept {
+    ULONGLONG now = GetTickCount64();
+    std::wstring since = std::to_wstring(now - timing.cancelledAt) + L" ms after Close";
+    HWND window = FileDialogWindow(dialog);
+    if (!window) {
+      if (!m_saidNoWindow) NoteCancel(timing.kind, L"has no window yet " + since + L": its Cancel waits for one");
+      m_saidNoWindow = true;
+      return;
+    }
+    bool visible = IsWindowVisible(window) != FALSE;
+    if (!PostMessageW(window, WM_COMMAND, IDCANCEL, 0)) return;
+    if (!timing.byWindow) {
+      timing.byWindow = true;
+      m_saidAt = now;
+      NoteCancel(timing.kind, L"sent Cancel to its window " + since + (visible ? L"" : L", not shown yet"));
+    } else if (now - m_saidAt >= StillOpenNoteMs) {
+      m_saidAt = now;
+      NoteCancel(timing.kind, L"still open " + since + L", its thread running: sent Cancel to its window again");
+    }
+  }
+  ~FileDialogWatch() noexcept {
+    ModalWatch::Disarm();
+    if (m_events) m_dialog->Unadvise(m_events);
+  }
   FileDialogWatch(FileDialogWatch const &) = delete;
   FileDialogWatch &operator=(FileDialogWatch const &) = delete;
 
   CancelTiming timing;
+
+ private:
+  static constexpr ULONGLONG StillOpenNoteMs = 500;
+
+  IFileDialog *m_dialog;
+  DWORD m_events = 0;
+  bool m_saidNoWindow = false;
+  ULONGLONG m_saidAt = 0;
 };
 
 inline HRESULT CALLBACK ConfirmEvents(HWND dialog, UINT notification, WPARAM, LPARAM, LONG_PTR data) noexcept {
