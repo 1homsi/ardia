@@ -10,7 +10,7 @@ import {
 } from "../../state/onboarding/onboarding";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, StyleSheet, View } from "react-native";
+import { Animated, findNodeHandle, Image, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { CircleButton, SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
@@ -54,17 +54,16 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const keys = useRef<View>(null);
   const muteStop = useRef<View>(null);
   const skipStop = useRef<View>(null);
-  const focusedStop = useRef(-1);
   const holdsKeys = introHoldsKeyboard({ live, leaving, tabReachesUnderOverlays: PLATFORM_FEATURES.tabReachesUnderOverlays });
 
   useEffect(() => {
     if (holdsKeys) keys.current?.focus();
   }, [holdsKeys]);
 
-  const tab = (shift: boolean) => {
+  const tab = (target: number | undefined, shift: boolean) => {
     const stops = [muteStop, skipStop];
-    focusedStop.current = nextIntroStop(focusedStop.current, shift, stops.length);
-    stops[focusedStop.current]?.current?.focus();
+    const focused = stops.findIndex((stop) => target !== undefined && stop.current !== null && findNodeHandle(stop.current) === target);
+    stops[nextIntroStop(focused, shift, stops.length)]?.current?.focus();
   };
 
   const finish = () => {
@@ -193,7 +192,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
           enableFocusRing={false}
           keyDownEvents={holdsKeys ? INTRO_TAB_KEYS : undefined}
           onKeyDown={(e) => {
-            if (holdsKeys && e.nativeEvent.key === "Tab") tab(e.nativeEvent.shiftKey);
+            if (holdsKeys && e.nativeEvent.key === "Tab") tab((e.nativeEvent as { target?: number }).target, e.nativeEvent.shiftKey);
           }}
         >
           <View style={{ position: "absolute", left: INTRO_LOOK.inset, bottom: INTRO_LOOK.inset }}>
