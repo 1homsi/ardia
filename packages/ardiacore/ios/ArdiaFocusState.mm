@@ -87,6 +87,7 @@ void WatchFocusChanges() {
     NoteFocusChange(@"app inactive", nil);
   }];
   WatchHover();
+  WatchPainting();
 }
 
 NSString *FocusState() {
@@ -105,6 +106,7 @@ NSString *FocusState() {
     [lines addObject:line];
   }
   [lines addObject:HoverProbeLine()];
+  [lines addObject:PaintProbeLine()];
   for (NSString *change in FocusHistory()) [lines addObject:[@"was " stringByAppendingString:change]];
   return [lines componentsJoinedByString:@"\n"];
 }
