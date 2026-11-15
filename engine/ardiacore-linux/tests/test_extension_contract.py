@@ -35,20 +35,25 @@ class ExtensionContractTests(unittest.TestCase):
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 namespace base {
 struct DictValue;
 struct Value {
-  enum Kind { kNone, kString, kBool, kDict } kind = kNone;
+  enum Kind { kNone, kString, kBool, kInt, kDict } kind = kNone;
   std::string text;
   bool flag = false;
+  int number = 0;
   std::shared_ptr<DictValue> dict;
   Value() = default;
   Value(std::string value) : kind(kString), text(std::move(value)) {}
   Value(const char* value) : Value(std::string(value)) {}
   Value(bool value) : kind(kBool), flag(value) {}
+  Value(int value) : kind(kInt), number(value) {}
   Value(DictValue value);
   bool is_bool() const { return kind == kBool; }
   bool is_string() const { return kind == kString; }
+  bool is_int() const { return kind == kInt; }
+  int GetInt() const { return number; }
   const std::string& GetString() const { return text; }
   Value Clone() const { return *this; }
 };
@@ -64,6 +69,10 @@ struct DictValue {
     auto found = values.find(key);
     return found != values.end() && found->second.is_bool() ? std::optional(found->second.flag) : std::nullopt;
   }
+  std::optional<int> FindInt(const char* key) const {
+    auto found = values.find(key);
+    return found != values.end() && found->second.is_int() ? std::optional(found->second.number) : std::nullopt;
+  }
   const DictValue* FindDict(const char* key) const {
     auto found = values.find(key);
     return found != values.end() ? found->second.dict.get() : nullptr;
@@ -76,7 +85,9 @@ struct DictValue {
 Value::Value(DictValue value) : kind(kDict), dict(std::make_shared<DictValue>(std::move(value))) {}
 }
 ARDIA_TRANSFORM
-struct Profile {};
+struct Profile {
+  bool IsOffTheRecord() const { return false; }
+};
 Profile profile;
 base::DictValue args;
 bool pinned = false;
@@ -129,6 +140,12 @@ struct ToolbarActionsModel {
   bool HasAction(const std::string&) { return true; }
   bool IsActionPinned(const std::string&) { return pinned; }
   void SetActionVisibility(const std::string&, bool value) { pinned = value; }
+  std::vector<std::string> order = {"first", "second", std::string(32, 'a')};
+  const std::vector<std::string>& pinned_action_ids() const { return order; }
+  void MovePinnedAction(const std::string& id, size_t index) {
+    order.erase(std::find(order.begin(), order.end(), id));
+    order.insert(order.begin() + static_cast<std::ptrdiff_t>(index), id);
+  }
 };
 ARDIA_BACKEND
 int main() {
@@ -139,6 +156,20 @@ int main() {
   Backend();
   assert(ok && error.empty());
   assert(pinned && files && withheld && scripts);
+  base::DictValue reorder;
+  reorder.Set("id", std::string(32, 'a')).Set("options", base::DictValue().Set("pinnedIndex", 0));
+  const auto moved = ExtensionConfiguration(reorder);
+  assert(moved);
+  args = *moved;
+  ok = false;
+  Backend();
+  assert(ok && error.empty());
+  assert(ToolbarActionsModel::Get(&profile)->pinned_action_ids().front() == std::string(32, 'a'));
+  base::DictValue misplaced;
+  misplaced.Set("id", std::string(32, 'a')).Set("options", base::DictValue().Set("pinnedIndex", -1));
+  assert(!ExtensionConfiguration(misplaced));
+  misplaced.Set("options", base::DictValue().Set("pinnedIndex", "0"));
+  assert(!ExtensionConfiguration(misplaced));
   base::DictValue invalid;
   invalid.Set("id", std::string(32, 'a')).Set("options", base::DictValue().Set("future", true));
   assert(!ExtensionConfiguration(invalid));

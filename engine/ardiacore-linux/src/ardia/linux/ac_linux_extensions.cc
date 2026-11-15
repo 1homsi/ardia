@@ -138,6 +138,8 @@ std::optional<base::DictValue> Configuration(const base::DictValue& input) {
       if (!value.is_string() ||
           (value.GetString() != "allSites" && value.GetString() != "specificSites" && value.GetString() != "onClick"))
         return std::nullopt;
+    } else if (key == "pinnedIndex") {
+      if (!value.is_int() || value.GetInt() < 0) return std::nullopt;
     } else {
       return std::nullopt;
     }
