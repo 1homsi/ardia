@@ -164,14 +164,16 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      which get `allow-jit` (`packages/ardiacore/scripts/signing`) instead; then the framework, then the app again with
      the entitlements the export gave it,
    - keeps the engine's symbols: `strip-engine.sh` copies the unstripped Chromium Framework, its libraries and crash
-    handler into `dist/<version>/symbols` before stripping them, and writes `symbols/uuids.txt`, one lowercase
-    `<UUID> <path inside the framework>` line each. A native crash event's `crash_images` list carries the same UUIDs
-    (the `Chromium Framework` one for these frames), so a frame such as `Chromium Framework + 0xee9858` resolves with
-    `atos -arch arm64 -o "symbols/Chromium Framework" -l <load address> <address>`, taking the copy whose UUID the event
-    names. `verify.sh` fails the release when `uuids.txt` has no Chromium Framework, or when a listed binary's UUID differs
-    from the copy in `symbols` or from the one left in the exported app (SwiftShader and its loader are pruned from the
-    app but kept in `symbols`),
-  - checks what an in-place update depends on: bundle id `com.ardia.browser`, executable `Ardia`, the
+     handler into `dist/<version>/symbols` before stripping them, and writes `symbols/uuids.txt`, one lowercase
+     `<UUID> <path inside the framework>` line each. A native crash event's `crash_images` list carries the same UUIDs
+     (the `Chromium Framework` one for these frames), so a frame such as `Chromium Framework + 0xee9858` resolves with
+     `atos -arch arm64 -o "symbols/Chromium Framework" -l <load address> <address>`, taking the copy whose UUID the event
+     names. `verify.sh` fails the release when `uuids.txt` has no Chromium Framework, or when a listed binary's UUID differs
+     from the copy in `symbols` or from the one left in the exported app (SwiftShader and its loader are pruned from the
+     app but kept in `symbols`). Nothing uploads the directory yet: a release built locally keeps it in `dist`, and the
+     Release workflow's runner drops it with the rest of `dist` after the sign job, until a `symbols` artifact step is
+     added to the workflow,
+   - checks what an in-place update depends on: bundle id `com.ardia.browser`, executable `Ardia`, the
      designated requirement (our team), the keychain groups, Sparkle's feed and key and the usage strings in
      `Info.plist`; that every piece of code is Developer ID with a timestamp and no `get-task-allow`; and that the app
      is signed with `com.apple.developer.web-browser.public-key-credential` exactly when its provisioning profile
@@ -261,10 +263,8 @@ the engine if `engine/` changed (below).
   run if the checkout changed, and only then it runs the launch check (`--phase check`, the final app opened hidden, uBO
   must be ready, the signature must survive), checks the zip's EdDSA signature against the app's `SUPublicEDKey`
   (`.github/release/check-sparkle.sh <dist> <version>`, so a `SPARKLE_ED_PRIVATE_KEY` that doesn't match the app
-  fails here instead of on every update) and uploads the DMG, zip, appcast, notes and CLI tarball as the `release`
-  artifact, and `dist/<version>/symbols` as the `symbols` artifact (kept 90 days; the symbols
-  are not release assets and `publish.sh` never touches them, so download them from the run before they expire when a
-  build stays in use longer). A failed launch check or a missing `symbols` directory fails the run, so nothing publishes.
+  fails here instead of on every update) and uploads the DMG, zip, appcast, notes and CLI tarball. A failed launch check
+  fails the run, so nothing publishes.
   Every `actions/*` step is pinned by commit SHA.
 - **publish** tags the commit and runs `publish.sh`. Before creating anything, `publish.sh` refuses a build that isn't
   above every other build in the merged feed, and a stable whose version isn't above the
