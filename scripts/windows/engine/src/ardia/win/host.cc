@@ -47,6 +47,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_entry.h"
+#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
@@ -644,6 +645,7 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
     Place(window, hosted);
   }
   hosted.shown = key;
+  performance_manager::PageLiveStateDecorator::SetIsActiveTab(contents, true);
   ardiacore::NoteTabInShownSlot(contents);
   ardiacore::NoteTabShownByHost(contents, true);
   return Ok();
@@ -1052,6 +1054,7 @@ void Host::Hide(Browser* browser, Hosted& hosted) {
   }
   if (content::WebContents* shown = Find(hosted.shown)) {
     ardiacore::NoteTabShownByHost(shown, false);
+    performance_manager::PageLiveStateDecorator::SetIsActiveTab(shown, false);
     if (ExclusiveAccessManager* manager =
             ExclusiveAccessManager::From(browser)) {
       manager->OnTabDeactivated(shown);
