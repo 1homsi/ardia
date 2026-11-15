@@ -5,6 +5,7 @@ import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from ".
 import { privateSessionOpened } from "./privateWindows";
 import type { ExternalAppRequest, NavigationState, OpenWindowRequest } from "@ardia/ardiacore";
 import type { CoverRect } from "./covers";
+import type { ExternalApps } from "./domains/externalApps";
 import { notePageAsked, notePageSettled } from "./dialogPages";
 import { noteShowStep } from "./showTrace";
 import { popupFeatures } from "./popupPlacement";
@@ -51,11 +52,7 @@ const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
 let lastAskedToFocus: Page | null = null;
-type ExternalAppAnswers = {
-  ask: (profile: string, page: string, data: unknown) => Promise<ExternalAppRequest | null>;
-  forget: (id: string) => void;
-  forgetPage: (page: string) => void;
-};
+type ExternalAppAnswers = Pick<ExternalApps, "forget" | "forgetPage"> & { ask: (profile: string, page: string, data: unknown) => Promise<ExternalAppRequest | null> };
 
 let externalAppAnswers: ExternalAppAnswers | null = null;
 
