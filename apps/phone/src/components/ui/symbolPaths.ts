@@ -205,6 +205,16 @@ export const SYMBOLS = {
   star: [{ d: "M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z", stroke: STROKE }],
   starFill: [{ d: "M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z", fill: true }],
   paperplane: [{ d: "M3.5 11.2L20.5 3.5l-6.8 17-3-6.9z" + line(10.7, 13.6, 20.5, 3.5), stroke: STROKE }],
+  folderBadgeQuestionmark: [
+    { d: "M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l1.8 2h9a1.5 1.5 0 0 1 1.5 1.5V12M3 7.5v10A1.5 1.5 0 0 0 4.5 19h8", stroke: STROKE },
+    { d: "M15.6 15a2.2 2.2 0 1 1 3 2.05c-.6.25-.9.6-.9 1.2M17.7 20.6h.01", stroke: STROKE },
+  ],
+  exclamationmarkArrowTriangle2Circlepath: [
+    { d: "M5.2 9.5A7.5 7.5 0 0 1 18 7M18.8 14.5A7.5 7.5 0 0 1 6 17M18 3.6V7h-3.4M6 20.4V17h3.4M12 8.8v3.8M12 15.4h.01", stroke: STROKE },
+  ],
+  exclamationmarkIcloud: [
+    { d: "M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.3 4.6 4.6 0 0 0 7 18.5zM12 9.8v3.8M12 16.1h.01", stroke: STROKE },
+  ],
   folderFill: [{ d: "M3 7a2 2 0 0 1 2-2h4.2l2 2.2H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", fill: true }],
   lockFill: [{ d: roundRect(5, 10.5, 14, 10, 2.2), fill: true }, { d: "M8 10.5V7.8a4 4 0 0 1 8 0v2.7", stroke: STROKE }],
   wifiSlash: [{ d: "M2.8 9.2a13.5 13.5 0 0 1 18.4 0M5.8 12.4a9 9 0 0 1 12.4 0M8.9 15.6a4.6 4.6 0 0 1 6.2 0" + line(4, 4, 20, 20) + circle(12, 19, 0.6), stroke: STROKE }],
