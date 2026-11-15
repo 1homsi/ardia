@@ -4,6 +4,7 @@ import type { Check } from "./check";
 import { checks as appSystemChecks } from "./appSystem";
 import { checks as engineCallChecks } from "./engineCalls";
 import { checks as engineHostChecks } from "./engineHost";
+import { checks as passwordLoginChecks, stageChecks } from "./passwordLogins";
 import { checks as engineBackForwardChecks } from "./engineBackForward";
 import { popupWindowChecks } from "./popupWindow";
 import { checks as externalAppChecks } from "./externalApps";
@@ -32,7 +33,7 @@ import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, pagePictureChecks, materialChecks, windowDragChecks, popupWindowChecks, fileDropChecks, focusChecks, idleTimeChecks, textFocusChecks, launchLinkChecks, engineHostChecks, engineBackForwardChecks, engineCallChecks, importChecks, importFirefoxChecks, introMusicChecks, desktopCallChecks, externalAppChecks, syncChecks, heldDialogChecks, meadowChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, pagePictureChecks, materialChecks, windowDragChecks, popupWindowChecks, fileDropChecks, focusChecks, idleTimeChecks, textFocusChecks, launchLinkChecks, engineHostChecks, engineBackForwardChecks, engineCallChecks, importChecks, importFirefoxChecks, introMusicChecks, desktopCallChecks, externalAppChecks, syncChecks, heldDialogChecks, meadowChecks, passwordLoginChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -40,7 +41,7 @@ export async function runSelfCheck() {
   let passed = 0;
   let failed = 0;
   const only = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig().test.selfCheckOnly;
-  for (const check of [...areas.flat(), ...registeredChecks()].filter((each) => !only || each.name.startsWith(only))) {
+  for (const check of stageChecks() ?? [...areas.flat(), ...registeredChecks()].filter((each) => !only || each.name.startsWith(only))) {
     try {
       await check.run();
       passed += 1;
