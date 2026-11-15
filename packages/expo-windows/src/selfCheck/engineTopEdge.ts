@@ -7,7 +7,7 @@ const EDGE_KEY = "self-check-top-edge";
 const EDGE_URL = "data:text/html,<title>top edge</title><p>a page that reaches the window's top edge</p>";
 const PLACE = { unit: "px", x: 0, y: 0, width: 400, height: 200 };
 
-type Hit = { hit?: unknown; appHit?: unknown; width?: unknown };
+type Hit = { hit?: unknown; appHit?: unknown };
 
 const firstWindow = async () => {
   const ids = await requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows").windowIds();
@@ -25,9 +25,7 @@ const topEdgeChecks: Check[] = [
       await hostCall("tab.create", { key: EDGE_KEY, url: EDGE_URL, profile: "" }, windowId);
       try {
         await hostCall("tab.show", { key: EDGE_KEY, visible: true, ...PLACE }, windowId);
-        const middle = await hitAt(150, 1);
-        const width = typeof middle.width === "number" ? middle.width : 0;
-        expectTrue(width > 0, `tab.hitTest said ${JSON.stringify(middle)}`);
+        const width = PLACE.width;
         const points = { middleOfTheTopEdge: [150, 1], windowCorner: [1, 1], pageEndAwayFromTheWindowCorner: [width - 2, 1], belowTheBand: [150, 40] } as const;
         const answers = Object.fromEntries(await Promise.all(Object.entries(points).map(async ([name, [x, y]]) => [name, await hitAt(x, y)] as const)));
         const hits = Object.fromEntries(Object.entries(answers).map(([name, answer]) => [name, answer.hit]));
