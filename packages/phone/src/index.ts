@@ -1,6 +1,7 @@
 export { blocking } from "./blocking";
 export { defaultBrowser, type DefaultBrowserStatus } from "./defaultBrowser";
 export { downloads } from "./downloads";
+export type { DownloadedFile, DownloadedFileKind } from "./downloads";
 export {
   legacy,
   legacyImport,
