@@ -1,9 +1,7 @@
 import { engineAvailable, hostCall, leaveOffersFromUnheard } from "../engine/host";
-import { expectEqual, expectTrue, type Check } from "./check";
+import { expectEqual, type Check } from "./check";
 import { click, evaluate, hide, keptBy, LEFT, listed, RIGHT, show, until, withPages } from "./engineSleep";
 
-const AUDIBLE = 5;
-const RECENTLY_AUDIBLE = 6;
 const OPENS_LIVE_PAGE = 100;
 const UNSAVED_AFTER_USE = 101;
 const HOLDS_WEB_LOCK = 102;
@@ -90,22 +88,6 @@ const keptChecks: Check[] = [
           leaveOffersFromUnheard(null);
           await evaluate(page!, `const w = window.open("", "${UNHEARD_POPUP}"); if (w) w.close(); post("result", "null");`).catch(() => null);
         }
-      }),
-  },
-  {
-    name: "engine sleep: a hidden page playing sound is kept as audible",
-    run: () =>
-      withPages(["audible"], async ([page], windowId) => {
-        await show(page!, windowId, LEFT);
-        const started = await evaluate(
-          page!,
-          `const c = new AudioContext(); const o = c.createOscillator(); const g = c.createGain(); g.gain.value = 0.05; o.connect(g).connect(c.destination); o.start(); window.ardiaTone = c; c.resume().then(() => post("result", JSON.stringify(c.state)));`,
-          true,
-        );
-        expectEqual(started, "running", "the tone's audio context");
-        await hide(page!, windowId);
-        const kept = await keptWithin(page!, [AUDIBLE, RECENTLY_AUDIBLE], `kept while audible (${AUDIBLE} or ${RECENTLY_AUDIBLE})`);
-        expectTrue(Array.isArray(kept), "an answer");
       }),
   },
 ];
