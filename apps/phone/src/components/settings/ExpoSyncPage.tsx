@@ -55,7 +55,7 @@ export function ExpoSyncPage() {
   return (
     <Form modifiers={modifierList(settingsPage("Sync With Mac"), tint(PlatformColor("systemBlue")), settingsChrome(), status.isEnabled ? refreshable(syncNow) : null)}>
       <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: PAGE_INSET, bottom: 0, trailing: PAGE_INSET })]}>
-        <Hero title="Sync With Mac" subtitle={hero.text}>
+        <Hero title="Sync With Mac" subtitle={hero.text} warning={hero.isWarning}>
           {off ? (
             <Button onPress={() => pushSettings({ page: "syncConnect" })} modifiers={[buttonStyle("borderedProminent"), buttonBorderShape("capsule"), controlSize("large"), tint(theme.primaryAction), foregroundStyle(theme.onPrimaryAction), padding({ top: 8 })]}>
               <Text modifiers={[frame({ maxWidth: FILL })]}>Connect to Your Mac</Text>
@@ -156,10 +156,10 @@ export function ExpoSyncPage() {
   );
 }
 
-function Hero({ title, subtitle, children }: { title: string; subtitle: string; children?: ReactNode }) {
+function Hero({ title, subtitle, warning, children }: { title: string; subtitle: string; warning: boolean; children?: ReactNode }) {
   if (settingsUIAvailable()) {
     return (
-      <SettingsHeroContent title={title} subtitle={subtitle} systemImage="macbook.and.iphone" tint="sync">
+      <SettingsHeroContent title={title} subtitle={subtitle} subtitleIsWarning={warning} systemImage="macbook.and.iphone" tint="sync">
         {children}
       </SettingsHeroContent>
     );
