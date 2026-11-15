@@ -1,6 +1,6 @@
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
 import { forwardRef, useImperativeHandle, useRef, type Ref } from "react";
-import type { NativeSyntheticEvent, ViewProps } from "react-native";
+import { Platform, type NativeSyntheticEvent, type ViewProps } from "react-native";
 import { nativeFieldColor, type NativeColor } from "./completingField";
 import { normalizeState } from "./normalize";
 import { pages } from "./pages";
@@ -59,7 +59,7 @@ export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageV
       ref={native}
       toneInsets={toneInsets ? [toneInsets.top, toneInsets.bottom] : undefined}
       obscuredInsets={obscuresInsets && obscuredInsets ? [obscuredInsets.top, obscuredInsets.bottom] : undefined}
-      surfaceColor={nativeFieldColor(surfaceColor)}
+      surfaceColor={Platform.OS === "android" ? nativeFieldColor(surfaceColor) : undefined}
       onPageEvent={onPageEvent}
     />
   );
