@@ -9,7 +9,7 @@ import { cleanUpWithUndo, closeAllTabs } from "./clearTabs";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { movePinnedTitle, togglePinnedRows } from "./movePinned";
 import { setSidebarUi } from "./sidebarUi";
-import { tidyPins } from "./tidyPinsUi";
+import { tidy } from "./tidyUi";
 import { switcherStep } from "./switcher";
 
 export function runSidebarCommand(command: BrowserCommand, arg: string | null, windowId: string): boolean {
@@ -33,7 +33,7 @@ export function runSidebarCommand(command: BrowserCommand, arg: string | null, w
       closeAllTabs(windowId);
       return true;
     case "tidyPins":
-      tidyPins(windowId);
+      tidy(windowId, "pins");
       return true;
     case "searchTabs":
       setSidebarUi({ searchTabs: windowId, hover: null });
@@ -71,7 +71,9 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
     const bar = s.windowUi[windowId]?.panel;
     if (selected.length > 1 && !bar?.open && !bar?.newTab) titles.closeTab = `Close ${plural(selected.length, "Tab")}`;
   }
-  const recentlyClosedGroups: MenuEntry[] = [...s.closedGroups]
+  const w = windowId ? s.windows[windowId] : undefined;
+  const recentlyClosedGroups: MenuEntry[] = s.closedGroups
+    .filter((c) => !w || w.kind === "private" || c.tabs[0]?.profileId === w.profileId)
     .reverse()
     .slice(0, 10)
     .map((c) => ({ id: c.id, title: `${c.group.name} (${plural(c.tabs.length, "Tab")})` }));
