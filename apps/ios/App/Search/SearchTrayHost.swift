@@ -34,7 +34,11 @@ struct SearchTrayHost: View {
       motion.startTrackingKeyboard()
       motion.barTarget = { [app] in Self.barTarget(in: app) }
     }
-    .onChange(of: reduceMotion, initial: true) { _, reduced in motion.reduceMotion = reduced }
+    .onChange(of: reduceMotion, initial: true) { _, reduced in
+      motion.reduceMotion = reduced
+      reserveBarPill()
+    }
+    .onChange(of: screenLayout) { _, _ in reserveBarPill() }
     .task { await SearchSuggestionsModel.loadRecents(from: app.tabs) }
     .onChange(of: app.browse.search, initial: true) { _, request in
       if let request {
@@ -71,9 +75,9 @@ struct SearchTrayHost: View {
     removalTask?.cancel()
     if shown == nil || motion.isClosing { presentation += 1 }
     shown = request
+    reserveBarPill()
     app.browse.trayHoldsKeyboard = true
     app.browse.isBarLanding = false
-    app.browse.trayMorphsIntoBar = morphsIntoBar
     motion.present(dimLevel: request.origin == .page ? BrowseLayout.trayDim : 0.001) { [app] in app.cancelSearch() }
   }
 
@@ -121,8 +125,13 @@ struct SearchTrayHost: View {
     !reduceMotion && screenLayout == .phone
   }
 
+  private func reserveBarPill() {
+    guard app.browse.search != nil else { return }
+    app.browse.trayMorphsIntoBar = morphsIntoBar
+  }
+
   private var morphLook: TrayMorphLook? {
-    guard morphsIntoBar else { return nil }
+    guard app.browse.trayMorphsIntoBar else { return nil }
     let isIncognito = app.isIncognito
     return TrayMorphLook(
       usesGlass: usesGlass,
