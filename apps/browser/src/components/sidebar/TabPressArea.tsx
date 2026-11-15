@@ -8,7 +8,7 @@ import { middleClickTab } from "../../state/sidebar/clearTabs";
 import { dismissHover } from "../../state/sidebar/hover";
 import { openTabMenu } from "../../state/sidebar/menus";
 import { clickHeldTabPress, holdTabPress } from "../../state/sidebar/heldTabPress";
-import { ContextMenuArea, MouseArea } from "../ui";
+import { ContextMenuArea } from "../ui";
 
 export function TabPressArea({
   windowId,
@@ -27,24 +27,23 @@ export function TabPressArea({
 }) {
   const plainTooltip = useSettings((s) => !s.showTabHoverMenu);
   return (
-    <MouseArea onMiddleClick={() => middleClickTab(tab.id)} style={style}>
-      <ContextMenuArea
-        onContextMenu={() => {
-          dismissHover();
-          void openTabMenu(windowId, tab);
-        }}
-        style={style}
+    <ContextMenuArea
+      onMiddleClick={() => middleClickTab(tab.id)}
+      onContextMenu={() => {
+        dismissHover();
+        void openTabMenu(windowId, tab);
+      }}
+      style={style}
+    >
+      <Pressable
+        onPressIn={(e) => holdTabPress(windowId, tab.id, e)}
+        onPress={(e) => clickHeldTabPress(windowId, tab.id, e)}
+        style={pressStyle}
+        tooltip={tooltip ?? (plainTooltip ? titleTooltip(tab) : undefined)}
       >
-        <Pressable
-          onPressIn={(e) => holdTabPress(windowId, tab.id, e)}
-          onPress={(e) => clickHeldTabPress(windowId, tab.id, e)}
-          style={pressStyle}
-          tooltip={tooltip ?? (plainTooltip ? titleTooltip(tab) : undefined)}
-        >
-          {children}
-        </Pressable>
-      </ContextMenuArea>
-    </MouseArea>
+        {children}
+      </Pressable>
+    </ContextMenuArea>
   );
 }
 
