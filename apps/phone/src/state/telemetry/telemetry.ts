@@ -1,8 +1,8 @@
 import { AppState } from "react-native";
 import { lookBudget, systemLook } from "../../platform/look";
 import { create } from "zustand";
-import { createGate, type SharingSource } from "../../lib/telemetryGate";
-import { launchProps, legacyImportOutcome, pendingUsage, type Counted } from "../../lib/telemetrySchema";
+import { createGate, DAILY_KEY, type SharingSource } from "../../lib/telemetryGate";
+import { COUNTED, launchProps, legacyImportOutcome, parseDaily, pendingUsage, type Counted } from "../../lib/telemetrySchema";
 import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt, setUsageConsent, takePendingCounts } from "../../platform/telemetry";
 import { appearanceTelemetry } from "../../lib/appearance";
 import { useBoot } from "../app/bootState";
@@ -72,4 +72,11 @@ export async function reportLaunch(firstScreenAt: number) {
   gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures, look_mode: look, ...appearanceTelemetry(interfaceStyle, schemeChoice) });
   const timings = launchProps(await processStartedAt(), JS_STARTED_AT, firstScreenAt);
   if (timings) gate.capture("perf_launch", timings);
+}
+
+export function usageToday(): { day: string | null; counts: Partial<Record<Counted, number>>; sharing: boolean } {
+  const daily = parseDaily(readPreferences(browserDatabase())[DAILY_KEY] ?? null);
+  const counts: Partial<Record<Counted, number>> = {};
+  if (daily) for (const field of COUNTED) if (daily[field] > 0) counts[field] = daily[field];
+  return { day: daily?.day ?? null, counts, sharing: gate.isSharing() };
 }
