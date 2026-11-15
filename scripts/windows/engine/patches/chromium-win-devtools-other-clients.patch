@@ -37,3 +37,17 @@
  }
  
  }  // namespace content
+--- a/content/browser/devtools/devtools_agent_host_impl.h
++++ b/content/browser/devtools/devtools_agent_host_impl.h
+@@ -37,6 +37,11 @@
+ // Describes interface for managing devtools agents from the browser process.
+ class CONTENT_EXPORT DevToolsAgentHostImpl : public DevToolsAgentHost {
+  public:
++  // Ardia: reads the sessions to tell the engine's own clients from others.
++  friend bool ArdiaHasOtherDevToolsClient(
++      DevToolsAgentHost* host,
++      const std::vector<const DevToolsAgentHostClient*>& ours);
++
+   // Returns DevToolsAgentHost with a given |id| or nullptr of it doesn't exist.
+   static scoped_refptr<DevToolsAgentHostImpl> GetForId(const std::string& id);
+ 
