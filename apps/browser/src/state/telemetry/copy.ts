@@ -101,6 +101,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, how many Little Ardia windows you closed by swiping back or started to and let go, summed up once an hour",
       "How many Little Ardia windows you closed with Escape, and whether the page had the keyboard, nothing in the window did, or the window was still blank, summed up once an hour",
+      "How many Little Ardia windows closed on their own because their page opened another app, and how many times closing a Little Ardia window brought back the app you came from, summed up once an hour. Never which app or page",
       "How many links from other apps opened as a tab or in Little Ardia, each with whether Settings › General › Open links from other apps in Little Ardia was on, summed up once an hour. Never which links or which app",
       "How many links from other apps an Air Traffic Control rule routed, and how many went by its Everything Else choice, summed up once an hour. Never which links, rules, apps or profiles",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, how many times its control pill appeared and how many of those were shrunk to an icon and Stop, and how many times Ardia installed or upgraded the ardia command (on its own the first time, after an update, or from Settings) and whether that worked, and whether it turned on control after installing it on its own",
@@ -216,7 +217,7 @@ export const LOCAL_COPY = {
 
 const ADDED_ITEMS = {
   Usage: [
-    "How many times the first-launch intro was shown, how many of those started with its music muted, and how many were skipped, summed up once an hour",
+    "How many times the first-launch intro was shown, how many of those started with its music muted, how many were skipped and how many played to the end, and on Windows how many showed the moving meadow, the still picture, or the still picture after the meadow failed, and the time the meadow took to draw its first frame, rounded to a tenth of a second, summed up once an hour",
     "On Windows, how many animations ran and how many of their frames came late, summed up once an hour",
     "On Windows, how many links Ardia opened that it was started with while it wasn't running, summed up once an hour. Never which links or which app",
     "How many times you asked to make Ardia your default browser (on Windows, how many times that opened Windows Settings), and whether Ardia was your default browser when it started, summed up once an hour",

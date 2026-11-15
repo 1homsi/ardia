@@ -1,5 +1,5 @@
 import { fieldFocusedIn } from "../appKeyboard";
-import { hostCall, onEngineTopic } from "./host";
+import { discardOffered, hostCall, onEngineTopic } from "./host";
 import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 import { privateSessionOpened } from "./privateWindows";
@@ -387,14 +387,12 @@ export function releasePage(key: string) {
   if (page.mounts <= 0) closePage(page);
 }
 
+export async function pageGone(key: string, waits = 25): Promise<void> {
+  for (let left = waits; left > 0 && pages.has(key); left--) await new Promise((done) => setTimeout(done, 16));
+  await closings.get(key);
+}
+
 export function pageOpened(key: string): Promise<boolean> {
   const page = pages.get(key);
   return page && !page.closed ? page.ready : Promise.resolve(false);
-}
-
-export function discardOffered(adopt: string): Promise<boolean> {
-  return hostCall("tab.discard", { adopt }).then(
-    () => true,
-    () => false,
-  );
 }

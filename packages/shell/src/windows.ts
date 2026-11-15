@@ -35,6 +35,7 @@ export type OpenWindowOptions = {
   chromeWindow?: string;
   claim?: string;
   pointer?: [number, number];
+  returnTo?: string;
   animated?: boolean;
 };
 
