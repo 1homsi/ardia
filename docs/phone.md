@@ -1215,7 +1215,7 @@ folder first (619ede040 on Android, `pickFolder` on iPhone); the launch argument
 target height as its animation starts (5bf60a7fa); the onboarding step across a recreated activity (82d93e298).
 Inline completion is in and waits on a phone (the checklist below). Since then, in and waiting on a phone (tester steps 56 to 61): site permissions asking Android first (610f0578d), pull to refresh on Compose's spring and accent with the profile's surface behind a swipe (397f87ce4, fbefd2967), the pager's display corner (9e3bc50f9, 080cb4000), the widgets' Color (9a1014d1f, 35f46a55d), the bar thumbnail taken on the way out (14bbb3d2f; the lag was the 700 ms settle delay), the share sheet with Send to Your Mac (d2ecc1416, its sends counted through 48ce2cb87) and the tray's predictive back (76f0509d3, a1da434a0). What is left:
 
-- Release builds use R8 by default since sync20b (98684363b; `build-apk --no-r8` for the control): 90.1 to 57.6 MB. sync19-r8 passed the F4 with nothing failing on the shrunk build only, and the upgrade pair is built with it.
+- Release builds use R8 by default since sync20b (98684363b; `build-apk --no-r8` for the control): 90.1 to 57.6 MB with arm64-v8a and x86_64, both Expo builds; arm64-v8a only it is 38.9 MB (8af216ccb; "Size on Android" has the parts and the Compose release beside them). sync19-r8 passed the F4 with nothing failing on the shrunk build only, and the upgrade pair is built with it.
 - The tray's predictive back swipe (step 61) is still unseen on a device. The F4 is on 3-button navigation, which MIUI won't change, and the M3 is Android 13 and quarantined. The Simlock Pixel 8 (Android 15) would not start: "Remote daemon is unavailable", then on the retry "Daemon request timed out". It needs a working Simlock Android daemon, or an Android 14+ phone with gesture navigation.
 
 ### The iPhone redesign
@@ -1449,6 +1449,70 @@ ARDIA_LAB=0 apps/phone/scripts/gradle-locked :app:bundleRelease
 
 To see the lab with Metro, start it with `EXPO_PUBLIC_ARDIA_LAB=true pnpm -C apps/phone dev` and run a debug
 build from `gradle-locked`.
+
+### Size on Android
+
+What a phone downloads and installs, measured on 2026-11-15 from store builds of 266764af8 (R8 on, lab off) and the
+Compose app's non-debuggable release (`ardia-compose-release.apk`, R8 and resource shrinking). "Download" is the
+APK with every entry deflated, about what the Play Store sends; a directly downloaded APK costs its file size.
+
+| Packaging | File | Download | Installed on an arm64 phone |
+| --- | --- | --- | --- |
+| Expo, arm64-v8a and x86_64 (the release build until 8af216ccb) | 57.7 MB | about 14.5 MB | the whole file, 57.7 MB |
+| Expo, arm64-v8a only (`build-apk`'s default since 8af216ccb) | 38.9 MB | about 10.2 MB | 38.9 MB |
+| Expo app bundle (`build-apk --bundle`), what Play hands an arm64 phone | 25.4 MB AAB (with debug symbols) | about 10 MB | about 39 MB |
+| Compose release, arm64-v8a and x86_64 | 16.9 MB | | |
+| Compose release, arm64-v8a only (its x86_64 libraries taken out) | about 12.0 MB | about 5.5 MB | about 12 MB |
+
+By part, arm64-v8a only:
+
+| Part | Expo | Compose |
+| --- | --- | --- |
+| Native libraries | 18.1 MB (6.1 deflated) | 4.7 MB (1.8 deflated) |
+| Dex after R8 | 14.7 MB (5.7 deflated) | 5.5 MB (2.8 deflated) |
+| JS bundle (Hermes bytecode) | 3.9 MB (1.7 deflated) | none |
+| Resources and assets | about 1.5 MB | about 1.3 MB |
+| The lab's share | about 0.06 MB of the bundle in a lab build, none in a store build | none |
+
+The Expo build stores the native libraries, the dex and the bundle uncompressed (37.8 of its 38.9 MB), so Android
+maps them straight from the APK: what the file costs is what the phone keeps.
+
+Where the 18 MB of native code goes: React Native 5.9 MB, Hermes 2.1, expo-sqlite 1.8 (the app's database), Reanimated
+1.4, Expo's modules core 1.3, the C++ runtime 1.3, the generated app modules 1.0, worklets 0.9, SVG 0.7 (the logo and
+the sync pictures), Fresco's image transcoder 0.6, then JSI, fbjni, safe-area, Hermes tooling, our script shim and
+CameraX's two small libraries. The page engine is the system WebView, so it costs nothing here; sync is Kotlin and
+sits in the dex. The Compose app carries its own Hermes (2.7 MB, for the sync script) and the C++ runtime (1.3 MB).
+
+Where the 14.7 MB of dex goes, by the classes' original package: kotlin.reflect 1.1 MB (Expo's modules need it),
+React Native 1.0, Compose UI, runtime and Glance 1.6 together (the widgets and the share sheet), CameraX 1.0 (only
+the sync code scanner), our own code 0.5, Expo's Kotlin layer 0.5, then AndroidX, OkHttp, kotlinx and the rest.
+
+On an arm64 phone the Expo app is about three times the Compose release, 38.9 MB against about 12. The difference
+is React Native itself: its libraries, Hermes, Reanimated and Expo's modules come to about 13 MB of native code the
+Compose app doesn't have, the JS bundle adds 3.9 MB, and React Native's and Expo's Kotlin about 3 MB of dex.
+
+Nothing big can go without losing something:
+- x86_64 runs only on emulators and a few Chromebooks, so release builds leave it out; `--abi arm64-v8a,x86_64`
+  builds it for an x86_64 emulator. Nothing 32-bit is built, so a 32-bit-only phone can't install the app.
+- There are no fonts, and no image or resource shipped twice (under 2 KB of duplicates).
+- expo-sqlite, SVG, Reanimated, worklets and kotlin.reflect are in use.
+- CameraX serves only the sync code scanner, which a release build hides; it stays for now.
+
+Packaging (`apps/phone/scripts/build-apk`):
+
+```
+build-apk <name> --store --bundle               the Play Store's app bundle, <name>.aab, checked on <name>-universal.apk
+build-apk <name> --store                        a direct-download APK, arm64-v8a only, libraries and dex stored
+build-apk <name> --store --compress libs,dex    the same with libraries and dex compressed, about 16 MB to download
+```
+
+The same arm64-v8a store build packed four ways (8af216ccb): libraries and dex stored 38.9 MB, libraries compressed
+26.8 MB, dex compressed 30.0 MB, both compressed 17.9 MB. The universal APK made from the AAB is 30.1 MB, because
+bundletool compresses its dex.
+
+`--compress` is not the default yet: the F4 compares cold start (to the first frame and, by logcat's "Fully drawn"
+line, to the app's own UI) and the first deck open against the stored build, with each one's installed size. Every
+R8 build has to pass `check-names.py`.
 
 ### iPhone
 
