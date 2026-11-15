@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { ReactTestInstance } from "react-test-renderer";
 import { act } from "react-test-renderer";
 import { SettingsView } from "../components/settings/SettingsView";
@@ -16,6 +17,8 @@ const hidden = (node: ReactTestInstance | null): boolean => {
 const exposed = (root: ReturnType<typeof renderSurface>, label: string) =>
   root.root.findAll((node) => typeof node.type === "string" && !hidden(node) && (node.props.accessibilityLabel === label || (node.type === "Text" && node.props.children === label)));
 
+const onAndroid = Platform.OS === "android" ? test : test.skip;
+
 beforeEach(() => {
   jest.useFakeTimers();
   withTabs(1);
@@ -26,7 +29,7 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-test("a switch row is one screen-reader element with the switch role, and the whole row toggles, as Compose's toggleable row", () => {
+onAndroid("on the hand-built Settings Android keeps, a switch row is one screen-reader element with the switch role, and the whole row toggles, as Compose's toggleable row", () => {
   const setting = jest.spyOn(settingsActions, "setSearchSuggestions").mockImplementation(() => undefined);
   openSettings();
   const root = renderSurface(<SettingsView />);

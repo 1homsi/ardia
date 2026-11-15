@@ -58,7 +58,7 @@ test("with the native module each view mounts by its native name with its props,
   expect(ui.settingsUIAvailable()).toBe(true);
   for (const [name, [native, props]] of Object.entries(VIEWS)) {
     const root = render(createElement(ui[name as keyof typeof VIEWS] as never, props as never));
-    const mounted = root.root.findByType(native as never);
+    const mounted = root.root.findAll((node) => node.type === native)[0]!;
     expect(mounted.props).toMatchObject(props);
     act(() => root.unmount());
   }

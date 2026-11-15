@@ -49,3 +49,23 @@ export function closeSettings() {
 }
 
 export const settingsNav = () => useSettingsNav.getState();
+
+const SIMPLE_PAGES = new Set<SettingsRoute["page"]>(["root", "appearance", "searchEngine", "siteSettings", "filterLists", "myFilters", "trustedSites", "clearData", "sync", "defaultBrowser", "syncConnect", "about", "licenses", "whatsSent"]);
+
+export const settingsRouteKey = (route: SettingsRoute): string => (route.page === "filterList" ? `filterList:${route.id}` : route.page);
+
+export function settingsRouteFromKey(key: string): SettingsRoute | null {
+  if (key.startsWith("filterList:")) return { page: "filterList", id: key.slice("filterList:".length) };
+  return SIMPLE_PAGES.has(key as SettingsRoute["page"]) ? ({ page: key } as SettingsRoute) : null;
+}
+
+export const settingsPath = (stack: readonly SettingsRoute[]): string[] => stack.slice(1).map(settingsRouteKey);
+
+export function followSettingsPath(path: readonly string[]) {
+  const { open, stack } = useSettingsNav.getState();
+  if (!open) return;
+  const routes = path.map(settingsRouteFromKey).filter((route): route is SettingsRoute => route !== null);
+  const next: SettingsRoute[] = [stack[0] ?? { page: "root" }, ...routes];
+  if (next.length === stack.length && next.every((route, index) => settingsRouteKey(route) === settingsRouteKey(stack[index]!))) return;
+  useSettingsNav.setState({ stack: next, popping: next.length < stack.length });
+}

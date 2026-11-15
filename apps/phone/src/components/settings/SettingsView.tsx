@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import Animated, { SlideInLeft, SlideInRight, SlideOutRight } from "react-native-reanimated";
 import { refreshSettings } from "../../state/settings/actions";
 import { useSettingsNav, type SettingsRoute } from "../../state/settings/hooks";
@@ -14,12 +14,13 @@ import { SyncPage } from "../sync/SyncPage";
 import { DefaultBrowserPage } from "./DefaultBrowserPage";
 import { WhatsSentPage } from "./WhatsSentPage";
 import { popSettings } from "../../state/settings/nav";
+import { ExpoSettingsStack } from "./ExpoSettingsStack";
 
 const push = SlideInRight.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
 const reveal = SlideInLeft.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
 const leave = SlideOutRight.springify().stiffness(tabsMotion.sheetOut.stiffness).damping(tabsMotion.sheetOut.damping);
 
-function Page({ route }: { route: SettingsRoute }) {
+export function SettingsPageFor({ route }: { route: SettingsRoute }) {
   switch (route.page) {
     case "root":
       return <SettingsRoot />;
@@ -55,6 +56,11 @@ function Page({ route }: { route: SettingsRoute }) {
 }
 
 export function SettingsView() {
+  if (Platform.OS === "ios") return <ExpoSettingsStack />;
+  return <HandBuiltSettings />;
+}
+
+function HandBuiltSettings() {
   const open = useSettingsNav((s) => s.open);
   const stack = useSettingsNav((s) => s.stack);
   const popping = useSettingsNav((s) => s.popping);
@@ -72,7 +78,7 @@ export function SettingsView() {
       exiting={popping && open ? leave : undefined}
       style={StyleSheet.absoluteFill}
     >
-      <Page route={last.route} />
+      <SettingsPageFor route={last.route} />
     </Animated.View>
   );
 }

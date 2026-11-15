@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { SettingsView } from "../components/settings/SettingsView";
 import { ChromeSurface, chromeInk, DesignProvider, useTheme } from "../components/ui";
@@ -33,6 +33,8 @@ function withSync(look: MacLook | null, enabled = true) {
 function useDesignFor(design: Design) {
   act(() => setAppearanceDesign(design));
 }
+
+const onAndroid = Platform.OS === "android" ? test : test.skip;
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -89,7 +91,7 @@ function frostUnder(glass: ReactTestInstance) {
   return glass.findAll((node) => node.type === lookModule.Frost)[0];
 }
 
-test("the original Settings keeps Compose's colour row and has no Appearance row", () => {
+onAndroid("the original Settings keeps Compose's colour row and has no Appearance row", () => {
   openSettings();
   const root = settings("original");
   expect(pressable(root, "Appearance")).toBeUndefined();
@@ -98,7 +100,7 @@ test("the original Settings keeps Compose's colour row and has no Appearance row
   unmount(root);
 });
 
-test("the redesigned Settings has main's Appearance row, summarised as Match My Mac until something is chosen, in place of the colour row", () => {
+onAndroid("the hand-built redesigned Settings, which Android keeps until its turn, has main's Appearance row, summarised as Match My Mac until something is chosen, in place of the colour row", () => {
   openSettings();
   const root = settings("redesigned");
   const row = pressable(root, "Appearance")!;
@@ -116,7 +118,8 @@ test("the Appearance page has main's choices: Color, Interface Style (Match My M
   openSettings({ page: "appearance" });
   const root = settings("redesigned");
   const text = textOf(root);
-  for (const line of ["Appearance", "Color", "Interface Style", "Light or Dark", "Glass", "Classic", "System", "Light", "Dark"]) expect(text).toContain(line);
+  if (Platform.OS === "android") expect(text).toContain("Appearance");
+  for (const line of ["Color", "Interface Style", "Light or Dark", "Glass", "Classic", "System", "Light", "Dark"]) expect(text).toContain(line);
   expect(text).toContain("Match My Mac follows your Mac. Reduce Transparency in iOS Settings always uses Classic.");
   expect(text).toContain("Match My Mac follows your Mac. System follows this device.");
   const choices = root.root.findAll((node) => node.props.accessibilityRole === "button" && node.props.accessibilityState && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);

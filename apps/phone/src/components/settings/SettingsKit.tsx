@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle, type ScrollViewInstance, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
 import { duration, FloatingMenu, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, ToggleTrack, useTheme, type MenuItem, type SymbolName } from "../ui";
+
+export const SettingsHostedContext = createContext(false);
 
 type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean; onRefresh?: () => Promise<unknown>; heroTitle?: boolean; overlay?: ReactNode; dismissesKeyboard?: boolean };
 
@@ -28,9 +30,18 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
     titleOpacity.value = withSpring(titleShown ? 1 : 0, settingsMotion.titleFade);
   }, [titleShown, titleOpacity]);
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleOpacity.value }));
+  const hosted = useContext(SettingsHostedContext);
   return (
     <View style={StyleSheet.absoluteFill}>
       <LookBackdrop />
+      {hosted ? (
+        leading || trailing ? (
+          <View testID="settingsHostedActions" style={styles.hostedActions}>
+            <View style={styles.topSide}>{leading}</View>
+            <View style={[styles.topSide, styles.end]}>{trailing}</View>
+          </View>
+        ) : null
+      ) : (
       <View style={[styles.top, { paddingTop: frame ? 0 : insets.top }]}>
         <View style={styles.topSide}>
           {onBack ? (
@@ -52,6 +63,7 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
         </Animated.Text>
         <View style={[styles.topSide, styles.end]}>{trailing}</View>
       </View>
+      )}
       {scroll ? (
         <ScrollView
           ref={list}
@@ -252,6 +264,7 @@ export function EmptyState({ title, message, icon }: { title: string; message: s
 }
 
 const styles = StyleSheet.create({
+  hostedActions: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: space.s },
   top: { flexDirection: "row", alignItems: "center", minHeight: settingsLayout.topBar, paddingHorizontal: space.s },
   topSide: { flex: 1, flexDirection: "row", alignItems: "center" },
   end: { justifyContent: "flex-end" },

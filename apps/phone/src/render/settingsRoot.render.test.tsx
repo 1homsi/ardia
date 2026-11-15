@@ -1,4 +1,4 @@
-import { Dimensions, StyleSheet } from "react-native";
+import { Platform, Dimensions, StyleSheet } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { SettingsView } from "../components/settings/SettingsView";
 import { settingsTint } from "../components/ui";
@@ -25,6 +25,8 @@ function shortcutsDirection(root: ReturnType<typeof renderSurface>) {
   return styleOf(shortcuts).flexDirection;
 }
 
+const onAndroid = Platform.OS === "android" ? test : test.skip;
+
 beforeEach(() => {
   jest.useFakeTimers();
   withTabs(1);
@@ -36,14 +38,14 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-test("at ordinary text sizes the sync card has a 56-point tile beside its text and the shortcuts sit side by side", () => {
+onAndroid("on the hand-built Settings Android keeps, at ordinary text sizes the sync card has a 56-point tile beside its text and the shortcuts sit side by side", () => {
   const root = renderSurface(<SettingsView />);
   expect(syncTileSide(root)).toBe(56);
   expect(shortcutsDirection(root)).toBe("row");
   unmount(root);
 });
 
-test("at accessibility text sizes the sync card stacks a 44-point tile above its text and the shortcuts stack", () => {
+onAndroid("on the hand-built Settings Android keeps, at accessibility text sizes the sync card stacks a 44-point tile above its text and the shortcuts stack", () => {
   setFontScale(2);
   const root = renderSurface(<SettingsView />);
   expect(syncTileSide(root)).toBe(44);
@@ -53,7 +55,7 @@ test("at accessibility text sizes the sync card stacks a 44-point tile above its
   unmount(root);
 });
 
-test("the sync card's status line crossfades when it changes and doesn't fade in when Settings opens", () => {
+onAndroid("on the hand-built Settings Android keeps, the sync card's status line crossfades when it changes and doesn't fade in when Settings opens", () => {
   const root = renderSurface(<SettingsView />);
   const line = () => root.root.findAll((node) => node.props.testID === "syncStatusLine" && node.props.exiting !== undefined)[0];
   const first = line()!;

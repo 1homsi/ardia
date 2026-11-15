@@ -1,5 +1,5 @@
 {
-  "inputs": "a58af00623e3840616ba77988c189af0313e37a2b24837ef59f273aac8f41f7b",
+  "inputs": "b39e864fb396bd028e509e916f3c1f53b0a669a43481a149e487196903b6842e",
   "packages": [
     {
       "name": "@babel/runtime",
@@ -16,6 +16,12 @@
     {
       "name": "@expo/devtools",
       "version": "58.0.2",
+      "license": "MIT",
+      "url": "https://github.com/expo/expo"
+    },
+    {
+      "name": "@expo/ui",
+      "version": "58.0.28",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
@@ -249,6 +255,9 @@
         "androidx.camera:camera-camera2",
         "androidx.camera:camera-lifecycle",
         "androidx.camera:camera-view",
+        "androidx.compose.foundation:foundation-android",
+        "androidx.compose.ui:ui-android",
+        "androidx.compose.material3:material3",
         "androidx.compose.ui:ui-text"
       ],
       "license": "Apache-2.0",

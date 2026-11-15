@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { BrowsingScreen } from "../components/browsing/BrowsingScreen";
 import { OnboardingView } from "../components/onboarding/OnboardingView";
 import { SearchTray } from "../components/search/SearchTray";
@@ -38,7 +39,8 @@ test("a page shows its bottom bar", () => {
 test("Settings opens on its root page", () => {
   openSettings();
   const root = renderSurface(<SettingsView />);
-  expect(textOf(root)).toContain("Settings");
+  if (Platform.OS === "ios") expect(root.root.findAll((node) => node.props.testID === "expoSettings" && typeof node.type === "string")).toHaveLength(1);
+  else expect(textOf(root)).toContain("Settings");
   unmount(root);
 });
 
