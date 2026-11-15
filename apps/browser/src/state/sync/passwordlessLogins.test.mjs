@@ -24,7 +24,7 @@ test("a login the engine lists as passwordless is neither uploaded nor read as a
   assert.equal(extracted.ignore(KEPT), false);
 });
 
-test("a synced password for a login the engine lists as passwordless isn't written over it here; the feedback thread decides that repair", async () => {
+test("a synced password is never written over a login this machine lists as passwordless", async () => {
   const saved = [];
   const adapter = adapterWith(saved);
   await adapter.extract();

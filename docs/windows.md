@@ -884,10 +884,10 @@ sealed exactly as `packages/sync/ios/Core/SyncCrypto.swift` seals it. The engine
   password: Chromium stores such logins (an imported one with an empty password, a username-only one), and on disk
   they look the same as a damaged blob, so the engine lists them and Sync decides. The native side passes it on
   unsealed (`SyncLogins::SealedLogins`), and Sync's password adapter neither uploads it nor reads it as a deletion
-  (`ignore`), and doesn't write a synced password over it. Before passwords sync on Windows (#1425), Sync must treat
-  every error as "skip this cycle, delete nothing", and decide what a passwordless login means: one it never knew
-  stays local; one it knew with a password is local damage, so it must not upload the blank or delete the remote
-  copy (repairing it from the remote copy is the feedback thread's call). The Mac drops such a login silently (#1933).
+  (`ignore`), and never writes a synced password over it: such a login stays as it is on this machine and nothing about
+  it is uploaded, and a damaged row is the user's to fix by saving the password again. Before passwords sync on
+  Windows (#1425), Sync must treat every error as "skip this cycle, delete nothing". The Mac drops such a login
+  silently (#1933).
 - Passwords, once the engine lists them: `ac_passwords_logins` is called and its reply sealed in C++ (`SyncSystem.h`),
   and a synced password is opened only to hand it to `ac_passwords_add`. The Mac's vault files carry plaintext `p` in `pw:` records, as the Mac
   writes them; `SyncLogins.h` swaps them for sealed `s` before JS sees a document (escaped keys included; a login it
