@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { ClipView, ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
@@ -6,6 +6,7 @@ import { TintInk } from "../ui/TintInk";
 import { useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
 import { collapsedSidebarHeader, useAddressBarInSidebar, useDownloadsInSidebarFooter, usePageFrameInset, useSidebarCaptionRoom, useSidebarHeaderCollapsed, useToolbarLightsCenter } from "../../state/windows/layout";
+import { closeAnchoredWhenControlsRowChanges } from "../../state/sidebar/controlsRowChange";
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
@@ -19,13 +20,13 @@ import { SidebarDropArea } from "./SidebarDropArea";
 import { FolderPanel } from "./FolderPanel";
 import { dismissHover, dismissHoverIn } from "../../state/sidebar/hover";
 import { PinFieldZone, PinSlotZone } from "./PinnedGrid";
-import { ResizeHandle } from "./ResizeHandle";
 import { bottomFieldBand, SIDEBAR_FIELD, SIDEBAR_FIELD_BOTTOM, SIDEBAR_FOOTER_DOWNLOADS, sidebarHeaderOf } from "./geometry";
 import { useNewTabAtTop, useSidebarField, useSidebarPart } from "../../state/sidebar/chrome";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { openSidebarMenu } from "../../state/sidebar/menus";
 import { GLOW_ROOM, rowPitch, type SidebarGeometry } from "./pageLayout";
 import { SidebarPage } from "./SidebarPage";
+import { SidebarTextScope } from "./SidebarTextScope";
 import { SidebarRowLookContext, useSidebarRowLookSource } from "./rowLook";
 import { useRevealTabs } from "./useRevealTabs";
 
@@ -76,12 +77,14 @@ export function Sidebar({ width }: { width: number }) {
 
   useRevealTabs(windowId, scroll, scrollY, geometry);
   useLayoutEffect(() => dismissHoverIn(windowId), [windowId, current, paging]);
+  useEffect(() => closeAnchoredWhenControlsRowChanges(windowId), [windowId]);
 
   return (
     <DragProvider>
       {(ghost: Ghost | null, controller) => {
         drag.current = controller;
         return (
+          <SidebarRowLookContext.Provider value={rowLook}>
           <SidebarDropArea
             ref={(v) => {
               controller.root = v;
@@ -99,8 +102,7 @@ export function Sidebar({ width }: { width: number }) {
               }}
               onLayout={(e) => setAvailable(e.nativeEvent.layout.height)}
             >
-              <SidebarRowLookContext.Provider value={rowLook}>
-                {pages.map((page) => (
+              {pages.map((page) => (
                   <SidebarPage
                     key={page.id}
                     profileId={page.id}
@@ -117,7 +119,6 @@ export function Sidebar({ width }: { width: number }) {
                     onScrollY={onScrollY}
                   />
                 ))}
-              </SidebarRowLookContext.Provider>
             </ClipView>
 
             <TintInk>
@@ -153,7 +154,6 @@ export function Sidebar({ width }: { width: number }) {
               </View>
             </TintInk>
 
-            <ResizeHandle windowId={windowId} />
             {ghost && !ghost.landing && nothingPinned ? (
               field === "top" ? (
                 <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
@@ -161,9 +161,12 @@ export function Sidebar({ width }: { width: number }) {
                 <PinSlotZone top={header - sidebarHeaderOf(addressBar, lightsY, false)} />
               )
             ) : null}
-            <FolderPanel windowId={windowId} />
-            {ghost ? <DragGhost ghost={ghost} /> : null}
+            <SidebarTextScope>
+              <FolderPanel windowId={windowId} />
+              {ghost ? <DragGhost ghost={ghost} /> : null}
+            </SidebarTextScope>
           </SidebarDropArea>
+          </SidebarRowLookContext.Provider>
         );
       }}
     </DragProvider>

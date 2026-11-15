@@ -2,6 +2,7 @@ import { listExtensions } from "../../platform/extensions";
 import { stepPager } from "../../platform/pager";
 import { confirm } from "../../platform/dialogs";
 import { focusWindow } from "../../platform/windows";
+import { managesWindowClose } from "../../platform/windowClose";
 import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
 import { pageToProfile } from "../windows/profilePager";
 import { profileNames, requestCreateProfile } from "../profiles/createProfileRequest";
@@ -12,8 +13,9 @@ import { leavesEmptyWindow } from "../omnibox/newTabBarPolicy";
 import { groupLabel } from "../pins/tabGrouping";
 import { sharingProfiles } from "../profiles/profiles";
 import { closeWindowAnimated } from "../windows/closeAnimated";
+import { quitWarningMayAsk } from "../windows/quitWarning";
 import { applyHeldReports } from "../../platform/nativeEvents";
-import { closeWindowDialog, unpinnedOpenTabIds } from "../windows/windowClose";
+import { asksBeforeClosingLastTab, decideLastTabClose } from "../windows/windowClose";
 import { menuCommandAlternate, menuShortcut } from "../commands/commandShortcuts";
 import { openSettings } from "../settings/settingsWindows";
 import { profileAccentOf } from "../profiles/looks";
@@ -47,11 +49,11 @@ export async function closeTab(tabId: string) {
   const w = tab && s.windows[tab.windowId];
   if (!tab || !w) return;
   const last = closesWindow(s, tabId) && !leavesEmptyWindow(s, tabId);
-  const open = unpinnedOpenTabIds(w.id);
-  if (last && s.settings.warnBeforeClosingLastTab && w.kind !== "private" && open.length) {
-    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(w.id, open), suppression: "Don’t ask me again", windowId: w.id });
-    if (suppressed) store().updateSettings({ warnBeforeClosingLastTab: false });
-    if (!confirmed) return;
+  if (last && managesWindowClose(w.id, "lastTab")) return;
+  if (last && (asksBeforeClosingLastTab(w.id) || quitWarningMayAsk())) {
+    const { decision, suppressWarning } = await decideLastTabClose(w.id);
+    if (suppressWarning) store().updateSettings({ warnBeforeClosingLastTab: false });
+    if (decision === "cancel") return;
     applyHeldReports();
   }
   const now = store();

@@ -3,11 +3,13 @@ import { ClipView } from "./ClipView";
 import { ThemeSwatch, WindowBackdrop } from "./backdrop";
 import { DockSelection } from "./DockSelection";
 import { FadeLabel } from "./FadeLabel";
+import { FolderIcon } from "./FolderIcon";
 import { ContextMenuArea, FileDrop, MagnifyArea, MouseArea, OutsidePressArea, WindowProfile } from "./inputAreas";
 import { GlassEffect, GlassGroup, PopoverBubble, VisualEffect } from "./materials";
 import type { ViewByName } from "./shared";
 import { Surface } from "./Surface";
 import { SwipeArea } from "../pager/SwipeArea";
+import { MeadowPage } from "../meadow/MeadowPage";
 
 export { OutsidePressRoot } from "./inputAreas";
 
@@ -28,6 +30,8 @@ export const viewsDrawnInJs = new Map<string, ViewByName>([
   ["ArdiaFileDrop", FileDrop],
   ["ArdiaThemeSwatch", ThemeSwatch],
   ["ArdiaDockSelection", DockSelection],
+  ["ArdiaFolderIcon", FolderIcon],
   ["ArdiaWindowProfile", WindowProfile],
   ["ArdiaSwipe", SwipeArea],
+  ["ArdiaMeadowPage", MeadowPage],
 ]);

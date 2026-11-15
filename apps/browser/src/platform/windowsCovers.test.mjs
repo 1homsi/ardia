@@ -17,6 +17,14 @@ test("a Peek's page keeps the card behind it, and the page under the Peek gets t
   assert.deepEqual(holesFor(peekPage, [{ x: 0, y: 0, width: 50, height: 50, radius: 0 }], true), [], "a cover elsewhere cuts nothing");
 });
 
+test("the intro's page sits above the whole window, so the browser's covers under it cut no holes in it", () => {
+  const introPage = { x: 0, y: 0, width: 1300, height: 860 };
+  const sidebarField = { x: 20, y: 38, width: 215, height: 42, radius: 10 };
+  const newTabSearch = { x: 356, y: 300, width: 815, height: 140, radius: 16 };
+  assert.equal(holesFor(introPage, [sidebarField, newTabSearch], false).length, 2, "an ordinary page under them would be cut");
+  assert.deepEqual(holesFor(introPage, [sidebarField, newTabSearch], false, true), []);
+});
+
 const { coversIn } = await import("../../../../packages/expo-windows/src/engine/covers.ts");
 const { coverClip, coverMeasurer, watchClips } = await import("../../../../packages/expo-windows/src/engine/coverClip.ts");
 
