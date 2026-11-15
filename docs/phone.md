@@ -540,6 +540,68 @@ off in the lab`.
       Look on should now be within a point or two of look off. If it is not, the FRAMES line names what is still
       being redrawn.
 
+56. **Site permissions ask Android first** (from sync18). On a fresh install, with no camera, microphone or location
+    permission granted:
+    - Open webcamtests.com and start the test. Android's own camera dialog comes first; the site's Allow dialog
+      appears only after Android grants. Allow it: the camera picture shows.
+    - Open a map and tap its "my location" button. Android's location dialog first; approximate location is
+      enough for the site's dialog to follow.
+    - Clear Ardia's permissions (Settings › Apps), open the camera test again and refuse in Android's dialog: no site
+      dialog follows, and logcat has `PAGELAB page request camera refused by Android: the site's request ends
+      without a dialog`.
+    - A permission Android already holds goes straight to the site's dialog with no Android dialog.
+57. **Pull to refresh** (from sync18). Pull a page down past the trigger and let go: the spinner is the Ardia blue
+    (#6395FC, #4A77D4 in dark), the pull holds at 56 dp while the page reloads and springs back with a slight
+    overshoot when it is done. A short pull that doesn't reach the trigger springs back the same way. On a page with
+    no background colour of its own, swipe back from the edge: what shows behind is the profile's surface colour,
+    not plain white or black.
+58. **The widgets take the Color setting** (from sync19b). With the Search and Your Mac's Tabs widgets on the home
+    screen, set Settings › Color to green: both widgets turn green within a few seconds; set it back to the
+    profile's colour: they follow. Force-stop Ardia and switch the phone between light and dark: they keep the
+    chosen colour.
+59. **The pager rounds pages to the display's corner** (from sync18). On Android 12 or later, swipe slowly between
+    tabs on the bar: the moving page's corners match the screen's own rounded corners. On an older phone they stay
+    at 55. Report the phone and whether the corners line up.
+60. **Share sheet** (from sync19b).
+    - Signed in (sync connected to the Mac): in Chrome, open a page, then Share › Ardia. A sheet rises over Chrome
+      with "Open in Ardia" and "Send to Your Mac" ("Your Devices" when another phone receives tabs). Tap Send to
+      Your Mac: "Sent to …" shows and the sheet closes itself after about 1.4 s, Chrome still in front; the tab
+      arrives on the Mac. Repeat with Ardia force-stopped first: the send still arrives (it waits up to 20 s for
+      sync to load).
+    - Share again and tap Open in Ardia: Ardia opens the page as a new tab.
+    - Share plain text from a notes app: the sheet offers "Search in Ardia", which runs that search.
+    - Signed out (sync off): sharing a page offers Open in Ardia and the sync hint, no Send.
+    - Back or a tap outside closes the sheet; Chrome is untouched and Ardia doesn't appear in Recents.
+61. **The tray follows predictive back** (from sync19b, Android 14 or later). Open the tray and swipe back slowly
+    from the screen's edge: the tray moves down with the finger, up to 72 dp. Let go early: it springs back and
+    stays open. Swipe all the way: it closes as Back did before. With the tray closed, Back works as before
+    everywhere else (menus, dialogs, the Archive). Before Android 14, Back simply closes the tray.
+
+#### R8 pass (sync19-r8 and later R8 builds)
+
+`apps/phone/scripts/build-apk <name> --r8` shrinks the release with R8 (`android.enableMinifyInReleaseBuilds`).
+The keep rules are in `apps/phone/android/app/proguard-rules.pro`. R8's reports (`mapping.txt`, `usage.txt`,
+`seeds.txt`, `configuration.txt`) land in `<name>-r8/` beside the APK in `/tmp/ardia-phone`.
+`apps/phone/test/r8/check-names.py <r8 apk> <unshrunk apk>` checks that what Android and the JavaScript reach by
+name survived. R8 renames the libraries' classes, so a crash's stack trace names classes like `a.b.c`: run
+`~/Library/Android/sdk/cmdline-tools/latest/bin/retrace <name>-r8/mapping.txt <trace.txt>` (or paste the trace into
+Android Studio's "Analyze Stack Trace" with the mapping) to read it with the real names. Report the trace and its
+retraced form together.
+
+Start the pass where R8 is most likely to have broken something, then run the whole checklist:
+1. Sync: connect with the phrase, scan the sync code with the camera, send a tab, receive one, open Spaces
+   (serialisation, CameraX and ML Kit).
+2. Background sync and widgets: add both widgets, change Color, leave the app in the background and check a tab
+   sent from the Mac arrives (WorkManager, Room, Glance).
+3. The share sheet, signed in and out (step 60).
+4. What the native modules pass as structured values: the deck's page pictures, alert, confirm, prompt,
+   permission and file-chooser requests, downloads, typing with inline completion (Expo's reflection).
+5. Gestures and animation: deck scroll, tray drag, pull to refresh, swipe back and forward, the tray's predictive
+   back (Reanimated, worklets, gesture handler).
+6. Voice search, and the camera or video capture from a page's file chooser.
+7. Fullscreen video (media3).
+8. The lab: the deck-parts, frames and memory broadcasts and the Look section's buttons.
+
 ## Upgrade from the Compose app on Android
 
 Both apps are `com.ardia.browser.android`, so the Expo app installs over the Compose app and finds its files.
@@ -959,15 +1021,9 @@ Checked against the log on 2026-11-15. In, and used by the app: the fade view's 
 Without Them (248b3f68a, with Compose's per-site settings in 1b33e2c47 and 191db304a); sync connect picking the
 folder first (619ede040 on Android, `pickFolder` on iPhone); the launch arguments (4e6ea841a); the keyboard's
 target height as its animation starts (5bf60a7fa); the onboarding step across a recreated activity (82d93e298).
-Inline completion is in and waits on a phone (the checklist below). What is left:
+Inline completion is in and waits on a phone (the checklist below). Since then, in and waiting on a phone (tester steps 56 to 61): site permissions asking Android first (610f0578d), pull to refresh on Compose's spring and accent with the profile's surface behind a swipe (397f87ce4, fbefd2967), the pager's display corner (9e3bc50f9, 080cb4000), the widgets' Color (9a1014d1f, 35f46a55d), the bar thumbnail taken on the way out (14bbb3d2f; the lag was the 700 ms settle delay), the share sheet with Send to Your Mac (d2ecc1416, its sends counted through 48ce2cb87) and the tray's predictive back (76f0509d3, a1da434a0). What is left:
 
-- Search tray predictive back: native done. `trayBack` (`ArdiaPhoneBack`) puts a callback above React Native's on the back dispatcher while the tray is up (`trayBack.setEnabled(true)`) and reports the gesture: `onProgress(progress, edge)`, `onCancel`, `onCommit`. The manifest now has `enableOnBackInvokedCallback="true"`, so Android 14 sends progress; React Native 0.81 already handles Back through the same dispatcher. The tray follows `progress × TRAY_BACK_TRAVEL` (72 dp, as Compose's `SearchTrayHost`), springs back on cancel and closes on commit: `SearchTray.tsx`.
-- Share sheet (done): sharing text to Ardia opens Compose's own share sheet (`ShareSheetModel`, `ShareSheetView`, compiled into the Expo app) over the sharing app: Open in Ardia, or Search in Ardia for plain text, and Send to Your Mac (or Your Devices) for a link while sync is on. `PhoneShareActivity` sends through the native sync controller, waiting up to 20 s for it to load as Compose does, and opens links through `ardia://` in the main activity.
-- Bottom bar: the tab thumbnail lags because a tab's picture is taken `SNAPSHOT_SETTLE_MS` (700 ms) after its page settles, so a tab left sooner keeps its old picture; Compose shows the cover it grabbed on the way out (`BottomBar.kt` `TabThumbnail`, `covers.image`). The capture-to-file path is native and short; the lab's `PAGELAB snapshot …` line now says `captured in N ms, written in M ms`. The fix is in `store.ts`: capture the leaving tab's cover as it is left.
-- Page permission order (done): as Compose, a site's camera, microphone or location request first asks Android when it doesn't hold the permission; the site's Allow dialog reaches JavaScript only once Android grants it (approximate location is enough), and a refusal ends the request without a dialog. Native: `PhonePages.gateThenSend`, `SitePermissionGate`.
-- Pull to refresh (done natively): the pull settles on Compose's snappy spring (response 0.3 s, damping 0.86) and the spinner is Compose's loading accent (#6395FC, #4A77D4 dark). The swipe-to-navigate target takes `surfaceColor` from PageView, falling back to black or white until the screens pass the profile's surface. `PageGestures.kt` `SnappySpring`.
-- Tab pager corner radius: `system.displayCornerRadius()` gives the display's real top corner in points on Android 12+ (`WindowInsets.getRoundedCorner`, as Compose's `rememberDisplayCornerRadius`), null before that or on a square screen; the pager uses it in place of the fixed 55 when not null. Native done; `TabPager.tsx` swaps the constant.
-- Widgets and the Color setting: checked, they did not take it (SystemExport passed no colour choice; Compose passes `settings.colorChoice`). Native done: `system.setWidgetColorChoice(choice)` stores it (`WidgetColorChoice`, kept across launches) and the widget export combines it as Compose does; the screens call it when the Color preference changes and at launch.
+- Release builds use R8 (`build-apk --r8`, 98684363b): 90.1 to 57.6 MB on sync19. It becomes the default for release builds, and the upgrade pair is rebuilt with it, once an R8 build passes a phone (the R8 pass below the tester steps).
 
 ### The iPhone redesign
 
