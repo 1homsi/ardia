@@ -297,9 +297,19 @@ let autofillIds = 0;
 export const profileToggles = {
   user: new Map<string, Partial<Record<AutofillToggle, boolean>>>(),
   extension: new Map<string, Partial<Record<AutofillToggle, boolean>>>(),
+  unloaded: new Set<string>(),
+  unloadable: new Set<string>(),
 };
-const profileToggle = (profile: string, name: AutofillToggle) => profileToggles.extension.get(profile)?.[name] ?? profileToggles.user.get(profile)?.[name] ?? true;
+const withProfile = (profile: string) => {
+  if (profileToggles.unloadable.has(profile)) throw new Error("profile not loaded");
+  profileToggles.unloaded.delete(profile);
+};
+const profileToggle = (profile: string, name: AutofillToggle) => {
+  withProfile(profile);
+  return profileToggles.extension.get(profile)?.[name] ?? profileToggles.user.get(profile)?.[name] ?? true;
+};
 const setProfileToggle = (profile: string, name: AutofillToggle, on: boolean | undefined) => {
+  withProfile(profile);
   if (on !== undefined) profileToggles.user.set(profile, { ...profileToggles.user.get(profile), [name]: on });
 };
 
