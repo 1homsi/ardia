@@ -59,4 +59,4 @@ export function sendTabStripCommand(command: TabStripCommand): number {
 
 export type LinkRoute = { profile?: string; adoptIds?: (string | null)[]; dismissed?: number[] };
 
-export type WindowRequest = { request: OpenWindowRequest; profile: string };
+export type WindowRequest = { request: OpenWindowRequest; profile: string; fromWindow?: string };

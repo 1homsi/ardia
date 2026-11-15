@@ -15,7 +15,7 @@ const dropOffered = (request: OpenWindowRequest) => {
   if (request.adoptId) void discardOffered(request.adoptId).catch(() => false);
 };
 
-export function openFromWindowlessPage(asked: OpenWindowRequest, profile: string) {
+export function openFromWindowlessPage(asked: OpenWindowRequest, profile: string, fromWindow?: string) {
   const request: OpenWindowRequest = NEEDS_A_TAB.has(asked.disposition) ? { ...asked, disposition: "foreground" } : asked;
   const s = useBrowser.getState();
   const profileId = s.profileOrder.find((id) => engineProfile(s, id) === profile);
@@ -30,5 +30,6 @@ export function openFromWindowlessPage(asked: OpenWindowRequest, profile: string
     dropOffered(request);
     return void openWindow({ kind: "private", url: request.url, profileId });
   }
-  openWindow({ url: request.url, adoptId: asAdoptId(request.adoptId), profileId });
+  const behind = request.disposition === "background" && fromWindow ? { opensBehind: fromWindow } : {};
+  openWindow({ url: request.url, adoptId: asAdoptId(request.adoptId), profileId, ...behind });
 }

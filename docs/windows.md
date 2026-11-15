@@ -552,7 +552,9 @@ is plain Chromium.
   reaches the app whole, as the `tabs.windowRequest` engine event (the request with its offered tab, disposition and
   engine profile; the Mac never sends it). The app (`state/tabs/openFromWindowlessPage.ts`) gives it to the most
   recently focused browser window of that profile, with or without a page, through the same `openFromPage` a page's
-  own request takes, or opens a window of that profile holding the tab when none is open. It is never treated as a
+  own request takes, or opens a window of that profile holding the tab when none is open. For a background tab that
+  window opens without focus, behind the pop-up that asked (`opensBehind`, the native open's `behind`), so the pop-up
+  keeps the keyboard. A background tab's offered page mounts its page view at once, hidden, which adopts it. It is never treated as a
   link from another app, so no external-link rule applies and it keeps its profile and live tab. A tab the app hasn't
   adopted within 10 s is closed in the engine, never left hidden and running; a profile the app doesn't know closes
   it at once. Known gap: a private pop-up's tab is closed and forgotten at once. The app makes a new private session

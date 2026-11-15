@@ -315,6 +315,7 @@ test("a tab a lone pop-up opens reaches the app whole, with its offered tab and 
   assert.equal(sent[0].request.adoptId, "ardiacore:72");
   assert.equal(sent[0].request.url, "https://help.example/");
   assert.equal(sent[0].request.disposition, "foreground");
+  assert.equal(sent[0].fromWindow, popup.made.id, "the pop-up's own window comes along, so a window opened for a background tab can open behind it");
   const adopted = mountPage("command-bar-window-tab", { url: "https://help.example/", profile: "p-work", adopt: "ardiacore:72", windowId: "empty-window" }, () => {});
   await settle();
   assert.ok(!discarded("ardiacore:72"), "the adopted tab is kept");
