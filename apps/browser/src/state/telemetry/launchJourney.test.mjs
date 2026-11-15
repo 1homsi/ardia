@@ -15,11 +15,14 @@ Object.assign(stub.appInfo, {
     mainStarted: processStart + 40,
     startupPrepared: processStart + 700,
     chromiumEntered: processStart + 720,
+    appKitWillFinish: processStart + 5200,
+    appKitDidFinish: processStart + 6100,
     engineStarted: processStart + 6400,
     earlyWindowShown: processStart + 6600,
     reactNativeStarted: processStart + 6900,
   },
   launchedHidden: true,
+  launchSource: "login_item",
   loadAverage1m: 7.126,
 });
 stub.docs.set("telemetry.json", JSON.stringify({ version: 1, sharing: true, installId: "install", decidedAt: 1, askDoneAt: 1, crashCursor: 0, lastVersion: "0.3.0", sessionOpen: false }));
@@ -63,4 +66,12 @@ test("perf_launch carries the early launch marks in order from process start, th
   assert.deepEqual([main_ms, startup_ms, chromium_ms, engine_ms, early_window_ms, rn_ms], [40, 700, 720, 6400, 6600, 6900]);
   assert.equal(load_1m, 7.13);
   assert.equal(launched_hidden, true);
+});
+
+test("perf_launch says whether the login item or the user started the launch and how long Chromium's own startup took inside the engine run", () => {
+  const saved = JSON.parse(stub.docs.get("telemetry-queue.json"));
+  const { launch_source, appkit_will_finish_ms, appkit_did_finish_ms, chromium_took_ms } = saved.events.find((e) => e.event === "perf_launch").properties;
+  assert.equal(launch_source, "login_item");
+  assert.deepEqual([appkit_will_finish_ms, appkit_did_finish_ms], [5200, 6100]);
+  assert.equal(chromium_took_ms, 5680);
 });

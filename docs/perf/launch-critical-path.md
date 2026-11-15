@@ -371,8 +371,9 @@ pre-JS time the same way and tell whether the early window pays off on slower Ma
 Field `perf_launch`, cold, last 24 h: 65 of 381 launches had `content_ms` above 10 s (p50 3.0 s, p90 14.7 s on 0.2.45;
 0.2.44 14.8 s; nightlies 9.7 to 10.1 s). On those launches `js_ms` is ~14 s and `content_ms` only ~0.4 s later, so the
 time is spent before the app's JavaScript runs, not in tab restore. In the nightly rows that carry `engine_ms`, most of
-it is already spent at `engineDidStart` (6.4 s of 7.0 s in one row). Stable builds send no `engine_ms` yet, and the
-cause isn't known: it could be the OS (Gatekeeper, a cold page cache, a loaded Mac) or our code between process start and
+it is already spent at `engineDidStart` (6.4 s of 7.0 s in one row). Stable 0.2.46 sends `engine_ms` (2179 of 2187 rows
+over 7 days) but none of `main_ms`, `startup_ms`, `chromium_ms`, `load_1m` or `launched_hidden`, and 0.2.45 and earlier
+send none of them, so the time before `engine_ms` can't be split on stable. The cause isn't known: it could be the OS (Gatekeeper, a cold page cache, a loaded Mac) or our code between process start and
 `engineDidStart`. Nothing here is fixed or confirmed; the next change waits for the data below.
 
 `perf_launch` now also sends the marks that split process start → `engineDidStart`, in ms from process start, each null
@@ -383,14 +384,19 @@ when the app didn't reach it:
 | `main_ms` | first statement of `main.swift`, before `LaunchConfig` and `LegacyMigration` | the OS's time before our code runs |
 | `startup_ms` | after `ardia_host::PrepareStartup` in `runWithArgc` | `startup_ms - main_ms`: migration, launch config, data directory |
 | `chromium_ms` | just before `ArdiaCoreEngine runWithArgc:` | `chromium_ms - startup_ms`: the rest of our setup |
+| `appkit_will_finish_ms` | `NSApplicationWillFinishLaunching` | `appkit_will_finish_ms - chromium_ms`: Chromium reaching AppKit's launch |
+| `appkit_did_finish_ms` | `NSApplicationDidFinishLaunching` | `appkit_did_finish_ms - appkit_will_finish_ms`: AppKit finishing the launch |
 | `engine_ms` | `engineDidStart` | `engine_ms - chromium_ms`: Chromium's startup and its profile load |
+| `chromium_took_ms` | computed from `chromium_ms` and `engine_ms` | the same stretch as one field, null when either mark is missing |
 
 `load_1m` (the 1-minute load average from `getloadavg`) says whether the Mac was busy, and `launched_hidden` whether
-the launch was a hidden one (a login item) or the user opening the app. Together with `since_boot` and `since_quit`
-(`unclean`) they tell the first launch after a reboot or an unclean quit from the rest.
+the launch was a hidden one (a login item) or the user opening the app. `launch_source` says which of three started it:
+`login_item`, `documents` (another app opened a link or file with Ardia) or `user`; it is null until AppKit finished
+launching. Together with `since_boot` and `since_quit` (`unclean`) they tell the first launch after a reboot or an
+unclean quit from the rest.
 
-How to read a slow launch once these ship (nightly first, since stable builds carry no `engine_ms` today): when
+How to read a slow launch once these ship (nightly first, then the first stable release after 0.2.46): when
 `main_ms` is close to `engine_ms`, the time is before `main` and is the OS's (the next change would be a login-time
-prewarm); when `startup_ms - main_ms`, `chromium_ms - startup_ms` or `engine_ms - chromium_ms` holds the 5 to 10 s, that
+prewarm); when `startup_ms - main_ms`, `chromium_ms - startup_ms` or `chromium_took_ms` holds the 5 to 10 s, that
 stretch is the one to optimise. A high `load_1m` with `launched_hidden` true points at a Mac still busy logging in. In a
 lab release build run hidden, `main_ms` should be a few tens of ms and `engine_ms` ~150 ms, as in the table above.

@@ -35,6 +35,9 @@ the start unless noted. All clocks are epoch ms on the same Mac: JS's `Date.now(
 | | `startup_ms` | → `PrepareStartup` has returned in `runWithArgc` (the data directory and its first-run work; from the same nightly). `startup_ms - main_ms` is our code between `main` and the engine run |
 | | `chromium_ms` | → just before Chromium's own run starts (`ArdiaCoreEngine runWithArgc:`; from the same nightly). `chromium_ms - startup_ms` is the rest of our setup |
 | | `engine_ms` | → Chrome's engine is up (`engineDidStart`; from 0.2.46-nightly.7). `engine_ms - chromium_ms` is Chromium starting: its profile and its browser process |
+|| | `appkit_will_finish_ms` | → `NSApplicationWillFinishLaunching` posts (the host's own observer, installed before Chromium's run; null when it hadn't posted). `appkit_will_finish_ms - chromium_ms` is Chromium getting to the point where AppKit starts the app |
+|| | `appkit_did_finish_ms` | → `NSApplicationDidFinishLaunching` posts (the observer that reads `launched_hidden` and `launch_source`; null when it hadn't posted). `appkit_did_finish_ms - appkit_will_finish_ms` is AppKit finishing the launch |
+|| | `chromium_took_ms` | not a mark: `engine_ms - chromium_ms`, how long Chromium's own startup took inside the engine run, computed once from the two raw marks (null when either is missing or the engine mark is the earlier one, never 0) |
 | | `early_window_ms` | → the early window ordered on screen (`TryEarlyWindow`; null when the launch didn't show one; from 0.2.46-nightly.7) |
 | | `rn_ms` | → React Native starts loading the bundle (`launchApp`, after the early window and its first commit; from 0.2.46-nightly.7). `js_ms - rn_ms` is the bundle load, `rn_ms - engine_ms` the early window |
 | | `js_ms` | → the bundle's first module runs (`state/telemetry/jsStart.ts`) |
@@ -79,10 +82,19 @@ bundle before `main`, so these launches are slower; a copy from before this fiel
 before this launch that run ended, in `since_quit`'s ranges), `since_quit` (<1m, <10m,
 <1h, <8h, <1d, <7d, 7d+, `unclean` when the last session didn't end, `unknown`), `since_boot` (<2m, <10m, <1h, <1d, 1d+),
 `load_1m` (the Mac's 1-minute load average from `getloadavg` when the app read it, rounded to 2 decimals, so a busy Mac
-can be told from a slow launch on a quiet one; null when the call failed, never 0) and `launched_hidden` (true when the
+can be told from a slow launch on a quiet one; null when the call failed, never 0), `launched_hidden` (true when the
 launch was hidden, started as a login item, false when it wasn't; null when AppKit hadn't finished launching when the
-value was read). Both, and `main_ms`, `startup_ms` and `chromium_ms`, come from the first nightly after
-0.2.46-nightly.7; an earlier build leaves them out, and a mark the app didn't reach is null, never 0.
+value was read) and `launch_source` (`login_item` when the Mac's login item started the app, `documents` when another
+app opened a link or file with it, `user` when the user opened it, as `launched_hidden` and the launch Apple event
+tell them apart; null when AppKit hadn't finished launching, and nothing else is ever sent). `load_1m`, `launched_hidden`,
+`main_ms`, `startup_ms` and `chromium_ms` come from the first nightly after 0.2.46-nightly.7 and reach stable with the
+first stable release after 0.2.46 (0.2.46 and earlier carry none of them); `appkit_will_finish_ms`,
+`appkit_did_finish_ms`, `chromium_took_ms` and `launch_source` come from the first build after that. An earlier build leaves them
+out, and a mark the app didn't reach is null, never 0.
+
+To split a slow cold launch: `main_ms` is the OS before our code, `startup_ms - main_ms` and `chromium_ms - startup_ms`
+are our code, `chromium_took_ms` is Chromium, and `appkit_will_finish_ms` says whether Chromium's time went before or
+after the Mac started the app. Group by `since_boot`, `load_1m` and `launch_source`.
 
 ### A session's payload
 
