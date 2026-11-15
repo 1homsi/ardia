@@ -877,14 +877,15 @@ Every count and timing the phone can send, for the owner to read as one set and 
 The bar is the Compose app on Android and the SwiftUI app on iPhone, screen by screen and setting by setting:
 what each tap does, what is remembered, animations and their timing. Every item is one line: what it is, where it
 lives in the native app, and its size (small: an hour or two; a day; more). Anything not yet seen working on a
-phone is listed as unverified, even where the code is in. Audited 2026-11-14 at 608a701c5.
+phone is listed as unverified, even where the code is in. Audited 2026-11-15 at e1a9a4a7a.
 
-Largest first: inline completion on iPhone (its native field), iPhone voice search, and the deck-to-page handover
-(the page mounting as the open spring starts, and the page cover). Inline completion on Android, the tray's motion
-and gestures, folder-before-phrase sync connect and the launch arguments are in and wait on a phone.
+Nothing is left in JavaScript. The largest items left are Android's: the fade view's Android half, sync connect
+picking the folder first (shared with iPhone), Send to Your Mac in the share sheet and the tray's predictive back.
+iPhone has nothing left that isn't a decision for the owner. Everything else waits on a phone.
 
 ### Needs only JavaScript
 
+Nothing left (2026-11-15).
 
 ### Needs native code on Android
 
@@ -942,13 +943,32 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 
 ### Unverified on a phone
 
+Seen working on a phone so far, from the tester runs (sync11 on the M3; sync12, sync13 and sync14 on the F4):
+closing tabs from the deck and the last tab without a crash (20 to 22 closes a run, no crash, ANR or JS error);
+the Archive card and the + menu above their buttons, and the Inactive Tabs card shown once; no missing card on
+long flings; Go with no completion closing the tray and keyboard; a drag down from the field or the top edge
+leaving no keyboard and no dim; the tray's fourth row peeking faded and a slide under the keyboard opening it;
+one tab per Go, before and after a connected upgrade; a typed tab not coming back from the Mac; a sent tab
+arriving by itself; an idle deck drawing no frames; a flick close and a menu close using the same poof. On the
+iPhone simulator: the list in "Needs native code on iPhone" above. The perf lines read on the phones: deck open
+4 renders, card open 17 to 18 (sync13), scroll 2.5 to 3% janky with the look off on the F4.
+
+Not yet on a phone, because they landed after the last tester build (sync14, 79d97536): the card open and
+handover (aa277716e, 3e9c18ee2: the page mounted before the spring, one render each for the screen and cover,
+the picture at the page view's frame, one bar colour from the first frame); the close without a ghost rectangle
+or a flash of the before- or after-close layout (c2ce353f6, df5ce3964, 33b5c13ac); a reloading tab keeping its
+saved colours (420dae775); the frost sources holding only the backdrop (63001023d); the pager's Reduce Motion
+and edge shadow (ae09f6010); Spaces' rows, large text and motion (5cb76386d, 567bb4e3b); Enter Words' push,
+crossfades and iPhone keyboard (1adb75e2f); the full-screen scanner (18af44858); onboarding's sync picture and
+sliding connect screen (e183ff72c).
+
 - iPhone look views on a device: the deck's animated backdrop, frosted controls and glass bar, and Reduce Motion and Reduce Transparency switching them.
 - Scroll position restore: scroll a long page, kill the app, relaunch; the same tab opens at the same offset, also after it was discarded in the background (both phones).
 - Card snapshot on deck entry: open the deck right after scrolling; the card shows the current view.
 - Deck gestures: a 400 ms hold opens the card menu without scrolling, a slow vertical drag lifts, a tap right after a settle opens the right card.
 - Incognito chip: compare its tap with Compose's `IncognitoChip` (SwiftUI shows a one-item menu, as the app does).
 - Voice from the tray: the keyboard goes down over the voice screen and comes back on the tray after Cancel.
-- Tray rows that don't fit above the keyboard: the row after the last whole one peeks at the keyboard's edge, faded by the native fade view as SwiftUI's mask does, and a scrub from the first row down into the keyboard opens the row laid out under the finger, with a tick per row on the way.
+- Tray rows that don't fit above the keyboard: the peek and the slide into the keyboard are seen on Android and the iPhone simulator; still unseen are the tick per row and the slide on an iPhone.
 - Refine arrow with TalkBack and VoiceOver: reachable, read as "Refine <title>".
 - iPhone Lock Screen widgets and Control Center controls open the right link (the app target has its own intent copies).
 - iPhone search widget follows the profile colour and Match My Mac (`WidgetExporter.swift`).
@@ -972,7 +992,7 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 - Imported deck snapshots on iPhone are absolute `file://` Caches paths; cards keep their images after an app update and after iOS clears Caches.
 - iPhone default-browser step shows when SwiftUI's would (`DefaultBrowserStatus.isOffered`, asked within 100 days).
 - A real SwiftUI-to-Expo upgrade skips onboarding (`state/app/boot.ts`).
-- The scanner inside the sheet covers the screen, Cancel and Back stop the camera, and the status bar reads.
+- The scanner covers the screen from the overlay (18af44858), Cancel and Back stop the camera, and the status bar reads.
 - A Spaces row opened from a Mac counts as a typed visit (`AppModel.kt` `openRemote`).
 - The Spaces sheet can't be dragged closed while connecting (SwiftUI `interactiveDismissDisabled`).
 - The recent-tabs long-press haptic against Compose's `BottomBar.kt`.
