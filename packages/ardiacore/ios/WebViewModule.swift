@@ -36,6 +36,7 @@ public class WebViewModule: Module {
       ArdiaWebView.setVideoUpscalingTestConditions(conditions)
     },
     "videoUpscalingState": { _, reply in reply.ok(ArdiaWebView.videoUpscalingState()) },
+    "takeContentDrift": { _, reply in reply.ok(ArdiaWebView.takeContentDrift()) },
   ])
 }
 
