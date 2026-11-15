@@ -1,6 +1,47 @@
 name: Linux
 
 on:
+  pull_request:
+    paths:
+      - "apps/linux/**"
+      - "apps/browser/**"
+      - "apps/cli/**"
+      - "packages/**"
+      - "engine/**"
+      - "scripts/linux/**"
+      - "scripts/lib/**"
+      - "scripts/agent/locked"
+      - "infra/feedback/lib/**"
+      - "patches/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "tsconfig.base.json"
+      - ".nvmrc"
+      - ".github/workflows/linux.yml"
+      - ".github/actions/linux-setup/**"
+  push:
+    branches: [main]
+    paths:
+      - "apps/linux/**"
+      - "apps/browser/**"
+      - "apps/cli/**"
+      - "packages/**"
+      - "engine/**"
+      - "scripts/linux/**"
+      - "scripts/lib/**"
+      - "scripts/agent/locked"
+      - "infra/feedback/lib/**"
+      - "patches/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "tsconfig.base.json"
+      - ".nvmrc"
+      - ".github/workflows/linux.yml"
+      - ".github/actions/linux-setup/**"
   workflow_dispatch:
     inputs:
       engine:
@@ -11,17 +52,41 @@ on:
 
 concurrency:
   group: linux-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
-  ARDIACORE_PREBUILT_REPO: ${{ vars.ARDIACORE_PREBUILT_REPO || 'mckamyk/ardia' }}
+  ARDIACORE_PREBUILT_REPO: ${{ vars.ARDIACORE_PREBUILT_REPO || 'ardia-browser/ardia' }}
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.vouch.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github
+      - id: vouch
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        with:
+          retries: 3
+          script: |
+            const vouch = require(`${process.env.GITHUB_WORKSPACE}/.github/vouch/vouch.cjs`);
+            await vouch.gate({ github, context, core });
+
   checks:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -41,6 +106,8 @@ jobs:
           retention-days: 14
 
   package:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -71,8 +138,8 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/browser/build-ardiacore/prebuilt-linux-x86_64
-          key: engine-linux-x64-v2-${{ steps.engine-key.outputs.key }}-${{ hashFiles('packages/ardiacore/prebuilt-engines-linux.tsv') }}
-          restore-keys: engine-linux-x64-v2-
+          key: engine-linux-x64-v3-${{ steps.engine-key.outputs.key }}-${{ hashFiles('packages/ardiacore/prebuilt-engines-linux.tsv') }}
+          restore-keys: engine-linux-x64-v3-
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.cache/ardia-cli-build

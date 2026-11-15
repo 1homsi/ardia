@@ -16,11 +16,11 @@ scripts/linux/package.py --out.
 Rows come from packages/ardiacore/prebuilt-engines-linux.tsv
 (key<TAB>tag<TAB>sha256), then from the published table.
 Environment:
-  ARDIACORE_PREBUILT_REPO          GitHub repo (default mckamyk/ardia)
+  ARDIACORE_PREBUILT_REPO          GitHub repo (default ardia-browser/ardia)
   ARDIACORE_PREBUILT_ASSETS        asset base URL (default
                                    https://github.com/$repo/releases/download)
   ARDIACORE_PREBUILT_TABLE_URL     published table URL, or none (default the
-                                   linux branch copy of the table on GitHub)
+                                   copy on the main branch of $repo)
   ARDIACORE_PREBUILT_LINUX_TABLE   local table path (default the checked-in one)
 Engines are cached in apps/browser/build-ardiacore/prebuilt-linux-x86_64.'
 nearest=0
@@ -34,10 +34,10 @@ esac
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
-repo=${ARDIACORE_PREBUILT_REPO:-mckamyk/ardia}
+repo=${ARDIACORE_PREBUILT_REPO:-ardia-browser/ardia}
 assets=${ARDIACORE_PREBUILT_ASSETS:-https://github.com/$repo/releases/download}
 table=${ARDIACORE_PREBUILT_LINUX_TABLE:-$root/packages/ardiacore/prebuilt-engines-linux.tsv}
-table_url=${ARDIACORE_PREBUILT_TABLE_URL:-https://raw.githubusercontent.com/$repo/linux/packages/ardiacore/prebuilt-engines-linux.tsv}
+table_url=${ARDIACORE_PREBUILT_TABLE_URL:-https://raw.githubusercontent.com/$repo/main/packages/ardiacore/prebuilt-engines-linux.tsv}
 store=$root/apps/browser/build-ardiacore/prebuilt-linux-x86_64
 archive_root=ardiacore-linux-x64
 die() { echo "fetch-engine.sh: $*" >&2; exit 1; }

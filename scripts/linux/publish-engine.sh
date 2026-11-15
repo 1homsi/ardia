@@ -15,7 +15,7 @@ plain copy beside a <source>.commit file.
   --dest DIR       where the archive goes (default: a new temporary dir);
                    existing archives are never overwritten
   --repo SLUG      the GitHub repo for --upload (default: $ARDIACORE_PREBUILT_REPO
-                   or mckamyk/ardia)
+                   or ardia-browser/ardia)
   --upload         create the engine-<key12> prerelease if needed, upload the
                    archive and its .sha256, and add the row to
                    packages/ardiacore/prebuilt-engines-linux.tsv (not committed)

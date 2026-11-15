@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE))
 import runtime_files
 
 TABLE = CHECKOUT / 'packages/ardiacore/prebuilt-engines-linux.tsv'
-DEFAULT_REPO = 'mckamyk/ardia'
+DEFAULT_REPO = 'ardia-browser/ardia'
 LOCK_WAIT = '30'
 HEX40 = re.compile(r'^[0-9a-f]{40}$')
 
@@ -205,7 +205,7 @@ def upload(repo, key, source_commit, archive, checksum, row):
     if view.returncode != 0:
         notes = f'Prebuilt Linux x64 ArdiaCore engine for engine key {key} (engine/engine-key.sh), built from {source_commit or "an unrecorded commit"}.'
         say(f'creating the prerelease {tag} in {repo}')
-        gh('release', 'create', tag, '-R', repo, '--prerelease', '--title', f'Linux engine {key[:12]}', '--notes', notes)
+        gh('release', 'create', tag, '-R', repo, '--prerelease', '--latest=false', '--title', f'Engine {key[:12]}', '--notes', notes)
         assets = set()
     else:
         assets = {asset['name'] for asset in json.loads(view.stdout).get('assets', [])}

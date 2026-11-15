@@ -8,15 +8,15 @@ Hosted CI never runs `gclient sync`, GN or a Chromium build.
 
 | Piece | What it does |
 | --- | --- |
-| [`.github/workflows/linux.yml`](../.github/workflows/linux.yml) | Manual (`workflow_dispatch`) workflow with a `checks` job and a `package` job, both on `ubuntu-24.04` |
+| [`.github/workflows/linux.yml`](../.github/workflows/linux.yml) | Runs on pull requests, pushes to `main` and by hand: a vouch `gate` job, then a `checks` job and a `package` job on `ubuntu-24.04` |
 | [`.github/actions/linux-setup`](../.github/actions/linux-setup/action.yml) | Ubuntu packages for the fixtures (clang, dbus, NSS tools, gnome-keyring, PyGObject), Node 24, pnpm and `pnpm install --frozen-lockfile` |
 | [`scripts/linux/ci-checks.sh`](../scripts/linux/ci-checks.sh) | The engine-free checks; the `engine/ardiacore-linux/tests` modules run in parallel because the suite takes well over five minutes serially |
 | [`scripts/linux/publish-engine.sh`](../scripts/linux/publish-engine.sh) | Builder side: stages, strips and archives an engine from a Chromium out dir; `--upload` publishes it and adds its table row |
-| [`packages/ardiacore/prebuilt-engines-linux.tsv`](../packages/ardiacore/prebuilt-engines-linux.tsv) | `key<TAB>tag<TAB>sha256` for each published Linux engine (rows from before the engine key are keyed by `engine/`'s old tree id and no longer match) |
+| [`packages/ardiacore/prebuilt-engines-linux.tsv`](../packages/ardiacore/prebuilt-engines-linux.tsv) | `key<TAB>tag<TAB>sha256` for each Linux engine published in ardia-browser/ardia |
 | `packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64` | Dispatches to [`scripts/linux/fetch-engine.sh`](../scripts/linux/fetch-engine.sh); the Mac path is unchanged |
 | [`scripts/linux/runtime_files.py`](../scripts/linux/runtime_files.py) | The one runtime allowlist used by publishing, fetching and packaging, and the safe archive unpacker |
 | [`scripts/linux/smoke.mjs`](../scripts/linux/smoke.mjs) | Strict smoke gate for a packaged tarball |
-| [`scripts/linux/release.sh`](../scripts/linux/release.sh) | Builds a versioned Linux release with the CLI, smoke-tests it and prints the upload command |
+| [`scripts/linux/release.sh`](../scripts/linux/release.sh) | Builds a versioned Linux release with the CLI, smoke-tests it and prints the upload command; the Release workflow's `linux` job runs it |
 
 ## Engine archives
 
@@ -30,9 +30,10 @@ Hosted CI never runs `gclient sync`, GN or a Chromium build.
 - **Archive.** `ArdiaCore-<key12>-linux-x64.tar.xz` holds one directory, `ardiacore-linux-x64/`. It contains the
   allowlisted runtime files and a `manifest.json` (format 2): engine key, source commit, Chromium version, `args.gn` hash,
   chrome hash and build ID, and build and packaging times.
-- **Where it's published.** It is attached to an `engine-<key12>` prerelease in `$ARDIACORE_PREBUILT_REPO`, with a
-  `.sha256` beside it. The scripts and the workflow default to `mckamyk/ardia`, where the Linux engines are published.
-  Set the `ARDIACORE_PREBUILT_REPO` repository variable to use another repository.
+- **Where it's published.** It is attached to the `engine-<key12>` prerelease in ardia-browser/ardia, with a `.sha256`
+  beside it; the Mac engine of the same key lives on the same prerelease. The scripts and workflows default to
+  ardia-browser/ardia; `ARDIACORE_PREBUILT_REPO` (an environment variable, or a repository variable for the workflows)
+  points them elsewhere. The engines published earlier on the contributor fork aren't used.
 - **What it ships.** The allowlist ships only what Chromium loads at runtime. It leaves out `.so.TOC` files, the mock
   Vulkan driver, the Vulkan validation layer and `locales/*.pak.info`.
 - **Stripping.** The publisher strips a staging copy; `symbol_level=0` builds have no debug symbols to keep. `chrome`
@@ -62,8 +63,8 @@ The fetcher checks an archive in this order:
 4. it moves the engine into `apps/browser/build-ardiacore/prebuilt-linux-x86_64/<key12>/`, and marks it complete
    last.
 
-It reads the local table first, then the cache, then the published table on the `linux` branch, so CI on an older
-commit still finds engines published later.
+It reads the local table first, then the cache, then the published table on `main`, so CI on an older commit still
+finds engines published later.
 
 ## Nearest engine for CI, exact engine for releases
 
@@ -167,6 +168,14 @@ Everything goes to `dist/<version>/linux/`, or to `--out`. It never uploads. It 
 for the package, the CLI tarball and their `.sha256` files. `--allow-dirty` builds from a dirty tree for testing.
 The key's paths must still be clean for a fetched engine, so pass an engine dir then.
 
+The Release workflow (`release.yml`) runs it in its `linux` job, beside the Mac build, with `--engine exact`, and
+uploads the package, the CLI tarball, their `.sha256` files and `provenance.txt` as the `linux` artifact. `publish`
+puts that artifact in `dist/<version>/linux/`, and `publish.sh` attaches the four assets to the GitHub release it
+creates. It refuses a Linux folder whose provenance names an inexact engine or uncommitted changes. A dry run
+publishes nothing. When the `linux` job fails, usually because the release's engine key has no published Linux
+engine, the Mac release still ships: `publish` warns and the release has no Linux assets until someone builds them
+with `release.sh` and uploads them by hand.
+
 ## Sandbox on Ubuntu
 
 - **The restriction.** Ubuntu 24.04 limits unprivileged user namespaces through AppArmor
@@ -178,13 +187,14 @@ The key's paths must still be clean for a fetched engine, so pass an engine dir 
   AppArmor profile for the installed `chrome`, as Chrome's `.deb` does ([linux-port.md](linux-port.md) › Packaging
   and installing). An extracted package run in place has no profile and doesn't start there.
 
-## Turning on automatic runs
+## Triggers and gating
 
-The workflow runs only when started by hand. To run it on every change:
-
-1. Publish an engine with `publish-engine.sh --upload` and commit the table row.
-2. Run the Linux workflow from the default branch, inspect the artifact and measure the jobs.
-3. Add `pull_request` and `push` triggers on these paths:
-   - `apps/linux/**`, `apps/browser/**`, `packages/**`, `engine/**`, `scripts/linux/**` and `patches/**`;
-   - the workspace manifests and lockfile;
-   - the workflow itself.
+- **When it runs.** On pull requests and pushes to `main` that touch what the Linux build reads: `apps/linux`,
+  `apps/browser`, `apps/cli`, `packages`, `engine`, `scripts/linux`, `scripts/lib`, `scripts/agent/locked`,
+  `infra/feedback/lib`, `patches`, the workspace manifests and lockfile, the Linux setup action and the workflow itself.
+  Mac-only changes elsewhere skip it. It can still be started by hand, with `exact` to require this commit's engine.
+- **Gate.** Like `ios.yml` and `android.yml`, a `gate` job runs `vouch.gate` first, and both jobs need it. An unvouched
+  author's pull request waits until a maintainer comments `vouch` or adds `run-ci`; `linux.yml` is in
+  `GATED_WORKFLOWS` (`.github/vouch/vouch.cjs`), so that re-runs its skipped run. Pushes and manual runs always build.
+- **No engine.** With no published engine for this commit's key or the 200 engine commits before it, `package` fails
+  and says to publish one.
