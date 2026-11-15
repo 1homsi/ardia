@@ -1033,8 +1033,9 @@ App side, an agent can do these now:
    needs). M each once the engine reports them.
 8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
-10. Dragging a pinned extension to reorder the toolbar (main's #1935) snaps back until the Windows engine is rebuilt
-    with `pinnedIndex` in `ac_extensions.cc`. S, the next engine build.
+10. Dragging a pinned extension to reorder the toolbar (main's #1935) doesn't keep its new place until the Windows
+    engine is rebuilt with `pinnedIndex` in `ac_extensions.cc` (by reading; not tried on Windows). S, the next engine
+    build.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - `ac_passwords_logins` answering on Windows, where Chromium's `kSkipUndecryptablePasswords` is on by default (password
