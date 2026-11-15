@@ -140,6 +140,17 @@ The Expo app has the Compose app's entry points (`docs/android.md`), from its ow
 
 #### Entry points tester script (lab build)
 
+Before any run, prove the phone has the build you were sent:
+- Clear old Ardia APKs from the phone's Downloads first, so an on-phone installer cannot pick an old one
+  (sync13 on the M3 once installed sync12 that way): `adb shell ls /sdcard/Download | grep -i ardia`, then
+  `adb shell rm /sdcard/Download/<each old ardia apk>`.
+- After installing, hash what is installed and compare it with the `sha256:` line of the build's `.txt`:
+  `adb shell sha256sum $(adb shell pm path com.ardia.browser.android | sed -n 's/^package://p' | grep base.apk)`.
+  An `adb install` of a single APK keeps it byte for byte as `base.apk`.
+- On the first launch logcat has `PAGELAB build <commit> dirty: no …`, and the commit must be the one sent
+  with the APK. If the hash or the commit differs, stop and reinstall: nothing measured on the wrong build
+  counts.
+
 `P=com.ardia.browser.android/.MainActivity`. Open the lab
 (`adb shell am start -n $P --ez com.ardia.phone.PAGE_LAB true`), tap System, and watch
 `adb logcat -s PAGELAB | grep "PAGELAB system"`. Each command should print one `PAGELAB system link`

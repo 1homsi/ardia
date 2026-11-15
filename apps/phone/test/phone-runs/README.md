@@ -9,12 +9,12 @@ the POCO M3 Pro), kept here so a run does not rebuild it. Evidence from each run
 `ardia-touch.jar` (class `agentd.ArdiaTouch`, run with `app_process`) replays a schedule of taps and swipes at fixed
 offsets, built from agent-os's own Hid/Input classes, so every mode gets identical input regardless of how fast the
 app settles. It lives on the phones in `/data/local/tmp/ardia-sync12/` and its source was not saved. The next tester
-who builds it should add its source and a build script to this folder.
+who builds it should add its source and a build script to this folder. sync13's M3 tester rebuilt it from agent-os's uhid `Hid.java` (a report every 8 ms, taps held 50 ms); the sync14 tester saves the jar and its source under `touch-jar/` in its output, from which it moves here.
 
 ## Schedules
 
 `sched-*.txt`: one action per line, `offset_ms action args`, where action is `tap x y` or `swipe x1 y1 x2 y2 ms`.
-Coordinates are for a 1080 × 2400 phone. `sched-expo.txt` is the 37 s step-38 script (New Tab at y 1945);
+Coordinates are for a 1080 × 2400 phone. `sched-expo13.txt` is the 37 s step-38 script for sync13 and later, whose bar puts New Tab at y 2184 (sync13 on the M3); `sched-expo.txt` is the same script for sync11 and sync12 (New Tab at y 1945);
 `sched-ds-*.txt` are the "Deck speed" windows (open, pre-position, scroll, tray); `sched-tray*.txt` open and close the
 tray over a page.
 
