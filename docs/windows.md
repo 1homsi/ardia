@@ -194,8 +194,9 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     `ardia/win/main.cc`, called before Chromium's pump dispatches) takes a hosted page's non-client press and double
     click with those codes: the press becomes the app window's own size command, the double click the app window's.
     A move in the band sets the resize cursor (Chromium's page child window answers WM_SETCURSOR with nothing) and still
-    reaches Chromium, which re-arms its leave tracking from it, so a page's hover ends when the pointer leaves through
-    the band. Touch and pen can't resize from the top edge over a page: their contact arrives as WM_NCPOINTERDOWN,
+    reaches Chromium. Chromium arms its non-client leave tracking on the page's top-level window, which never sees the
+    pointer leave from over its child, so the hook arms it on the child itself and, when the child reports the pointer
+    left the page, sends the page window WM_MOUSELEAVE: a page's hover ends when the pointer leaves through the band. Touch and pen can't resize from the top edge over a page: their contact arrives as WM_NCPOINTERDOWN,
     which Chromium handles (untried without a touch device). `HTTOP` alone (Chromium handles the press) and
     `HTTRANSPARENT` (a child window's transparency doesn't reach another top-level window) both left the window
     unresized in a real drag. `launch-smoke.ps1` drags the band over a page in Minimalism with the sidebar on the

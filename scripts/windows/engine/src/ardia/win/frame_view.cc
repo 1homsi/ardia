@@ -51,7 +51,34 @@ LRESULT AppWindowHitAt(HWND page, POINT screen) {
       MAKELPARAM(static_cast<short>(screen.x), static_cast<short>(screen.y)));
 }
 
+namespace {
+
+HWND HostedPageOf(HWND window) {
+  HWND page = window ? ::GetAncestor(window, GA_ROOT) : nullptr;
+  return page && ::GetWindow(page, GW_OWNER) && ::GetPropW(page, kHostedPage)
+             ? page
+             : nullptr;
+}
+
+bool PointerOver(HWND page) {
+  POINT cursor;
+  if (!::GetCursorPos(&cursor)) {
+    return true;
+  }
+  HWND under = ::WindowFromPoint(cursor);
+  return under == page || ::IsChild(page, under);
+}
+
+}
+
 bool TakeTopEdgePress(const MSG& msg) {
+  if (msg.message == WM_NCMOUSELEAVE) {
+    HWND page = HostedPageOf(msg.hwnd);
+    if (page && msg.hwnd != page && !PointerOver(page)) {
+      ::SendMessageW(page, WM_MOUSELEAVE, 0, 0);
+    }
+    return false;
+  }
   if (msg.message != WM_NCMOUSEMOVE && msg.message != WM_NCLBUTTONDOWN &&
       msg.message != WM_NCLBUTTONDBLCLK) {
     return false;
@@ -59,13 +86,16 @@ bool TakeTopEdgePress(const MSG& msg) {
   if (!IsTopEdge(static_cast<LRESULT>(msg.wParam))) {
     return false;
   }
-  HWND page = msg.hwnd ? ::GetAncestor(msg.hwnd, GA_ROOT) : nullptr;
+  HWND page = HostedPageOf(msg.hwnd);
   HWND app = page ? ::GetWindow(page, GW_OWNER) : nullptr;
-  if (!app || !::GetPropW(page, kHostedPage)) {
+  if (!app) {
     return false;
   }
   if (msg.message == WM_NCMOUSEMOVE) {
     ::SetCursor(::LoadCursorW(nullptr, ResizeCursor(msg.wParam)));
+    TRACKMOUSEEVENT leave = {sizeof(leave), TME_LEAVE | TME_NONCLIENT,
+                             msg.hwnd, 0};
+    ::TrackMouseEvent(&leave);
     return false;
   }
   ::ReleaseCapture();
