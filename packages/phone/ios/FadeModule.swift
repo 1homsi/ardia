@@ -81,19 +81,19 @@ public final class FadeModule: Module {
     Name("ArdiaPhoneFade")
 
     View(FadeView.self) {
-      Prop("top") { (view: FadeView, value: [String: Double]?) in
+      Prop("topFade") { (view: FadeView, value: [String: Double]?) in
         view.ramps[.top] = FadeView.ramp(value)
       }
 
-      Prop("bottom") { (view: FadeView, value: [String: Double]?) in
+      Prop("bottomFade") { (view: FadeView, value: [String: Double]?) in
         view.ramps[.bottom] = FadeView.ramp(value)
       }
 
-      Prop("leading") { (view: FadeView, value: [String: Double]?) in
+      Prop("leadingFade") { (view: FadeView, value: [String: Double]?) in
         view.ramps[.leading] = FadeView.ramp(value)
       }
 
-      Prop("trailing") { (view: FadeView, value: [String: Double]?) in
+      Prop("trailingFade") { (view: FadeView, value: [String: Double]?) in
         view.ramps[.trailing] = FadeView.ramp(value)
       }
     }

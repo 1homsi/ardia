@@ -4,8 +4,6 @@ export type FadeEdges = { top?: FadeEdge; bottom?: FadeEdge; leading?: FadeEdge;
 
 export const NATIVE_FADE_PROPS = { top: "topFade", bottom: "bottomFade", leading: "leadingFade", trailing: "trailingFade" } as const;
 
-export const IPHONE_FADE_PROPS = { top: "top", bottom: "bottom", leading: "leading", trailing: "trailing" } as const;
-
 export function nativeFadeProps(edges: FadeEdges, names: Record<keyof FadeEdges, string> = NATIVE_FADE_PROPS): Record<string, FadeEdge> {
   const out: Record<string, FadeEdge> = {};
   for (const edge of ["top", "bottom", "leading", "trailing"] as const) {

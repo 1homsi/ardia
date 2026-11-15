@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { IPHONE_FADE_PROPS, NATIVE_FADE_PROPS, nativeFadeProps } from "../../../../packages/phone/src/fadeProps.ts";
+import { NATIVE_FADE_PROPS, nativeFadeProps } from "../../../../packages/phone/src/fadeProps.ts";
 
 const LAYOUT_PROPS = new Set([
   "top", "bottom", "left", "right", "start", "end", "inset", "insetBlock", "insetInline", "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight",
@@ -23,11 +23,7 @@ test("an edge left out is not sent, so a style's top or bottom never reaches a f
   assert.deepEqual(nativeFadeProps({ trailing: { length: 6 } }), { trailingFade: { length: 6 } });
 });
 
-test("the iPhone module is sent the names it declares today", () => {
-  const sent = Object.values(IPHONE_FADE_PROPS).sort();
-  assert.deepEqual(sent, declared("../../../../packages/phone/ios/FadeModule.swift"));
-});
-
-test("the iPhone module takes the safe names too", { todo: "packages/phone/ios/FadeModule.swift still declares top, bottom, leading and trailing, which collide with layout props" }, () => {
+test("the iPhone module takes the safe names too, so both phones are sent the same props", () => {
   assert.deepEqual(declared("../../../../packages/phone/ios/FadeModule.swift"), Object.values(NATIVE_FADE_PROPS).sort());
+  assert.deepEqual(declared("../../../../packages/phone/ios/FadeModule.swift"), declared("../../../../packages/phone/android/src/main/java/com/ardia/phone/FadeModule.kt"));
 });
