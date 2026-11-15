@@ -9,10 +9,9 @@ export * from "../../browser/src/components/peek/PeekOverlay";
 const PEEK_STACK = { ardiaPageStack: "peek" };
 
 export function PeekOverlay(props: ComponentProps<typeof BrowserPeekOverlay>) {
-  const open = useBrowser((s) => !!shownPeek(s, props.windowId));
-  if (!open) return <BrowserPeekOverlay {...props} />;
+  const shown = useBrowser((s) => !!shownPeek(s, props.windowId));
   return (
-    <PageOverlayRegion testID="ardia-peek" dataSet={PEEK_STACK}>
+    <PageOverlayRegion testID="ardia-peek" dataSet={PEEK_STACK} capturing={shown}>
       <BrowserPeekOverlay {...props} />
     </PageOverlayRegion>
   );
