@@ -4,7 +4,7 @@ import { BottomBar } from "../components/browsing/BottomBar";
 import { BrowsingScreen } from "../components/browsing/BrowsingScreen";
 import { barAddress, FloatingBar } from "../components/browsing/FloatingBar";
 import { appDesign, DesignProvider, Symbol } from "../components/ui";
-import { storeTone } from "../state/pages/store";
+import { storeTone, usePages } from "../state/pages/store";
 import { DESIGNS, designFor, type Design } from "../lib/design";
 import * as pageActions from "../state/page/actions";
 import { useBrowse } from "../state/browse/store";
@@ -16,6 +16,7 @@ const safeArea = require("react-native-safe-area-context") as { useSafeAreaInset
 beforeEach(() => {
   jest.useFakeTimers();
   withTabs(3);
+  usePages.setState({ tones: {}, lastTones: {} });
   useBrowse.setState({ surface: "browsing", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   jest.spyOn(safeArea, "useSafeAreaInsets").mockImplementation(() => ({ top: 47, bottom: 34, left: 0, right: 0 }));
 });
@@ -127,4 +128,15 @@ test("the bar's glass and glyphs follow the page's sampled bottom colour, not th
   const dark = page("redesigned", tab);
   expect(StyleSheet.flatten(host(dark, "floatingBarTabs")!.props.style).backgroundColor).toBe("#000000");
   unmount(dark);
+});
+
+test("before a page has reported a colour, the redesigned bar takes the app's own light or dark, as SwiftUI's barScheme does", () => {
+  const tab = { ...currentTabs().open[0]!, themeColorHex: null };
+  for (const scheme of ["light", "dark"] as const) {
+    const spy = jest.spyOn(require("react-native"), "useColorScheme").mockReturnValue(scheme);
+    const root = page("redesigned", tab);
+    expect(StyleSheet.flatten(host(root, "floatingBarTabs")!.props.style).backgroundColor).toBe(scheme === "dark" ? "#000000" : "#FFFFFF");
+    unmount(root);
+    spy.mockRestore();
+  }
 });

@@ -84,7 +84,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const pageTone = failed ? null : shownTone(tone, tab.themeColorHex);
   const top = pageTone?.top ?? theme.surface;
   const bottom = pageTone?.bottom ?? theme.surface;
-  const barDark = isDarkColor(bottom);
+  const barDark = design === "redesigned" && !pageTone?.bottom ? theme.dark : isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding);
   const underBar = design === "redesigned" && pageObscuresInsets();
