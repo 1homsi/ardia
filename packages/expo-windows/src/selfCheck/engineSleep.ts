@@ -2,6 +2,7 @@ import type { WindowsNative } from "@ardia/shell";
 import { engineAvailable, hostCall, onEngineTopic } from "../engine/host";
 import { requireNativeModule } from "../modules";
 import { httpPagesPort } from "./engineBackForward";
+import type { ListedTab } from "./engineHost";
 import { expectEqual, expectTrue, type Check } from "./check";
 
 const VISIBLE = 4;
@@ -19,12 +20,13 @@ const POPUP_NAME = "ardia-sleep-check-popup";
 const LOAD_MS = 20000;
 const DEVTOOLS_GONE_MS = 3000;
 const POLL_MS = 100;
+const EVALUATE_MS = 5000;
 const SCROLLED_TO = 3000;
 const SCROLL_SAVED_MS = 1500;
 export const LEFT = { unit: "px", x: 0, y: 40, width: 300, height: 240 };
 export const RIGHT = { unit: "px", x: 310, y: 40, width: 300, height: 240 };
 
-type Listed = { key?: unknown; title?: unknown; loading?: unknown; discarded?: unknown; url?: unknown };
+type Listed = Pick<ListedTab, "key" | "title"> & { loading?: boolean; discarded?: boolean; url?: string };
 
 export const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -51,8 +53,16 @@ export async function until<T>(what: string, ms: number, read: () => Promise<T>,
 
 export const loaded = (key: string, title = TITLE) => until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === title && tab.loading === false && tab.discarded !== true);
 
+function withDeadline<T>(work: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} gave no answer within ${EVALUATE_MS} ms`)), EVALUATE_MS);
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
+
 export const evaluate = async (key: string, code: string, userGesture = false) => {
-  const reply = await hostCall<{ result?: unknown }>("tab.call", { key, method: "evaluate", code, userGesture });
+  const reply = await withDeadline(hostCall<{ result?: unknown }>("tab.call", { key, method: "evaluate", code, userGesture }), `the page ${key}`);
   return typeof reply.result === "string" ? (JSON.parse(reply.result) as unknown) : null;
 };
 
@@ -224,7 +234,7 @@ const sleepChecks: Check[] = [
         await show(page!, windowId, LEFT);
         const popupsBefore = await popupPages();
         const opened = heard("tab.opened", (event) => event.opener === page, "the pop-up");
-        expectEqual(await evaluate(page!, `post("result", JSON.stringify(!!window.open("about:blank", "${POPUP_NAME}", "width=320,height=240")));`), true, "window.open returns a window");
+        expectEqual(await evaluate(page!, `post("result", JSON.stringify(!!window.open("about:blank", "${POPUP_NAME}", "width=320,height=240")));`, true), true, "window.open with a click returns a window");
         await opened;
         await until("the pop-up is adopted into its window", LOAD_MS, () => popupPages(), (keys) => keys.some((key) => !popupsBefore.includes(key)));
         await hide(page!, windowId);

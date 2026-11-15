@@ -9,7 +9,8 @@ series_win.py takes them, and lists every problem with the file and line it come
   accepted-layer-sources.txt and all exist, and every engine call in the Windows call table is defined in one of them;
 - engine/ardiacore's ac_launch_switches.cc still has what launch_switches_source() turns into the Windows copy.
 
-A change to an accepted list is accepted on purpose: run with --accept and commit the lists.
+A change to an accepted list is accepted on purpose: run with --accept and commit the lists. --accept writes
+nothing and fails when any input can't be read.
 
 Usage: check_inputs.py [--accept]
 """
@@ -96,11 +97,15 @@ def main():
     sources = layer_sources(problems)
     attempt(problems, build.launch_switches_source)
     if args.accept:
+        if problems or sources is None:
+            for problem in problems:
+                print(f'FAIL {problem}')
+            print('nothing accepted: the inputs could not be read, so the accepted lists are left as they were')
+            return 1
         with open(ACCEPTED_PATCHES, 'w') as f:
             f.write(''.join(f'{name}\n' for name in patches))
-        if sources is not None:
-            with open(ACCEPTED_SOURCES, 'w') as f:
-                f.write(''.join(f'{rel}\n' for rel in sources))
+        with open(ACCEPTED_SOURCES, 'w') as f:
+            f.write(''.join(f'{rel}\n' for rel in sources))
     compare(problems, ACCEPTED_PATCHES, read_list(ACCEPTED_PATCHES), patches, 'the patches Windows applies')
     if sources is not None:
         compare(problems, ACCEPTED_SOURCES, read_list(ACCEPTED_SOURCES), sources, 'the layer sources Windows compiles')
