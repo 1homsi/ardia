@@ -16,7 +16,7 @@ public enum OpenURLInbox {
     let pointer = NSEvent.mouseLocation
     for batch in batches(urls.map(\.absoluteString), pointer) {
       if deliver(batch) { continue }
-      if let last = pending.last, sameSource(last.source, batch.source) {
+      if let last = pending.last, sameSource(last.source, batch.source), last.returnTo == batch.returnTo {
         pending[pending.count - 1].urls += batch.urls
         pending[pending.count - 1].pointer = pointer
       } else {
