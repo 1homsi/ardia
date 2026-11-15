@@ -33,6 +33,25 @@ one), from the sync14 M3 run:
 - `sched-cardopen.txt`: from the deck, open the focused card, then the deck again, five times;
 - `sched-close7.txt` and `sched-close8.txt`: flick the focused card up to close it, seven or eight times, 1.5 s apart.
 
+## Timing from a recording
+
+`rec.sh`, `vtool.py` and `opentimes.py` time opens, flicks and launches from a screen recording the way the F4's
+expo58b run did. Every frame's time is its own stamp from screenrecord's metadata track, and every touch's is the
+input log's line, so nothing depends on when screenrecord was started: its first frame arrives 235 to 590 ms after
+the command, different every time, and a clock started at the command makes recordings incomparable (the M3's
+openana.py did that until 2026-11-16).
+
+```
+S=<serial> T=/data/local/tmp/<run> LOG=<run>/session.log \
+  rec.sh <run>/out deckcard 31 "sh $T/timed.sh $T/sched-deckcard.txt 30 0"
+LOG=<run>/session.log opentimes.py taps <run>/out deckcard deck card
+LOG=<run>/session.log opentimes.py launch <run>/out cold
+```
+
+`LOG` is the file a running `adb logcat -b all` writes; `PHONE_UTC_OFFSET` is the phone's log time zone (default
++05:30). Touches come from MIUIInput's lines, so this works on the MIUI phones (F4, M3). `rec.sh` refuses a recording
+without frame stamps.
+
 ## Scripts
 
 Each starts with the serial (`S=`), the output folder on the Mac (`O=`) and the folder on the phone

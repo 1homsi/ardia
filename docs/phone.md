@@ -1028,6 +1028,43 @@ The tab count is part of the run. Deck speed depends on it: with up to 19 tabs e
 5. `adb logcat -d -s PAGELAB | grep "PAGELAB perf" > perf-<look>.txt`.
 6. Report from each gfxinfo file: janky frames %, 50th and 90th percentiles, GPU 50th percentile, "Number Slow UI thread" and "Number Slow issue draw commands". From the perf lines, the median js and ui p50 per interaction and the renders.
 
+#### Timing opens and launches from a recording
+
+Time a deck open, a card open, a flick or a cold start from a screen recording only with `apps/phone/test/phone-runs`'s
+`rec.sh`, `vtool.py` and `opentimes.py` (the phone-runs README has the commands). They take every frame's time from
+screenrecord's own per-frame stamps and every touch from the phone's input log. Recordings timed from the moment
+screenrecord was started are off by however long its encoder took to deliver the first frame, 235 to 590 ms and
+different on every recording (found on the M3 on 2026-11-16), so their times don't compare between recordings or
+visits. **Open and launch timings measured on the M3 before 2026-11-16 are not comparable**: the testers' openana.py
+used that clock, including the expo58b runs that read the upgrade as faster. The F4's runs used the frame stamps and
+stand.
+
+#### Against the Compose release (F4, 2026-11-15)
+
+One session on the F4, medians, the Compose app's release build (OLD) against sync23 (React Native 0.81) and expo58b
+(Expo 58). From `/tmp/ardia-phone-shots/expo58b-f4/table.txt`.
+
+| Row | Compose release | sync23 | expo58b |
+| --- | --- | --- | --- |
+| Cold start, `am start -W` | 308 ms | 300 ms | 328 ms |
+| Cold start to usable (the tray up) | 905 ms | 1,236 ms | 1,198 ms |
+| Deck open, first shrinking frame | 156 ms | 450 ms | 272 ms |
+| Deck open, settled | 443 ms | 762 ms | 583 ms |
+| Card open, first moving frame | 93 ms | 128 ms | 132 ms |
+| Card open, settled | 410 ms | 678 ms | 608 ms |
+| Card open, longest frame gap | 17 ms | 113 ms | 87 ms |
+| Deck scroll, nine tabs, janky | 7.9% | 3.0% | 3.3% |
+| Deck scroll, 26 tabs, janky | 8.8% | 18.9% | 20.8% |
+| Memory, nine tabs | 333 MB | 432 MB | 432 MB |
+| Installed size | 26.2 MB | 73.5 MB | 52.6 MB |
+
+Known gap in the opens, **the card open's tail**: in 6 to 11 of 15 card opens per build (the M3's bisect, expo58b and
+expo58c alike), one more change lands 500 to 650 ms after the card starts moving, when the live page replaces the
+card's picture. The other opens settle about 220 ms after they start moving. That second change is the F4's card open
+settling at 608 ms against Compose's 410, and its 87 ms held frame against Compose's 17. The rest of the gaps, largest
+first: the 26-tab deck scroll, the deck open's first frame (+116 ms), cold start to usable (+293 ms) and memory
+(+99 MB with nine tabs).
+
 #### Deck parts (lab build, from sync17)
 
 To find what a deck frame costs, take the deck's parts away one at a time while the backdrop repaints at its
