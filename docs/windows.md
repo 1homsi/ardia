@@ -405,7 +405,8 @@ is plain Chromium.
   top-level, it is what a window tool finds under the pointer (AltSnap's Alt+drag, a script posting SC_MOVE), so while a page
   is shown and not fullscreen its window holds its place: the host's own placement is the only move or resize it takes,
   a change that skipped WM_WINDOWPOSCHANGING (SWP_NOSENDCHANGING) is put back, and a system move or size started on it
-  goes to the app window (#2051, `Test-PageHoldsPlace` in `launch-smoke.ps1`). A window
+  goes to the app window (#2051, `Test-PageHoldsPlace` in `launch-smoke.ps1`). The guard stays on the window through Memory
+  Saver: a hidden page that sleeps keeps it, and the page holds its place again once it wakes (`engineSleepPlace.ts`). A window
   Chromium opens by itself (a link opened in a new window) stays off screen until the app adopts its tabs.
 - The verbs: `tab.create` (a key, a profile, a URL or a tab to adopt; the same key again moves the tab to the window
   that asks), `tab.show` (visible, and where in the window, in the UI's points; a corner radius and holes),

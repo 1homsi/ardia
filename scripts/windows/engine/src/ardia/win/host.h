@@ -110,6 +110,8 @@ class Host : public TabStripModelObserver,
                                          const base::DictValue& args);
   base::DictValue DiscardOffered(const base::DictValue& args);
   base::DictValue HitTest(const base::DictValue& args);
+  base::DictValue MoveWindowForTest(content::WebContents* contents,
+                                    const base::DictValue& args);
   base::DictValue Info();
   base::DictValue ListTabs();
 

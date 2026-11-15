@@ -178,6 +178,15 @@ LRESULT CALLBACK PageProcedure(HWND window,
   return ::DefSubclassProc(window, message, w_param, l_param);
 }
 
+base::ListValue RectList(const RECT& rect) {
+  base::ListValue list;
+  list.Append(static_cast<int>(rect.left));
+  list.Append(static_cast<int>(rect.top));
+  list.Append(static_cast<int>(rect.right));
+  list.Append(static_cast<int>(rect.bottom));
+  return list;
+}
+
 std::string_view HitName(LRESULT hit) {
   switch (hit) {
     case HTCLIENT:
@@ -769,6 +778,42 @@ base::DictValue Host::HitTest(const base::DictValue& args) {
   return result;
 }
 
+base::DictValue Host::MoveWindowForTest(content::WebContents* contents,
+                                        const base::DictValue& args) {
+  if (!ardiacore::TestInstance()) {
+    return Error("moveWindowForTest is for test instances");
+  }
+  Browser* browser = BrowserOf(contents);
+  HWND window = browser ? WindowOf(browser) : nullptr;
+  RECT before;
+  if (!window || !::GetWindowRect(window, &before)) {
+    return Error("the tab has no page window");
+  }
+  const int dx = args.FindInt("dx").value_or(0);
+  const int dy = args.FindInt("dy").value_or(0);
+  const int dw = args.FindInt("dw").value_or(0);
+  const int dh = args.FindInt("dh").value_or(0);
+  if (dx || dy || dw || dh) {
+    const UINT notice =
+        args.FindBool("noNotice").value_or(false) ? SWP_NOSENDCHANGING : 0;
+    ::SetWindowPos(window, nullptr, before.left + dx, before.top + dy,
+                   before.right - before.left + dw,
+                   before.bottom - before.top + dh,
+                   SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | notice);
+  }
+  RECT after = before;
+  ::GetWindowRect(window, &after);
+  DWORD_PTR subclass_data = 0;
+  base::DictValue result = Ok();
+  result.Set("subclassed", ::GetWindowSubclass(window, &PageProcedure,
+                                               kPageSubclass,
+                                               &subclass_data) != FALSE);
+  result.Set("holds", ShownParentOf(window) != nullptr);
+  result.Set("before", RectList(before));
+  result.Set("after", RectList(after));
+  return result;
+}
+
 base::DictValue Host::DiscardOffered(const base::DictValue& args) {
   content::WebContents* contents = FindOffered(Text(args, "adopt"));
   if (!contents) {
@@ -786,6 +831,9 @@ std::optional<base::DictValue> Host::CallTab(content::WebContents* contents,
                                              const base::DictValue& args) {
   std::string method = Text(args, "method");
   content::NavigationController& controller = contents->GetController();
+  if (method == "moveWindowForTest") {
+    return MoveWindowForTest(contents, args);
+  }
   if (method == "loadUrl") {
     bool user_initiated = args.FindBool("userInitiated").value_or(false);
     content::NavigationController::LoadURLParams params(
