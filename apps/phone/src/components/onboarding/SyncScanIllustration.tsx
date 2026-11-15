@@ -1,11 +1,11 @@
 import { StyleSheet, View } from "react-native";
-import Animated, { FadeIn, FadeOut, useReducedMotion, withSpring } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, withSpring } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import { tileGradient } from "../../lib/favicon";
 import { linearGradientCss } from "../../lib/gradient";
 import { withAlpha } from "../../lib/color";
 import { sketchQrPath } from "../../lib/sketchQr";
-import { LookBackdrop, PROFILE_COLORS, spring, Symbol, syncSketch, tabsMotion, useTheme } from "../ui";
+import { LookBackdrop, PROFILE_COLORS, spring, Symbol, syncSketch, tabsMotion, useTheme, useReduceMotion } from "../ui";
 
 const smooth = spring(0.42, 0.9);
 const QR_PATH = sketchQrPath();
@@ -60,7 +60,7 @@ function MacWindowSketch() {
 }
 
 function PhoneSketch({ connected }: { connected: boolean }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const entering = reduceMotion ? FadeIn.duration(tabsMotion.fade) : scaledIn;
   const exiting = reduceMotion ? FadeOut.duration(tabsMotion.fade) : scaledOut;
   const screen = connected ? { experimental_backgroundImage: linearGradientCss(tileGradient(PROFILE_COLORS.plum.swatch), false, 1, 1) } : { backgroundColor: syncSketch.phoneScreen };

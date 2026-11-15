@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { FadeIn, FadeOut, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomLift } from "../search/useKeyboardHeight";
 import { useSurface } from "../../state/browse/hooks";
 import { useDeckBarTop, useToast } from "../../state/toasts/hooks";
 import { TOAST_MOTION, toastDragDismisses, toastPlace } from "../../state/toasts/placement";
 import { dismissToast, holdToast, tapToast, type ToastIcon } from "../../state/toasts/store";
-import { capsule, font, space, Symbol, tabsMotion, toastLayout, toastMotion, useTheme, type SymbolName } from "../ui";
+import { capsule, font, space, Symbol, tabsMotion, toastLayout, toastMotion, useTheme, type SymbolName, useReduceMotion } from "../ui";
 
 const ICONS: Record<ToastIcon, SymbolName> = {
   checkmark: "checkmark",
@@ -54,7 +54,7 @@ export function ToastHost() {
 function ToastView({ place }: { place: { top: number } | { bottom: number } }) {
   const toast = useToast();
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const drag = useSharedValue(0);
   useEffect(() => {
     drag.value = 0;

@@ -1,14 +1,14 @@
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { incomingPose, outgoingPose, PAGER, resolvedOffset, snapTarget } from "../../lib/pagerPhysics";
 import { screenCornerRadius } from "../../state/app/displayCorner";
 import { haptics } from "../../state/app/haptics";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { TabFace, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, useTheme } from "../ui";
+import { TabFace, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, useTheme, useReduceMotion } from "../ui";
 
 export type TabPager = {
   offset: SharedValue<number>;
@@ -24,7 +24,7 @@ export type TabPager = {
 type Options = { width: number; selectedId: string | null; left: string | null; right: string | null; onCommit: (id: string) => void; onGrab: () => void };
 
 export function useTabPager({ width, selectedId, left, right, onCommit, onGrab }: Options): TabPager {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const offset = useSharedValue(0);
   const active = useSharedValue(0);
   const base = useSharedValue(0);
@@ -108,7 +108,7 @@ export function PagerNeighbour({ pager, tab, side, width, statusHeight, hasLeft,
   const theme = useTheme();
   const tone = usePageTone(tab.id);
   const { offset } = pager;
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const style = useAnimatedStyle(() => {
     const pose = incomingPose(side, offset.value, width, hasLeft, hasRight, reduceMotion);
     return { opacity: pose.opacity, transform: [{ translateX: pose.x }] };

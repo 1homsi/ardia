@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { newIncognitoTab, newRegularTab, newTab, openArchive, openSpaces, reopenLastClosed, showDeck } from "../../state/browse/store";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, LookBackdropBase, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem } from "../ui";
+import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, LookBackdropBase, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem, useReduceMotion } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
 
@@ -20,7 +20,7 @@ export function StartScreen() {
   const canReopen = useCanReopen();
   const { width } = useWindowDimensions();
   const syncs = useSyncEnabled();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const [menu, setMenu] = useState(false);
   const center = deckCenterFromBottom(insets.bottom);
   const shown = useSharedValue(trayUp ? 0 : 1);

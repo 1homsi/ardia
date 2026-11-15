@@ -15,3 +15,5 @@ export async function systemLook(): Promise<{ reduceMotion: boolean; reduceTrans
   ]);
   return { reduceMotion, reduceTransparency };
 }
+
+export { useSystemReduceMotion, useSystemReduceTransparency } from "@ardia/phone-native";

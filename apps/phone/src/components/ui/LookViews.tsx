@@ -11,7 +11,6 @@ import {
 } from "@ardia/phone-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { useReducedMotion } from "react-native-reanimated";
 import {
   nativeLookColors,
   windowTintStops,
@@ -22,6 +21,7 @@ import { Backdrop } from "./Backdrop";
 import { useReduceTransparency } from "./contrast";
 import { useProfileLook, useTheme } from "./theme";
 import { chromeInk, chromeLayout, tabsInk } from "./tokens";
+import { useReduceMotion } from "./contrast";
 
 export const SURFACES_FROST = "surfaces";
 
@@ -109,7 +109,7 @@ export function LookBackdrop(props: BackdropProps) {
 export function DeckLookBackdrop({ baseOutside = false }: { baseOutside?: boolean }) {
   const look = useProfileLook();
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const reduceTransparency = useReduceTransparency();
   if (!lookIsNative()) return <Backdrop colors={theme.backdrop} />;
   return (

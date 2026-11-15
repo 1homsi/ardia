@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { AppIcon, appIconLayout, PrimaryButton, LookBackdrop, onboardingArt, font, radius, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
+import { AppIcon, appIconLayout, PrimaryButton, LookBackdrop, onboardingArt, font, radius, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName, useReduceMotion } from "../ui";
 import { CrossfadeText, ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
@@ -63,7 +63,7 @@ export function OnboardingView() {
   const showing = useOnboarding((s) => s.showing);
   const step = useOnboarding((s) => s.step);
   const forward = useOnboarding((s) => s.forward);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const { fontScale } = useWindowDimensions();
   useEffect(() => {
     if (showing) void refreshSettings();
@@ -113,7 +113,7 @@ function SyncStep() {
   const theme = useTheme();
   const connected = useSyncConnected();
   const [connecting, setConnecting] = useState(false);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const { height } = useWindowDimensions();
   return (
     <>
@@ -157,7 +157,7 @@ const Primary = PrimaryButton;
 
 function Welcome() {
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const appear = useSharedValue(0);
   useEffect(() => {
     appear.value = reduceMotion ? withTiming(1, { duration: tabsMotion.fade }) : withDelay(WELCOME_DELAY_MS, withSpring(1, welcomeSpring));

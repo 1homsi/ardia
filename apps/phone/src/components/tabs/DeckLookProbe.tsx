@@ -1,13 +1,12 @@
 import { useEffect, useState, type MutableRefObject } from "react";
-import { useReducedMotion } from "react-native-reanimated";
 import { useLookBudgetProbe } from "../../platform/look";
-import { useReduceTransparency } from "../ui";
+import { useReduceTransparency, useReduceMotion } from "../ui";
 
 export type DeckTouchReport = MutableRefObject<(touching: boolean) => void>;
 
 export function DeckLookProbe({ busy, touch }: { busy: boolean; touch: DeckTouchReport }) {
   const [touching, setTouching] = useState(false);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const reduceTransparency = useReduceTransparency();
   useEffect(() => {
     touch.current = setTouching;

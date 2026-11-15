@@ -1,11 +1,11 @@
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut, useReducedMotion, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, withTiming } from "react-native-reanimated";
 import { hideArchiveCard, hideArchiveCardSoon } from "../../state/browse/archiveCard";
 import { setArchiveInterval } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { archiveCardLayout, FloatingMenu, screenReaderActions, font, ink, radius, shadowRadius, space, Symbol, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { archiveCardLayout, FloatingMenu, screenReaderActions, font, ink, radius, shadowRadius, space, Symbol, tabsLayout, tabsMotion, useTheme, useReduceMotion } from "../ui";
 
 import { ArchiveTile } from "./ArchiveTile";
 
@@ -13,7 +13,7 @@ const INTERVALS = Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[];
 
 export function ArchiveIntervalCard({ edgeY }: { edgeY: number }) {
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const picker = useRef<View>(null);
   const [open, setOpen] = useState(false);

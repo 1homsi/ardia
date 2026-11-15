@@ -5,12 +5,12 @@ import Animated, {
   runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withSpring,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
+import { useReduceMotion } from "./contrast";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { backgroundScale, draggedOffset, sheetDismisses, sheetProgress } from "../../lib/sheetDrag";
 import { initialPresence, presenceSettled, presenceShown, presenceTarget } from "../../lib/sheetPresence";
@@ -38,7 +38,7 @@ type Props<T extends string> = { sheet: T | null; progress: SharedValue<number>;
 export function FullSheet<T extends string>({ sheet, progress, onDismiss, children }: Props<T>) {
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const top = insets.top + sheetLayout.topGap;
   const presence = useRef(initialPresence(sheet));
   const [, redraw] = useState(0);

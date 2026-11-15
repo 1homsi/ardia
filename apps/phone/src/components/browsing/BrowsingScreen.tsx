@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BAR_SHOWN, followScroll, pageInsets } from "../../lib/barCollapse";
 import { neighbours } from "../../lib/pagerPhysics";
@@ -35,6 +35,7 @@ import {
   usePresence,
   useTheme,
   type MenuItem,
+  useReduceMotion,
 } from "../ui";
 import { BottomBar } from "./BottomBar";
 import { FloatingBar } from "./FloatingBar";
@@ -176,7 +177,7 @@ function useBarCollapse(tabId: string, finding: boolean) {
   const collapses = usePreferences((p) => p.collapsesBottomBar);
   const direction = useNavigation(tabId, (n) => n?.scrollDirection ?? "up");
   const page = useNavigation(tabId, (n) => n?.url ?? null);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const [state, setState] = useState(() => followScroll(BAR_SHOWN, tabId, page, direction, collapses));
   useEffect(() => setState((now) => followScroll(now, tabId, page, direction, collapses)), [tabId, page, direction, collapses]);
   const hidden = (state.hidden && state.tabId === tabId) || finding;

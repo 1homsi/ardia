@@ -4,7 +4,6 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withSpring,
   withTiming,
@@ -20,6 +19,7 @@ import { LookBackdrop } from "./LookViews";
 import { tabsCurve, tabsMotion, trayMotion } from "./motion";
 import { useTheme } from "./theme";
 import { menuLayout } from "./tokens";
+import { useReduceMotion } from "./contrast";
 
 const HIDE_FALLBACK_MS = 900;
 const DIM_TRAVEL_RADII = 8;
@@ -51,7 +51,7 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
   useCoverFocus(panel);
   const sheetHeight = useSharedValue(height);
   const drag = useSharedValue(0);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   useEffect(() => {
     if (open) {
       drag.value = 0;

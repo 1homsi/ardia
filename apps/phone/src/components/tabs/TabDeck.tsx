@@ -5,7 +5,7 @@ import { useSearchOpen } from "../../state/search/hooks";
 import { beginInteraction, countRender, INTERACTION_WINDOW_MS, interactionPerfEnabled } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { POOF, poofCentreY } from "../../lib/poof";
 import { pictureKey, whenPicturePainted } from "../../lib/shownSnapshots";
 import { countUsage } from "../../state/telemetry/telemetry";
@@ -54,7 +54,7 @@ import {
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem } from "../ui";
+import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useReduceMotion } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { pinToMac, sendTab, sendTargetsFor } from "../../state/sync/actions";
@@ -142,7 +142,7 @@ export function TabDeck() {
   const chromeStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
   const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
 
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const [poofs, setPoofs] = useState<PoofSpec[]>([]);
   const poofSeed = useRef(0);
   useEffect(() => {

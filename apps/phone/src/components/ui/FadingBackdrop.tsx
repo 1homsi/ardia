@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { useReduceMotion } from "./contrast";
 import { Backdrop } from "./Backdrop";
 import { tabsCurve, tabsMotion } from "./motion";
 
@@ -9,7 +10,7 @@ export function FadingBackdrop({ colors }: { colors: readonly string[] }) {
   const shown = useRef(colors);
   const [previous, setPrevious] = useState<readonly string[] | null>(null);
   const fade = useSharedValue(0);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   useEffect(() => {
     if (shown.current.join("|") === key) return;
     setPrevious(shown.current);

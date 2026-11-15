@@ -59,9 +59,10 @@ test("with the app in front the tray closes as before, without waiting for the a
   const dismiss = jest.spyOn(Keyboard, "dismiss");
   presentSearch("page", "");
   const root = renderSurface(<SearchTray />);
+  const listenersBefore = appState.addEventListener.mock.calls.filter(([event]) => event === "change").length;
   act(() => openPage("https://otter.example/", "link"));
   expect(dismiss).toHaveBeenCalledTimes(1);
   await pass(3000);
-  expect(appState.addEventListener.mock.calls.filter(([event]) => event === "change")).toHaveLength(0);
+  expect(appState.addEventListener.mock.calls.filter(([event]) => event === "change")).toHaveLength(listenersBefore);
   unmount(root);
 });

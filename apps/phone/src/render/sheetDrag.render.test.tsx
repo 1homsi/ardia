@@ -6,6 +6,9 @@ import { act } from "react-test-renderer";
 import { Sheet } from "../components/ui";
 import { renderSurface, unmount } from "../../test/render/harness";
 
+const mockMotion = { reduced: false };
+jest.mock("../state/app/systemLook", () => ({ ...jest.requireActual("../state/app/systemLook"), useReduceMotion: () => mockMotion.reduced }));
+
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => {
   act(() => jest.runOnlyPendingTimers());
@@ -57,7 +60,7 @@ test("a short slow drag springs back, and a flick past 800 points a second close
 });
 
 test("with Reduce Motion the sheet leaves on a short timing instead of its spring", () => {
-  jest.spyOn(Reanimated, "useReducedMotion").mockImplementation(() => true);
+  mockMotion.reduced = true;
   const timing = jest.spyOn(Reanimated, "withTiming");
   const spring = jest.spyOn(Reanimated, "withSpring");
   const root = renderSurface(
@@ -68,4 +71,5 @@ test("with Reduce Motion the sheet leaves on a short timing instead of its sprin
   expect(timing).toHaveBeenCalledWith(0, expect.objectContaining({ duration: 200 }), expect.any(Function));
   expect(spring.mock.calls.filter(([to]) => to === 0)).toHaveLength(0);
   unmount(root);
+  mockMotion.reduced = false;
 });

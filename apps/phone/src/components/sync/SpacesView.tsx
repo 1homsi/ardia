@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PinnedTile, SyncedProfile } from "../../state/sync/store";
 import { SPACES_LARGE_TEXT, Switcher, Tiles, Unavailable } from "./SpacesParts";
@@ -39,6 +39,7 @@ import {
   useTheme,
   type MenuItem,
   type SymbolName,
+  useReduceMotion,
 } from "../ui";
 
 const BANNER_ICONS: Record<BannerIcon, SymbolName> = { folder: "folderFill", lock: "lockFill", reset: "arrowClockwise", warning: "exclamationmarkTriangle", offline: "wifiSlash" };
@@ -68,7 +69,7 @@ export function SpacesView() {
   const contrast = useIncreasedContrast();
   const tone = useMemo(() => spaceTone(profile, theme.dark, contrast, PROFILE_PRESETS, DEFAULT_PROFILE_COLOR), [profile, theme.dark, contrast]);
   const banner = syncBanner(status);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const window = useWindowDimensions();
   const [width, setWidth] = useState(window.width);
   const pager = useRef<FlatList<SyncedProfile>>(null);
@@ -183,7 +184,7 @@ function SpacePage({ profile, isShown, onMenu, bottom }: { profile: SyncedProfil
   const [refreshing, setRefreshing] = useState(false);
   const frame = useSheetFrame();
   const rows = useMemo(() => spaceRows(profile, open, expanded), [profile, open, expanded]);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const known = useRef<ReadonlySet<string> | null>(null);
   const fresh = useMemo(() => {
     const before = known.current;
@@ -258,7 +259,7 @@ function Appearing({ fresh, children }: { fresh: boolean; children: ReactNode })
 }
 
 function Disclosure({ open, tint }: { open: boolean; tint: string }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const turn = useSharedValue(open ? 1 : 0);
   useEffect(() => {
     turn.value = reduceMotion ? (open ? 1 : 0) : withSpring(open ? 1 : 0, toastMotion.snappy);

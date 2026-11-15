@@ -4,9 +4,9 @@ import { canPickSyncFolderFirst, checkPhrase, connectSync, syncConnectSession } 
 import { IDLE_CONNECT, type ConnectState } from "../../state/sync/connectSession";
 import { haptics } from "../../state/app/haptics";
 import { chooseFolderTitle, setupStepLabel, connectMessage, MAC_HINT, phraseFooter } from "../../state/sync/syncRules";
-import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, tabsMotion, useTheme } from "../ui";
+import { capsule, font, radius, settingsLayout, space, spacesLayout, Symbol, tabsMotion, useTheme, useReduceMotion } from "../ui";
 import { BarButton, CrossfadeText, Group, SettingsPage } from "../settings/SettingsKit";
-import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutRight, useReducedMotion } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutRight } from "react-native-reanimated";
 import { CapsuleButton, PasteAction, SyncHero } from "./SyncPage";
 import { SyncScan } from "./SyncScan";
 import { copy } from "../../lib/platformCopy";
@@ -27,7 +27,7 @@ export function SyncConnect({ onClose, onConnected, closes }: FlowProps) {
   const [session] = useState(() => (canPickSyncFolderFirst() ? syncConnectSession() : null));
   const picked = useSyncExternalStore(session?.subscribe ?? noSubscription, session?.state ?? idleConnect);
   const busy = connecting || picked.connecting;
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
 
   const finished = (result: ConnectResult | null) => {
     if (!result) return;

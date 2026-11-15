@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { copy } from "../../lib/platformCopy";
 import { PROBLEM_TEXT, voiceControl, type Dictation } from "../../state/voice/dictation";
 import { closeVoiceSearch, openSpeechSettings, searchSpoken, startListening, stopListening, useDictation, useVoiceLevels, useVoicePresented } from "../../state/voice/store";
-import { ArdiaLogo, capsule, font, FrostSource, LookBackdrop, LookFrost, space, Symbol, useCoverFocus, voiceInk, voiceLayout, type SymbolName } from "../ui";
+import { ArdiaLogo, capsule, font, FrostSource, LookBackdrop, LookFrost, space, Symbol, useCoverFocus, voiceInk, voiceLayout, type SymbolName, useReduceMotion } from "../ui";
 
 export function VoiceSearchView() {
   const presented = useVoicePresented();
@@ -46,7 +46,7 @@ function VoiceCover() {
 }
 
 function LevelLogo({ level }: { level: number }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReduceMotion();
   const shown = useSharedValue(level);
   useEffect(() => {
     shown.value = withTiming(level, { duration: voiceLayout.levelMotion, easing: Easing.out(Easing.quad) });
