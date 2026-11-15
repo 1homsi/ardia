@@ -152,6 +152,7 @@ class Host : public TabStripModelObserver,
   std::string NameOf(Profile* profile) const;
   HWND ShownParentOf(HWND window);
   void PutBack(HWND window);
+  void FullscreenLeft(HWND window);
 
   std::map<Browser*, Hosted> hosted_;
   std::set<Browser*> popup_browsers_;
@@ -173,6 +174,7 @@ class Host : public TabStripModelObserver,
   std::set<HWND> parents_;
   std::map<HWND, std::string> keyboard_wanted_;
   std::set<HWND> fullscreen_pages_;
+  std::set<HWND> leaving_fullscreen_;
   std::set<HWND> put_back_pending_;
   bool placing_ = false;
   bool creating_browser_ = false;

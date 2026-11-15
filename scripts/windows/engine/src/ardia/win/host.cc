@@ -1187,13 +1187,17 @@ void Host::ParentMoved(HWND parent) {
 
 HWND Host::ShownParentOf(HWND window) {
   for (const auto& [browser, hosted] : hosted_) {
-    if (hosted.shown.empty() || !hosted.parent ||
-        !::IsWindow(hosted.parent) || WindowOf(browser) != window) {
+    if (WindowOf(browser) != window) {
       continue;
     }
     ui::BaseWindow* base_window = browser->GetWindow();
     if (base_window && base_window->IsFullscreen()) {
       fullscreen_pages_.insert(window);
+      return nullptr;
+    }
+    if (hosted.shown.empty() || !hosted.parent ||
+        !::IsWindow(hosted.parent)) {
+      fullscreen_pages_.erase(window);
       return nullptr;
     }
     return hosted.parent;
@@ -1219,10 +1223,14 @@ void Host::HoldPagePlace(HWND window, WINDOWPOS& change) {
   if (placing_ || NeitherMovesNorSizes(change)) {
     return;
   }
-  if (!ShownParentOf(window)) {
+  if (!ShownParentOf(window) || leaving_fullscreen_.contains(window)) {
     return;
   }
   if (fullscreen_pages_.erase(window)) {
+    leaving_fullscreen_.insert(window);
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&Host::FullscreenLeft,
+                                  weak_factory_.GetWeakPtr(), window));
     return;
   }
   RECT now;
@@ -1254,7 +1262,16 @@ void Host::PageMoved(HWND window, const WINDOWPOS& change) {
 
 void Host::PageDestroyed(HWND window) {
   fullscreen_pages_.erase(window);
+  leaving_fullscreen_.erase(window);
   put_back_pending_.erase(window);
+}
+
+void Host::FullscreenLeft(HWND window) {
+  if (!leaving_fullscreen_.erase(window) ||
+      !put_back_pending_.insert(window).second) {
+    return;
+  }
+  PutBack(window);
 }
 
 void Host::PutBack(HWND window) {
