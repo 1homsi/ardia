@@ -651,6 +651,13 @@ off in the lab`.
     three times within a minute (Green, then Purple, then Neutral): the Search widget ends on Neutral within a few
     seconds and keeps it. Then Stop Syncing: Your Mac's Tabs shows its "turn on sync" message instead of the Mac's
     tabs within a few seconds, as the Compose app's does.
+71. **One Android dialog for a site's location** (from the build after sync20b). On a fresh install, open
+    openstreetmap.org and tap "Show my location". Android's location dialog comes first; choose Approximate and
+    While using the app. The site's dialog follows; tap Allow. The map centres on you, and Android asks nothing more
+    (no "change to precise" dialog).
+72. **A fullscreen video turns with the phone** (from the build after sync20b). With auto-rotate on, play a video
+    fullscreen and turn the phone: the video goes landscape and back. Exit fullscreen while landscape: Ardia goes
+    back to portrait. With auto-rotate off, the video stays as the phone's rotation lock says.
 
 #### R8 pass (sync19-r8 and later R8 builds)
 
