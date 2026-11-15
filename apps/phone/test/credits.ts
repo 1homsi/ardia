@@ -80,7 +80,7 @@ export function bundledPackages(sources: readonly string[]): PackageCredit[] {
   }
   const credits = new Map<string, PackageCredit>();
   for (const root of roots) {
-    const manifestPath = [join(root, "package.json"), join(REPO_DIR, root, "package.json")].find((path) => existsSync(path));
+    const manifestPath = [join(root, "package.json"), join(APP_DIR, root, "package.json"), join(REPO_DIR, root, "package.json")].find((path) => existsSync(path));
     if (!manifestPath) continue;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     if (String(manifest.name).startsWith("@ardia/")) continue;
@@ -98,7 +98,7 @@ function write(sourceMap: string) {
   const map = JSON.parse(readFileSync(sourceMap, "utf8"));
   const credits: Credits = {
     inputs: creditInputs(),
-    packages: bundledPackages(map.sources),
+    packages: bundledPackages(map.sources ?? map.sections.flatMap((section: { map: { sources: string[] } }) => section.map.sources)),
     native: nativeCredits(gradleArtifacts(readFileSync(MODULE_GRADLE, "utf8"))),
   };
   writeFileSync(CREDITS_FILE, `${JSON.stringify(credits, null, 2)}\n`);

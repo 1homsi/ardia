@@ -1,5 +1,5 @@
 import { useRef, type RefObject } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { sfSymbol } from "../../lib/sfSymbols";
 import { openSettings } from "../../state/settings/nav";
 import { openRemote } from "../../state/sync/actions";
@@ -12,7 +12,7 @@ const TILE_HEIGHT = 56;
 const TILE_HEIGHT_MAX = 72;
 export const SPACES_LARGE_TEXT = 1.5;
 
-export function Tiles({ tiles, profileId, onFolder, onLink }: { tiles: PinnedTile[]; profileId: string; onFolder: (tile: PinnedTile, anchor: RefObject<View | null>) => void; onLink: (url: string, title: string, y: number) => void }) {
+export function Tiles({ tiles, profileId, onFolder, onLink }: { tiles: PinnedTile[]; profileId: string; onFolder: (tile: PinnedTile, anchor: RefObject<ViewInstance | null>) => void; onLink: (url: string, title: string, y: number) => void }) {
   const { width, fontScale } = useWindowDimensions();
   const height = Math.min(TILE_HEIGHT * fontScale, TILE_HEIGHT_MAX);
   const titled = fontScale < SPACES_LARGE_TEXT;
@@ -47,11 +47,11 @@ function TileButton({
   profileId: string;
   height: number;
   titled: boolean;
-  onFolder: (tile: PinnedTile, anchor: RefObject<View | null>) => void;
+  onFolder: (tile: PinnedTile, anchor: RefObject<ViewInstance | null>) => void;
   onLink: (url: string, title: string, y: number) => void;
 }) {
   const theme = useTheme();
-  const anchor = useRef<View>(null);
+  const anchor = useRef<ViewInstance>(null);
   const folder = tile.folder?.length ? tile.folder : null;
   const label = tile.title.trim() || remoteTitle("", tile.url);
   return (

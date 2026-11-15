@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { copy } from "../../lib/platformCopy";
@@ -15,7 +15,7 @@ export function VoiceSearchView() {
 function VoiceCover() {
   const insets = useSafeAreaInsets();
   const dictation = useDictation();
-  const cancel = useRef<View>(null);
+  const cancel = useRef<ViewInstance>(null);
   useCoverFocus(cancel);
   return (
     <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>

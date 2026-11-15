@@ -1,7 +1,7 @@
 import { createElement, forwardRef, useImperativeHandle, useRef, type ComponentType, type Ref } from "react";
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
 import { labLog } from "./system";
-import { Platform, processColor, TextInput, type ColorValue, type NativeSyntheticEvent, type TextInputProps, type ViewProps } from "react-native";
+import { Platform, processColor, TextInput, type ColorValue, type NativeSyntheticEvent, type TextInputProps, type ViewProps, type TextInputInstance } from "react-native";
 
 export type CompletionOffer = { query: string; completion: string };
 
@@ -81,7 +81,7 @@ export const CompletingField = forwardRef<CompletingFieldHandle, CompletingField
   const { onTypedChange, onSubmit, onFocusChange, onSuffixChange, text, offer, highlightColor, selectsAllOnFocus, color, fontSize, fontWeight, style, accessibilityLabel, ...rest } = props;
   const native = useRef<CompletingFieldHandle>(null);
   const eventCount = useRef(0);
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
   useImperativeHandle(
     ref,
     () => ({

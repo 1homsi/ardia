@@ -7,8 +7,8 @@ import { presentSearch, useSearch } from "../state/search/store";
 import type { TrayRow } from "../state/search/omnibox";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
 
-const fadeModule = require("../../../../packages/phone/src/fade") as typeof import("../../../../packages/phone/src/fade");
-const fadeProps = require("../../../../packages/phone/src/fadeProps") as typeof import("../../../../packages/phone/src/fadeProps");
+const fadeModule = require("@ardia/phone-native/src/fade") as typeof import("@ardia/phone-native/src/fade");
+const fadeProps = require("@ardia/phone-native/src/fadeProps") as typeof import("@ardia/phone-native/src/fadeProps");
 
 const EDGES = ["top", "bottom", "leading", "trailing"] as const;
 

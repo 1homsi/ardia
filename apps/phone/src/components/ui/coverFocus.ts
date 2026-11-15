@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
-import { AccessibilityInfo, findNodeHandle, type View } from "react-native";
+import { AccessibilityInfo, findNodeHandle, type View, type ViewInstance } from "react-native";
 
-export function useCoverFocus(target: RefObject<View | null>) {
+export function useCoverFocus(target: RefObject<ViewInstance | null>) {
   useEffect(() => {
     let live = true;
     void AccessibilityInfo.isScreenReaderEnabled().then((on) => {

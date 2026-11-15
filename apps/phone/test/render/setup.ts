@@ -1,5 +1,9 @@
 import "react-native-gesture-handler/jestSetup";
 
+jest.mock("react-native-gesture-handler/lib/module/handlers/gestures/installUIRuntimeBindings", () => ({ installUIRuntimeBindings: () => undefined }));
+
+Object.assign(globalThis, { jest });
+
 require("react-native-reanimated").setUpTests();
 
 jest.mock("react-native-reanimated", () => {
@@ -25,7 +29,7 @@ jest.mock("react-native-reanimated", () => {
 
 {
   const { onUiThread } = jest.requireActual("./uiRuntime");
-  const gestures = jest.requireActual("react-native-gesture-handler/lib/commonjs/handlers/gestures/gesture");
+  const gestures = jest.requireActual("react-native-gesture-handler/lib/module/handlers/gestures/gesture");
   const setters: [object, string[]][] = [
     [gestures.BaseGesture.prototype, ["onBegin", "onStart", "onEnd", "onFinalize", "onTouchesDown", "onTouchesMove", "onTouchesUp", "onTouchesCancelled"]],
     [gestures.ContinousBaseGesture.prototype, ["onUpdate", "onChange"]],
@@ -51,8 +55,6 @@ const PHONE_WINDOW = { width: 393, height: 873, scale: 3, fontScale: 1 };
 require("react-native").Dimensions.set({ window: PHONE_WINDOW, screen: PHONE_WINDOW });
 
 jest.mock("expo-navigation-bar", () => ({
-  setButtonStyleAsync: async () => undefined,
-  setBackgroundColorAsync: async () => undefined,
+  NavigationBar: Object.assign(() => null, { setStyle: () => undefined, setHidden: () => undefined }),
   setVisibilityAsync: async () => undefined,
-  setStyle: () => undefined,
 }));

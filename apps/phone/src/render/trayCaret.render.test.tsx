@@ -11,7 +11,7 @@ const NativeField = forwardRef(function NativeField(props: Record<string, unknow
 jest.spyOn(core, "requireOptionalNativeModule").mockImplementation((name: string) => (name === "ArdiaPhoneCompletingField" ? {} : realOptional(name)));
 jest.spyOn(core, "requireNativeViewManager").mockImplementation((name: string) => (name === "ArdiaPhoneCompletingField" ? NativeField : realView(name)));
 
-const { nativeFieldColor } = require("../../../../packages/phone/src/completingField") as typeof import("../../../../packages/phone/src/completingField");
+const { nativeFieldColor } = require("@ardia/phone-native/src/completingField") as typeof import("@ardia/phone-native/src/completingField");
 const { SearchTray } = require("../components/search/SearchTray") as typeof import("../components/search/SearchTray");
 const { useTheme } = require("../components/ui") as typeof import("../components/ui");
 const { withAlpha } = require("../lib/color") as typeof import("../lib/color");

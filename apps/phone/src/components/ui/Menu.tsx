@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { BackHandler, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { BackHandler, Pressable, StyleSheet, Text, View, type ViewStyle, type ViewInstance } from "react-native";
 import { MENU_ROW, menuHeight, menuTop } from "../../lib/menuPlace";
 import { useCoverFocus } from "./coverFocus";
 import { measureAnchor, Portal, useOverlayFrame } from "./Overlay";
@@ -16,7 +16,7 @@ type Props = { items: MenuItem[]; place: ViewStyle; onDismiss: () => void };
 
 export function Menu({ items, place, onDismiss }: Props) {
   const theme = useTheme();
-  const panel = useRef<View>(null);
+  const panel = useRef<ViewInstance>(null);
   useCoverFocus(panel);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -69,7 +69,7 @@ export function Menu({ items, place, onDismiss }: Props) {
 
 const MENU_MARGIN = 8;
 
-export function FloatingMenu({ items, place, onDismiss, anchor }: Props & { anchor?: RefObject<View | null> }) {
+export function FloatingMenu({ items, place, onDismiss, anchor }: Props & { anchor?: RefObject<ViewInstance | null> }) {
   const hostFrame = useOverlayFrame();
   const [placed, setPlaced] = useState<ViewStyle | null>(null);
   useEffect(() => {

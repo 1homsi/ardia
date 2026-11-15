@@ -11,10 +11,11 @@ export const PAGER = {
   minimumDistance: 14,
 } as const;
 
-export function rubberBand(distance: number, limit: number = PAGER.rubberLimit): number {
+export function rubberBand(distance: number, limit?: number): number {
   "worklet";
+  const reach = limit ?? PAGER.rubberLimit;
   const magnitude = Math.abs(distance);
-  const banded = limit * (1 - 1 / (magnitude / limit + 1));
+  const banded = reach * (1 - 1 / (magnitude / reach + 1));
   return distance < 0 ? -banded : banded;
 }
 

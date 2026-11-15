@@ -6,8 +6,8 @@ nodeLinker: hoisted
 
 autoInstallPeers: false
 
-patchedDependencies:
-  expo-modules-core@3.0.30: ../../patches/expo-modules-core@3.0.30.patch
+ignoreWorkspaceRootCheck: true
 
 allowBuilds:
+  '@parcel/watcher': false
   esbuild: false

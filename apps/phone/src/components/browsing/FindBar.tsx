@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from "react-native";
 import { useBottomLift } from "../search/useKeyboardHeight";
 import { closeFind, findNext, findPrevious, typeFind } from "../../state/page/actions";
 import { useFindQuery, useFindResult } from "../../state/page/hooks";
@@ -13,7 +13,7 @@ export function FindBar({ tabId }: { tabId: string }) {
   const { lift } = useBottomLift();
   const query = useFindQuery();
   const result = useFindResult(tabId);
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
   useEffect(() => {
     const focus = setTimeout(() => input.current?.focus(), 0);
     return () => clearTimeout(focus);

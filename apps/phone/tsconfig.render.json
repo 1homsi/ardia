@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node", "jest"],
-    "paths": { "*": ["./node_modules/@types/*", "./node_modules/*"] }
+    "preserveSymlinks": true,
+    "customConditions": ["react-native"],
+    "moduleSuffixes": [".native", ""]
   },
   "include": ["src/**/*.render.test.tsx", "test/render"]
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewInstance } from "react-native";
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PinnedTile, SyncedProfile } from "../../state/sync/store";
@@ -51,7 +51,7 @@ const INDENT = 20;
 const SPACE_ROWS_FIRST = 16;
 const SPACE_ROWS_WINDOW = 5;
 
-type RowMenu = { items: MenuItem[]; y: number; anchor?: RefObject<View | null> };
+type RowMenu = { items: MenuItem[]; y: number; anchor?: RefObject<ViewInstance | null> };
 
 export function SpacesView() {
   const theme = useTheme();
@@ -246,7 +246,7 @@ type RowProps = {
   onToggle: (key: string) => void;
   onShowAll: (deviceId: string) => void;
   onLongPress: (url: string, title: string, y: number) => void;
-  onFolder: (tile: PinnedTile, anchor: RefObject<View | null>) => void;
+  onFolder: (tile: PinnedTile, anchor: RefObject<ViewInstance | null>) => void;
 };
 
 function Appearing({ fresh, children }: { fresh: boolean; children: ReactNode }) {

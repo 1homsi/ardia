@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle, type ScrollViewInstance, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
@@ -10,7 +10,7 @@ type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trai
 export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh, heroTitle = false, overlay, dismissesKeyboard = false }: PageProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const list = useRef<ScrollView>(null);
+  const list = useRef<ScrollViewInstance>(null);
   const restored = useRef(false);
   const frame = useSheetFrame();
   const [refreshing, setRefreshing] = useState(false);
@@ -219,7 +219,7 @@ type PickerProps<T extends string> = RowBase & { options: { id: T; title: string
 
 export function PickerRow<T extends string>({ title, icon, tint, divider, options, selected, onSelect }: PickerProps<T>) {
   const theme = useTheme();
-  const anchor = useRef<View>(null);
+  const anchor = useRef<ViewInstance>(null);
   const { width } = useWindowDimensions();
   const [opened, setOpened] = useState(false);
   const current = options.find((option) => option.id === selected)?.title ?? "";

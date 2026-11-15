@@ -1,5 +1,5 @@
 import { Children, useRef, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { copy } from "../../lib/platformCopy";
 import {
@@ -182,7 +182,7 @@ function Row({ title, enabled, onPress }: { title: string; enabled: boolean; onP
 function SendRow({ devices }: { devices: ReturnType<typeof useSendTargets> }) {
   const theme = useTheme();
   const ink = usePageMenuInk();
-  const row = useRef<View>(null);
+  const row = useRef<ViewInstance>(null);
   const [open, setOpen] = useState(false);
   if (devices.length === 1) return <Row title={`Send to ${devices[0]!.name}`} enabled onPress={() => sendCurrentTab(devices[0]!)} />;
   return (

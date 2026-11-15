@@ -1,6 +1,6 @@
 type Worklet = ((...args: unknown[]) => unknown) & {
   __workletHash?: number;
-  __closure?: Record<string, unknown>;
+  __closure?: Record<string, unknown> | unknown[];
   __initData?: { code: string; location?: string };
 };
 
@@ -44,7 +44,7 @@ export function onUiThread<T>(value: T): T {
   const known = copies.get(fn);
   if (known) return known as unknown as T;
   const compiled = new Function(`return (${fn.__initData.code})`)() as Worklet;
-  const closure = shared(fn.__closure ?? {}, new Map()) as Record<string, unknown>;
+  const closure = shared(fn.__closure ?? [], new Map());
   const copy = compiled.bind({ __closure: closure }) as Worklet;
   copy.__workletHash = fn.__workletHash;
   copy.__closure = fn.__closure;

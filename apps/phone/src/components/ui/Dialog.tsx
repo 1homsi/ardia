@@ -45,7 +45,7 @@ export function Dialog({ title, message, buttons, onDismiss, children }: Props) 
 }
 
 const styles = StyleSheet.create({
-  center: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  center: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
   panel: { width: dialogLayout.width, borderRadius: dialogLayout.radius, padding: space.xxl, gap: space.l, elevation: 24 },
   title: { fontWeight: "600" },
   buttons: { flexDirection: "row", justifyContent: "flex-end", gap: space.s },

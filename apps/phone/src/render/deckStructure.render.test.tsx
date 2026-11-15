@@ -47,7 +47,7 @@ const LAYOUT_KEYS = ["width", "height", "top", "left", "right", "bottom", "minWi
 test("a deck scroll animates only transforms and opacity, so no animated style asks for a layout pass while nine cards move", () => {
   const animatedKeys = new Set<string>();
   const original = Reanimated.useAnimatedStyle;
-  const recording = jest.spyOn(Reanimated, "useAnimatedStyle").mockImplementation(((updater: (() => Record<string, unknown>) & { __closure?: Record<string, unknown> }, deps?: unknown[]) =>
+  const recording = jest.spyOn(Reanimated, "useAnimatedStyle").mockImplementation(((updater: (() => Record<string, unknown>) & { __closure?: Record<string, unknown> | unknown[] }, deps?: unknown[]) =>
     (original as (...args: unknown[]) => unknown)(() => {
       const out = updater();
       for (const key of Object.keys(out ?? {})) animatedKeys.add(key);
@@ -63,8 +63,9 @@ test("a deck scroll animates only transforms and opacity, so no animated style a
 });
 
 test("each card works out its position once per frame: one derived value per card computes the pose, and no animated style computes it again", () => {
-  type Updater = { __closure?: Record<string, unknown> };
-  const computes = (updater: Updater) => Object.keys(updater.__closure ?? {}).includes("cardPose");
+  type Updater = { __initData?: { code: string } };
+  const captured = (updater: Updater) => (/const[{[]([^}\]]*)[}\]]=this\.__closure/.exec(updater.__initData?.code ?? "")?.[1] ?? "").split(",").map((part) => part.split(":")[0]!.trim());
+  const computes = (updater: Updater) => captured(updater).includes("cardPose");
   const derivedPoses: Updater[] = [];
   const stylePoses: Updater[] = [];
   const originalDerived = Reanimated.useDerivedValue;

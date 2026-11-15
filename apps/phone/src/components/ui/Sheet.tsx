@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -50,7 +50,7 @@ export function Sheet({ open, onDismiss, onHidden, fill, children }: Props) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const shown = useSharedValue(0);
-  const panel = useRef<View>(null);
+  const panel = useRef<ViewInstance>(null);
   useCoverFocus(panel);
   const sheetHeight = useSharedValue(height);
   const drag = useSharedValue(0);

@@ -16,21 +16,27 @@ function Look({ children }: { children: ReactNode }) {
   return <ProfileLookContext.Provider value={look}>{children}</ProfileLookContext.Provider>;
 }
 
+const surface = (node: ReactNode) => (
+  <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+    <SafeAreaProvider initialMetrics={METRICS}>
+      <Look>
+        <OverlayHost>{node}</OverlayHost>
+      </Look>
+    </SafeAreaProvider>
+  </GestureHandlerRootView>
+);
+
 export function renderSurface(node: ReactNode, { flushTimers = true }: { flushTimers?: boolean } = {}): ReactTestRenderer {
   let root: ReactTestRenderer | null = null;
   act(() => {
-    root = create(
-      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-        <SafeAreaProvider initialMetrics={METRICS}>
-          <Look>
-            <OverlayHost>{node}</OverlayHost>
-          </Look>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>,
-    );
+    root = create(surface(node));
   });
   if (flushTimers) act(() => jest.runOnlyPendingTimers());
   return root!;
+}
+
+export function updateSurface(root: ReactTestRenderer, node: ReactNode) {
+  act(() => root.update(surface(node)));
 }
 
 export function unmount(root: ReactTestRenderer) {

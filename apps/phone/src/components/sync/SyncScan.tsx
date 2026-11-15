@@ -143,9 +143,9 @@ function GlassButton({ title, onPress, prominent }: { title: string; onPress: ()
 }
 
 const styles = StyleSheet.create({
-  screen: { ...StyleSheet.absoluteFillObject, backgroundColor: ink.black },
-  center: { ...StyleSheet.absoluteFillObject },
-  finder: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "space-between" },
+  screen: { ...StyleSheet.absoluteFill, backgroundColor: ink.black },
+  center: { ...StyleSheet.absoluteFill },
+  finder: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "space-between" },
   words: { alignItems: "center", gap: space.xs, paddingHorizontal: space.xxl },
   rejected: { backgroundColor: scanInk.note, borderRadius: scanLayout.noteRadius, paddingHorizontal: space.l, paddingVertical: space.s, overflow: "hidden" },
   unavailable: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.m, paddingHorizontal: space.xxl },

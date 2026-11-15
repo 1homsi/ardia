@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewInstance } from "react-native";
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { sfSymbol } from "../../lib/sfSymbols";
 import { haptics } from "../../state/app/haptics";
@@ -34,7 +34,7 @@ export type StartGeometry = { width: number; height: number; safeSide: number; b
 
 export const startBarCenterY = (height: number, safeBottom: number) => height - Math.max(safeBottom, startLayout.minSafeBottom) - startLayout.barAboveSafeBottom;
 
-type StartMenu = { items: MenuItem[]; anchor: RefObject<View | null> };
+type StartMenu = { items: MenuItem[]; anchor: RefObject<ViewInstance | null> };
 
 export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeometry; dark: boolean; incognito: boolean }) {
   const status = useSyncStatus();
@@ -138,7 +138,7 @@ function StartSpacePage({
   onMenu: (menu: StartMenu) => void;
 }) {
   const switcherY = geometry.height * startLayout.switcherRatio;
-  const anchor = useRef<View>(null);
+  const anchor = useRef<ViewInstance>(null);
   const many = spaces.length > 1;
   const openMenu = () => {
     menuOpenedHaptic();
@@ -186,7 +186,7 @@ function PinnedTiles({ tiles, width, profileId, dark, incognito, onMenu }: { til
 }
 
 function PinnedTileButton({ tile, width, profileId, dark, incognito, onMenu }: { tile: PinnedTile; width: number; profileId: string; dark: boolean; incognito: boolean; onMenu: (menu: StartMenu) => void }) {
-  const anchor = useRef<View>(null);
+  const anchor = useRef<ViewInstance>(null);
   const folder = tile.folder?.length ? tile.folder : null;
   const label = remoteTitle(tile.title, tile.url);
   const showFolder = () => {

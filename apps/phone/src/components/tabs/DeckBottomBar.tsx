@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, TextInput, View, type TextInputInstance, type ViewInstance } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { newTab } from "../../state/browse/store";
 import { countUsage } from "../../state/telemetry/telemetry";
@@ -27,8 +27,8 @@ export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incogni
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const needle = useRef("");
-  const input = useRef<TextInput>(null);
-  const row = useRef<View>(null);
+  const input = useRef<TextInputInstance>(null);
+  const row = useRef<ViewInstance>(null);
   const keyboard = useKeyboardHeight(shown);
   const lift = focused && keyboard > 0 ? Math.max(0, barCenterY - deckBarAboveKeyboard(deckHeight, keyboard)) : 0;
   const rise = useSharedValue(0);

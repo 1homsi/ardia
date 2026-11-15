@@ -7,7 +7,7 @@ import { useBlocking } from "../state/settings/actions";
 import * as syncActions from "../state/sync/actions";
 import { pressButton, renderSurface, textOf, unmount, withTabs } from "../../test/render/harness";
 
-const pasteModule = require("../../../../packages/phone/src/pasteButton") as typeof import("../../../../packages/phone/src/pasteButton");
+const pasteModule = require("@ardia/phone-native/src/pasteButton") as typeof import("@ardia/phone-native/src/pasteButton");
 
 type Root = ReturnType<typeof renderSurface>;
 

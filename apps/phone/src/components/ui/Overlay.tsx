@@ -1,5 +1,5 @@
 import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewInstance } from "react-native";
 
 export type WindowRect = { x: number; y: number; width: number; height: number };
 
@@ -9,14 +9,14 @@ const OverlayContext = createContext<Overlay | null>(null);
 
 let nextId = 0;
 
-const measure = (view: View | null): Promise<WindowRect> =>
+const measure = (view: ViewInstance | null): Promise<WindowRect> =>
   new Promise((resolve) => {
     if (!view) resolve({ x: 0, y: 0, width: 0, height: 0 });
     else view.measureInWindow((x, y, width, height) => resolve({ x, y, width, height }));
   });
 
 export function OverlayHost({ children }: { children: ReactNode }) {
-  const root = useRef<View>(null);
+  const root = useRef<ViewInstance>(null);
   const [layers, setLayers] = useState<{ id: number; node: ReactNode }[]>([]);
   const overlay = useMemo<Overlay>(
     () => ({
@@ -56,4 +56,4 @@ export function useOverlayFrame() {
   return overlay ? overlay.frame : () => Promise.resolve({ x: 0, y: 0, width: 0, height: 0 });
 }
 
-export const measureAnchor = (anchor: RefObject<View | null>) => measure(anchor.current);
+export const measureAnchor = (anchor: RefObject<ViewInstance | null>) => measure(anchor.current);

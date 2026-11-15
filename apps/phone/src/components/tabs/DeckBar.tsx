@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ComponentProps } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewInstance } from "react-native";
 import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
 import type { FrostVariant } from "@ardia/phone-native";
 import { browseLayout, capsule, LookGlass, PressScale, Symbol, tabsLayout, usesGlass, useTheme, type SymbolName } from "../ui";
@@ -33,7 +33,7 @@ export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSetti
   const glass = usesGlass();
   const sideSize = (name: SymbolName) => (glass ? (GLASS_GLYPHS[name] ?? GLASS_GLYPHS.gearshape) : FROST_ICONS.side);
   const edge = glass ? null : [styles.edge, { borderColor: theme.controlEdge }];
-  const row = useRef<View>(null);
+  const row = useRef<ViewInstance>(null);
   const measure = () =>
     row.current?.measureInWindow((_x, y, _width, height) => {
       if (height > 0) noteDeckBarTop(y);

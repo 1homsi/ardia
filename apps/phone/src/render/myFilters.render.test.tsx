@@ -43,7 +43,7 @@ test("the editor fills the page, and unapplied edits hold Back until they are ap
   expect(root.root.findAll((node) => node.props.accessibilityLabel === "Back" && typeof node.props.onPress === "function")).toHaveLength(0);
   const backs = listening.mock.calls.filter((call) => call[0] === "hardwareBackPress");
   expect(backs.length).toBeGreaterThan(0);
-  expect(backs.at(-1)![1]()).toBe(true);
+  expect(backs.at(-1)![1]({ type: "hardwareBackPress", timeStamp: 0 })).toBe(true);
   listening.mockRestore();
   act(() => buttonTitled(root, "Revert")!.props.onPress());
   expect(root.root.findAll((node) => node.props.accessibilityLabel === "Back" && typeof node.props.onPress === "function")).toHaveLength(1);

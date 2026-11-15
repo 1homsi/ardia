@@ -19,7 +19,7 @@ const mockMotion = { reduced: false };
 jest.mock("../state/app/systemLook", () => ({ ...jest.requireActual("../state/app/systemLook"), useReduceMotion: () => mockMotion.reduced }));
 
 const safeArea = require("react-native-safe-area-context") as { useSafeAreaInsets: () => { top: number; bottom: number; left: number; right: number } };
-const lookModule = require("../../../../packages/phone/src/look") as typeof import("../../../../packages/phone/src/look");
+const lookModule = require("@ardia/phone-native/src/look") as typeof import("@ardia/phone-native/src/look");
 
 const HEIGHT = 873;
 const WIDTH = 393;

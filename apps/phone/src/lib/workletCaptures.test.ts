@@ -66,7 +66,7 @@ type CompiledWorklet = { name: string; params: string; captures: string[]; code:
 function compiledWorklets(code: string): CompiledWorklet[] {
   return [...code.matchAll(/_init_data=\{code:"((?:[^"\\]|\\.)*)"/g)].map((match) => {
     const source = JSON.parse(`"${match[1]!}"`) as string;
-    const head = /^function (\w+)\(([^)]*)\)\{(?:const\{([^}]*)\}=this\.__closure;)?/.exec(source);
+    const head = /^\(?function (\w+)\(([^)]*)\)\{(?:const[{[]([^}\]]*)[}\]]=this\.__closure;)?/.exec(source);
     const captures = (head?.[3] ?? "").split(",").map((part) => part.split(":")[0]!.trim()).filter(Boolean);
     return { name: head?.[1] ?? "?", params: head?.[2] ?? "", captures, code: source };
   });
@@ -113,6 +113,13 @@ export function workletProblems(file: string): string[] {
 test("every worklet, as compiled, calls only worklets in its own file and across files, reads its closure only after unpacking it, and never touches React Native's JS-only modules", () => {
   const problems = files(SRC).flatMap(workletProblems);
   assert.deepEqual([...new Set(problems)], []);
+});
+
+test("the check reads the worklets as this Worklets plugin compiles them: every one has a name, and their captures are found", () => {
+  const worklets = files(SRC).flatMap((file) => compiledWorklets(compiled(file)));
+  assert.ok(worklets.length > 100, `${worklets.length} worklets`);
+  assert.deepEqual(worklets.filter((worklet) => worklet.name === "?").map((worklet) => worklet.code.slice(0, 80)), []);
+  assert.ok(worklets.filter((worklet) => worklet.captures.length > 0).length > worklets.length / 2);
 });
 
 test("a worklet that runs during render reads only shared values already declared above it, since the first style is computed at once", () => {

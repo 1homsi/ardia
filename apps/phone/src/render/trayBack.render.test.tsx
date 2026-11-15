@@ -85,7 +85,7 @@ test("with a row's menu open over the tray, Back goes to the menu: the tray's na
   const backs = listening.mock.calls.filter((call) => call[0] === "hardwareBackPress").map((call) => call[1]);
   expect(backs.length).toBeGreaterThan(0);
   act(() => {
-    for (const back of [...backs].reverse()) if (back()) break;
+    for (const back of [...backs].reverse()) if (back({ type: "hardwareBackPress", timeStamp: 0 })) break;
   });
   listening.mockRestore();
   expect(root.root.findAll((node) => node.props.accessibilityLabel === "Dismiss" && typeof node.type === "string")).toHaveLength(0);

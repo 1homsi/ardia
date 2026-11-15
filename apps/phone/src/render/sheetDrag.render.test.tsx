@@ -4,7 +4,7 @@ import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-han
 import * as Reanimated from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { FullSheet, Sheet } from "../components/ui";
-import { renderSurface, unmount } from "../../test/render/harness";
+import { renderSurface, unmount, updateSurface } from "../../test/render/harness";
 
 const mockMotion = { reduced: false };
 jest.mock("../state/app/systemLook", () => ({ ...jest.requireActual("../state/app/systemLook"), useReduceMotion: () => mockMotion.reduced }));
@@ -83,12 +83,11 @@ test("with Remove animations on Android the Settings sheet comes up and goes at 
       {() => <Text>Settings</Text>}
     </FullSheet>,
   );
-  act(() =>
-    root.update(
-      <FullSheet sheet="settings" progress={progress} onDismiss={() => undefined}>
-        {() => <Text>Settings</Text>}
-      </FullSheet>,
-    ),
+  updateSurface(
+    root,
+    <FullSheet sheet="settings" progress={progress} onDismiss={() => undefined}>
+      {() => <Text>Settings</Text>}
+    </FullSheet>,
   );
   expect(timing).toHaveBeenCalledWith(0, expect.objectContaining({ duration: Platform.OS === "android" ? 0 : 200 }));
   unmount(root);

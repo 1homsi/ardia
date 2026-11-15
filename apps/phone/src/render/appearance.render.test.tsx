@@ -15,7 +15,7 @@ jest.mock("../state/app/systemLook", () => ({ ...jest.requireActual("../state/ap
 const overrides: ("light" | "dark" | null)[] = [];
 jest.mock("../platform/look", () => ({ ...jest.requireActual("../platform/look"), overrideColorScheme: (scheme: "light" | "dark" | null) => overrides.push(scheme) }));
 
-const lookModule = require("../../../../packages/phone/src/look") as typeof import("../../../../packages/phone/src/look");
+const lookModule = require("@ardia/phone-native/src/look") as typeof import("@ardia/phone-native/src/look");
 
 type Root = ReturnType<typeof renderSurface>;
 type MacLook = { interfaceStyle: "glass" | "classic" | null; appearance: "auto" | "light" | "dark" | null };

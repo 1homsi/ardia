@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from "react-native";
 import { acknowledgeSyncReset, changeSyncFolder, pastedText, setDeviceName, stopSyncing, syncNow } from "../../state/sync/actions";
 import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { haptics } from "../../state/app/haptics";
@@ -77,7 +77,7 @@ function DeviceName({ current }: { current: string }) {
   const theme = useTheme();
   const [draft, setDraft] = useState(current);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const field = useRef<TextInput>(null);
+  const field = useRef<TextInputInstance>(null);
   const pending = useRef<string | null>(null);
   useEffect(() => setDraft(current), [current]);
   const save = () => {

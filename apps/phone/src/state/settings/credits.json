@@ -1,35 +1,47 @@
 {
-  "inputs": "47c22be955dbc5dd97da18e94683ab8c0f539865b943152899c230afa753757a",
+  "inputs": "9b50b32950a6e2376614392b7fcc2f2612cb1b0a62e05851675b6110730a806c",
   "packages": [
     {
       "name": "@babel/runtime",
-      "version": "7.29.7",
+      "version": "7.29.14",
       "license": "MIT",
       "url": "https://github.com/babel/babel"
     },
     {
-      "name": "@react-native/assets-registry",
-      "version": "0.81.6",
+      "name": "@expo/cli",
+      "version": "58.1.20",
       "license": "MIT",
-      "url": "https://github.com/facebook/react-native"
+      "url": "https://github.com/expo/expo"
+    },
+    {
+      "name": "@expo/devtools",
+      "version": "58.0.2",
+      "license": "MIT",
+      "url": "https://github.com/expo/expo"
+    },
+    {
+      "name": "@react-native/asset-utils",
+      "version": "0.88.1",
+      "license": "MIT",
+      "url": "https://github.com/react/react-native"
     },
     {
       "name": "@react-native/js-polyfills",
-      "version": "0.81.6",
+      "version": "0.88.1",
       "license": "MIT",
-      "url": "https://github.com/facebook/react-native"
+      "url": "https://github.com/react/react-native"
     },
     {
       "name": "@react-native/normalize-colors",
-      "version": "0.81.5",
+      "version": "0.88.1",
       "license": "MIT",
-      "url": "https://github.com/facebook/react-native"
+      "url": "https://github.com/react/react-native"
     },
     {
       "name": "@react-native/virtualized-lists",
-      "version": "0.81.6",
+      "version": "0.88.1",
       "license": "MIT",
-      "url": "https://github.com/facebook/react-native"
+      "url": "https://github.com/react/react-native"
     },
     {
       "name": "@ungap/structured-clone",
@@ -38,10 +50,10 @@
       "url": "https://github.com/ungap/structured-clone"
     },
     {
-      "name": "abort-controller",
-      "version": "3.0.0",
+      "name": "await-lock",
+      "version": "2.2.2",
       "license": "MIT",
-      "url": "https://github.com/mysticatea/abort-controller"
+      "url": "https://github.com/ide/await-lock"
     },
     {
       "name": "base64-js",
@@ -50,82 +62,64 @@
       "url": "https://github.com/beatgammit/base64-js"
     },
     {
-      "name": "buffer",
-      "version": "5.7.1",
-      "license": "MIT",
-      "url": "https://github.com/feross/buffer"
-    },
-    {
-      "name": "event-target-shim",
-      "version": "5.0.1",
-      "license": "MIT",
-      "url": "https://github.com/mysticatea/event-target-shim"
-    },
-    {
       "name": "expo",
-      "version": "54.0.37",
+      "version": "58.0.25",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-asset",
-      "version": "12.0.13",
+      "version": "58.0.21",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-clipboard",
-      "version": "8.0.8",
+      "version": "58.0.4",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-constants",
-      "version": "18.0.14",
+      "version": "58.0.16",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-haptics",
-      "version": "15.0.8",
+      "version": "58.0.8",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-localization",
-      "version": "17.0.9",
+      "version": "58.0.5",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-modules-core",
-      "version": "3.0.30",
+      "version": "58.1.0",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-navigation-bar",
-      "version": "5.0.10",
+      "version": "58.0.4",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
       "name": "expo-sqlite",
-      "version": "16.0.10",
+      "version": "58.0.17",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
     {
-      "name": "hoist-non-react-statics",
-      "version": "3.3.2",
-      "license": "BSD-3-Clause",
-      "url": "https://github.com/mridgway/hoist-non-react-statics"
-    },
-    {
-      "name": "ieee754",
-      "version": "1.2.1",
-      "license": "BSD-3-Clause",
-      "url": "https://github.com/feross/ieee754"
+      "name": "flow-enums-runtime",
+      "version": "0.0.6",
+      "license": "MIT",
+      "url": "https://github.com/facebook/flow"
     },
     {
       "name": "invariant",
@@ -140,12 +134,6 @@
       "url": "https://github.com/alexreardon/memoize-one"
     },
     {
-      "name": "metro-runtime",
-      "version": "0.83.3",
-      "license": "MIT",
-      "url": "https://www.npmjs.com/package/metro-runtime"
-    },
-    {
       "name": "nullthrows",
       "version": "1.1.1",
       "license": "MIT",
@@ -158,32 +146,20 @@
       "url": "https://github.com/then/promise"
     },
     {
-      "name": "punycode",
-      "version": "2.3.1",
-      "license": "MIT",
-      "url": "https://github.com/mathiasbynens/punycode.js"
-    },
-    {
       "name": "react",
-      "version": "19.1.4",
+      "version": "19.3.0",
       "license": "MIT",
-      "url": "https://github.com/facebook/react"
-    },
-    {
-      "name": "react-is",
-      "version": "18.3.1",
-      "license": "MIT",
-      "url": "https://github.com/facebook/react"
+      "url": "https://github.com/react/react"
     },
     {
       "name": "react-native",
-      "version": "0.81.6",
+      "version": "0.88.1",
       "license": "MIT",
-      "url": "https://github.com/facebook/react-native"
+      "url": "https://github.com/react/react-native"
     },
     {
       "name": "react-native-gesture-handler",
-      "version": "2.28.0",
+      "version": "3.3.0",
       "license": "MIT",
       "url": "https://github.com/software-mansion/react-native-gesture-handler"
     },
@@ -195,25 +171,25 @@
     },
     {
       "name": "react-native-reanimated",
-      "version": "4.1.7",
+      "version": "4.7.1",
       "license": "MIT",
       "url": "https://github.com/software-mansion/react-native-reanimated"
     },
     {
       "name": "react-native-safe-area-context",
-      "version": "5.6.2",
+      "version": "5.11.1",
       "license": "MIT",
-      "url": "https://github.com/AppAndFlow/react-native-safe-area-context"
+      "url": "https://github.com/appandflow/react-native-safe-area-context"
     },
     {
       "name": "react-native-svg",
-      "version": "15.12.1",
+      "version": "15.16.0",
       "license": "MIT",
-      "url": "https://github.com/react-native-community/react-native-svg"
+      "url": "https://github.com/software-mansion/react-native-svg"
     },
     {
       "name": "react-native-worklets",
-      "version": "0.5.1",
+      "version": "0.13.0",
       "license": "MIT",
       "url": "https://github.com/software-mansion/react-native-reanimated"
     },
@@ -225,13 +201,13 @@
     },
     {
       "name": "scheduler",
-      "version": "0.26.0",
+      "version": "0.28.0",
       "license": "MIT",
-      "url": "https://github.com/facebook/react"
+      "url": "https://github.com/react/react"
     },
     {
       "name": "semver",
-      "version": "7.8.5",
+      "version": "7.8.6",
       "license": "ISC",
       "url": "https://github.com/npm/node-semver"
     },
@@ -242,32 +218,20 @@
       "url": "https://github.com/errwischt/stacktrace-parser"
     },
     {
-      "name": "warn-once",
-      "version": "0.1.1",
-      "license": "MIT",
-      "url": "https://github.com/satya164/warn-once"
-    },
-    {
-      "name": "webidl-conversions",
-      "version": "5.0.0",
-      "license": "BSD-2-Clause",
-      "url": "https://github.com/jsdom/webidl-conversions"
-    },
-    {
       "name": "whatwg-fetch",
       "version": "3.6.20",
       "license": "MIT",
       "url": "https://github.com/github/fetch"
     },
     {
-      "name": "whatwg-url-without-unicode",
-      "version": "8.0.0-3",
+      "name": "whatwg-url-minimum",
+      "version": "0.2.0",
       "license": "MIT",
-      "url": "https://github.com/charpeni/whatwg-url"
+      "url": "https://github.com/expo/whatwg-url-minimum"
     },
     {
       "name": "zustand",
-      "version": "5.0.15",
+      "version": "5.1.0",
       "license": "MIT",
       "url": "https://github.com/pmndrs/zustand"
     }
@@ -277,13 +241,15 @@
       "name": "Android Jetpack (AndroidX)",
       "artifacts": [
         "androidx.annotation:annotation",
+        "androidx.activity:activity",
         "androidx.core:core",
         "androidx.webkit:webkit",
         "androidx.work:work-runtime-ktx",
         "androidx.camera:camera-core",
         "androidx.camera:camera-camera2",
         "androidx.camera:camera-lifecycle",
-        "androidx.camera:camera-view"
+        "androidx.camera:camera-view",
+        "androidx.compose.ui:ui-text"
       ],
       "license": "Apache-2.0",
       "url": "https://developer.android.com/jetpack/androidx"

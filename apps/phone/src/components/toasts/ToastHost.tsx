@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { FadeIn, FadeOut, runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,7 +28,7 @@ export function ToastHost() {
   const { lift, keyboard } = useBottomLift();
   const surface = useSurface();
   const barTop = useDeckBarTop();
-  const frame = useRef<View>(null);
+  const frame = useRef<ViewInstance>(null);
   const [hostBottom, setHostBottom] = useState(0);
   const place = toastPlace({
     safeTop: insets.top,

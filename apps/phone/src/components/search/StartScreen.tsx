@@ -91,6 +91,6 @@ function OriginalStart() {
 const START_FROST = "start";
 
 const styles = StyleSheet.create({
-  logo: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  logo: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
   deck: { position: "absolute", left: 0, right: 0 },
 });

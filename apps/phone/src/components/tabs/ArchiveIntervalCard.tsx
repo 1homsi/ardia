@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, withTiming } from "react-native-reanimated";
 import { hideArchiveCard, hideArchiveCardSoon } from "../../state/browse/archiveCard";
 import { setArchiveInterval } from "../../state/settings/actions";
@@ -15,7 +15,7 @@ export function ArchiveIntervalCard({ edgeY }: { edgeY: number }) {
   const theme = useTheme();
   const reduceMotion = useReduceMotion();
   const interval = usePreferences((p) => p.autoArchiveInterval);
-  const picker = useRef<View>(null);
+  const picker = useRef<ViewInstance>(null);
   const [open, setOpen] = useState(false);
   const side = archiveCardLayout.tile;
   return (
@@ -63,7 +63,7 @@ export function ArchiveCapsule({ centerY, safeSide }: { centerY: number; safeSid
   const theme = useTheme();
   const reduceMotion = useReduceMotion();
   const interval = usePreferences((p) => p.autoArchiveInterval);
-  const picker = useRef<View>(null);
+  const picker = useRef<ViewInstance>(null);
   const [open, setOpen] = useState(false);
   const title = autoArchiveTitle(interval);
   return (

@@ -87,7 +87,7 @@ test("a page loaded over plain http reads Not Secure in place of its icon, as Sw
   unmount(root);
 });
 
-const pageViewModule = require("../../../../packages/phone/src/PageView") as typeof import("../../../../packages/phone/src/PageView");
+const pageViewModule = require("@ardia/phone-native/src/PageView") as typeof import("@ardia/phone-native/src/PageView");
 
 test("in the redesign the page runs full screen under the bar, told the top safe area and the bar's 75 points as obscured insets, and only the bar's pieces take touches", () => {
   jest.spyOn(pageViewModule, "pageObscuresInsets").mockImplementation(() => true);

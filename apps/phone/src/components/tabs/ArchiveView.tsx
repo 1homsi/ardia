@@ -3,7 +3,7 @@ import { ARCHIVE_SEARCH_DELAY_MS, archiveDayTitle } from "../../lib/archiveDay";
 import { parseColor } from "../../lib/color";
 import { haptics } from "../../state/app/haptics";
 import { ArchiveTile } from "./ArchiveTile";
-import { BackHandler, Platform, Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { BackHandler, Platform, Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { closeArchive } from "../../state/browse/store";
 import { canShareTab, copyTabLink, deleteArchivedTab, menuOpenedHaptic, openArchivedTab, shareTab } from "../../state/browse/tabMenus";
@@ -21,7 +21,7 @@ export function ArchiveView() {
   const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
   const frame = useSheetFrame();
-  const options = useRef<View>(null);
+  const options = useRef<ViewInstance>(null);
   const days = useArchiveDays();
   const loaded = useArchiveLoaded();
   const interval = usePreferences((p) => p.autoArchiveInterval);

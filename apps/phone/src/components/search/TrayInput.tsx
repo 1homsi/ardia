@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { TextInput, type StyleProp, type TextStyle } from "react-native";
+import { TextInput, type StyleProp, type TextStyle, type TextInputInstance } from "react-native";
 import { withAlpha } from "../../lib/color";
 import { inlineOffer } from "../../lib/inlineOffer";
 import { CompletingField, completingFieldIsNative, type CompletingFieldHandle } from "../../platform/completingField";
@@ -65,7 +65,7 @@ const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingIn
 });
 
 const PlainInput = forwardRef<TrayInputHandle, Props>(function PlainInput({ start, selectsStart, color, placeholderColor, accent, onTyped, onSubmit, style }, ref) {
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(
     selectsStart && start ? { start: 0, end: start.length } : { start: start.length, end: start.length },
   );
