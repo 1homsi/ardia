@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet } from "react-native";
+import { useEffect } from "react";
+import { Pressable, StyleSheet } from "react-native";
+import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { springs } from "./motion";
 import { useTheme } from "./theme";
 import { capsule, ink, shadowRadius, toggleLayout } from "./tokens";
@@ -24,15 +25,17 @@ export function Toggle({ value, disabled, onChange, label }: { value: boolean; d
 
 export function ToggleTrack({ value, disabled }: { value: boolean; disabled?: boolean }) {
   const theme = useTheme();
-  const position = useRef(new Animated.Value(value ? 1 : 0)).current;
+  const position = useSharedValue(value ? 1 : 0);
   useEffect(() => {
-    Animated.spring(position, { toValue: value ? 1 : 0, ...springs.barPress, useNativeDriver: false }).start();
+    position.value = withSpring(value ? 1 : 0, springs.barPress);
   }, [position, value]);
-  const track = position.interpolate({ inputRange: [0, 1], outputRange: [theme.tertiaryFill, theme.switchOn] });
-  const knob = position.interpolate({ inputRange: [0, 1], outputRange: [0, TRAVEL] });
+  const off = theme.tertiaryFill;
+  const on = theme.switchOn;
+  const trackStyle = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(position.value, [0, 1], [off, on]) }), [off, on]);
+  const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateX: position.value * TRAVEL }] }));
   return (
-    <Animated.View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.track, { backgroundColor: track }, disabled ? styles.disabled : null]}>
-      <Animated.View style={[styles.knob, { transform: [{ translateX: knob }] }]} />
+    <Animated.View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.track, trackStyle, disabled ? styles.disabled : null]}>
+      <Animated.View style={[styles.knob, knobStyle]} />
     </Animated.View>
   );
 }

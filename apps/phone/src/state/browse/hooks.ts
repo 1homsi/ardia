@@ -15,3 +15,19 @@ export const useFrozenOrder = () => useBrowse((s) => s.frozenOrder);
 export const useOpeningTab = () => useBrowse((s) => s.opening);
 
 export const useLeavingTab = () => useBrowse((s) => s.leaving);
+
+export function watchPageLoad(id: string, show: (progress: number, isLoading: boolean) => void): () => void {
+  const read = () => usePages.getState().navigation[id] ?? null;
+  let progress = read()?.progress ?? 0;
+  let isLoading = read()?.isLoading ?? true;
+  show(progress, isLoading);
+  return usePages.subscribe((state) => {
+    const now = state.navigation[id] ?? null;
+    const nextProgress = now?.progress ?? 0;
+    const nextLoading = now?.isLoading ?? true;
+    if (nextProgress === progress && nextLoading === isLoading) return;
+    progress = nextProgress;
+    isLoading = nextLoading;
+    show(progress, isLoading);
+  });
+}

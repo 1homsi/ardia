@@ -7,7 +7,7 @@ export { Backdrop } from "./Backdrop";
 export { barCenterFromBottom, barHeight, deckCenterFromBottom } from "./barGeometry";
 export { CodeCamera } from "./CodeCamera";
 export { Favicon } from "./Favicon";
-export { LoadingLine } from "./LoadingLine";
+export { LoadingLine, type LoadWatch } from "./LoadingLine";
 export { deckChromeMotion, duration, settingsMotion, spring, springs, startMotion, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
 export { ConfirmDialog, Dialog, showActionSheet, type Confirmation, type DialogButton } from "./Dialog";
 export { FloatingMenu, Menu, type MenuItem } from "./Menu";

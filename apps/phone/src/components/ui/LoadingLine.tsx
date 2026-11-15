@@ -1,42 +1,50 @@
-import { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet, View } from "react-native";
-import { curve, delay, duration } from "./motion";
+import { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
+import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
+import { delay, duration, tabsCurve } from "./motion";
 import { browseLayout } from "./tokens";
 
-export function LoadingLine({ progress, isLoading, color }: { progress: number; isLoading: boolean; color: string }) {
-  const [width, setWidth] = useState(0);
-  const fraction = useRef(new Animated.Value(0)).current;
-  const alpha = useRef(new Animated.Value(0)).current;
+export type LoadWatch = (show: (progress: number, isLoading: boolean) => void) => () => void;
+
+export function LoadingLine({ watch, color }: { watch: LoadWatch; color: string }) {
+  const fraction = useSharedValue(0);
+  const alpha = useSharedValue(0);
 
   useEffect(() => {
-    if (isLoading) {
-      const reveal = setTimeout(() => {
-        Animated.timing(alpha, { toValue: 1, duration: duration.progressFill, easing: curve.easeOut, useNativeDriver: false }).start();
-      }, delay.progressReveal);
-      Animated.timing(fraction, { toValue: Math.max(0.1, progress), duration: duration.progressAdvance, easing: curve.easeOut, useNativeDriver: false }).start();
-      return () => clearTimeout(reveal);
-    }
-    Animated.sequence([
-      Animated.timing(fraction, { toValue: 1, duration: duration.progressFill, easing: curve.easeOut, useNativeDriver: false }),
-      Animated.timing(alpha, { toValue: 0, duration: duration.progressFade, easing: curve.easeOut, useNativeDriver: false }),
-    ]).start(({ finished }) => {
-      if (finished) fraction.setValue(0);
+    let loading: boolean | null = null;
+    return watch((progress, isLoading) => {
+      if (isLoading) {
+        if (loading !== true) alpha.value = withDelay(delay.progressReveal, withTiming(1, { duration: duration.progressFill, easing: tabsCurve.easeOut }));
+        loading = true;
+        fraction.value = withTiming(Math.max(0.1, progress), { duration: duration.progressAdvance, easing: tabsCurve.easeOut });
+        return;
+      }
+      if (loading === null) {
+        loading = false;
+        return;
+      }
+      if (loading === false) return;
+      loading = false;
+      cancelAnimation(alpha);
+      fraction.value = withTiming(1, { duration: duration.progressFill, easing: tabsCurve.easeOut }, (filled) => {
+        if (!filled) return;
+        alpha.value = withTiming(0, { duration: duration.progressFade, easing: tabsCurve.easeOut }, (faded) => {
+          if (faded) fraction.value = 0;
+        });
+      });
     });
-    return undefined;
-  }, [alpha, fraction, isLoading, progress]);
+  }, [alpha, fraction, watch]);
+
+  const lineStyle = useAnimatedStyle(() => ({ opacity: alpha.value, transform: [{ scaleX: fraction.value }] }));
 
   return (
-    <View style={styles.track} pointerEvents="none" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-      <Animated.View
-        style={{
-          height: browseLayout.progressHeight,
-          backgroundColor: color,
-          opacity: alpha,
-          width: fraction.interpolate({ inputRange: [0, 1], outputRange: [0, width] }),
-        }}
-      />
+    <View testID="loadingLine" style={styles.track} pointerEvents="none">
+      <Animated.View style={[styles.line, { backgroundColor: color }, lineStyle]} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({ track: { height: browseLayout.progressHeight, width: "100%" } });
+const styles = StyleSheet.create({
+  track: { height: browseLayout.progressHeight, width: "100%" },
+  line: { height: browseLayout.progressHeight, width: "100%", transformOrigin: "left" },
+});

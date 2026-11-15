@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BAR_SHOWN, followScroll, pageInsets } from "../../lib/barCollapse";
 import { neighbours } from "../../lib/pagerPhysics";
 import { useSystemBars } from "../../state/app/systemBars";
-import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
+import { useFrozenOrder, useNavigation, usePageTone, watchPageLoad } from "../../state/browse/hooks";
 import { closePageMenu, editPageQuery, openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, usePressOpen, useReaderTabId } from "../../state/page/hooks";
 import { captureCurrentCover, newTab, pageLaidOut, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
@@ -22,6 +22,7 @@ import {
   browseLayout,
   isDarkColor,
   LoadingLine,
+  type LoadWatch,
   Menu,
   Shade,
   rolesFor,
@@ -195,10 +196,12 @@ function tabsMenuItems(order: BrowserTab[]): MenuItem[] {
 }
 
 function PageLoadingLine({ tabId, color }: { tabId: string; color: string }) {
-  const loadFreeze = launchArguments().loadFreeze;
-  const liveProgress = useNavigation(tabId, (n) => n?.progress ?? 0);
-  const liveLoading = useNavigation(tabId, (n) => n?.isLoading ?? true);
-  return <LoadingLine progress={loadFreeze ?? liveProgress} isLoading={loadFreeze !== null || liveLoading} color={color} />;
+  const watch = useMemo<LoadWatch>(() => {
+    const loadFreeze = launchArguments().loadFreeze;
+    if (loadFreeze !== null) return (show) => (show(loadFreeze, true), () => undefined);
+    return (show) => watchPageLoad(tabId, show);
+  }, [tabId]);
+  return <LoadingLine watch={watch} color={color} />;
 }
 
 
