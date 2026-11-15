@@ -13,5 +13,6 @@ struct OpenWindowOptions: Record {
   @Field var chromeWindow: String?
   @Field var claim: String?
   @Field var pointer: CGPoint?
+  @Field var returnTo: String?
   @Field var animated: Bool = false
 }

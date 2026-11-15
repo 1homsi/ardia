@@ -18,6 +18,7 @@ export {
   WindowDragRegion,
 } from "./web/chrome";
 export { FadeLabel } from "./web/FadeLabel";
+export { FolderIcon } from "./web/FolderIcon";
 export { MouseArea } from "./web/MouseArea";
 export { showMenu } from "./web/menus";
 
@@ -87,8 +88,10 @@ provideNativeModule("ArdiaDialogs", {
     window.prompt(options.message ? `${options.title}\n\n${options.message}` : options.title, options.value ?? ""),
 });
 provideNativeModule("ArdiaAppWindows", {
+  windowCornerRadius: () => 19,
   windowIds: async () => [] as string[],
   windowFrame: async (_id: string): Promise<[number, number, number, number] | null> => null,
+  frameCornerRadius: async (_id: string): Promise<number> => 0,
   setTrafficLightsCenter: async (windowId: string, next: [number, number] | null, trailing: boolean) => setTrafficLightsCenter(windowId, next, trailing),
 });
 darkQuery?.addEventListener("change", (e) => appearance === "auto" && emitAppEvent({ type: "appearance", dark: e.matches }));

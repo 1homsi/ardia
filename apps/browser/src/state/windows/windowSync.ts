@@ -1,4 +1,3 @@
-import { useBrowser } from "../browser/store";
 import type { LightsPlace, OpenWindowOptions, WindowEvent } from "../../platform/windows";
 import type { BrowserState } from "../browser/store";
 import { engineProfile, windowTitle } from "../browser/model";
@@ -33,8 +32,13 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
   const titles = new Map<string, string>();
   const overrides = new Map<string, string | null>();
 
-  const releaseIfIncognito = (w: BrowserState["windows"][string] | undefined) => {
-    if (w?.kind === "private") port.releaseProfile(engineProfile(useBrowser.getState(), w.profileId));
+  const privateProfiles = new Map<string, string>();
+
+  const releasePrivateProfile = (id: string) => {
+    const profile = privateProfiles.get(id);
+    if (profile === undefined) return;
+    privateProfiles.delete(id);
+    port.releaseProfile(profile);
   };
 
   const forget = (id: string) => {
@@ -53,7 +57,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
         if (isQuitting()) return;
         forget(e.id);
         s.closeWindow(e.id);
-        releaseIfIncognito(s.windows[e.id]);
+        releasePrivateProfile(e.id);
       }
     });
 
@@ -64,9 +68,10 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
       open.add(id);
       titles.set(id, windowTitle(s, id));
       const profile = engineProfile(s, w.profileId);
+      if (w.kind === "private") privateProfiles.set(id, profile);
       const claim = w.kind === "small" ? adoptOf(s.tabs[w.tabIds[0] ?? ""]) : undefined;
       const small = w.kind === "small"
-        ? { kind: "small" as const, size: s.settings.littleArdiaSize, ...(claim?.startsWith("link:") ? { claim } : {}), ...(w.linkPointer ? { pointer: w.linkPointer } : {}) }
+        ? { kind: "small" as const, size: s.settings.littleArdiaSize, ...(claim?.startsWith("link:") ? { claim } : {}), ...(w.linkPointer ? { pointer: w.linkPointer } : {}), ...(w.linkApp ? { returnTo: w.linkApp } : {}) }
         : {};
       const made = w.kind !== "small" && w.chromeWindow ? { chromeWindow: w.chromeWindow } : {};
       const override = windowTitleOverride(s, id);
@@ -81,7 +86,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
       if (s.windows[id]) continue;
       forget(id);
       port.close(id);
-      releaseIfIncognito(prev?.windows[id]);
+      releasePrivateProfile(id);
     }
     if (prev && s.tabs === prev.tabs && s.windows === prev.windows && s.profiles === prev.profiles && s.settings === prev.settings) return;
     for (const id of open) {
