@@ -11,6 +11,8 @@ const asked = (profile, toggle) => load(autofillToggleAsked, [profile, toggle], 
 beforeEach(() => {
   profileToggles.user.clear();
   profileToggles.extension.clear();
+  profileToggles.unloaded.clear();
+  profileToggles.unloadable.clear();
   docs.delete(ASKED_DOC);
 });
 
@@ -84,4 +86,30 @@ test("the note goes once the extension lets go", async () => {
   const now = await load(passwordAutofill, [profile], { fresh: true });
   assert.equal(now, true);
   assert.equal(keptByExtensionNote(now, await asked(profile, "passwords")), undefined);
+});
+
+test("a toggle changed for a profile with no open window lands in that profile and blames no extension", async () => {
+  const profile = "windowless";
+  profileToggles.unloaded.add(profile);
+  await setPasswordAutofillFor(profile, false);
+  await setAutofillFor(profile, "cards", false);
+
+  assert.equal(cached(passwordAutofill, [profile]), false);
+  assert.deepEqual(cached(autofillEnabled, [profile]), { addresses: true, cards: false });
+  assert.equal(await load(passwordAutofill, [profile], { fresh: true }), false);
+  assert.equal(await asked(profile, "passwords"), null);
+  assert.equal(await asked(profile, "cards"), null);
+  assert.equal(docs.get(ASKED_DOC) && JSON.parse(docs.get(ASKED_DOC)).profiles[profile], undefined);
+  assert.equal(profileToggles.unloaded.has(profile), false);
+});
+
+test("a toggle for a profile that can't be loaded records nothing and keeps what was shown", async () => {
+  const profile = "gone";
+  docs.set(ASKED_DOC, JSON.stringify({ profiles: { [profile]: { passwords: true } }, version: 1 }));
+  profileToggles.unloadable.add(profile);
+  await setPasswordAutofillFor(profile, false);
+  await setAutofillFor(profile, "cards", false);
+  assert.equal(cached(passwordAutofill, [profile]), undefined);
+  assert.equal(cached(autofillEnabled, [profile]), undefined);
+  assert.deepEqual(JSON.parse(docs.get(ASKED_DOC)).profiles, { [profile]: { passwords: true } });
 });

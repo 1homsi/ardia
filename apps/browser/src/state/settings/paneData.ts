@@ -109,15 +109,17 @@ function noteAsked(profile: string, toggle: AutofillToggle, asked: boolean, now:
   if (now !== asked) trackAutofillToggleKept(toggle);
 }
 
+const written = (write: Promise<unknown>) => write.then(() => true, orWarn(false));
+
 export async function setPasswordAutofillFor(profile: string, on: boolean) {
-  await setPasswordAutofill(on, profile);
+  if (!(await written(setPasswordAutofill(on, profile)))) return;
   const now = await getPasswordAutofill(profile).catch(() => on);
   store(passwordAutofill, [profile], now);
   noteAsked(profile, "passwords", on, now);
 }
 
 export async function setAutofillFor(profile: string, kind: Exclude<AutofillToggle, "passwords">, on: boolean) {
-  await setAutofillSettings({ [kind]: on }, profile);
+  if (!(await written(setAutofillSettings({ [kind]: on }, profile)))) return;
   const enabled = cached(autofillEnabled, [profile]);
   const now = await getAutofillSettings(profile).catch(() => ({ ...(enabled ?? { addresses: true, cards: true }), [kind]: on }));
   store(autofillEnabled, [profile], now);
