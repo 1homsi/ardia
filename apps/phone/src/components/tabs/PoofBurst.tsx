@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Platform, StyleSheet } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from "react-native-reanimated";
 import { POOF, poofPuff } from "../../lib/poof";
-import { tabsCurve, tabsInk } from "../ui";
+import { poofMs, tabsCurve, tabsInk } from "../ui";
 
 const BLURS = Platform.OS === "android";
 
@@ -11,7 +11,7 @@ export type PoofSpec = { id: number; x: number; y: number; size: number };
 export function PoofBurst({ spec }: { spec: PoofSpec }) {
   const progress = useSharedValue(0);
   useEffect(() => {
-    progress.value = withTiming(1, { duration: POOF.durationMs, easing: tabsCurve.easeOut });
+    progress.value = withTiming(1, { duration: poofMs, easing: tabsCurve.easeOut });
   }, []);
   const layer = useAnimatedStyle(() => ({
     opacity: (1 - progress.value) * POOF.opacity,

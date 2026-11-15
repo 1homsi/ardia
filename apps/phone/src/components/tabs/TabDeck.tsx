@@ -55,7 +55,7 @@ import {
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useHasArchivedTabs, useIncognito, usePrivateCount, useShownSpace } from "../../state/tabs/hooks";
-import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion } from "../ui";
+import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, moveTo, poofMs, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { pinToMac, sendTab, sendTargetsFor, spaceMoveTargets } from "../../state/sync/actions";
@@ -265,8 +265,8 @@ export const TabDeck = memo(function TabDeck() {
     positionProgress.value = 0;
     const shrink = () => {
       cardsOpacity.value = 1;
-      scaleProgress.value = withSpring(1, tabsMotion.openScale);
-      positionProgress.value = withSpring(1, tabsMotion.openPosition, (finished) => {
+      scaleProgress.value = moveTo(1, tabsMotion.openScale);
+      positionProgress.value = moveTo(1, tabsMotion.openPosition, (finished) => {
         if (!finished) return;
         settlePhase();
         runOnJS(setPhase)(SETTLED);
@@ -462,7 +462,7 @@ export const TabDeck = memo(function TabDeck() {
     const size = g.cardWidth * POOF.sizeShare;
     const spec = { id: ++poofSeed.current, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: poofCentreY(g.cardCenterY + cardsShift.value + lift, size, g.safeTop), size };
     setPoofs((now) => [...now, spec]);
-    setTimeout(() => setPoofs((now) => now.filter((poof) => poof.id !== spec.id)), POOF.durationMs + POOF_LINGER_MS);
+    setTimeout(() => setPoofs((now) => now.filter((poof) => poof.id !== spec.id)), poofMs + POOF_LINGER_MS);
     flyIndex.value = index;
     flyLift.value = startLift;
     flyVanish.value = 0;

@@ -6,7 +6,7 @@ import { newIncognitoTab, newRegularTab, newTab, openArchive, openSpaces, reopen
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, LookBackdropBase, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem, useDesign, useReduceMotion } from "../ui";
+import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, LookBackdropBase, Menu, moveTo, tabsCurve, tabsLayout, trayMotion, type MenuItem, useDesign, useReduceMotion } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
 import { StartPage } from "./StartPage";
@@ -32,7 +32,7 @@ function OriginalStart() {
   useEffect(() => {
     shown.value = reduceMotion
       ? withTiming(trayUp ? 0 : 1, { duration: trayMotion.reduced, easing: tabsCurve.easeInOut })
-      : withSpring(trayUp ? 0 : 1, springs.searchRise);
+      : moveTo(trayUp ? 0 : 1, trayMotion.rise);
   }, [trayUp, reduceMotion]);
   const logoStyle = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ scale: reduceMotion ? 1 : 0.92 + 0.08 * shown.value }] }), [reduceMotion]);
   const barStyle = useAnimatedStyle(() => ({ opacity: shown.value }));

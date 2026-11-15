@@ -21,7 +21,7 @@ import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, moveTo, radius, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -127,8 +127,8 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     const land = setTimeout(() => {
       if (isClosing.value || hasLanded.value) return;
       hasLanded.value = true;
-      landing.value = reduceMotion ? withTiming(1, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(1, springs.searchRise);
-    }, TRAY_LIFT.landingDelayMs);
+      landing.value = reduceMotion ? withTiming(1, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : moveTo(1, trayMotion.rise);
+    }, trayLandingDelayMs);
     return () => clearTimeout(land);
   }, [session, closing]);
 
@@ -265,7 +265,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     () => !isClosing.value && (keyboardIsUp(keyboard.height.value) || hasLanded.value),
     (up, was) => {
       if (up === was) return;
-      dim.value = withTiming(up ? 1 : 0, { duration: reduceMotion ? trayMotion.reduced : trayMotion.dim, easing: reduceMotion ? tabsCurve.easeOut : tabsCurve.easeInOut });
+      dim.value = withTiming(up ? 1 : 0, { duration: reduceMotion ? trayMotion.reduced : trayMotion.dim, easing: reduceMotion ? tabsCurve.easeOut : trayMotion.dimEasing });
     },
   );
 

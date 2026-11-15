@@ -11,6 +11,7 @@ export const TRAY_DRAG = {
 export const TRAY_LIFT = {
   keyboardThreshold: 120,
   landingDelayMs: 450,
+  iPhoneLandingDelayMs: 220,
   settleHoldMs: 650,
   closePollMs: 50,
   closePolls: 20,

@@ -1,4 +1,4 @@
-export const POOF = { count: 9, durationMs: 420, opacity: 0.95, blurFrom: 2, blurGrow: 4, sizeShare: 0.9, centerShare: 0.21, roomAbove: 0.5 } as const;
+export const POOF = { count: 9, durationMs: 420, iPhoneDurationMs: 300, opacity: 0.95, blurFrom: 2, blurGrow: 4, sizeShare: 0.9, centerShare: 0.21, roomAbove: 0.5 } as const;
 
 export const poofCentreY = (y: number, size: number, top: number): number => Math.max(y, top + size * POOF.roomAbove);
 

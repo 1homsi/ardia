@@ -9,7 +9,7 @@ import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
-import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, useTheme, isDarkColor } from "../ui";
+import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -167,10 +167,11 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
     return { transform: [{ translateX: g.cardWidth - available + deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
   });
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(placed.value.place.available) }));
-  const pageTop = (tab.snapshotFileName ? snapshotPageTop(tab.snapshotFileName) : null) ?? g.safeTop;
+  const underBars = usePageUnderBars();
+  const pageTop = (tab.snapshotFileName ? snapshotPageTop(tab.snapshotFileName) : null) ?? (underBars ? 0 : g.safeTop);
   const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: placed.value.expanded ? deckStatusStrip(g, scaleProgress.value, pageTop) : 0 }] }), [g, pageTop]);
   const bar = deckBarBand(g, barHeight(g.safeBottom), 1);
-  const bandStyle = useAnimatedStyle(() => ({ transform: [{ scaleY: placed.value.expanded ? deckBarBand(g, 0, scaleProgress.value).grown : 0 }] }), [g]);
+  const bandStyle = useAnimatedStyle(() => ({ transform: [{ scaleY: placed.value.expanded && !underBars ? deckBarBand(g, 0, scaleProgress.value).grown : 0 }] }), [g, underBars]);
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";

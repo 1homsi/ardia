@@ -31,8 +31,8 @@ import {
   tabsLayout,
   tabsMotion,
   floatingBarLayout,
-  pageObscuresInsets,
   useDesign,
+  usePageUnderBars,
   usePresence,
   useTheme,
   type MenuItem,
@@ -89,7 +89,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const barDark = design === "redesigned" && !pageTone?.bottom ? theme.dark : isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding);
-  const underBar = design === "redesigned" && pageObscuresInsets();
+  const underBar = usePageUnderBars();
   const layout = underBar ? { pageBottom: 0, toneBottom: barHeight(insets.bottom, design) } : pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
   const painted = useSharedValue(false);
   useEffect(() => {

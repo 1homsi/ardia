@@ -8,7 +8,7 @@ export { barCenterFromBottom, barHeight, deckCenterFromBottom } from "./barGeome
 export { CodeCamera } from "./CodeCamera";
 export { Favicon } from "./Favicon";
 export { LoadingLine, type LoadWatch } from "./LoadingLine";
-export { deckChromeMotion, duration, pageMenuMotion, settingsMotion, spring, springs, startMotion, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
+export { deckChromeMotion, duration, iPhoneOr, moveTo, pageMenuMotion, poofMs, trayLandingDelayMs, settingsMotion, spring, springs, startMotion, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
 export { ConfirmDialog, Dialog, showActionSheet, type Confirmation, type DialogButton } from "./Dialog";
 export { FloatingMenu, Menu, type MenuItem } from "./Menu";
 export { Shade } from "./Shade";
@@ -29,5 +29,5 @@ export { SwipeToDelete } from "./SwipeToDelete";
 export { useIncreasedContrast, useReduceMotion, useReduceTransparency } from "./contrast";
 export { FadingBackdrop } from "./FadingBackdrop";
 export { ChromeSurface, DeckLookBackdrop, DeckLookBackdropBase, LookBackdrop, LookBackdropBase, LookFrost, LookGlass, SURFACES_FROST, usesGlass } from "./LookViews";
-export { appDesign, DesignProvider, useDesign } from "./design";
+export { appDesign, DesignProvider, useDesign, usePageUnderBars } from "./design";
 export { FadeView, fadeIsNative, FrostSource, pageObscuresInsets, PasteButton, pasteButtonIsNative, ScrollActions } from "@ardia/phone-native";
