@@ -226,6 +226,22 @@ static void ASmallWindowOpensAtItsSizeCentredAndLiftedLikeTheMac() {
   assert(kSmallWindowMinWidth == 420 && kSmallWindowMinHeight == 300);
 }
 
+static void AUtilityWindowOpensCentredOverItsOpenerInsideTheWorkArea() {
+  const Rect area{0, 32, 1920, 1048};
+  const auto centred = RequestedUtilityFrame(820, 640, {487, 40, 945, 920}, area, true);
+  assert(centred.positioned && centred.bounds.width == 820 && centred.bounds.height == 640);
+  assert(centred.bounds.x == 487 + 62 && centred.bounds.y == 40 + 140);
+  const auto edge = RequestedUtilityFrame(820, 640, {-200, 900, 600, 400}, area, true);
+  assert(edge.bounds.x == 0 && edge.bounds.y == 32 + 1048 - 640);
+  const auto small_screen = RequestedUtilityFrame(820, 640, {0, 0, 800, 600}, {0, 0, 800, 600}, true);
+  assert(small_screen.bounds.width == 800 && small_screen.bounds.height == 600);
+  assert(small_screen.bounds.x == 0 && small_screen.bounds.y == 0);
+  const auto wayland = RequestedUtilityFrame(820, 640, {487, 40, 945, 920}, area, false);
+  assert(!wayland.positioned && wayland.bounds.width == 820 && wayland.bounds.height == 640);
+  const auto alone = RequestedUtilityFrame(640, 600, {}, area, true);
+  assert(!alone.positioned && alone.bounds.width == 640);
+}
+
 static void FullScreenChangesAreReportedOnTransitionsOnly() {
   GeometryLedger geometry(false);
   assert(!geometry.FullScreen(false));
@@ -246,6 +262,7 @@ int main() {
   SharedFramesUseBottomUpPrimaryCoordinates();
   MalformedFramesAreRejected();
   ASmallWindowOpensAtItsSizeCentredAndLiftedLikeTheMac();
+  AUtilityWindowOpensCentredOverItsOpenerInsideTheWorkArea();
   FullScreenChangesAreReportedOnTransitionsOnly();
 }
 '''

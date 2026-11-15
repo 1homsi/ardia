@@ -101,6 +101,12 @@ Requested RequestedSmallFrame(const std::vector<double>& size,
                               const Rect& work_area,
                               bool global_coordinates);
 
+Requested RequestedUtilityFrame(int width,
+                                int height,
+                                const Rect& opener,
+                                const Rect& work_area,
+                                bool global_coordinates);
+
 class GeometryLedger {
  public:
   explicit GeometryLedger(bool global_coordinates)

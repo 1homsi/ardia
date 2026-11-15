@@ -304,6 +304,7 @@ extern bool (*g_ardia_linux_present_companion)(BrowserWindowInterface*, bool act
 extern bool (*g_ardia_linux_is_companion)(const BrowserWindowInterface*);
 extern bool (*g_ardia_linux_automation_window)(const BrowserWindowInterface*);
 extern int (*g_ardia_linux_window_tab_count)(const BrowserWindowInterface*);
+extern bool (*g_ardia_linux_frameless_app)(const std::string& app_name);
 extern bool (*g_ardia_linux_shell_passes_point)(gfx::NativeView child, const gfx::Point& location);
 
 namespace ardia {
@@ -666,6 +667,15 @@ base::Value ProfileFailure(ardiacore::linux_profiles::ProfileError error) {
 }
 
 constexpr size_t kPrivateWindowLimit = 1024 * 1024;
+
+constexpr int kSettingsWindowWidth = 820;
+constexpr int kSettingsWindowHeight = 640;
+constexpr int kImportWindowWidth = 640;
+constexpr int kImportWindowHeight = 600;
+
+bool IsUtilityAppName(const std::string& app_name) {
+  return app_name == "ArdiaSettings" || app_name == "ArdiaImport";
+}
 
 bool ValidUtilityPlacement(const base::DictValue* placement) {
   if (!placement || !placement->FindBool("maximized")) return false;
@@ -6324,9 +6334,16 @@ void OpenNativeWindow(WindowOpening opening, uint64_t generation, Profile* page,
         params.app_name, app->GetPrefs());
     const bool saved = ValidUtilityPlacement(placement);
     if (opening.kind == "import" || !saved) {
-      params.initial_bounds = gfx::Rect(opening.kind == "settings" ? 820 : 640,
-                                        opening.kind == "settings" ? 640 : 600);
+      const bool settings = opening.kind == "settings";
+      params.initial_bounds = gfx::Rect(settings ? kSettingsWindowWidth : kImportWindowWidth,
+                                        settings ? kSettingsWindowHeight : kImportWindowHeight);
+      if (opening.requested && opening.requested->positioned) {
+        const auto& b = opening.requested->bounds;
+        params.initial_bounds = gfx::Rect(b.x, b.y, b.width, b.height);
+      }
       params.initial_show_state = ui::mojom::WindowShowState::kNormal;
+    } else {
+      params.initial_bounds = gfx::Rect();
     }
   }
   BrowserWindowInterface* created = CreateBrowserWindow(std::move(params));
@@ -7135,6 +7152,13 @@ void ShellHostView::Invoke(
         for (const base::Value& value : *given) size.push_back(value.is_int() || value.is_double() ? value.GetDouble() : NAN);
       }
       requested = linux_window::RequestedSmallFrame(size, OpenerWorkArea(), GlobalScreenCoordinates());
+    }
+    if (utility) {
+      const bool settings = kind == "settings";
+      requested = linux_window::RequestedUtilityFrame(
+          settings ? kSettingsWindowWidth : kImportWindowWidth, settings ? kSettingsWindowHeight : kImportWindowHeight,
+          GetWidget() ? LifecycleRect(GetWidget()->GetWindowBoundsInScreen()) : linux_window::Rect(),
+          OpenerWorkArea(), GlobalScreenCoordinates());
     }
     for (const auto& [native_id, host] : Hosts()) {
       if (host->window_id() != id) continue;
@@ -8018,6 +8042,7 @@ void StartLinuxHost() {
     return host ? host->browser() : nullptr;
   };
   g_ardia_linux_is_companion = [](const BrowserWindowInterface* browser) { return IsCompanion(browser); };
+  g_ardia_linux_frameless_app = &IsUtilityAppName;
   g_ardia_linux_automation_window = &ardiacore::IsLinuxAutomationWindow;
   g_ardia_linux_shell_passes_point = [](gfx::NativeView child, const gfx::Point& location) {
     return std::ranges::any_of(Hosts(), [&](const auto& entry) { return entry.second->PassesShellPoint(child, location); });

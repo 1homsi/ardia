@@ -162,6 +162,28 @@ Requested RequestedSmallFrame(const std::vector<double>& size,
   return requested;
 }
 
+Requested RequestedUtilityFrame(int width,
+                                int height,
+                                const Rect& opener,
+                                const Rect& work_area,
+                                bool global_coordinates) {
+  const bool room = work_area.width > 0 && work_area.height > 0;
+  Requested requested;
+  requested.bounds.width = room ? std::min(width, work_area.width) : width;
+  requested.bounds.height = room ? std::min(height, work_area.height) : height;
+  requested.positioned = global_coordinates && opener.width > 0 && opener.height > 0;
+  if (!requested.positioned) return requested;
+  int x = opener.x + (opener.width - requested.bounds.width) / 2;
+  int y = opener.y + (opener.height - requested.bounds.height) / 2;
+  if (room) {
+    x = std::clamp(x, work_area.x, work_area.x + work_area.width - requested.bounds.width);
+    y = std::clamp(y, work_area.y, work_area.y + work_area.height - requested.bounds.height);
+  }
+  requested.bounds.x = x;
+  requested.bounds.y = y;
+  return requested;
+}
+
 std::optional<std::array<int, 4>> GeometryLedger::Frame(const Rect& bounds,
                                                         const Rect& primary,
                                                         bool fullscreen,
