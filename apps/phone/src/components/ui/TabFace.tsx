@@ -86,6 +86,7 @@ function Snapshot({ uri, fill, under, paintedAs }: { uri: string; fill: string; 
       {covered ? under : null}
       <Animated.Image
         source={{ uri }}
+        resizeMethod="scale"
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
           if (width > 0 && height > 0) setAspect(width / height);
