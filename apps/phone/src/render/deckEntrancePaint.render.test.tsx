@@ -1,7 +1,8 @@
+import { StyleSheet } from "react-native";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { Surfaces } from "../App";
-import { noteSnapshotShown } from "../lib/shownSnapshots";
+import { notePicturePainted, noteSnapshotShown } from "../lib/shownSnapshots";
 import { pages } from "../platform/pages";
 import * as system from "../platform/system";
 import * as browse from "../state/browse/store";
@@ -35,7 +36,7 @@ type Root = ReturnType<typeof renderSurface>;
 const page = (root: Root) => root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen");
 const cards = (root: Root) => root.root.findAll((node) => node.props.testID === "deckCards" && typeof node.type === "string")[0]!;
 const opacity = (node: ReactTestInstance) => (getAnimatedStyle(node).opacity as number | undefined) ?? 1;
-const picture = (root: Root) => root.root.findAll((node) => node.props.source?.uri === PICTURE && typeof node.props.onLoad === "function" && typeof node.type !== "string")[0]!;
+const picture = (root: Root) => cards(root).findAll((node) => node.props.source?.uri === PICTURE && typeof node.props.onLoad === "function" && typeof node.type !== "string")[0]!;
 
 async function openDeck(root: Root) {
   await act(async () => {
@@ -62,6 +63,7 @@ test("leaving a page for the deck keeps the page on screen, with the deck clear 
   act(() => picture(root).props.onLoad({ nativeEvent: { source: { width: 600, height: 1300 } } }));
   act(() => jest.advanceTimersByTime(40));
   expect(opacity(cards(root))).toBe(1);
+  expect(StyleSheet.flatten(picture(root).props.style).aspectRatio).toBeCloseTo(600 / 1300);
   expect(page(root)).toHaveLength(1);
   for (let frame = 0; frame < 150 && browse.useBrowse.getState().leaving !== null; frame++) act(() => jest.advanceTimersByTime(16));
   expect(browse.useBrowse.getState().leaving).toBeNull();
@@ -84,6 +86,18 @@ test("a tab with no picture shrinks at once, since its placeholder draws in the 
   useTabs.setState((state) => ({ open: state.open.map((tab) => ({ ...tab, snapshotFileName: null })) }));
   const root = renderSurface(<Surfaces />);
   await openDeck(root);
+  expect(opacity(cards(root))).toBe(1);
+  unmount(root);
+});
+
+test("the bottom bar's thumbnail of the same picture loading first doesn't start the shrink; only the leaving card's own picture does", async () => {
+  const root = renderSurface(<Surfaces />);
+  await openDeck(root);
+  act(() => notePicturePainted(PICTURE));
+  act(() => jest.advanceTimersByTime(40));
+  expect(opacity(cards(root))).toBe(0);
+  act(() => picture(root).props.onLoad({ nativeEvent: { source: { width: 600, height: 1300 } } }));
+  act(() => jest.advanceTimersByTime(40));
   expect(opacity(cards(root))).toBe(1);
   unmount(root);
 });

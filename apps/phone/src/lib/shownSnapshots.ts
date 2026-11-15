@@ -8,6 +8,8 @@ export function noteSnapshotShown(uri: string) {
 
 const paintWaiters = new Map<string, Set<(painted: boolean) => void>>();
 
+export const pictureKey = (owner: string, uri: string) => `${owner}|${uri}`;
+
 export function notePicturePainted(uri: string) {
   const waiters = paintWaiters.get(uri);
   paintWaiters.delete(uri);

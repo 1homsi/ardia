@@ -7,7 +7,7 @@ import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { POOF, poofCentreY } from "../../lib/poof";
-import { whenPicturePainted } from "../../lib/shownSnapshots";
+import { pictureKey, whenPicturePainted } from "../../lib/shownSnapshots";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { PoofBurst, type PoofSpec } from "./PoofBurst";
 import { haptics } from "../../state/app/haptics";
@@ -174,7 +174,7 @@ export function TabDeck() {
     }
     cardsOpacity.value = 0;
     let frame = 0;
-    const stopWaiting = whenPicturePainted(picture, ENTRANCE_PAINT_CAP_MS, (painted) => {
+    const stopWaiting = whenPicturePainted(pictureKey(`deck:${entrance}`, picture), ENTRANCE_PAINT_CAP_MS, (painted) => {
       if (!painted && !tabs.get(entrance)?.isPrivate) countUsage("deck_pictures_late");
       frame = requestAnimationFrame(shrink);
     });
@@ -277,7 +277,7 @@ export function TabDeck() {
       });
     };
     whenPageLaidOut(id, HANDOVER_CAP_MS, ready);
-    if (picture) whenPicturePainted(picture, HANDOVER_CAP_MS, ready);
+    if (picture) whenPicturePainted(pictureKey(`cover:${id}`, picture), HANDOVER_CAP_MS, ready);
   };
 
   const remove = (id: string) => {

@@ -82,7 +82,7 @@ export const PageCover = memo(function PageCover({ tab }: { tab: BrowserTab }) {
       accessibilityElementsHidden
       style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }, style]}
     >
-      <TabFace tab={frozen ? { ...tab, snapshotFileName: null } : tab} title={tab.title || shown.host} host={shown.host} tone={tone?.top ?? null} roles={theme} />
+      <TabFace tab={frozen ? { ...tab, snapshotFileName: null } : tab} title={tab.title || shown.host} host={shown.host} tone={tone?.top ?? null} roles={theme} paintedAs={`cover:${tab.id}`} />
     </Animated.View>
   );
 });

@@ -188,7 +188,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
         ]}
       >
         <Animated.View testID="deckCardFace" style={[StyleSheet.absoluteFill, faceStyle]}>
-          <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} />
+          <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} paintedAs={`deck:${tab.id}`} />
         </Animated.View>
         <Animated.View testID="deckCardBarBand" pointerEvents="none" style={[styles.band, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }, bandStyle]}>
           {design === "original" ? <View testID="deckCardBarShade" style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}

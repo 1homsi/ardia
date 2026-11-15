@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
-import { notePicturePainted, noteSnapshotShown, snapshotWasShown } from "../../lib/shownSnapshots";
+import { notePicturePainted, noteSnapshotShown, pictureKey, snapshotWasShown } from "../../lib/shownSnapshots";
 import { tabsMotion } from "./motion";
 import { isDarkColor } from "../../lib/color";
 import { Favicon } from "./Favicon";
@@ -20,12 +20,12 @@ export function tabFill(tab: TabFaceTab, tone: string | null, roles: ColorRoles)
   return tab.themeColorHex ?? tone ?? placeholderTint(tab.url, roles);
 }
 
-type Props = { tab: TabFaceTab; title: string; host: string; tone: string | null; roles: ColorRoles; compact?: boolean };
+type Props = { tab: TabFaceTab; title: string; host: string; tone: string | null; roles: ColorRoles; compact?: boolean; paintedAs?: string };
 
-export function TabFace({ tab, title, host, tone, roles, compact }: Props) {
+export function TabFace({ tab, title, host, tone, roles, compact, paintedAs }: Props) {
   const fill = tabFill(tab, tone, roles);
   const face = <PlainFace tab={tab} title={title} host={host} fill={fill} roles={roles} compact={compact} />;
-  if (tab.snapshotFileName) return <Snapshot uri={tab.snapshotFileName} fill={fill} under={face} />;
+  if (tab.snapshotFileName) return <Snapshot uri={tab.snapshotFileName} fill={fill} under={face} paintedAs={paintedAs} />;
   return face;
 }
 
@@ -65,12 +65,18 @@ function PlainFace({ tab, title, host, fill, roles, compact }: { tab: TabFaceTab
   );
 }
 
-function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: ReactNode }) {
+function Snapshot({ uri, fill, under, paintedAs }: { uri: string; fill: string; under: ReactNode; paintedAs?: string }) {
   const [aspect, setAspect] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [wasShown] = useState(() => snapshotWasShown(uri));
   const [covered, setCovered] = useState(!wasShown);
   const appear = useSharedValue(wasShown ? 1 : 0);
   const appearing = useAnimatedStyle(() => ({ opacity: appear.value }));
+  useEffect(() => {
+    if (!loaded) return;
+    const frame = requestAnimationFrame(() => notePicturePainted(paintedAs ? pictureKey(paintedAs, uri) : uri));
+    return () => cancelAnimationFrame(frame);
+  }, [loaded, aspect, uri, paintedAs]);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]}>
       {covered ? under : null}
@@ -79,7 +85,7 @@ function Snapshot({ uri, fill, under }: { uri: string; fill: string; under: Reac
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
           if (width > 0 && height > 0) setAspect(width / height);
-          requestAnimationFrame(() => notePicturePainted(uri));
+          setLoaded(true);
           if (snapshotWasShown(uri)) {
             appear.value = 1;
             setCovered(false);
