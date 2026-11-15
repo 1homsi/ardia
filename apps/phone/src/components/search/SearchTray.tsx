@@ -307,7 +307,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 
   return (
     <DepartContext.Provider value={beginDeparture}>
-    <View style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"}>
+    <View testID="trayRoot" style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"} collapsable={false}>
       <Animated.View testID="trayDim" style={[StyleSheet.absoluteFill, dimStyle]}>
         <Pressable
           accessibilityLabel="Close Search"

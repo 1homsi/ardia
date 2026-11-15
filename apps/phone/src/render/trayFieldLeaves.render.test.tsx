@@ -38,3 +38,24 @@ for (const design of ["redesigned", "original"] as Design[]) {
     unmount(root);
   });
 }
+
+for (const design of ["redesigned", "original"] as Design[]) {
+  test(`in the ${design} design, the tray's root is a real view from the start, so turning its touches off at submit doesn't make a new host view and remount the leaving panel`, () => {
+    act(() => presentSearch("page", "otters"));
+    const root = renderSurface(
+      <DesignProvider design={design}>
+        <SearchTray />
+      </DesignProvider>,
+    );
+    act(() => jest.advanceTimersByTime(600));
+    const trayRoot = () => root.root.findAll((node) => node.props.testID === "trayRoot" && typeof node.type === "string");
+    expect(trayRoot()).toHaveLength(1);
+    expect(trayRoot()[0]!.props.collapsable).toBe(false);
+    expect(trayRoot()[0]!.props.pointerEvents).toBe("box-none");
+    act(() => dismissSearch());
+    act(() => jest.advanceTimersByTime(16));
+    expect(trayRoot()[0]!.props.collapsable).toBe(false);
+    expect(trayRoot()[0]!.props.pointerEvents).toBe("none");
+    unmount(root);
+  });
+}
