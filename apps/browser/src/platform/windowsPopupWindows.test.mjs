@@ -269,3 +269,73 @@ test("a pop-up whose page closed itself closes its window at once, without the c
   shown();
   unmount();
 });
+
+const { answerExternalAppsWith } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
+const reopens = [];
+DeviceEventEmitter.addListener("ArdiaShell:onAppEvent", (event) => event?.type === "reopen" && reopens.push(event));
+
+async function lonePopup(adopt, profile = "p-work") {
+  const unmountOpener = mountPage(`opener-${adopt}`, { url: "https://app.example/", profile, windowId: "main" }, () => {});
+  await settle();
+  emitTopic("tab.opened", { adopt, url: "https://auth.example/login", foreground: true, window: true, opener: `opener-${adopt}`, profile, parent: "", fromClick: false, popup: {} });
+  await settle();
+  const made = opened.at(-1);
+  const info = popupWindowInfo(made.id);
+  const inPopup = [];
+  const unmountPopupPage = mountPage(info.pageKey, { url: "", profile, adopt: info.adopt, windowId: made.id }, (name, data) => inPopup.push([name, data]));
+  await settle();
+  unmountOpener();
+  await settle();
+  return { made, info, inPopup, done: async () => { unmountPopupPage(); turboModules.ArdiaAppWindows.closeWindow(made.id); await settle(); } };
+}
+
+test("an app-link ask from a pop-up left without its opener's window, with no browser page of its profile, is forgotten instead of waiting forever", async () => {
+  const forgotten = [];
+  answerExternalAppsWith({ ask: async () => ({ id: "lone-ask", url: "ardiatest:hello" }), forget: (id) => forgotten.push(id), forgetPage: () => {} });
+  const popup = await lonePopup("ardiacore:70");
+  emitTopic("tab", { key: popup.info.pageKey, name: "externalApp", data: { id: "e1", url: "ardiatest:hello" } });
+  await settle();
+  assert.deepEqual(forgotten, ["lone-ask"], "nobody can show the prompt, so the ask is forgotten in the app and the engine");
+  assert.equal(popup.inPopup.filter(([name]) => name === "externalApp").length, 0, "the pop-up's own window never gets it");
+  await popup.done();
+});
+
+test("a tab a lone pop-up opens asks for a browser window, as a second launch does, and goes to it", async () => {
+  const popup = await lonePopup("ardiacore:71");
+  const before = reopens.length;
+  emitTopic("tab.opened", { adopt: "ardiacore:72", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
+  await settle();
+  assert.equal(reopens.length, before + 1, "a browser window is asked for");
+  assert.ok(!calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:72"), "the tab waits instead of being thrown away");
+  const events = [];
+  const unmountRestored = mountPage("restored-page", { url: "https://app.example/", profile: "p-work", windowId: "main-again" }, (name, data) => events.push([name, data]));
+  await settle();
+  const handed = events.filter(([name]) => name === "openWindow").map(([, data]) => data);
+  assert.equal(handed.at(-1)?.adoptId, "ardiacore:72", "the restored window's page takes the tab");
+  unmountRestored();
+  await popup.done();
+});
+
+test("a link a lone pop-up opens in a new window waits for the browser window too", async () => {
+  const popup = await lonePopup("ardiacore:73");
+  const before = reopens.length;
+  emitTopic("tab", { key: popup.info.pageKey, name: "openWindow", data: { url: "https://help.example/split", disposition: "window", userGesture: true } });
+  await settle();
+  assert.equal(reopens.length, before + 1);
+  const events = [];
+  const unmountRestored = mountPage("restored-page-2", { url: "https://app.example/", profile: "p-work", windowId: "main-again" }, (name, data) => events.push([name, data]));
+  await settle();
+  assert.equal(events.filter(([name]) => name === "openWindow").at(-1)?.[1]?.url, "https://help.example/split");
+  unmountRestored();
+  await popup.done();
+});
+
+test("a tab a lone private pop-up opens is closed at once: no window of its private session can be asked for", async () => {
+  const popup = await lonePopup("ardiacore:74", "p-work@private-9");
+  const before = reopens.length;
+  emitTopic("tab.opened", { adopt: "ardiacore:75", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work@private-9", parent: "", fromClick: false });
+  await settle();
+  assert.equal(reopens.length, before, "no window is asked for");
+  assert.ok(calls.some((call) => call.verb === "tab.discard" && call.args.adopt === "ardiacore:75"), "the private tab is closed, never put in a regular window");
+  await popup.done();
+});

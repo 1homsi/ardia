@@ -538,6 +538,12 @@ is plain Chromium.
   closed with it. The app acknowledges each `tab.opened` it handled (`tab.offerHeard`, in `engine/host.ts`) and then
   owns the decision, so a background tab it keeps for later stays; an offer nobody acknowledged within 30 s (4 s in a
   test instance) is closed, whatever lost it.
+- What a pop-up's page asks for goes to one place, `requestHost` (`engine/requestHosts.ts`): its opener's page while
+  that page is listening, else a browser page of its profile, else nobody. With nobody, a tab or link the pop-up opens
+  asks for a browser window as a second launch does ("reopen": the last window comes back or a new one opens) and
+  goes to the first page of its profile that listens within 10 s, else it is closed; a private pop-up's tab is closed
+  at once, because no window of its private session can be asked for and a regular one would leak it. An app-link ask
+  with nobody to show it is refused and forgotten (`externalAppForget`), where the Mac drops it unanswered.
 - A pop-up window takes focus only if, when it opens, its opener's app window is the foreground window and the
   opener's page holds the keyboard (`keyboard.page`, asked by `WindowManager.h` at that moment, the same rule as page
   focus in #1658); a pop-up from a pop-up is placed and focused by that pop-up, while its tabs and prompts go to the

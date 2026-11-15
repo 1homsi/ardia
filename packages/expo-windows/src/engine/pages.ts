@@ -1,6 +1,6 @@
 import { fieldFocusedIn } from "../appKeyboard";
 import { hostCall, onEngineTopic } from "./host";
-import { takerOfOpenedTab } from "./openedTabs";
+import { browserPagesListening, hostInNewBrowserWindow, listeningBrowserPages, requestHost, type RequestPage } from "./requestHosts";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 import { privateSessionOpened } from "./privateWindows";
 import type { ExternalAppRequest, NavigationState, OpenWindowRequest } from "@ardia/ardiacore";
@@ -72,13 +72,6 @@ export function externalAppStillAsked(key: string, id: string): Promise<boolean>
   return callPage<{ alive?: unknown }>(key, "externalAppAlive", { id }).then((answer) => answer?.alive === true);
 }
 
-function promptHostOf(page: Page): Page {
-  if (!isPopupWindowId(page.windowId)) return page;
-  const opener = pages.get(popupOpenerKey(page.windowId));
-  if (opener && opener.listeners.size && !opener.closed) return opener;
-  return takerOfOpenedTab(listeningTakers(), page.profile) ?? page;
-}
-
 function askExternalApp(page: Page, data: unknown) {
   const answers = externalAppAnswers;
   if (!answers) return;
@@ -86,28 +79,29 @@ function askExternalApp(page: Page, data: unknown) {
     answers.ask(page.profile, page.key, data).then((request) => {
       if (!request) return;
       if (page.closed) return answers.forget(request.id);
-      const host = promptHostOf(page);
+      const host = isPopupWindowId(page.windowId) ? requestHost(pages.get(popupOpenerKey(page.windowId)), page.profile, pages.values()) : page;
+      if (!host) return answers.forget(request.id);
       for (const listener of [...host.listeners]) listener("externalApp", request);
     }),
   );
 }
 
-const listeningTakers = () => [...pages.values()].filter((page) => page.listeners.size && !page.closed && !isPopupWindowId(page.windowId));
+const sendTo = (name: string, data: unknown) => (host: RequestPage) => [...host.listeners].forEach((listener) => listener(name, data));
 
-function handOpenedTab(opener: Page | undefined, request: OpenedRequest) {
-  const listening = listeningTakers();
-  const taker = opener?.listeners.size && !opener.closed ? opener : takerOfOpenedTab(listening, request.profile);
-  if (!taker) {
-    if (listening.length) console.warn("[ardia windows] a tab opened by a page was closed: no page of its profile is showing");
-    quietly(hostCall("tab.discard", { adopt: request.adoptId }));
-    return;
-  }
-  for (const listener of [...taker.listeners]) listener("openWindow", request);
+function handOpenedTab(asking: Page | undefined, opener: Page | undefined, request: OpenedRequest) {
+  const host = requestHost(opener, request.profile, pages.values());
+  if (host) return sendTo("openWindow", request)(host);
+  const discard = () => quietly(hostCall("tab.discard", { adopt: request.adoptId }));
+  if (asking && isPopupWindowId(asking.windowId)) return hostInNewBrowserWindow(request.profile, sendTo("openWindow", request), discard);
+  if (listeningBrowserPages(pages.values()).length) console.warn("[ardia windows] a tab opened by a page was closed: no page of its profile is showing");
+  discard();
 }
 
 function openFromPopup(page: Page, request: unknown) {
   const moved = typeof request === "object" && request !== null ? { ...request, point: undefined } : request;
-  for (const listener of [...promptHostOf(page).listeners]) listener("openWindow", moved);
+  const host = requestHost(pages.get(popupOpenerKey(page.windowId)), page.profile, pages.values());
+  if (host) return sendTo("openWindow", moved)(host);
+  hostInNewBrowserWindow(page.profile, sendTo("openWindow", moved), () => console.warn("[ardia windows] a link from a pop-up went nowhere: no browser window of its profile opened"));
 }
 
 function popupWindowGone(popup: PopupWindowInfo) {
@@ -173,12 +167,12 @@ function listen() {
       point: fromClick && asking === opener ? inWindow(opener, opened.point) : undefined,
     };
     const features = popupFeatures(opened.popup);
-    if (!features) return handOpenedTab(opener, request);
+    if (!features) return handOpenedTab(asking, opener, request);
     const openedFrom = opener && !opener.closed ? opener : undefined;
     const ask = { adopt: request.adoptId, url: request.url, profile: request.profile ?? openedFrom?.profile ?? "", openerKey: openedFrom?.key ?? "", openedFromKey: (asking && !asking.closed ? asking : openedFrom)?.key ?? "", openedFromWindowId: (asking && !asking.closed ? asking : openedFrom)?.windowId ?? "", features };
     quietly(
       openPopupWindow(ask).then((outcome) => {
-        if (outcome === "failed") handOpenedTab(opener, { ...request, disposition: "foreground" });
+        if (outcome === "failed") handOpenedTab(asking, opener, { ...request, disposition: "foreground" });
       }),
     );
   });
@@ -293,6 +287,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
   mounted.parked = false;
   mounted.mounts += 1;
   mounted.listeners.add(listener);
+  if (!isPopupWindowId(mounted.windowId)) browserPagesListening(pages.values());
   void mounted.ready.then((opened) => {
     if (opened) tellReady(mounted, listener);
   });
