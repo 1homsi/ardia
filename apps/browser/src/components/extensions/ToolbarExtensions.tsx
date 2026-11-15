@@ -15,8 +15,7 @@ import { isLight } from "../../lib/color";
 import { dropToolbarAnchor, setToolbarAnchor } from "../../state/extensions/toolbarAnchors";
 import {
   activateExtension,
-  EXTENSION_LIST_ITEMS,
-  type ExtensionListChoice,
+  extensionOverflowItems,
   runExtensionListChoice,
   showExtensionMenu,
   useExtensions,
@@ -43,7 +42,8 @@ function useToolbarExtensions(windowId: string, limit: number) {
     const all = toolbarOrder(shown);
     const room = Math.max(0, limit - (casting ? 1 : 0));
     const overflow = all.length > room;
-    return { pinned: overflow ? all.slice(0, Math.max(0, room - 1)) : all, overflow, casting, routes };
+    const pinned = overflow ? all.slice(0, Math.max(0, room - 1)) : all;
+    return { pinned, hidden: pinned.length ? all.slice(pinned.length) : [], overflow, casting, routes };
   }, [shown, routes, casting, limit]);
 }
 
@@ -79,10 +79,11 @@ function TabToolbarExtensions({
   limit = Infinity,
   onActivate,
 }: ToolbarExtensionsProps) {
-  const { pinned, overflow, routes } = useToolbarExtensions(windowId, limit);
+  const { pinned, hidden, overflow, routes } = useToolbarExtensions(windowId, limit);
   const ready = usePages((p) => !!p.ready[tabId]);
   const pitch = useToolbarRowContext().extensionButton + GAP;
-  const movable = useToolbarReorderable(windowId) && pinned.length > 1;
+  const reorderable = useToolbarReorderable(windowId);
+  const movable = reorderable && pinned.length > 1;
   const [drag, setDrag] = useState<ToolbarDrag | null>(null);
   if (!pinned.length && !overflow && !routes.length) return <EmptyAnchor windowId={windowId} tabId={tabId} top={top} right={right} />;
   const reorder: Reorder | undefined = movable
@@ -93,7 +94,7 @@ function TabToolbarExtensions({
         move: (id, from, dx) => setDrag({ id, from, dx }),
         drop: (id, from, dx) => {
           const to = dropIndex(from, dx, pitch, pinned.length);
-          if (to !== from) void moveToolbarExtension(windowId, id, to);
+          if (to !== from) void moveToolbarExtension(windowId, id, to, "drag");
           setDrag(null);
         },
         cancel: () => setDrag(null),
@@ -109,7 +110,7 @@ function TabToolbarExtensions({
           ))}
         </View>
       ) : null}
-      {overflow && <OverflowButton windowId={windowId} tabId={tabId} palette={palette} onActivate={onActivate} />}
+      {overflow && <OverflowButton windowId={windowId} tabId={tabId} hidden={reorderable ? hidden : []} palette={palette} onActivate={onActivate} />}
     </View>
   );
 }
@@ -271,21 +272,18 @@ function CastButton({ windowId, tabId, routes, palette }: { windowId: string; ta
   );
 }
 
-function OverflowButton({ windowId, tabId, palette, onActivate }: { windowId: string; tabId: string; palette: ToolbarPalette; onActivate?: () => void }) {
+function OverflowButton({ windowId, tabId, hidden, palette, onActivate }: { windowId: string; tabId: string; hidden: InstalledExtension[]; palette: ToolbarPalette; onActivate?: () => void }) {
   const { ref, measure } = useAnchor(windowId, tabId, "*");
   const onPress = async () => {
     const anchor = await measure();
     const enabled = currentWindowExtensions(windowId);
-    const choice = await chooseFromMenu<InstalledExtension, ExtensionListChoice>([
-      ...enabled.map((x) => ({ value: x, title: x.name, symbol: x.pinned ? "pin.fill" : undefined })),
-      ...(enabled.length ? [{ separator: true as const }] : []),
-      ...EXTENSION_LIST_ITEMS,
-    ]);
-    if (choice && typeof choice === "object") {
+    const choice = await chooseFromMenu(extensionOverflowItems(enabled, hidden));
+    if (choice && typeof choice === "object" && "front" in choice) void moveToolbarExtension(windowId, choice.front.id, 0, "menu");
+    else if (choice && typeof choice === "object") {
       onActivate?.();
       void activateExtension(windowId, choice, anchor, undefined, tabId);
     }
-    else runExtensionListChoice(choice, windowId);
+    else if (choice !== "front") runExtensionListChoice(choice, windowId);
   };
   return (
     <View ref={ref} onLayout={() => void measure()}>
