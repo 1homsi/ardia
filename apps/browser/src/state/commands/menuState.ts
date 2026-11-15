@@ -164,7 +164,7 @@ function shownOrSelected(s: BrowserState, tab: Tab): boolean {
   const w = s.windows[tab.windowId];
   if (!w) return true;
   for (const profile in w.activeTabIds) if (w.activeTabIds[profile] === tab.id) return true;
-  return s.peeks[tab.windowId]?.tabId === tab.id || !!s.selection[tab.windowId]?.includes(tab.id);
+  return peekTabId(s, tab.windowId) === tab.id || !!s.selection[tab.windowId]?.includes(tab.id);
 }
 
 function tabsChangedForMenu(s: BrowserState, prev: BrowserState): boolean {
