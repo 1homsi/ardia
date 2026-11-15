@@ -9,7 +9,9 @@ import { onboardingButton, onboardingMotion, onboardingType } from "./tokens";
 
 const ms = (s: number) => Math.round(s * 1000);
 
-const textOf = (style: { fontSize: number; fontWeight?: string; letterSpacing?: number; fontFamily?: string }) => ({
+type IntroText = MeadowIntro["type"]["wordmark"];
+
+const textOf = (style: Omit<IntroText, "fontWeight"> & Partial<Pick<IntroText, "fontWeight">>): IntroText => ({
   fontSize: style.fontSize,
   fontWeight: style.fontWeight ?? weight.regular,
   letterSpacing: style.letterSpacing,
