@@ -27,6 +27,7 @@ export type PlatformCopy = {
   defaultBrowserInstructions: DefaultBrowserSteps | null;
   offersDefaultBrowserAlways: boolean;
   offersPasteAndGo: boolean;
+  untitledTabByAddress: boolean;
   pinFeedbackInMenu: boolean;
   findWaitsForMenu: boolean;
   menuTitleBelowAtLargeText: boolean;
@@ -62,6 +63,7 @@ const ANDROID: PlatformCopy = {
   defaultBrowserInstructions: null,
   offersDefaultBrowserAlways: true,
   offersPasteAndGo: true,
+  untitledTabByAddress: true,
   pinFeedbackInMenu: false,
   findWaitsForMenu: false,
   menuTitleBelowAtLargeText: false,
@@ -102,6 +104,7 @@ const IOS: PlatformCopy = {
   },
   offersDefaultBrowserAlways: false,
   offersPasteAndGo: false,
+  untitledTabByAddress: false,
   pinFeedbackInMenu: true,
   findWaitsForMenu: true,
   menuTitleBelowAtLargeText: true,

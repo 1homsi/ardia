@@ -212,6 +212,7 @@ test("a tab with no title is listed by its host, then as New Tab", () => {
   assert.equal(tabMenuTitle({ ...a, title: "Otter" }, "en.wikipedia.org"), "Otter");
   assert.equal(tabMenuTitle({ ...a, title: "  " }, "example.com"), "example.com");
   assert.equal(tabMenuTitle({ ...a, title: "" }, ""), "New Tab");
+  assert.equal(tabMenuTitle({ ...a, title: "", url: "about:blank" }, "", true), "about:blank", "Compose lists such a tab by its address");
 });
 
 test("the tab in front comes back in front after a kill, even when it was chosen in the same millisecond", () => {

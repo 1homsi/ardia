@@ -1,7 +1,9 @@
+import { copy } from "../../lib/platformCopy";
 import { mobileClean } from "@ardia/core/src/mobile";
+import { hostOf } from "@ardia/core/src/omnibox";
 import { copyText, pressHaptic, shareLink, successHaptic } from "../../platform/system";
 import { settled } from "../pages/store";
-import { display, type TrayRow } from "../search/omnibox";
+import type { TrayRow } from "../search/omnibox";
 import { closeTabById, currentTabs, deleteArchivedTabsById, setIncognito, useTabs } from "../tabs/store";
 import { isSyncableUrl, type BrowserTab } from "../tabs/tabModels";
 import { recentOtherTabs, tabMenuTitle } from "../tabs/tabsState";
@@ -42,7 +44,7 @@ const quietly = (call: () => Promise<unknown>) => void settled(call, undefined);
 
 export const canShareTab = (tab: BrowserTab) => isSyncableUrl(tab.url);
 
-export const tabTitle = (tab: BrowserTab) => tabMenuTitle(tab, display(tab.url).host);
+export const tabTitle = (tab: BrowserTab) => tabMenuTitle(tab, hostOf(tab.url), copy().untitledTabByAddress);
 
 export function copyTabLink(tab: BrowserTab) {
   if (canShareTab(tab)) copyLink(tab.url);

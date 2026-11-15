@@ -61,7 +61,7 @@ export const RECENT_TABS_LIMIT = 8;
 
 export const recentOtherTabs = (order: readonly BrowserTab[]): BrowserTab[] => order.slice(0, -1).slice(-RECENT_TABS_LIMIT).reverse();
 
-export const tabMenuTitle = (tab: BrowserTab, host: string): string => tab.title.trim() || host || "New Tab";
+export const tabMenuTitle = (tab: BrowserTab, host: string, byAddress = false): string => tab.title.trim() || host || (byAddress ? tab.url : "New Tab");
 
 export const deckOrder = (data: TabsData): BrowserTab[] => recencyOrder([...data.open, ...data.privates], data.selectedId);
 
