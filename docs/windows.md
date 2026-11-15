@@ -386,8 +386,8 @@ is plain Chromium.
   `assemble.ps1` (`vc-runtime.ps1`) reads every PE file's imports, delay-loads and forwarded exports and copies each
   redist DLL they reach from the build machine's Visual Studio (`VC\Redist\MSVC\<version>\<cpu>`, the version from
   `Microsoft.VCRedistVersion.default.txt`, found with vswhere; `-VcRedist <folder>` overrides it), for the launcher's
-  CPU. A forwarder whose target the redist lacks (C++ AMP's `vcamp140_app.dll` on ARM64) is left out when nothing loads
-  it. Without this the app fails with "Class not registered" on a machine without the VC++ redist, and GitHub's
+  CPU (all nine on x64, eight on ARM64, which has no `vcruntime140_1`). A forwarder whose target the redist lacks is left
+  out when nothing loads it, and fails the assembly when something does. Without this the app fails with "Class not registered" on a machine without the VC++ redist, and GitHub's
   runners have it, so only `dependency-check.ps1` below catches it in CI (#2036).
 
 - `//ardia/win` (`scripts/windows/engine/src/ardia/win`, copied into the tree by `series_win.py`) is the engine's side.
