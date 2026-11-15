@@ -418,23 +418,30 @@ inline std::optional<std::string> SealedLogins(std::string_view reply, SyncCrypt
     Node const *realmNode = Member(login, "realm");
     Node const *userNode = Member(login, "username");
     Node const *passwordNode = Member(login, "password");
+    Node const *passwordlessNode = Member(login, "passwordless");
     Node const *created = Member(login, "created");
+    bool const passwordless = !passwordNode && passwordlessNode && passwordlessNode->kind == Node::Kind::Literal &&
+                              reply.substr(passwordlessNode->begin, passwordlessNode->end - passwordlessNode->begin) == "true";
     std::optional<WipedString> realm = realmNode ? Reader::Decoded(reply, *realmNode) : std::nullopt;
     std::optional<WipedString> username = userNode ? Reader::Decoded(reply, *userNode) : std::nullopt;
     std::optional<WipedString> password = passwordNode ? Reader::Decoded(reply, *passwordNode) : std::nullopt;
-    if (!realm || !username || !password || !created || created->kind != Node::Kind::Number) return std::nullopt;
+    if (!realm || !username || (!password && !passwordless) || !created || created->kind != Node::Kind::Number) return std::nullopt;
     if (!seen.insert(realm->text() + std::string(1, '\0') + username->text()).second) continue;
     std::optional<std::string> origin = LoginOrigin(realm->text());
     if (!origin) continue;
-    std::optional<std::string> sealed = keys.SealPassword(password->text(), *origin, username->text());
-    if (!sealed) return std::nullopt;
+    std::optional<std::string> sealed = passwordless ? std::nullopt : keys.SealPassword(password->text(), *origin, username->text());
+    if (!passwordless && !sealed) return std::nullopt;
     if (out.size() > 1) out.push_back(',');
     out.append("{\"origin\":");
     Quote(out, *origin);
     out.append(",\"username\":");
     Quote(out, username->text());
-    out.append(",\"sealed\":");
-    Quote(out, *sealed);
+    if (passwordless) {
+      out.append(",\"passwordless\":true");
+    } else {
+      out.append(",\"sealed\":");
+      Quote(out, *sealed);
+    }
     out.append(",\"created\":");
     out.append(reply.substr(created->begin, created->end - created->begin));
     out.push_back('}');
