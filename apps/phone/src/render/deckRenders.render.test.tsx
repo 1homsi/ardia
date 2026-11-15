@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
@@ -97,5 +97,22 @@ test("a touch in the band above the deck bar starts no card gesture, the clearan
   const root = renderSurface(<TabDeck />);
   const slop = (getByGestureTestId("deckPan") as unknown as { config: { hitSlop?: { bottom?: number } } }).config.hitSlop;
   expect(slop?.bottom).toBeLessThan(-40);
+  unmount(root);
+});
+
+test("a card hands over to its page once it is within 2% of full size, not when its spring comes to rest, so the page takes over as the card lands", () => {
+  useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const root = renderSurface(<TabDeck />);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  let handedAt = -1;
+  for (let frame = 1; frame <= 30 && handedAt < 0; frame++) {
+    act(() => jest.advanceTimersByTime(16));
+    if (useBrowse.getState().opening !== null) handedAt = frame * 16;
+  }
+  expect(useBrowse.getState().opening).toBeTruthy();
+  const [landed, rest] = Platform.OS === "ios" ? [192, 216] : [304, 336];
+  expect(handedAt).toBeGreaterThan(120);
+  expect(handedAt).toBeLessThanOrEqual(landed);
+  expect(handedAt).toBeLessThan(rest);
   unmount(root);
 });

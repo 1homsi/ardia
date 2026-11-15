@@ -214,6 +214,8 @@ export const TabDeck = memo(function TabDeck() {
   const searchedFor = useRef(needle);
   const spaceShown = useRef(shownSpace);
   const openingId = useRef<string | null>(null);
+  const handedOver = useRef<string | null>(null);
+  const landing = useSharedValue(false);
   const touching = useSharedValue(false);
 
   const placeCards = (ids: readonly string[], at: number) =>
@@ -235,6 +237,7 @@ export const TabDeck = memo(function TabDeck() {
     if (shown) return;
     hidden.current.clear();
     openingId.current = null;
+    landing.value = false;
     placeCards(order, deckScrollFor(order, heldSelected));
     deckPhase.value = DECK_PHASE.settled;
     expandedIndex.value = -1;
@@ -422,8 +425,10 @@ export const TabDeck = memo(function TabDeck() {
     setMenu(null);
     enterPhase({ kind: "closing", id });
     openingId.current = id;
+    handedOver.current = null;
     requestAnimationFrame(() => {
       if (openingId.current !== id) return;
+      landing.value = true;
       scaleProgress.value = withSpring(0, tabsMotion.expand);
       positionProgress.value = withSpring(0, tabsMotion.expand, (finished) => {
         if (finished) runOnJS(handOver)(id);
@@ -431,8 +436,22 @@ export const TabDeck = memo(function TabDeck() {
     });
   };
 
+  const handOverLanded = () => {
+    if (openingId.current) handOver(openingId.current);
+  };
+
+  useAnimatedReaction(
+    () => landing.value && Math.abs(scaleProgress.value) < CARD_LANDED && Math.abs(positionProgress.value) < CARD_LANDED,
+    (landed, was) => {
+      if (!landed || was) return;
+      landing.value = false;
+      runOnJS(handOverLanded)();
+    },
+  );
+
   const handOver = (id: string) => {
-    if (openingId.current !== id) return;
+    if (openingId.current !== id || handedOver.current === id) return;
+    handedOver.current = id;
     beginOpeningTab(id);
     const picture = tabs.get(id)?.snapshotFileName ?? null;
     let waiting = picture ? 2 : 1;
@@ -818,6 +837,7 @@ const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
 const HANDOVER_CAP_MS = 250;
+const CARD_LANDED = 0.02;
 const ENTRANCE_PAINT_CAP_MS = 250;
 const ENTRANCE_CAPTURE_CAP_MS = 180;
 
