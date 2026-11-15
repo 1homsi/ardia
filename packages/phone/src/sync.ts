@@ -70,10 +70,13 @@ export type SyncedProfile = {
 
 export type SyncedSearch = { engineId: string; customURL: string | null; customEngines: { id: string; name: string; keyword: string; url: string }[] };
 
+export type SyncedLook = { interfaceStyle: "glass" | "classic" | null; appearance: "auto" | "light" | "dark" | null };
+
 export type SyncedView = {
   devices: SyncedDevice[];
   profiles: SyncedProfile[];
   search: SyncedSearch | null;
+  look?: SyncedLook | null;
   syncedAt: number | null;
   selectedProfileId: string | null;
   shownProfileId?: string | null;

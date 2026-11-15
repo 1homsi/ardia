@@ -72,6 +72,7 @@ export type {
   SyncFolderPick,
   SyncedHistoryItem,
   SyncedProfile,
+  SyncedLook,
   SyncedSearch,
   SyncedView,
   SyncEvent,

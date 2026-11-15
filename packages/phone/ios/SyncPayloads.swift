@@ -122,6 +122,9 @@ enum SyncPayloads {
           "customEngines": search.customEngines.map { ["id": $0.id, "name": $0.name, "keyword": $0.keyword, "url": $0.url] },
         ]
       },
+      "look": snapshot.look.map { look -> [String: Any?] in
+        ["interfaceStyle": look.interfaceStyle?.rawValue, "appearance": look.appearance?.rawValue]
+      },
       "syncedAt": milliseconds(snapshot.syncedAt),
       "selectedProfileId": sync.selectedProfileId,
       "shownProfileId": sync.selectedProfile?.syncId,
