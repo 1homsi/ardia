@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if canImport(UIKit)
 public struct SettingsRowLabel: View {
   var title: LocalizedStringKey
   var systemImage: String
@@ -412,3 +413,4 @@ public struct SettingsShortcuts: View {
     }
   }
 }
+#endif
