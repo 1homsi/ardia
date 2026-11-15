@@ -181,6 +181,9 @@ object PagePayloads {
 }
 
 internal object SitePermissionGate {
+    fun held(context: android.content.Context, permission: com.ardia.browser.SitePermission): Map<String, Boolean> =
+        PagePayloads.androidPermissions(permission).associateWith { androidx.core.content.ContextCompat.checkSelfPermission(context, it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+
     fun granted(permission: com.ardia.browser.SitePermission, held: Map<String, Boolean>): Boolean = when (permission) {
         com.ardia.browser.SitePermission.Location -> held[android.Manifest.permission.ACCESS_FINE_LOCATION] == true || held[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
         else -> PagePayloads.androidPermissions(permission).all { held[it] == true }

@@ -229,8 +229,10 @@ class PageViewModule : Module() {
                 is PagePayloads.Answer.Capture -> capture(request, promise, parsed.photo)
                 is PagePayloads.Answer.Page -> {
                     val kind = request.kind
-                    if (parsed.answer == PageRequest.Answer.Accepted && kind is PageRequest.Kind.Permission) {
-                        askAndroid(PagePayloads.androidPermissions(kind.permission)) { granted ->
+                    val held = (kind as? PageRequest.Kind.Permission)?.let { SitePermissionGate.held(context, it.permission) }
+                    if (parsed.answer == PageRequest.Answer.Accepted && kind is PageRequest.Kind.Permission && held != null && !SitePermissionGate.granted(kind.permission, held)) {
+                        askAndroidFor(PagePayloads.androidPermissions(kind.permission)) { results ->
+                            val granted = SitePermissionGate.granted(kind.permission, held + results.filterValues { it })
                             request.answer(if (granted) PageRequest.Answer.Accepted else PageRequest.Answer.Dismissed)
                             promise.resolve(granted)
                         }
