@@ -1,4 +1,4 @@
-import { Platform, Text } from "react-native";
+import { Platform, StyleSheet, Text } from "react-native";
 import { State } from "react-native-gesture-handler";
 import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import * as Reanimated from "react-native-reanimated";
@@ -93,4 +93,20 @@ test("with Remove animations on Android the Settings sheet comes up and goes at 
   unmount(root);
   mockMotion.reduced = false;
   timing.mockRestore();
+});
+
+test("on iPhone the Settings sheet starts at the safe area and its bottom corners follow the display's, as main's iOS sheet does; on Android it keeps Compose's 10-point gap and square bottom", () => {
+  const progress = { value: 0 } as never;
+  const root = renderSurface(
+    <FullSheet sheet="settings" progress={progress} onDismiss={() => undefined}>
+      {() => <Text>Settings</Text>}
+    </FullSheet>,
+  );
+  const panel = root.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityViewIsModal === true)[0]!;
+  const style = StyleSheet.flatten(panel.props.style);
+  const ios = Platform.OS === "ios";
+  expect(style.top).toBe(ios ? 40 : 50);
+  expect(style.borderBottomLeftRadius).toBe(ios ? 55 : 0);
+  expect(style.borderBottomRightRadius).toBe(style.borderBottomLeftRadius);
+  unmount(root);
 });

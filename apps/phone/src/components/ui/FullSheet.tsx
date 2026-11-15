@@ -14,9 +14,10 @@ import { useReduceMotion } from "./contrast";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { backgroundScale, draggedOffset, sheetDismisses, sheetProgress } from "../../lib/sheetDrag";
 import { initialPresence, presenceSettled, presenceShown, presenceTarget } from "../../lib/sheetPresence";
-import { reducedMotionMs, tabsCurve, tabsMotion } from "./motion";
+import { iPhoneOr, reducedMotionMs, tabsCurve, tabsMotion } from "./motion";
+import { screenCornerRadius } from "../../state/app/displayCorner";
 import { useTheme } from "./theme";
-import { sheetInk, sheetLayout } from "./tokens";
+import { sheetInk, sheetLayout, tabsLayout } from "./tokens";
 
 const SHEET_REDUCED_MS = reducedMotionMs(tabsMotion.sheetReduced);
 
@@ -41,7 +42,8 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const reduceMotion = useReduceMotion();
-  const top = insets.top + sheetLayout.topGap;
+  const top = insets.top + iPhoneOr(sheetLayout.iPhoneTopGap, sheetLayout.topGap);
+  const bottomCorner = iPhoneOr(screenCornerRadius(tabsLayout.displayCornerRadius), 0);
   const presence = useRef(initialPresence(sheet));
   const [, redraw] = useState(0);
   const height = useSharedValue(Math.max(1, window.height - top));
@@ -146,7 +148,7 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
           onLayout={(event) => {
             height.value = Math.max(1, event.nativeEvent.layout.height);
           }}
-          style={[styles.sheet, { top }, slide]}
+          style={[styles.sheet, { top, borderBottomLeftRadius: bottomCorner, borderBottomRightRadius: bottomCorner }, slide]}
         >
           <SheetFrameContext.Provider value={frame}>{children(shown)}</SheetFrameContext.Provider>
         </Animated.View>
