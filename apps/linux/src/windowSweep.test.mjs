@@ -31,7 +31,7 @@ async function startSecondRenderer(windowId, saved, live) {
   const closed = [];
   const titled = [];
   const sync = createWindowSync({
-    port: { open() {}, close: (id) => closed.push(id), setTitle: (id) => titled.push(id), windowIds: createLinuxWindowIds(host, S), restoreFullScreen() {}, onEvent() {}, releaseProfile() {} },
+    port: { open() {}, close: (id) => closed.push(id), setTitle: (id) => titled.push(id), setTitleOverride() {}, windowIds: createLinuxWindowIds(host, S), restoreFullScreen() {}, onEvent() {}, releaseProfile() {} },
     getState: S, isQuitting: () => false, lightsCenter: () => null, isUtilityWindow: (id) => id === "settings" || id === "import",
   });
   sync.sync(S());

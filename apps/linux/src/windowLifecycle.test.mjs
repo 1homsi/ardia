@@ -18,6 +18,7 @@ function fakePort() {
       open: (id, options) => opens.push([id, options]),
       close: () => {},
       setTitle: () => {},
+      setTitleOverride: () => {},
       windowIds: async () => [],
       restoreFullScreen: () => {},
       onEvent: (l) => void (listener = l),
