@@ -23,6 +23,7 @@ final class PhonePages {
   private var tabIDs: [String: UUID] = [:]
   private var pageIDs: [UUID: String] = [:]
   private var watchers: [String: PageWatcher] = [:]
+  private let visuals = PageVisuals.shared
   private var popups: [String: PendingPopup] = [:]
   private var desktopTabs: Set<UUID> = []
   private var finds: [String: PageFind] = [:]
@@ -190,6 +191,7 @@ final class PhonePages {
 
   private func forget(_ pageID: String) {
     watchers.removeValue(forKey: pageID)?.stop()
+    visuals.forget(pageID)
     finds[pageID] = nil
     if let tabID = tabIDs.removeValue(forKey: pageID) {
       pageIDs[tabID] = nil
@@ -247,11 +249,14 @@ final class PhonePages {
   func snapshot(_ pageID: String, maxWidth: Int?, quality: Int?) async throws -> [String: Any]? {
     let page = try require(pageID)
     guard let webView = page.webView, !webView.bounds.isEmpty else { return nil }
+    let generation = visuals.generation(pageID)
     let configuration = WKSnapshotConfiguration()
     configuration.afterScreenUpdates = false
     configuration.snapshotWidth = NSNumber(value: Double(min(CGFloat(maxWidth ?? 600), webView.bounds.width)))
     guard let image = try? await webView.takeSnapshot(configuration: configuration) else { return nil }
-    return await PageSnapshots.write(pageID, image: image, isPrivate: page.isPrivate, quality: quality ?? 82)
+    guard let written = await PageSnapshots.write(pageID, image: image, isPrivate: page.isPrivate, quality: quality ?? 82) else { return nil }
+    if tabIDs[pageID] == page.id { visuals.captured(pageID, generation: generation) }
+    return written
   }
 
   func answer(_ pageID: String, requestID: String, answer: PageRequest.Answer?) -> Bool {
@@ -319,7 +324,10 @@ final class PhonePages {
   private func watch(_ pageID: String, _ page: WebTab) {
     if let watcher = watchers[pageID], watcher.page === page { return }
     watchers[pageID]?.stop()
-    watchers[pageID] = PageWatcher(page: page, pages: self) { [weak self] name, fields in self?.send(pageID, name, fields) }
+    watchers[pageID] = PageWatcher(page: page, pages: self, send: { [weak self] name, fields in
+      if name == "page.state" { self?.visuals.changed(pageID, .state) }
+      self?.send(pageID, name, fields)
+    }, visualChange: { [weak self] change in self?.visuals.changed(pageID, change) })
   }
 
   func send(_ pageID: String, _ name: String, _ fields: [String: Any?]) {
@@ -426,5 +434,13 @@ final class PhonePages {
     guard var top = scenes.flatMap(\.windows).first(where: \.isKeyWindow)?.rootViewController else { return }
     while let presented = top.presentedViewController { top = presented }
     top.present(controller, animated: true)
+  }
+}
+
+extension PageVisuals {
+  static let shared = PageVisuals(onNoLongerCurrent: PhoneTestBuild.isOn ? logNoLongerCurrent : nil)
+
+  @Sendable private static func logNoLongerCurrent(_ pageID: String, _ change: Change, _ milliseconds: Int) {
+    NSLog("PAGELAB snapshot %@ no longer current: page %@ %d ms after its capture", pageID, change.rawValue, milliseconds)
   }
 }

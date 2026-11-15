@@ -207,7 +207,12 @@ public final class PageViewModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("deleteSnapshots") { (pageID: String) in
+      PageVisuals.shared.forget(pageID)
       PageSnapshots.delete(pageID)
+    }
+
+    Function("snapshotIsCurrent") { (pageID: String) -> Bool? in
+      PageVisuals.shared.isCurrent(pageID)
     }
 
     AsyncFunction("saveState") { (pageID: String) -> String? in
