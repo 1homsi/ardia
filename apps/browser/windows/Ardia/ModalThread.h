@@ -188,6 +188,15 @@ inline HWND ModalDialogOf(HWND owner) noexcept {
   return found == dialogs.byOwner.end() ? nullptr : found->second;
 }
 
+inline int ShownDialogCount() noexcept {
+  ModalDialogs &dialogs = ModalDialogs::Shared();
+  std::lock_guard<std::mutex> guard(dialogs.lock);
+  int shown = 0;
+  for (auto const &[owner, dialog] : dialogs.byOwner)
+    if (dialog && IsWindowVisible(dialog)) shown++;
+  return shown;
+}
+
 inline bool BringModalForward(HWND owner) noexcept {
   HWND dialog = ModalDialogOf(owner);
   if (!dialog || !IsWindow(dialog) || !IsWindowVisible(dialog)) return false;

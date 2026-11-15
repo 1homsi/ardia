@@ -382,6 +382,9 @@ struct DialogsModule {
     return DialogParts::OpenCount().load();
   }
 
+  REACT_SYNC_METHOD(shownCount)
+  int shownCount() noexcept { return DialogParts::ShownDialogCount(); }
+
   REACT_SYNC_METHOD(openCount)
   int openCount() noexcept {
     return DialogParts::OpenCount().load();

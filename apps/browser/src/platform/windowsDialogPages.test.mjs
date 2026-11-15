@@ -85,6 +85,12 @@ test("a file dialog cancelled at quit closes through Close and, if still open, t
   assert.match(thread, /if \(state\.stubbornTimer\) KillTimer\(nullptr, state\.stubbornTimer\);/);
   assert.match(dialogs, /~FileDialogWatch\(\) noexcept \{ ModalWatch::Disarm\(\); \}/);
   assert.match(source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts") , /await Promise\.race\(\[held, settled\(GIVE_UP_MS\)\]\);/);
+  const held = source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts");
+  assert.match(held, /if \(when === "shown"\) expectTrue\(await dialogWindowShown\(SHOWN_MS\), /, "the shown case waits for the dialog's own window, not only for the dialog thread to start");
+  assert.match(held, /run: \(\) => heldFileDialogCancels\(false, "starting"\),/);
+  assert.match(held, /\$\{shownAtCancel \? "its window shown" : "still starting"\} at its cancel/);
+  assert.match(native("ModalThread.h"), /if \(dialog && IsWindowVisible\(dialog\)\) shown\+\+;/);
+  assert.match(native("DialogsModule.h"), /int shownCount\(\) noexcept \{ return DialogParts::ShownDialogCount\(\); \}/);
   assert.match(thread, /if \(Stopping\(\)\) LaunchLog::Write\(L"dialog", L"a dialog's thread ended "/);
   assert.match(native("DialogsModule.h"), /REACT_METHOD\(devHoldFileDialog\)\n\s+void devHoldFileDialog\(std::string windowId, bool save, [^)]*\) noexcept \{\n\s+if \(!AppLaunch::Shared\(\)\.testInstance\) return promise\.Reject/);
 });
