@@ -45,12 +45,9 @@ const selectedTab = () => {
 };
 const hostOf = (url: string | null) => (url ? display(url).host || null : null);
 
-let afterMenuHidden: (() => void) | null = null;
-
 export async function openPageMenu() {
   const tab = selectedTab();
   if (!tab) return;
-  afterMenuHidden = null;
   usePageUi.setState({ menuOpen: true, menuPage: "main", titleFeedback: null, menuSite: null });
   const url = usePages.getState().navigation[tab.id]?.url ?? tab.url;
   const host = hostOf(url);
@@ -66,31 +63,6 @@ export async function openPageMenu() {
 }
 
 export const closePageMenu = () => usePageUi.setState({ menuOpen: false });
-
-export function pageMenuHidden() {
-  const run = afterMenuHidden;
-  afterMenuHidden = null;
-  run?.();
-}
-
-export function canPrintPages(): boolean {
-  try {
-    return pages.canPrint();
-  } catch {
-    return false;
-  }
-}
-
-export function printCurrentPage() {
-  const tab = selectedTab();
-  const url = tab ? (usePages.getState().navigation[tab.id]?.url ?? tab.url) : null;
-  if (!tab || !url || !isSyncableUrl(url)) return;
-  closePageMenu();
-  afterMenuHidden = () =>
-    quietly(async () => {
-      if ((await pages.print(tab.id)) && !tab.isPrivate) countUsage("pages_printed");
-    });
-}
 
 export function openInDefaultBrowser() {
   const tab = selectedTab();
