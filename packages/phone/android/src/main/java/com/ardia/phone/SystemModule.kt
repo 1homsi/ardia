@@ -23,6 +23,10 @@ class SystemModule : Module() {
 
         Function("syncOffered") { SyncOffer.isOffered }
 
+        AsyncFunction("setSystemBarIcons") { lightStatus: Boolean, lightNavigation: Boolean ->
+            SystemBars.want(SystemBars.Icons(lightStatus, lightNavigation), appContext.currentActivity)
+        }.runOnQueue(Queues.MAIN)
+
         Function("peekPendingCounts") {
             val context = appContext.reactContext ?: return@Function emptyMap<String, Int>()
             PendingCounts.peek(context)

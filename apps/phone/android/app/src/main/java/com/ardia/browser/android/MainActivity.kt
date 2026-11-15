@@ -7,6 +7,7 @@ import com.ardia.phone.FirstScreenDrawn
 import com.ardia.phone.PhoneSystemLinks
 import com.ardia.phone.ReactBack
 import com.ardia.phone.RestorableState
+import com.ardia.phone.SystemBars
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -22,7 +23,13 @@ class MainActivity : ReactActivity() {
         super.onCreate(null)
         onBackPressedDispatcher.addCallback(this, reactBack)
         FirstScreenDrawn.watch(this)
+        SystemBars.apply(window)
         PhoneSystemLinks.activityStarted(intent, restored = savedInstanceState != null)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        SystemBars.apply(window)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

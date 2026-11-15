@@ -30,6 +30,7 @@ type SystemNative = {
   takePendingCounts?(): Record<string, number>;
   peekPendingCounts?(): Record<string, number>;
   syncOffered?(): boolean;
+  setSystemBarIcons?(lightStatus: boolean, lightNavigation: boolean): Promise<void>;
   usageConsent?(): { sharing: boolean; generation: number } | null;
   setUsageConsent?(sharing: boolean): void;
 };
@@ -49,6 +50,8 @@ export const system = {
   takePendingCounts: (): Record<string, number> => native?.takePendingCounts?.() ?? {},
   peekPendingCounts: (): Record<string, number> => native?.peekPendingCounts?.() ?? {},
   syncOffered: (): boolean | null => native?.syncOffered?.() ?? null,
+  setsSystemBarIcons: (): boolean => typeof native?.setSystemBarIcons === "function",
+  setSystemBarIcons: (lightStatus: boolean, lightNavigation: boolean): void => void native?.setSystemBarIcons?.(lightStatus, lightNavigation)?.catch(() => undefined),
   usageConsent: (): { sharing: boolean; generation: number } | null => native?.usageConsent?.() ?? null,
   setUsageConsent: (sharing: boolean): void => native?.setUsageConsent?.(sharing),
   setHidesFromRecents: async (hidden: boolean): Promise<boolean> => (native?.setHidesFromRecents ? native.setHidesFromRecents(hidden) : false),
