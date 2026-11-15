@@ -159,7 +159,7 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
             drawLook(canvas)
         } catch (failure: Exception) {
             canvas.restoreToCount(saved)
-            canvas.drawColor(fallbackColor())
+            fillBounds(canvas, fallbackColor())
             if (!reportedFailure) {
                 reportedFailure = true
                 android.util.Log.w("PAGELAB", "PAGELAB look ${javaClass.simpleName} could not draw at ${width}x$height and fell back to a flat colour: ${failure.javaClass.simpleName}: ${failure.message}")
@@ -168,6 +168,13 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
     }
 
     protected abstract fun drawLook(canvas: Canvas)
+
+    private val fill = Paint()
+
+    protected fun fillBounds(canvas: Canvas, colour: Int) {
+        fill.color = colour
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
+    }
 
     protected open fun fallbackColor(): Int = runCatching { SystemPalette.background.resolve(isDark).toArgb() }.getOrDefault(Color.GRAY)
 }
@@ -365,7 +372,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         frames += 1
         LookActivity.backdropFrames += 1
         if (lookIsOff) {
-            canvas.drawColor(LookSwitch.flatDeck(look, dark).toArgb())
+            fillBounds(canvas, LookSwitch.flatDeck(look, dark).toArgb())
             return
         }
         val w = width.toFloat()
@@ -415,7 +422,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
                 if (mode == LookSwitch.BackdropDraw.Small) drawGrain(canvas, dark)
             }
             LookSwitch.BackdropDraw.Flat -> {
-                canvas.drawColor(LookSwitch.flatDeck(look, dark).toArgb())
+                fillBounds(canvas, LookSwitch.flatDeck(look, dark).toArgb())
                 if (!fresh) renderScene(at)
             }
         }
@@ -559,7 +566,7 @@ class ProfileBackdropView(context: Context, appContext: AppContext) : LookView(c
         val w = width.toFloat()
         val h = height.toFloat()
         if (lookIsOff) {
-            canvas.drawColor(LookSwitch.flatBackdrop(look, dark, themed).toArgb())
+            fillBounds(canvas, LookSwitch.flatBackdrop(look, dark, themed).toArgb())
             return
         }
         if (!fadesOut) {

@@ -52,6 +52,17 @@ class DeckBackdropDrawTest {
     }
 
     @Test
+    fun aFlatBackdropPaintsOnlyItsOwnBoundsEvenWhenNothingClipsIt() {
+        val view = deck(100, 100, dark = false).apply { layout(20, 20, 120, 120) }
+        val bitmap = Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.translate(20f, 20f)
+        assertTrue(view.paint(canvas, LookSwitch.BackdropDraw.Flat, at = 0L))
+        assertEquals("outside the view stays untouched", 0, Color.alpha(bitmap.getPixel(200, 200)))
+        assertEquals("inside is the flat colour", 255, Color.alpha(bitmap.getPixel(70, 70)))
+    }
+
+    @Test
     fun theSceneIsDrawnAtAnEighthEachWay() {
         val view = deck(1080, 2400, dark = false)
         painted(view, LookSwitch.BackdropDraw.Small)
