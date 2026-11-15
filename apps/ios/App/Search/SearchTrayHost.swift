@@ -73,7 +73,11 @@ struct SearchTrayHost: View {
 
   private func present(_ request: BrowseSession.SearchRequest) {
     removalTask?.cancel()
-    if shown == nil, !app.browse.trayHoldsKeyboard { motion.rememberBar(Self.barTarget(in: app)) }
+    if shown == nil, !app.browse.trayHoldsKeyboard {
+      let target = Self.barTarget(in: app)
+      motion.rememberBar(target)
+      motion.emerge(from: morphsIntoBar ? target : nil)
+    }
     if shown == nil || motion.isClosing { presentation += 1 }
     shown = request
     reserveBarPill()

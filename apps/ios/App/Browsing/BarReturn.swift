@@ -44,7 +44,7 @@ private struct BarReturn: ViewModifier {
 
   private var animation: Animation? {
     if reduceMotion { return Motion.barReturnFade }
-    guard isShown else { return Motion.fade }
+    guard isShown else { return slot == .centre && app.browse.search != nil ? nil : Motion.fade }
     switch slot {
     case .centre: return app.browse.isBarLanding ? nil : Motion.barReturnFade
     case .leading, .trailing: return Motion.barReturn.delay(Motion.barReturnDelay)
