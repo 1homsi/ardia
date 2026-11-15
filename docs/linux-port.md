@@ -404,7 +404,10 @@ the Mac app does: chrome://inspect's approval mode would replace the process's o
 command's token server.
 
 `ARDIA_DATA_DIR` isn't read: pass `--user-data-dir`. Test hooks and authentication bypasses don't exist in this
-build (`SignedForDistribution()` is true and `TestInstance()` false).
+build (`SignedForDistribution()` is true and `TestInstance()` false), with one exception: `--ardia-test-cast-sink`,
+honoured only by the browser process of an instance started with its own `--user-data-dir`, registers Chromium's
+test media route provider (`ac_test_media_route_provider.cc`, `TestFlag("mediaRouteProvider")`), which offers one
+fake device, "Ardia Test Sink", and records routes without sending anything anywhere.
 
 ## How macOS stays unchanged
 
@@ -847,10 +850,16 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   capture of a different kind). Stop ends the capturer's display capture through Chromium's capture indicator. Both
   reach only tabs of the caller's own kind of session, regular or private. With an older engine the shell refuses
   them as before (`hostCast.ts`). Neither has run against a real capture on Linux yet.
-- **Casting.** The engine's media router runs (Chromium's Cast discovery over mDNS; DIAL discovery is off in Helium),
-  and `PresentationRequest.start()` reaches it, but nothing connects it to Ardia's cast picker yet. The shell hands
-  every cast call to the engine only when it advertises all six (`castsTabs` in `hostCast.ts`), so a partial engine
-  keeps the "Casting Isn't Available" toast instead of a picker that can't start.
+- **Casting.** Chromium's media router finds Cast devices over mDNS (DIAL discovery is off in Helium). Its device
+  picker is Ardia's own, as on the Mac: `ac_linux_cast.cc` fills `chromium-cast-dialog-hook.patch`'s two hooks, so a
+  cast request from a tab an Ardia window holds (Cast in the menu, a page's `PresentationRequest.start()`, a video's
+  remote playback) keeps Chromium's `MediaRouterUI` and its fullscreen blocker and sends `media.castDialog` (id, open,
+  header, sinks with their state, modes and route, `tabId`) to the window holding the tab. The host serves the six
+  calls: `media.showCastDialog {tabId}`, `media.startCasting {id, sink, mode}`, `media.stopCasting {id, route}`,
+  `media.closeCastDialog {id}`, `media.watchCastRoutes` (regular profiles only) and `media.terminateCastRoute
+  {route}`, and sends `media.castRoutes {profile, routes}` to every window that isn't private. The shell hands the
+  calls to the engine only when it advertises all six (`castsTabs` in `hostCast.ts`), so an older engine keeps the
+  "Casting Isn't Available" toast.
 
 ### ardia browse off-screen tabs
 
@@ -1780,6 +1789,8 @@ These were open at the time of the PR.
   exercised end to end from a hidden instance yet.
 - **Crash reports.** Only x86-64 dumps get frames, and frames are named only from the symbols archive the engine was
   published with (`scripts/linux/symbolize.py`). An engine older than `crash.dumps` answers no crash reports.
+- **Casting.** Real Cast devices haven't been tried: the build network has none, so casting has run against the test
+  sink only. Mirroring a tab or the screen to a real device is Chromium's own Cast mirroring service, unchanged.
 - **Ardia's notifications.** A desktop without a notification service falls back to Chromium's own popups, as sites'
   notifications do. A click activates the window through the same Wayland activation path as above.
 - **Launch at login** starts Ardia as any launch does; it doesn't start hidden. A system-wide
@@ -1805,8 +1816,7 @@ These were open at the time of the PR.
   - A played video removed from the DOM keeps its media entry until the element is collected.
 - **Not available on Linux:**
   - casting with an engine that doesn't advertise all six cast calls (`media.showCastDialog`, `startCasting`,
-    `stopCasting`, `closeCastDialog`, `watchCastRoutes`, `terminateCastRoute`): Cast shows a toast. No engine
-    advertises them yet;
+    `stopCasting`, `closeCastDialog`, `watchCastRoutes`, `terminateCastRoute`): Cast shows a toast;
   - translation (Bergamot isn't ported yet);
   - video upscaling;
   - installing updates: Ardia checks for them and opens the release page (Updates and kill switches);
