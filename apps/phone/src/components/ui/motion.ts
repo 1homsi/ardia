@@ -54,7 +54,7 @@ export const toastMotion = { snappy: spring(0.3, 0.86) } as const;
 
 export const settingsMotion = { swatchRing: spring(0.3, 0.86), titleFade: { stiffness: 1500, damping: 2 * Math.sqrt(1500), mass: 1 } } as const;
 
-export const tabsCurve = { easeOut: WorkletEasing.bezier(0, 0, 0.58, 1), easeInOut: WorkletEasing.bezier(0.42, 0, 0.58, 1) } as const;
+export const tabsCurve = { easeOut: WorkletEasing.bezier(0, 0, 0.58, 1), easeInOut: WorkletEasing.bezier(0.42, 0, 0.58, 1), depart: WorkletEasing.bezier(0.2, 0, 0, 1) } as const;
 
 export const springs = {
   searchRise: { stiffness: (2 * Math.PI / 0.39) ** 2, damping: 4 * Math.PI / 0.39, mass: 1 },

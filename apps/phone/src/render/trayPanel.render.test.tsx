@@ -1,8 +1,9 @@
 import { StyleSheet } from "react-native";
+import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { SearchTray } from "../components/search/SearchTray";
 import { DesignProvider } from "../components/ui";
-import { presentSearch } from "../state/search/store";
+import { dismissSearch, presentSearch } from "../state/search/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 beforeEach(() => {
@@ -41,5 +42,22 @@ test("in the redesign search is a floating panel: 8 points in from the sides and
 test("in the original design search is still the sheet from the bottom edge", () => {
   const root = open("original");
   expect(host(root, "trayPanel")).toBeUndefined();
+  unmount(root);
+});
+
+test("in the redesign a submitted search lifts the panel 120 points and fades it over 200 ms instead of dropping it with the keyboard", () => {
+  const root = open("redesigned");
+  const panel = () => host(root, "trayPanel");
+  const lifted = () => ((getAnimatedStyle(panel()!).transform as { translateY?: number }[]) ?? []).reduce((sum, step) => sum + (step.translateY ?? 0), 0);
+  act(() => jest.advanceTimersByTime(600));
+  const resting = lifted();
+  act(() => dismissSearch("submitted"));
+  act(() => jest.advanceTimersByTime(100));
+  expect(lifted()).toBeLessThan(resting - 60);
+  const halfway = getAnimatedStyle(panel()!).opacity as number;
+  expect(halfway).toBeGreaterThan(0);
+  expect(halfway).toBeLessThan(1);
+  act(() => jest.advanceTimersByTime(150));
+  expect(getAnimatedStyle(panel()!).opacity).toBe(0);
   unmount(root);
 });

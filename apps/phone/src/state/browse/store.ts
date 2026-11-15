@@ -133,7 +133,7 @@ export function appWillResignActive() {
 const show = (surface: Surface) => useBrowse.setState({ surface });
 
 export function openPage(url: string, origin: TabOrigin) {
-  dismissSearch();
+  dismissSearch("submitted");
   const tab = openNewTab({ url, origin });
   if (origin === "search" && !tab.isPrivate) countUsage("searches");
   useBrowse.setState({ surface: "browsing", sheet: null, frozenOrder: null });

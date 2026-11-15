@@ -243,6 +243,8 @@ export const floatingPanelLayout = {
   inset: 8,
   radius: 26,
   aboveKeyboard: 8,
+  departLift: 120,
+  departMs: 200,
   fieldInset: 9,
   fieldBottom: 1,
   tintShare: 0.55,

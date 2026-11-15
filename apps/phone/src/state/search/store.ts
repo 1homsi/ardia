@@ -14,8 +14,11 @@ import { buildSources, recentSearches, sourcesKey } from "./sources";
 
 export type SearchOrigin = "home" | "start" | "page";
 
+export type SearchEnding = "submitted" | "cancelled";
+
 type SearchState = {
   open: boolean;
+  ending: SearchEnding;
   origin: SearchOrigin;
   initialText: string;
   text: string;
@@ -29,6 +32,7 @@ type SearchState = {
 
 export const useSearch = create<SearchState>()(() => ({
   open: false,
+  ending: "cancelled",
   origin: "home",
   initialText: "",
   text: "",
@@ -107,9 +111,9 @@ export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel
   offerPaste(useSearch.getState().session);
 }
 
-export function dismissSearch() {
+export function dismissSearch(ending: SearchEnding = "cancelled") {
   inFlight?.abort();
-  useSearch.setState({ open: false, incognitoOnCancel: null });
+  useSearch.setState({ open: false, ending, incognitoOnCancel: null });
 }
 
 const REMOTE_DELAY_MS = 150;

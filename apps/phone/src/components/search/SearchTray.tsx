@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import type { GestureType } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
@@ -74,6 +74,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   const reduceMotion = useReducedMotion();
   const keyboard = useTrayKeyboard();
   const landing = useSharedValue(0);
+  const depart = useSharedValue(0);
   const hasLanded = useSharedValue(false);
   const isClosing = useSharedValue(closing);
   const dim = useSharedValue(0);
@@ -205,9 +206,17 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
   useEffect(() => {
     if (!closing) return;
     isClosing.value = true;
+    const departs = panel && !reduceMotion && searchState().ending === "submitted";
+    if (departs) {
+      runOnUI(() => {
+        "worklet";
+        if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, bottomNow.value, hasLanded.value, false);
+      })();
+      depart.value = withTiming(1, { duration: floatingPanelLayout.departMs, easing: tabsCurve.depart });
+    }
     putKeyboardAway();
     const followsKeyboard = keyboardIsUp(keyboard.height.value) && heldLift.value < 0;
-    landing.value = followsKeyboard
+    if (!departs) landing.value = followsKeyboard
       ? 0
       : reduceMotion
         ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeInOut })
@@ -263,8 +272,8 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     const lift = currentLift();
     const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
     return {
-      opacity: reduceMotion ? dim.value : 1,
-      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) }],
+      opacity: (reduceMotion ? dim.value : 1) * (1 - depart.value),
+      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) - floatingPanelLayout.departLift * depart.value }],
     };
   }, [trayHeight, safeBottom, reduceMotion, panel]);
 
