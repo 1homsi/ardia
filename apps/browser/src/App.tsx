@@ -1,5 +1,5 @@
 import { WindowBackdrop } from "./components/ui";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet } from "react-native";
 import { CommandPanel } from "./components/omnibox/CommandPanel";
 import { WindowOverlays } from "./components/window/WindowOverlays";
@@ -33,6 +33,7 @@ import { provideProfileLooks } from "./state/profiles/looks";
 import { currentBasePalette } from "./state/config/basePalette";
 import { focusedWindowOf } from "./state/windows/ui";
 import { SETTLE_MS, useSettled } from "./components/ui/useSettled";
+import { forgetWindowLayoutWidth, setWindowLayoutWidth } from "./state/sidebar/shownWidth";
 
 provideProfileLooks({ accent: profileAccent, theme: (profile, appDark, source) => profileTheme(profile, appDark, source, currentBasePalette()) });
 
@@ -67,6 +68,7 @@ function BrowserWindow() {
   const cardTop = useCardTopInset(frame);
   const [width, setWidth] = useState(0);
   const settleWidth = useSettled(setWidth, topTabs ? 0 : SETTLE_MS);
+  useEffect(() => () => forgetWindowLayoutWidth(windowId), [windowId]);
   const card = useMemo(
     () => (
       <>
@@ -78,7 +80,7 @@ function BrowserWindow() {
   );
 
   return (
-    <CrxDropArea style={{ flex: 1, flexDirection: "row" }} onLayout={(e) => settleWidth(e.nativeEvent.layout.width)}>
+    <CrxDropArea style={{ flex: 1, flexDirection: "row" }} onLayout={(e) => (setWindowLayoutWidth(windowId, e.nativeEvent.layout.width), settleWidth(e.nativeEvent.layout.width))}>
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
       <WindowProfile />
       <ProfileTint />

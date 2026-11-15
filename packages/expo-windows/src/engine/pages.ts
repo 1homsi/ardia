@@ -10,6 +10,7 @@ import { noteShowStep } from "./showTrace";
 import { popupFeatures } from "./popupPlacement";
 import { isPopupWindowId, onPopupWindowClosed, openPopupWindow, popupOpenerKey, type PopupWindowInfo } from "./popupWindows";
 import { dropKeptFollow, keepFollow, spendKeptFollow } from "./keptFollow";
+import { handPopupAsTab } from "./popupsAsTabs";
 
 export type PageListener = (name: string, data: unknown) => void;
 export type PageRect = Omit<CoverRect, "radius">;
@@ -171,6 +172,7 @@ function listen() {
     const features = popupFeatures(opened.popup);
     if (!features) return handOpenedTab(asking, opener, request);
     const openedFrom = opener && !opener.closed ? opener : undefined;
+    if (handPopupAsTab(openedFrom, request, pages.values())) return;
     const ask = { adopt: request.adoptId, url: request.url, profile: request.profile ?? openedFrom?.profile ?? "", openerKey: openedFrom?.key ?? "", openedFromKey: (asking && !asking.closed ? asking : openedFrom)?.key ?? "", openedFromWindowId: (asking && !asking.closed ? asking : openedFrom)?.windowId ?? "", features };
     quietly(
       openPopupWindow(ask).then((outcome) => {
