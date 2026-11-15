@@ -71,14 +71,17 @@ class PageViewModule : Module() {
 
         OnDestroy {
             PhonePages.pageSink = null
+            PhonePages.permissionAsks.lost()
             PhonePages.androidPermissionGate = null
         }
 
         OnActivityEntersForeground {
             appContext.currentActivity?.let(PhonePages::attach)
+            android.os.Handler(android.os.Looper.getMainLooper()).post { PhonePages.permissionAsks.pump() }
         }
 
         OnActivityDestroys {
+            PhonePages.permissionAsks.lost()
             appContext.currentActivity?.let(PhonePages::detach)
         }
 

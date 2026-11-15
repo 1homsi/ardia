@@ -114,7 +114,7 @@ object PhonePages {
         } catch (refused: PrivatePagesUnavailableException) {
             throw privatePagesUnavailable()
         }
-        watch(page)
+        if (!watch(page)) page.request.value?.takeUnless { it.isAnswered }?.let { gateThenSend(page, it) }
         return page
     }
 
@@ -139,6 +139,7 @@ object PhonePages {
 
     fun viewShows(pageId: String, view: PageView) {
         views[pageId] = WeakReference(view)
+        permissionAsks.pump()
     }
 
     fun viewLeaves(pageId: String, view: PageView) {
@@ -233,6 +234,7 @@ object PhonePages {
     }
 
     fun close(pageId: String) {
+        permissionAsks.drop(pageId)
         watchers.remove(pageId)?.cancel()
         views.remove(pageId)
         val page = shared?.existing(pageId)
@@ -270,35 +272,61 @@ object PhonePages {
 
     fun saveState(pageId: String): String? = page(pageId)?.saveState()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
 
-    var androidPermissionGate: ((Array<String>, (Map<String, Boolean>) -> Unit) -> Unit)? = null
+    private fun holds(permissions: Array<String>): Map<String, Boolean> =
+        permissions.associateWith { androidx.core.content.ContextCompat.checkSelfPermission(app, it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+
+    internal val permissionAsks = SitePermissionAsks(visible = ::isOnScreen, held = ::holds)
+
+    internal var androidPermissionGate: AndroidPermissionGate?
+        get() = permissionAsks.gate
+        set(value) {
+            permissionAsks.gate = value
+        }
+
+    private val onScreenRect = android.graphics.Rect()
+
+    private fun isOnScreen(pageId: String): Boolean {
+        val activity = host?.get() as? androidx.lifecycle.LifecycleOwner ?: return false
+        if (!activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return false
+        val view = views[pageId]?.get() ?: return false
+        if (!view.isAttachedToWindow || !view.isShown || view.width <= 0 || view.height <= 0) return false
+        if (!view.getGlobalVisibleRect(onScreenRect)) return false
+        return onScreenRect.width().toLong() * onScreenRect.height() * 2 >= view.width.toLong() * view.height
+    }
+
 
     private fun gateThenSend(page: Page, request: com.ardia.browser.PageRequest?) {
         val id = page.id
         val kind = request?.kind
-        val gate = androidPermissionGate
-        if (request == null || kind !is com.ardia.browser.PageRequest.Kind.Permission || gate == null) {
+        if (request == null || kind !is com.ardia.browser.PageRequest.Kind.Permission) {
+            permissionAsks.drop(id)
             send(id, "page.request", "request" to request?.let { PagePayloads.request(app, it) })
             return
         }
         val needed = PagePayloads.androidPermissions(kind.permission)
-        val held = needed.associateWith { androidx.core.content.ContextCompat.checkSelfPermission(app, it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
-        if (SitePermissionGate.granted(kind.permission, held)) {
+        if (SitePermissionGate.granted(kind.permission, holds(needed))) {
+            permissionAsks.drop(id)
             send(id, "page.request", "request" to PagePayloads.request(app, request))
             return
         }
-        gate(needed) { results ->
-            if (request.isAnswered || page.request.value !== request) return@gate
-            if (SitePermissionGate.granted(kind.permission, held + results.filterValues { it })) {
+        if (PhoneLab.isOn && !isOnScreen(id)) android.util.Log.i("PAGELAB", "PAGELAB page request ${PagePayloads.permission(kind.permission)} from a page not on screen: Android is asked once the page shows")
+        permissionAsks.hold(SitePermissionAsks.Ask(
+            pageId = id,
+            needed = needed,
+            wanted = { !request.isAnswered && page.request.value === request && shared?.existing(id) === page },
+            granted = { held -> SitePermissionGate.granted(kind.permission, held) },
+        ) { granted ->
+            if (granted) {
                 send(id, "page.request", "request" to PagePayloads.request(app, request))
             } else {
                 if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB page request ${PagePayloads.permission(kind.permission)} refused by Android: the site's request ends without a dialog")
                 request.dismiss()
             }
-        }
+        })
     }
 
-    private fun watch(page: Page) {
-        if (watchers[page.id]?.isActive == true) return
+    private fun watch(page: Page): Boolean {
+        if (watchers[page.id]?.isActive == true) return false
         val id = page.id
         watchers[id] = scope.launch {
             launch { page.state.collect { send(id, "page.state", "state" to PagePayloads.state(app, it, page.isPrivate)) } }
@@ -318,6 +346,7 @@ object PhonePages {
             }
             launch { page.events.collect { event(page, it) } }
         }
+        return true
     }
 
     private fun event(page: Page, event: PageEvent) {

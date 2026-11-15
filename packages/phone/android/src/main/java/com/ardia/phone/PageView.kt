@@ -113,9 +113,20 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         host.removeAllViews()
     }
 
+    private val asksWhenShown = android.view.ViewTreeObserver.OnPreDrawListener {
+        if (PhonePages.permissionAsks.pending > 0) PhonePages.permissionAsks.pump()
+        true
+    }
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         page?.id?.let(PhonePages::activate)
+        viewTreeObserver.addOnPreDrawListener(asksWhenShown)
+    }
+
+    override fun onDetachedFromWindow() {
+        viewTreeObserver.removeOnPreDrawListener(asksWhenShown)
+        super.onDetachedFromWindow()
     }
 
     private fun show(view: View?) {
