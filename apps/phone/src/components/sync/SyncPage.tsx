@@ -6,12 +6,12 @@ import { haptics } from "../../state/app/haptics";
 import { useSync } from "../../state/sync/store";
 import { syncNowFeedback, connectMessage, deviceIcon, inboxNotice, shownProfile, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
 import { popSettings, pushSettings } from "../../state/settings/nav";
-import { capsule, ConfirmDialog, font, PasteButton, useWarningInk, pasteButtonIsNative, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
+import { capsule, ConfirmDialog, font, PasteButton, showActionSheet, useWarningInk, pasteButtonIsNative, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { copy } from "../../lib/platformCopy";
 import { ButtonRow, Divider, Group, IconTile, NavRow, SettingsPage, ValueRow } from "../settings/SettingsKit";
 
 const NAME_SETTLE_MS = 600;
-const DEVICE_ICONS: Record<ReturnType<typeof deviceIcon>, SymbolName> = { phone: "iphone", laptop: "laptop", desktop: "macDesktop" };
+const DEVICE_ICONS: Record<ReturnType<typeof deviceIcon>, SymbolName> = { phone: "iphone", laptop: "laptop", desktop: "macDesktop", studio: "macStudio", mini: "macMini" };
 
 export function SyncHero({ title, subtitle, warning, children }: { title: string; subtitle: string; warning?: boolean; children?: React.ReactNode }) {
   const theme = useTheme();
@@ -141,18 +141,18 @@ export function SyncPage() {
     const feedback = syncNowFeedback(useSync.getState().status.phase);
     if (feedback) haptics[feedback]();
   };
-  const confirmStop = () =>
-    setConfirmation({
-      title: "Stop Syncing This Device?",
-      message: "To sync again, you’ll need your Mac’s code or your recovery phrase.",
-      action: "Stop Syncing",
-      run: async () => {
-        haptics.warning();
-        setStopping(true);
-        await stopSyncing();
-        setStopping(false);
-      },
-    });
+  const stopConfirmation: Confirmation = {
+    title: "Stop Syncing This Device?",
+    message: "To sync again, you’ll need your Mac’s code or your recovery phrase.",
+    action: "Stop Syncing",
+    run: async () => {
+      haptics.warning();
+      setStopping(true);
+      await stopSyncing();
+      setStopping(false);
+    },
+  };
+  const confirmStop = () => (copy().stopSyncAsActionSheet ? showActionSheet(stopConfirmation) : setConfirmation(stopConfirmation));
   return (
     <SettingsPage title="Sync With Mac" onBack={popSettings} onRefresh={status.isEnabled ? syncNow : undefined} heroTitle>
       <SyncHero title="Sync With Mac" subtitle={hero.text} warning={hero.isWarning}>
@@ -203,12 +203,12 @@ export function SyncPage() {
             <Group header="Devices" footer={noReceivers ? "Update Ardia on your Mac to send tabs to it." : null}>
               {devices.map((device, index) => (
                 <View key={device.id}>
-                  <View accessible accessibilityLabel={`${device.name}, ${deviceSeen(device, now)}`} style={styles.row}>
+                  <View accessible accessibilityLabel={deviceSeen(device, now) ? `${device.name}, ${deviceSeen(device, now)}` : device.name} style={styles.row}>
                     <Symbol name={DEVICE_ICONS[deviceIcon(device.kind, device.name)]} size={22} color={theme.secondaryLabel} />
                     <Text style={[font.body, styles.fill, { color: theme.label }]} numberOfLines={1}>
                       {device.name}
                     </Text>
-                    <Text style={[font.body, { color: theme.secondaryLabel }]}>{deviceSeen(device, now)}</Text>
+                    {deviceSeen(device, now) ? <Text style={[font.body, { color: theme.secondaryLabel }]}>{deviceSeen(device, now)}</Text> : null}
                   </View>
                   {index < devices.length - 1 ? <Divider inset={settingsLayout.rowInset + 22 + settingsLayout.labelGap} /> : null}
                 </View>

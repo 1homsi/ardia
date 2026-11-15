@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActionSheetIOS, BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
 import { Portal } from "./Overlay";
@@ -73,5 +73,20 @@ export function ConfirmDialog({ confirmation, onClose }: { confirmation: Confirm
         },
       ]}
     />
+  );
+}
+
+export function showActionSheet(confirmation: Confirmation) {
+  ActionSheetIOS.showActionSheetWithOptions(
+    {
+      title: confirmation.title,
+      message: confirmation.message,
+      options: [confirmation.action, "Cancel"],
+      destructiveButtonIndex: confirmation.destructive === false ? undefined : 0,
+      cancelButtonIndex: 1,
+    },
+    (chosen) => {
+      if (chosen === 0) confirmation.run();
+    },
   );
 }

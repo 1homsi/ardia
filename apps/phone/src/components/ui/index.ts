@@ -9,7 +9,7 @@ export { CodeCamera } from "./CodeCamera";
 export { Favicon } from "./Favicon";
 export { LoadingLine } from "./LoadingLine";
 export { duration, settingsMotion, spring, springs, tabsCurve, tabsMotion, toastMotion, trayMotion } from "./motion";
-export { ConfirmDialog, Dialog, type Confirmation, type DialogButton } from "./Dialog";
+export { ConfirmDialog, Dialog, showActionSheet, type Confirmation, type DialogButton } from "./Dialog";
 export { FloatingMenu, Menu, type MenuItem } from "./Menu";
 export { Shade } from "./Shade";
 export { measureAnchor, OverlayHost, Portal } from "./Overlay";

@@ -197,6 +197,8 @@ export const SYMBOLS = {
   laptop: [{ d: roundRect(5, 5.5, 14, 9.5, 1.6) + line(2.5, 18.5, 21.5, 18.5), stroke: STROKE }],
   macDesktop: [{ d: roundRect(3.5, 4, 17, 12, 1.8) + line(10, 16, 9.2, 20) + line(14, 16, 14.8, 20) + line(7.8, 20, 16.2, 20), stroke: STROKE }],
   iphone: [{ d: roundRect(7, 2.8, 10, 18.4, 2.4) + line(10.6, 5.6, 13.4, 5.6), stroke: STROKE }],
+  macStudio: [{ d: roundRect(4.5, 7, 15, 11, 2.2) + line(4.5, 14.5, 19.5, 14.5) + line(8, 16.3, 9.2, 16.3), stroke: STROKE }],
+  macMini: [{ d: roundRect(3.5, 10, 17, 5.5, 1.8) + line(7, 12.75, 8.2, 12.75), stroke: STROKE }],
   macAndPhone: [{ d: roundRect(2.5, 5, 13, 9, 1.4) + line(1.5, 17, 13, 17) + roundRect(16, 8, 6, 11.5, 1.5), stroke: STROKE }],
   star: [{ d: "M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z", stroke: STROKE }],
   starFill: [{ d: "M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z", fill: true }],

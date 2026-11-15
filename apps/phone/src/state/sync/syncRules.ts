@@ -107,18 +107,44 @@ export function ago(then: number, now: number): string {
   return `${count} ${unit}${count === 1 ? "" : "s"} ago`;
 }
 
-export function deviceSeen(device: SyncedDevice, now: number): string {
-  if (device.isCurrent) return copy().thisDevice;
-  if (device.lastSeen === null) return "Not Yet Synced";
-  if (now - device.lastSeen < JUST_NOW_MS) return "Just Now";
-  return ago(device.lastSeen, now);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const calendarDay = (at: number) => {
+  const date = new Date(at);
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000;
+};
+
+export function abbreviatedAgo(then: number, now: number): string {
+  const elapsed = Math.max(0, now - then);
+  if (elapsed < 3_600_000) return `${Math.max(1, Math.floor(elapsed / 60_000))} min. ago`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)} hr. ago`;
+  if (elapsed < 7 * 86_400_000) {
+    const days = Math.max(1, calendarDay(now) - calendarDay(then));
+    return `${days} ${days === 1 ? "day" : "days"} ago`;
+  }
+  const date = new Date(then);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  return `${MONTHS[date.getMonth()]} ${date.getDate()}${sameYear ? "" : `, ${date.getFullYear()}`}`;
 }
 
-export type DeviceIcon = "phone" | "laptop" | "desktop";
+export function deviceSeen(device: SyncedDevice, now: number, othersShowSeen = copy().devicesShowLastSeen): string {
+  if (device.isCurrent) return copy().thisDevice;
+  if (!othersShowSeen) return "";
+  if (device.lastSeen === null) return "Not Yet Synced";
+  if (now - device.lastSeen < JUST_NOW_MS) return "Just Now";
+  return abbreviatedAgo(device.lastSeen, now);
+}
 
-export function deviceIcon(kind: string, name: string): DeviceIcon {
+export type DeviceIcon = "phone" | "laptop" | "desktop" | "studio" | "mini";
+
+export function deviceIcon(kind: string, name: string, namesMacModels = copy().devicesNameMacModels): DeviceIcon {
   if (kind === "phone") return "phone";
-  return name.toLowerCase().includes("macbook") ? "laptop" : "desktop";
+  const lower = name.toLowerCase();
+  if (lower.includes("macbook")) return "laptop";
+  if (!namesMacModels || lower.includes("imac")) return "desktop";
+  if (lower.includes("studio")) return "studio";
+  if (lower.includes("mini")) return "mini";
+  return "desktop";
 }
 
 export function profileOf(view: SyncedView, id: string | null): SyncedProfile | null {

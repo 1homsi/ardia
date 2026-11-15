@@ -28,6 +28,9 @@ export type PlatformCopy = {
   offersDefaultBrowserAlways: boolean;
   offersPasteAndGo: boolean;
   untitledTabByAddress: boolean;
+  devicesShowLastSeen: boolean;
+  devicesNameMacModels: boolean;
+  stopSyncAsActionSheet: boolean;
   pinFeedbackInMenu: boolean;
   findWaitsForMenu: boolean;
   menuTitleBelowAtLargeText: boolean;
@@ -64,6 +67,9 @@ const ANDROID: PlatformCopy = {
   offersDefaultBrowserAlways: true,
   offersPasteAndGo: true,
   untitledTabByAddress: true,
+  devicesShowLastSeen: true,
+  devicesNameMacModels: false,
+  stopSyncAsActionSheet: false,
   pinFeedbackInMenu: false,
   findWaitsForMenu: false,
   menuTitleBelowAtLargeText: false,
@@ -105,6 +111,9 @@ const IOS: PlatformCopy = {
   offersDefaultBrowserAlways: false,
   offersPasteAndGo: false,
   untitledTabByAddress: false,
+  devicesShowLastSeen: false,
+  devicesNameMacModels: true,
+  stopSyncAsActionSheet: true,
   pinFeedbackInMenu: true,
   findWaitsForMenu: true,
   menuTitleBelowAtLargeText: true,

@@ -8,6 +8,7 @@ import {
   pinAnnouncement,
   connectMessage,
   setupStepLabel,
+  abbreviatedAgo,
   deviceIcon,
   deviceSeen,
   isSyncConnected,
@@ -84,13 +85,33 @@ test("devices list the others newest first and this phone last, with when each w
     devices.map((d) => d.id),
     ["air", "studio", "phone"],
   );
-  assert.equal(deviceSeen(devices[0]!, NOW), "Just Now");
-  assert.equal(deviceSeen(devices[1]!, NOW), "3 hours ago");
-  assert.equal(deviceSeen(devices[2]!, NOW), "This Phone");
-  assert.equal(deviceSeen({ ...devices[1]!, lastSeen: null }, NOW), "Not Yet Synced");
-  assert.equal(deviceIcon("mac", "Shivam’s MacBook Air"), "laptop");
-  assert.equal(deviceIcon("mac", "Mac Studio"), "desktop");
-  assert.equal(deviceIcon("phone", "Pixel"), "phone");
+  assert.equal(deviceSeen(devices[0]!, NOW, true), "Just Now");
+  assert.equal(deviceSeen(devices[1]!, NOW, true), "3 hr. ago", "Compose's abbreviated relative time");
+  assert.equal(deviceSeen(devices[2]!, NOW, true), "This Phone");
+  assert.equal(deviceSeen({ ...devices[1]!, lastSeen: null }, NOW, true), "Not Yet Synced");
+  assert.equal(deviceSeen(devices[1]!, NOW, false), "", "SwiftUI shows nothing for the other devices");
+  assert.equal(deviceIcon("mac", "Shivam’s MacBook Air", false), "laptop");
+  assert.equal(deviceIcon("mac", "Mac Studio", false), "desktop");
+  assert.equal(deviceIcon("phone", "Pixel", false), "phone");
+});
+
+test("on iPhone a Mac's symbol follows its model, as SwiftUI's SyncDeviceSymbol does", () => {
+  assert.equal(deviceIcon("mac", "Shivam’s MacBook Pro", true), "laptop");
+  assert.equal(deviceIcon("mac", "Studio iMac", true), "desktop");
+  assert.equal(deviceIcon("mac", "Mac Studio", true), "studio");
+  assert.equal(deviceIcon("mac", "Mac mini", true), "mini");
+  assert.equal(deviceIcon("mac", "Office", true), "desktop");
+});
+
+test("Android's abbreviated relative time: minutes, hours, calendar days within a week, then the date", () => {
+  const now = new Date(2026, 10, 15, 14, 0).getTime();
+  assert.equal(abbreviatedAgo(now - 5 * 60_000, now), "5 min. ago");
+  assert.equal(abbreviatedAgo(now - 59 * 60_000, now), "59 min. ago");
+  assert.equal(abbreviatedAgo(now - 2 * 3_600_000, now), "2 hr. ago");
+  assert.equal(abbreviatedAgo(new Date(2026, 10, 14, 9, 0).getTime(), now), "1 day ago");
+  assert.equal(abbreviatedAgo(new Date(2026, 10, 11, 9, 0).getTime(), now), "4 days ago");
+  assert.equal(abbreviatedAgo(new Date(2026, 10, 3, 9, 0).getTime(), now), "Nov 3");
+  assert.equal(abbreviatedAgo(new Date(2025, 11, 30, 9, 0).getTime(), now), "Dec 30, 2025");
 });
 
 test("a tab goes only to the profile's send targets that can take it, never to this phone", () => {
