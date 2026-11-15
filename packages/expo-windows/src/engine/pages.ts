@@ -103,7 +103,7 @@ function openFromPopup(page: Page, request: unknown) {
   const moved = { ...asked, point: undefined };
   const host = requestHost(pages.get(popupOpenerKey(page.windowId)), page.profile, pages.values());
   if (host) return sendTo("openWindow", moved)(host);
-  openInBrowserWindow(moved, page.profile, () => {});
+  openInBrowserWindow(moved, page.profile, () => console.warn("[ardia windows] a link from a private pop-up was dropped: no window of its private session can take it"));
 }
 
 function popupWindowGone(popup: PopupWindowInfo) {

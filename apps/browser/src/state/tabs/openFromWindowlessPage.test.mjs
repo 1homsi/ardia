@@ -99,3 +99,19 @@ test("a lone pop-up's tab of a profile the app doesn't know is closed in the eng
   assert.deepEqual(stub.discardedOffers, ["ardiacore:7"]);
   assert.equal(regularWindows().length, 0);
 });
+
+test("a link a lone pop-up opens in a new tab, with no offered tab, goes to the profile's window as a new tab with that address", () => {
+  const w = S().createWindow({ url: "https://work.example/", profileId: "work" });
+  openFromWindowlessPage({ url: URL, disposition: "foreground", userGesture: true }, "work");
+  const tab = Object.values(S().tabs).find((t) => t.windowId === w && (t.url === URL || t.page?.nav?.url === URL));
+  assert.equal(tab?.profileId, "work");
+  assert.equal(regularWindows().length, 1);
+  assert.equal(gateAsked, 0);
+});
+
+test("a link a lone pop-up opens in a private window opens a private window of its profile, and an offered tab of the regular profile is closed rather than moved into it", () => {
+  openFromWindowlessPage({ ...offered("ardiacore:8"), disposition: "incognito" }, "work");
+  const privateWindow = S().windowOrder.map((id) => S().windows[id]).find((w) => w?.kind === "private");
+  assert.ok(privateWindow, "a private window opens");
+  assert.deepEqual(stub.discardedOffers, ["ardiacore:8"]);
+});
