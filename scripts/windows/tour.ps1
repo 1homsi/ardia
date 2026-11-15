@@ -797,53 +797,69 @@ function Read-FocusedText {
   }
 }
 
-function Invoke-AddressStop($Session, [string]$Slug, [string]$Title, [string]$When, [switch]$Required) {
-  $stop = Invoke-Stop $Session $Slug $Title {
-    param($stop)
-    $stop.Did = "$When, pressed Ctrl+T, typed example.com with real keys and pressed Enter."
-    $stop.Expected = "the command bar holds 'example.com' before Enter, and the window's title names the page's site after it."
-    if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
-    Focus-Window $Session $Session.Main $stop | Out-Null
-    $mark = Get-LogCount $Session
-    Send-Chord @(0x11) 0x54
-    $opened = Wait-Command $Session $mark "newTab"
-    Start-Sleep -Milliseconds 700
-    Send-Text "example.com"
-    Start-Sleep -Milliseconds 400
-    $typed = Read-FocusedText
-    Save-Shot $stop $Session.Main | Out-Null
-    Send-Key 0x0D 0
-    Send-Key 0x0D 2
-    $loaded = Wait-Title $Session "example\.com" 20000
-    $stop.Facts.Add("newTab command logged: $opened")
-    $stop.Facts.Add("the field held '$typed' before Enter")
-    $stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($Session.Main))'")
-    $stop.Facts.Add("foreground: $(Describe-Foreground)")
-    $around = @(Get-LinesSince $Session $mark "keyboard|focus|keys |follow|page|tab\.|navigat|omnibox|command|error" | Select-Object -First 24)
-    if ($around.Count) { $stop.Facts.Add("log from Ctrl+T on: $($around -join ' / ')") }
-    Set-Seen $stop ($loaded -and $typed -eq "example.com")
-  }
-  if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
-  return $stop
+function Format-OnboardingNow($Session) {
+  $now = Read-Onboarding $Session
+  if (-not $now) { return "no onboarding.json" }
+  if ($now.Completed) { return "completed at $($now.Completed) (step $($now.Step) $($now.Sub))" }
+  return "step $($now.Step) $($now.Sub), not completed"
 }
 
-function Complete-Onboarding($Session, [switch]$SkipEach) {
-  $ended = Wait-Until $Session { $now = Read-Onboarding $Session; $now -and $now.Step -ne "intro" } 9000
+function Send-QuickChord([byte[]]$Modifiers, [byte]$Key) {
+  foreach ($modifier in $Modifiers) { Send-Key $modifier 0 }
+  Start-Sleep -Milliseconds 15
+  Send-Key $Key 0
+  Start-Sleep -Milliseconds 15
+  Send-Key $Key 2
+  foreach ($modifier in $Modifiers) { Send-Key $modifier 2 }
+}
+
+function Send-HumanText([string]$Text, $Reads) {
+  $clock = [System.Diagnostics.Stopwatch]::StartNew()
+  foreach ($character in $Text.ToUpperInvariant().ToCharArray()) {
+    $began = $clock.ElapsedMilliseconds
+    $key = [byte][char]$character
+    if ($character -eq '.') { $key = 0xBE }
+    Send-Key $key 0
+    Send-Key $key 2
+    $Reads.Add("$($clock.ElapsedMilliseconds)ms '$(Read-FocusedText)'")
+    $left = 30 - ($clock.ElapsedMilliseconds - $began)
+    if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+  }
+}
+
+function Find-Edits([IntPtr]$Window) {
+  if (-not (Initialize-Uia)) { return @() }
+  $found = @()
+  try {
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle($Window)
+    $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+    foreach ($element in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)) {
+      try {
+        $box = $element.Current.BoundingRectangle
+        if ($box.IsEmpty -or $box.Width -le 0 -or $element.Current.IsOffscreen) { continue }
+        $found += [pscustomobject]@{ X = [int]($box.X + 24); Y = [int]($box.Y + $box.Height / 2); Width = [int]$box.Width; Name = $element.Current.Name }
+      } catch { }
+    }
+  } catch { }
+  return @($found | Sort-Object -Property Width -Descending)
+}
+
+function Walk-OnboardingToOutro($Session, [switch]$SkipEach) {
+  $ended = Wait-Until $Session { $now = Read-Onboarding $Session; $now -and $now.Step -ne "intro" } 12000
   if (-not $ended) {
     $hits = @(Find-Named $Session.Main "Skip")
     if ($hits.Count) { Send-Click $hits[0].X $hits[0].Y }
-    Wait-Until $Session { $now = Read-Onboarding $Session; $now -and $now.Step -ne "intro" } 3000 | Out-Null
+    Wait-Until $Session { $now = Read-Onboarding $Session; $now -and $now.Step -ne "intro" } 4000 | Out-Null
   }
   Start-Sleep -Milliseconds 1200
   $log = [System.Collections.Generic.List[string]]::new()
   for ($screen = 0; $screen -lt 32; $screen++) {
     if (-not (Test-Usable $Session)) { break }
     $state = Read-Onboarding $Session
-    if (-not $state) { $log.Add("no onboarding.json"); break }
-    if ($state.Completed) { break }
+    if (-not $state -or $state.Completed -or $state.Step -eq "outro") { break }
     Focus-Window $Session $Session.Main $null | Out-Null
     $moved = $false
-    if ($SkipEach -and $state.Step -ne "outro") {
+    if ($SkipEach) {
       $hits = @(Find-Named $Session.Main "Skip")
       if ($hits.Count) {
         Send-Click $hits[0].X $hits[0].Y
@@ -851,44 +867,160 @@ function Complete-Onboarding($Session, [switch]$SkipEach) {
       }
     }
     if (-not $moved) {
-      $stop = [pscustomobject]@{ Facts = [System.Collections.Generic.List[string]]::new() }
-      $moved = Invoke-OnboardingAdvance $Session $state $stop
+      $scratch = [pscustomobject]@{ Facts = [System.Collections.Generic.List[string]]::new() }
+      $moved = Invoke-OnboardingAdvance $Session $state $scratch
     }
     $log.Add("$($state.Step) $($state.Sub): $moved")
     if (-not $moved) { break }
     Start-Sleep -Milliseconds 700
   }
-  $done = Wait-Until $Session { $now = Read-Onboarding $Session; $now -and $now.Completed } 3000
-  Start-Sleep -Milliseconds 1500
-  return [pscustomobject]@{ Done = $done; Screens = ($log -join ", ") }
+  Start-Sleep -Milliseconds 900
+  $now = Read-Onboarding $Session
+  return [pscustomobject]@{ AtOutro = [bool]($now -and $now.Step -eq "outro" -and -not $now.Completed); Screens = ($log -join ", ") }
+}
+
+function Click-Named($Session, [string]$Name) {
+  $hits = @(Find-Named $Session.Main $Name)
+  if (-not $hits.Count) { return $false }
+  Send-Click $hits[0].X $hits[0].Y
+  return $true
+}
+
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [switch]$Required) {
+  $stop = Invoke-Stop $Session $Slug $Title {
+    param($stop)
+    $stop.Did = $Did
+    $stop.Expected = "every key lands in the field, so it reads 'example.com' after the last key, and $Submit opens Example Domain in a tab."
+    if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
+    Focus-Window $Session $Session.Main $stop | Out-Null
+    $mark = Get-LogCount $Session
+    $reads = [System.Collections.Generic.List[string]]::new()
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    if ($Before) { & $Before $stop }
+    $stop.Facts.Add("onboarding.json at the press: $(Format-OnboardingNow $Session)")
+    if ($Into -eq "ctrl+t") {
+      Send-QuickChord @(0x11) 0x54
+      $stop.Facts.Add("Ctrl+T sent $($clock.ElapsedMilliseconds) ms after the step began")
+    } elseif ($Into -eq "box") {
+      $box = $null
+      while (-not $box -and $clock.ElapsedMilliseconds -lt 3000) { $box = @(Find-Edits $Session.Main) | Select-Object -First 1; if (-not $box) { Start-Sleep -Milliseconds 40 } }
+      if ($box) {
+        Send-Click $box.X $box.Y
+        $stop.Facts.Add("clicked the New Tab page's box ('$($box.Name)', $($box.Width) px wide) $($clock.ElapsedMilliseconds) ms after the step began")
+      } else {
+        $stop.Facts.Add("no text box showed within 3 s; typed into whatever had focus")
+      }
+    }
+    Send-HumanText "example.com" $reads
+    Start-Sleep -Milliseconds 250
+    $typed = Read-FocusedText
+    Save-Shot $stop $Session.Main | Out-Null
+    $stop.Facts.Add("the field after each key: $($reads -join ', ')")
+    $stop.Facts.Add("the field before $($Submit): '$typed'")
+    if ($Submit -eq "Go") {
+      $clicked = Click-Named $Session "Go"
+      $stop.Facts.Add("Go button found and clicked: $clicked")
+    } else {
+      Send-Key 0x0D 0
+      Send-Key 0x0D 2
+    }
+    $loaded = Wait-Title $Session "example\.com" 20000
+    $stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($Session.Main))'")
+    $stop.Facts.Add("foreground: $(Describe-Foreground)")
+    $stop.Facts.Add("onboarding.json after: $(Format-OnboardingNow $Session)")
+    $around = @(Get-LinesSince $Session $mark "keyboard|focus|keys |follow|page|tab\.|navigat|omnibox|command|error|onboarding|tour" | Select-Object -First 30)
+    if ($around.Count) { $stop.Facts.Add("log from the press on: $($around -join ' / ')") }
+    Set-Seen $stop ($loaded -and $typed -eq "example.com")
+  }
+  if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
+  return $stop
+}
+
+function Start-Hogs([string]$Folder) {
+  $jobs = @()
+  for ($core = 0; $core -lt [Math]::Max(2, [Environment]::ProcessorCount * 2); $core++) {
+    $jobs += Start-Job { $x = 0; while ($true) { $x = ($x + 1) % 1000003 } }
+  }
+  $jobs += Start-Job -ArgumentList $Folder {
+    param($folder)
+    New-Item -ItemType Directory -Force -Path $folder | Out-Null
+    $bytes = New-Object byte[] (64MB)
+    while ($true) {
+      $path = Join-Path $folder "hog.bin"
+      [System.IO.File]::WriteAllBytes($path, $bytes)
+      [System.IO.File]::ReadAllBytes($path) | Out-Null
+      Remove-Item -Force $path
+    }
+  }
+  return $jobs
+}
+
+function Invoke-FirstRunLaunch([string]$Name, [string]$Exe, [scriptblock]$Body) {
+  $saved = $script:App
+  if ($Exe) { $script:App = $Exe }
+  try {
+    $session = Start-Ardia $Name
+  } finally {
+    $script:App = $saved
+  }
+  if (Test-Usable $session) {
+    Write-Host "[tour] '$Name' first window after $($session.FirstWindowMs) ms"
+    & $Body $session
+  } else {
+    Invoke-Stop $session "$Name-launch" "First run ($Name): launch" {
+      param($stop)
+      $stop.Did = "Launched with a fresh data folder."
+      $stop.Expected = "a window within $LaunchSeconds s."
+      $stop.Seen = "no"
+    } | Out-Null
+  }
+  Stop-Ardia $session
 }
 
 function Invoke-FirstRunTour {
-  $session = Start-Ardia "first-run-finished"
-  if (Test-Usable $session) {
-    $walk = Complete-Onboarding $session
-    Write-Host "[tour] onboarding walked: done $($walk.Done); $($walk.Screens)"
-    Invoke-AddressStop $session "first-run-finished" "First run: Ctrl+T right after finishing onboarding" "Launched with a fresh data folder, walked the onboarding to its end in the same launch (done: $($walk.Done))" -Required | Out-Null
-    Invoke-AddressStop $session "first-run-finished-again" "First run: a second Ctrl+T in the same launch" "After the first address stop" -Required | Out-Null
+  Invoke-FirstRunLaunch "human-ctrl-t" "" {
+    param($session)
+    $walk = Walk-OnboardingToOutro $session -SkipEach
+    Invoke-TypeStop $session "human-ctrl-t" "First run: Ctrl+T within 100 ms of Get Started, typing at once, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com at once, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
   }
-  Stop-Ardia $session
 
-  $session = Start-Ardia "first-run-skipped"
-  if (Test-Usable $session) {
-    $walk = Complete-Onboarding $session -SkipEach
-    Write-Host "[tour] onboarding skipped: done $($walk.Done); $($walk.Screens)"
-    Invoke-AddressStop $session "first-run-skipped" "First run: Ctrl+T after skipping every onboarding step" "Launched with a fresh data folder and pressed Skip on the intro and on every onboarding step (done: $($walk.Done))" -Required | Out-Null
+  Invoke-FirstRunLaunch "human-box" "" {
+    param($session)
+    $walk = Walk-OnboardingToOutro $session -SkipEach
+    Invoke-TypeStop $session "human-box" "First run: the New Tab page's own box right after Get Started, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, clicked the New Tab page's box as soon as it showed and typed example.com at once, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked") } "box" "Enter" -Required | Out-Null
   }
-  Stop-Ardia $session
 
-  $session = Start-Ardia "first-run-onboarding-up"
-  if (Test-Usable $session) {
-    Wait-Until $session { $now = Read-Onboarding $session; $now -and $now.Step -ne "intro" } 12000 | Out-Null
-    Start-Sleep -Milliseconds 1200
-    $state = Read-Onboarding $session
-    Invoke-AddressStop $session "first-run-onboarding-up" "First run: Ctrl+T with onboarding still up" "Launched with a fresh data folder and waited for the first onboarding question (step $($state.Step)), leaving it up" | Out-Null
+  Invoke-FirstRunLaunch "tool-tour" "" {
+    param($session)
+    $walk = Walk-OnboardingToOutro $session -SkipEach
+    Invoke-TypeStop $session "tool-tour-up" "First run: Ctrl+T while the tool tour is up at its first stop" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Take the Tour, waited 1.5 s for its first stop, pressed Ctrl+T and typed example.com at once, then pressed Enter." { param($stop) $clicked = Click-Named $session "Take the Tour"; $stop.Facts.Add("Take the Tour clicked: $clicked"); Start-Sleep -Milliseconds 1500; $stop.Facts.Add("tour buttons showing: Next $(@(Find-Named $session.Main 'Next').Count), Skip Tour $(@(Find-Named $session.Main 'Skip Tour').Count)") } "ctrl+t" "Enter" | Out-Null
+    Invoke-TypeStop $session "tool-tour-ended" "First run: Ctrl+T right after ending the tool tour" "Ended the tool tour with Skip Tour (or Escape), then about 100 ms later pressed Ctrl+T and typed example.com at once, then pressed Enter." { param($stop) $clicked = Click-Named $session "Skip Tour"; if (-not $clicked) { Send-Escape }; $stop.Facts.Add("Skip Tour clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
   }
-  Stop-Ardia $session
+
+  $cold = Join-Path $Out "cold-app"
+  Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $cold
+  Copy-Item -Recurse -Force (Split-Path -Parent $App) $cold
+  $hogs = Start-Hogs (Join-Path $Out "hog")
+  Write-Host "[tour] started $($hogs.Count) CPU and disk hogs and copied the app to $cold"
+  try {
+    Invoke-FirstRunLaunch "slow-engine" (Join-Path $cold (Split-Path -Leaf $App)) {
+      param($session)
+      $engineMs = @(Read-LogLines $session.Log | Where-Object { $_ -match "engine" } | Select-Object -First 3)
+      Write-Host "[tour] slow launch, first engine lines: $($engineMs -join ' / ')"
+      $walk = Walk-OnboardingToOutro $session -SkipEach
+      Invoke-TypeStop $session "slow-engine" "First run under load from a cold copy: Ctrl+T within 100 ms of Get Started, then Enter" "With CPU and disk hogs running and the app copied to a fresh folder (first window $($session.FirstWindowMs) ms after start), skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com at once, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
+    }
+  } finally {
+    $hogs | Stop-Job -ErrorAction SilentlyContinue
+    $hogs | Remove-Job -Force -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $Out "hog")
+  }
+
+  Invoke-FirstRunLaunch "human-go" "" {
+    param($session)
+    $walk = Walk-OnboardingToOutro $session
+    Invoke-TypeStop $session "human-go" "First run: Ctrl+T within 100 ms of Get Started, typing at once, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com at once, then clicked Go." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" -Required | Out-Null
+  }
 }
 
 function Invoke-ContextMenuStop($Session, [string]$Slug, [string]$Title, [string]$Where, [scriptblock]$Point, [switch]$NoArea) {
