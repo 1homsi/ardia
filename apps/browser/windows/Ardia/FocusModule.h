@@ -106,6 +106,14 @@ struct FocusModule {
     RunOnUI(m_context, [windowId, promise]() noexcept { promise.Resolve(KeyboardHandoff::FromPage(windowId)); });
   }
 
+  REACT_METHOD(typeAheadReady)
+  void typeAheadReady(std::string windowId, DonePromise promise) noexcept {
+    RunOnUI(m_context, [windowId, promise]() noexcept {
+      Menus::MenuKeyboard::Shared().TypeAheadReady(windowId);
+      promise.Resolve();
+    });
+  }
+
   REACT_SYNC_METHOD(textInputFocused)
   bool textInputFocused() noexcept {
     return Menus::MenuKeyboard::Shared().textInputFocused.load();

@@ -5,6 +5,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "Events.h"
 #include "LaunchLog.h"
@@ -49,6 +50,9 @@ struct MenuKeyboard {
   bool escapeCaptured = false;
   bool switcherCaptured = false;
   bool capturedWHeld = false;
+  std::string typeAheadWindow;
+  std::vector<INPUT> typeAhead;
+  UINT_PTR typeAheadTimer = 0;
   std::atomic<bool> textInputFocused{false};
   std::set<UINT> swallowedKeyUps;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
@@ -120,6 +124,71 @@ struct MenuKeyboard {
     else if (press.virtualKey == VK_LEFT) key = "previous";
     else if (ClosesSwitcherRow(press, repeat)) key = "close";
     if (key) EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "switcherKey"}, {"key", key}});
+    return true;
+  }
+
+  static constexpr UINT kTypeAheadMs = 2000;
+
+  static void AddKey(std::vector<INPUT> &keys, WORD virtualKey, WORD scan, DWORD flags) noexcept {
+    INPUT down{};
+    down.type = INPUT_KEYBOARD;
+    down.ki.wVk = virtualKey;
+    down.ki.wScan = scan;
+    down.ki.dwFlags = flags;
+    INPUT up = down;
+    up.ki.dwFlags |= KEYEVENTF_KEYUP;
+    keys.push_back(down);
+    keys.push_back(up);
+  }
+
+  void HoldTypeAhead(std::string const &windowId) noexcept {
+    ReleaseTypeAhead(L"a new hold");
+    typeAheadWindow = windowId;
+    typeAheadTimer = SetTimer(nullptr, 0, kTypeAheadMs, &MenuKeyboard::TypeAheadTimedOut);
+  }
+
+  static void CALLBACK TypeAheadTimedOut(HWND, UINT, UINT_PTR, DWORD) noexcept {
+    Shared().ReleaseTypeAhead(L"no field took focus in time");
+  }
+
+  void TypeAheadReady(std::string const &windowId) noexcept {
+    if (!typeAheadWindow.empty() && windowId == typeAheadWindow) ReleaseTypeAhead(L"the field took focus");
+  }
+
+  void ReleaseTypeAhead(const wchar_t *why) noexcept {
+    if (typeAheadTimer) {
+      KillTimer(nullptr, typeAheadTimer);
+      typeAheadTimer = 0;
+    }
+    if (typeAheadWindow.empty()) return;
+    typeAheadWindow.clear();
+    std::vector<INPUT> keys;
+    keys.swap(typeAhead);
+    if (keys.empty()) return;
+    UINT sent = SendInput(static_cast<UINT>(keys.size()), keys.data(), sizeof(INPUT));
+    LaunchLog::Write(L"keys", L"replayed " + std::to_wstring(keys.size() / 2) + L" keys typed before the field took focus, " + why + (sent == keys.size() ? L"" : L" (some not sent)"));
+  }
+
+  bool HoldTypedKey(KeyPress const &press, UINT virtualKey, LPARAM flags, ActiveWindow const &window) noexcept {
+    if (typeAheadWindow.empty()) return false;
+    WORD scan = static_cast<WORD>((flags >> 16) & 0xFF);
+    DWORD extended = (flags & (1 << 24)) ? KEYEVENTF_EXTENDEDKEY : 0;
+    bool plain = window.id == typeAheadWindow && (press.modifiers & (ModifierControl | ModifierOption | ModifierCommand)) == 0;
+    wchar_t typed = virtualKey == VK_SPACE ? L' ' : (press.modifiers & ModifierShift) ? press.shifted : press.base;
+    if (plain && typed) {
+      AddKey(typeAhead, 0, static_cast<WORD>(typed), KEYEVENTF_UNICODE);
+      return true;
+    }
+    if (plain && (virtualKey == VK_RETURN || virtualKey == VK_BACK)) {
+      AddKey(typeAhead, static_cast<WORD>(virtualKey), scan, extended);
+      return true;
+    }
+    if (typeAhead.empty()) {
+      ReleaseTypeAhead(L"another key came first");
+      return false;
+    }
+    AddKey(typeAhead, static_cast<WORD>(virtualKey), scan, extended);
+    ReleaseTypeAhead(L"another key followed them");
     return true;
   }
 
@@ -244,6 +313,7 @@ struct MenuKeyboard {
     if (!WindowManager::Shared().IsPopupWindow(window.id) && !store.EntryEnabled(*entry)) return false;
     Emit(entry->command, entry->arg, window.id);
     if (entry->command == "tabSwitcher") OpenedSwitcher(*entry, press);
+    if (entry->command == "newTab" || entry->command == "focusCommandBar") HoldTypeAhead(window.id);
     return true;
   }
 
@@ -299,7 +369,7 @@ struct MenuKeyboard {
       }
       return false;
     }
-    if (IsModifierKey(virtualKey)) return false;
+    if (IsModifierKey(virtualKey) || virtualKey == VK_PACKET) return false;
     if (capturedWHeld && virtualKey == 'W') {
       if (flags & (1u << 30)) return true;
       capturedWHeld = false;
@@ -313,7 +383,8 @@ struct MenuKeyboard {
     } else {
       ActiveWindow window = ActiveArdiaWindow();
       if (!window.hwnd) return false;
-      if (switcherCaptured) handled = CaptureSwitcherKey(press, (flags & (1u << 30)) != 0);
+      if (HoldTypedKey(press, virtualKey, flags, window)) handled = true;
+      else if (switcherCaptured) handled = CaptureSwitcherKey(press, (flags & (1u << 30)) != 0);
       else if (escapeCaptured && BareEscape(press)) handled = CaptureEscape();
       else if (UndoReopensClosedTab(press, window)) handled = ReopenClosedTab(window);
       else handled = Dispatch(press);

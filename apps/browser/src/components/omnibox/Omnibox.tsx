@@ -3,6 +3,7 @@ import { Symbol, useTheme } from "../ui";
 import { copyText, pickFiles } from "../../state/app/system";
 import { chooseFromMenu } from "../../state/app/menuChoice";
 import { dictationAvailable, startDictation } from "../../state/omnibox/textInput";
+import { fieldTookFocus } from "../../state/omnibox/typeAhead";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { findNodeHandle, type TextInput, type View } from "react-native";
 import { journeyBarCommitted, journeyBarFocused, journeyKeystroke, journeyNavigate, journeySuggestions } from "../../state/telemetry/journeys";
@@ -35,7 +36,6 @@ import { ADD_CHIP, BAR } from "./tokens";
 import { useBarItems } from "./useBarItems";
 import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
-import { useTypeAhead } from "./useTypeAhead";
 import { usePreviewSelection } from "./usePreviewSelection";
 
 export { PANEL_TEXT_LEFT } from "./tokens";
@@ -101,12 +101,12 @@ export function Omnibox({
   fieldText.current = value;
   const editing = useRef(false);
   const focusEcho = useRef(false);
-  const typeAhead = useTypeAhead(windowId, () => ({ text: fieldText.current, start: selection.current.start, end: selection.current.end }), (text) => (selection.note({ start: text.length, end: text.length }), onChangeText(text)));
   const panelOpen = useWindowUiOf(windowId, (ui) => hero && !!ui?.panel.open);
   const [listAway, setListAway] = useState(false);
   if (panelOpen && !listAway) setListAway(true);
   const focusField = () => {
     if (!editing.current && fieldText.current) focusEcho.current = true;
+    if (editing.current) fieldTookFocus(windowId);
     input.current?.focus();
   };
   useEffect(() => {
@@ -237,7 +237,7 @@ export function Omnibox({
     }
   });
 
-  const onChangeText = (raw: string, next = typeAhead.text(raw)) => {
+  const onChangeText = (next: string) => {
     if (__DEV__) heardAt.current = Date.now();
     previewSelection.settle();
     const change = inline.read(next, { before: selection.beforeEdit(), after: selection.current });
@@ -304,8 +304,12 @@ export function Omnibox({
       }}
       onChangeText={onChangeText}
       onSubmitEditing={() => choose(current, "current", true)}
-      onFocus={() => ((editing.current = true), setListAway(false), typeAhead.focused())}
-      onBlur={() => ((editing.current = false), (focusEcho.current = false), typeAhead.blurred(), onCancel?.())}
+      onFocus={() => ((editing.current = true), setListAway(false), fieldTookFocus(windowId))}
+      onBlur={() => {
+        editing.current = false;
+        focusEcho.current = false;
+        onCancel?.();
+      }}
       keyDownEvents={barKeyDownEvents(asksForBackspace(scope), isRemovable(current))}
       onKeyDown={onKeyDown}
     />
