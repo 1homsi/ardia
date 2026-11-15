@@ -42,3 +42,34 @@ final class KeyboardTracker {
     onMove(target)
   }
 }
+
+struct KeyboardClock {
+  let timing: UITimingCurveProvider
+  let duration: TimeInterval
+
+  @MainActor
+  init?(layer: CALayer) {
+    let running = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) }
+    if let spring = running.lazy.compactMap({ $0 as? CASpringAnimation }).first {
+      timing = UISpringTimingParameters(
+        mass: spring.mass,
+        stiffness: spring.stiffness,
+        damping: spring.damping,
+        initialVelocity: .zero
+      )
+      duration = spring.settlingDuration
+    } else if let basic = running.lazy.compactMap({ $0 as? CABasicAnimation }).first, let function = basic.timingFunction {
+      var start: [Float] = [0, 0]
+      var end: [Float] = [0, 0]
+      function.getControlPoint(at: 1, values: &start)
+      function.getControlPoint(at: 2, values: &end)
+      timing = UICubicTimingParameters(
+        controlPoint1: CGPoint(x: CGFloat(start[0]), y: CGFloat(start[1])),
+        controlPoint2: CGPoint(x: CGFloat(end[0]), y: CGFloat(end[1]))
+      )
+      duration = basic.duration
+    } else {
+      return nil
+    }
+  }
+}

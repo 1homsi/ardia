@@ -36,14 +36,14 @@ struct SearchTrayHost: View {
     .ignoresSafeArea(.keyboard)
     .onAppear {
       motion.startTrackingKeyboard()
-      motion.barTarget = { [app] in Self.barTarget(in: app) }
+      motion.barAnchor = { [app] in app.barAnchor }
     }
     .onChange(of: reduceMotion, initial: true) { _, reduced in
       motion.reduceMotion = reduced
       reserveBarPill()
     }
     .onChange(of: screenLayout) { _, _ in reserveBarPill() }
-    .onChange(of: app.browse.barAnchorRevision) { _, _ in rememberBarAtRest() }
+    .onChange(of: app.browse.bar.anchors) { _, _ in rememberBarAtRest() }
     .task { await SearchSuggestionsModel.loadRecents(from: app.tabs) }
     .onChange(of: app.browse.search, initial: true) { _, request in
       if let request {
@@ -56,7 +56,7 @@ struct SearchTrayHost: View {
 
   private func tray(for request: BrowseSession.SearchRequest, maxHeight: CGFloat, isCommandBar: Bool) -> AnyView {
     AnyView(
-      SearchTray(request: request, isFocused: focus, maxHeight: maxHeight, dismissDrag: dismissDrag, revealsContents: motion.revealsContents, isLeaving: motion.isLeaving, onReveal: { [motion] base in motion.fieldDidReveal(at: base) })
+      SearchTray(request: request, isFocused: focus, maxHeight: maxHeight, dismissDrag: dismissDrag, reveal: reveal)
         .id(presentation)
         .padding(.horizontal, isCommandBar ? DuoLayout.commandSide : 0)
         .environment(app)
@@ -64,6 +64,10 @@ struct SearchTrayHost: View {
         .environment(\.profileLook, look)
         .environment(\.usesGlass, usesGlass)
     )
+  }
+
+  private var reveal: TrayReveal {
+    TrayReveal(revealsContents: motion.revealsContents, isLeaving: motion.isClosing) { [motion] base in motion.fieldDidReveal(at: base) }
   }
 
   private var focus: Binding<Bool> {
@@ -79,16 +83,15 @@ struct SearchTrayHost: View {
   private func present(_ request: BrowseSession.SearchRequest) {
     removalTask?.cancel()
     if shown == nil, !app.browse.trayHoldsKeyboard {
-      let target = Self.barTarget(in: app)
+      let anchor = app.barAnchor
       barSnapshotTask?.cancel()
-      motion.fieldCenter = BrowseLayout.panelFieldInset + BrowseLayout.searchFieldHeight * fieldScale / 2
-      motion.emerge(from: morphsIntoBar ? target : nil)
+      motion.emerge(from: morphsIntoBar ? anchor : nil, fieldCenter: BrowseLayout.panelFieldInset + BrowseLayout.searchFieldHeight * fieldScale / 2)
     }
     if shown == nil || motion.isClosing { presentation += 1 }
     shown = request
     reserveBarPill()
     app.browse.trayHoldsKeyboard = true
-    app.browse.isBarLanding = false
+    app.browse.bar.stopLanding()
     motion.present(dimLevel: request.origin == .page ? BrowseLayout.trayDim : 0.001) { [app] in app.cancelSearch() }
   }
 
@@ -105,15 +108,10 @@ struct SearchTrayHost: View {
   private func beginClosing() {
     guard !motion.isClosing else { return }
     motion.isFocused = false
-    motion.close(departing: app.browse.searchEnding == .submitted, morphing: app.browse.searchEnding == .cancelled ? morphLook : nil)
+    motion.close(exit)
     removalTask?.cancel()
     removalTask = Task {
-      let deadline = ContinuousClock.now + Self.removalDeadline
-      while !motion.hasSettled, ContinuousClock.now < deadline {
-        try? await Task.sleep(for: Self.removalPoll)
-        if Task.isCancelled { return }
-      }
-      guard !Task.isCancelled, motion.isClosing else { return }
+      guard await SettlePoll.until(every: Self.removalPoll, within: Self.removalDeadline, { motion.hasSettled }), motion.isClosing else { return }
       finish()
       refreshRecents()
     }
@@ -123,18 +121,18 @@ struct SearchTrayHost: View {
     let lands = motion.isLanding
     motion.finish()
     shown = nil
-    app.browse.isBarLanding = lands
+    if lands { app.browse.bar.land(for: Motion.trayHandOff.duration) } else { app.browse.bar.stopLanding() }
     app.browse.trayHoldsKeyboard = false
     rememberBarAtRest()
-    guard lands else { return }
-    Task {
-      try? await Task.sleep(for: .seconds(TrayMorph.handoff.duration))
-      app.browse.isBarLanding = false
-    }
+  }
+
+  private var exit: TrayExit {
+    if app.browse.searchEnding == .submitted { return .depart }
+    return morphLook.map(TrayExit.morph) ?? .drop
   }
 
   private var morphsIntoBar: Bool {
-    !reduceMotion && screenLayout == .phone
+    screenLayout.morphsSearchIntoBar(reduceMotion: reduceMotion)
   }
 
   private func rememberBarAtRest() {
@@ -142,23 +140,23 @@ struct SearchTrayHost: View {
     barSnapshotTask = Task {
       try? await Task.sleep(for: Self.barRest)
       guard !Task.isCancelled, shown == nil, !app.browse.trayHoldsKeyboard else { return }
-      guard let target = Self.barTarget(in: app), let anchor = Self.barAnchor(in: app) else {
-        motion.rememberBar(nil, face: nil)
+      guard let anchor = app.barAnchor else {
+        motion.barFace = nil
         return
       }
-      let face = await BarFace.render(anchor.content, size: target.frame.size, isDark: anchor.isDark, dynamicType: dynamicTypeSize, scale: displayScale)
+      let image = await BarFace.render(anchor.content, size: anchor.frame.size, isDark: anchor.isDark, dynamicType: dynamicTypeSize, scale: displayScale)
       guard !Task.isCancelled, shown == nil else { return }
-      motion.rememberBar(target, face: face)
+      motion.barFace = image.map { BarFaceImage(owner: anchor.owner, size: anchor.frame.size, image: $0) }
     }
   }
 
   private func reserveBarPill() {
     guard app.browse.search != nil else { return }
-    app.browse.trayMorphsIntoBar = morphsIntoBar
+    app.browse.bar.morphsIntoBar = morphsIntoBar
   }
 
   private var morphLook: TrayMorphLook? {
-    guard app.browse.trayMorphsIntoBar else { return nil }
+    guard app.browse.bar.morphsIntoBar else { return nil }
     let isIncognito = app.isIncognito
     return TrayMorphLook(
       usesGlass: usesGlass,
@@ -166,24 +164,6 @@ struct SearchTrayHost: View {
       panelStyle: isIncognito ? .dark : .unspecified,
       classicPanel: UIColor(look.surface)
     )
-  }
-
-  private static func barOwner(in app: AppModel) -> BarOwner? {
-    switch app.surface {
-    case .search: .start
-    case .browsing: .page
-    default: nil
-    }
-  }
-
-  private static func barAnchor(in app: AppModel) -> BarAnchor? {
-    guard let owner = barOwner(in: app), let anchor = app.browse.barAnchors[owner], !anchor.frame.isEmpty else { return nil }
-    return anchor
-  }
-
-  private static func barTarget(in app: AppModel) -> BarTarget? {
-    guard let owner = barOwner(in: app), let anchor = barAnchor(in: app) else { return nil }
-    return BarTarget(owner: owner, frame: anchor.frame, style: anchor.isDark ? .dark : .light)
   }
 
   private var dismissDrag: some Gesture {

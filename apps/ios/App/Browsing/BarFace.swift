@@ -21,19 +21,14 @@ struct BarFace: View {
           BarAddressLabel(address: address, favicon: favicon)
             .padding(.leading, BrowseLayout.barAddressLead)
             .frame(maxWidth: .infinity, alignment: .leading)
-          Image(systemName: "ellipsis")
-            .font(.system(size: BrowseLayout.barMenuGlyph, weight: .semibold))
-            .foregroundStyle(BrowsePalette.foregroundPrimary)
-            .frame(width: BrowseLayout.barControl, height: BrowseLayout.barControl)
+          BarMenuGlyph()
             .padding(.trailing, BrowseLayout.barMenuTrail)
         }
       case .collapsedAddress(let address):
         BarAddressLabel(address: address, compact: true, favicon: favicon)
           .padding(.horizontal, Spacing.small)
       case .plus:
-        Image(systemName: "plus")
-          .font(.system(size: 18, weight: .medium))
-          .foregroundStyle(.primary)
+        PlusGlyph()
       }
     }
     .frame(width: size.width, height: size.height)
@@ -49,7 +44,7 @@ struct BarFace: View {
   @MainActor
   static func render(_ content: Content, size: CGSize, isDark: Bool, dynamicType: DynamicTypeSize, scale: CGFloat) async -> UIImage? {
     var face = BarFace(content: content, size: size)
-    if let address = face.address, address.pageURL != nil, !address.isPrivate, !address.isInsecure {
+    if let address = face.address, address.showsFavicon {
       face.favicon = await FaviconImage.prepare(iconURL: address.iconURL, pageURL: address.pageURL)
     }
     let renderer = ImageRenderer(

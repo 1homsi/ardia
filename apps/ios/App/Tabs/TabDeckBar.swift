@@ -74,9 +74,7 @@ struct PlusButton: View {
 
   var body: some View {
     Button(action: actions.newTab) {
-      Image(systemName: "plus")
-        .font(.system(size: 18, weight: .medium))
-        .foregroundStyle(.primary)
+      PlusGlyph()
         .frame(width: width, height: TabsLayout.barCircle)
         .contentShape(.capsule)
     }
@@ -95,6 +93,14 @@ struct PlusButton: View {
     }
     .accessibilityLabel(actions.isIncognito ? "New Incognito Tab" : "New Tab")
     .accessibilityHint("Touch and hold for more options.")
+  }
+}
+
+struct PlusGlyph: View {
+  var body: some View {
+    Image(systemName: "plus")
+      .font(.system(size: 18, weight: .medium))
+      .foregroundStyle(.primary)
   }
 }
 

@@ -1,16 +1,14 @@
 import ArdiaDesign
 import SwiftUI
 
-enum BarOwner: Hashable {
-  case start
-  case page
-}
+extension View {
+  func barReturn(_ slot: BarSlot, isShown: Bool) -> some View {
+    modifier(BarReturn(slot: slot, isShown: isShown))
+  }
 
-struct BarAnchor: Equatable {
-  var frame: CGRect
-  var isDark: Bool
-  var content: BarFace.Content
-  var reporter: UUID
+  func reportsBarAnchor(_ owner: BarOwner, face: BarFace.Content) -> some View {
+    modifier(BarAnchorReport(owner: owner, face: face))
+  }
 }
 
 enum BarSlot {
@@ -47,11 +45,14 @@ private struct BarReturn: ViewModifier {
   private var animation: Animation? {
     if reduceMotion { return Motion.barReturnFade }
     guard isShown else {
-      if slot == .centre { return app.browse.search != nil && screenLayout == .phone ? nil : Motion.fade }
+      if slot == .centre {
+        let searchGrowsOutOfPill = app.browse.search != nil && screenLayout.morphsSearchIntoBar(reduceMotion: reduceMotion)
+        return searchGrowsOutOfPill ? nil : Motion.fade
+      }
       return Motion.barLeave
     }
     switch slot {
-    case .centre: return app.browse.isBarLanding ? nil : Motion.barReturnFade
+    case .centre: return app.browse.bar.isLanding ? nil : Motion.barReturnFade
     case .leading, .trailing: return Motion.barReturn.delay(Motion.barReturnDelay)
     }
   }
@@ -75,26 +76,11 @@ private struct BarAnchorReport: ViewModifier {
       .onChange(of: colorScheme) { _, _ in report() }
       .onChange(of: face) { _, _ in report() }
       .onAppear(perform: report)
-      .onDisappear {
-        if app.browse.barAnchors[owner]?.reporter == reporter { app.browse.barAnchors[owner] = nil }
-      }
+      .onDisappear { app.browse.bar.withdraw(owner, reporter: reporter) }
   }
 
   private func report() {
     guard !frame.isNull else { return }
-    let anchor = BarAnchor(frame: frame, isDark: colorScheme == .dark, content: face, reporter: reporter)
-    guard app.browse.barAnchors[owner] != anchor else { return }
-    app.browse.barAnchors[owner] = anchor
-    app.browse.barAnchorRevision &+= 1
-  }
-}
-
-extension View {
-  func barReturn(_ slot: BarSlot, isShown: Bool) -> some View {
-    modifier(BarReturn(slot: slot, isShown: isShown))
-  }
-
-  func reportsBarAnchor(_ owner: BarOwner, face: BarFace.Content) -> some View {
-    modifier(BarAnchorReport(owner: owner, face: face))
+    app.browse.bar.report(BarAnchor(owner: owner, frame: frame, isDark: colorScheme == .dark, content: face, reporter: reporter))
   }
 }

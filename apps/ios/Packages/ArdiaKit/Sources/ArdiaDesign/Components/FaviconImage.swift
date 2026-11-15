@@ -50,12 +50,7 @@ import SwiftUI
       .task(id: candidates) {
         if let current = loaded, candidates.contains(current.source) { return }
         loaded = nil
-        for candidate in candidates {
-          if let entry = await FaviconCache.shared.entry(for: candidate) {
-            loaded = entry
-            return
-          }
-        }
+        if let entry = await Self.prepare(iconURL: iconURL, pageURL: pageURL).entry { loaded = entry }
       }
       .accessibilityHidden(true)
     }

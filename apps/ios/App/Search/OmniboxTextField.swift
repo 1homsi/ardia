@@ -10,9 +10,7 @@ struct OmniboxTextField: UIViewRepresentable {
   var placeholder: String
   var isIncognito: Bool
   var selectsAllOnFocus: Bool
-  var isRevealed = true
-  var isLeaving = false
-  var onReveal: (CFTimeInterval) -> Void = { _ in }
+  var reveal = TrayReveal()
   var onSubmit: (String) -> Void
 
   func makeCoordinator() -> Coordinator {
@@ -39,28 +37,28 @@ struct OmniboxTextField: UIViewRepresentable {
     field.addTarget(context.coordinator, action: #selector(Coordinator.editingChanged(_:)), for: .editingChanged)
     field.accessibilityLabel = String(localized: "Search or Enter Address")
     field.text = text
-    field.alpha = isRevealed ? 1 : 0
-    context.coordinator.isRevealed = isRevealed
+    field.alpha = reveal.revealsContents ? 1 : 0
+    context.coordinator.isRevealed = reveal.revealsContents
     apply(to: field)
     return field
   }
 
-  private func reveal(_ field: UIView, coordinator: Coordinator) {
-    guard coordinator.isRevealed != isRevealed else { return }
-    coordinator.isRevealed = isRevealed
-    guard isRevealed else {
+  private func applyReveal(to field: UIView, coordinator: Coordinator) {
+    guard coordinator.isRevealed != reveal.revealsContents else { return }
+    coordinator.isRevealed = reveal.revealsContents
+    guard reveal.revealsContents else {
       field.alpha = 0
       return
     }
     let base = CACurrentMediaTime()
-    field.fade(to: 1, after: Motion.trayRevealFieldDelay, from: base, curve: Motion.trayRevealCurve)
-    onReveal(base)
+    field.restartOpacityFade(to: 1, after: Motion.trayRevealFieldDelay, from: base, curve: Motion.trayRevealCurve)
+    reveal.onReveal(base)
   }
 
   func updateUIView(_ field: CompletingTextField, context: Context) {
     let coordinator = context.coordinator
     coordinator.parent = self
-    reveal(field, coordinator: coordinator)
+    applyReveal(to: field, coordinator: coordinator)
     apply(to: field)
     if field.markedTextRange == nil, coordinator.echo.isExternal(text, current: field.editor.typed) {
       field.reset(to: text)
@@ -73,7 +71,7 @@ struct OmniboxTextField: UIViewRepresentable {
         field.becomeFirstResponder()
       }
     } else if !isFocused, field.isFirstResponder {
-      if isLeaving { field.freezeAppearance() }
+      if reveal.isLeaving { field.freezeAppearance() }
       DispatchQueue.main.async {
         guard !self.isFocused, field.isFirstResponder else { return }
         field.resignFirstResponder()

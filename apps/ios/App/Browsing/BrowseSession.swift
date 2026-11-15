@@ -25,10 +25,7 @@ final class BrowseSession {
   var search: SearchRequest?
   @ObservationIgnored private(set) var searchEnding = SearchEnding.cancelled
   var trayHoldsKeyboard = false
-  var isBarLanding = false
-  @ObservationIgnored var trayMorphsIntoBar = false
-  @ObservationIgnored var barAnchors: [BarOwner: BarAnchor] = [:]
-  var barAnchorRevision = 0
+  @ObservationIgnored let bar = BarHandoff()
   var isToolbarPresented = false
   var readerTabID: UUID?
   var titleFeedback: String?
@@ -44,7 +41,7 @@ final class BrowseSession {
 
   var barSidesShown: Bool { search == nil }
   var barCentreShown: Bool {
-    search == nil && !(trayHoldsKeyboard && searchEnding == .cancelled && trayMorphsIntoBar)
+    search == nil && !(trayHoldsKeyboard && searchEnding == .cancelled && bar.morphsIntoBar)
   }
 
   struct StepRequest: Equatable {

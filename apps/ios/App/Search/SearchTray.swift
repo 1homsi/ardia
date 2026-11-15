@@ -7,9 +7,7 @@ struct SearchTray<Drag: Gesture>: View {
   @Binding var isFocused: Bool
   let maxHeight: CGFloat
   let dismissDrag: Drag
-  var revealsContents = true
-  var isLeaving = false
-  var onReveal: (CFTimeInterval) -> Void = { _ in }
+  var reveal = TrayReveal()
 
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,8 +39,7 @@ struct SearchTray<Drag: Gesture>: View {
         .frame(maxWidth: .infinity)
         .frame(height: rowsBudget, alignment: .top)
         .clipped()
-        .opacity(revealsContents ? 1 : 0)
-        .animation(revealsContents ? Motion.trayRevealRows : nil, value: revealsContents)
+        .trayReveal(reveal.revealsContents, with: Motion.trayRevealRows)
     }
     .frame(maxWidth: .infinity)
     .background { panelShape.fill(panelTint) }
@@ -94,9 +91,7 @@ struct SearchTray<Drag: Gesture>: View {
         placeholder: String(localized: "Search..."),
         isIncognito: isIncognito,
         selectsAllOnFocus: request.selectsAll,
-        isRevealed: revealsContents,
-        isLeaving: isLeaving,
-        onReveal: onReveal,
+        reveal: reveal,
         onSubmit: submit
       )
       .frame(maxWidth: .infinity)
@@ -110,16 +105,14 @@ struct SearchTray<Drag: Gesture>: View {
             .padding(.leading, CompletingTextField.horizontalInset)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            .opacity(revealsContents ? 1 : 0)
-            .animation(revealsContents ? Motion.trayRevealField : nil, value: revealsContents)
+            .trayReveal(reveal.revealsContents, with: Motion.trayRevealField)
         }
       }
       .layoutPriority(1)
       fieldAccessories
         .fixedSize()
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .opacity(revealsContents ? 1 : 0)
-        .animation(revealsContents ? Motion.trayRevealField : nil, value: revealsContents)
+        .trayReveal(reveal.revealsContents, with: Motion.trayRevealField)
     }
     .padding(.leading, 18)
     .padding(.trailing, 10)
@@ -365,5 +358,18 @@ enum TrayPanel {
   static func tint(look: ProfileLook, isIncognito: Bool, reduceTransparency: Bool) -> Color {
     if isIncognito { return BrowsePalette.incognitoSheet.opacity(reduceTransparency ? 1 : BrowseLayout.panelIncognitoShare) }
     return reduceTransparency ? look.surface : look.surface.opacity(BrowseLayout.panelTintShare)
+  }
+}
+
+struct TrayReveal {
+  var revealsContents = true
+  var isLeaving = false
+  var onReveal: (CFTimeInterval) -> Void = { _ in }
+}
+
+extension View {
+  func trayReveal(_ isRevealed: Bool, with animation: Animation) -> some View {
+    opacity(isRevealed ? 1 : 0)
+      .animation(isRevealed ? animation : nil, value: isRevealed)
   }
 }

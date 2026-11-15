@@ -23,6 +23,10 @@ struct BarAddress: Equatable {
   }
 }
 
+extension BarAddress {
+  var showsFavicon: Bool { pageURL != nil && !isPrivate && !isInsecure }
+}
+
 struct BarActions {
   var onTabs: () -> Void
   var onAddress: () -> Void
@@ -93,14 +97,20 @@ struct BarMenuButton: View {
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: "ellipsis")
-        .font(.system(size: BrowseLayout.barMenuGlyph, weight: .semibold))
-        .foregroundStyle(BrowsePalette.foregroundPrimary)
-        .frame(width: BrowseLayout.barControl, height: BrowseLayout.barControl)
+      BarMenuGlyph()
         .contentShape(.rect)
     }
     .buttonStyle(BarButtonStyle())
     .accessibilityLabel("Page Menu")
+  }
+}
+
+struct BarMenuGlyph: View {
+  var body: some View {
+    Image(systemName: "ellipsis")
+      .font(.system(size: BrowseLayout.barMenuGlyph, weight: .semibold))
+      .foregroundStyle(BrowsePalette.foregroundPrimary)
+      .frame(width: BrowseLayout.barControl, height: BrowseLayout.barControl)
   }
 }
 
@@ -143,7 +153,7 @@ struct BarAddressLabel: View {
         .font(.system(size: size * 0.92, weight: .regular))
         .foregroundStyle(BrowsePalette.foregroundSecondary)
         .accessibilityHidden(true)
-    } else if address.pageURL != nil {
+    } else if address.showsFavicon {
       FaviconImage(iconURL: address.iconURL, pageURL: address.pageURL, size: size, prepared: favicon)
         .accessibilityHidden(true)
     }
