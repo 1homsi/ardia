@@ -143,7 +143,7 @@ export const readerLayout = { minLeadAspect: 0.75, maxWidth: 680, topBar: 52, li
 export const dialogLayout = { width: 312, radius: 28, fieldHeight: 48, choiceHeight: 48 } as const;
 
 export const settingsLayout = {
-  expoListTop: 18,
+  expoListTop: 12,
   groupRadius: 26,
   rowMinHeight: 52,
   rowInset: 16,
