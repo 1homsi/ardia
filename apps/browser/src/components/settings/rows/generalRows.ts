@@ -1,5 +1,6 @@
 import { APP, type SettingSection, type SettingsEnv } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
+import { newTabOpensOf } from "../../../state/settings/settings";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
 
@@ -30,6 +31,11 @@ export const generalRows = {
           title: "Keep new-tab links inside a Little Ardia window",
           description: "For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ⌘-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.",
           keywords: ["little ardia", "target blank", "new tab", "links"],
+        },
+        littleWindowGestures: {
+          title: "Close and expand Little Ardia and Peeks with trackpad gestures",
+          description: "Pinch in to close, spread to open in the main window, and swipe back on a Little Ardia page with nothing to go back to to close it. Off, pinching zooms the page.",
+          keywords: ["little ardia", "little arc", "peek", "pinch", "swipe", "gesture", "trackpad", "zoom", "close", "expand"],
         },
       },
     },
@@ -107,6 +113,11 @@ export const generalRows = {
     {
       section: "Profile switcher",
       rows: {
+        showProfileDots: {
+          title: "Show profile dots",
+          description: "The dots at the bottom of the sidebar that switch profiles. Swiping and ⌃1–⌃9 still work.",
+          keywords: ["dots", "pager", "profile switcher", "page dots", "sidebar footer", "hide"],
+        },
         switcherIcons: {
           title: "Show profile icons instead of dots",
           description: "As in Arc: the switcher at the bottom of the sidebar shows each profile's symbol or emoji, and a profile without one keeps its dot. Right-click the switcher to pick an icon.",
@@ -132,8 +143,13 @@ export const generalRows = {
       rows: {
         autoHideTabs: {
           title: "Auto-hide tabs",
-          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. ⌘S and View › Auto-Hide Tabs flip this same switch.",
+          description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. Changing it here resets every window; ⌘S and View › Auto-Hide Tabs hide or show the tabs in one window only.",
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
+        },
+        revealTabsOnHover: {
+          title: "Reveal hidden tabs on hover",
+          description: "With Auto-hide tabs on, the tabs slide back over the page while the pointer is at the window's edge. Off, they come back only with ⌘S or View › Auto-Hide Tabs.",
+          keywords: ["hover", "peek", "edge", "reveal", "pop out", "floating sidebar", "compact mode", "shortcut only", "accidental", "zen"],
         },
         sidebarSide: {
           title: "Sidebar position",
@@ -144,7 +160,7 @@ export const generalRows = {
         hideToolbarWhileScrolling: {
           title: "Hide toolbar while scrolling",
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back. Your tabs stay put: hiding them is Auto-hide tabs.",
-          keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll"],
+          keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll", "shrink", "shrinking", "address bar shrinks", "toolbar shrinks", "page shifts", "page jumps"],
         },
         showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: "The button at the toolbar's leading edge. Auto-hide tabs, ⌘S and View › Auto-Hide Tabs still hide and show the tabs.", keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
@@ -152,6 +168,13 @@ export const generalRows = {
           title: "Show Clear button",
           description: "The ↓ Clear between your pinned tabs and your tabs. ⇧⌘K and File › Close All Tabs still clear them.",
           keywords: ["clear unpinned tabs", "close all tabs", "clear today", "divider", "arc"],
+          shown: inSidebar,
+        },
+        tidyTabs: {
+          advanced: true,
+          title: "Tidy Tabs",
+          description: "As in Arc: once you have more than six tabs, Tidy on the divider sorts them into groups by site. Pinned tabs stay where you put them.",
+          keywords: ["tidy", "broom", "organize tabs", "group by site", "clean up", "arc max"],
           shown: inSidebar,
         },
         balancedTopApps: {
@@ -171,11 +194,26 @@ export const generalRows = {
           description: "A Top App's tile shows a speaker while its tab plays or is muted, a mark while it is in Picture in Picture, and its unread count when unread counts are on. Off, as in Dia, a tile shows only the site's icon.",
           keywords: ["pinned tiles", "favorites", "badges", "indicators", "unread count", "speaker", "audio", "muted", "playing", "clean", "dia"],
         },
+        showTabHoverMenu: {
+          title: "Show tab hover menu",
+          description: "Rest the pointer on a tab or Top App and a card shows its title, address, and Pin, Bookmark, Split and Reset. Off, resting on a tab, in the sidebar or the top tab strip, shows only its full title and site as a plain tooltip, and every one of those actions is in the tab's right-click menu. A playing tab's mini player still shows.",
+          keywords: ["hover", "hover card", "popup", "pop-up", "tooltip", "tab actions", "reset", "distracting", "dia"],
+        },
+        closedTopAppTiles: {
+          title: "Draw tiles for closed Top Apps",
+          description: "As in Dia, every Top App sits on a tile. Off, a Top App whose page isn't open shows just its icon, faded, so you can tell at a glance which ones are open; it gets its tile back when you open it or point at it.",
+          keywords: ["pinned tiles", "favorites", "top apps", "tile", "tiles", "background", "closed", "open", "unloaded", "faded", "contrast", "prominent", "quiet", "subtle", "dia"],
+        },
         fadeUnloadedTabs: {
           advanced: true,
           title: "Fade icons of unloaded tabs",
           description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows its icon faded, as sleeping tabs do. Clicking it loads the page.",
           keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
+        },
+        strikeSleepingTabs: {
+          title: "Strike through sleeping tabs",
+          description: "A tab Memory Saver or the ardia command put to sleep shows its title struck through and dimmed, in the sidebar and across the top, until its page loads again. A tab whose icon is faded as unloaded, with Fade icons of unloaded tabs on or a closed Top App without its tile, shows it too.",
+          keywords: ["strikethrough", "strike", "line through", "crossed out", "asleep", "sleeping", "discarded", "unloaded", "memory saver", "dim", "title"],
         },
       },
     },
@@ -186,6 +224,18 @@ export const generalRows = {
           title: "New tab opens",
           description: "With Command Bar, ⌘T and New Tab open the command bar over the page, as in Arc. The tab appears when you pick a result; Esc leaves everything as it was.",
           keywords: ["new tab page", "command bar", "cmd t"],
+        },
+        reuseEmptyNewTab: {
+          title: "Reuse an empty New Tab page",
+          description: "When the tab you're on is still an empty New Tab page, ⌘T, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.",
+          keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
+          shown: (settings) => newTabOpensOf(settings) === "page",
+        },
+        newTabUrl: {
+          title: "New tab page address",
+          description: "Type a web address, or Ardia's History, Bookmarks or Downloads page, and ⌘T, + New Tab, a group's New Tab and new windows, private windows included, open it instead of the New Tab page, as Chrome does with a custom New Tab page. Leave it empty for the New Tab page.",
+          keywords: ["custom new tab", "new tab url", "home page", "homepage", "start page", "custom url", "cmd t"],
+          shown: (settings) => newTabOpensOf(settings) === "page",
         },
         newTabPosition: {
           title: "Add new tabs",
@@ -199,12 +249,22 @@ export const generalRows = {
           keywords: ["new tab button", "plus", "+", "top", "bottom", "sticky", "docked", "position"],
           shown: inSidebar,
         },
+        appLinksFirst: {
+          title: "Put links from other apps first",
+          description: "When links from Slack, Mail or any other app open as tabs, not in Little Ardia, they go above your other tabs, just below the pinned ones, whatever Add new tabs says.",
+          keywords: ["external links", "other apps", "default browser", "top", "first", "left", "position"],
+        },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",
           description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
           keywords: ["arc", "multiple windows", "same tabs", "sync windows", "shared sidebar", "unpinned"],
         },
         warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
+        keepTopAppsRunning: {
+          title: "Keep Top Apps running when closed",
+          description: "⌘W on a Top App switches away from it and leaves its page loaded, so a site like Slack keeps its notifications. A Top App split with another pinned tab stays together and loaded. Choose Unload from its right-click menu to put it to sleep. Off, as in Dia, ⌘W unloads it. Memory Saver can still put a page to sleep unless the site is in its Always keep these sites active list.",
+          keywords: ["top apps", "pinned tiles", "favorites", "essentials", "cmd w", "close", "unload", "keep loaded", "keep running", "background", "arc"],
+        },
         tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
         sidebarMediaControls: {
@@ -237,8 +297,18 @@ export const generalRows = {
         },
         newTabLinksOpenIn: {
           title: "Open new-tab links in",
-          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
+          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and pop-ups stay windows unless Open pop-up windows as tabs is on. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
           keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
+        },
+        popupsOpenAsTabs: {
+          title: "Open pop-up windows as tabs",
+          description: "A page that opens a pop-up window, like Outlook's Open in New Window or a sign-in pop-up, opens it as a tab next to the page instead. The page can still talk to it, and closing it brings you back. Extension pop-ups stay windows.",
+          keywords: ["popup", "pop-up", "pop up", "window.open", "new window", "outlook", "sign in", "oauth", "as tab", "links"],
+        },
+        peekButtons: {
+          title: "Show Peek buttons",
+          description: "Close, Open as Tab and Split View sit in the Peek's title bar, or float beside it on the left or right.",
+          keywords: ["peek", "buttons", "close", "expand", "split view", "left", "right", "side", "position", "arc", "zen"],
         },
         peekModifier: {
           advanced: true,
@@ -286,6 +356,11 @@ export const generalRows = {
           title: "Clean up tabs I haven't used in",
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
           keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
+        },
+        suggestCleanUp: {
+          title: "Suggest cleaning up when tabs pile up",
+          description: "Shows a card in the sidebar once 10 or more tabs haven't been used in a while.",
+          keywords: ["upsell", "tidy", "suggestion", "don't show again", "card", "inactive tabs"],
         },
       },
     },
