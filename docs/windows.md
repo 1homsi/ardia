@@ -838,9 +838,13 @@ sealed exactly as `packages/sync/ios/Core/SyncCrypto.swift` seals it. The engine
   an owner check that began before it is dropped.
 - Passwords are off on Windows (`PLATFORM_FEATURES.syncsPasswords`: no What Syncs row, the type never syncs, and
   the Mac's synced passwords stay in the vault untouched). Chromium turns `kSkipUndecryptablePasswords` on by default
-  on Windows only, and with it `ac_passwords_logins` answers "partial password reads": a login list that may silently
-  leave out undecryptable passwords would look like deletions to sync. The engine needs to list every login on
-  Windows (#1425); the native side below is ready for it.
+  on Windows only, and Ardia keeps it on: Settings, export and autofill read through the affiliation path, which still
+  leaves out a login it can't decrypt. The plain login read is strict on Windows
+  (`chromium-win-strict-login-list.patch`): one undecryptable login fails the whole read, whoever calls it, so no
+  caller has to remember a flag. `ac_passwords_logins` answers the full list (empty means no passwords),
+  "undecryptable" when a login can't be decrypted, or "unreadable" when the database can't be read; "closed" and
+  "no password store" mean the profile isn't ready. Sync must treat every error as "skip this cycle, delete nothing"
+  before passwords are turned on (#1425).
 - Passwords, once the engine lists them: `ac_passwords_logins` is called and its reply sealed in C++ (`SyncSystem.h`),
   and a synced password is opened only to hand it to `ac_passwords_add`. The Mac's vault files carry plaintext `p` in `pw:` records, as the Mac
   writes them; `SyncLogins.h` swaps them for sealed `s` before JS sees a document (escaped keys included; a login it

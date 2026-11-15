@@ -151,3 +151,28 @@
                                              std::move(session.busy),
                                              std::move(reply));
                      },
+--- a/ac_passwords_logins.cc
++++ b/ac_passwords_logins.cc
+@@ -201,7 +201,10 @@
+     return;
+   }
+   if (!result.has_value()) {
+-    return Fail("unreadable");
++    const bool undecryptable =
++        result.error().type ==
++        password_manager::PasswordStoreBackendErrorType::kKeychainError;
++    return Fail(undecryptable ? "undecryptable" : "unreadable");
+   }
+   (store == Store::kProfile ? profile_ : account_) = std::move(*result);
+   if (!profile_ || !account_) {
+@@ -253,10 +256,6 @@
+ 
+ AC_PROFILE_CALL(ac_passwords_logins) {
+   if (base::FeatureList::IsEnabled(
+-          password_manager::features::kSkipUndecryptablePasswords)) {
+-    return call.TakeReply().Error("partial password reads");
+-  }
+-  if (base::FeatureList::IsEnabled(
+           password_manager::features::kUseProcessBoundPasswordString)) {
+     return call.TakeReply().Error("process-bound password strings");
+   }

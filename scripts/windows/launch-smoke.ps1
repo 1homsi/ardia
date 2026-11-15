@@ -523,6 +523,58 @@ if (Test-Path $checkLog) {
   $failures += "the self-check wrote no log"
 }
 
+function Invoke-LoginData([string]$Sql) {
+  $database = Join-Path $env:ARDIA_DATA_DIR "Chromium\Default\Login Data"
+  if (-not (Test-Path -LiteralPath $database)) { return "no Login Data at $database" }
+  if (-not ("Ardia.Sqlite" -as [type])) {
+    Add-Type -Namespace Ardia -Name Sqlite -MemberDefinition @'
+[DllImport("winsqlite3.dll", CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)] public static extern int sqlite3_open(string filename, out IntPtr db);
+[DllImport("winsqlite3.dll", CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)] public static extern int sqlite3_exec(IntPtr db, string sql, IntPtr callback, IntPtr argument, IntPtr error);
+[DllImport("winsqlite3.dll", CallingConvention = CallingConvention.StdCall)] public static extern int sqlite3_changes(IntPtr db);
+[DllImport("winsqlite3.dll", CallingConvention = CallingConvention.StdCall)] public static extern int sqlite3_close(IntPtr db);
+'@
+  }
+  $handle = [IntPtr]::Zero
+  if ([Ardia.Sqlite]::sqlite3_open($database, [ref]$handle) -ne 0) { return "Login Data did not open" }
+  try {
+    if ([Ardia.Sqlite]::sqlite3_exec($handle, $Sql, [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero) -ne 0) { return "the statement failed: $Sql" }
+    $changed = [Ardia.Sqlite]::sqlite3_changes($handle)
+    if ($changed -ne 1) { return "the statement changed $changed rows, not 1: $Sql" }
+    return ""
+  } finally { [Ardia.Sqlite]::sqlite3_close($handle) | Out-Null }
+}
+
+function Invoke-SelfCheckStage([string]$Stage) {
+  $stageLog = Join-Path $Out "self-check-$Stage.log"
+  $env:ARDIA_TEST = "selfCheckStage=$Stage"
+  $stageRun = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$stageLog`"" -PassThru
+  $env:ARDIA_TEST = ""
+  if (-not $stageRun.WaitForExit(120000)) {
+    Stop-Process -Id $stageRun.Id -Force -ErrorAction SilentlyContinue
+    return "the $Stage self-check did not finish within 120 s"
+  }
+  if (-not (Test-Path $stageLog)) { return "the $Stage self-check wrote no log" }
+  Select-String -Path $stageLog -Pattern "self-check" | ForEach-Object { Write-Host $_.Line }
+  $stageDone = Select-String -Path $stageLog -Pattern "self-check done: (\d+) passed, (\d+) failed" | Select-Object -First 1
+  if (-not $stageDone) { return "the $Stage self-check never reported its result" }
+  if ([int]$stageDone.Matches[0].Groups[2].Value -gt 0 -or [int]$stageDone.Matches[0].Groups[1].Value -eq 0) { return "the $Stage self-check: $($stageDone.Line)" }
+  return ""
+}
+
+if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")) {
+  $secondLogin = "https://ardia-self-check-two.example%"
+  foreach ($step in @(
+      @{ Sql = "UPDATE logins SET password_value = X'763130' || randomblob(40) WHERE signon_realm LIKE '$secondLogin'"; Stage = "undecryptableLogin" },
+      @{ Sql = "DELETE FROM logins WHERE signon_realm LIKE '$secondLogin'"; Stage = "undecryptableRemoved" })) {
+    $problem = Invoke-LoginData $step.Sql
+    if (-not $problem) { $problem = Invoke-SelfCheckStage $step.Stage }
+    if ($problem) {
+      $failures += "passwords, $($step.Stage): $problem"
+      break
+    }
+  }
+}
+
 $gateApp = (Resolve-Path -LiteralPath $App).Path
 $withEngine = Test-Path -LiteralPath (Join-Path (Split-Path -Parent $gateApp) "chrome.dll")
 $gatePort = 9338
