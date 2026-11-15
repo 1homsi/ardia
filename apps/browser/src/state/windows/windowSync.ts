@@ -74,11 +74,12 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
         ? { kind: "small" as const, size: s.settings.littleArdiaSize, ...(claim?.startsWith("link:") ? { claim } : {}), ...(w.linkPointer ? { pointer: w.linkPointer } : {}), ...(w.linkApp ? { returnTo: w.linkApp } : {}) }
         : {};
       const made = w.kind !== "small" && w.chromeWindow ? { chromeWindow: w.chromeWindow } : {};
+      const under = behind ?? (w.kind === "main" ? w.opensBehind : undefined);
       const override = windowTitleOverride(s, id);
       overrides.set(id, override);
       port.open(
         id,
-        { frame: w.frame, incognito: w.kind === "private", title: titles.get(id), ...(override === null ? {} : { titleOverride: override }), focus, profile, ...(behind ? { behind } : {}), ...(prev && w.kind !== "small" && !w.chromeWindow ? { animated: true } : {}), ...small, ...made },
+        { frame: w.frame, incognito: w.kind === "private", title: titles.get(id), ...(override === null ? {} : { titleOverride: override }), focus, profile, ...(under ? { behind: under } : {}), ...(prev && w.kind !== "small" && !w.chromeWindow ? { animated: true } : {}), ...small, ...made },
         lightsCenter(s, id),
       );
     }
