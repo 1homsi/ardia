@@ -320,6 +320,8 @@ class PageViewModule : Module() {
 
             Prop("pullToRefresh") { view: PageView, enabled: Boolean? -> view.pullToRefresh = enabled == true }
 
+            Prop("surfaceColor") { view: PageView, colour: Int? -> view.surfaceColor = colour }
+
             Prop("title") { view: PageView, title: String? -> view.title = title }
 
             Prop("isPrivate") { view: PageView, isPrivate: Boolean? -> view.isPrivate = isPrivate == true }

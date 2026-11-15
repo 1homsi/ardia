@@ -1,6 +1,7 @@
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
 import { forwardRef, useImperativeHandle, useRef, type Ref } from "react";
 import type { NativeSyntheticEvent, ViewProps } from "react-native";
+import { nativeFieldColor, type NativeColor } from "./completingField";
 import { normalizeState } from "./normalize";
 import { pages } from "./pages";
 import type { PageEventPayload, PageViewHandle, PageViewProps } from "./pageTypes";
@@ -16,6 +17,7 @@ type NativeProps = ViewProps & {
   savedState?: string;
   toneInsets?: [number, number];
   obscuredInsets?: [number, number];
+  surfaceColor?: NativeColor;
   onPageEvent?: (event: NativeSyntheticEvent<PageEventPayload>) => void;
 };
 
@@ -28,7 +30,7 @@ const obscuresInsets = requireOptionalNativeModule<{ obscuresInsets?: boolean }>
 export const pageObscuresInsets = () => obscuresInsets;
 
 export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageView(props, ref) {
-  const { onPageState, onPageTone, onPageError, toneInsets, obscuredInsets, ...rest } = props;
+  const { onPageState, onPageTone, onPageError, toneInsets, obscuredInsets, surfaceColor, ...rest } = props;
   const native = useRef<NativeHandle>(null);
   useImperativeHandle(
     ref,
@@ -57,6 +59,7 @@ export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageV
       ref={native}
       toneInsets={toneInsets ? [toneInsets.top, toneInsets.bottom] : undefined}
       obscuredInsets={obscuresInsets && obscuredInsets ? [obscuredInsets.top, obscuredInsets.bottom] : undefined}
+      surfaceColor={nativeFieldColor(surfaceColor)}
       onPageEvent={onPageEvent}
     />
   );

@@ -377,12 +377,12 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
 
     private fun finishPull(current: Page?) {
         if (current == null || !PullToRefreshRules.triggers(pull)) {
-            animate(pull, 0f, PULL_MILLIS, ::showPull) { reset() }
+            animate(pull, 0f, SnappySpring.settleMillis, ::showPull, SnappySpring.interpolator) { reset() }
             return
         }
         indicator.refreshing = true
         current.reload()
-        animate(pull, PullToRefreshRules.HOLD_DP, PULL_MILLIS, ::showPull) {
+        animate(pull, PullToRefreshRules.HOLD_DP, SnappySpring.settleMillis, ::showPull, SnappySpring.interpolator) {
             settle = scope.launch {
                 try {
                     withTimeoutOrNull(PullToRefreshRules.TIMEOUT_MILLIS) {
@@ -392,14 +392,15 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
                 } finally {
                     indicator.refreshing = false
                 }
-                animate(pull, 0f, PULL_MILLIS, ::showPull) { reset() }
+                animate(pull, 0f, SnappySpring.settleMillis, ::showPull, SnappySpring.interpolator) { reset() }
             }
         }
     }
 
-    private fun animate(from: Float, to: Float, millis: Long, step: (Float) -> Unit, done: () -> Unit) {
+    private fun animate(from: Float, to: Float, millis: Long, step: (Float) -> Unit, curve: android.animation.TimeInterpolator? = null, done: () -> Unit) {
         ValueAnimator.ofFloat(from, to).apply {
             duration = millis
+            if (curve != null) interpolator = curve
             addUpdateListener { step(it.animatedValue as Float) }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) = done()
@@ -422,7 +423,9 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         indicator.visibility = View.INVISIBLE
     }
 
-    private fun surface(): Int = if (isDark()) Color.BLACK else Color.WHITE
+    var surfaceColor: Int? = null
+
+    private fun surface(): Int = surfaceColor ?: if (isDark()) Color.BLACK else Color.WHITE
 
     private fun isDark(): Boolean = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
@@ -528,8 +531,24 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         const val SWIPE_MILLIS = 220L
         const val SETTLE_DELAY_MILLIS = 250L
         const val FADE_MILLIS = 200L
-        const val PULL_MILLIS = 250L
-        val ACCENT_LIGHT = 0xFF007AFF.toInt()
-        val ACCENT_DARK = 0xFF0A84FF.toInt()
+        val ACCENT_LIGHT = 0xFF6395FC.toInt()
+        val ACCENT_DARK = 0xFF4A77D4.toInt()
     }
+}
+
+internal object SnappySpring {
+    const val RESPONSE_SECONDS = 0.3
+    const val DAMPING_FRACTION = 0.86
+    private const val SETTLED = 0.001
+
+    private val natural = 2 * Math.PI / RESPONSE_SECONDS
+    private val decay = DAMPING_FRACTION * natural
+    private val ringing = natural * kotlin.math.sqrt(1 - DAMPING_FRACTION * DAMPING_FRACTION)
+
+    fun position(seconds: Double): Double =
+        1 - kotlin.math.exp(-decay * seconds) * (kotlin.math.cos(ringing * seconds) + decay / ringing * kotlin.math.sin(ringing * seconds))
+
+    val settleMillis: Long = (kotlin.math.ln((1 + decay / ringing) / SETTLED) / decay * 1000).toLong()
+
+    val interpolator = android.animation.TimeInterpolator { fraction -> position(fraction * settleMillis / 1000.0).toFloat() }
 }

@@ -57,6 +57,12 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
             gestures.pullToRefresh = value
         }
 
+    var surfaceColor: Int?
+        get() = gestures.surfaceColor
+        set(value) {
+            gestures.surfaceColor = value
+        }
+
     init {
         addView(host, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         gestures.install()

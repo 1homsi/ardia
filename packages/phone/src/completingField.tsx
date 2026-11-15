@@ -42,7 +42,7 @@ export type CompletingFieldProps = ViewProps &
     onSuffixChange?: (suffix: string) => void;
   };
 
-type NativeColor = ColorValue | number;
+export type NativeColor = ColorValue | number;
 
 type NativeProps = Omit<
   CompletingFieldProps,

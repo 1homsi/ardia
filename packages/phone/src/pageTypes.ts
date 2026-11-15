@@ -1,4 +1,4 @@
-import type { ViewProps } from "react-native";
+import type { ColorValue, ViewProps } from "react-native";
 
 export type PageNavigationState = {
   url: string | null;
@@ -55,6 +55,7 @@ export type PageViewProps = ViewProps & {
   obscuredInsets?: PageObscuredInsets;
   swipeNavigation?: SwipeNavigation;
   pullToRefresh?: boolean;
+  surfaceColor?: ColorValue;
   onPageState?: (state: PageState) => void;
   onPageTone?: (tone: PageTone) => void;
   onPageError?: (error: PageError) => void;
