@@ -51,12 +51,7 @@ const recordOf = (item: JsonSchema): JsonSchema => ({ type: "object", additional
 const flag = (d: boolean, synced = false): SettingSpec<boolean> => ({ default: d, valid: (v) => typeof v === "boolean", synced, schema: { type: "boolean" } });
 const text = (d: string, synced = false): SettingSpec<string> => ({ default: d, valid: isString, synced, schema: { type: "string" } });
 const width = (d: number): SettingSpec<number> => ({ default: d, valid: isWidth, synced: false, schema: WIDTH });
-const fraction = (d: number, synced = false): SettingSpec<number> => ({
-  default: d,
-  valid: (v) => typeof v === "number" && v >= 0 && v <= 1,
-  synced,
-  schema: { type: "number", minimum: 0, maximum: 1 },
-});
+const fraction = (d: number, synced = false): SettingSpec<number> => ({ default: d, valid: (v) => typeof v === "number" && v >= 0 && v <= 1, synced, schema: { type: "number", minimum: 0, maximum: 1 } });
 const oneOf = <const V extends readonly string[]>(values: V, d: V[number], synced = false): SettingSpec<V[number]> & { values: V } => ({
   default: d,
   values,
@@ -94,6 +89,7 @@ export const SETTING_SPECS = {
   reuseEmptyNewTab: flag(false, SYNCED),
   newTabUrl: text("", SYNCED),
   warnBeforeClosingLastTab: flag(true, SYNCED),
+  keepTopAppsRunning: flag(false, SYNCED),
   undoReopensClosedTab: flag(false, SYNCED),
   warnBeforeMovingTabsToProfile: flag(true, SYNCED),
   shareTabsAcrossWindows: flag(false),
