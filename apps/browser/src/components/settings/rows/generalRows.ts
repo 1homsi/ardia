@@ -127,7 +127,7 @@ export const generalRows = {
       rows: {
         showProfileDots: {
           title: "Show profile dots",
-          description: "The dots at the bottom of the sidebar that switch profiles. Swiping and ⌃1–⌃9 still work.",
+          description: `The dots at the bottom of the sidebar that switch profiles. Swiping and ${keyText("⌃1")}–${keyText("⌃9")} still work.`,
           keywords: ["dots", "pager", "profile switcher", "page dots", "sidebar footer", "hide"],
         },
         switcherIcons: {
