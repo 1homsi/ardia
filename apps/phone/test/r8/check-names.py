@@ -6,6 +6,9 @@
 # Room's WorkDatabase_Impl with its no-argument constructor, and Expo's generated package list. Exits 1 on a loss.
 import json, re, subprocess, sys, zipfile, pathlib
 
+if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):
+    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:6]))
+    sys.exit(0 if len(sys.argv) > 1 else 64)
 apk = sys.argv[1]
 baseline = sys.argv[2] if len(sys.argv) > 2 else None
 repo = pathlib.Path(__file__).resolve().parents[4]
