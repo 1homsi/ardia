@@ -36,6 +36,14 @@ final class PhonePages {
     var isPrivate: Bool
   }
 
+  static let launchPermissionSuite = "ardia.phone.pages.launchPermissions"
+
+  static func launchPermissionDefaults() -> UserDefaults {
+    let launch = UserDefaults(suiteName: launchPermissionSuite) ?? UserDefaults()
+    launch.removePersistentDomain(forName: launchPermissionSuite)
+    return launch
+  }
+
   private init() {
     defaults = UserDefaults(suiteName: "ardia.phone.pages") ?? .standard
     container = (try? BrowserStore.makeContainer(.inMemory)) ?? (try! BrowserStore.makeContainer(.inMemory))
@@ -45,7 +53,7 @@ final class PhonePages {
       settings: BlockingSettings(defaults: defaults),
       directory: URL.cachesDirectory.appending(path: "Blocking", directoryHint: .isDirectory)
     )
-    engine = WebEngine(tabs: tabs, blocker: blocker, preferences: BrowsingPreferences(defaults: defaults))
+    engine = WebEngine(tabs: tabs, blocker: blocker, preferences: BrowsingPreferences(defaults: defaults, sitePermissions: SitePermissions(defaults: Self.launchPermissionDefaults())))
     engine.openExternalURL = { url in UIApplication.shared.open(url) }
     engine.openUniversalLink = { url in await UIApplication.shared.open(url, options: [.universalLinksOnly: true]) }
     engine.onVisit = { [weak self] tabID, visit in

@@ -70,4 +70,17 @@ import Testing
     #expect(permissions.grants.isEmpty)
     #expect(!permissions.allows([], origin: "https://example.com"))
   }
+
+  @Test func preferencesGivenTheirOwnStoreNeitherHonourNorSaveInTheirDefaults() {
+    let defaults = freshDefaults()
+    SitePermissions(defaults: defaults).allow([.location], origin: "http://localhost:8765", host: "localhost")
+    #expect(BrowsingPreferences(defaults: defaults).sitePermissions.allows([.location], origin: "http://localhost:8765"))
+    let launch = freshDefaults()
+    let preferences = BrowsingPreferences(defaults: defaults, sitePermissions: SitePermissions(defaults: launch))
+    #expect(!preferences.sitePermissions.allows([.location], origin: "http://localhost:8765"))
+    preferences.sitePermissions.allow([.camera], origin: "https://meet.google.com", host: "meet.google.com")
+    #expect(preferences.sitePermissions.allows([.camera], origin: "https://meet.google.com"))
+    #expect(SitePermissions(defaults: defaults).grants.map(\.host) == ["localhost"])
+    #expect(SitePermissions(defaults: launch).grants.map(\.host) == ["meet.google.com"])
+  }
 }

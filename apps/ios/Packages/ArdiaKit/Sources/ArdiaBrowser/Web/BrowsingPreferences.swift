@@ -105,14 +105,14 @@ public final class BrowsingPreferences {
   public private(set) var sites: [String: SiteSettings]
   private var privateSites: [String: SiteSettings] = [:]
 
-  public init(defaults: UserDefaults) {
+  public init(defaults: UserDefaults, sitePermissions: SitePermissions? = nil) {
     self.defaults = defaults
     nightShade = defaults.string(forKey: Self.keys.nightShade).flatMap(NightShadeMode.init(rawValue:)) ?? .disabled
     swipeNavigation = defaults.string(forKey: Self.keys.swipe).flatMap(SwipeNavigationMode.init(rawValue:)) ?? .anywhere
     appLinks = defaults.string(forKey: Self.keys.appLinks).flatMap(AppLinkPreference.init(rawValue:)) ?? .ardia
     searchSuggestions = defaults.object(forKey: Self.keys.suggestions) as? Bool ?? true
     searchEngineID = defaults.string(forKey: Self.keys.engine) ?? "google"
-    sitePermissions = SitePermissions(defaults: defaults)
+    self.sitePermissions = sitePermissions ?? SitePermissions(defaults: defaults)
     sites = (defaults.data(forKey: Self.keys.sites)).flatMap { try? JSONDecoder().decode([String: SiteSettings].self, from: $0) } ?? [:]
   }
 
