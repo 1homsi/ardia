@@ -1,6 +1,7 @@
 plugins {
   id 'com.android.library'
   id 'expo-module-gradle-plugin'
+  id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 group = 'com.ardia.phone'
@@ -146,6 +147,7 @@ android {
   buildFeatures {
     prefab true
     buildConfig true
+    compose true
   }
   externalNativeBuild {
     cmake {
@@ -222,6 +224,10 @@ dependencies {
   implementation "androidx.camera:camera-view:${cameraXVersion}"
   implementation "com.google.zxing:core:3.5.4"
   implementation project(":ardia-design")
+  implementation(findProject(":expo-ui") ?: "expo.modules.ui:expo.modules.ui:+")
+  implementation "androidx.compose.foundation:foundation-android:1.12.1"
+  implementation "androidx.compose.ui:ui-android:1.12.1"
+  implementation "androidx.compose.material3:material3:1.5.0-beta01"
   implementation "androidx.compose.ui:ui-text:1.7.8"
   compileOnly "com.google.guava:guava:33.3.1-android"
   testImplementation "junit:junit:4.13.2"

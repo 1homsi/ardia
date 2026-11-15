@@ -3,7 +3,7 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "org.jetbrains.kotlin.plugin.compose"
 
 def design = new File(rootDir, "../../android/design/src/main")
-def designInThisModule = ['ProfileLook.kt', 'Monogram.kt', 'Colors.kt', 'MeshGradient.kt', 'GrainTexture.kt', 'TabsBackdropMotion.kt', 'FrostedStyle.kt', 'BrowseTokens.kt', 'Tokens.kt', 'ProfileBackdropStyle.kt', 'ArdiaTheme.kt', 'ArdiaLogoMark.kt', 'ArdiaSymbols.kt', 'Motion.kt', 'Typography.kt', 'SymbolGeometry.kt']
+def designInThisModule = ['ProfileLook.kt', 'Monogram.kt', 'Colors.kt', 'MeshGradient.kt', 'GrainTexture.kt', 'TabsBackdropMotion.kt', 'FrostedStyle.kt', 'BrowseTokens.kt', 'Tokens.kt', 'ProfileBackdropStyle.kt', 'ArdiaTheme.kt', 'ArdiaLogoMark.kt', 'ArdiaSymbols.kt', 'Motion.kt', 'Typography.kt', 'SymbolGeometry.kt', 'Settings.kt', 'SettingsTokens.kt', 'ColorChoice.kt', 'ProfileBackdrop.kt']
 
 android {
     namespace 'com.ardia.design'
