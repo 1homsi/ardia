@@ -66,6 +66,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many requests to send notifications Block requests to send notifications turned down without asking, summed up once an hour. Never which site",
       "How many times you cleared Recently Closed from the History menu or the sidebar, and how many closed tabs, windows and groups that cleared, summed up once an hour. Never which ones",
       "How many times you removed pages on the History page with the keyboard, its Delete button or a row's menu, and how many pages each way removed, summed up once an hour. Never which pages",
+      "How many Clear Browsing Data requests completed or failed, summed up once an hour. Never which profile, data types, time range or error details",
       "How many times a page tried to open a link no app on this Mac opens, so Ardia asked nothing, and how many times it asked to open an app, summed up once an hour. Never which page, link or app",
       "How many times you collapsed or expanded a tab group from the tab strip across the top, summed up once an hour",
       "How many pop-up windows opened as tabs because Open pop-up windows as tabs is on, summed up once an hour. Never which page or pop-up",
