@@ -1,5 +1,5 @@
 import { confirm } from "../../platform/dialogs";
-import { windowIds } from "../../platform/windows";
+import { isPopupWindowId, windowIds } from "../../platform/windows";
 import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { backgroundInstance } from "../app/appSettings";
 import { useBrowser } from "../browser/store";
@@ -21,7 +21,7 @@ export const asksBeforeQuit = (asking: Asking) => asking.quitsWithLastWindow && 
 
 export function windowsStayingOpen(openWindowIds: readonly string[], closing: string, browserWindowIds: ReadonlySet<string>, isClosing: (id: string) => boolean) {
   if (openWindowIds.length === 0) return [closing];
-  return openWindowIds.filter((id) => id !== closing && (browserWindowIds.has(id) ? !isClosing(id) : isUtilityWindowId(id)));
+  return openWindowIds.filter((id) => id !== closing && (browserWindowIds.has(id) ? !isClosing(id) : isUtilityWindowId(id) || isPopupWindowId(id)));
 }
 
 export const quitWarningMayAsk = () => PLATFORM_FEATURES.quitsWithLastWindow && !backgroundInstance && useBrowser.getState().settings.warnBeforeQuitting;
