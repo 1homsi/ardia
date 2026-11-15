@@ -50,15 +50,10 @@ type BackdropProps = {
   fadesOut?: boolean;
   incognito?: boolean;
   dark?: boolean;
+  baseOutside?: boolean;
 };
 
-export function LookBackdrop({
-  themed = false,
-  softened = false,
-  fadesOut = false,
-  incognito = false,
-  dark,
-}: BackdropProps) {
+function useBackdropStops({ themed = false, incognito = false, dark }: BackdropProps) {
   const look = useProfileLook();
   const theme = useTheme();
   const shade = incognito || (dark ?? theme.dark);
@@ -69,6 +64,24 @@ export function LookBackdrop({
       : dark === undefined
         ? theme.backdrop
         : windowTintStops(look, shade);
+  return { look, theme, shade, stops };
+}
+
+export function LookBackdropBase(props: BackdropProps) {
+  const { stops } = useBackdropStops(props);
+  if (!lookIsNative() || props.fadesOut) return null;
+  return <BackdropBase color={stops[0]} />;
+}
+
+export function DeckLookBackdropBase() {
+  const theme = useTheme();
+  if (!lookIsNative()) return null;
+  return <BackdropBase color={theme.backdrop[0]} />;
+}
+
+export function LookBackdrop(props: BackdropProps) {
+  const { themed = false, softened = false, fadesOut = false, incognito = false, baseOutside = false } = props;
+  const { look, theme, shade, stops } = useBackdropStops(props);
   if (!lookIsNative()) {
     if (incognito) return <Backdrop colors={tabsInk.incognitoBackdrop} />;
     if (themed)
@@ -79,7 +92,7 @@ export function LookBackdrop({
   }
   return (
     <>
-      {fadesOut ? null : <BackdropBase color={stops[0]} />}
+      {fadesOut || baseOutside ? null : <BackdropBase color={stops[0]} />}
       <ProfileBackdrop
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
@@ -93,7 +106,7 @@ export function LookBackdrop({
   );
 }
 
-export function DeckLookBackdrop() {
+export function DeckLookBackdrop({ baseOutside = false }: { baseOutside?: boolean }) {
   const look = useProfileLook();
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
@@ -101,7 +114,7 @@ export function DeckLookBackdrop() {
   if (!lookIsNative()) return <Backdrop colors={theme.backdrop} />;
   return (
     <>
-      <BackdropBase color={theme.backdrop[0]} />
+      {baseOutside ? null : <BackdropBase color={theme.backdrop[0]} />}
       <DeckBackdrop
         pointerEvents="none"
         style={StyleSheet.absoluteFill}

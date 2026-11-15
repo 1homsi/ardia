@@ -6,7 +6,7 @@ import { newIncognitoTab, newRegularTab, newTab, openArchive, openSpaces, reopen
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem } from "../ui";
+import { ArdiaLogo, browseLayout, deckCenterFromBottom, FrostSource, LookBackdrop, LookBackdropBase, Menu, springs, tabsCurve, tabsLayout, trayMotion, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
 
@@ -47,8 +47,9 @@ export function StartScreen() {
       ];
   return (
     <View style={StyleSheet.absoluteFill}>
+      <LookBackdropBase themed={!incognito} incognito={incognito} />
       <FrostSource name={START_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
-        <LookBackdrop themed={!incognito} incognito={incognito} />
+        <LookBackdrop themed={!incognito} incognito={incognito} baseOutside />
       </FrostSource>
       <View style={[styles.logo, { paddingBottom: BAR_RESERVE / 2 }]} pointerEvents="none" importantForAccessibility={trayUp ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={trayUp}>
         <Animated.View style={logoStyle}>

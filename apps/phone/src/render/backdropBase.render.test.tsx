@@ -65,3 +65,21 @@ test("with the look's fallback the gradient is drawn by the app and needs no bas
   expect(bases(root)).toEqual([]);
   unmount(root);
 });
+
+test("the deck's and the start page's frost sources hold only their native backdrop; the base colour sits beside the source, not in it", () => {
+  jest.spyOn(lookModule, "lookIsNative").mockImplementation(() => true);
+  useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const deck = renderSurface(<TabDeck />);
+  const sources = deck.root.findAll((node) => node.type === lookModule.FrostSource && node.props.name === "deck");
+  expect(sources).toHaveLength(1);
+  expect(sources[0]!.findAll((node) => node.props.testID === "backdropBase")).toHaveLength(0);
+  expect(sources[0]!.findAll((node) => node.type === lookModule.DeckBackdrop)).toHaveLength(1);
+  expect(bases(deck)).toHaveLength(1);
+  unmount(deck);
+  useBrowse.setState({ surface: "start", sheet: null });
+  const start = renderSurface(<StartScreen />);
+  const startSources = start.root.findAll((node) => node.type === lookModule.FrostSource);
+  expect(startSources.every((source) => source.findAll((node) => node.props.testID === "backdropBase").length === 0)).toBe(true);
+  expect(bases(start)).toHaveLength(1);
+  unmount(start);
+});

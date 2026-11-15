@@ -48,7 +48,7 @@ import {
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, FrostSource, Menu, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem } from "../ui";
+import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { pinToMac, sendTab, sendTargetsFor } from "../../state/sync/actions";
@@ -432,8 +432,9 @@ export function TabDeck() {
   return (
     <View style={StyleSheet.absoluteFill} onLayout={(event) => setDeckHeight(event.nativeEvent.layout.height)}>
       <Animated.View style={[StyleSheet.absoluteFill, backdropStyle]} pointerEvents="none">
+        <DeckLookBackdropBase />
         <FrostSource name={DECK_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
-          <DeckLookBackdrop />
+          <DeckLookBackdrop baseOutside />
         </FrostSource>
       </Animated.View>
       <Shade shaded={menu !== null || cardMenu !== null || confirmation !== null}>
