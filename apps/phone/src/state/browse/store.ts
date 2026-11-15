@@ -135,6 +135,7 @@ export function appWillResignActive() {
 const show = (surface: Surface) => useBrowse.setState({ surface });
 
 export function openPage(url: string, origin: TabOrigin) {
+  takeLeavingPicture(null);
   dismissSearch("submitted");
   const tab = openNewTab({ url, origin });
   if (origin === "search" && !tab.isPrivate) countUsage("searches");
@@ -207,6 +208,7 @@ export function stopOpeningTab(id: string) {
 }
 
 export function openTab(id: string) {
+  takeLeavingPicture(id);
   hideArchiveCard();
   dismissSearch();
   setIncognito(isPrivateTab(currentTabs(), id));
@@ -368,6 +370,14 @@ function pageEvent(event: PageEngineEvent) {
 
 const loading = new Map<string, boolean>();
 const snapshotTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function takeLeavingPicture(nextId: string | null) {
+  const leaving = currentTabs().selectedId;
+  if (!leaving || leaving === nextId || useBrowse.getState().surface !== "browsing" || loading.get(leaving) !== false || !coverIsCapturable(true, pageCovered())) return;
+  clearTimeout(snapshotTimers.get(leaving));
+  snapshotTimers.delete(leaving);
+  void captureSnapshot(leaving);
+}
 
 export function captureCurrentCover() {
   const id = currentTabs().selectedId;
