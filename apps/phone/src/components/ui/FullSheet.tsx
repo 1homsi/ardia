@@ -14,9 +14,11 @@ import { useReduceMotion } from "./contrast";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { backgroundScale, draggedOffset, sheetDismisses, sheetProgress } from "../../lib/sheetDrag";
 import { initialPresence, presenceSettled, presenceShown, presenceTarget } from "../../lib/sheetPresence";
-import { tabsCurve, tabsMotion } from "./motion";
+import { reducedMotionMs, tabsCurve, tabsMotion } from "./motion";
 import { useTheme } from "./theme";
 import { sheetInk, sheetLayout } from "./tokens";
+
+const SHEET_REDUCED_MS = reducedMotionMs(tabsMotion.sheetReduced);
 
 const HIDE_FALLBACK_MS = 900;
 const DRAG_SLOP = 12;
@@ -57,7 +59,7 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
     if (step.motion === "in") {
       if (step.fromHidden) offset.value = height.value;
       scrollTop.value = 0;
-      offset.value = reduceMotion ? withTiming(0, { duration: tabsMotion.sheetReduced, easing: tabsCurve.easeOut }) : withSpring(0, tabsMotion.sheetRise);
+      offset.value = reduceMotion ? withTiming(0, { duration: SHEET_REDUCED_MS, easing: tabsCurve.easeOut }) : withSpring(0, tabsMotion.sheetRise);
       return;
     }
     const generation = step.presence.generation;
@@ -68,7 +70,7 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
       redraw((count) => count + 1);
     };
     offset.value = reduceMotion
-      ? withTiming(height.value, { duration: tabsMotion.sheetReduced, easing: tabsCurve.easeInOut }, (finished) => runOnJS(settle)(finished === true))
+      ? withTiming(height.value, { duration: SHEET_REDUCED_MS, easing: tabsCurve.easeInOut }, (finished) => runOnJS(settle)(finished === true))
       : withSpring(height.value, tabsMotion.sheetDismiss, (finished) => runOnJS(settle)(finished === true));
     const fallback = setTimeout(() => settle(true), HIDE_FALLBACK_MS);
     return () => clearTimeout(fallback);

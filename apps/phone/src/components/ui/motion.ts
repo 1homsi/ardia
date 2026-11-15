@@ -1,4 +1,4 @@
-import { Easing } from "react-native";
+import { Easing, Platform } from "react-native";
 import { Easing as WorkletEasing } from "react-native-reanimated";
 
 export const curve = { easeOut: Easing.bezier(0, 0, 0.58, 1) } as const;
@@ -64,3 +64,5 @@ export const springs = {
   searchRise: { stiffness: (2 * Math.PI / 0.39) ** 2, damping: 4 * Math.PI / 0.39, mass: 1 },
   barPress: { stiffness: (2 * Math.PI / 0.12) ** 2, damping: 4 * Math.PI * 0.9 / 0.12, mass: 1 },
 } as const;
+
+export const reducedMotionMs = (ms: number) => (Platform.OS === "android" ? 0 : ms);

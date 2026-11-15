@@ -16,10 +16,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCoverFocus } from "./coverFocus";
 import { LookBackdrop } from "./LookViews";
-import { tabsCurve, tabsMotion, trayMotion } from "./motion";
+import { reducedMotionMs, tabsCurve, tabsMotion, trayMotion } from "./motion";
 import { useTheme } from "./theme";
 import { menuLayout } from "./tokens";
 import { useReduceMotion } from "./contrast";
+
+const SHEET_REDUCED_MS = reducedMotionMs(trayMotion.reduced);
 
 const HIDE_FALLBACK_MS = 900;
 const DIM_TRAVEL_RADII = 8;
@@ -57,7 +59,7 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
       drag.value = 0;
       shown.value = reduceMotion
         ? withTiming(1, {
-            duration: trayMotion.reduced,
+            duration: SHEET_REDUCED_MS,
             easing: tabsCurve.easeOut,
           })
         : withSpring(1, tabsMotion.sheetIn);
@@ -70,7 +72,7 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
     shown.value = reduceMotion
       ? withTiming(
           0,
-          { duration: trayMotion.reduced, easing: tabsCurve.easeInOut },
+          { duration: SHEET_REDUCED_MS, easing: tabsCurve.easeInOut },
           hidden,
         )
       : withSpring(0, tabsMotion.sheetOut, hidden);
@@ -98,7 +100,7 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
       }
       drag.value = reduceMotion
         ? withTiming(0, {
-            duration: trayMotion.reduced,
+            duration: SHEET_REDUCED_MS,
             easing: tabsCurve.easeOut,
           })
         : withSpring(0, trayMotion.settle);

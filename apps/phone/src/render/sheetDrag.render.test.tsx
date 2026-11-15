@@ -1,9 +1,9 @@
-import { Text } from "react-native";
+import { Platform, Text } from "react-native";
 import { State } from "react-native-gesture-handler";
 import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import * as Reanimated from "react-native-reanimated";
 import { act } from "react-test-renderer";
-import { Sheet } from "../components/ui";
+import { FullSheet, Sheet } from "../components/ui";
 import { renderSurface, unmount } from "../../test/render/harness";
 
 const mockMotion = { reduced: false };
@@ -59,7 +59,7 @@ test("a short slow drag springs back, and a flick past 800 points a second close
   unmount(root);
 });
 
-test("with Reduce Motion the sheet leaves on a short timing instead of its spring", () => {
+test("with Reduce Motion the sheet leaves on a short timing instead of its spring, and with Android's Remove animations it leaves at once, as Compose's sheets do when the system scales their durations to zero", () => {
   mockMotion.reduced = true;
   const timing = jest.spyOn(Reanimated, "withTiming");
   const spring = jest.spyOn(Reanimated, "withSpring");
@@ -68,8 +68,30 @@ test("with Reduce Motion the sheet leaves on a short timing instead of its sprin
       <Text>Menu</Text>
     </Sheet>,
   );
-  expect(timing).toHaveBeenCalledWith(0, expect.objectContaining({ duration: 200 }), expect.any(Function));
+  expect(timing).toHaveBeenCalledWith(0, expect.objectContaining({ duration: Platform.OS === "android" ? 0 : 200 }), expect.any(Function));
   expect(spring.mock.calls.filter(([to]) => to === 0)).toHaveLength(0);
   unmount(root);
   mockMotion.reduced = false;
+});
+
+test("with Remove animations on Android the Settings sheet comes up and goes at once, as Compose's do; with Reduce Motion on iPhone it moves on a short timing", () => {
+  mockMotion.reduced = true;
+  const timing = jest.spyOn(Reanimated, "withTiming");
+  const progress = { value: 0 } as never;
+  const root = renderSurface(
+    <FullSheet sheet={null} progress={progress} onDismiss={() => undefined}>
+      {() => <Text>Settings</Text>}
+    </FullSheet>,
+  );
+  act(() =>
+    root.update(
+      <FullSheet sheet="settings" progress={progress} onDismiss={() => undefined}>
+        {() => <Text>Settings</Text>}
+      </FullSheet>,
+    ),
+  );
+  expect(timing).toHaveBeenCalledWith(0, expect.objectContaining({ duration: Platform.OS === "android" ? 0 : 200 }));
+  unmount(root);
+  mockMotion.reduced = false;
+  timing.mockRestore();
 });
