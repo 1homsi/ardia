@@ -153,7 +153,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tabs a page opened were matched to your click on a link, opened at once because nothing was clicked or typed in that window in the 5 seconds before, or opened only after a 0.2 second wait for a click that never came, summed up once an hour",
       "How many times ⌘Y asked for the History search field, and how many of those put the cursor in it, summed up once an hour. Never what you searched",
       "At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the Mac started. Also at launch: the Mac's load average (one number, how busy it was) and whether the app was started as a login item",
-      "Memory use and the number of tabs, once an hour, with how much processor time Ardia's main process used and how often it woke up in that hour, how many times it worked out where its windows can be dragged from, and how many presses on a title bar came before it had",
+      "Memory use and the number of tabs, once an hour, with how much processor time Ardia's main process used and how often it woke up in that hour, how many times it worked out where its windows can be dragged from, how many presses on a title bar came before it had, and how many times a page's picture had slipped out of place while the page resized and was put back, with the largest slip in points",
     ],
   },
   {

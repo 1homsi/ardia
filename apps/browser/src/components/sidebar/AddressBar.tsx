@@ -20,7 +20,7 @@ import { noteEmptyTabSidebarExtensionPress } from "../../state/telemetry/usage";
 import { SidebarFieldFill } from "./SidebarField";
 import { SidebarUrlField, useToolbarTab } from "../toolbar/Toolbar";
 import { sidebarFieldButtons } from "../toolbar/fieldButtons";
-import { useExtensions } from "../../state/extensions/store";
+import { useFieldExtensionsHeld } from "../../state/extensions/store";
 import { HistoryButton, ReloadButton } from "../toolbar/NavButtons";
 import { GLYPH } from "../toolbar/tokens";
 import { HEADER_TOOLS, headerToggleX, navButtonsFitting, type HeaderButton } from "../window/dockMotion";
@@ -164,8 +164,8 @@ function EmptyField({ windowId, tabId, width }: { windowId: string; tabId: strin
   const theme = useTheme();
   const palette = toolbarPalette(theme, null);
   const { hovered, hoverProps } = useHover();
-  const extensionPopup = useExtensions((e) => e.popup?.windowId === windowId);
-  const shown = sidebarFieldButtons({ mode: useSettings((s) => s.addressBarButtons), hovered, insecure: false, extensionPopup });
+  const extensionsHeld = useFieldExtensionsHeld(windowId);
+  const shown = sidebarFieldButtons({ mode: useSettings((s) => s.addressBarButtons), hovered, insecure: false, extensionsHeld });
   const open = () => openEmptySidebarField(windowId);
   return (
     <View {...hoverProps} style={{ flexDirection: "row", alignItems: "center", height: SIDEBAR_FIELD.height }}>
