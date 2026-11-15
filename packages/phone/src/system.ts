@@ -25,6 +25,7 @@ type SystemNative = {
   setRestorableValue?(key: string, value: string | null): void;
   labMemory?(): string | null;
   labTrim?(): string | null;
+  displayCornerRadius?(): number | null;
 };
 
 const native = requireOptionalNativeModule<SystemNative>("ArdiaPhoneSystem");
@@ -37,6 +38,7 @@ export const system = {
     return link ? normalize(link) : null;
   },
   processStartedAt: (): number | null => (native?.processStartedAt ? native.processStartedAt() : null),
+  displayCornerRadius: (): number | null => native?.displayCornerRadius?.() ?? null,
   setHidesFromRecents: async (hidden: boolean): Promise<boolean> => (native?.setHidesFromRecents ? native.setHidesFromRecents(hidden) : false),
   addLinkListener: (listener: (link: SystemLink) => void): Subscription =>
     native ? native.addListener("onSystemLink", (link) => listener(normalize(link))) : { remove() {} },

@@ -16,6 +16,12 @@ class SystemModule : Module() {
             if (PhoneLab.isOn) android.util.Log.i("PAGELAB", line)
         }
 
+        Function("displayCornerRadius") {
+            val insets = appContext.currentActivity?.window?.decorView?.rootWindowInsets
+            val radius = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && insets != null) insets.getRoundedCorner(android.view.RoundedCorner.POSITION_TOP_LEFT)?.radius else null
+            DisplayCorner.dp(radius, appContext.reactContext?.resources?.displayMetrics?.density ?: 1f)
+        }
+
         Events("onSystemLink")
 
         OnStartObserving("onSystemLink") {
@@ -72,4 +78,8 @@ class SystemModule : Module() {
             true
         }.runOnQueue(Queues.MAIN)
     }
+}
+
+internal object DisplayCorner {
+    fun dp(radiusPixels: Int?, density: Float): Double? = radiusPixels?.takeIf { it > 0 && density > 0f }?.let { it / density.toDouble() }
 }
