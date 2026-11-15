@@ -128,10 +128,7 @@ export const setImportTarget = (target: string) => patchImport({ target });
 export const setSafariCookies = (safariCookies: boolean) => patchImport({ safariCookies });
 export const backTo = (name: "choose" | "profiles") => patchImport({ step: name === "choose" ? { name, error: null } : { name } });
 export const closeImport = () => requestWindowClose(IMPORT_WINDOW_ID);
-export function cancelImport() {
-  session.abort();
-  closeImport();
-}
+export const cancelImport = () => requestWindowClose(IMPORT_WINDOW_ID, () => session.abort());
 
 export async function recheckAccess() {
   const api = importModule();

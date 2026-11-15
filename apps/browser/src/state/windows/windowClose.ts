@@ -14,10 +14,10 @@ const MIN_TABS = 2;
 
 const pending = new Set<string>();
 
-export function requestWindowClose(windowId: string) {
+export function requestWindowClose(windowId: string, onceAgreed?: () => void) {
   if (pending.has(windowId)) return;
   pending.add(windowId);
-  void requestClose(windowId).finally(() => pending.delete(windowId));
+  void requestClose(windowId, onceAgreed).finally(() => pending.delete(windowId));
 }
 
 export function startWindowCloseGuard() {
@@ -28,9 +28,10 @@ export function startWindowCloseGuard() {
 
 let windowsWithoutTabsClosing: Promise<void> = Promise.resolve();
 
-function closeWindowWithoutTabs(windowId: string) {
+function closeWindowWithoutTabs(windowId: string, onceAgreed?: () => void) {
   const closing = windowsWithoutTabsClosing.then(async () => {
     if ((await askBeforeQuitting(windowId)) === "cancelled") return;
+    onceAgreed?.();
     startClosingWindow(windowId);
     try {
       await closeNativeWindow(windowId);
@@ -42,10 +43,10 @@ function closeWindowWithoutTabs(windowId: string) {
   return closing;
 }
 
-async function requestClose(windowId: string) {
+async function requestClose(windowId: string, onceAgreed?: () => void) {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
-  if (!w) return closeWindowWithoutTabs(windowId);
+  if (!w) return closeWindowWithoutTabs(windowId, onceAgreed);
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
   const quitWarning = await askBeforeQuitting(windowId);
   if (quitWarning === "cancelled") return;

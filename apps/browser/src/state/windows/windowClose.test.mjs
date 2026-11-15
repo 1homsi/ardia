@@ -298,12 +298,13 @@ test("Settings and Import close through the same request as browser windows, fro
   await tick();
   assert.equal(windows.open.has("settings"), false, "a close request for Settings closes it");
   const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
-  assert.match(source("./windowClose.ts"), /if \(!w\) return closeWindowWithoutTabs\(windowId\);/);
+  assert.match(source("./windowClose.ts"), /if \(!w\) return closeWindowWithoutTabs\(windowId, onceAgreed\);/);
   assert.match(source("./controls.ts"), /export const closeFromWindowControls = \(windowId: string\) => requestWindowClose\(windowId\);/);
   assert.match(source("../commands/commands.ts"), /if \(command === "closeTab"\) return requestWindowClose\(requested!\);/);
   assert.match(source("../import/flow.ts"), /export const closeImport = \(\) => requestWindowClose\(IMPORT_WINDOW_ID\);/);
   assert.match(source("../../../windows/Ardia/WindowManager.h"), /if \(!found \|\| !m_context \|\| m_quitting\) return;\n\s+try \{\n\s+args\.Cancel\(true\);/);
-  assert.match(source("../../platform/nativeApi.ts"), /windows\.addListener\?\.\("onWindowEvent", \(event\) => \{\n\s+if \(event\.type === "closeRequest" && typeof event\.id === "string"\) void windows\.closeWindow\(event\.id\);/);
+  assert.match(source("../../platform/nativeApi.ts"), /windows\.addListener\?\.\("onWindowEvent", \(event\) => \{\n\s+if \(event\.type === "closeRequest"\) void windows\.closeWindow\(event\.id\);/);
+  assert.match(source("../../platform/nativeApi.ts"), /^import type \{ WindowsNative \} from "@ardia\/shell";\n[\s\S]*type Windows = Pick<WindowsNative, "openWindow" \| "closeWindow"> & Partial<Pick<WindowsNative, "addListener">>;/, "the skew window reuses the shell's window types, and only as a type");
 });
 
 test("Settings and Import closes are decided one at a time, so two at once can't both miss the quit question", async () => {
@@ -315,7 +316,7 @@ test("Settings and Import closes are decided one at a time, so two at once can't
   assert.equal(windows.open.has("settings"), false);
   assert.equal(windows.open.has("import"), false);
   const close = readFileSync(new URL("./windowClose.ts", import.meta.url), "utf8");
-  assert.match(close, /const closing = windowsWithoutTabsClosing\.then\(async \(\) => \{\n\s+if \(\(await askBeforeQuitting\(windowId\)\) === "cancelled"\) return;\n\s+startClosingWindow\(windowId\);/);
+  assert.match(close, /const closing = windowsWithoutTabsClosing\.then\(async \(\) => \{\n\s+if \(\(await askBeforeQuitting\(windowId\)\) === "cancelled"\) return;\n\s+onceAgreed\?\.\(\);\n\s+startClosingWindow\(windowId\);/);
 });
 
 test("the Windows self-check closes Settings, Import and a pop-up the ways users and pages do, and ends by closing its last window", () => {
