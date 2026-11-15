@@ -12,6 +12,8 @@ struct BottomBar: View {
   let isCollapsed: Bool
   var arrangement = Arrangement.row
   var sideInset: CGFloat = 0
+  var sidesShown = true
+  var centreShown = true
   let actions: BarActions
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -33,6 +35,8 @@ struct BottomBar: View {
     ZStack(alignment: .bottom) {
       if isCollapsed {
         BarCollapsedPill(address: address, action: actions.onExpand)
+          .reportsBarAnchor(.page)
+          .barReturn(.centre, isShown: centreShown)
           .transition(.scale(scale: reduceMotion ? 1 : 1 / BrowseLayout.barCollapsedScale, anchor: .bottom).combined(with: .opacity))
       } else {
         expanded
@@ -49,8 +53,12 @@ struct BottomBar: View {
     case .row:
       HStack(spacing: BrowseLayout.barGap) {
         BarTabsButton(actions: actions)
+          .barReturn(.leading, isShown: sidesShown)
         BarAddressField(address: address, onAddress: actions.onAddress, onMore: actions.onMore)
+          .reportsBarAnchor(.page)
+          .barReturn(.centre, isShown: centreShown)
         BarPlusButton(action: actions.onPlus)
+          .barReturn(.trailing, isShown: sidesShown)
       }
     case .column:
       EmptyView()

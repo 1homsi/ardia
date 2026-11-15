@@ -77,8 +77,7 @@ struct SearchTray<Drag: Gesture>: View {
   }
 
   private var panelTint: Color {
-    if isIncognito { return BrowsePalette.incognitoSheet.opacity(reduceTransparency ? 1 : BrowseLayout.panelIncognitoShare) }
-    return reduceTransparency ? look.surface : look.surface.opacity(BrowseLayout.panelTintShare)
+    TrayPanel.tint(look: look, isIncognito: isIncognito, reduceTransparency: reduceTransparency)
   }
 
   private var field: some View {
@@ -347,5 +346,12 @@ struct SearchTray<Drag: Gesture>: View {
   private func leave() {
     isFocused = false
     app.browse.dismissSearch(submitted: true)
+  }
+}
+
+enum TrayPanel {
+  static func tint(look: ProfileLook, isIncognito: Bool, reduceTransparency: Bool) -> Color {
+    if isIncognito { return BrowsePalette.incognitoSheet.opacity(reduceTransparency ? 1 : BrowseLayout.panelIncognitoShare) }
+    return reduceTransparency ? look.surface : look.surface.opacity(BrowseLayout.panelTintShare)
   }
 }

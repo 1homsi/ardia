@@ -6,6 +6,8 @@ struct StartBar: View {
   let plus: PlusActions
   let tabs: () -> Void
   let settings: () -> Void
+  var sidesShown = true
+  var centreShown = true
 
   @Environment(\.screenLayout) private var screenLayout
 
@@ -24,10 +26,14 @@ struct StartBar: View {
   private var row: some View {
     HStack(spacing: 0) {
       GlassCircleButton(symbol: "square.on.square", label: "Tabs", action: tabs)
+        .barReturn(.leading, isShown: sidesShown)
       Spacer(minLength: TabsLayout.barGap)
       PlusButton(actions: plus, width: TabsLayout.barPlus.width)
+        .reportsBarAnchor(.start)
+        .barReturn(.centre, isShown: centreShown)
       Spacer(minLength: TabsLayout.barGap)
       GlassCircleButton(symbol: "gearshape", label: "Settings", action: settings)
+        .barReturn(.trailing, isShown: sidesShown)
     }
     .padding(.horizontal, geometry.safeSide + TabsLayout.barSideInset)
     .frame(width: geometry.container.width)

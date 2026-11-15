@@ -30,10 +30,16 @@ final class TrayMotion {
   @ObservationIgnored private var landingTask: Task<Void, Never>?
   @ObservationIgnored private var rise: UIViewPropertyAnimator?
   @ObservationIgnored private var releaseTask: Task<Void, Never>?
+  @ObservationIgnored var barTarget: () -> BarTarget? = { nil }
+  @ObservationIgnored private var morph: TrayMorph?
+  @ObservationIgnored private var fadingMorph: TrayMorph?
+  @ObservationIgnored private var awaitedFlight: CGFloat?
+  @ObservationIgnored private var flightFallback: Task<Void, Never>?
 
   static let keyboardThreshold: CGFloat = 120
   static let keyboardWait: Duration = .milliseconds(220)
   static let reducedMotion = MotionCurve.easeOut(duration: 0.2)
+  static let keyboardGrace: Duration = .milliseconds(120)
 
   enum Curve {
     case immediate
@@ -43,7 +49,13 @@ final class TrayMotion {
 
   var keyboardUp: Bool { keyboardHeight > Self.keyboardThreshold }
   var trayHeight: CGFloat { controller.trayHeight }
-  var hasSettled: Bool { !keyboardUp && !controller.isAnimating }
+  var isLanding: Bool { morph?.hasDestination == true }
+
+  var hasSettled: Bool {
+    guard !keyboardUp, awaitedFlight == nil else { return false }
+    guard let morph else { return !controller.isAnimating }
+    return !morph.isMoving
+  }
 
   func startTrackingKeyboard() {
     guard keyboard == nil else { return }
@@ -56,6 +68,7 @@ final class TrayMotion {
   func present(dimLevel: CGFloat, onDimTap: @escaping () -> Void) {
     landingTask?.cancel()
     releaseTask?.cancel()
+    dropMorph()
     controller.dim.onTap = onDimTap
     move(.immediate) { [self] in
       self.dimLevel = dimLevel
@@ -75,11 +88,13 @@ final class TrayMotion {
     }
   }
 
-  func close(departing: Bool) {
+  func close(departing: Bool, morphing look: TrayMorphLook?) {
     landingTask?.cancel()
     releaseTask?.cancel()
     defer { releaseVelocity = 0 }
-    if departing, !reduceMotion {
+    if !departing, !reduceMotion, !isCommandBar, let look {
+      beginMorph(look: look)
+    } else if departing, !reduceMotion {
       heldLift = heldLift ?? liveLift
       move(.timing(Motion.departCurve)) { [self] in
         isClosing = true
@@ -102,6 +117,7 @@ final class TrayMotion {
   func finish() {
     landingTask?.cancel()
     releaseTask?.cancel()
+    handOffMorph()
     move(.immediate) { [self] in
       isShown = false
       isClosing = false
@@ -156,6 +172,77 @@ final class TrayMotion {
     }
     controller.keyboardSentinel.center.y = height
     place()
+    if let velocity = awaitedFlight, !keyboardUp { flyMorph(velocity: velocity) }
+  }
+
+  private func beginMorph(look: TrayMorphLook) {
+    let tray = controller.tray
+    let card = CGRect(
+      x: BrowseLayout.panelInset,
+      y: 0,
+      width: tray.bounds.width - 2 * BrowseLayout.panelInset,
+      height: max(trayHeight - BrowseLayout.panelAboveKeyboard, 0)
+    )
+    morph = TrayMorph(card: card, of: tray, in: controller.view, look: look)
+    let velocity = releaseVelocity
+    move(.immediate) { [self] in isClosing = true }
+    awaitedFlight = velocity
+    DispatchQueue.main.async { [weak self] in self?.launchMorph() }
+  }
+
+  private func launchMorph() {
+    guard let velocity = awaitedFlight else { return }
+    guard keyboardUp else {
+      flyMorph(velocity: velocity)
+      return
+    }
+    flightFallback?.cancel()
+    flightFallback = Task { [weak self] in
+      try? await Task.sleep(for: Self.keyboardGrace)
+      guard let self, !Task.isCancelled, let velocity = awaitedFlight else { return }
+      flyMorph(velocity: velocity)
+    }
+  }
+
+  private func flyMorph(velocity: CGFloat) {
+    flightFallback?.cancel()
+    awaitedFlight = nil
+    guard let morph else { return }
+    guard var target = barTarget() else {
+      morph.vanish()
+      return
+    }
+    target.frame = controller.view.convert(target.frame, from: nil)
+    if abs(velocity) < 1, let clock = KeyboardClock(layer: controller.keyboardSentinel.layer) {
+      morph.fly(to: target, timing: clock.timing, duration: clock.duration)
+    } else {
+      let distance = target.frame.midY - morph.view.frame.midY
+      let spring = TrayMorph.flightSpring
+      let timing = UISpringTimingParameters(
+        duration: spring.duration,
+        bounce: spring.bounce,
+        initialVelocity: CGVector(dx: 0, dy: Motion.relativeVelocity(velocity, over: distance))
+      )
+      morph.fly(to: target, timing: timing, duration: spring.settlingDuration)
+    }
+  }
+
+  private func handOffMorph() {
+    flightFallback?.cancel()
+    awaitedFlight = nil
+    fadingMorph?.remove()
+    fadingMorph = morph
+    morph?.handOff()
+    morph = nil
+  }
+
+  private func dropMorph() {
+    flightFallback?.cancel()
+    awaitedFlight = nil
+    morph?.remove()
+    morph = nil
+    fadingMorph?.remove()
+    fadingMorph = nil
   }
 
   private var liveLift: CGFloat {
@@ -217,7 +304,7 @@ final class TrayMotion {
     let scale: CGFloat = isCommandBar && !isUp && !reduceMotion ? 0.96 : 1
     tray.isHidden = !isShown
     tray.transform = CGAffineTransform(translationX: 0, y: trayOffset).scaledBy(x: scale, y: scale)
-    tray.alpha = isDeparting ? 0 : isUp || (!reduceMotion && !isCommandBar) ? 1 : 0
+    tray.alpha = isDeparting || morph != nil ? 0 : isUp || (!reduceMotion && !isCommandBar) ? 1 : 0
     tray.takesTouches = isShown && !isClosing
     tray.accessibilityViewIsModal = isShown
     placeDim(progress: TrayDrag.progress(offset: dragOffset, travel: trayHeight + lift))

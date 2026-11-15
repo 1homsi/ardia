@@ -7,6 +7,7 @@ struct SearchTrayHost: View {
   @Environment(\.screenLayout) private var screenLayout
   @Environment(\.profileLook) private var look
   @Environment(\.usesGlass) private var usesGlass
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @ScaledMetric(relativeTo: .title3) private var fieldScale: CGFloat = 1
   @State private var shown: BrowseSession.SearchRequest?
   @State private var presentation = 0
@@ -29,7 +30,10 @@ struct SearchTrayHost: View {
       .accessibilityAddTraits(shown == nil ? [] : .isModal)
     }
     .ignoresSafeArea(.keyboard)
-    .onAppear { motion.startTrackingKeyboard() }
+    .onAppear {
+      motion.startTrackingKeyboard()
+      motion.barTarget = { [app] in Self.barTarget(in: app) }
+    }
     .onChange(of: reduceMotion, initial: true) { _, reduced in motion.reduceMotion = reduced }
     .task { await SearchSuggestionsModel.loadRecents(from: app.tabs) }
     .onChange(of: app.browse.search, initial: true) { _, request in
@@ -68,6 +72,8 @@ struct SearchTrayHost: View {
     if shown == nil || motion.isClosing { presentation += 1 }
     shown = request
     app.browse.trayHoldsKeyboard = true
+    app.browse.isBarLanding = false
+    app.browse.trayMorphsIntoBar = morphsIntoBar
     motion.present(dimLevel: request.origin == .page ? BrowseLayout.trayDim : 0.001) { [app] in app.cancelSearch() }
   }
 
@@ -84,7 +90,7 @@ struct SearchTrayHost: View {
   private func beginClosing() {
     guard !motion.isClosing else { return }
     motion.isFocused = false
-    motion.close(departing: app.browse.searchEnding == .submitted)
+    motion.close(departing: app.browse.searchEnding == .submitted, morphing: app.browse.searchEnding == .cancelled ? morphLook : nil)
     removalTask?.cancel()
     removalTask = Task {
       let deadline = ContinuousClock.now + Self.removalDeadline
@@ -99,9 +105,42 @@ struct SearchTrayHost: View {
   }
 
   private func finish() {
+    let lands = motion.isLanding
     motion.finish()
     shown = nil
+    app.browse.isBarLanding = lands
     app.browse.trayHoldsKeyboard = false
+    guard lands else { return }
+    Task {
+      try? await Task.sleep(for: .seconds(TrayMorph.handoff.duration))
+      app.browse.isBarLanding = false
+    }
+  }
+
+  private var morphsIntoBar: Bool {
+    !reduceMotion && screenLayout == .phone
+  }
+
+  private var morphLook: TrayMorphLook? {
+    guard morphsIntoBar else { return nil }
+    let isIncognito = app.isIncognito
+    return TrayMorphLook(
+      usesGlass: usesGlass,
+      panelTint: UIColor(TrayPanel.tint(look: look, isIncognito: isIncognito, reduceTransparency: reduceTransparency)),
+      panelStyle: isIncognito ? .dark : .unspecified,
+      classicPanel: UIColor(look.surface)
+    )
+  }
+
+  private static func barTarget(in app: AppModel) -> BarTarget? {
+    let owner: BarOwner
+    switch app.surface {
+    case .search: owner = .start
+    case .browsing: owner = .page
+    default: return nil
+    }
+    guard let anchor = app.browse.barAnchors[owner], !anchor.frame.isEmpty else { return nil }
+    return BarTarget(frame: anchor.frame, style: anchor.isDark ? .dark : .light)
   }
 
   private var dismissDrag: some Gesture {

@@ -71,9 +71,10 @@ public enum BrowseLayout {
   public static let tabStackTile = CGSize(width: 20, height: 26)
   public static let barBottomGap: CGFloat = 21.5
   public static let trayDepartLift: CGFloat = 120
+  public static let barReturnScale: CGFloat = 0.8
+  public static let barReturnShift: CGFloat = 12
   public static let hitTarget: CGFloat = 44
   public static let barHeight: CGFloat = 75
-  public static let barCollapseTravel: CGFloat = 30
   public static let progressHeight: CGFloat = 2.5
   public static let toolbarTile: CGFloat = 78
 }
@@ -88,6 +89,9 @@ public extension Motion {
   static let departCurve = MotionCurve(0.2, 0, 0, 1, duration: 0.2)
   static let depart = departCurve.animation
   static let traySettle = smooth
+  static let barReturn = smooth
+  static let barReturnDelay: Double = 0.12
+  static let barReturnFade = fade
   static let resultsIn = Animation.easeOut(duration: 0.1)
   static let pager = smooth
   static let press = Animation.spring(response: 0.16, dampingFraction: 1)

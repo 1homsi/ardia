@@ -27,11 +27,11 @@ struct SearchHomeView: View {
           .frame(width: geometry.container.width, alignment: screenLayout.column?.edge == .leading ? .trailing : .leading)
           .opacity(isTrayUp ? 0 : 1)
           .scaleEffect(isTrayUp && !reduceMotion ? 0.96 : 1)
-          .allowsHitTesting(!isTrayUp)
+          .allowsHitTesting(!app.browse.isSearchTrayOnScreen)
           .ignoresSafeArea()
         bar(geometry)
-          .opacity(isTrayUp ? 0 : 1)
-          .allowsHitTesting(!isTrayUp)
+          .opacity(isTrayUp && screenLayout.column != nil ? 0 : 1)
+          .allowsHitTesting(!app.browse.isSearchTrayOnScreen)
           .ignoresSafeArea()
       }
     }
@@ -74,7 +74,9 @@ struct SearchHomeView: View {
         reopen: { app.reopenLastClosed() }
       ),
       tabs: { app.showTabSwitcher() },
-      settings: { app.sheet = .settings }
+      settings: { app.sheet = .settings },
+      sidesShown: app.browse.barSidesShown,
+      centreShown: app.browse.barCentreShown
     )
   }
 

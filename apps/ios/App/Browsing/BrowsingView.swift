@@ -250,18 +250,17 @@ struct BrowsingView: View {
   private var bar: some View {
     BottomBar(
       address: BarAddress(tab: app.tabs.selectedTab, page: currentWebPage),
-      isCollapsed: barPresentation == .collapsed,
+      isCollapsed: barVisibility.presentation == .collapsed,
       sideInset: pageSpan.safeSide,
+      sidesShown: barVisibility.isShown && app.browse.barSidesShown,
+      centreShown: barVisibility.isShown && app.browse.barCentreShown,
       actions: barActions
     )
     .padding(.bottom, BrowseLayout.barBottomGap)
     .environment(\.colorScheme, barScheme)
     .highPriorityGesture(pagerGesture)
-    .offset(y: isBarShown ? 0 : BrowseLayout.barCollapseTravel)
-    .opacity(isBarShown ? 1 : 0)
     .allowsHitTesting(isBarShown)
-    .animation(barMotion, value: isBarShown)
-    .animation(barMotion, value: barPresentation)
+    .animation(barMotion, value: barVisibility.presentation)
     .frame(maxHeight: .infinity, alignment: .bottom)
     .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
     .ignoresSafeArea(.keyboard)
