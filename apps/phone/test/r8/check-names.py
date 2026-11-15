@@ -45,7 +45,8 @@ for line in manifest.splitlines():
         value = name.group(1)
         if value.startswith('.'):
             value = package + value
-        components.append((current, value))
+        if current != 'activity-alias':
+            components.append((current, value))
         current = None
     target = re.search(r'android:targetActivity\(0x[0-9a-f]+\)="([^"]+)"', line)
     if target:

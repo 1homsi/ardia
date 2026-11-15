@@ -21,7 +21,7 @@ import zipfile
 from pathlib import Path
 
 if len(sys.argv) > 1 and sys.argv[1] in ('-h', '--help'):
-    print('\n'.join(__doc__.strip().splitlines()[0:4]))
+    print(__doc__.strip())
     sys.exit(0)
 
 SDK = Path.home() / 'Library/Android/sdk'

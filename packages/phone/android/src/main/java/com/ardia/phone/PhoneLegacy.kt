@@ -57,8 +57,8 @@ class PhoneLegacy(
 ) {
     private val app: Context = context.applicationContext ?: context
     private val dataDir: File get() = UpgradeGate.dataDir(app)
-    private val sourceDatabase: File get() = File(dataDir, "databases/browser.db")
-    private val sourceWal: File get() = File(dataDir, "databases/browser.db-wal")
+    private val sourceDatabase: File get() = File(dataDir, "databases/$DATABASE_FILE")
+    private val sourceWal: File get() = File(dataDir, "databases/$DATABASE_FILE-wal")
     private val snapshotFolder: File get() = File(File(app.noBackupFilesDir, "PhoneSync"), "LegacySnapshot")
     private val oldThumbnails: File get() = File(app.cacheDir, "TabSnapshots")
     private val newThumbnails: File get() = File(app.filesDir, "PageSnapshots")
@@ -434,9 +434,10 @@ class PhoneLegacy(
         private val LOCK = Any()
         const val SCHEMA_VERSION = 1
         const val VISIT_PAGE_LIMIT = 5_000
-        private const val BROWSER = "ardia.browser"
-        private const val BLOCKING = "ardia.blocking"
-        private const val READER = "ardia.reader"
+        internal const val DATABASE_FILE = "browser.db"
+        internal const val BROWSER = "ardia.browser"
+        internal const val BLOCKING = "ardia.blocking"
+        internal const val READER = "ardia.reader"
         private val PREFERENCE_FILES = listOf(BROWSER, BLOCKING, READER)
         private const val SITE_PREFERENCES = "ardia-site-preferences"
         private const val KEY_NIGHT_SHADE = "browsing.nightShade"
