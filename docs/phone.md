@@ -162,6 +162,10 @@ and again only when that status changes.
 7. **Once only:** after a link, go to Recents and back to Ardia, and rotate if the screen allows: no new line.
 8. **Cold start:** force-stop the app, then run step 1 with `--ez com.ardia.phone.PAGE_LAB true` added: open
    System; the initial link line shows the link.
+   Expected on every cold start, as in both native apps, and not a failure: with Auto-Open Keyboard on the app
+   opens on the start page with the tray and keyboard up over the start page's backdrop (its logo and bar faded out,
+   so nothing else shows behind the tray), never over the last page or the deck. Back closes the tray onto the
+   selected tab. Report only a white or empty frame behind the tray, which e10082e90 removed.
 9. **Default browser:** the status line shows isDefault and canAsk; Request role shows the system dialog and
    the line follows the answer; Default apps settings opens the settings page.
    `adb shell cmd role get-role-holders android.app.role.BROWSER` agrees. With Ardia as the default, step 1
