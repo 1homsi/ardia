@@ -43,6 +43,7 @@ import {
   updateTabById,
   useTabs,
 } from "../tabs/store";
+import { labTrace } from "../../platform/lab";
 import { pictureCaptured, pictureLanded } from "../tabs/pictures";
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
@@ -275,6 +276,7 @@ export async function showDeck() {
     };
   }
   const leaving = surface === "browsing" ? selected : null;
+  labTrace(`PAGELAB deck shown with ${currentTabs().open.length} tabs, ${currentTabs().privates.length} private`);
   useBrowse.setState({ surface: "deck", deckEntrance: leaving, frozenOrder: null, opening: null, leaving });
 }
 
