@@ -548,13 +548,15 @@ is plain Chromium.
   test instance) is closed, whatever lost it.
 - What a pop-up's page asks for goes to one place, `requestHost` (`engine/requestHosts.ts`): its opener's page while
   that page is listening, else a browser page of its profile, else nobody. With nobody, a tab or link the pop-up opens
-  reaches the app as a link (`onOpenURLs`), the way a second launch with an address does, and `ArdiaTabs.routeLinkTabs`
-  hands back the pop-up's own engine tab and profile for that address. So it goes to a browser window of the
-  profile whether or not that window has a page (an empty window with New Tab set to the command bar takes it), or
-  to a new window when none is open. A tab the app hasn't adopted within 10 s is closed in the engine, never left
-  hidden and running. Known gap: a private pop-up's tab is closed at once. The app makes a new private session for
-  each private window and can't open one on an existing session, and a regular window would leak it. An app-link ask
-  with nobody to show it is refused and forgotten (`externalAppForget`), where the Mac drops it unanswered: the
+  reaches the app whole, as the `tabs.windowRequest` engine event (the request with its offered tab, disposition and
+  engine profile; the Mac never sends it). The app (`state/tabs/openFromWindowlessPage.ts`) gives it to the most
+  recently focused browser window of that profile, with or without a page, through the same `openFromPage` a page's
+  own request takes, or opens a window of that profile holding the tab when none is open. It is never treated as a
+  link from another app, so no external-link rule applies and it keeps its profile and live tab. A tab the app hasn't
+  adopted within 10 s is closed in the engine, never left hidden and running; a profile the app doesn't know closes
+  it at once. Known gap: a private pop-up's tab is closed and forgotten at once. The app makes a new private session
+  for each private window and can't open one on an existing session, and a regular window would leak it. An app-link
+  ask with nobody to show it is refused and forgotten (`externalAppForget`), where the Mac drops it unanswered: the
   prompt is drawn on the asking page's tab, so a window with no page has nowhere to show it.
 - A pop-up window takes focus only if, when it opens, its opener's app window is the foreground window and the
   opener's page holds the keyboard (`keyboard.page`, asked by `WindowManager.h` at that moment, the same rule as page

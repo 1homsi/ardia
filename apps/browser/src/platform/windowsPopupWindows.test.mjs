@@ -272,11 +272,8 @@ test("a pop-up whose page closed itself closes its window at once, without the c
 
 const { answerExternalAppsWith } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
 const { addNativeListener } = await import("../../../../packages/expo-windows/src/events.ts");
-const { tabCalls } = await import("../../../../packages/expo-windows/src/engine/domains/tabs.ts");
-const { readArgs } = await import("../../../../packages/expo-windows/src/engine/domains/calling.ts");
-const linksOpened = [];
-addNativeListener("ArdiaShell", "onOpenURLs", (event) => linksOpened.push(event));
-const routeLinkTabs = async (urls) => JSON.parse(await tabCalls.routeLinkTabs(readArgs("", JSON.stringify({ urls }))));
+const windowRequests = [];
+addNativeListener("ArdiaTabs", "tabs", (event) => event?.name === "tabs.windowRequest" && windowRequests.push(event.data));
 const discarded = (adopt) => calls.some((call) => call.verb === "tab.discard" && call.args.adopt === adopt);
 
 async function lonePopup(adopt, profile = "p-work") {
@@ -305,14 +302,17 @@ test("an app-link ask from a pop-up left without its opener's window, with no br
   await popup.done();
 });
 
-test("a tab a lone pop-up opens reaches the app as a link with its own tab, so an empty command-bar window of its profile takes it", async () => {
+test("a tab a lone pop-up opens reaches the app whole, with its offered tab and profile, as a window request no link rule sees", async () => {
   const popup = await lonePopup("ardiacore:71");
-  const before = linksOpened.length;
+  const before = windowRequests.length;
   emitTopic("tab.opened", { adopt: "ardiacore:72", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
   await settle();
-  assert.deepEqual(linksOpened.slice(before), [{ urls: ["https://help.example/"] }], "the app hears it as a link, which opens in a browser window of the profile with or without a page");
-  assert.deepEqual(await routeLinkTabs(["https://help.example/"]), { profile: "p-work", adoptIds: ["ardiacore:72"] }, "the app's link path adopts the pop-up's own tab");
-  assert.deepEqual(await routeLinkTabs(["https://help.example/"]), {}, "the tab is handed out once");
+  const sent = windowRequests.slice(before);
+  assert.equal(sent.length, 1, "one window request reaches the app");
+  assert.equal(sent[0].profile, "p-work");
+  assert.equal(sent[0].request.adoptId, "ardiacore:72");
+  assert.equal(sent[0].request.url, "https://help.example/");
+  assert.equal(sent[0].request.disposition, "foreground");
   const adopted = mountPage("command-bar-window-tab", { url: "https://help.example/", profile: "p-work", adopt: "ardiacore:72", windowId: "empty-window" }, () => {});
   await settle();
   assert.ok(!discarded("ardiacore:72"), "the adopted tab is kept");
@@ -320,23 +320,27 @@ test("a tab a lone pop-up opens reaches the app as a link with its own tab, so a
   await popup.done();
 });
 
-test("a link a lone pop-up opens in a new window reaches the app as a link in the pop-up's profile", async () => {
+test("a link a lone pop-up opens in a new window reaches the app whole, in the pop-up's profile and without the pop-up's click point", async () => {
   const popup = await lonePopup("ardiacore:73");
-  const before = linksOpened.length;
-  emitTopic("tab", { key: popup.info.pageKey, name: "openWindow", data: { url: "https://help.example/split", disposition: "window", userGesture: true } });
+  const before = windowRequests.length;
+  emitTopic("tab", { key: popup.info.pageKey, name: "openWindow", data: { url: "https://help.example/split", disposition: "window", userGesture: true, point: { x: 5, y: 5 } } });
   await settle();
-  assert.deepEqual(linksOpened.slice(before), [{ urls: ["https://help.example/split"] }]);
-  assert.deepEqual(await routeLinkTabs(["https://help.example/split"]), { profile: "p-work", adoptIds: [null] }, "no engine tab to adopt, but the app opens it in the pop-up's profile");
+  const sent = windowRequests.slice(before);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].profile, "p-work");
+  assert.equal(sent[0].request.url, "https://help.example/split");
+  assert.equal(sent[0].request.disposition, "window");
+  assert.equal(sent[0].request.point, undefined);
   await popup.done();
 });
 
-test("a tab a lone private pop-up opens is closed at once: no window of its private session can take it", async () => {
+test("a tab a lone private pop-up opens is closed and forgotten at once: no window of its private session can take it", async () => {
   const popup = await lonePopup("ardiacore:74", "p-work@private-9");
-  const before = linksOpened.length;
+  const before = windowRequests.length;
   emitTopic("tab.opened", { adopt: "ardiacore:75", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work@private-9", parent: "", fromClick: false });
   await settle();
-  assert.equal(linksOpened.length, before, "it never reaches the app as a link");
-  assert.ok(discarded("ardiacore:75"), "the private tab is closed, never put in a regular window");
+  assert.equal(windowRequests.length, before, "nothing reaches the app");
+  assert.ok(discarded("ardiacore:75"), "the private tab is closed at once, never put in a regular window");
   await popup.done();
 });
 
@@ -354,6 +358,5 @@ test("a tab a lone pop-up opens is closed in the engine, not left hidden and run
   }
   await settle();
   assert.ok(discarded("ardiacore:77"), "at the deadline the offered tab is closed in the engine");
-  assert.deepEqual(await routeLinkTabs(["https://help.example/late"]), {}, "a tab that is gone isn't handed to the app");
   await popup.done();
 });
