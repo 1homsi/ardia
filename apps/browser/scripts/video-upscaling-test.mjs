@@ -346,6 +346,8 @@ await check("tab-share", async () => {
     });
     if (cap !== "live") throw new Error(`getDisplayMedia: ${cap}`);
     await until("the engine to report the share", async () => (await capturing(v)) === true || null, 8000);
+    await evalApp(`ac.actions.switchToTab(${JSON.stringify(v.id)}); return true`);
+    await until("the sharing tab back in front", async () => (await gate(v)).state.windows.some((w) => w.focusedTab === v.url) || null, 8000);
     await sleep(800);
     const during = expectNothing(await watch(), await gate(v));
     await v.page.eval("window.unshare()");
