@@ -191,9 +191,11 @@
   };
   const NOW_PLAYING_DRIFT_S = 1;
   let lastNowPlaying = null;
+  let reportedMedia = null;
   const projectedPosition = (last, now) => last.position + (last.playing ? ((now - last.at) / 1000) * last.rate : 0);
   const reportNowPlaying = later(() => {
     const el = pickMedia();
+    reportedMedia = el;
     const md = session && session.metadata;
     let state = null;
     if (el || md) {
@@ -244,10 +246,9 @@
       return;
     }
     if (e.type === "play" || e.type === "playing") {
-      const followed = active;
       active = m;
       watchRemoval(m);
-      const joinedAt = timeline && anchorStartedMedia(timeline, m, followed, performance.now());
+      const joinedAt = timeline && anchorStartedMedia(timeline, m, reportedMedia, performance.now());
       if (joinedAt != null) restartTimelineClock(joinedAt);
     }
     noteHeard(m);
