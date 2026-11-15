@@ -1,16 +1,33 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import {
+  clampedProgress,
+  trayDragDismisses,
+  trayDragOffset,
+} from "../../lib/trayMotion";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCoverFocus } from "./coverFocus";
 import { LookBackdrop } from "./LookViews";
-import { tabsMotion } from "./motion";
+import { tabsCurve, tabsMotion, trayMotion } from "./motion";
 import { useTheme } from "./theme";
 import { menuLayout } from "./tokens";
 
 const HIDE_FALLBACK_MS = 900;
+const DIM_TRAVEL_RADII = 8;
 
-export function usePresence(open: boolean): { mounted: boolean; hidden: () => void } {
+export function usePresence(open: boolean): {
+  mounted: boolean;
+  hidden: () => void;
+} {
   const [mounted, setMounted] = useState(open);
   useEffect(() => {
     if (open) setMounted(true);
@@ -18,7 +35,12 @@ export function usePresence(open: boolean): { mounted: boolean; hidden: () => vo
   return { mounted: open || mounted, hidden: () => setMounted(false) };
 }
 
-type Props = { open: boolean; onDismiss: () => void; onHidden: () => void; children: ReactNode };
+type Props = {
+  open: boolean;
+  onDismiss: () => void;
+  onHidden: () => void;
+  children: ReactNode;
+};
 
 export function Sheet({ open, onDismiss, onHidden, children }: Props) {
   const theme = useTheme();
@@ -28,36 +50,106 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
   const panel = useRef<View>(null);
   useCoverFocus(panel);
   const sheetHeight = useSharedValue(height);
+  const drag = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
     if (open) {
-      shown.value = withSpring(1, tabsMotion.sheetIn);
+      drag.value = 0;
+      shown.value = reduceMotion
+        ? withTiming(1, {
+            duration: trayMotion.reduced,
+            easing: tabsCurve.easeOut,
+          })
+        : withSpring(1, tabsMotion.sheetIn);
       return;
     }
-    shown.value = withSpring(0, tabsMotion.sheetOut, (finished) => {
+    const hidden = (finished?: boolean) => {
+      "worklet";
       if (finished) runOnJS(onHidden)();
-    });
+    };
+    shown.value = reduceMotion
+      ? withTiming(
+          0,
+          { duration: trayMotion.reduced, easing: tabsCurve.easeInOut },
+          hidden,
+        )
+      : withSpring(0, tabsMotion.sheetOut, hidden);
     const fallback = setTimeout(onHidden, HIDE_FALLBACK_MS);
     return () => clearTimeout(fallback);
   }, [open]);
-  const dim = useAnimatedStyle(() => ({ opacity: Math.min(Math.max(shown.value, 0), 1) }));
-  const slide = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - shown.value) * sheetHeight.value }] }));
-  const [settled] = useState(() => Math.max(height - insets.top - menuLayout.sheetTopGap, 0));
+  const pull = Gesture.Pan()
+    .withTestId("sheetDrag")
+    .enabled(open)
+    .activeOffsetY([-12, 12])
+    .failOffsetX([-24, 24])
+    .onUpdate((event) => {
+      drag.value = trayDragOffset(event.translationY);
+    })
+    .onEnd((event) => {
+      if (
+        trayDragDismisses(
+          event.translationY,
+          event.velocityY,
+          sheetHeight.value,
+        )
+      ) {
+        runOnJS(onDismiss)();
+        return;
+      }
+      drag.value = reduceMotion
+        ? withTiming(0, {
+            duration: trayMotion.reduced,
+            easing: tabsCurve.easeOut,
+          })
+        : withSpring(0, trayMotion.settle);
+    });
+  const dim = useAnimatedStyle(() => ({
+    opacity:
+      Math.min(Math.max(shown.value, 0), 1) *
+      (1 -
+        clampedProgress(drag.value, menuLayout.sheetRadius * DIM_TRAVEL_RADII)),
+  }));
+  const slide = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: (1 - shown.value) * sheetHeight.value + drag.value },
+    ],
+  }));
+  const [settled] = useState(() =>
+    Math.max(height - insets.top - menuLayout.sheetTopGap, 0),
+  );
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents={open ? "box-none" : "none"}
+    >
       <Animated.View style={[StyleSheet.absoluteFill, dim]}>
-        <Pressable accessibilityLabel="Close" style={[StyleSheet.absoluteFill, { backgroundColor: theme.trayDim }]} onPress={onDismiss} />
+        <Pressable
+          accessibilityLabel="Close"
+          style={[StyleSheet.absoluteFill, { backgroundColor: theme.trayDim }]}
+          onPress={onDismiss}
+        />
       </Animated.View>
-      <Animated.View
-        ref={panel}
-        accessibilityViewIsModal
-        onLayout={(event) => {
-          sheetHeight.value = event.nativeEvent.layout.height;
-        }}
-        style={[styles.sheet, { maxHeight: settled, paddingBottom: insets.bottom, shadowColor: theme.trayShadow }, slide]}
-      >
-        <LookBackdrop />
-        {children}
-      </Animated.View>
+      <GestureDetector gesture={pull}>
+        <Animated.View
+          ref={panel}
+          accessibilityViewIsModal
+          onLayout={(event) => {
+            sheetHeight.value = event.nativeEvent.layout.height;
+          }}
+          style={[
+            styles.sheet,
+            {
+              maxHeight: settled,
+              paddingBottom: insets.bottom,
+              shadowColor: theme.trayShadow,
+            },
+            slide,
+          ]}
+        >
+          <LookBackdrop />
+          {children}
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }
