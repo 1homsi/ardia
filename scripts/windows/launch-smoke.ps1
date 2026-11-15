@@ -52,6 +52,8 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);
   [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool GetSystemFlag(uint action, uint unused, ref int value, uint flags);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool SetSystemFlag(uint action, uint value, IntPtr pointerValue, uint flags);
@@ -433,50 +435,6 @@ else {
   if ($first) { Write-Host "First window rendered $($first.Matches[0].Groups[1].Value) ms after the process started." }
 }
 
-$browserLog = Join-Path $Out "browser.log"
-Remove-Item -Force -ErrorAction SilentlyContinue $browserLog
-$env:ARDIA_DATA_DIR = New-DataDirectory "browser-data"
-Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
-$browser = Start-Process -FilePath $App -ArgumentList "--log-file=`"$browserLog`"" -PassThru
-try {
-  Start-Sleep -Seconds 12
-  Save-Screenshot (Join-Path $Out "browser.png")
-  if ($browser.HasExited) { $failures += "the app exited on its own with onboarding done (exit code $($browser.ExitCode))" }
-  else {
-    $working = [Math]::Round((Get-Process -Id $browser.Id).WorkingSet64 / 1MB)
-    $private = [Math]::Round((Get-Process -Id $browser.Id).PrivateMemorySize64 / 1MB)
-    Write-Host "Memory with the browser window open: $working MB working set, $private MB private."
-    Test-WindowIcon $browser $browserLog | ForEach-Object { $failures += $_ }
-    if (-not $NoInput) {
-      $inputNotes = Test-Input $browser $browserLog
-      $inputNotes | ForEach-Object { $failures += $_ }
-    }
-    if ($browser.HasExited) { $failures += "the app exited while being driven (exit code $($browser.ExitCode))" }
-  }
-} finally {
-  if (-not $browser.HasExited) {
-    Stop-Process -Id $browser.Id -Force
-    $browser.WaitForExit(10000) | Out-Null
-  }
-}
-if (-not (Test-Path $browserLog)) { $failures += "the launch with onboarding done wrote no log" }
-elseif (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Quiet) {
-  Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
-  $failures += "the launch with onboarding done has errors"
-}
-elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first window" -Quiet)) { $failures += "the browser window never rendered with onboarding done" }
-
-$env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
-$importFixtures = Join-Path $env:ARDIA_DATA_DIR "import-fixtures"
-$fixtureProfiles = Join-Path $PSScriptRoot "..\..\packages\import\fixtures\home\Library\Application Support"
-foreach ($fixture in @(@("firefox", "Firefox\Profiles\abcd1234.default-release"), @("work", "Firefox\Profiles\zzzz9999.work"), @("zen", "zen\Profiles\zen12345.Default (release)"), @("chrome", "Google\Chrome\Default"))) {
-  $to = Join-Path $importFixtures $fixture[0]
-  New-Item -ItemType Directory -Force -Path $to | Out-Null
-  foreach ($name in @("key4.db", "logins.json", "logins.db", "cookies.sqlite", "Web Data")) {
-    $from = Join-Path (Join-Path $fixtureProfiles $fixture[1]) $name
-    if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $to }
-  }
-}
 $httpPagesPort = 9353
 $httpPagesScript = Join-Path (New-DataDirectory "http-pages") "serve.ps1"
 Set-Content -LiteralPath $httpPagesScript -Encoding utf8NoBOM -Value @'
@@ -511,6 +469,101 @@ while (-not $httpPagesUp -and (Get-Date) -lt $httpPagesBy -and -not $httpPages.H
   if (-not $httpPagesUp) { Start-Sleep -Milliseconds 300 }
 }
 if (-not $httpPagesUp) { $failures += "the loopback page server never listened on port $httpPagesPort" }
+$withEngineForEdge = Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")
+
+$browserLog = Join-Path $Out "browser.log"
+Remove-Item -Force -ErrorAction SilentlyContinue $browserLog
+$env:ARDIA_DATA_DIR = New-DataDirectory "browser-data"
+Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+$browser = Start-Process -FilePath $App -ArgumentList "--log-file=`"$browserLog`"" -PassThru
+try {
+  Start-Sleep -Seconds 12
+  Save-Screenshot (Join-Path $Out "browser.png")
+  if ($browser.HasExited) { $failures += "the app exited on its own with onboarding done (exit code $($browser.ExitCode))" }
+  else {
+    $working = [Math]::Round((Get-Process -Id $browser.Id).WorkingSet64 / 1MB)
+    $private = [Math]::Round((Get-Process -Id $browser.Id).PrivateMemorySize64 / 1MB)
+    Write-Host "Memory with the browser window open: $working MB working set, $private MB private."
+    Test-WindowIcon $browser $browserLog | ForEach-Object { $failures += $_ }
+    if (-not $NoInput) {
+      $inputNotes = Test-Input $browser $browserLog
+      $inputNotes | ForEach-Object { $failures += $_ }
+    }
+    if ($browser.HasExited) { $failures += "the app exited while being driven (exit code $($browser.ExitCode))" }
+  }
+} finally {
+  if (-not $browser.HasExited) {
+    Stop-Process -Id $browser.Id -Force
+    $browser.WaitForExit(10000) | Out-Null
+  }
+}
+if (-not (Test-Path $browserLog)) { $failures += "the launch with onboarding done wrote no log" }
+elseif (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Quiet) {
+  Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
+  $failures += "the launch with onboarding done has errors"
+}
+elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first window" -Quiet)) { $failures += "the browser window never rendered with onboarding done" }
+
+function Test-TopEdgeResize([System.Diagnostics.Process]$Process) {
+  $handle = $Process.MainWindowHandle
+  if ($handle -eq [IntPtr]::Zero) { return @("top edge: the window never showed") }
+  [ArdiaInput]::SetForegroundWindow($handle) | Out-Null
+  Start-Sleep -Milliseconds 400
+  $before = Get-WindowRect $Process
+  $client = Get-ClientArea $Process
+  if (-not $before -or -not $client) { return @("top edge: the window could not be measured") }
+  $press = New-Object ArdiaInput+Point
+  $press.X = $client.X + [int]($client.Width * 0.3)
+  $press.Y = $client.Y + 2
+  $class = New-Object System.Text.StringBuilder 256
+  [ArdiaInput]::GetClassName([ArdiaInput]::WindowFromPoint($press), $class, 256) | Out-Null
+  $under = $class.ToString()
+  Write-Host "Top edge: the window under ($($press.X), $($press.Y)) is $under."
+  if (-not $under.StartsWith("Chrome_")) { return @("top edge: the press point is over $under, not a page window, so the drag would prove nothing") }
+  Save-Screenshot (Join-Path $Out "top-edge-before.png")
+  Send-Drag $press.X $press.Y 0 40 300
+  Start-Sleep -Milliseconds 700
+  Save-Screenshot (Join-Path $Out "top-edge-after.png")
+  $after = Get-WindowRect $Process
+  if (-not $after) { return @("top edge: the window was gone after the drag") }
+  $topMoved = $after.Top - $before.Top
+  $bottomMoved = $after.Bottom - $before.Bottom
+  if ([Math]::Abs($topMoved - 40) -le 8 -and [Math]::Abs($bottomMoved) -le 2) { Write-Host "Top edge: dragging the top band over the page down by 40 px resized the window from the top (top moved $topMoved px, bottom stayed)."; return @() }
+  return @("top edge: dragging the top band over the page down by 40 px moved the window's top by $topMoved px and its bottom by $bottomMoved px; it should resize from the top")
+}
+
+$edgeLog = Join-Path $Out "top-edge.log"
+$env:ARDIA_DATA_DIR = New-DataDirectory "top-edge-data"
+$env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
+Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"minimalismMode":true,"sidebarSide":"right"}}' -Encoding utf8NoBOM
+if ($withEngineForEdge -and -not $NoInput -and $httpPagesUp) {
+  $edge = Start-Process -FilePath $App -ArgumentList "--log-file=`"$edgeLog`"", "http://127.0.0.1:$httpPagesPort/a" -PassThru
+  $env:ARDIA_CONFIG_DIR = ""
+  try {
+    Start-Sleep -Seconds 12
+    if ($edge.HasExited) { $failures += "top edge: the app exited on its own (exit code $($edge.ExitCode))" }
+    else { Test-TopEdgeResize $edge | ForEach-Object { $failures += $_ } }
+  } finally {
+    if (-not $edge.HasExited) {
+      Stop-Process -Id $edge.Id -Force
+      $edge.WaitForExit(10000) | Out-Null
+    }
+  }
+}
+$env:ARDIA_CONFIG_DIR = ""
+
+$env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
+$importFixtures = Join-Path $env:ARDIA_DATA_DIR "import-fixtures"
+$fixtureProfiles = Join-Path $PSScriptRoot "..\..\packages\import\fixtures\home\Library\Application Support"
+foreach ($fixture in @(@("firefox", "Firefox\Profiles\abcd1234.default-release"), @("work", "Firefox\Profiles\zzzz9999.work"), @("zen", "zen\Profiles\zen12345.Default (release)"), @("chrome", "Google\Chrome\Default"))) {
+  $to = Join-Path $importFixtures $fixture[0]
+  New-Item -ItemType Directory -Force -Path $to | Out-Null
+  foreach ($name in @("key4.db", "logins.json", "logins.db", "cookies.sqlite", "Web Data")) {
+    $from = Join-Path (Join-Path $fixtureProfiles $fixture[1]) $name
+    if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $to }
+  }
+}
 $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 $env:ARDIA_BACKGROUND = "1"
 $env:ARDIA_TEST = "pipHover=first,pipHover=last,httpPages=$httpPagesPort"
