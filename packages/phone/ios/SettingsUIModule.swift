@@ -1,4 +1,5 @@
 import ArdiaDesign
+import ArdiaSync
 import ExpoModulesCore
 import ExpoUI
 import SwiftUI
@@ -157,6 +158,132 @@ struct SettingsShortcutsView: ExpoSwiftUI.View {
   }
 }
 
+enum SpaceFields {
+  static func profile(name: String, icon: String?, color: String?, themeColors: [String], themeDarkColors: [String]?) -> SyncedProfile {
+    SyncedProfile(
+      syncId: "space", name: name, color: color, icon: icon, isDefault: false,
+      theme: themeColors.isEmpty ? nil : SyncedTheme(colors: themeColors, darkColors: themeDarkColors),
+      deviceTabs: [], pinned: PinnedArea(), bookmarks: [], history: []
+    )
+  }
+
+  static func hex(_ color: UIColor) -> String {
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    let channel = { (value: CGFloat) in Int((min(max(value, 0), 1) * 255).rounded()) }
+    return String(format: "#%02X%02X%02X", channel(red), channel(green), channel(blue))
+  }
+}
+
+final class SpaceTitleProps: UIBaseViewProps {
+  @Field var name: String = ""
+  @Field var icon: String? = nil
+  @Field var color: String? = nil
+  @Field var themeColors: [String] = []
+  @Field var themeDarkColors: [String]? = nil
+  @Field var showsChevron: Bool = false
+}
+
+struct SpaceTitleView: ExpoSwiftUI.View {
+  @ObservedObject var props: SpaceTitleProps
+
+  var body: some View {
+    SpaceTitle(space: SpaceFields.profile(name: props.name, icon: props.icon, color: props.color, themeColors: props.themeColors, themeDarkColors: props.themeDarkColors), showsChevron: props.showsChevron)
+  }
+}
+
+final class GlassCircleButtonProps: UIBaseViewProps {
+  @Field var symbol: String = "xmark"
+  @Field var label: String = ""
+  @Field var diameter: Double = Double(TabsLayout.headerCircle)
+  var onButtonPress = EventDispatcher()
+}
+
+struct GlassCircleButtonView: ExpoSwiftUI.View {
+  @ObservedObject var props: GlassCircleButtonProps
+
+  var body: some View {
+    GlassCircleButton(symbol: props.symbol, label: LocalizedStringKey(props.label), diameter: CGFloat(props.diameter)) {
+      props.onButtonPress([:])
+    }
+  }
+}
+
+final class SpacePageDotsProps: UIBaseViewProps {
+  @Field var count: Int = 1
+  @Field var index: Int = 0
+}
+
+struct SpacePageDotsView: ExpoSwiftUI.View {
+  @ObservedObject var props: SpacePageDotsProps
+
+  var body: some View {
+    SpacePageDots(count: max(props.count, 0), index: props.index)
+  }
+}
+
+struct PinnedTabRecord: Record {
+  @Field var key: String = ""
+  @Field var title: String = ""
+  @Field var url: String = ""
+}
+
+struct PinnedTileRecord: Record {
+  @Field var key: String = ""
+  @Field var title: String = ""
+  @Field var url: String = ""
+  @Field var icon: String? = nil
+  @Field var folder: [PinnedTabRecord]? = nil
+
+  var tile: PinnedTile {
+    PinnedTile(key: key, title: title, url: url, icon: icon, folder: folder?.map { PinnedTab(key: $0.key.isEmpty ? $0.url : $0.key, title: $0.title, url: $0.url, icon: nil) })
+  }
+}
+
+final class PinnedTilesProps: UIBaseViewProps {
+  @Field var tiles: [PinnedTileRecord] = []
+  var onTileOpen = EventDispatcher()
+}
+
+struct PinnedTilesView: ExpoSwiftUI.View {
+  @ObservedObject var props: PinnedTilesProps
+
+  var body: some View {
+    PinnedTiles(tiles: props.tiles.map(\.tile)) { url, title in
+      props.onTileOpen(["url": url, "title": title])
+    }
+  }
+}
+
+struct SpaceBackdropModifier: ViewModifier, Record {
+  @Field var color: String? = nil
+  @Field var icon: String? = nil
+  @Field var themeColors: [String] = []
+  @Field var themeDarkColors: [String]? = nil
+  @Field var animated: Bool = true
+
+  func body(content: Content) -> some View {
+    let space = SpaceFields.profile(name: "", icon: icon, color: color, themeColors: themeColors, themeDarkColors: themeDarkColors)
+    content.presentationBackground {
+      SpaceBackdropLayer(space: space, animated: animated)
+    }
+  }
+}
+
+struct SpaceBackdropLayer: View {
+  let space: SyncedProfile
+  let animated: Bool
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    SpaceBackdrop(tones: SpaceTone.colors(for: space, scheme: colorScheme, contrast: contrast))
+      .animation(animated && !reduceMotion ? Motion.smooth : nil, value: space)
+      .ignoresSafeArea()
+  }
+}
+
 struct SettingsChromeModifier: ViewModifier, Record {
   func body(content: Content) -> some View {
     content.ardiaSettingsChrome()
@@ -247,9 +374,10 @@ struct ProfileLookModifier: ViewModifier, Record {
 }
 
 enum SettingsUIModifiers {
-  static let names = ["ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"]
+  static let names = ["ardia.spaceBackdrop", "ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"]
 
   static func register() {
+    ViewModifierRegistry.register("ardia.spaceBackdrop") { params, context, _ in try SpaceBackdropModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.settingsChrome") { params, context, _ in try SettingsChromeModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.settingsPage") { params, context, _ in try SettingsPageModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.chromeSurface") { params, context, _ in try ChromeSurfaceModifier(from: params, appContext: context) }
@@ -285,5 +413,26 @@ public final class SettingsUIModule: Module {
     ExpoUIView(CheckmarkLabelView.self)
     ExpoUIView(AppIconPreviewView.self)
     ExpoUIView(SettingsShortcutsView.self)
+    ExpoUIView(SpaceTitleView.self)
+    ExpoUIView(GlassCircleButtonView.self)
+    ExpoUIView(SpacePageDotsView.self)
+    ExpoUIView(PinnedTilesView.self)
+
+    Function("spaceMenuSymbol") { (name: String, icon: String?) -> String in
+      SpaceGlyph.menuSymbol(for: SpaceFields.profile(name: name, icon: icon, color: nil, themeColors: [], themeDarkColors: nil))
+    }
+
+    Function("spaceSymbol") { (icon: String?) -> String? in
+      SpaceColors.symbol(icon)
+    }
+
+    Function("spaceColor") { (name: String?) -> [String: String]? in
+      guard let color = SpaceColors.color(named: name) else { return nil }
+      let resolved = UIColor(color)
+      return [
+        "light": SpaceFields.hex(resolved.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))),
+        "dark": SpaceFields.hex(resolved.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))),
+      ]
+    }
   }
 }

@@ -104,7 +104,13 @@ export const pages = {
       return { ...NOT_READY, engineName: `not ready: ${error instanceof Error ? error.message : "refused"}` };
     }
   },
-  appRelease: (): AppRelease | null => native().appRelease?.() ?? null,
+  appRelease: (): AppRelease | null => {
+    try {
+      return native().appRelease?.() ?? null;
+    } catch {
+      return null;
+    }
+  },
   launchOptions: (): LaunchOptions | null => {
     const options = native().launchOptions();
     return options ? { pageLab: options.pageLab, syncDemo: options.syncDemo ?? false, lab: options.lab ?? false, arguments: options.arguments ?? {} } : null;

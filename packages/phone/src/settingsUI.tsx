@@ -66,7 +66,44 @@ export function SettingsShortcuts({ onPress, ...props }: SettingsPieceProps & { 
   return createElement(NativeShortcuts, { ...props, onShortcutPress: (event: { nativeEvent: { id: string } }) => onPress(event.nativeEvent.id) });
 }
 
+export type SpaceLook = { color?: string | null; icon?: string | null; themeColors?: string[]; themeDarkColors?: string[] | null };
+
+export const SpaceTitle = piece<SettingsPieceProps & SpaceLook & { name: string; showsChevron: boolean }>("SpaceTitleView");
+
+export const SpacePageDots = piece<SettingsPieceProps & { count: number; index: number }>("SpacePageDotsView");
+
+const NativeGlassCircleButton = piece<SettingsPieceProps & { symbol: string; label: string; diameter?: number; onButtonPress: () => void }>("GlassCircleButtonView");
+
+export function GlassCircleButton({ onPress, ...props }: SettingsPieceProps & { symbol: string; label: string; diameter?: number; onPress: () => void }) {
+  return createElement(NativeGlassCircleButton, { ...props, onButtonPress: () => onPress() });
+}
+
+export type PinnedTileItem = { key: string; title: string; url: string; icon?: string | null; folder?: { key?: string; title: string; url: string }[] | null };
+
+const NativePinnedTiles = piece<SettingsPieceProps & { tiles: PinnedTileItem[]; onTileOpen: (event: { nativeEvent: { url: string; title: string } }) => void }>("PinnedTilesView");
+
+export function PinnedTiles({ onOpen, ...props }: SettingsPieceProps & { tiles: PinnedTileItem[]; onOpen: (tab: { url: string; title: string }) => void }) {
+  return createElement(NativePinnedTiles, { ...props, onTileOpen: (event: { nativeEvent: { url: string; title: string } }) => onOpen(event.nativeEvent) });
+}
+
+type SpaceFunctions = {
+  spaceMenuSymbol(name: string, icon: string | null): string;
+  spaceSymbol(icon: string | null): string | null;
+  spaceColor(name: string | null): { light: string; dark: string } | null;
+};
+
+const spaceFunctions = () => requireOptionalNativeModule<SpaceFunctions>(SETTINGS_UI_MODULE);
+
+export const spaceMenuSymbol = (name: string, icon?: string | null): string | null => spaceFunctions()?.spaceMenuSymbol(name, icon ?? null) ?? null;
+
+export const spaceSymbol = (icon?: string | null): string | null => spaceFunctions()?.spaceSymbol(icon ?? null) ?? null;
+
+export const spaceColor = (name?: string | null): { light: string; dark: string } | null => spaceFunctions()?.spaceColor(name ?? null) ?? null;
+
 const ardia = (name: string, params: Record<string, unknown> = {}): ModifierConfig | null => (settingsUIAvailable() ? modifierHelpers().createModifier(`ardia.${name}`, params) : null);
+
+export const spaceBackdrop = (look: SpaceLook & { animated?: boolean }) =>
+  ardia("spaceBackdrop", { color: look.color ?? null, icon: look.icon ?? null, themeColors: look.themeColors ?? [], themeDarkColors: look.themeDarkColors ?? null, animated: look.animated ?? true });
 
 export const settingsChrome = () => ardia("settingsChrome");
 
