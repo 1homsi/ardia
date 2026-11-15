@@ -1,6 +1,7 @@
 PODS:
   - ArdiaPhoneNative (0.0.0):
     - ExpoModulesCore
+    - ExpoUI
   - boost (1.84.0):
     - ReactNativeDependencies
   - DoubleConversion (1.1.6):
@@ -90,6 +91,10 @@ PODS:
     - RNWorklets
   - ExpoSQLite (58.0.17):
     - ExpoModulesCore
+  - ExpoUI (58.0.28):
+    - ExpoModulesCore
+    - ExpoModulesWorklets
+    - React-RCTFabric
   - fast_float (8.0.0):
     - ReactNativeDependencies
   - FBLazyVector (0.88.1):
@@ -2173,6 +2178,7 @@ DEPENDENCIES:
   - ExpoModulesWorklets (from `../node_modules/expo-modules-core`)
   - ExpoModulesWorkletsAdapter (from `../node_modules/expo-modules-core`)
   - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
+  - "ExpoUI (from `../node_modules/@expo/ui/ios`)"
   - fast_float (from `build/rndeps-facades/fast_float`)
   - FBLazyVector (from `build/rncore-facades/FBLazyVector`)
   - fmt (from `build/rndeps-facades/fmt`)
@@ -2303,6 +2309,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-modules-core"
   ExpoSQLite:
     :path: "../node_modules/expo-sqlite/ios"
+  ExpoUI:
+    :path: "../node_modules/@expo/ui/ios"
   fast_float:
     :path: build/rndeps-facades/fast_float
   FBLazyVector:
@@ -2484,7 +2492,7 @@ EXTERNAL SOURCES:
     :path: build/rncore-facades/Yoga
 
 SPEC CHECKSUMS:
-  ArdiaPhoneNative: 1d08cf4cbc53a4f2e8c7c1420fe07214e122e56b
+  ArdiaPhoneNative: d35aff1306e0e5400193b5d5caf92bc01385e91a
   boost: 8502bfdc46e2804408af2e163049ece181009af4
   DoubleConversion: 501a575c40c0b50c89685762dd3e415e6bb26fb0
   EXConstants: aeda76f4be923fc719522ae162dd0b8c6483f9cc
@@ -2503,6 +2511,7 @@ SPEC CHECKSUMS:
   ExpoModulesWorklets: 03d171c0296cdffc054e9570e9393a7655ef360d
   ExpoModulesWorkletsAdapter: 33dd492e9c87db147c46e157c36d0761a48577c8
   ExpoSQLite: afd9a672ba4aef96495e077ded35423bb8a7b2d4
+  ExpoUI: 9a96576076acd2bc5ac11b8f9ea8bbb7945d95ad
   fast_float: 7c925d1cebf8328d4018d061f49377e9f887e3b4
   FBLazyVector: 07cb4c5b92110c132f2bb73b908e87f35cbe0a19
   fmt: ba0886e864ebb21d14c98b2e12e164b8002f5b93

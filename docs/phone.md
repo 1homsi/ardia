@@ -1837,9 +1837,18 @@ source:
   `SettingsSwitchStyle`, `PressableStyle`, the `LegibleInk` text style.
 - Tokens as values: `SettingsTint`, `Palette.formAccent`, `Spacing` (4, 8, 12, 16, 20, 24, 32), `Motion.press` and
   `Motion.snappy`.
-- The app-only pieces (`SettingsRowLabel`, `SettingsHero`, `SetupStepRow`, `CheckmarkRow`, `ColorSwatch`,
-  `AppIconPreview`, `PressableStyle`, `LegibleInk`, the two modifiers) move from `apps/ios/App/Settings` into
-  ArdiaDesign first, unchanged, so main's screens and the Expo screens compile the same code.
+- The app-only pieces are copied, not moved. `apps/ios/Packages/ArdiaKit/Sources/ArdiaDesign/SettingsPieces.swift`
+  holds public copies of `SettingsRowLabel`, `SettingsHero` (built on a new `SettingsHeroContent`), `SetupStepRow`,
+  `CheckmarkRow` (built on a new `CheckmarkLabel`), `ColorSwatch`, `AppIconPreview`, `PressableStyle`, `LegibleInk`
+  and `SettingsSwitchStyle`, for the Expo screens; `SettingsTint.named(_:)` in `SettingsTokens.swift` maps the token
+  names. The SwiftUI app keeps its own copies untouched (`apps/ios/App/Settings/SettingsComponents.swift`,
+  `AppearancePage.swift`'s `CheckmarkRow`, `ColorChoiceRows.swift`'s `ColorSwatch`, `App/Browsing/BottomBar.swift`'s
+  `PressableStyle`); its own types shadow the package's. Extension members don't shadow, so the package's are named
+  `ardiaSettingsChrome()`, `ardiaSettingsPage(_:)` and `.ardiaInk(_:)`. The two are copies until `apps/ios` goes: a
+  change to main's Settings pieces in those files has to be carried over to `SettingsPieces.swift` by hand.
+- The Expo side: `packages/phone/ios/SettingsUIModule.swift` (`ArdiaPhoneSettingsUI`: the `ExpoUIView` views and the
+  `ardia.*` modifiers registered in `OnCreate`) and `packages/phone/src/settingsUI.tsx` (one API for both phones;
+  without the native module the views draw nothing and the modifiers are null).
 
 The Expo app keeps one row main has no counterpart for: What's Sent (opt-in usage stats, the owner's approval).
 

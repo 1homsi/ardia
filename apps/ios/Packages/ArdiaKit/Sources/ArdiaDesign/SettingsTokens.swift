@@ -39,6 +39,35 @@ public enum SettingsTint {
   public static let clearData = red
   public static let export = Color(hex: 0x0153FF)
   public static let onboarding = orange
+
+  public static func named(_ name: String) -> Color? {
+    switch name {
+    case "neutral": neutral
+    case "red": red
+    case "orange": orange
+    case "yellow": yellow
+    case "blue": blue
+    case "deepBlue": deepBlue
+    case "purple": purple
+    case "green": green
+    case "sync": sync
+    case "ads": ads
+    case "trackers": trackers
+    case "cookies": cookies
+    case "search": search
+    case "archive": archive
+    case "keyboard": keyboard
+    case "swipe": swipe
+    case "nightShade": nightShade
+    case "appLinks": appLinks
+    case "bottomBar": bottomBar
+    case "defaultBrowser": defaultBrowser
+    case "clearData": clearData
+    case "export": export
+    case "onboarding": onboarding
+    default: nil
+    }
+  }
 }
 
 public enum MenuLayout {
