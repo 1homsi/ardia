@@ -14,6 +14,7 @@ class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    NSLog("%@", BuildStamp.line)
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -38,6 +39,14 @@ class AppDelegate: ExpoAppDelegate {
     let configuration = UISceneConfiguration(name: "Default", sessionRole: connectingSceneSession.role)
     configuration.delegateClass = SceneDelegate.self
     return configuration
+  }
+}
+
+enum BuildStamp {
+  static var line: String {
+    let info = Bundle.main.infoDictionary ?? [:]
+    let value = { (key: String) in info[key] as? String ?? "unstamped" }
+    return "ARDIA build \(value("ArdiaBuildCommit")) dirty: \(value("ArdiaBuildDirty")) from the \(value("ArdiaBuildSource")); native \(value("ArdiaBuildNative"))"
   }
 }
 
