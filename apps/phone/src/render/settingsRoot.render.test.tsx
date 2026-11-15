@@ -1,8 +1,8 @@
-import { Platform, Dimensions, StyleSheet } from "react-native";
+import { Platform, Dimensions, ScrollView, StyleSheet } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { SettingsView } from "../components/settings/SettingsView";
 import { settingsTint } from "../components/ui";
-import { openSettings } from "../state/settings/nav";
+import { openSettings, popSettings, pushSettings } from "../state/settings/nav";
 import { useSync } from "../state/sync/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
 
@@ -68,5 +68,18 @@ onAndroid("on the hand-built Settings Android keeps, the sync card's status line
   });
   const second = line()!;
   expect(second.props.children).toBe("Enter Your Recovery Phrase");
+  unmount(root);
+});
+
+onAndroid("Back from About returns to where Settings was scrolled, whatever scrolled it, with the offset given at mount so Android applies it once the list is laid out", () => {
+  const root = renderSurface(<SettingsView />);
+  const list = () => root.root.findAll((node) => node.type === ScrollView)[0]!;
+  expect(list().props.contentOffset).toEqual({ x: 0, y: 0 });
+  act(() => list().props.onScroll({ nativeEvent: { contentOffset: { x: 0, y: 640 } } }));
+  act(() => pushSettings({ page: "about" }));
+  act(() => jest.advanceTimersByTime(600));
+  act(() => void popSettings());
+  act(() => jest.advanceTimersByTime(600));
+  expect(list().props.contentOffset).toEqual({ x: 0, y: 640 });
   unmount(root);
 });

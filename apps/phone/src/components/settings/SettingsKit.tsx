@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle, type ScrollViewInstance, type ViewInstance } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
@@ -12,8 +12,7 @@ type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trai
 export function SettingsPage({ title, onBack, leading, trailing, children, scroll = true, onRefresh, heroTitle = false, overlay, dismissesKeyboard = false }: PageProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const list = useRef<ScrollViewInstance>(null);
-  const restored = useRef(false);
+  const [startOffset] = useState(() => ({ x: 0, y: settingsScroll(title) }));
   const frame = useSheetFrame();
   const [refreshing, setRefreshing] = useState(false);
   const refresh = onRefresh
@@ -66,16 +65,9 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
       )}
       {scroll ? (
         <ScrollView
-          ref={list}
           style={{ marginBottom: insets.bottom }}
           contentContainerStyle={[styles.content, { paddingBottom: space.huge }]}
-          onContentSizeChange={(_width, height) => {
-            if (restored.current || height <= 0) return;
-            restored.current = true;
-            list.current?.scrollTo({ y: settingsScroll(title), animated: false });
-          }}
-          onScrollEndDrag={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
-          onMomentumScrollEnd={(event) => rememberSettingsScroll(title, event.nativeEvent.contentOffset.y)}
+          contentOffset={startOffset}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={dismissesKeyboard ? "on-drag" : "none"}
           refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} /> : undefined}
@@ -83,6 +75,7 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
           scrollEventThrottle={16}
           onScroll={(event) => {
             sheetList?.onScroll(event);
+            rememberSettingsScroll(title, event.nativeEvent.contentOffset.y);
             if (heroTitle) setHeroAway(event.nativeEvent.contentOffset.y > settingsLayout.heroScrollThreshold);
           }}
         >
