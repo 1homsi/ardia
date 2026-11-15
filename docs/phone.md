@@ -448,8 +448,16 @@ off in the lab`.
       its blobs and frosts. Only after closing and opening the deck again (or force-stop and reopen) does it
       stand still with plain fills, and then the Memory line reads 0 recording, 0 holding a layer, 0 animating.
       Report if anything changed while the deck stayed open.
-    - Expected: the M3 measures `over` twice and degrades; the F4 measures `within` once and keeps the look.
-      Report both phones' lines and the lab's text.
+    - Expected from sync14, where the bar frosts are tinted fills and an idle deck frame is only the backdrop
+      (mesh, three blobs, grain): the F4 measures `within` once and keeps the look (sync13 measured 32.1 and
+      31.2 ms against 11.7, with three re-blurs in each frame). The M3 is the open question: sync12 drew an
+      idle frame in 73 ms. If the backdrop alone still misses its deadline there, it measures `over` twice and
+      degrades, which is the rule working. Either way the median says how far over or under it is, so report
+      it. Report both phones' lines and the lab's text.
+    - The `against Y ms` is the frame's own deadline from Android (FrameMetrics `DEADLINE`, the frame timeline's
+      deadline, e.g. 11.7 ms on the F4's 120 Hz panel), not a margin of ours. Each frame's figure is what that
+      frame cost, from its vsync to the GPU finishing it (`TOTAL_DURATION`). A deck paced at 20 to 25 frames a
+      second is judged by the frames it draws, never by the vsyncs it skips.
     - The lab's controls: Budget: force degraded (from the next build the look is still and solid), Budget: force
       full, Budget: measured (back to what was measured), Budget: reset (forget everything and measure again on
       the next deck open). Check each takes effect only after the deck is rebuilt.
@@ -484,6 +492,17 @@ off in the lab`.
     - Expected: graphics falls after the settle line toward the look-on figure, and the purgeable part of the
       GPU memory shrinks. Report all three Memory lines and greps; if graphics does not fall, the grep says
       whether what remains is purgeable cache (the renderer's) or held (ours).
+55. **Deck scroll, look on against look off** (from sync14). Run the Deck speed script's step 2 (`## Deck speed`)
+    four times on each phone, two with the look off and two with it on (paced, budget forced full on a phone
+    that degraded). Force-stop between look switches. In each look-on run also:
+    - start `adb shell am broadcast -a com.ardia.phone.FRAMES -p $P --ei seconds 5` just before the first swipe.
+      During the scroll, `redrawn:` should list the cards and not `DeckBackdropView`, or only once or twice
+      when the scroll starts and stops: the backdrop holds still while anything else draws;
+    - from the `PAGELAB perf deck scroll` lines, check the look field reads `recording 0 holding 0 animating 0`
+      (sync13 read `1 3 1`);
+    - report, per run, the janky share, the 50th, 90th and 99th percentiles, and the slow issue-draw commands.
+      Look on should now be within a point or two of look off. If it is not, the FRAMES line names what is still
+      being redrawn.
 
 ## Upgrade from the Compose app on Android
 
@@ -765,7 +784,10 @@ it once and turns the look down if it can't; the system settings always come fir
 
 - **What is measured.** The first time the deck is built after an install or an update, `useLookBudgetProbe`
   (called by the deck with whether it is idle) skips the deck's first second, then takes 2 s of the app's own
-  frame times while the deck stays idle (no scroll, drag, sheet, menu, tray or card opening). An idle deck with
+  frame times while the deck stays idle (no scroll, drag, sheet, menu, tray or card opening). Each frame counts
+  what it cost (Android's `TOTAL_DURATION`, from its vsync to the GPU finishing it) against its own deadline
+  (`DEADLINE`, the frame timeline's, about 1.4 refresh intervals on a 120 Hz panel). A paced deck that skips
+  vsyncs is judged only by the frames it draws. An idle deck with
   the look off draws no frames at all, so every frame in the sample is the look's own. A sample that overlaps
   anything else is dropped, and one deck open gives at most one measurement.
 - **The verdict.** A sample is over budget when its median frame misses the frame's deadline or more than a
