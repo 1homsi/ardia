@@ -63,7 +63,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
 | Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works. The pale box once left over the page's top-left came from visiting a second profile, not from Ctrl+S: the next profile's sidebar page, parked beside the sidebar, cut a hole in the page. Gone on d83398e1f, on a full-width tab and a split pane. With tabs across the top (72901e27a), the open and recently closed tabs button and New Tab stay clear of the caption buttons down to the narrowest window (600 px), where tabs scroll instead, and a right-click on the empty strip opens the tab menu | #1673, #1583 |
-| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; where the page reaches the top edge (sidebar right), the page window answers the top resize band as the window's top edge (#1888, not yet tried in the VM) | #1831, #1888 |
+| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; where the page reaches the top edge (sidebar right), the band resizes the window (#1888; a real drag in CI, the cursor and double click untried in the VM) | #1831, #1888 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
@@ -188,11 +188,16 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     The header stays for a profile indicator, an incognito window, the address row, and a right sidebar.
   - Resizing from the top edge over a page: Windows keeps the top resize band inside the client area, and the page is
     its own window above it. The page window's hit test (`HostedFrameView::NonClientHitTest` in `ardia/win/frame_view.cc`)
-    answers the band (the system's top frame plus padding, at the window's DPI) as the top edge, and the band's first
-    and last stretch as the top corners, only while the app window is resizable and not maximized or minimized. The
-    sizing command that follows is posted to the app window (`PageProcedure` in `ardia/win/host.cc`), and the cursor
-    is set during the hit test because Chromium's page child window ignores WM_SETCURSOR. A press below the band is
-    the page's. The `tab.hitTest` host verb answers the hit for a point in a page window, for the self-check.
+    answers what the app window answers at that point when that is its top edge or a top corner (so the band's size,
+    and no band while maximized or full screen, are the app window's own), and the page's content everywhere else.
+    Chromium would take the press that follows as a page press, so the engine's message hook (`PreTranslate` in
+    `ardia/win/main.cc`, called before Chromium's pump dispatches) takes a hosted page's non-client press, double click
+    and move with those codes: the press becomes the app window's own size command, the double click the app window's,
+    and a move sets the resize cursor. Chromium never sees them. `HTTOP` alone (Chromium handles the press) and
+    `HTTRANSPARENT` (a child window's transparency doesn't reach another top-level window) both left the window
+    unresized in a real drag. `launch-smoke.ps1` drags the band over a page in Minimalism with the sidebar on the
+    right and expects the window to resize from the top; the `tab.hitTest` host verb answers the page's and the app
+    window's hit for the self-check.
   - Moving the window: a drag region is a view that moves the window when the UI's own hit-testing gives it the press,
     so a control on top of it still clicks, and the app moves the window while the button is down (Escape puts it
     back, a maximized window restores under the pointer, a release at the top edge maximizes). The UI also marks
