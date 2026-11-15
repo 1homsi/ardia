@@ -1126,9 +1126,9 @@ Decisions for Shivam:
 - publishing a `windows-alpha` release, so Check for Updates has something to find (#1517);
 - signing, or a per-machine install (#1659).
 
-With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 4, 9 and 10 are
-bugs a user hits, and 5 to 8, 11 and 12 are visible differences from the Mac. Everything else in the table works or differs only
-where the engine, Windows itself or a decision stands in the way.
+With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 4, 9 and 10 are bugs a
+user hits, and 5 to 8, 11 and 12 are visible differences from the Mac. Everything else in the table works or differs
+only where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work
 
