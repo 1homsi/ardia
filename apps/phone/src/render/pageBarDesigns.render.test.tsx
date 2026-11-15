@@ -16,7 +16,7 @@ const safeArea = require("react-native-safe-area-context") as { useSafeAreaInset
 beforeEach(() => {
   jest.useFakeTimers();
   withTabs(3);
-  usePages.setState({ tones: {}, lastTones: {} });
+  usePages.setState({ tones: {}, lastTones: {}, heldTones: {} });
   useBrowse.setState({ surface: "browsing", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   jest.spyOn(safeArea, "useSafeAreaInsets").mockImplementation(() => ({ top: 47, bottom: 34, left: 0, right: 0 }));
 });

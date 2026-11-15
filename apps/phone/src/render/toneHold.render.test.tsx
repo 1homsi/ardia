@@ -39,42 +39,40 @@ const shows = (root: ReturnType<typeof renderSurface>, hex: string, rgba: string
 
 const page = (tab: { url: string; title: string }, isLoading: boolean) => ({ isLive: true, isLoading, url: tab.url, title: tab.title, failure: null, progress: 1 }) as unknown as PageState;
 
-test("while a page's cover is up, a colour the page reports as it comes back (a blank white first frame) doesn't reach the bars; they keep the tab's colours until the cover lifts", () => {
+test("while a page's cover is up its reports don't reach the bars; they keep the tab's colours, and take the page's latest report the moment the cover lifts", () => {
   const tab = currentTabs().open[0]!;
   act(() => storeTone(tab.id, { top: "#101820", bottom: "#203040" }));
   const root = renderSurface(<BrowsingScreen tab={tab} />, { flushTimers: false });
   act(() => jest.advanceTimersByTime(16));
   expect(root.root.findAll((node) => node.props.testID === "pageCover" && typeof node.type === "string")).toHaveLength(1);
-  act(() => storeTone(tab.id, { top: "#FFFFFF", bottom: "#FFFFFF" }));
+  act(() => storeTone(tab.id, { top: "#101820", bottom: "#304050" }));
   act(() => jest.advanceTimersByTime(400));
   expect(shows(root, "#203040", "rgba(32, 48, 64, 1)")).toBe(true);
-  expect(shows(root, "#FFFFFF", "rgba(255, 255, 255, 1)")).toBe(false);
+  expect(shows(root, "#304050", "rgba(48, 64, 80, 1)")).toBe(false);
   act(() => storeNavigation(tab.id, page(tab, true)));
   act(() => storeNavigation(tab.id, page(tab, false)));
   act(() => jest.advanceTimersByTime(330));
   expect(root.root.findAll((node) => node.props.testID === "pageCover" && typeof node.type === "string")).toHaveLength(0);
-  expect(usePages.getState().heldTones[tab.id]).toEqual({ top: "#101820", bottom: "#203040" });
-  act(() => storeTone(tab.id, { top: "#101820", bottom: "#304050" }));
   expect(usePages.getState().heldTones[tab.id]).toBeUndefined();
   act(() => jest.advanceTimersByTime(500));
   expect(shows(root, "#304050", "rgba(48, 64, 80, 1)")).toBe(true);
   unmount(root);
 });
 
-test("if the page sends nothing more once its cover has lifted, the held colours give way to its last report after 400 ms", () => {
+test("if the page hasn't reported since its cover went up, the bars keep the tab's colours after the cover lifts, with no time limit, until its first report", () => {
   const tab = currentTabs().open[0]!;
   act(() => storeTone(tab.id, { top: "#101820", bottom: "#203040" }));
   const root = renderSurface(<BrowsingScreen tab={tab} />, { flushTimers: false });
   act(() => jest.advanceTimersByTime(16));
-  act(() => storeTone(tab.id, { top: "#FFFFFF", bottom: "#FFFFFF" }));
   act(() => storeNavigation(tab.id, page(tab, true)));
   act(() => storeNavigation(tab.id, page(tab, false)));
   act(() => jest.advanceTimersByTime(330));
-  expect(usePages.getState().heldTones[tab.id]).toBeDefined();
-  act(() => jest.advanceTimersByTime(420));
+  act(() => jest.advanceTimersByTime(5000));
+  expect(usePages.getState().heldTones[tab.id]).toEqual({ top: "#101820", bottom: "#203040" });
+  act(() => storeTone(tab.id, { top: "#101820", bottom: "#304050" }));
   expect(usePages.getState().heldTones[tab.id]).toBeUndefined();
   act(() => jest.advanceTimersByTime(500));
-  expect(shows(root, "#203040", "rgba(32, 48, 64, 1)")).toBe(false);
+  expect(shows(root, "#304050", "rgba(48, 64, 80, 1)")).toBe(true);
   unmount(root);
 });
 

@@ -45,23 +45,23 @@ export const storeNavigation = (id: string, navigation: PageState) =>
 
 export function storeTone(id: string, tone: PageTone) {
   usePages.setState((s) => ({ tones: { ...s.tones, [id]: tone }, lastTones: { ...s.lastTones, [id]: tone } }));
+  reportedSinceHold.add(id);
   if (releasing.has(id)) dropHeldTone(id);
 }
 
 export const shownPageTone = (state: Pick<PagesState, "tones" | "lastTones" | "heldTones">, id: string): PageTone | null => state.heldTones[id] ?? state.tones[id] ?? state.lastTones[id] ?? null;
 
 export function holdTone(id: string) {
-  clearTimeout(releasing.get(id));
   releasing.delete(id);
+  reportedSinceHold.delete(id);
   const tone = shownPageTone(usePages.getState(), id);
   if (tone) usePages.setState((s) => ({ heldTones: { ...s.heldTones, [id]: tone } }));
 }
 
-const RELEASE_WAIT_MS = 400;
-const releasing = new Map<string, ReturnType<typeof setTimeout>>();
+const releasing = new Set<string>();
+const reportedSinceHold = new Set<string>();
 
 function dropHeldTone(id: string) {
-  clearTimeout(releasing.get(id));
   releasing.delete(id);
   if (!usePages.getState().heldTones[id]) return;
   usePages.setState((s) => {
@@ -72,11 +72,9 @@ function dropHeldTone(id: string) {
 }
 
 export function releaseTone(id: string) {
-  if (!usePages.getState().heldTones[id] || releasing.has(id)) return;
-  releasing.set(
-    id,
-    setTimeout(() => dropHeldTone(id), RELEASE_WAIT_MS),
-  );
+  if (!usePages.getState().heldTones[id]) return;
+  if (reportedSinceHold.has(id)) dropHeldTone(id);
+  else releasing.add(id);
 }
 
 export function clearTone(id: string) {
@@ -109,8 +107,8 @@ export function endPages(ids: readonly string[]) {
     const requests = { ...s.requests };
     const fullscreen = { ...s.fullscreen };
     for (const id of ids) {
-      clearTimeout(releasing.get(id));
       releasing.delete(id);
+      reportedSinceHold.delete(id);
       delete navigation[id];
       delete tones[id];
       delete lastTones[id];
