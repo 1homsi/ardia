@@ -53,7 +53,7 @@ const END_STATES: EndState[] = [
   { name: "the tray up", reach: () => presentSearch("page", "") },
   { name: "a toast showing", reach: () => showToast("Copied URL", "link", 60_000) },
   { name: "the bar collapsed", reach: () => storeNavigation(currentTabs().selectedId!, page("down")) },
-  { name: "the Archive sheet at rest", reach: () => useBrowse.setState({ sheet: "archive" }) },
+  { name: "the Spaces sheet at rest", reach: () => useBrowse.setState({ sheet: "spaces" }) },
 ];
 
 for (const end of END_STATES) {

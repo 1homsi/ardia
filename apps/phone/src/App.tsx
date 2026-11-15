@@ -12,6 +12,7 @@ import { TabDeck } from "./components/tabs/TabDeck";
 import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { ImportFailedView } from "./components/upgrade/ImportFailedView";
 import { ExpoSettingsSheet } from "./components/settings/ExpoSettingsStack";
+import { ExpoArchiveSheet } from "./components/tabs/ExpoArchive";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
@@ -90,7 +91,7 @@ export default function App() {
   );
 }
 
-const SETTINGS_IN_SYSTEM_SHEET = Platform.OS === "ios";
+const SYSTEM_SHEETS = Platform.OS === "ios";
 
 export function Surfaces() {
   const surface = useSurface();
@@ -104,18 +105,19 @@ export function Surfaces() {
   const searching = useSearchOpen();
   const voice = useVoicePresented();
   const sheetProgress = useSharedValue(0);
-  const front = frontSheet(settingsOpen && !SETTINGS_IN_SYSTEM_SHEET, sheet);
+  const systemSheet = SYSTEM_SHEETS && (settingsOpen || sheet === "archive");
+  const front = frontSheet(settingsOpen && !SYSTEM_SHEETS, SYSTEM_SHEETS && sheet === "archive" ? null : sheet);
   const theme = useTheme();
   countRender("Surfaces");
   const incognito = useIncognito();
-  const layer = inkLayer({ onboarding, voice, sheet: front !== null || settingsOpen, searching, surface });
+  const layer = inkLayer({ onboarding, voice, sheet: front !== null || systemSheet, searching, surface });
   const lightIcons = lightStatusIcons(layer, { cover: theme.backdrop[0], surface: theme.surface, deck: theme.backdrop[0], incognito });
   useEffect(goBackToStartIfEmpty, [tab, surface]);
   const deckMounted = useDeckStandby(surface, surface === "browsing" && tab !== null && opening === null && leaving === null && !searching && !voice && !onboarding && front === null, tab?.id ?? null);
   return (
     <>
       <SheetBackground progress={sheetProgress}>
-        <Layer covered={onboarding || voice} muted={front !== null || settingsOpen}>
+        <Layer covered={onboarding || voice} muted={front !== null || systemSheet}>
           <Shade shaded={searching}>
             <FrostSource name={SURFACES_FROST} style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
               {(surface === "browsing" || pageUnderDeck) && tab ? <BrowsingScreen tab={tab} /> : null}
@@ -131,7 +133,8 @@ export function Surfaces() {
           {(shown) => (shown === "settings" ? <SettingsView /> : shown === "archive" ? <ArchiveView /> : <SpacesView />)}
         </FullSheet>
       </Layer>
-      {SETTINGS_IN_SYSTEM_SHEET ? <ExpoSettingsSheet /> : null}
+      {SYSTEM_SHEETS ? <ExpoSettingsSheet /> : null}
+      {SYSTEM_SHEETS ? <ExpoArchiveSheet /> : null}
       <Layer covered={onboarding}>
         <VoiceSearchView />
       </Layer>
