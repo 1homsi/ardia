@@ -1954,6 +1954,13 @@ Whole stack (`SettingsView.swift`):
 - Pages with a hero use `.settingsPage(title)`: the inline title stays empty until the content scrolls past 150 pt
   (`onScrollGeometryChange`).
 - Lists are `Form` with `.contentMargins(.top, Spacing.small)` (12 pt).
+- Presentation: main uses a plain `.sheet(item:)` from `RootView`, with no presentation modifiers. On iPhone ours is
+  Expo UI's `BottomSheet` with none either (`ExpoSettingsSheet`): system detent, corners, drag to dismiss and
+  scaled-back page; Done and a drag both close Settings through `onIsPresentedChange`.
+- Rule: a toolkit screen is hosted in a container the system positions, never inside a view we animate by
+  transform, because SwiftUI records its accessibility frames at layout time and never updates them after our slide.
+- Every toolkit screen's simulator pass reads three elements' frames from the accessibility tree (`snapshot --json`)
+  and compares them with where the screenshot draws them.
 
 Root (`SettingsRootList`), sections in order:
 1. Sync row: `NavigationLink` to Sync; `SettingsIconTile("macbook.and.iphone", sync blue, baseSide 56)` (44 at

@@ -1,10 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
-import { Host, NavigationDestination, NavigationStack, RNHostView, VStack } from "@expo/ui/swift-ui";
+import { BottomSheet, Host, NavigationDestination, NavigationStack, RNHostView, VStack } from "@expo/ui/swift-ui";
 import { ignoreSafeArea, navigationBarTitleDisplayMode, navigationTitle } from "@expo/ui/swift-ui/modifiers";
 import { refreshSettings } from "../../state/settings/actions";
 import { useSettingsNav } from "../../state/settings/hooks";
-import { followSettingsPath, settingsPath, settingsRouteFromKey, type SettingsRoute } from "../../state/settings/nav";
+import { closeSettings, followSettingsPath, settingsPath, settingsRouteFromKey, type SettingsRoute } from "../../state/settings/nav";
 import { nativeLookColors } from "../../lib/profileLook";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { LookBackdrop, modifierList, profileLook, settingsUIAvailable, useProfileLook, usesGlass } from "../ui";
@@ -37,28 +37,53 @@ const TITLES: Record<SettingsRoute["page"], string> = {
 
 export function ExpoSettingsStack() {
   const open = useSettingsNav((s) => s.open);
-  const stack = useSettingsNav((s) => s.stack);
-  const look = useProfileLook();
-  const glass = useChromeStyle() === "glass" && usesGlass();
-  useEffect(() => {
-    if (open) void refreshSettings();
-  }, [open]);
+  useRefreshWhileOpen(open);
   if (!open) return null;
-  const path = settingsPath(stack);
   return (
     <View testID="expoSettings" style={StyleSheet.absoluteFill}>
       {settingsUIAvailable() ? null : <LookBackdrop />}
       <Host style={styles.fill}>
-        <NavigationStack path={path} onPathChange={followSettingsPath} modifiers={modifierList(profileLook({ ...nativeLookColors(look), usesGlass: glass }))}>
-          <ExpoSettingsRoot />
-          {path.map((key) => (
-            <NavigationDestination key={key} value={key}>
-              <Destination routeKey={key} />
-            </NavigationDestination>
-          ))}
-        </NavigationStack>
+        <SettingsNavigation />
       </Host>
     </View>
+  );
+}
+
+export function ExpoSettingsSheet() {
+  const open = useSettingsNav((s) => s.open);
+  useRefreshWhileOpen(open);
+  return (
+    <Host testID="expoSettingsSheet" style={styles.anchor} pointerEvents="none">
+      <BottomSheet isPresented={open} onIsPresentedChange={(presented) => (presented ? undefined : closeSettings())}>
+        <SettingsNavigation />
+      </BottomSheet>
+    </Host>
+  );
+}
+
+function useRefreshWhileOpen(open: boolean) {
+  useEffect(() => {
+    if (open) void refreshSettings();
+  }, [open]);
+}
+
+function SettingsNavigation() {
+  const open = useSettingsNav((s) => s.open);
+  const stack = useSettingsNav((s) => s.stack);
+  const look = useProfileLook();
+  const glass = useChromeStyle() === "glass" && usesGlass();
+  const kept = useRef(stack);
+  if (open && stack.length) kept.current = stack;
+  const path = settingsPath(open ? stack : kept.current);
+  return (
+    <NavigationStack path={path} onPathChange={followSettingsPath} modifiers={modifierList(profileLook({ ...nativeLookColors(look), usesGlass: glass }))}>
+      <ExpoSettingsRoot />
+      {path.map((key) => (
+        <NavigationDestination key={key} value={key}>
+          <Destination routeKey={key} />
+        </NavigationDestination>
+      ))}
+    </NavigationStack>
   );
 }
 
@@ -82,4 +107,5 @@ function Destination({ routeKey }: { routeKey: string }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  anchor: { position: "absolute", width: 0, height: 0 },
 });
