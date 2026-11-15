@@ -11,6 +11,8 @@ afterEach(() => {
 });
 
 const motion = (): DeckMotion => ({
+  orderIds: makeMutable<readonly string[]>(["t0", "t1", "t2"]),
+  shiftBy: makeMutable(0),
   phase: makeMutable<number>(DECK_PHASE.settled),
   expandedIndex: makeMutable(-1),
   scroll: makeMutable(1),
@@ -27,7 +29,7 @@ test("a card that has vanished stays vanished when the deck resets its fly-away 
   const moves = motion();
   const tab = someTabs(3)[1]!;
   const root = renderSurface(
-    <DeckCard tab={tab} index={1} isLast={false} geometry={deckGeometry(393, 873, 40, 24)} motion={moves} shift={{ by: 0, generation: 0 }} onOpen={() => undefined} onClose={() => undefined} onCloseNow={() => undefined} />,
+    <DeckCard tab={tab} index={1} geometry={deckGeometry(393, 873, 40, 24)} motion={moves} onOpen={() => undefined} onClose={() => undefined} onCloseNow={() => undefined} />,
   );
   const card = () => root.root.findAll((node) => node.props.testID === "deckCard" && typeof node.type === "string")[0]!;
   const opacity = () => (getAnimatedStyle(card()).opacity as number | undefined) ?? 1;

@@ -5,7 +5,7 @@ import { useSearchOpen } from "../../state/search/hooks";
 import { beginInteraction, countRender, INTERACTION_WINDOW_MS, interactionPerfEnabled } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { POOF, poofCentreY } from "../../lib/poof";
 import { PoofBurst, type PoofSpec } from "./PoofBurst";
 import { haptics } from "../../state/app/haptics";
@@ -78,7 +78,6 @@ export function TabDeck() {
   const hasArchive = useHasArchivedTabs();
   const syncEnabled = useSyncEnabled();
   const [order, setOrder] = useState<string[]>(() => live.map((t) => t.id));
-  const [shift, setShift] = useState({ by: 0, generation: 0 });
   const [phase, setPhase] = useState<Phase>({ kind: "settled", id: null });
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
   const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number } | null>(null);
@@ -117,9 +116,11 @@ export function TabDeck() {
   const flyIndex = useSharedValue(-1);
   const flyLift = useSharedValue(0);
   const flyVanish = useSharedValue(0);
+  const orderIds = useSharedValue<readonly string[]>(order);
+  const shiftBy = useSharedValue(0);
   const motion = useMemo<DeckMotion>(
-    () => ({ phase: deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
-    [deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
+    () => ({ orderIds, shiftBy, phase: deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish }),
+    [orderIds, shiftBy, deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish],
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
   const backdropStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
@@ -167,13 +168,18 @@ export function TabDeck() {
     const onlyTail = next.length < order.length && next.every((id, i) => id === order[i]);
     const after = scrollAfterClosing(stays >= 0 ? stays : scrollAfterRemoving(removedAt, Math.round(before), next.length), next.length, onlyTail);
     for (const id of hidden.current) if (!alive.has(id)) hidden.current.delete(id);
-    flyIndex.value = -1;
-    flyVanish.value = 0;
-    flyLift.value = 0;
-    scroll.value = after;
+    const expanded = phase.id ? next.indexOf(phase.id) : -1;
+    runOnUI((ids: readonly string[], to: number, by: number, expandedAt: number, keepsExpanded: boolean) => {
+      "worklet";
+      flyIndex.value = -1;
+      flyVanish.value = 0;
+      flyLift.value = 0;
+      shiftBy.value = by;
+      if (keepsExpanded) expandedIndex.value = expandedAt;
+      orderIds.value = ids;
+      scroll.value = to;
+    })(next, after, after - before, expanded, phase.id !== null);
     setAnchor(Math.round(after));
-    setShift((s) => ({ by: after - before, generation: s.generation + 1 }));
-    if (phase.id) expandedIndex.value = next.indexOf(phase.id);
     setOrder(next);
   }, [live]);
 
@@ -460,10 +466,8 @@ export function TabDeck() {
                     key={id}
                     tab={tab}
                     index={index}
-                    isLast={index === count - 1}
                     geometry={g}
                     motion={motion}
-                    shift={shift}
                     onOpen={cardActions.open}
                     onClose={cardActions.close}
                     onCloseNow={cardActions.closeNow}
