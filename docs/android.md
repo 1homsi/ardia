@@ -244,9 +244,11 @@ first build downloads Gradle, Hermes, `react-android` (for `libjsi.so`) and `her
   `ARDIA_CROSSCHECK_DIR` to keep the files. It runs on a Mac, not in CI.
 - `node apps/ios/scripts/bundle-shared.mjs --check` guards the bundles both phones run.
 - **CI** (`.github/workflows/android.yml`, on pull requests and pushes to `main` that touch `apps/android`, the
-  bundles, `packages/sync`, `packages/core` or the workflow, behind the vouch gate) builds the app and every test and
-  runs the unit tests in one job, and runs every module's instrumented tests on an API 35 emulator in another. It keeps
-  the test reports and the screen tour as artifacts.
+  bundles, `packages/sync`, `packages/core` or the workflow, behind the vouch gate) runs four things side by side:
+  the debug build with the unit tests, the release build, and every module's instrumented tests on API 35
+  emulators, split over three jobs (the app's tests in two halves, the other modules in the third). The build and
+  unit tests answer first; the emulator jobs are the last to finish. It keeps the test reports and the screen tour
+  as artifacts.
 
 ## Left for a person
 
