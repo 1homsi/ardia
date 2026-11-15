@@ -34,6 +34,7 @@ export function LookLab() {
   const [lookOff, setLookOff] = useState(() => lookLab.lookIsOff());
   const [blobRate, setBlobRate] = useState(() => lookLab.blobFramesPerSecond());
   const [budget, setBudget] = useState(() => lookBudget.describe());
+  const [blurOverBackdrop, setBlurOverBackdrop] = useState(() => lookLab.blurOverBackdrop());
   const budgetAction = (run: () => void) => {
     run();
     const now = lookBudget.describe();
@@ -74,6 +75,10 @@ export function LookLab() {
       </View>
       <Text style={styles.caption}>Look budget: {budget}. A change applies from the next time the deck is built.</Text>
       <View style={styles.row}>
+        <Button
+          label={blurOverBackdrop ? "Bar frosts: blur" : "Bar frosts: tinted fill"}
+          onPress={() => setBlurOverBackdrop(lookLab.setBlurOverBackdrop(!blurOverBackdrop) ?? blurOverBackdrop)}
+        />
         <Button label="Budget: force full" onPress={() => budgetAction(() => lookBudget.force("full"))} />
         <Button label="Budget: force degraded" onPress={() => budgetAction(() => lookBudget.force("degraded"))} />
         <Button label="Budget: measured" onPress={() => budgetAction(() => lookBudget.force(null))} />

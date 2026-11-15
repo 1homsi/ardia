@@ -182,6 +182,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
 
     private fun prepare(look: ProfileLook, dark: Boolean, radius: Float) {
         if (look === paintedLook && dark == paintedDark && radius == paintedRadius && mesh != null) return
+        if (paintedLook != null) post { enclosingSource()?.let(FrostSources::redrawFrostsOf) }
         paintedLook = look
         paintedDark = dark
         paintedRadius = radius
@@ -202,6 +203,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         paintedLook = null
         mesh = null
         blobShaders = emptyArray()
+        sample = null
+        sampledFrame = -1L
     }
 
     internal var frames = 0L
@@ -265,6 +268,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         } else {
             moveOn(now)
             invalidate()
+            enclosingSource()?.let(FrostSources::redrawTintedFrostsOf)
         }
     }
 
@@ -313,13 +317,35 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }
         val w = width.toFloat()
         val h = height.toFloat()
+        if (!drawScene(canvas, look, dark, w, h)) return
+        if (noBlobs) return
+        val animated = !still
+        canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
+        removeCallbacks(tick)
+        if (animated && isShown) {
+            when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
+                0L -> {
+                    postInvalidateOnAnimation()
+                    postOnAnimation { enclosingSource()?.let(FrostSources::redrawTintedFrostsOf) }
+                }
+                else -> {
+                    paceMillis = delay
+                    postDelayed(tick, delay)
+                }
+            }
+        }
+    }
+
+    override fun fallbackColor(): Int = runCatching { LookSwitch.flatDeck(look, isDark).toArgb() }.getOrDefault(super.fallbackColor())
+
+    private fun drawScene(canvas: Canvas, look: ProfileLook, dark: Boolean, w: Float, h: Float): Boolean {
         val radius = LookRules.blobRadius(w, h)
         prepare(look, dark, radius)
-        val meshBitmap = mesh ?: return
+        val meshBitmap = mesh ?: return false
         source.set(0, 0, meshBitmap.width, meshBitmap.height)
         target.set(0, 0, width + 1, height + 1)
         canvas.drawBitmap(meshBitmap, source, target, meshPaint)
-        if (noBlobs) return
+        if (noBlobs) return true
         val animated = !still
         val now = clock(SystemClock.uptimeMillis())
         blobPaint.alpha = (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt()
@@ -332,20 +358,47 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             canvas.drawCircle(0f, 0f, radius, blobPaint)
             canvas.restoreToCount(saved)
         }
-        canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
-        removeCallbacks(tick)
-        if (animated && isShown) {
-            when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
-                0L -> postInvalidateOnAnimation()
-                else -> {
-                    paceMillis = delay
-                    postDelayed(tick, delay)
-                }
-            }
-        }
+        return true
     }
 
-    override fun fallbackColor(): Int = runCatching { LookSwitch.flatDeck(look, isDark).toArgb() }.getOrDefault(super.fallbackColor())
+    private var sample: Bitmap? = null
+    private var sampledFrame = -1L
+
+    internal fun sceneColours(left: Float, top: Float, right: Float, bottom: Float, out: IntArray): Boolean {
+        if (width <= 0 || height <= 0 || lookIsOff) return false
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val sampleWidth = (width / FrostTint.SAMPLE_SCALE).coerceAtLeast(1)
+        val sampleHeight = (height / FrostTint.SAMPLE_SCALE).coerceAtLeast(1)
+        val kept = sample?.takeIf { it.width == sampleWidth && it.height == sampleHeight && sampledFrame == frames && paintedLook === look && paintedDark == isDark }
+        val bitmap = kept ?: (sample?.takeIf { it.width == sampleWidth && it.height == sampleHeight }
+            ?: Bitmap.createBitmap(sampleWidth, sampleHeight, Bitmap.Config.ARGB_8888).also { sample = it })
+        if (kept == null) {
+            bitmap.eraseColor(Color.TRANSPARENT)
+            val canvas = Canvas(bitmap)
+            canvas.scale(sampleWidth / w, sampleHeight / h)
+            sampledFrame = -1L
+            if (!drawScene(canvas, look, isDark, w, h)) return false
+            sampledFrame = frames
+        }
+        val x0 = (left / w * sampleWidth).toInt().coerceIn(0, sampleWidth - 1)
+        val x1 = (right / w * sampleWidth).toInt().coerceIn(x0 + 1, sampleWidth)
+        val y0 = (top / h * sampleHeight).toInt().coerceIn(0, sampleHeight - 1)
+        val y1 = (bottom / h * sampleHeight).toInt().coerceIn(y0 + 1, sampleHeight)
+        val middle = ((y0 + y1) / 2).coerceIn(y0 + 1, y1)
+        out[0] = FrostTint.average(bitmap, x0, y0, x1, middle)
+        out[1] = FrostTint.average(bitmap, x0, if (middle < y1) middle else y0, x1, y1)
+        return true
+    }
+
+    private fun enclosingSource(): FrostSourceView? {
+        var current: android.view.ViewParent? = parent
+        while (current != null) {
+            if (current is FrostSourceView) return current
+            current = current.parent
+        }
+        return null
+    }
 
     private fun angle(index: Int, now: Long): Float {
         val loop = TabsBackdropMotion.loopsMillis[index]
@@ -452,6 +505,10 @@ internal object FrostSources {
     fun redrawFrostsOf(source: FrostSourceView) {
         for (frost in frosts()) if (frost.source != null && find(frost.source) === source) frost.invalidate()
     }
+
+    fun redrawTintedFrostsOf(source: FrostSourceView) {
+        for (frost in frosts()) if (frost.lastChoice?.path == FrostPage.Path.Tinted && frost.source != null && find(frost.source) === source) frost.invalidate()
+    }
 }
 
 class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
@@ -483,7 +540,24 @@ class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(conte
             return pageHeld
         }
 
-    private val laidOut = ViewTreeObserver.OnGlobalLayoutListener { pageKnown = false }
+    private var backdropKnown = false
+    private var onlyBackdrop = false
+
+    internal val holdsOnlyBackdrop: Boolean
+        get() {
+            if (!backdropKnown) {
+                onlyBackdrop = FrostTint.onlyBackdrop(this)
+                backdropKnown = true
+            }
+            return onlyBackdrop
+        }
+
+    internal fun backdrop(): DeckBackdropView? = FrostTint.firstBackdrop(this)
+
+    private val laidOut = ViewTreeObserver.OnGlobalLayoutListener {
+        pageKnown = false
+        backdropKnown = false
+    }
 
     private fun stopRecording() {
         recorder?.discardDisplayList()
@@ -544,7 +618,7 @@ internal object FrostPage {
         return false
     }
 
-    enum class Path { Live, Solid, Fallback }
+    enum class Path { Live, Solid, Fallback, Tinted }
 
     data class Choice(val path: Path, val reason: String)
 
@@ -552,6 +626,8 @@ internal object FrostPage {
         blurSupported: Boolean,
         reduceTransparency: Boolean,
         budgetDegraded: Boolean = false,
+        onlyBackdropUnder: Boolean = false,
+        blurOverBackdrop: Boolean = false,
         hasSource: Boolean,
         sourceHasContent: Boolean,
         hardware: Boolean,
@@ -561,9 +637,10 @@ internal object FrostPage {
         lookOff: Boolean = false,
     ): Choice = when {
         lookOff -> Choice(Path.Fallback, "look turned off in the lab")
-        !blurSupported -> Choice(Path.Fallback, "below Android 12")
         reduceTransparency -> Choice(Path.Fallback, "reduce transparency")
         budgetDegraded -> Choice(Path.Fallback, "look budget: this phone measured over budget")
+        hasSource && onlyBackdropUnder && (!blurOverBackdrop || !blurSupported) -> Choice(Path.Tinted, "only the backdrop under it: a fill tinted from the backdrop's colours, no blur")
+        !blurSupported -> Choice(Path.Fallback, "below Android 12")
         !hasSource -> Choice(Path.Fallback, "no source")
         !hardware -> Choice(Path.Fallback, "software canvas")
         insideSource -> Choice(Path.Fallback, "inside its own source")
@@ -712,6 +789,8 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Frosting.isBlurSupported,
             reduceTransparency = reduceTransparency,
             budgetDegraded = budgetDegraded,
+            onlyBackdropUnder = from?.holdsOnlyBackdrop == true,
+            blurOverBackdrop = LookSwitch.blurOverBackdrop(context),
             hasSource = from != null,
             sourceHasContent = from?.hasContent == true,
             hardware = canvas.isHardwareAccelerated,
@@ -752,6 +831,9 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             paint.style = Paint.Style.FILL
             paint.color = style.tint.resolve(dark).toArgb()
             canvas.drawPath(clip, paint)
+        } else if (choice.path == FrostPage.Path.Tinted && from != null && tintedFill(canvas, from, style, dark)) {
+            if (blurNode != null) forgetLayer()
+            removeCallbacks(refresh)
         } else {
             if (blurNode != null) forgetLayer()
             removeCallbacks(refresh)
@@ -765,6 +847,25 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
             paint.color = edge.resolve(dark).toArgb()
             canvas.drawPath(clip, paint)
         }
+    }
+
+    private val sampled = IntArray(2)
+
+    private fun tintedFill(canvas: Canvas, from: FrostSourceView, style: com.ardia.design.FrostedStyle, dark: Boolean): Boolean {
+        val backdrop = from.backdrop() ?: return false
+        backdrop.getLocationInWindow(there)
+        getLocationInWindow(here)
+        val left = (here[0] - there[0]).toFloat()
+        val top = (here[1] - there[1]).toFloat()
+        if (!backdrop.sceneColours(left, top, left + width, top + height, sampled)) return false
+        val tint = style.tint.resolve(dark).toArgb()
+        val upper = FrostTint.frosted(sampled[0], style.saturation, tint)
+        val lower = FrostTint.frosted(sampled[1], style.saturation, tint)
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(0f, 0f, 0f, height.toFloat(), upper, lower, Shader.TileMode.CLAMP)
+        canvas.drawPath(clip, paint)
+        paint.shader = null
+        return true
     }
 
     private fun scheduleRefresh(holdsPage: Boolean) {
@@ -824,6 +925,7 @@ internal object LookMemory {
         val recordingNames: List<String> = emptyList(),
         val layerNames: List<String> = emptyList(),
         val heldStill: Int = 0,
+        val tinted: Int = 0,
     )
 
     fun counts(): Counts {
@@ -842,6 +944,7 @@ internal object LookMemory {
             recordingNames = sources.filter { it.isRecording }.map { it.sourceId ?: "?" },
             layerNames = layered.map { it.logLabel },
             heldStill = decks.count { it.heldStill },
+            tinted = frosts.count { it.lastChoice?.path == FrostPage.Path.Tinted },
         )
     }
 
@@ -849,7 +952,7 @@ internal object LookMemory {
         val counts = counts()
         val largest = FrostSources.frosts().filter { it.holdsLayer }.maxByOrNull { it.layerWidth.toLong() * it.layerHeight }
         return "look ${if (LookSwitch.isOff(context)) "off" else "on"}: ${counts.recording} of ${counts.sources} frost source(s) recording ${counts.recordingNames}, " +
-            "${counts.holdingLayers} of ${counts.frosts} frost(s) holding a blur layer, about ${"%.1f".format(counts.layerBytes / MB)} MB" +
+            "${counts.holdingLayers} of ${counts.frosts} frost(s) holding a blur layer (${counts.tinted} tinted from the backdrop), about ${"%.1f".format(counts.layerBytes / MB)} MB" +
             (largest?.let { " (largest ${it.logLabel} ${it.layerWidth}x${it.layerHeight})" } ?: "") +
             ", ${counts.animating} of ${counts.decks} deck backdrop(s) animating (${counts.heldStill} held still while the screen moves), frosts with a layer ${counts.layerNames}"
     }
@@ -882,5 +985,58 @@ internal object LookMemory {
         level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> releaseAll()
         ImageMemory.clearsOn(level) -> trim()
         else -> "look kept"
+    }
+}
+
+internal object FrostTint {
+    const val SAMPLE_SCALE = 40
+
+    fun average(bitmap: Bitmap, x0: Int, y0: Int, x1: Int, y1: Int): Int {
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var n = 0L
+        for (y in y0 until y1) for (x in x0 until x1) {
+            val pixel = bitmap.getPixel(x, y)
+            if (Color.alpha(pixel) == 0) continue
+            r += Color.red(pixel)
+            g += Color.green(pixel)
+            b += Color.blue(pixel)
+            n += 1
+        }
+        if (n == 0L) return Color.GRAY
+        return Color.rgb((r / n).toInt(), (g / n).toInt(), (b / n).toInt())
+    }
+
+    fun frosted(base: Int, saturation: Float, tint: Int): Int {
+        val r = Color.red(base)
+        val g = Color.green(base)
+        val b = Color.blue(base)
+        val luminance = 0.213f * r + 0.715f * g + 0.072f * b
+        fun saturate(channel: Int) = (luminance + (channel - luminance) * saturation).coerceIn(0f, 255f)
+        val alpha = Color.alpha(tint) / 255f
+        fun over(channel: Float, tintChannel: Int) = (tintChannel * alpha + channel * (1f - alpha)).toInt().coerceIn(0, 255)
+        return Color.rgb(over(saturate(r), Color.red(tint)), over(saturate(g), Color.green(tint)), over(saturate(b), Color.blue(tint)))
+    }
+
+    fun onlyBackdrop(view: View): Boolean {
+        if (view is LookView) return view is DeckBackdropView || view is ProfileBackdropView || view is FilmGrainView
+        if (view !is android.view.ViewGroup) return false
+        if (view !is FrostSourceView && view.background != null) return false
+        var any = false
+        for (index in 0 until view.childCount) {
+            val child = view.getChildAt(index)
+            if (child.visibility == View.GONE) continue
+            if (!onlyBackdrop(child)) return false
+            any = true
+        }
+        return any
+    }
+
+    fun firstBackdrop(view: View): DeckBackdropView? {
+        if (view is DeckBackdropView) return view
+        if (view !is android.view.ViewGroup) return null
+        for (index in 0 until view.childCount) firstBackdrop(view.getChildAt(index))?.let { return it }
+        return null
     }
 }

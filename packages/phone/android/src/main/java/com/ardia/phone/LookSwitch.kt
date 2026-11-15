@@ -8,6 +8,21 @@ object LookSwitch {
     private const val PREFERENCES = "ardia-lab"
     private const val KEY_OFF = "look.off"
     private const val KEY_BLOB_RATE = "look.blobFramesPerSecond"
+    private const val KEY_BLUR_OVER_BACKDROP = "look.blurOverBackdrop"
+
+    @Volatile
+    private var knownBlurOverBackdrop: Boolean? = null
+
+    fun blurOverBackdrop(context: Context, lab: Boolean = PhoneLab.isOn): Boolean {
+        if (!lab) return false
+        return knownBlurOverBackdrop ?: (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getBoolean(KEY_BLUR_OVER_BACKDROP, false).also { knownBlurOverBackdrop = it }
+    }
+
+    fun setBlurOverBackdrop(context: Context, blur: Boolean, lab: Boolean = PhoneLab.isOn) {
+        check(lab) { "blurring frosts over the backdrop is a lab switch" }
+        (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean(KEY_BLUR_OVER_BACKDROP, blur).commit()
+        knownBlurOverBackdrop = blur
+    }
 
     @Volatile
     private var known: Boolean? = null
@@ -45,5 +60,6 @@ object LookSwitch {
     internal fun forgetForTests() {
         known = null
         knownRate = null
+        knownBlurOverBackdrop = null
     }
 }

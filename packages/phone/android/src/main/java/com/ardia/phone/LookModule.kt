@@ -65,6 +65,7 @@ class LookModule : Module() {
                 "recordingNames" to counts.recordingNames,
                 "layerNames" to counts.layerNames,
                 "heldStill" to counts.heldStill,
+                "tinted" to counts.tinted,
             )
         }
 
@@ -80,6 +81,20 @@ class LookModule : Module() {
             android.util.Log.i("PAGELAB", "PAGELAB look blobs $shown (lasts across launches; force-stop to measure a clean launch)")
             DeckBackdrops.all().forEach { it.invalidate() }
             kept
+        }
+
+        Function("setBlurOverBackdrop") { blur: Boolean ->
+            val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
+            LookSwitch.setBlurOverBackdrop(context, blur)
+            android.util.Log.i("PAGELAB", "PAGELAB look frosts over the backdrop alone ${if (blur) "blur it (as before)" else "are fills tinted from it"}")
+            FrostSources.frosts().forEach { it.invalidate() }
+            FrostSources.allSources().forEach { it.invalidate() }
+            blur
+        }
+
+        Function("blurOverBackdrop") {
+            val context = appContext.reactContext ?: return@Function false
+            LookSwitch.blurOverBackdrop(context)
         }
 
         Function("blobFramesPerSecond") {
