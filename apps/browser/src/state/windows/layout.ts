@@ -235,6 +235,16 @@ export function useWindowControlsLeading(): boolean {
 
 export const useSidebarControlsRowIn = (windowId: string): number => useBrowser((s) => sidebarControlsRow(s, windowId));
 
+export function watchSidebarControlsRow(windowId: string, listener: (row: number) => void, chrome: WindowChrome = WINDOW_CHROME): () => void {
+  let last = sidebarControlsRow(useBrowser.getState(), windowId, chrome);
+  return useBrowser.subscribe((s) => {
+    const row = sidebarControlsRow(s, windowId, chrome);
+    if (row === last) return;
+    last = row;
+    listener(row);
+  });
+}
+
 export function useWindowControlsHost(): WindowControlsHost | null {
   const windowId = useWindowId();
   return useBrowser((s) => windowControlsPlace(s, windowId, pageFrameIn(s, windowId))?.host ?? null);

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, View, type ViewStyle } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { layout, useTheme } from "../ui/theme";
@@ -11,7 +11,7 @@ import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toolbarPalette, type ToolbarPalette } from "../ui/toolbarColors";
 import { Button, type ButtonHit, FadeLabel, radius, space, ToolbarRowContext, useHover } from "../ui";
 import { TOOLBAR_ROWS } from "../../lib/toolbarRow";
-import { setUrlAnchor, useSidebarCaptionRoom } from "../../state/windows/layout";
+import { setUrlAnchor, useSidebarCaptionRoom, watchSidebarControlsRow } from "../../state/windows/layout";
 import { useSidebarPart } from "../../state/sidebar/chrome";
 import { SIDEBAR_FIELD } from "./geometry";
 import { SIDEBAR_TYPE, TAB_ROW } from "./tokens";
@@ -113,6 +113,9 @@ export function SidebarAddressRow({ width, top }: { width: number; top: number }
     field.current?.measureInWindow((x, y, width, height) => {
       if (width && isAddressBarInSidebar(windowId)) setUrlAnchor(windowId, { left: x, top: y, width, sidebar: { height } });
     });
+  const remeasure = useRef(anchor);
+  remeasure.current = anchor;
+  useEffect(() => watchSidebarControlsRow(windowId, () => requestAnimationFrame(() => remeasure.current())), [windowId]);
 
   return (
     <View
