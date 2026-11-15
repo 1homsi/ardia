@@ -185,11 +185,12 @@ export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 1
 export const scanInk = {
   glass: "rgba(255,255,255,0.2)",
   frame: "rgba(255,255,255,0.9)",
+  unavailableIcon: "rgba(255,255,255,0.85)",
   note: "rgba(255,255,255,0.18)",
   soft: "rgba(255,255,255,0.75)",
 } as const;
 
-export const scanLayout = { frame: 250, frameRadius: 24, frameStroke: 3, noteRadius: 12, cancelInset: 8 } as const;
+export const scanLayout = { frame: 250, frameRadius: 24, frameStroke: 3, frameArmShare: 0.18, noteRadius: 12, cancelInset: 8 } as const;
 
 export const voiceInk = {
   label: "#FFFFFF",
