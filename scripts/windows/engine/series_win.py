@@ -54,10 +54,17 @@ def chromium_lines(path, tags=WINDOWS_TAGS):
     if not os.path.isfile(path):
         return []
     out = []
-    for raw in open(path):
-        line = raw.split('#', 1)[0].strip()
-        if line.startswith('chromium '):
-            out.append(line.split(None, 1)[1].strip())
+    for n, raw in enumerate(open(path), 1):
+        fields = raw.split('#', 1)[0].split()
+        if not fields or fields[0] != 'chromium':
+            continue
+        if len(fields) not in (2, 3):
+            raise InputError(f'{where(path, n)}: expected `chromium <patch> [{"|".join(SERIES_TAGS)}]`: {raw.strip()}')
+        tag = fields[2] if len(fields) == 3 else 'all'
+        if tag not in SERIES_TAGS:
+            raise InputError(f'{where(path, n)}: unknown platform `{tag}`; this script knows {", ".join(SERIES_TAGS)}')
+        if tag in tags:
+            out.append(fields[1])
     return out
 
 
@@ -203,13 +210,22 @@ def once(text, needle, what):
 
 def ardia_build_file():
     text = build_text()
-    if text.count('assert(is_mac)') != 1 or 'config("exports_config")' not in text:
-        raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), line_of(text, "assert("))}: chrome/browser/ardia/BUILD.gn is not shaped as expected')
-    text = text.replace('assert(is_mac)', 'assert(is_win)')
+    asserts = LAYER_ASSERT.findall(text)
+    if len(asserts) != 1:
+        raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), line_of(text, "assert("))}: the Windows build needs one '
+                         f'`assert(is_mac)` or `assert(is_mac || is_linux)` to turn into `assert(is_win)`')
+    for needle, what in (('ardia_sources = [\n', 'the shared source list'),
+                         ('source_set("ardia") {\n', 'the layer target'),
+                         ('config("exports_config")', 'the exports config it cuts at'),
+                         ('    "//ardia/core:hooks",\n', 'the hooks dependency it drops'),
+                         ('    "//ardia/core:launch_switches",\n', 'the launch switches dependency it replaces')):
+        once(text, needle, what)
+    text = LAYER_ASSERT.sub('assert(is_win)', text)
     text = ''.join(line for line in text.splitlines(True) if not MAC_LAYER_LINE.search(line))
     text = text.replace('    "//ardia/core:hooks",\n', '')
     text = text.replace('    "//ardia/core:launch_switches",\n', '    "//ardia/win:launch_switches",\n')
-    text = re.sub(r'\n  frameworks \+?= \[[^\]]*\]\n', '\n', text)
+    taken = ''.join(f'    "{name}",\n' for name in WINDOWS_FROM_MAC_BLOCK)
+    text = text.replace('source_set("ardia") {\n', f'if (is_win) {{\n  ardia_sources += [\n{taken}  ]\n}}\n\nsource_set("ardia") {{\n')
     return text[:text.index('config("exports_config")')].rstrip() + '\n'
 
 
@@ -265,15 +281,12 @@ def launch_switches_source():
     return signed.sub('bool SignedForDistribution() {\n  return !CommandLine().HasSwitch("ardia-test-instance");\n}\n', text)
 
 
-def engine_calls(layer=ARDIA_LAYER):
+def engine_calls(layer):
     names = set()
-    for root, _, files in os.walk(layer):
-        if os.path.basename(root) == 'pip':
-            continue
-        for name in files:
-            if name.endswith('.cc'):
-                text = open(os.path.join(root, name), encoding='utf-8').read()
-                names.update(re.findall(r'^AC_(?:PROFILE|ARGS|ENGINE)_CALL\((ac_\w+)', text, re.M))
+    for rel in windows_sources(ardia_build_file()):
+        if rel.endswith('.cc'):
+            text = open(os.path.join(layer, rel), encoding='utf-8').read()
+            names.update(re.findall(r'^AC_(?:PROFILE|ARGS|ENGINE)_CALL\((ac_\w+)', text, re.M))
     return sorted(names)
 
 

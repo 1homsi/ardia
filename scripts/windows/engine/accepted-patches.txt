@@ -1,5 +1,7 @@
 chromium-helium-branding.patch
+chromium-helium-branding-mac.patch
 chromium-cef-carryover.patch
+chromium-cef-carryover-mac.patch
 chromium-autofill-address-bubble-window.patch
 chromium-device-chooser-hook.patch
 chromium-media-access-hook.patch
@@ -52,6 +54,7 @@ chromium-password-string-erase.patch
 chromium-os-crypt-decrypt-erase.patch
 chromium-window-docked-devtools.patch
 chromium-window-hosted.patch
+chromium-window-hosted-mac.patch
 chromium-extension-installed-bubble.patch
 chromium-pip-overlay-window.patch
 chromium-tab-sharing-capturer.patch

@@ -135,15 +135,25 @@ On the Windows tree (2026-11-10): `pins` and `guard` pass, 356 patches applied w
 `scripts/windows/engine/series-win`, then that file's own `chromium` lines (patches in `scripts/windows/engine/patches/`),
 strictly with `git apply` and else with `patch`'s fuzz. It records a failure and goes on, and writes
 `~/chromium-build-win/logs/series-win.tsv`. `series-win` today: one skip and twelve Windows-only patches (the table).
+A shared `chromium` line may end in a platform tag since the Linux port: untagged lines are for every platform, and
+Windows takes those and the `mac` ones (the set it started from), never `linux`.
 The layers:
 
 - `engine/chromium/apply.sh` runs as is. Its `chrome/browser/ardia` (the `ac_*` C API) then builds on Windows from a
   copy `series_win.py layer` makes: the Mac sources with `ardia-layer-win.patch` (UTF-8 paths, and Windows absolute
   paths accepted where the Mac checks for a leading `/`), Windows stand-ins for the two
-  POSIX-only files, and a build file generated from the Mac one. The Ardia logos it replaces are OS-neutral and give
-  the Windows build its branding.
+  POSIX-only files, and a build file generated from the shared one: its shared sources less `.mm` and `pip/`, and from
+  its Mac block the portable files in `WINDOWS_FROM_MAC_BLOCK` (`ac_reauth.cc`). The Ardia logos it replaces are
+  OS-neutral and give the Windows build its branding.
 - `series_win.py layer` also copies `//ardia/win` into the tree, with `EngineApi.h` from the app and a generated table
-  of the `ac_*` exports. `chrome.dll` depends on it; `//ardia/win:probe` builds `ArdiaProbe.dll`, a stand-in for the app.
+  of the `ac_*` exports, made only from the sources Windows compiles.
+- `check_inputs.py` runs those same steps without a Chromium tree, on every pull request (the "Windows engine inputs"
+  workflow), and fails, naming the file and line, when the shared inputs change in a way the Windows build can't take:
+  a series line it can't read or a patch that isn't there, a `series-win` skip that names nothing, `ardia-layer-win.patch`
+  not applying without fuzz, a BUILD.gn it can't turn into the Windows one, a source or engine call Windows would build
+  that isn't there. The patches Windows applies and the layer sources it compiles are recorded in
+  `accepted-patches.txt` and `accepted-layer-sources.txt`; a change to either is taken on purpose with
+  `check_inputs.py --accept`. `chrome.dll` depends on it; `//ardia/win:probe` builds `ArdiaProbe.dll`, a stand-in for the app.
 - `engine/ardiacore/apply.sh` doesn't run: it is Mac code. Only `ardia/core/ac_hooks.h` and `ac_content_hooks.h` are
   copied, because the hook patches include them (`// nogncheck`) and they are OS-neutral. With nothing setting the
   hooks, Chrome behaves as stock.
