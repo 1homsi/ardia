@@ -54,6 +54,7 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr window, uint flags);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);
   [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool GetSystemFlag(uint action, uint unused, ref int value, uint flags);
@@ -455,9 +456,9 @@ while ($true) {
     while ($reader.ReadLine()) { }
     $path = if ($request) { $request.Split(" ")[1] } else { "" }
     if ($Log -and $path) { Add-Content -LiteralPath $Log -Value $path }
-    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/event/hovered" = "event"; "/event/left" = "event" }[$path]
+    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event" }[$path]
     $status = if ($name -eq "event") { "204 No Content" } elseif ($name) { "200 OK" } else { "404 Not Found" }
-    $text = if ($name -eq "event") { "" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
+    $text = if ($name -eq "event") { "" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($text)
     $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
     $stream.Write($head, 0, $head.Length)
@@ -561,6 +562,56 @@ function Test-PageHoverEnds([System.Diagnostics.Process]$Process) {
   return @("hover: after the pointer left the window through the top band over the page, the page never reported the hover ended (events: $((Get-PageEvents) -join ', '))")
 }
 
+function Get-HandleRect([IntPtr]$Handle) {
+  $rect = New-Object ArdiaInput+Rect
+  if (-not [ArdiaInput]::GetWindowRect($Handle, [ref]$rect)) { return $null }
+  return $rect
+}
+
+function Test-PageDragStays([System.Diagnostics.Process]$Process, [string]$Layout) {
+  $handle = $Process.MainWindowHandle
+  if ($handle -eq [IntPtr]::Zero) { return @("page drag ($Layout): the window never showed") }
+  [ArdiaInput]::SetForegroundWindow($handle) | Out-Null
+  Start-Sleep -Milliseconds 400
+  $client = Get-ClientArea $Process
+  if (-not $client) { return @("page drag ($Layout): the window could not be measured") }
+  $probe = New-Object ArdiaInput+Point
+  $probe.X = $client.X + [int]($client.Width * 0.75)
+  $probe.Y = $client.Y + [int]($client.Height * 0.6)
+  $page = [ArdiaInput]::GetAncestor([ArdiaInput]::WindowFromPoint($probe), 2)
+  if ($page -eq $handle -or $page -eq [IntPtr]::Zero) { return @("page drag ($Layout): no page window under ($($probe.X), $($probe.Y))") }
+  $failures = @()
+  $pageRect = Get-HandleRect $page
+  $scale = $client.Scale
+  $targets = @(
+    @{ Name = "text"; X = $pageRect.Left + [int](60 * $scale); Y = $pageRect.Top + [int](132 * $scale); ByX = [int](240 * $scale); ByY = [int](20 * $scale); Event = "selected" },
+    @{ Name = "empty area"; X = $pageRect.Left + [int](300 * $scale); Y = $pageRect.Top + [int](380 * $scale); ByX = [int](220 * $scale); ByY = [int](90 * $scale); Event = "released" },
+    @{ Name = "link"; X = $pageRect.Left + [int](70 * $scale); Y = $pageRect.Top + [int](250 * $scale); ByX = [int](200 * $scale); ByY = [int](80 * $scale); Event = "dragstart" }
+  )
+  foreach ($target in $targets) {
+    $appBefore = Get-WindowRect $Process
+    $pageBefore = Get-HandleRect $page
+    $events = @(Get-PageEvents).Count
+    Send-Drag $target.X $target.Y $target.ByX $target.ByY 200
+    Start-Sleep -Milliseconds 700
+    [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+    [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 300
+    Save-Screenshot (Join-Path $Out "page-drag-$Layout-$($target.Name -replace ' ', '-').png")
+    $appAfter = Get-WindowRect $Process
+    $pageAfter = Get-HandleRect $page
+    if (-not $appAfter -or -not $pageAfter) { $failures += "page drag ($Layout, $($target.Name)): a window was gone after the drag"; continue }
+    $appMoved = "$($appAfter.Left - $appBefore.Left),$($appAfter.Top - $appBefore.Top)"
+    $pageMoved = "$(($pageAfter.Left - $appAfter.Left) - ($pageBefore.Left - $appBefore.Left)),$(($pageAfter.Top - $appAfter.Top) - ($pageBefore.Top - $appBefore.Top))"
+    $got = @(Get-PageEvents | Select-Object -Skip $events)
+    Write-Host "Page drag ($Layout, $($target.Name)): the app window moved by $appMoved, the page window moved by $pageMoved against it, the page reported $($got -join ', ')."
+    if ($appMoved -ne "0,0") { $failures += "page drag ($Layout, $($target.Name)): a drag inside the page moved the app window by $appMoved" }
+    if ($pageMoved -ne "0,0") { $failures += "page drag ($Layout, $($target.Name)): a drag inside the page moved the page's own window by $pageMoved against the app window (#2051)" }
+    if (-not (@($got) -contains "/event/$($target.Event)")) { $failures += "page drag ($Layout, $($target.Name)): the page never reported $($target.Event) for the drag (got: $($got -join ', '))" }
+  }
+  return $failures
+}
+
 function Test-TopEdgeResize([System.Diagnostics.Process]$Process) {
   $handle = $Process.MainWindowHandle
   if ($handle -eq [IntPtr]::Zero) { return @("top edge: the window never showed") }
@@ -608,6 +659,29 @@ if ($withEngineForEdge -and -not $NoInput -and $httpPagesUp) {
     if (-not $edge.HasExited) {
       Stop-Process -Id $edge.Id -Force
       $edge.WaitForExit(10000) | Out-Null
+    }
+  }
+}
+$env:ARDIA_CONFIG_DIR = ""
+
+if ($Part -ne "gate" -and $withEngineForEdge -and -not $NoInput -and $httpPagesUp) {
+  foreach ($layout in @(@{ Name = "sidebar-left"; Settings = '{"settings":{"openLinksInLittleArdia":false}}' }, @{ Name = "minimal-right"; Settings = '{"settings":{"minimalismMode":true,"sidebarSide":"right","openLinksInLittleArdia":false}}' })) {
+    $dragLog = Join-Path $Out "page-drag-$($layout.Name).log"
+    $env:ARDIA_DATA_DIR = New-DataDirectory "page-drag-$($layout.Name)-data"
+    $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
+    Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+    Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value $layout.Settings -Encoding utf8NoBOM
+    $dragApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$dragLog`"", "http://127.0.0.1:$httpPagesPort/drag" -PassThru
+    $env:ARDIA_CONFIG_DIR = ""
+    try {
+      Start-Sleep -Seconds 12
+      if ($dragApp.HasExited) { $failures += "page drag ($($layout.Name)): the app exited on its own (exit code $($dragApp.ExitCode))" }
+      else { Test-PageDragStays $dragApp $layout.Name | ForEach-Object { $failures += $_ } }
+    } finally {
+      if (-not $dragApp.HasExited) {
+        Stop-Process -Id $dragApp.Id -Force
+        $dragApp.WaitForExit(10000) | Out-Null
+      }
     }
   }
 }
