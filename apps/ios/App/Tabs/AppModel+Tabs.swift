@@ -20,6 +20,9 @@ extension AppModel {
 
   static func recencyOrder(_ tabs: [BrowserTab], selected: UUID?) -> [BrowserTab] {
     tabs.sorted { lhs, rhs in
+      let lhsUnseen = TabText.isUnseenReceived(lhs)
+      let rhsUnseen = TabText.isUnseenReceived(rhs)
+      if lhsUnseen != rhsUnseen { return rhsUnseen }
       if lhs.id == selected { return false }
       if rhs.id == selected { return true }
       if lhs.lastActive != rhs.lastActive { return lhs.lastActive < rhs.lastActive }
@@ -99,12 +102,14 @@ extension AppModel {
 
   func beginOpening(_ id: UUID) {
     guard tabs.tab(id) != nil, tabs.selectedTabID != id else { return }
+    showSpace(of: id)
     isIncognito = tabs.isPrivate(id)
     tabs.select(id)
     _ = web.webTab(for: id)
   }
 
   func openTab(_ id: UUID) {
+    showSpace(of: id)
     isIncognito = tabs.isPrivate(id)
     tabs.select(id)
     _ = web.webTab(for: id)
@@ -163,10 +168,8 @@ extension AppModel {
   func openRemote(url: String, title: String, profileSyncId: String?) {
     guard let target = URL(string: url) else { return }
     if isIncognito { isIncognito = false }
-    if let profileSyncId, sync.isEnabled, profileSyncId != tabs.profileSyncId {
-      switchProfile(to: profileSyncId)
-    }
-    if let existing = tabs.openTabs.first(where: { $0.url == url && !$0.isPrivate && $0.profileSyncId == tabs.profileSyncId }) {
+    if let profileSyncId { switchSpace(to: profileSyncId) }
+    if let existing = tabs.openTabs.first(where: { $0.url == url }) {
       sheet = nil
       openTab(existing.id)
       return
@@ -175,11 +178,6 @@ extension AppModel {
     if !title.isEmpty { tabs.update(tab.id, title: title) }
     sheet = nil
     openTab(tab.id)
-  }
-
-  func switchProfile(to syncId: String) {
-    sync.selectedProfileId = syncId
-    tabs.profileSyncId = syncId
   }
 
   func restoreArchived(_ id: UUID) {
@@ -211,16 +209,36 @@ extension AppModel {
     }
   }
 
-  func pinToMac(_ tab: BrowserTab) {
+  func isPinnedToMac(_ tab: BrowserTab) -> Bool {
+    guard sync.isEnabled, !tab.isPrivate, let url = URL(string: tab.url) else { return false }
+    return sync.isPinned(url, profileSyncId: tab.profileSyncId)
+  }
+
+  func pinToMac(_ tab: BrowserTab, inPageMenu: Bool = false) {
     guard !tab.isPrivate, let url = URL(string: tab.url) else { return }
+    guard !isPinnedToMac(tab) else {
+      announcePin(.alreadyPinned, inPageMenu: inPageMenu)
+      return
+    }
     let title = tab.title
     let profile = tab.profileSyncId
     Task {
-      if await sync.addBookmark(url: url, title: title, profileSyncId: profile) {
-        toasts.show(Toast(String(localized: "Pinned to Your Mac"), symbol: "star.fill"))
-      } else {
-        toasts.show(Toast(String(localized: "Couldn’t Pin to Your Mac"), symbol: "exclamationmark.triangle.fill"))
-      }
+      announcePin(await sync.addBookmark(url: url, title: title, profileSyncId: profile), inPageMenu: inPageMenu)
+    }
+  }
+
+  private func announcePin(_ outcome: PinOutcome, inPageMenu: Bool) {
+    switch outcome {
+    case .pinned where inPageMenu:
+      browse.showTitleFeedback(String(localized: "Pinned to Mac"))
+    case .alreadyPinned where inPageMenu:
+      browse.showTitleFeedback(String(localized: "Already Pinned to Mac"))
+    case .pinned:
+      toasts.show(Toast(String(localized: "Pinned to Your Mac"), symbol: "star.fill"))
+    case .alreadyPinned:
+      toasts.show(Toast(String(localized: "Already Pinned to Your Mac"), symbol: "star.fill"))
+    case .failed:
+      toasts.show(Toast(String(localized: "Couldn’t Pin to Your Mac"), symbol: "exclamationmark.triangle.fill"))
     }
   }
 
