@@ -8,7 +8,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { pageSwipe } from "../../state/settings/settingsRules";
 import { PageView, type PageViewHandle } from "../ui";
 
-export function PageSurface({ tab, toneBottom }: { tab: BrowserTab; toneBottom: number }) {
+export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; toneBottom: number; obscured?: { top: number; bottom: number } }) {
   const handle = useRef<PageViewHandle>(null);
   const id = tab.id;
   const swipe = usePreferences((p) => p.swipeNavigation);
@@ -27,6 +27,7 @@ export function PageSurface({ tab, toneBottom }: { tab: BrowserTab; toneBottom: 
       isPrivate={tab.isPrivate}
       savedState={setup.saved}
       toneInsets={{ top: 0, bottom: toneBottom }}
+      obscuredInsets={obscured}
       swipeNavigation={pageSwipe(swipe)}
       pullToRefresh
       onPageState={(state) => pageStateChanged(id, state)}

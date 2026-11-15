@@ -84,3 +84,30 @@ test("a page loaded over plain http reads Not Secure in place of its icon, as Sw
   expect(root.root.findAll((node) => node.props.accessibilityLabel === "Address, Not Secure")).not.toHaveLength(0);
   unmount(root);
 });
+
+const pageViewModule = require("../../../../packages/phone/src/PageView") as typeof import("../../../../packages/phone/src/PageView");
+
+test("in the redesign the page runs full screen under the bar, told the top safe area and the bar's 75 points as obscured insets, and only the bar's pieces take touches", () => {
+  jest.spyOn(pageViewModule, "pageObscuresInsets").mockImplementation(() => true);
+  const root = page("redesigned");
+  const view = root.root.findAll((node) => node.props.pageId !== undefined && node.props.obscuredInsets !== undefined)[0]!;
+  expect(view.props.obscuredInsets).toEqual({ top: 47, bottom: 75 });
+  expect(view.props.toneInsets).toEqual({ top: 0, bottom: 75 });
+  expect(StyleSheet.flatten(host(root, "pageArea")!.props.style).marginBottom).toBe(0);
+  expect(host(root, "pageStatusStrip")).toBeUndefined();
+  let bar = host(root, "floatingBar")!.parent;
+  while (bar && bar.props.pointerEvents === undefined) bar = bar.parent;
+  expect(bar!.props.pointerEvents).toBe("box-none");
+  unmount(root);
+});
+
+test("where the page view can't take obscured insets, and in the original design, the page stops above the bar as before", () => {
+  jest.spyOn(pageViewModule, "pageObscuresInsets").mockImplementation(() => false);
+  for (const design of DESIGNS) {
+    const root = page(design);
+    expect(root.root.findAll((node) => node.props.pageId !== undefined && node.props.obscuredInsets !== undefined)).toHaveLength(0);
+    expect(host(root, "pageStatusStrip")).toBeDefined();
+    expect(StyleSheet.flatten(host(root, "pageArea")!.props.style).marginBottom).toBeGreaterThan(0);
+    unmount(root);
+  }
+});

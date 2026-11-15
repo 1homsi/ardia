@@ -30,4 +30,4 @@ export { useIncreasedContrast, useReduceTransparency } from "./contrast";
 export { FadingBackdrop } from "./FadingBackdrop";
 export { ChromeSurface, DeckLookBackdrop, DeckLookBackdropBase, LookBackdrop, LookBackdropBase, LookFrost, LookGlass, SURFACES_FROST, usesGlass } from "./LookViews";
 export { appDesign, DesignProvider, useDesign } from "./design";
-export { FadeView, fadeIsNative, FrostSource, PasteButton, pasteButtonIsNative, ScrollActions } from "@ardia/phone-native";
+export { FadeView, fadeIsNative, FrostSource, pageObscuresInsets, PasteButton, pasteButtonIsNative, ScrollActions } from "@ardia/phone-native";

@@ -30,6 +30,7 @@ import {
   tabsLayout,
   tabsMotion,
   floatingBarLayout,
+  pageObscuresInsets,
   useDesign,
   usePresence,
   useTheme,
@@ -86,7 +87,8 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const barDark = isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding);
-  const layout = pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
+  const underBar = design === "redesigned" && pageObscuresInsets();
+  const layout = underBar ? { pageBottom: 0, toneBottom: barHeight(insets.bottom, design) } : pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
   const painted = useSharedValue(false);
   useEffect(() => {
     painted.value = true;
@@ -106,9 +108,9 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
       <Shade shaded={menuOpen || readerId === tab.id || pressing || tabsMenu}>
         <PagerBlack />
         <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
-          <Animated.View style={[{ height: insets.top }, statusStyle]} />
-          <View style={[styles.page, { marginBottom: layout.pageBottom }]}>
-            <PageSurface key={tab.id} tab={tab} toneBottom={layout.toneBottom} />
+          {underBar ? null : <Animated.View testID="pageStatusStrip" style={[{ height: insets.top }, statusStyle]} />}
+          <View testID="pageArea" style={[styles.page, { marginBottom: layout.pageBottom }]}>
+            <PageSurface key={tab.id} tab={tab} toneBottom={layout.toneBottom} obscured={underBar ? { top: insets.top, bottom: barHeight(insets.bottom, design) } : undefined} />
             <PageCover key={`${tab.id}:cover`} tab={tab} />
             <PageFailureView key={`${tab.id}:failure`} tabId={tab.id} />
           </View>
@@ -122,9 +124,9 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
         {
           <GestureDetector gesture={pager.gesture}>
             <Animated.View
-              pointerEvents={collapse.hidden ? "none" : "auto"}
+              pointerEvents={collapse.hidden ? "none" : design === "redesigned" ? "box-none" : "auto"}
               importantForAccessibility={collapse.hidden ? "no-hide-descendants" : "auto"}
-              style={[styles.bar, { height: barHeight(insets.bottom, design) }, barStyle, collapse.style]}
+              style={[styles.bar, { height: barHeight(insets.bottom, design) }, underBar ? null : barStyle, collapse.style]}
             >
               {design === "redesigned" ? (
                 <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - floatingBarLayout.control / 2 }]} pointerEvents="box-none">
