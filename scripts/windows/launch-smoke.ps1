@@ -53,6 +53,7 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int size);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);
   [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool GetSystemFlag(uint action, uint unused, ref int value, uint flags);
@@ -449,9 +450,9 @@ while ($true) {
     $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 1024, $true)
     $request = $reader.ReadLine()
     while ($reader.ReadLine()) { }
-    $name = @{ "/a" = "a"; "/b" = "b" }[$(if ($request) { $request.Split(" ")[1] } else { "" })]
+    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover" }[$(if ($request) { $request.Split(" ")[1] } else { "" })]
     $status = if ($name) { "200 OK" } else { "404 Not Found" }
-    $text = if ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
+    $text = if ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; }); strip.addEventListener('mouseleave', () => { document.title = 'left'; });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($text)
     $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
     $stream.Write($head, 0, $head.Length)
@@ -504,6 +505,59 @@ elseif (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Qui
 }
 elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first window" -Quiet)) { $failures += "the browser window never rendered with onboarding done" }
 
+function Get-WindowText([System.Diagnostics.Process]$Process) {
+  $Process.Refresh()
+  $text = New-Object System.Text.StringBuilder 512
+  [ArdiaInput]::GetWindowText($Process.MainWindowHandle, $text, 512) | Out-Null
+  return $text.ToString()
+}
+
+function Send-Move([int]$FromX, [int]$FromY, [int]$ToX, [int]$ToY) {
+  $screen = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
+  foreach ($step in 1..12) {
+    $x = $FromX + [int](($ToX - $FromX) * $step / 12)
+    $y = $FromY + [int](($ToY - $FromY) * $step / 12)
+    [ArdiaInput]::mouse_event(0x8001, [uint32]($x * 65535 / ($screen.Width - 1)), [uint32]($y * 65535 / ($screen.Height - 1)), 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 40
+  }
+}
+
+function Wait-WindowText([System.Diagnostics.Process]$Process, [string]$Pattern, [int]$Milliseconds) {
+  $deadline = (Get-Date).AddMilliseconds($Milliseconds)
+  do {
+    $text = Get-WindowText $Process
+    if ($text -match $Pattern) { return $text }
+    Start-Sleep -Milliseconds 100
+  } while ((Get-Date) -lt $deadline)
+  return $null
+}
+
+function Test-PageHoverEnds([System.Diagnostics.Process]$Process) {
+  $handle = $Process.MainWindowHandle
+  if ($handle -eq [IntPtr]::Zero) { return @("hover: the window never showed") }
+  [ArdiaInput]::SetForegroundWindow($handle) | Out-Null
+  Start-Sleep -Milliseconds 400
+  $window = Get-WindowRect $Process
+  $client = Get-ClientArea $Process
+  if (-not $window -or -not $client) { return @("hover: the window could not be measured") }
+  $x = $client.X + [int]($client.Width * 0.3)
+  $inside = $client.Y + [int](60 * $client.Scale)
+  $band = $client.Y + 2
+  [ArdiaInput]::SetCursorPos($x, $inside + 20) | Out-Null
+  Start-Sleep -Milliseconds 300
+  Send-Move $x ($inside + 20) $x $inside
+  $hovered = Wait-WindowText $Process "\bhovered\b" 3000
+  if (-not $hovered) { return @("hover: the page never reported the pointer over its strip (window title: $(Get-WindowText $Process))") }
+  Write-Host "Hover: the page reports the pointer over its strip ($hovered)."
+  Send-Move $x $inside $x $band
+  Start-Sleep -Milliseconds 200
+  if ($window.Top -ge 40) { $outX = $x; $outY = $window.Top - 30 } else { $outX = $window.Right + 30; $outY = $band }
+  Send-Move $x $band $outX $outY
+  $left = Wait-WindowText $Process "\bleft\b" 3000
+  if ($left) { Write-Host "Hover: leaving the window through the top band ended the page's hover ($left)."; return @() }
+  return @("hover: after the pointer left the window through the top band over the page, the page still reports it over its strip (window title: $(Get-WindowText $Process))")
+}
+
 function Test-TopEdgeResize([System.Diagnostics.Process]$Process) {
   $handle = $Process.MainWindowHandle
   if ($handle -eq [IntPtr]::Zero) { return @("top edge: the window never showed") }
@@ -538,12 +592,15 @@ $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
 Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"minimalismMode":true,"sidebarSide":"right","openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
 if ($withEngineForEdge -and -not $NoInput -and $httpPagesUp) {
-  $edge = Start-Process -FilePath $App -ArgumentList "--log-file=`"$edgeLog`"", "http://127.0.0.1:$httpPagesPort/a" -PassThru
+  $edge = Start-Process -FilePath $App -ArgumentList "--log-file=`"$edgeLog`"", "http://127.0.0.1:$httpPagesPort/hover" -PassThru
   $env:ARDIA_CONFIG_DIR = ""
   try {
     Start-Sleep -Seconds 12
     if ($edge.HasExited) { $failures += "top edge: the app exited on its own (exit code $($edge.ExitCode))" }
-    else { Test-TopEdgeResize $edge | ForEach-Object { $failures += $_ } }
+    else {
+      Test-PageHoverEnds $edge | ForEach-Object { $failures += $_ }
+      Test-TopEdgeResize $edge | ForEach-Object { $failures += $_ }
+    }
   } finally {
     if (-not $edge.HasExited) {
       Stop-Process -Id $edge.Id -Force
