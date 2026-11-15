@@ -39,6 +39,7 @@ import {
   closeAllFromDeck,
   closeTabFromDeck,
   consumeDeckEntrance,
+  deckEntranceCapture,
   peekDeckEntrance,
   deckEntered,
   leaveIncognito,
@@ -86,7 +87,7 @@ export function TabDeck() {
   const [entering] = useState(() => {
     const id = peekDeckEntrance();
     const index = id ? order.indexOf(id) : -1;
-    return index < 0 ? null : { index, holdsForPicture: Boolean(live[index]?.snapshotFileName) };
+    return index < 0 ? null : { index, holdsForPicture: Boolean(live[index]?.snapshotFileName) || deckEntranceCapture(id!) !== null };
   });
   const [phase, setPhase] = useState<Phase>({ kind: "settled", id: null });
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
@@ -167,18 +168,40 @@ export function TabDeck() {
         runOnJS(deckEntered)(entrance);
       });
     };
-    const picture = tabs.get(entrance)?.snapshotFileName;
-    if (!picture) {
+    const capture = deckEntranceCapture(entrance);
+    if (!capture && !tabs.get(entrance)?.snapshotFileName) {
       shrink();
       return () => deckEntered(entrance);
     }
     cardsOpacity.value = 0;
     let frame = 0;
-    const stopWaiting = whenPicturePainted(pictureKey(`deck:${entrance}`, picture), ENTRANCE_PAINT_CAP_MS, (painted) => {
-      if (!painted && !tabs.get(entrance)?.isPrivate) countUsage("deck_pictures_late");
-      frame = requestAnimationFrame(shrink);
-    });
+    let live = true;
+    let waited = false;
+    let stopWaiting = () => {};
+    const waitForPaint = () => {
+      if (!live || waited) return;
+      waited = true;
+      const now = currentTabs();
+      const picture = [...now.open, ...now.privates].find((tab) => tab.id === entrance)?.snapshotFileName;
+      if (!picture) {
+        frame = requestAnimationFrame(shrink);
+        return;
+      }
+      stopWaiting = whenPicturePainted(pictureKey(`deck:${entrance}`, picture), ENTRANCE_PAINT_CAP_MS, (painted) => {
+        if (!painted && !tabs.get(entrance)?.isPrivate) countUsage("deck_pictures_late");
+        frame = requestAnimationFrame(shrink);
+      });
+    };
+    if (capture) {
+      const cap = setTimeout(waitForPaint, ENTRANCE_CAPTURE_CAP_MS);
+      void capture.then(() => {
+        clearTimeout(cap);
+        waitForPaint();
+      });
+      stopWaiting = () => clearTimeout(cap);
+    } else waitForPaint();
     return () => {
+      live = false;
       stopWaiting();
       cancelAnimationFrame(frame);
       deckEntered(entrance);
@@ -592,6 +615,7 @@ const flickTick = () => haptics.tap();
 const DECK_FROST = "deck";
 const HANDOVER_CAP_MS = 250;
 const ENTRANCE_PAINT_CAP_MS = 250;
+const ENTRANCE_CAPTURE_CAP_MS = 180;
 
 const DECK_RENDER_REACH = 6;
 const DECK_GESTURE_REACH = 3;

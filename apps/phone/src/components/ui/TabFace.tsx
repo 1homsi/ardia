@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
-import { notePicturePainted, noteSnapshotShown, pictureKey, snapshotWasShown } from "../../lib/shownSnapshots";
+import { forgetPicturePainted, notePicturePainted, noteSnapshotShown, pictureKey, snapshotWasShown } from "../../lib/shownSnapshots";
 import { tabsMotion } from "./motion";
 import { isDarkColor } from "../../lib/color";
 import { Favicon } from "./Favicon";
@@ -25,7 +25,7 @@ type Props = { tab: TabFaceTab; title: string; host: string; tone: string | null
 export function TabFace({ tab, title, host, tone, roles, compact, paintedAs }: Props) {
   const fill = tabFill(tab, tone, roles);
   const face = <PlainFace tab={tab} title={title} host={host} fill={fill} roles={roles} compact={compact} />;
-  if (tab.snapshotFileName) return <Snapshot uri={tab.snapshotFileName} fill={fill} under={face} paintedAs={paintedAs} />;
+  if (tab.snapshotFileName) return <Snapshot key={tab.snapshotFileName} uri={tab.snapshotFileName} fill={fill} under={face} paintedAs={paintedAs} />;
   return face;
 }
 
@@ -74,8 +74,12 @@ function Snapshot({ uri, fill, under, paintedAs }: { uri: string; fill: string; 
   const appearing = useAnimatedStyle(() => ({ opacity: appear.value }));
   useEffect(() => {
     if (!loaded) return;
-    const frame = requestAnimationFrame(() => notePicturePainted(paintedAs ? pictureKey(paintedAs, uri) : uri));
-    return () => cancelAnimationFrame(frame);
+    const key = paintedAs ? pictureKey(paintedAs, uri) : uri;
+    const frame = requestAnimationFrame(() => notePicturePainted(key));
+    return () => {
+      cancelAnimationFrame(frame);
+      forgetPicturePainted(key);
+    };
   }, [loaded, aspect, uri, paintedAs]);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]}>

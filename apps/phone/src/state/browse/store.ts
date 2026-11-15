@@ -44,7 +44,7 @@ import {
 } from "../tabs/store";
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
-import { copyText, pasteText, prefetchImage } from "../../platform/system";
+import { copyText, pasteText } from "../../platform/system";
 import { noteSnapshotPageTop, noteSnapshotShown } from "../../lib/shownSnapshots";
 import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
@@ -65,7 +65,6 @@ const lastVisits = new Map<string, Visit>();
 const SNAPSHOT_SETTLE_MS = 700;
 const SNAPSHOT_RETRIES = 30;
 const STATE_SAVE_DELAY_MS = 1500;
-const DECK_SNAPSHOT_WAIT_MS = 400;
 
 let started = false;
 
@@ -261,16 +260,27 @@ export async function showDeck() {
   const selected = currentTabs().selectedId;
   const covered = pageCovered();
   dismissSearch();
+  entranceCapture = null;
   if (surface === "browsing" && selected) {
-    const earlier = readyPicture(selected);
-    const fresh = coverIsCapturable(loading.get(selected) === false, covered) ? captureSnapshot(selected).then(() => readyPicture(selected)) : earlier;
-    await Promise.race([fresh, new Promise((done) => setTimeout(done, DECK_SNAPSHOT_WAIT_MS))]);
+    const tab = findTab(currentTabs(), selected);
+    if (tab?.snapshotFileName) noteSnapshotShown(tab.snapshotFileName);
+    if (coverIsCapturable(loading.get(selected) === false, covered)) entranceCapture = {
+      id: selected,
+      done: captureSnapshot(selected).then(() => {
+        const fresh = findTab(currentTabs(), selected)?.snapshotFileName;
+        if (fresh) noteSnapshotShown(fresh);
+      }),
+    };
   }
   const leaving = surface === "browsing" ? selected : null;
   useBrowse.setState({ surface: "deck", deckEntrance: leaving, frozenOrder: null, opening: null, leaving });
 }
 
 export const peekDeckEntrance = () => useBrowse.getState().deckEntrance;
+
+let entranceCapture: { id: string; done: Promise<void> } | null = null;
+
+export const deckEntranceCapture = (id: string) => (entranceCapture?.id === id ? entranceCapture.done : null);
 
 export const consumeDeckEntrance = () => {
   const entrance = useBrowse.getState().deckEntrance;
@@ -383,13 +393,6 @@ export function captureCurrentCover() {
   const id = currentTabs().selectedId;
   if (!id || !coverIsCapturable(loading.get(id) === false, false)) return;
   void captureSnapshot(id);
-}
-
-async function readyPicture(id: string) {
-  const uri = findTab(currentTabs(), id)?.snapshotFileName;
-  if (!uri) return;
-  noteSnapshotShown(uri);
-  await settled(() => prefetchImage(uri), false);
 }
 
 export async function captureSnapshot(id: string) {

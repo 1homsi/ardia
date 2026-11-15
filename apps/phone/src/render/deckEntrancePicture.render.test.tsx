@@ -37,31 +37,28 @@ const entranceCard = (root: ReturnType<typeof renderSurface>) => {
   return cards.find((card) => card.findAll((node) => typeof node.props.source?.uri === "string" && node.props.source.uri.includes("t2-")).length > 0) ?? (selected ? null : null);
 };
 
-test("opening the deck from a page readies that page's picture first, so the shrinking card draws it at once, with no placeholder and no fade", async () => {
+test("opening the deck from a page switches at once, without waiting for the capture, and the leaving card draws the fresh picture as it lands, with no placeholder", async () => {
   jest.spyOn(pages, "snapshot").mockImplementation(async () => ({ uri: FRESH, width: 600, height: 1157 }) as never);
   await act(async () => {
-    const opening = browse.showDeck();
-    jest.advanceTimersByTime(10);
-    await opening;
+    void browse.showDeck();
   });
-  expect(prefetched).toContain(FRESH);
+  expect(browse.useBrowse.getState().surface).toBe("deck");
+  expect(prefetched).toEqual([]);
   const root = renderSurface(<TabDeck />, { flushTimers: false });
+  await act(async () => {});
   const card = entranceCard(root);
   expect(card).toBeTruthy();
-  const picture = card!.findAll((node) => node.props.source?.uri === FRESH && typeof node.type === "string")[0]!;
-  expect(picture).toBeDefined();
+  expect(card!.findAll((node) => node.props.source?.uri === FRESH && typeof node.type === "string")).toHaveLength(1);
   expect(textOf({ root: card! } as never)).not.toContain("Kernel Archives");
   unmount(root);
 });
 
-test("when the fresh capture is slow, the card still shows the page's earlier picture rather than the placeholder", async () => {
+test("when the fresh capture is slow, the card holds the page's earlier picture rather than the placeholder", async () => {
   jest.spyOn(pages, "snapshot").mockImplementation(() => new Promise(() => undefined) as never);
   await act(async () => {
-    const opening = browse.showDeck();
-    jest.advanceTimersByTime(500);
-    await opening;
+    void browse.showDeck();
   });
-  expect(prefetched).toContain(EARLIER);
+  expect(browse.useBrowse.getState().surface).toBe("deck");
   const root = renderSurface(<TabDeck />, { flushTimers: false });
   const card = entranceCard(root);
   expect(card!.findAll((node) => node.props.source?.uri === EARLIER && typeof node.type === "string")).toHaveLength(1);

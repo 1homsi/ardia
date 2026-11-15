@@ -10,13 +10,24 @@ const paintWaiters = new Map<string, Set<(painted: boolean) => void>>();
 
 export const pictureKey = (owner: string, uri: string) => `${owner}|${uri}`;
 
+const painted = new Set<string>();
+
+export function forgetPicturePainted(key: string) {
+  painted.delete(key);
+}
+
 export function notePicturePainted(uri: string) {
+  painted.add(uri);
   const waiters = paintWaiters.get(uri);
   paintWaiters.delete(uri);
   waiters?.forEach((then) => then(true));
 }
 
 export function whenPicturePainted(uri: string, capMs: number, then: (painted: boolean) => void): () => void {
+  if (painted.has(uri)) {
+    then(true);
+    return () => undefined;
+  }
   let called = false;
   const done = (painted: boolean) => {
     if (called) return;
