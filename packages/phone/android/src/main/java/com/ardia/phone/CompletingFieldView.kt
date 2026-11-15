@@ -166,14 +166,16 @@ class CompletingFieldView(context: Context, appContext: AppContext) : ExpoView(c
         if (changed) suffixChanged()
     }
 
+    private val keyboard by lazy { FieldKeyboard(editor) }
+
     fun focusField() {
         editor.requestFocus()
-        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT)
+        keyboard.open()
     }
 
     fun blurField() {
         editor.clearFocus()
-        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(editor.windowToken, 0)
+        keyboard.close()
     }
 
     fun setSelectsAllOnFocus(value: Boolean) = editor.setSelectAllOnFocus(value)
