@@ -6,37 +6,41 @@ struct MotionValues: Equatable {
   var translateX: CGFloat = 0
   var translateY: CGFloat = 0
   var scale: CGFloat = 1
+  var cornerRadius: CGFloat?
 
-  init(opacity: CGFloat = 1, translateX: CGFloat = 0, translateY: CGFloat = 0, scale: CGFloat = 1) {
+  init(opacity: CGFloat = 1, translateX: CGFloat = 0, translateY: CGFloat = 0, scale: CGFloat = 1, cornerRadius: CGFloat? = nil) {
     self.opacity = min(max(opacity, 0), 1)
     self.translateX = translateX
     self.translateY = translateY
     self.scale = scale
+    self.cornerRadius = cornerRadius.map { max($0, 0) }
   }
 
-  init(showing layer: CALayer) {
+  init(showing layer: CALayer, withCorners: Bool) {
     opacity = CGFloat(layer.opacity)
     translateX = (layer.value(forKeyPath: "transform.translation.x") as? CGFloat) ?? 0
     translateY = (layer.value(forKeyPath: "transform.translation.y") as? CGFloat) ?? 0
     scale = (layer.value(forKeyPath: "transform.scale.x") as? CGFloat) ?? 1
+    cornerRadius = withCorners ? layer.cornerRadius : nil
   }
 
   var transform: CATransform3D {
     CATransform3DScale(CATransform3DMakeTranslation(translateX, translateY, 0), scale, scale, 1)
   }
 
-  func value(_ channel: MotionChannel) -> CGFloat {
+  func value(_ channel: MotionChannel) -> CGFloat? {
     switch channel {
     case .opacity: opacity
     case .translateX: translateX
     case .translateY: translateY
     case .scale: scale
+    case .cornerRadius: cornerRadius
     }
   }
 }
 
 enum MotionChannel: CaseIterable {
-  case opacity, translateX, translateY, scale
+  case opacity, translateX, translateY, scale, cornerRadius
 
   var keyPath: String {
     switch self {
@@ -44,6 +48,7 @@ enum MotionChannel: CaseIterable {
     case .translateX: "transform.translation.x"
     case .translateY: "transform.translation.y"
     case .scale: "transform.scale"
+    case .cornerRadius: "cornerRadius"
     }
   }
 
@@ -105,7 +110,7 @@ final class MotionRunner {
 
   func show(_ next: MotionValues, curve: MotionCurve, animates: Bool) {
     guard next != shown else { return }
-    let from = shown.map { _ in MotionValues(showing: layer.presentation() ?? layer) }
+    let from = shown.map { before in MotionValues(showing: layer.presentation() ?? layer, withCorners: before.cornerRadius != nil) }
     shown = next
     move += 1
     waiting = 0
@@ -113,9 +118,9 @@ final class MotionRunner {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     for channel in MotionChannel.allCases {
-      let start = from?.value(channel) ?? next.value(channel)
-      let end = next.value(channel)
-      guard animates, from != nil, abs(start - end) > 0.0001 else {
+      guard let end = next.value(channel) else { continue }
+      let start = from?.value(channel) ?? end
+      guard animates, from?.value(channel) != nil, abs(start - end) > 0.0001 else {
         layer.removeAnimation(forKey: channel.key)
         continue
       }
@@ -126,6 +131,11 @@ final class MotionRunner {
     }
     layer.opacity = Float(next.opacity)
     layer.transform = next.transform
+    if let radius = next.cornerRadius {
+      layer.cornerCurve = .continuous
+      layer.masksToBounds = true
+      layer.cornerRadius = radius
+    }
     CATransaction.commit()
     if from != nil, waiting == 0 { onEnd?(true) }
   }

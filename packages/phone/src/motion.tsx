@@ -2,7 +2,7 @@ import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modu
 import { createElement, useEffect, useRef, type ComponentType, type ReactNode } from "react";
 import { Animated, Easing, type NativeSyntheticEvent, type ViewProps } from "react-native";
 
-export type MotionTarget = { opacity?: number; translateX?: number; translateY?: number; scale?: number };
+export type MotionTarget = { opacity?: number; translateX?: number; translateY?: number; scale?: number; cornerRadius?: number };
 
 export type MotionCurve =
   | { type: "timing"; durationMs: number; curve?: [number, number, number, number] }
@@ -24,7 +24,7 @@ const view = () => (nativeView ??= requireNativeViewManager<NativeProps>("ArdiaP
 
 export const motionRunsInRenderServer = () => native?.runsInRenderServer === true;
 
-const filled = (to: MotionTarget) => ({ opacity: to.opacity ?? 1, translateX: to.translateX ?? 0, translateY: to.translateY ?? 0, scale: to.scale ?? 1 });
+const filled = (to: MotionTarget) => ({ opacity: to.opacity ?? 1, translateX: to.translateX ?? 0, translateY: to.translateY ?? 0, scale: to.scale ?? 1, cornerRadius: to.cornerRadius });
 
 export function MotionView({ to, motion, onMotionEnd, ...rest }: MotionViewProps) {
   if (motionRunsInRenderServer()) {
@@ -45,7 +45,7 @@ function animation(value: Animated.Value, toValue: number, motion: MotionCurve) 
 }
 
 function AnimatedMotionView({ to, motion, onMotionEnd, style, ...rest }: MotionViewProps) {
-  const target = filled(to);
+  const { cornerRadius, ...target } = filled(to);
   const values = useRef({ opacity: new Animated.Value(target.opacity), translateX: new Animated.Value(target.translateX), translateY: new Animated.Value(target.translateY), scale: new Animated.Value(target.scale) }).current;
   const shown = useRef(target);
   useEffect(() => {
@@ -59,6 +59,6 @@ function AnimatedMotionView({ to, motion, onMotionEnd, style, ...rest }: MotionV
   }, [target.opacity, target.translateX, target.translateY, target.scale]);
   return createElement(Animated.View, {
     ...rest,
-    style: [style, { opacity: values.opacity, transform: [{ translateX: values.translateX }, { translateY: values.translateY }, { scale: values.scale }] }],
+    style: [style, cornerRadius === undefined ? null : { borderRadius: cornerRadius, borderCurve: "continuous", overflow: "hidden" }, { opacity: values.opacity, transform: [{ translateX: values.translateX }, { translateY: values.translateY }, { scale: values.scale }] }],
   });
 }

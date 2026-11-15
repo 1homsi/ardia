@@ -78,6 +78,38 @@ struct MotionPlanTests {
     }
   }
 
+  @Test func theCardsCornersGrowToTheDisplaysWithTheSameCurve() throws {
+    try held {
+      let ends = Ends()
+      let motion = runner(ends)
+      motion.show(MotionValues(scale: 0.8, cornerRadius: 28), curve: expand, animates: true)
+      #expect(motion.layer.cornerRadius == 28)
+      #expect(motion.layer.cornerCurve == .continuous)
+      #expect(motion.layer.masksToBounds, "the corners clip the card's page")
+      motion.show(MotionValues(scale: 1, cornerRadius: 55), curve: expand, animates: true)
+      let corners = try #require(motion.layer.animation(forKey: MotionChannel.cornerRadius.key) as? CASpringAnimation)
+      let growth = try #require(motion.layer.animation(forKey: MotionChannel.scale.key) as? CASpringAnimation)
+      #expect(corners.fromValue as? CGFloat == 28)
+      #expect(corners.toValue as? CGFloat == 55)
+      #expect(corners.perceptualDuration == growth.perceptualDuration)
+      #expect(motion.layer.cornerRadius == 55)
+      stopAll(motion)
+      #expect(ends.seen == [true], "the end waits for the corners too")
+    }
+  }
+
+  @Test func leavingOutTheCornersNeverTouchesTheLayersOwn() {
+    held {
+      let motion = runner(Ends())
+      motion.layer.cornerRadius = 12
+      motion.show(MotionValues(), curve: depart, animates: true)
+      motion.show(departed, curve: depart, animates: true)
+      #expect(motion.layer.cornerRadius == 12)
+      #expect(!motion.layer.masksToBounds)
+      #expect(motion.layer.animation(forKey: MotionChannel.cornerRadius.key) == nil)
+    }
+  }
+
   @Test func theEndFiresOnceWhenEveryChannelHasStopped() {
     held {
       let ends = Ends()

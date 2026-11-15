@@ -7,9 +7,10 @@ struct MotionTargetRecord: Record {
   @Field var translateX: Double = 0
   @Field var translateY: Double = 0
   @Field var scale: Double = 1
+  @Field var cornerRadius: Double? = nil
 
   var values: MotionValues {
-    MotionValues(opacity: CGFloat(opacity), translateX: CGFloat(translateX), translateY: CGFloat(translateY), scale: CGFloat(scale))
+    MotionValues(opacity: CGFloat(opacity), translateX: CGFloat(translateX), translateY: CGFloat(translateY), scale: CGFloat(scale), cornerRadius: cornerRadius.map { CGFloat($0) })
   }
 }
 
