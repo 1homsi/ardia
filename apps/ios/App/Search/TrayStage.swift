@@ -19,6 +19,7 @@ final class TrayStageController: UIViewController {
   let dim = TrayDimView()
   let tray = TrayContainerView()
   let keyboardSentinel = UIView()
+  let stageView = TrayStageView()
   var onResize: (() -> Void)?
   private(set) var trayHeight: CGFloat = 0
   private var placedIn: [CGFloat] = []
@@ -30,7 +31,7 @@ final class TrayStageController: UIViewController {
   }
 
   override func loadView() {
-    view = TrayStageView()
+    view = stageView
   }
 
   override func viewDidLoad() {
@@ -80,9 +81,12 @@ final class TrayStageController: UIViewController {
 }
 
 final class TrayStageView: UIView {
+  var absorbsTouches = false
+
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
     let hit = super.hitTest(point, with: event)
-    return hit === self ? nil : hit
+    guard hit === self else { return hit }
+    return absorbsTouches ? self : nil
   }
 }
 

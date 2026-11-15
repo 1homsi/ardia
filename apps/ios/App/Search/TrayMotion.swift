@@ -360,6 +360,7 @@ final class TrayMotion {
     placeEmergence(on: tray)
     let isUnrevealed = emergence != nil && !isUp
     tray.takesTouches = isShown && !isClosing && !isUnrevealed
+    controller.stageView.absorbsTouches = isShown && isClosing
     tray.accessibilityElementsHidden = isUnrevealed
     tray.accessibilityViewIsModal = isShown
     placeDim(progress: TrayDrag.progress(offset: dragOffset, travel: trayHeight + lift))

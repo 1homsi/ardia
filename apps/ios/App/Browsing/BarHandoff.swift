@@ -52,11 +52,22 @@ struct BarAnchor: Equatable {
 
 struct BarFaceImage {
   let owner: BarOwner
+  let content: BarFace.Content
+  let isDark: Bool
   let size: CGSize
   let image: UIImage
 
+  init(image: UIImage, of anchor: BarAnchor) {
+    owner = anchor.owner
+    content = anchor.content
+    isDark = anchor.isDark
+    size = anchor.frame.size
+    self.image = image
+  }
+
   func fits(_ anchor: BarAnchor) -> Bool {
-    owner == anchor.owner && abs(size.width - anchor.frame.width) < 1 && abs(size.height - anchor.frame.height) < 1
+    owner == anchor.owner && content == anchor.content && isDark == anchor.isDark
+      && abs(size.width - anchor.frame.width) < 1 && abs(size.height - anchor.frame.height) < 1
   }
 
   @MainActor

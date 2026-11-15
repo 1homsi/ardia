@@ -146,7 +146,7 @@ struct SearchTrayHost: View {
       }
       let image = await BarFace.render(anchor.content, size: anchor.frame.size, isDark: anchor.isDark, dynamicType: dynamicTypeSize, scale: displayScale)
       guard !Task.isCancelled, shown == nil else { return }
-      motion.barFace = image.map { BarFaceImage(owner: anchor.owner, size: anchor.frame.size, image: $0) }
+      motion.barFace = image.map { BarFaceImage(image: $0, of: anchor) }
     }
   }
 
