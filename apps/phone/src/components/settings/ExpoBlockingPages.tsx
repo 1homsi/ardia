@@ -277,11 +277,7 @@ export function ExpoTrustedSitesPage() {
   const [editing, setEditing] = useState(false);
   const page = [navigationTitle("Trusted Sites"), navigationBarTitleDisplayMode("inline"), tint(BLUE)];
   if (hosts.length === 0) {
-    return (
-      <Form modifiers={modifierList(...page, settingsChrome())}>
-        <ContentUnavailableView title="No Trusted Sites" systemImage="checkmark.shield" description="Sites you allow from the page menu show up here." />
-      </Form>
-    );
+    return <ContentUnavailableView title="No Trusted Sites" systemImage="checkmark.shield" description="Sites you allow from the page menu show up here." modifiers={modifierList(...page, frame({ maxWidth: FILL, maxHeight: FILL }), settingsChrome())} />;
   }
   return (
     <Toolbar>

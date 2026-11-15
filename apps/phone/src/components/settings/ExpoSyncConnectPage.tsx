@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { PlatformColor } from "react-native";
+import { PlatformColor, useWindowDimensions } from "react-native";
 import { Button, Form, HStack, Label, ProgressView, Section, Spacer, Text, VStack } from "@expo/ui/swift-ui";
 import { buttonBorderShape, buttonStyle, disabled, fixedSize, font, foregroundStyle, interactiveDismissDisabled, labelStyle, lineLimit, tint } from "@expo/ui/swift-ui/modifiers";
 import { copy } from "../../lib/platformCopy";
@@ -16,10 +16,24 @@ import { ExpoHero, ExpoStep } from "./ExpoSettingsParts";
 
 const SECONDARY = { type: "hierarchical", style: "secondary" } as const;
 const noSubscription = () => () => undefined;
+const STEP_CHROME = 102;
+const PHRASE_BUTTONS_WIDTH = 305;
+
+function PhraseButtons({ stacked, children }: { stacked: boolean; children: React.ReactNode }) {
+  return stacked ? (
+    <VStack alignment="leading" spacing={8}>
+      {children}
+    </VStack>
+  ) : (
+    <HStack spacing={8}>{children}</HStack>
+  );
+}
 const idleConnect = (): ConnectState<ConnectResult> => IDLE_CONNECT;
 
 export function ExpoSyncConnectPage() {
   const theme = useTheme();
+  const window = useWindowDimensions();
+  const buttonsFit = window.width - STEP_CHROME >= PHRASE_BUTTONS_WIDTH * window.fontScale;
   const phrase = useConnectDraft((s) => s.phrase);
   const [scans] = useState(canScanCodes);
   const [connecting, setConnecting] = useState(false);
@@ -76,10 +90,10 @@ export function ExpoSyncConnectPage() {
               <Button label="Change" onPress={() => pushSettings({ page: "syncWords" })} modifiers={[font({ textStyle: "subheadline" })]} />
             </HStack>
           ) : (
-            <HStack spacing={8}>
+            <PhraseButtons stacked={!buttonsFit}>
               {scans ? <Button label="Scan Code" systemImage="qrcode.viewfinder" onPress={() => pushSettings({ page: "syncScan" })} modifiers={[...prominent, ...capsule]} /> : null}
               <Button label="Enter Words" systemImage="character.cursor.ibeam" onPress={() => pushSettings({ page: "syncWords" })} modifiers={[...(scans ? [buttonStyle("bordered")] : prominent), ...capsule]} />
-            </HStack>
+            </PhraseButtons>
           )}
         </ExpoStep>
         <ExpoStep number={2} title="Choose the Ardia Sync folder" detail={copy().chooseFolderDetail} progress={hasPhrase ? "current" : "upcoming"}>

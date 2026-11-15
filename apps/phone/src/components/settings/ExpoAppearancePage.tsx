@@ -1,6 +1,6 @@
 import { PlatformColor } from "react-native";
 import { Button, Form, HStack, Section, Text, Toggle, VStack } from "@expo/ui/swift-ui";
-import { accessibilityAddTraits, accessibilityLabel, buttonStyle, frame, navigationBarTitleDisplayMode, navigationTitle, tint } from "@expo/ui/swift-ui/modifiers";
+import { accessibilityAddTraits, accessibilityLabel, buttonStyle, frame, navigationBarTitleDisplayMode, navigationTitle, padding, tint } from "@expo/ui/swift-ui/modifiers";
 import { INTERFACE_STYLE_NAMES, INTERFACE_STYLES, SCHEME_CHOICES, SCHEME_NAMES } from "../../lib/appearance";
 import { setColorChoice, setInterfaceStyle, setSchemeChoice } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
@@ -10,6 +10,7 @@ import { CheckmarkLabel, ColorSwatch, contentMargins, modifierList, PROFILE_COLO
 
 const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
 const FILL = Number.MAX_SAFE_INTEGER;
+const SWATCH_HIT = 44;
 
 export function ExpoAppearancePage() {
   const syncEnabled = useSyncEnabled();
@@ -20,7 +21,7 @@ export function ExpoAppearancePage() {
   return (
     <Form modifiers={modifierList(navigationTitle("Appearance"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome(), contentMargins({ edges: "top", length: settingsLayout.expoListTop }))}>
       <Section>
-        <VStack alignment="leading" spacing={12}>
+        <VStack alignment="leading" spacing={12} modifiers={[padding({ vertical: 4 })]}>
           <Text>Color</Text>
           <HStack spacing={0}>
             {COLORS.map((color) => (
@@ -51,7 +52,7 @@ export function ExpoAppearancePage() {
 function Swatch({ color, selected }: { color: ProfileColor; selected: boolean }) {
   const name = PROFILE_COLORS[color].name;
   return (
-    <Button onPress={() => setColorChoice(color)} modifiers={[buttonStyle("plain"), frame({ maxWidth: FILL }), accessibilityLabel(name), accessibilityAddTraits(selected ? ["isButton", "isSelected"] : ["isButton"])]}>
+    <Button onPress={() => setColorChoice(color)} modifiers={[buttonStyle("plain"), frame({ maxWidth: FILL, minHeight: SWATCH_HIT }), accessibilityLabel(name), accessibilityAddTraits(selected ? ["isButton", "isSelected"] : ["isButton"])]}>
       {settingsUIAvailable() ? <ColorSwatch preset={color} isSelected={selected} /> : <Text>{name}</Text>}
     </Button>
   );
