@@ -310,11 +310,10 @@ export const generalRows = {
         },
         newTabLinksOpenIn: {
           title: "Open new-tab links in",
-          description: `Where a link that would open a new tab goes when you click it in a tab. ${keyText("⌘")}-click still opens a tab behind, and ${PLATFORM_FEATURES.popupsOpenAsTabs ? "pop-ups stay windows unless Open pop-up windows as tabs is on" : "pop-ups stay windows"}. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.`,
+          description: `Where a link that would open a new tab goes when you click it in a tab. ${keyText("⌘")}-click still opens a tab behind, and pop-ups stay windows unless Open pop-up windows as tabs is on. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.`,
           keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
         },
         popupsOpenAsTabs: {
-          shown: () => PLATFORM_FEATURES.popupsOpenAsTabs,
           title: "Open pop-up windows as tabs",
           description: "A page that opens a pop-up window, like Outlook's Open in New Window or a sign-in pop-up, opens it as a tab next to the page instead. The page can still talk to it, and closing it brings you back. Extension pop-ups stay windows.",
           keywords: ["popup", "pop-up", "pop up", "window.open", "new window", "outlook", "sign in", "oauth", "as tab", "links"],
