@@ -8,9 +8,11 @@ const ONE = { origin: "https://ardia-self-check-one.example", username: "one", p
 const TWO = { origin: "https://ardia-self-check-two.example", username: "two", password: "self-check-two" };
 const OURS = "ardia-self-check-";
 
-type Reply = { error?: unknown; logins?: unknown; passwords?: unknown };
-
-const call = async (name: string, args: object = {}) => JSON.parse(await engineCallJson(name, "", JSON.stringify(args))) as Reply;
+const call = async (name: string, args: object = {}): Promise<Fields> => {
+  const reply: unknown = JSON.parse(await engineCallJson(name, "", JSON.stringify(args)));
+  if (!isFields(reply)) throw new Error(`${name} answered something that isn't an object`);
+  return reply;
+};
 
 const nameOf = (realm: unknown) => new RegExp(`${OURS}([a-z]+)\\.`).exec(String(realm ?? ""))?.[1];
 
