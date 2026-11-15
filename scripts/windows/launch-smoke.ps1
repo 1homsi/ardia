@@ -55,6 +55,7 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
   [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr window, uint flags);
+  [DllImport("user32.dll", EntryPoint = "PostMessageW")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);
   [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool GetSystemFlag(uint action, uint unused, ref int value, uint flags);
@@ -613,6 +614,80 @@ function Test-PageDragStays([System.Diagnostics.Process]$Process, [string]$Layou
   return $failures
 }
 
+function Get-PageInsets([System.Diagnostics.Process]$Process, [IntPtr]$Page) {
+  $app = Get-WindowRect $Process
+  $page = Get-HandleRect $Page
+  if (-not $app -or -not $page) { return $null }
+  return [pscustomobject]@{ App = $app; Text = "$($page.Left - $app.Left),$($page.Top - $app.Top),$($app.Right - $page.Right),$($app.Bottom - $page.Bottom)" }
+}
+
+function Test-PageHoldsPlace([System.Diagnostics.Process]$Process, [string]$Layout) {
+  $handle = $Process.MainWindowHandle
+  if ($handle -eq [IntPtr]::Zero) { return @("page place ($Layout): the window never showed") }
+  [ArdiaInput]::SetForegroundWindow($handle) | Out-Null
+  Start-Sleep -Milliseconds 400
+  $client = Get-ClientArea $Process
+  if (-not $client) { return @("page place ($Layout): the window could not be measured") }
+  $probe = New-Object ArdiaInput+Point
+  $probe.X = $client.X + [int]($client.Width * 0.75)
+  $probe.Y = $client.Y + [int]($client.Height * 0.6)
+  $page = [ArdiaInput]::GetAncestor([ArdiaInput]::WindowFromPoint($probe), 2)
+  if ($page -eq $handle -or $page -eq [IntPtr]::Zero) { return @("page place ($Layout): no page window under ($($probe.X), $($probe.Y))") }
+  $maximized = [ArdiaInput]::IsZoomed($handle)
+  $scale = $client.Scale
+  $byX = [int](180 * $scale)
+  $byY = [int](90 * $scale)
+  $failures = @()
+  $appHome = Get-WindowRect $Process
+  $steps = @("move", "async move", "resize", "move command")
+  foreach ($step in $steps) {
+    $before = Get-PageInsets $Process $page
+    $pageRect = Get-HandleRect $page
+    if (-not $before -or -not $pageRect) { $failures += "page place ($Layout, $step): a window was gone before the step"; break }
+    switch ($step) {
+      "move" { [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, $pageRect.Left + $byX, $pageRect.Top + $byY, 0, 0, 0x0215) | Out-Null }
+      "async move" { [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, $pageRect.Left + $byX, $pageRect.Top + $byY, 0, 0, 0x4215) | Out-Null }
+      "resize" { [ArdiaInput]::SetWindowPos($page, [IntPtr]::Zero, 0, 0, ($pageRect.Right - $pageRect.Left) - $byX, ($pageRect.Bottom - $pageRect.Top) - $byY, 0x0216) | Out-Null }
+      "move command" {
+        $pressX = $pageRect.Left + [int](300 * $scale)
+        $pressY = $pageRect.Top + [int](380 * $scale)
+        [ArdiaInput]::SetCursorPos($pressX, $pressY) | Out-Null
+        Start-Sleep -Milliseconds 250
+        [ArdiaInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 150
+        [ArdiaInput]::PostMessage($page, 0x0112, [IntPtr]0xF012, [IntPtr](($pressY -shl 16) -bor ($pressX -band 0xFFFF))) | Out-Null
+        Start-Sleep -Milliseconds 300
+        $screen = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
+        foreach ($i in 1..12) {
+          $toX = $pressX + [int]($byX * $i / 12)
+          $toY = $pressY + [int]($byY * $i / 12)
+          [ArdiaInput]::mouse_event(0x8001, [uint32]($toX * 65535 / ($screen.Width - 1)), [uint32]($toY * 65535 / ($screen.Height - 1)), 0, [UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 40
+        }
+        Start-Sleep -Milliseconds 200
+        [ArdiaInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 200
+        [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+        [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+      }
+    }
+    Start-Sleep -Milliseconds 1500
+    $after = Get-PageInsets $Process $page
+    if (-not $after) { $failures += "page place ($Layout, $step): a window was gone after the step"; break }
+    Save-Screenshot (Join-Path $Out "page-place-$Layout-$($step -replace ' ', '-').png")
+    $appMoved = "$($after.App.Left - $before.App.Left),$($after.App.Top - $before.App.Top),$($after.App.Right - $before.App.Right),$($after.App.Bottom - $before.App.Bottom)"
+    Write-Host "Page place ($Layout, $step): the page's insets in the app window went from $($before.Text) to $($after.Text); the app window's edges moved by $appMoved."
+    if ($after.Text -ne $before.Text) { $failures += "page place ($Layout, $step): the page window left its place in the app window, insets $($before.Text) became $($after.Text) (#2051)" }
+    $wanted = if ($maximized -or $step -eq "async move") { $null } elseif ($step -eq "resize") { "0,0,$(-$byX),$(-$byY)" } else { "$byX,$byY,$byX,$byY" }
+    if ($wanted -and $appMoved -ne $wanted) { $failures += "page place ($Layout, $step): the app window's edges moved by $appMoved, not $wanted, so the page's move or resize did not reach the app window" }
+    if (-not $maximized) {
+      [ArdiaInput]::SetWindowPos($handle, [IntPtr]::Zero, $appHome.Left, $appHome.Top, $appHome.Right - $appHome.Left, $appHome.Bottom - $appHome.Top, 0x0214) | Out-Null
+      Start-Sleep -Milliseconds 1200
+    }
+  }
+  return $failures
+}
+
 function Test-TopEdgeResize([System.Diagnostics.Process]$Process) {
   $handle = $Process.MainWindowHandle
   if ($handle -eq [IntPtr]::Zero) { return @("top edge: the window never showed") }
@@ -679,10 +754,12 @@ if ($Part -ne "gate" -and $withEngineForEdge -and -not $NoInput -and $httpPagesU
       if ($dragApp.HasExited) { $failures += "page drag ($($layout.Name)): the app exited on its own (exit code $($dragApp.ExitCode))" }
       else {
         Test-PageDragStays $dragApp $layout.Name | ForEach-Object { $failures += $_ }
+        Test-PageHoldsPlace $dragApp $layout.Name | ForEach-Object { $failures += $_ }
         $dragApp.Refresh()
         [ArdiaInput]::ShowWindow($dragApp.MainWindowHandle, 3) | Out-Null
         Start-Sleep -Seconds 2
         Test-PageDragStays $dragApp "$($layout.Name)-maximized" | ForEach-Object { $failures += $_ }
+        Test-PageHoldsPlace $dragApp "$($layout.Name)-maximized" | ForEach-Object { $failures += $_ }
       }
     } finally {
       if (-not $dragApp.HasExited) {
