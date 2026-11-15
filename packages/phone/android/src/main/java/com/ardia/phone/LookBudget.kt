@@ -58,25 +58,57 @@ object LookBudget {
 }
 
 internal class MainThreadWork(private val clock: () -> Long = System::nanoTime) : android.util.Printer {
+    data class Message(val name: String, val nanos: Long)
+
     var nanos = 0L
         private set
+    var messages = 0L
+        private set
+    private val longest = ArrayList<Message>(LONGEST + 1)
     private var started = 0L
     private var inMessage = false
     private var counting = false
+    private var dispatched = ""
+
+    val longestMessages: List<Message> get() = longest.toList()
 
     override fun println(line: String) {
         if (line.startsWith(">>>>>")) {
             counting = !isFrame(line)
+            dispatched = line
             started = clock()
             inMessage = true
         } else if (line.startsWith("<<<<<") && inMessage) {
-            if (counting) nanos += clock() - started
+            if (counting) {
+                val spent = clock() - started
+                nanos += spent
+                messages += 1
+                if (longest.size < LONGEST || spent > longest.last().nanos) {
+                    longest += Message(name(dispatched), spent)
+                    longest.sortByDescending { it.nanos }
+                    if (longest.size > LONGEST) longest.removeAt(longest.lastIndex)
+                }
+            }
             inMessage = false
         }
     }
 
     companion object {
+        const val LONGEST = 3
+
         fun isFrame(line: String): Boolean = line.contains("Choreographer\$FrameDisplayEventReceiver") || line.contains("Choreographer\$FrameHandler")
+
+        private fun short(token: String): String = token.substringBefore('@').substringAfterLast('.')
+
+        fun name(line: String): String {
+            val body = line.removePrefix(">>>>> Dispatching to ").trim()
+            val target = Regex("""^Handler \(([^)]+)\)""").find(body)?.groupValues?.get(1) ?: body.substringBefore(' ')
+            val rest = body.substringAfter('}', "").trim()
+            val callback = rest.substringBeforeLast(':').trim()
+            val what = rest.substringAfterLast(':', "").trim()
+            val named = if (callback.isEmpty() || callback == "null") "what $what" else short(callback)
+            return "${short(target)} $named"
+        }
     }
 }
 
@@ -166,8 +198,9 @@ internal class SampleSession(
         val foreign = LookActivity.foreignTraversals - foreignBefore
         val ticks = (LookActivity.tickNanos - ticksBefore) / 1_000_000.0
         val worker = (LookActivity.sceneWorkerNanos - workerBefore) / 1_000_000.0
+        val longest = work.longestMessages.map { "${it.name} ${"%.1f".format(java.util.Locale.ROOT, it.nanos / 1_000_000.0)} ms" }
         val sample = synchronized(this) {
-            FrameSampler.Sample(totals.toList(), deadlines.toList(), refreshMillis, window, foreign, waits.toList(), ticks, work.nanos / 1_000_000.0, dropped, worker)
+            FrameSampler.Sample(totals.toList(), deadlines.toList(), refreshMillis, window, foreign, waits.toList(), ticks, work.nanos / 1_000_000.0, dropped, worker, work.messages, longest)
         }
         close(sample)
     }
@@ -187,7 +220,7 @@ internal class SampleSession(
 }
 
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double, val droppedReports: Long = 0L, val sceneWorkerMillis: Double = 0.0)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double, val droppedReports: Long = 0L, val sceneWorkerMillis: Double = 0.0, val mainThreadMessages: Long = 0L, val longestMessages: List<String> = emptyList())
 
     private var active: SampleSession? = null
     private val main = Handler(Looper.getMainLooper())

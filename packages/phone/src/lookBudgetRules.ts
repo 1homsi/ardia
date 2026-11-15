@@ -10,7 +10,7 @@ export const LOOK_BUDGET = {
   retryAfterMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
-export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number; waits?: number[]; tickMs?: number; mainThreadMs?: number; droppedReports?: number; sceneWorkerMs?: number };
+export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number; waits?: number[]; tickMs?: number; mainThreadMs?: number; droppedReports?: number; sceneWorkerMs?: number; mainThreadMessages?: number; longestMessages?: string[] };
 
 export type Judgement = {
   conclusive: boolean;
@@ -32,6 +32,8 @@ export type Judgement = {
   wholeFrameBusyShare?: number;
   droppedReports?: number;
   sceneWorkerMs?: number;
+  mainThreadMessages?: number;
+  longestMessages?: string[];
 };
 
 export type BudgetVerdict = "unknown" | "pass" | "fail";
@@ -90,7 +92,7 @@ export function judge(sample: FrameSample): Judgement {
   const droppedReports = sample.droppedReports ?? 0;
   const conclusive = foreignFrames === 0 && droppedReports === 0 && (frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp)));
   const over = conclusive && (tooBusy || !keepsUp);
-  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}), ...(sample.sceneWorkerMs !== undefined && sample.sceneWorkerMs > 0 ? { sceneWorkerMs: sample.sceneWorkerMs } : {}) };
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}), ...(waitMs !== undefined ? { waitMs, wholeFrameBusyShare } : {}), ...(tickMs > 0 ? { tickMs } : {}), ...(mainThreadMs !== undefined ? { mainThreadMs } : {}), ...(droppedReports > 0 ? { droppedReports } : {}), ...(sample.sceneWorkerMs !== undefined && sample.sceneWorkerMs > 0 ? { sceneWorkerMs: sample.sceneWorkerMs } : {}), ...(sample.mainThreadMessages !== undefined ? { mainThreadMessages: sample.mainThreadMessages } : {}), ...(sample.longestMessages?.length ? { longestMessages: sample.longestMessages.slice(0, 3) } : {}) };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });
@@ -189,4 +191,13 @@ export function createBudgetProbe(deps: ProbeDeps) {
       return measured;
     },
   };
+}
+
+export function otherWork(last: Judgement): string {
+  const total = last.mainThreadMs ?? 0;
+  const ticks = last.tickMs ?? 0;
+  const messages = last.mainThreadMessages !== undefined ? ` in ${last.mainThreadMessages} message(s)` : "";
+  const split = `: backdrop ticks ${ticks.toFixed(1)} ms, the rest ${Math.max(0, total - ticks).toFixed(1)} ms`;
+  const longest = last.longestMessages?.length ? `; longest ${last.longestMessages.join(", ")}` : "";
+  return `${total.toFixed(1)} ms${messages}${split}${longest}`;
 }

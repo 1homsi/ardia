@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { requireOptionalNativeModule } from "expo-modules-core";
-import { createBudgetProbe, judge, LOOK_BUDGET, mode, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample, type LookMode, type SystemLook } from "./lookBudgetRules";
+import { createBudgetProbe, judge, LOOK_BUDGET, mode, parseState, record, refresh, wantsMeasurement, otherWork, type BudgetState, type FrameSample, type LookMode, type SystemLook } from "./lookBudgetRules";
 import { labLog } from "./system";
 
 type BudgetNative = {
@@ -41,10 +41,11 @@ const refreshNote = (last: NonNullable<BudgetState["last"]>) =>
 
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 
+
 const dutyNote = (last: NonNullable<BudgetState["last"]>) =>
   last.busyShare === undefined || last.paceMs === undefined || last.windowMs === undefined
     ? ""
-    : `${last.waitMs !== undefined ? ` of work (${last.waitMs.toFixed(1)} ms waiting for the vsync not counted)` : ""}${last.mainThreadMs !== undefined ? `, other main-thread work ${last.mainThreadMs.toFixed(1)} ms` : ""}${last.tickMs ? ` (backdrop ticks ${last.tickMs.toFixed(1)} ms)` : ""}${last.sceneWorkerMs ? `, the backdrop's scenes drawn off the main thread in ${last.sceneWorkerMs.toFixed(1)} ms (not counted)` : ""}, busy ${percent(last.busyShare)} of the time${last.wholeFrameBusyShare !== undefined ? ` (whole frames, as judged through sync17b: ${percent(last.wholeFrameBusyShare)})` : ""} (limit ${percent(LOOK_BUDGET.maxBusyShare)}), one frame every ${last.paceMs.toFixed(0)} ms over ${(last.windowMs / 1000).toFixed(1)} s, ${last.keepsUp ? "keeps up" : "cannot keep up: the median frame is longer than the pace"}`;
+    : `${last.waitMs !== undefined ? ` of work (${last.waitMs.toFixed(1)} ms waiting for the vsync not counted)` : ""}${last.mainThreadMs !== undefined ? `, other main-thread work ${otherWork(last)}` : last.tickMs ? ` (backdrop ticks ${last.tickMs.toFixed(1)} ms)` : ""}${last.sceneWorkerMs ? `, the backdrop's scenes drawn off the main thread in ${last.sceneWorkerMs.toFixed(1)} ms (not counted)` : ""}, busy ${percent(last.busyShare)} of the time${last.wholeFrameBusyShare !== undefined ? ` (whole frames, as judged through sync17b: ${percent(last.wholeFrameBusyShare)})` : ""} (limit ${percent(LOOK_BUDGET.maxBusyShare)}), one frame every ${last.paceMs.toFixed(0)} ms over ${(last.windowMs / 1000).toFixed(1)} s, ${last.keepsUp ? "keeps up" : "cannot keep up: the median frame is longer than the pace"}`;
 
 const describe = (next: BudgetState) =>
   `verdict ${next.verdict}, next build ${next.apply}${next.pendingOver ? ", one failing measurement waiting for a second" : ""}` +

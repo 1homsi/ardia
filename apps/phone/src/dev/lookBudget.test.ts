@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createBudgetProbe, initialState, judge, LOOK_BUDGET, mode, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample } from "../../../../packages/phone/src/lookBudgetRules.ts";
+import { createBudgetProbe, initialState, judge, LOOK_BUDGET, mode, otherWork, parseState, record, refresh, wantsMeasurement, type BudgetState, type FrameSample } from "../../../../packages/phone/src/lookBudgetRules.ts";
 
 const frames = (count: number, totalMs: number, deadlineMs = 16.6): FrameSample => ({ totals: Array(count).fill(totalMs), deadlines: Array(count).fill(deadlineMs) });
 const over = judge(frames(50, 40));
@@ -306,4 +306,21 @@ test("one deck open gives at most one measurement, and a phone that needs none i
   quiet.probe.update(true, false);
   quiet.advance(10_000);
   assert.deepEqual(quiet.asked, []);
+});
+
+test("the budget line splits the other main-thread work into the backdrop's ticks and the rest, with the count and the three longest", () => {
+  const judged = judge({
+    totals: Array(30).fill(10),
+    deadlines: Array(30).fill(16.7),
+    windowMs: 2000,
+    mainThreadMs: 241.7,
+    tickMs: 3.2,
+    mainThreadMessages: 412,
+    longestMessages: ["MessageQueueThreadHandler what 0 41.2 ms", "Handler Editor$Blink 6.0 ms", "ViewRootImpl$ViewRootHandler DeckBackdropView$$ExternalSyntheticLambda3 0.9 ms", "extra 0.1 ms"],
+  });
+  assert.equal(judged.longestMessages?.length, 3);
+  assert.equal(
+    otherWork(judged),
+    "241.7 ms in 412 message(s): backdrop ticks 3.2 ms, the rest 238.5 ms; longest MessageQueueThreadHandler what 0 41.2 ms, Handler Editor$Blink 6.0 ms, ViewRootImpl$ViewRootHandler DeckBackdropView$$ExternalSyntheticLambda3 0.9 ms",
+  );
 });

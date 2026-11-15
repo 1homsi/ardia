@@ -1043,7 +1043,10 @@ it once and turns the look down if it can't; the system settings always come fir
   delivery of the vsync, which on the F4 at 120 Hz was 4 to 8 ms a frame (sync17b) and varied from window to
   window. The line also prints whole frames over the window, the share every run through sync17b was judged on
   (`… busy B% of the time (whole frames, as judged through sync17b: W%)`), so a run can be read against the
-  F4's 19 to 30% and the M3's 29%. The verdict uses busy, against the same 33%. It decides nothing under 20 frames unless those few frames are already over.
+  F4's 19 to 30% and the M3's 29%. From sync21 the lab's line breaks the other main-thread work down: how many
+  messages, the backdrop's ticks against the rest, and the three longest messages by their handler and callback
+  (`… other main-thread work 241.7 ms in 412 message(s): backdrop ticks 3.2 ms, the rest 238.5 ms; longest …`).
+  The verdict uses busy, against the same 33%. It decides nothing under 20 frames unless those few frames are already over.
   Why a duty cycle: an idle deck's paced frames, drawn between vsyncs while nothing else moves, make nothing
   stutter that a person can see. What they cost is battery and heat, and that is the share of time the GPU
   and CPU spend on them. The sum counts every frame, slow ones included, since heat is the total. The keep-up
