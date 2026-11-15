@@ -16,6 +16,7 @@ jest.mock("../platform/back", () => ({
   },
 }));
 
+const telemetry = require("../state/telemetry/telemetry") as typeof import("../state/telemetry/telemetry");
 const { SearchTray } = require("../components/search/SearchTray") as typeof import("../components/search/SearchTray");
 const { presentSearch, useSearch } = require("../state/search/store") as typeof import("../state/search/store");
 const { renderSurface, unmount, withTabs } = require("../../test/render/harness") as typeof import("../../test/render/harness");
@@ -49,9 +50,12 @@ test("while the tray is up, Android's predictive back follows the swipe down by 
   act(() => mockBack.handlers!.onCancel!());
   act(() => jest.advanceTimersByTime(800));
   expect(lift(node) - resting).toBeCloseTo(0, 0);
+  const counted = jest.spyOn(telemetry, "countUsage").mockImplementation(() => undefined);
   act(() => mockBack.handlers!.onCommit!());
+  expect(counted).toHaveBeenCalledWith("tray_back_swiped");
   expect(useSearch.getState().open).toBe(false);
   act(() => jest.advanceTimersByTime(16));
   expect(mockBack.enabled).toEqual([true, false]);
   unmount(root);
+  counted.mockRestore();
 });

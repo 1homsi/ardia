@@ -39,7 +39,7 @@ export const PHONE_WHATS_SENT: { title: string; items: SentItem[] }[] = [
       },
       {
         text: "At most once a day, for the last day you used Ardia before today: how many tabs you opened, searches you made, pages you pinned to your Mac, tabs you sent to another device, pages that stopped working because their page process ended, links from other apps Ardia gave up on because they took too long, and pages that reloaded by themselves when the phone came back online, and how often the tab switcher opened before a page's picture was ready. Counts only, never which",
-        fields: ["usage_counts", "tabs_opened", "searches", "pins_to_mac", "tabs_sent", "page_processes_gone", "links_given_up", "pages_reloaded_online", "spaces_swiped", "tray_hidden_rows_opened", "deck_pictures_late"],
+        fields: ["usage_counts", "tabs_opened", "searches", "pins_to_mac", "tabs_sent", "page_processes_gone", "links_given_up", "pages_reloaded_online", "spaces_swiped", "tray_hidden_rows_opened", "deck_pictures_late", "tray_back_swiped"],
       },
     ],
   },

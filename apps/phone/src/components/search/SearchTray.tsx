@@ -283,7 +283,10 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
       onCancel: () => {
         back.value = withSpring(0, trayMotion.settle);
       },
-      onCommit: () => cancelSearch(),
+      onCommit: () => {
+        if (!useTabs.getState().incognito) countUsage("tray_back_swiped");
+        cancelSearch();
+      },
     });
     return () => {
       stop();
