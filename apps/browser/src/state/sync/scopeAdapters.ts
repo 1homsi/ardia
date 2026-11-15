@@ -6,8 +6,12 @@ import { settingsAdapter } from "./settingsAdapter";
 import { pinnedAreaAdapters } from "./pinned";
 import { extensionsAdapterFor } from "./extensions";
 import { APP_SCOPE, typeSyncedFor, type DataType, type SyncDoc } from "./syncDoc";
+import { sentTabsAdapter } from "./sentTabsAdapter";
+import { deliverSentTabs, sendLedger } from "./sentTabs";
+import { profileScope } from "./records";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
-export const deviceName = () => SyncNative?.deviceName() ?? "This Mac";
+export const deviceName = () => SyncNative?.deviceName() ?? `This ${PLATFORM_TERMS.computer}`;
 
 const passwordAdapters = new Map<string, (forced: boolean) => Adapter>();
 const extensionAdapters = new Map<string, ExtensionsAdapter>();
@@ -51,6 +55,7 @@ export function profileAdapters(doc: SyncDoc, profileId: string, retiring: boole
     ...(synced("bookmarks") ? [inTodaysNames(bookmarksAdapter(profileId))] : []),
     ...(synced("history") ? [inTodaysNames(historyAdapter(profileId))] : []),
     inTodaysNames(deviceTabsAdapter(profileId, id, deviceName, !synced("tabs"))),
+    sentTabsAdapter(id, () => sendLedger(doc, profileScope(doc.profiles[profileId]!.syncId)), (arrived) => deliverSentTabs(doc, profileId, arrived)),
     ...(synced("passwords") ? [passwords(forcePasswords)] : []),
     ...(synced("extensions") ? [extensionsOf(profileId)] : []),
   ];
