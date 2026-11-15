@@ -36,7 +36,7 @@ package = re.search(r'package="([^"]+)"', manifest).group(1)
 components = []
 current = None
 for line in manifest.splitlines():
-    tag = re.match(r'\s*E: (activity|activity-alias|service|receiver|provider|application)\b', line)
+    tag = re.match(r'\s*E: (activity-alias|activity|service|receiver|provider|application)\b', line)
     if tag:
         current = tag.group(1)
         continue
