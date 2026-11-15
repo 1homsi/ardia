@@ -57,7 +57,7 @@ object LookBudget {
 }
 
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double)
 
     fun sample(activity: Activity, millis: Long, done: (Sample?) -> Unit) {
         val window: Window = activity.window ?: return done(null)
@@ -76,7 +76,7 @@ internal object FrameSampler {
         Handler(Looper.getMainLooper()).postDelayed({
             runCatching { window.removeOnFrameMetricsAvailableListener(listener) }
             handler.post {
-                done(Sample(totals.toList(), deadlines.toList()))
+                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0))
                 thread.quitSafely()
             }
         }, millis)

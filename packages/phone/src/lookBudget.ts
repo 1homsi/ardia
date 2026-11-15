@@ -35,9 +35,13 @@ function save(next: BudgetState) {
   native?.setLookBudget?.(JSON.stringify(next));
 }
 
+const refreshNote = (last: NonNullable<BudgetState["last"]>) =>
+  last.refreshMs === undefined ? "" : ` (display ${Math.round(1000 / last.refreshMs)} Hz${last.stretched ? `, ${last.stretched} stretched deadline(s) held to ${last.refreshMs.toFixed(1)} ms` : ""})`;
+
 const describe = (next: BudgetState) =>
   `verdict ${next.verdict}, next build ${next.apply}${next.pendingOver ? ", one failing measurement waiting for a second" : ""}` +
-  (next.last ? `, last ${next.last.frames} frames, median ${next.last.medianMs.toFixed(1)} ms against ${next.last.deadlineMs.toFixed(1)} ms, ${Math.round(next.last.missedShare * 100)}% missed` : "");
+  (next.last ? `, last ${next.last.frames} frames, median ${next.last.medianMs.toFixed(1)} ms against ${next.last.deadlineMs.toFixed(1)} ms${refreshNote(next.last)}, ${Math.round(next.last.missedShare * 100)}% missed` : "");
+
 
 export const lookBudget = {
   isNative: () => typeof native?.sampleFrames === "function",

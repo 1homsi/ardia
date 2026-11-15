@@ -474,10 +474,13 @@ off in the lab`.
       idle frame in 73 ms. If the backdrop alone still misses its deadline there, it measures `over` twice and
       degrades, which is the rule working. Either way the median says how far over or under it is, so report
       it. Report both phones' lines and the lab's text.
-    - The `against Y ms` is the frame's own deadline from Android (FrameMetrics `DEADLINE`, the frame timeline's
-      deadline, e.g. 11.7 ms on the F4's 120 Hz panel), not a margin of ours. Each frame's figure is what that
-      frame cost, from its vsync to the GPU finishing it (`TOTAL_DURATION`). A deck paced at 20 to 25 frames a
-      second is judged by the frames it draws, never by the vsyncs it skips.
+    - The `against Y ms` is held to the display: from sync16 the line ends `(display N Hz)`. Each frame counts
+      Android's own deadline for it (FrameMetrics `DEADLINE`, e.g. 11.7 ms on the F4's 120 Hz panel) only while
+      that is within 1.5 refresh intervals of the display's rate, read once when the sample starts and never
+      slower than 60 Hz. A longer deadline (sync14's M3 had `against 33.2 ms` on a 60 Hz screen) is held to one
+      interval, and the line adds `K stretched deadline(s) held to X ms`. Each frame's figure is what that frame
+      cost, from its vsync to the GPU finishing it (`TOTAL_DURATION`). A deck paced at 20 to 25 frames a second
+      is judged by the frames it draws, never by the vsyncs it skips.
     - The lab's controls: Budget: force degraded (from the next build the look is still and solid), Budget: force
       full, Budget: measured (back to what was measured), Budget: reset (forget everything and measure again on
       the next deck open). Check each takes effect only after the deck is rebuilt.
@@ -800,8 +803,11 @@ it once and turns the look down if it can't; the system settings always come fir
   (called by the deck with whether it is idle) skips the deck's first second, then takes 2 s of the app's own
   frame times while the deck stays idle (no scroll, drag, sheet, menu, tray or card opening). Each frame counts
   what it cost (Android's `TOTAL_DURATION`, from its vsync to the GPU finishing it) against its own deadline
-  (`DEADLINE`, the frame timeline's, about 1.4 refresh intervals on a 120 Hz panel). A paced deck that skips
-  vsyncs is judged only by the frames it draws. An idle deck with
+  (`DEADLINE`, the frame timeline's, about 1.4 refresh intervals on a 120 Hz panel), but only while that
+  deadline is within 1.5 intervals of the display's refresh rate, read once at the sample's start and never
+  slower than 60 Hz. A deadline the system stretched (a halved frame rate) is held to one interval, so a slow
+  phone can't pass because the system lowered its rate. A paced deck that skips vsyncs is judged only by the
+  frames it draws. An idle deck with
   the look off draws no frames at all, so every frame in the sample is the look's own. A sample that overlaps
   anything else is dropped, and one deck open gives at most one measurement.
 - **The verdict.** A sample is over budget when its median frame misses the frame's deadline or more than a
@@ -829,9 +835,11 @@ Shared and per-phone parts:
   idle only, one per open). `lookBudget.ts` keeps the state and gives the hook and the lab their calls.
 - Each phone supplies four calls on `ArdiaPhoneLook`, and makes its look views read the stored `apply`
   ("full" or "degraded") when they are built:
-  - `sampleFrames(ms)`: resolves `{ totals, deadlines }`, one entry per frame the app drew in that window, in
-    milliseconds (Android: `Window.OnFrameMetricsAvailableListener`, `TOTAL_DURATION` against `DEADLINE`, or
-    the refresh interval before Android 12; iPhone: a `CADisplayLink`'s frame times against its target time);
+  - `sampleFrames(ms)`: resolves `{ totals, deadlines, refreshMs? }`, one entry per frame the app drew in that
+    window, in milliseconds, and the display's refresh interval read at the start (Android:
+    `Window.OnFrameMetricsAvailableListener`, `TOTAL_DURATION` against `DEADLINE`, or the refresh interval
+    before Android 12, and `Display.getRefreshRate`; iPhone: a `CADisplayLink`'s frame times against its target
+    time; without `refreshMs` each frame keeps its own deadline);
   - `lookBudget()`: `{ state, version, forced }`, the stored state as JSON text, the app's version (with the
     build commit, so a lab build counts as an update) and a lab force or null;
   - `setLookBudget(state)` stores the JSON;

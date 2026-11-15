@@ -32,6 +32,26 @@ test("a paced deck is judged by what each drawn frame cost against the system's 
   assert.equal(judge(frames(40, 10, 8.3)).over, true, "the deadline is the frame's own, so a 10 ms frame misses a plain 120 Hz interval");
 });
 
+test("each frame is held to the display's refresh, read once: a deadline the system stretched cannot pass a slow phone", () => {
+  const m3First: FrameSample = { totals: Array(37).fill(49.5), deadlines: Array(37).fill(33.2), refreshMs: 1000 / 60 };
+  const judged = judge(m3First);
+  assert.equal(judged.deadlineMs, 1000 / 60, "sync14's M3 sample measured against 33.2 ms is held to its 60 Hz display");
+  assert.equal(judged.stretched, 37);
+  assert.equal(judged.over, true);
+  const halvedButCheap: FrameSample = { totals: Array(40).fill(20), deadlines: Array(40).fill(33.2), refreshMs: 1000 / 60 };
+  assert.equal(judge(halvedButCheap).over, true, "20 ms frames pass a 33.2 ms deadline but miss the 60 Hz display");
+  const f4: FrameSample = { totals: Array(40).fill(9), deadlines: Array(40).fill(11.7), refreshMs: 1000 / 120 };
+  assert.equal(judge(f4).deadlineMs, 11.7, "the frame's own deadline stands when it agrees with the display, latch slack included");
+  assert.equal(judge(f4).stretched, 0);
+  assert.equal(judge(f4).over, false);
+  const loweredDisplay: FrameSample = { totals: Array(40).fill(20), deadlines: Array(40).fill(33.3), refreshMs: 33.3 };
+  assert.equal(judge(loweredDisplay).deadlineMs, 1000 / 60, "a display reported below 60 Hz is held to 60 Hz");
+  assert.equal(judge(loweredDisplay).over, true);
+  const iPhone: FrameSample = { totals: Array(40).fill(9), deadlines: Array(40).fill(16.7) };
+  assert.equal(judge(iPhone).refreshMs, undefined, "a phone that sends no refresh keeps its own deadlines");
+  assert.equal(judge(iPhone).deadlineMs, 16.7);
+});
+
 test("one bad measurement never degrades; two on separate deck opens do, and the look changes only for the next build", () => {
   let state = initialState("1");
   state = record(state, over, 1000);

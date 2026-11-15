@@ -3,12 +3,23 @@ export const LOOK_BUDGET = {
   sampleMs: 2000,
   minFrames: 20,
   maxMissedShare: 0.25,
+  slowestRefreshMs: 1000 / 60,
+  latchSlack: 1.5,
   retryAfterMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
-export type FrameSample = { totals: number[]; deadlines: number[] };
+export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number };
 
-export type Judgement = { conclusive: boolean; over: boolean; frames: number; medianMs: number; deadlineMs: number; missedShare: number };
+export type Judgement = {
+  conclusive: boolean;
+  over: boolean;
+  frames: number;
+  medianMs: number;
+  deadlineMs: number;
+  missedShare: number;
+  refreshMs?: number;
+  stretched?: number;
+};
 
 export type BudgetVerdict = "unknown" | "pass" | "fail";
 
@@ -32,16 +43,27 @@ const median = (values: readonly number[]) => {
   return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 };
 
+export const refreshInterval = (displayMs: number | undefined): number | undefined =>
+  displayMs === undefined || !(displayMs > 0) ? undefined : Math.min(displayMs, LOOK_BUDGET.slowestRefreshMs);
+
+export function frameDeadline(ownMs: number, refreshMs: number | undefined): number {
+  if (refreshMs === undefined) return ownMs;
+  return ownMs > 0 && ownMs <= refreshMs * LOOK_BUDGET.latchSlack ? ownMs : refreshMs;
+}
+
 export function judge(sample: FrameSample): Judgement {
   const frames = Math.min(sample.totals.length, sample.deadlines.length);
   const totals = sample.totals.slice(0, frames);
-  const deadlines = sample.deadlines.slice(0, frames);
+  const refreshMs = refreshInterval(sample.refreshMs);
+  const deadlines = sample.deadlines.slice(0, frames).map((own) => frameDeadline(own, refreshMs));
+  const stretched = sample.deadlines.slice(0, frames).filter((own, index) => own !== deadlines[index]).length;
   const medianMs = median(totals);
   const deadlineMs = median(deadlines);
   const missed = totals.filter((total, index) => total > deadlines[index]!).length;
   const missedShare = frames === 0 ? 0 : missed / frames;
   const conclusive = frames >= LOOK_BUDGET.minFrames;
-  return { conclusive, over: conclusive && (medianMs > deadlineMs || missedShare > LOOK_BUDGET.maxMissedShare), frames, medianMs, deadlineMs, missedShare };
+  const over = conclusive && (medianMs > deadlineMs || missedShare > LOOK_BUDGET.maxMissedShare);
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }) };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });
