@@ -3,7 +3,7 @@ import { advanceCrashCursor, capture, crashCursor, loadChoice, saveQueueNow } fr
 import { contextAt, contextProperties, sessionStart } from "./diagnostics";
 import type { SavedContext } from "./savedContext";
 import { recordLog } from "./logs";
-import { errorCode, errorMessage, errorType, nativeCrashExceptions, nativeCrashTermination, parseStack, type ExceptionFrame } from "./sanitize";
+import { errorCode, errorMessage, errorType, hermesFatalReason, nativeCrashExceptions, nativeCrashTermination, parseStack, type ExceptionFrame } from "./sanitize";
 
 type Mechanism = "onerror" | "onunhandledrejection" | "react" | "console" | "native_crash" | "helper_crash";
 
@@ -162,7 +162,11 @@ export async function reportNativeCrashes(contexts: (SavedContext | null)[] = []
       {
         urgent: true,
         persist: true,
-        raw: { ...exceptionProperties(exceptions, mechanism, false), crash_images: images },
+        raw: {
+          ...exceptionProperties(exceptions, mechanism, false),
+          crash_images: images,
+          crash_hermes_reason: browser ? hermesFatalReason(report.hermesFatal) : null,
+        },
       },
     );
   }

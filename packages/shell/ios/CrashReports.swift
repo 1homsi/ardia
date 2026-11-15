@@ -178,6 +178,9 @@ enum CrashReports {
       report["uptimeSeconds"] = Int(captured.timeIntervalSince(launched).rounded())
     }
     if let writable = writableMegabytes(body["vmSummary"] as? String) { report["vmWritableMB"] = writable }
+    if process == "browser", exception["signal"] as? String == "SIGABRT", let reason = HermesFatal.take(crashedAt: crashed) {
+      report["hermesFatal"] = reason
+    }
     return report
   }
 

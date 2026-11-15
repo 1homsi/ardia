@@ -23,6 +23,7 @@ final class AppDelegate: ExpoAppDelegate {
       (factory?.rootViewFactory as? ExpoReactRootViewFactory)?.superView(
         withModuleName: "main", initialProperties: ["windowId": windowId], launchOptions: nil) ?? NSView()
     }
+    HermesFatal.install()
     factory.rootViewFactory.initializeReactHost(launchOptions: nil)
 
     super.applicationDidFinishLaunching(notification)

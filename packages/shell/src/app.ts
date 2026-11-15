@@ -60,6 +60,7 @@ export type CrashReport = {
   terminationNamespace?: string;
   uptimeSeconds?: number;
   vmWritableMB?: number;
+  hermesFatal?: string;
   exceptionType?: string;
   signal?: string;
   frames: NativeFrame[];

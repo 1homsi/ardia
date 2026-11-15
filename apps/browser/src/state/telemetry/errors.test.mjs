@@ -68,3 +68,34 @@ test("a native crash carries the built-in page its session was on as ctx_webui_p
     assert.equal(props.ctx_webui_page, expected, String(webui_page));
   }
 });
+
+test("a browser crash carries Hermes's own fatal reason as crash_hermes_reason, scrubbed and length-limited, and no other crash does", async () => {
+  const time = Date.now() + 3 * 60 * 60_000;
+  const long = `Hades OOM: ${"heap ".repeat(80)}`;
+  const crash = (process, hermesFatal, at) => ({ time: at, fileTime: at, process, exceptionType: "EXC_CRASH", signal: "SIGABRT", hermesFatal, frames: [{ image: "hermes", offset: 0x19bea4 }] });
+  const cases = [
+    ["browser", "Out of memory allocating the young generation", "Out of memory allocating the young generation"],
+    ["browser", "OOM at https://example.com/private?q=secret on /Users/someone/Library/page.json for me@example.com", null],
+    ["browser", long, null],
+    ["browser", "", null],
+    ["browser", undefined, null],
+    ["browser", 42, null],
+    ["renderer", "Out of memory allocating the young generation", null],
+  ];
+  let n = 0;
+  for (const [process, hermesFatal, expected] of cases) {
+    const at = time + 10_000 * ++n;
+    stub.shellNativeModules.ArdiaApp.crashReports = async () => [crash(process, hermesFatal, at)];
+    await reportNativeCrashes();
+    const sent = queued().at(-1);
+    const props = sent.properties;
+    assert.equal(props.crash_process, process);
+    const reason = props.crash_hermes_reason;
+    if (expected !== null) assert.equal(reason, expected);
+    else if (typeof hermesFatal === "string" && hermesFatal && process === "browser") {
+      assert.equal(typeof reason, "string");
+      assert.ok(reason.length <= 160, `${reason.length} characters`);
+      for (const leak of ["example.com", "secret", "/Users", "someone", "page.json"]) assert.equal(JSON.stringify(sent).includes(leak), false, leak);
+    } else assert.equal(reason, null, `${process} ${String(hermesFatal)}`);
+  }
+});

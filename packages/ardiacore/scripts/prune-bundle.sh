@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage="usage: prune-bundle.sh <Ardia.app>"
+usage="usage: prune-bundle.sh <Ardia.app> [<symbols dir>]"
 app="${1:?$usage}"
+symbols="${2:-}"
 here="$(cd "$(dirname "$0")" && pwd)"
 die() { echo "error: $*" >&2; exit 1; }
 fwv="$(cd "$app/Contents/Frameworks/Chromium Framework.framework/Versions/Current" && pwd -P)" \
@@ -127,6 +128,10 @@ if enabled ARDIA_STRIP_HERMES && [ -f "$hermes" ]; then
   uuid() { dwarfdump --uuid "$1" | awk '{ print $2 }'; }
   before_uuid="$(uuid "$hermes")" before_exports="$(dyld_info -exports "$hermes" | tail -n +2 | sort)"
   before="$(stat -f %z "$hermes")"
+  if [ -n "$symbols" ]; then
+    mkdir -p "$symbols/hermes.framework"
+    cp -c "$hermes" "$symbols/hermes.framework/hermes"
+  fi
   strip -x "$hermes" 2>/dev/null
   [ "$(uuid "$hermes")" = "$before_uuid" ] || die "strip changed hermes's UUID"
   [ "$(dyld_info -exports "$hermes" | tail -n +2 | sort)" = "$before_exports" ] || die "strip changed what hermes exports"
