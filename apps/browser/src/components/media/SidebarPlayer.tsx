@@ -13,7 +13,7 @@ import { Favicon } from "../favicon/Favicon";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { useArtwork } from "../../state/media/artwork";
-import { noteSidebarPlayerExpand } from "../../state/telemetry/mediaCardCounts";
+import { sidebarPlayerOpenCounter } from "../../state/telemetry/mediaCardCounts";
 import {
   dismissPlayer,
   formatTime,
@@ -92,7 +92,7 @@ const isLive = (session: Session) => session.duration === null;
 function useExpansion(want: boolean, motion: PlayerMotion) {
   const [expanded, setExpanded] = useState(false);
   const [slot, setSlot] = useState<"row" | "expanded">("row");
-  const closing = useRef(false);
+  const [opens] = useState(sidebarPlayerOpenCounter);
   useEffect(() => {
     if (want === expanded) return;
     if (want) return setExpanded(true);
@@ -105,8 +105,7 @@ function useExpansion(want: boolean, motion: PlayerMotion) {
       return setSlot("row");
     }
     motion.overhang.setValue(1);
-    if (expanded) noteSidebarPlayerExpand(closing.current);
-    closing.current = !expanded;
+    opens.motionStarted(expanded);
     const run = Animated.timing(motion.progress, {
       toValue: expanded ? 1 : 0,
       duration: reduceMotion() !== false ? 0 : expanded ? EXPAND_MS : COLLAPSE_MS,
@@ -116,7 +115,7 @@ function useExpansion(want: boolean, motion: PlayerMotion) {
     run.start(({ finished }) => {
       if (!finished) return;
       if (expanded) setSlot("expanded");
-      else closing.current = false;
+      else opens.closeFinished();
     });
     return () => run.stop();
   }, [expanded, slot]);

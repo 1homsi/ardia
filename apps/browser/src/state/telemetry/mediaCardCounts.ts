@@ -2,7 +2,23 @@ let sidebarPlayerExpands = 0;
 let sidebarPlayerReopens = 0;
 let loopRestarts = 0;
 
-export const noteSidebarPlayerExpand = (whileClosing: boolean) => void (sidebarPlayerExpands++, whileClosing && sidebarPlayerReopens++);
+export function sidebarPlayerOpenCounter() {
+  let shownOpen = false;
+  let closing = false;
+  return {
+    motionStarted(open: boolean) {
+      if (open) {
+        sidebarPlayerExpands++;
+        if (closing) sidebarPlayerReopens++;
+        shownOpen = true;
+      }
+      closing = !open && shownOpen;
+    },
+    closeFinished() {
+      closing = false;
+    },
+  };
+}
 
 export const noteNowPlayingLoopRestart = () => void loopRestarts++;
 
