@@ -1272,8 +1272,23 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
 - **Opt-in, as on the Mac.** Sharing is off until the person turns it on: onboarding's last step asks, the new tab
   page asks once if onboarding didn't, and Settings › Privacy & Security has the toggle. With sharing off nothing is
   posted except the daily anonymous "opened today" count, which the Mac sends too (and a test instance skips).
-  Linux collects no native crash reports (`ArdiaApp.crashReports` answers an empty list), so "crash reports" there
-  means page-process exits and JavaScript errors; the group has no crash-report control of its own to hide.
+  Native crash reports come from Chromium's own crash handler (Crash reports, below); with an engine that doesn't
+  list its dumps `ArdiaApp.crashReports` answers an empty list, and "crash reports" there means page-process exits
+  and JavaScript errors. The group has no crash-report control of its own to hide.
+- **Crash reports.** `chrome_crashpad_handler` runs beside every Ardia process and writes a minidump for each crash of
+  the browser, page, GPU and helper processes into `~/.config/ardia/Crash Reports` (`pending/<uuid>.dmp`). An
+  unbranded build never has consent to upload, so the dumps stay on the computer. At launch the telemetry owner asks
+  for the dumps written since its cursor (`ArdiaApp.crashReports`, `hostCrashReports.ts`): with an engine that
+  advertises `crash.dumps`, the shell lists them (`ArdiaCrash.list(since)`, each `{id, time}`) and reads up to the
+  newest 16 (`ArdiaCrash.read(id)`, the dump as base64), parses each one (`minidump.ts`) and keeps the newest five of
+  the browser and five of the other processes, as the Mac does. A report carries the process kind (from Chromium's
+  `ptype` annotation), the signal and its code (`SIGSEGV`, `SEGV_MAPERR`), the engine version, the process's uptime,
+  the build IDs of the files beside `chrome`, and the crashing thread's frames as file plus offset: a frame-pointer
+  walk from the signal's registers (Linux builds keep frame pointers), and when libc reused the frame pointer, from
+  the first frame record on the stack. A dump written without a crash (`DumpWithoutCrashing`) is skipped. Nothing else
+  from the dump leaves the shell: it holds stack memory, which can hold page content. The shared client sends it under
+  the same consent as the Mac (sharing on only); `chrome` is stripped, so its frames are offsets, named later against
+  the engine's symbols by build ID.
 - **One owner for the choice.** A window that isn't the telemetry owner (Settings, a second browser window) doesn't
   write `telemetry.json`. Turning sharing on or off, dismissing the new-tab question, starting or stopping a report's
   14-day watch and making the first anonymous ID are `choice` requests the owner runs (`telemetryChoice.ts`,
@@ -1523,8 +1538,8 @@ answer at once on the Mac and with a promise here, so the shell has to opt in.
   refusal or a network failure is status 0 with the reason in `error`, and `cancelUploads()` ends every transfer
   with `error: "cancelled"`. A background instance sends nothing.
 - **Not served.** Recording (`startRecording`, `stopRecording`, `cancelRecording`, `isRecording`,
-  `recordingThumbnail`), `ArdiaApp.crashReports` and `ArdiaApp.diagnosticsSample`. The shell answers no crash
-  reports and an empty sample, so a report's `footprint_mb` and `free_disk_gb` are null: the shell can read neither
+  `recordingThumbnail`) and `ArdiaApp.diagnosticsSample`, and `ArdiaApp.crashReports` until the engine lists its
+  dumps (Crash reports). The shell answers an empty sample, so a report's `footprint_mb` and `free_disk_gb` are null: the shell can read neither
   the app's memory footprint nor free disk space (`navigator.storage.estimate()` reports a quota, not free space).
 
 ### Ardia's notifications
@@ -1752,13 +1767,12 @@ These were open at the time of the PR.
 - **Problem reports.** The sheet opens only with an engine that advertises `report.files` and `report.send`, and
   has no recording, trace or crash reports. The engine only accepts `https://ardia.dev/api/feedback`:
   there is no override for a local feedback server, and a background instance sends nothing, so the sheet can't be
-  exercised end to end from a hidden instance yet. Crash reports need more than the list Chromium keeps
-  (`crash_reporter::GetReports` gives an id and a time): the Mac's fields come from parsed `.ips` files, so Linux
-  would have to read each minidump for the process type and frames, and frames of a stripped `chrome` are module
-  offsets, not names. The handler (`chrome_crashpad_handler`) ships, its folder is `Crash Reports` beside the
-  default user data folder (`chrome::DIR_CRASH_DUMPS`), and a build without Google's branding never has consent to
-  upload (`ChromeCrashReporterClient::GetCollectStatsConsent`); whether dumps are written there at all without
-  consent hasn't been checked in a built engine.
+  exercised end to end from a hidden instance yet.
+- **Crash reports.** The published engine writes the dumps (checked: a renderer crash and a browser crash each left
+  one in `pending/`, with uploads off) but doesn't list or read them for the shell yet (`crash.dumps`), so
+  `ArdiaApp.crashReports` still answers an empty list. The parser has run on those real dumps, not inside a built
+  engine. Browser crashes carry no Ardia version (the dump knows only Chromium's), only x86-64 dumps get frames, and
+  nothing is named until the engine's symbols are kept by build ID.
 - **Ardia's notifications.** A desktop without a notification service falls back to Chromium's own popups, as sites'
   notifications do. A click activates the window through the same Wayland activation path as above.
 - **Launch at login** starts Ardia as any launch does; it doesn't start hidden. A system-wide
@@ -1787,7 +1801,7 @@ These were open at the time of the PR.
   - translation (Bergamot isn't ported yet);
   - video upscaling;
   - installing updates: Ardia checks for them and opens the release page (Updates and kill switches);
-  - crash reports;
+  - crash reports with an engine that doesn't advertise `crash.dumps` (see Crash reports);
   - sending problem reports from the sheet with an engine older than `report.files` and `report.send` (see Problem
     reports), where `ArdiaTelemetryLocal.exportForReport` answers null;
   - notification icons, and a notification settings page to open (`openNotificationSettings`);
