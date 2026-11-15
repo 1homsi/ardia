@@ -51,6 +51,19 @@ test("a phone that cannot keep up at all fails even when its few frames add up t
   assert.equal(oneSpike.over, false, `busy ${oneSpike.busyShare}`);
 });
 
+test("a sample in which anything but the backdrop drew a frame decides nothing, however it measured", () => {
+  const withPopupSliding = judge({ totals: Array(35).fill(15), deadlines: Array(35).fill(16.7), windowMs: 2000, foreignFrames: 6 });
+  assert.equal(withPopupSliding.conclusive, false);
+  assert.equal(withPopupSliding.over, false);
+  assert.equal(withPopupSliding.foreignFrames, 6);
+  const tooBusyButTainted = judge({ totals: Array(35).fill(40), deadlines: Array(35).fill(16.7), windowMs: 2000, foreignFrames: 1 });
+  assert.equal(tooBusyButTainted.conclusive, false, "an over-budget reading with a foreign frame in it can't degrade the phone either");
+  const clean = judge({ totals: Array(35).fill(15), deadlines: Array(35).fill(16.7), windowMs: 2000, foreignFrames: 0 });
+  assert.equal(clean.conclusive, true);
+  assert.equal(clean.foreignFrames, undefined);
+  assert.equal(record(initialState("1"), withPopupSliding, 1000).verdict, "unknown", "a dropped sample changes nothing stored");
+});
+
 test("the window is the sampler's own when it sends one, and the planned two seconds otherwise", () => {
   const sent = judge({ totals: Array(40).fill(10), deadlines: Array(40).fill(16.7), windowMs: 4000 });
   assert.equal(sent.busyShare, 0.1);

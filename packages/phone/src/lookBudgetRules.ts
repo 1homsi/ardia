@@ -10,7 +10,7 @@ export const LOOK_BUDGET = {
   retryAfterMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
-export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number };
+export type FrameSample = { totals: number[]; deadlines: number[]; refreshMs?: number; windowMs?: number; foreignFrames?: number };
 
 export type Judgement = {
   conclusive: boolean;
@@ -25,6 +25,7 @@ export type Judgement = {
   busyShare?: number;
   paceMs?: number;
   keepsUp?: boolean;
+  foreignFrames?: number;
 };
 
 export type BudgetVerdict = "unknown" | "pass" | "fail";
@@ -72,9 +73,10 @@ export function judge(sample: FrameSample): Judgement {
   const paceMs = frames === 0 ? windowMs : windowMs / frames;
   const keepsUp = medianMs <= paceMs;
   const tooBusy = busyShare > LOOK_BUDGET.maxBusyShare;
-  const conclusive = frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp));
+  const foreignFrames = sample.foreignFrames ?? 0;
+  const conclusive = foreignFrames === 0 && (frames >= LOOK_BUDGET.minFrames || (frames >= LOOK_BUDGET.fewestFramesWhenBusy && (tooBusy || !keepsUp)));
   const over = conclusive && (tooBusy || !keepsUp);
-  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp };
+  return { conclusive, over, frames, medianMs, deadlineMs, missedShare, ...(refreshMs === undefined ? {} : { refreshMs, stretched }), windowMs, busyShare, paceMs, keepsUp, ...(foreignFrames > 0 ? { foreignFrames } : {}) };
 }
 
 export const initialState = (version: string): BudgetState => ({ version, verdict: "unknown", apply: "full", measuredAt: null, pendingOver: false, last: null });

@@ -74,7 +74,8 @@ export const lookBudget = {
     const judgement = judge(sample);
     const next = record(before, judgement, now);
     save(next);
-    labLog(`PAGELAB look budget ${judgement.conclusive ? (judgement.over ? "over" : "within") : "inconclusive"}: ${describe(next)}`);
+    const why = judgement.conclusive ? "" : judgement.foreignFrames ? ` (this sample dropped: ${judgement.foreignFrames} frame(s) drawn by something other than the backdrop)` : ` (this sample dropped: ${judgement.frames} frame(s), too few)`;
+    labLog(`PAGELAB look budget ${judgement.conclusive ? (judgement.over ? "over" : "within") : "inconclusive"}${why}: ${describe(next)}`);
     return next;
   },
 };

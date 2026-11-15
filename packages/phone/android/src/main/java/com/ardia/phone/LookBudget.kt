@@ -58,7 +58,7 @@ object LookBudget {
 }
 
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long)
 
     fun sample(activity: Activity, millis: Long, done: (Sample?) -> Unit) {
         val window: Window = activity.window ?: return done(null)
@@ -74,11 +74,12 @@ internal object FrameSampler {
             deadlines += (if (deadline > 0) deadline else interval) / 1_000_000.0
         }
         val started = SystemClock.uptimeMillis()
+        val foreignBefore = LookActivity.foreignTraversals
         window.addOnFrameMetricsAvailableListener(listener, handler)
         Handler(Looper.getMainLooper()).postDelayed({
             runCatching { window.removeOnFrameMetricsAvailableListener(listener) }
             handler.post {
-                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble()))
+                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble(), LookActivity.foreignTraversals - foreignBefore))
                 thread.quitSafely()
             }
         }, millis)

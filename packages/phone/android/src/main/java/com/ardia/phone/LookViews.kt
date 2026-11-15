@@ -207,6 +207,8 @@ internal object LookActivity {
     var restingLayerHolds = 0L
     @Volatile
     var restingLayered = 0
+    @Volatile
+    var foreignTraversals = 0L
 }
 
 internal object DeckLayers {
@@ -329,6 +331,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             ownDrawPending = false
         } else {
             lastOthersDrew = SystemClock.uptimeMillis()
+            LookActivity.foreignTraversals += 1
             releaseResting()
         }
         true

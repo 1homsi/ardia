@@ -48,7 +48,7 @@ class LookModule : Module() {
                 return@AsyncFunction
             }
             FrameSampler.sample(activity, millis.toLong().coerceIn(100L, 10_000L)) { sample ->
-                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis, "windowMs" to it.windowMillis) })
+                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis, "windowMs" to it.windowMillis, "foreignFrames" to it.foreignFrames) })
             }
         }.runOnQueue(Queues.MAIN)
 
