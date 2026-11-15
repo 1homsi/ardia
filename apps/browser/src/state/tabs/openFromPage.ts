@@ -21,6 +21,7 @@ const UNGATED = new Set(["current", "peek", "incognito"]);
 
 export function openFromPage(request: OpenWindowRequest, page: PageRef) {
   if (request.linkWait) noteLinkTabWait(request.linkWait);
+  if (request.popup) keepPopupOpener(page);
   if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
   const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, null);
   settleOpening(gated, null, (verdict) => {
@@ -44,7 +45,6 @@ export function openFromPage(request: OpenWindowRequest, page: PageRef) {
 function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
   const { url, disposition, profile, point } = request;
   const adoptId = asAdoptId(request.adoptId);
-  if (request.popup) keepPopupOpener(page);
   const s = useBrowser.getState();
   const w = s.windows[page.windowId];
   if (!w) return;

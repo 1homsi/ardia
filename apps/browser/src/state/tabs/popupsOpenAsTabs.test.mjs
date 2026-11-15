@@ -5,6 +5,7 @@ const { DEFAULT_SETTINGS } = await import("../settings/settings.ts");
 const { isConfigSettingKey } = await import("../settings/configAllowlist.ts");
 const { openFromPage } = await import("./openFromPage.ts");
 const { takePopupTabCounts } = await import("../telemetry/popupTabCounts.ts");
+const { setOpeningGate } = await import("./openingGate.ts");
 
 const S = () => useBrowser.getState();
 const PERSONAL = { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
@@ -48,4 +49,24 @@ test("a pop-up from a Peek keeps the Peek's page as a tab, opens in front of it,
   assert.deepEqual(takePopupTabCounts(), { popups_opened_as_tabs: 1 });
   S().closeTab(popup);
   assert.equal(S().windows[w].activeTabIds.default, peek);
+});
+
+test("a pop-up from a Peek that waits on the opening gate keeps its opener when you switch tabs meanwhile", async () => {
+  const { w, page, ref } = windowWithTab();
+  const other = S().newTab(w, { url: "https://b.example/", background: true });
+  const peek = S().openPeek(page, "https://signin.example/start");
+  let allow;
+  setOpeningGate(() => new Promise((resolve) => (allow = resolve)));
+  try {
+    openFromPage({ url: "https://signin.example/popup", disposition: "foreground", popup: true }, ref(peek));
+    S().activate(other);
+    allow(null);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    setOpeningGate(null);
+  }
+  const popup = popupTabOf("https://signin.example/popup");
+  assert.ok(popup);
+  assert.ok(S().tabs[peek], "the page that opened the pop-up is still open");
+  assert.equal(S().tabs[popup].openerId, peek);
 });
