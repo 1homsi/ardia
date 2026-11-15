@@ -1105,6 +1105,8 @@ App side, an agent can do these now:
 9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
 10. Dragging a pinned extension to reorder the toolbar (main's #1935): the engine takes `pinnedIndex` since
     `windows-engine-20261115-3`; that the new order sticks, and the drag itself, are untried on Windows. S.
+11. A group's and a live folder's icon is the plain folder symbol, filled while open, not the Mac's animated folder
+    (main's #376; `views/FolderIcon.tsx`). S.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - password sync on Windows: the engine's login read is ready (#1918); Sync still has to handle its errors before
@@ -1122,7 +1124,7 @@ Decisions for Shivam:
 - signing, or a per-machine install (#1659).
 
 With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 4, 9 and 10 are
-bugs a user hits, and 5 to 8 are visible differences from the Mac. Everything else in the table works or differs only
+bugs a user hits, and 5 to 8 and 11 are visible differences from the Mac. Everything else in the table works or differs only
 where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work
