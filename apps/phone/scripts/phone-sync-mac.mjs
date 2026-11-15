@@ -7,6 +7,7 @@
 //   node apps/phone/scripts/phone-sync-mac.mjs sync   [--work DIR]
 //   node apps/phone/scripts/phone-sync-mac.mjs send URL [--to DEVICE_ID] [--work DIR]
 //   node apps/phone/scripts/phone-sync-mac.mjs stop   [--work DIR] [--keep]
+//   node apps/phone/scripts/phone-sync-mac.mjs check  [--app APP]
 //
 // start launches the instance hidden (open -g -n, ARDIA_BACKGROUND=1, its own ARDIA_DATA_DIR in <work>/mac), with a
 // Metro for apps/browser on --metro-port (default 8099; started by this script when none is running), turns sync on
@@ -19,7 +20,9 @@
 // --keep. The default work folder is /tmp/ardia-phone-sync-mac; the default app is the Debug build that
 //   ARDIACORE_FRAMEWORK="$(packages/ardiacore/scripts/fetch-engine.sh --nearest)" \
 //     XCODE_XCCONFIG_FILE="$PWD/apps/browser/macos/AdHoc.xcconfig" scripts/agent/build-app --as phone-sync-mac
-// makes (sync's test hooks exist only in Debug). Never an installed app.
+// makes (sync's test hooks exist only in Debug). Never an installed app. check (and start, before it launches) refuses an
+// app built before this checkout's native API (packages/shell/ios/AppModule.swift changed after the app's binary) or
+// Pods behind Podfile.lock, and prints the commands that bring it up to date.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -48,6 +51,44 @@ const printHelp = () => {
   const lines = fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1);
   console.log(lines.filter((line) => line.startsWith("//")).map((line) => line.replace(/^\/\/ ?/, "")).join("\n"));
 };
+
+const nativeApiSource = path.join(repo, "packages/shell/ios/AppModule.swift");
+const nativeApiJs = path.join(repo, "apps/browser/src/platform/nativeApi.ts");
+const pods = { lock: path.join(repo, "apps/browser/macos/Podfile.lock"), manifest: path.join(repo, "apps/browser/macos/Pods/Manifest.lock") };
+
+export function appProblems(app, files = { source: nativeApiSource, js: nativeApiJs, pods }) {
+  const problems = [];
+  const wanted = /export const NATIVE_API_VERSION = (\d+);/.exec(fs.readFileSync(files.js, "utf8"))?.[1];
+  const declared = /Constant\("apiVersion"\)\s*\{\s*\(\)\s*->\s*Int\s+in\s+(\d+)\s*\}/.exec(fs.readFileSync(files.source, "utf8"))?.[1];
+  if (!fs.existsSync(app)) return [`no app at ${app}`];
+  const binaries = ["Contents/MacOS/Ardia.debug.dylib", "Contents/MacOS/Ardia"].map((name) => path.join(app, name)).filter((file) => fs.existsSync(file));
+  const builtAt = Math.max(0, ...binaries.map((file) => fs.statSync(file).mtimeMs));
+  const changedAt = fs.statSync(files.source).mtimeMs;
+  if (builtAt < changedAt) {
+    problems.push(`the app was built ${new Date(builtAt).toISOString()}, before ${path.relative(repo, files.source)} last changed (${new Date(changedAt).toISOString()}); this checkout's JS needs native API ${wanted ?? "?"} and would stop with "native API skew"`);
+  }
+  if (wanted && declared && wanted !== declared) problems.push(`this checkout disagrees with itself: nativeApi.ts wants ${wanted}, AppModule.swift declares ${declared}`);
+  const lock = fs.existsSync(files.pods.lock) ? fs.readFileSync(files.pods.lock, "utf8") : null;
+  const manifest = fs.existsSync(files.pods.manifest) ? fs.readFileSync(files.pods.manifest, "utf8") : null;
+  if (lock !== null && lock !== manifest) problems.push("the Pods are behind Podfile.lock, so the build fails or links old native code");
+  return problems;
+}
+
+const bringUpToDate = (problems) =>
+  [
+    `the Mac app can't serve this checkout's JS:`,
+    ...problems.map((problem) => `  - ${problem}`),
+    "bring it up to date from the repo root, then start again:",
+    ...(problems.some((problem) => problem.includes("Pods")) ? ["  scripts/agent/locked pod -- sh -c 'cd apps/browser/macos && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install'"] : []),
+    '  ARDIACORE_FRAMEWORK="$(packages/ardiacore/scripts/fetch-engine.sh --nearest)" XCODE_XCCONFIG_FILE="$PWD/apps/browser/macos/AdHoc.xcconfig" scripts/agent/build-app --as phone-sync-mac',
+    "  git diff --stat apps/browser/macos/Ardia.xcodeproj/project.pbxproj   # pod install can re-quote MARKETING_VERSION there; if that is all it changed, write back HEAD's copy with git show HEAD:<that path> > <that path>",
+  ].join("\n");
+
+function check(opts) {
+  const problems = appProblems(opts.app);
+  if (problems.length > 0) throw new Error(bringUpToDate(problems));
+  say(`the app at ${opts.app} is current for this checkout's native API`);
+}
 
 const say = (line) => console.log(`${new Date().toISOString().slice(11, 19)} ${line}`);
 const paths = (work) => ({ data: path.join(work, "mac"), folder: path.join(work, "folder"), phrase: path.join(work, "phrase.txt"), metro: path.join(work, "metro.json") });
@@ -125,6 +166,8 @@ async function start(opts) {
   const { data, folder, phrase } = paths(opts.work);
   if (/^\/Applications\//.test(opts.app)) throw new Error("never an installed app");
   if (!fs.existsSync(opts.app)) throw new Error(`no app at ${opts.app}: build it first (see --help)`);
+  const problems = appProblems(opts.app);
+  if (problems.length > 0) throw new Error(bringUpToDate(problems));
   fs.mkdirSync(folder, { recursive: true });
   try {
     attach(data);
@@ -205,7 +248,7 @@ async function stop(opts) {
 
 async function main() {
   const opts = options(process.argv.slice(2));
-  const commands = { start, status, sync: syncNow, send, stop };
+  const commands = { start, status, sync: syncNow, send, stop, check };
   if (!commands[opts.command]) {
     printHelp();
     process.exit(opts.command === "--help" || opts.command === "-h" ? 0 : 64);
@@ -215,7 +258,7 @@ async function main() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main().catch((error) => {
-    console.error(error.stack ?? String(error));
+    console.error(error.message?.startsWith("the Mac app can't serve") ? error.message : (error.stack ?? String(error)));
     process.exit(1);
   });
 }

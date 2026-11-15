@@ -761,9 +761,19 @@ S=<serial>; R=/Users/shivam-mini/.t3/worktrees/ardia/t3-ffb1082e-c9e4c64b1897b32
 mac() { ssh shiv "cd $R && node apps/phone/scripts/phone-sync-mac.mjs $* --work $W"; }
 relay() { node ~/phone-sync-relay.mjs "$@" --serial $S; }
 scp shiv:$R/apps/phone/scripts/phone-sync-relay.mjs ~/phone-sync-relay.mjs
+mac check                          # refuses an app older than this checkout's native API, and says what to run
 mac start                          # prints the folder and the Mac's own device id; the phrase stays in $W/phrase.txt
 relay start --mac shiv:$W/folder   # checks the phone's folder with a probe file, then mirrors every 3 s
 ```
+
+- **The Mac app must match the checkout.** `mac check`, and `mac start` before it launches anything, refuse a
+  Debug app whose binary is older than `packages/shell/ios/AppModule.swift` (where the native API version lives),
+  or Pods behind `Podfile.lock`. Its JavaScript would otherwise stop at once with "native API skew: this JS bundle
+  needs native API N, but the app was built with M". They print the commands that bring it up to date:
+  `scripts/agent/locked pod -- sh -c 'cd apps/browser/macos && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install'`
+  when the Pods are behind, then the `build-app --as phone-sync-mac` line from `--help`. pod install can re-quote
+  `MARKETING_VERSION` in `apps/browser/macos/Ardia.xcodeproj/project.pbxproj`. If `git diff` shows only that,
+  write HEAD's copy back (`git show HEAD:<path> > <path>`), so it never reaches a commit.
 
 - `mac status` (or `mac sync` to sync first) prints every device the Mac sees with its id, name and kind, each
   device's open tabs, and the Mac's own tabs. `mac send https://example.com/x` sends a tab to the phone.
@@ -774,7 +784,12 @@ relay start --mac shiv:$W/folder   # checks the phone's folder with a probe file
   transcript. MIUI refuses injected text (`INJECT_EVENTS`), and `relay type-phrase` says so. The MIUI method, used
   on the F4 for upgrade14: a short script on corex reads the phrase with `ssh shiv cat $W/phrase.txt` into a
   variable and hands it to the test tool's own set-text action on that field (agentos `set_text`), printing
-  nothing, so the phrase never reaches the screen, the log or the transcript. Never print the phrase or pass it as an argument. Step 2, Choose
+  nothing, so the phrase never reaches the screen, the log or the transcript. Never print the phrase or pass it as an argument.
+  No screen read, screenshot, recording or accessibility dump is taken from the moment the phrase is in the field
+  until the app has left Step 1. Neither app hides it there: the Expo field shows the words as typed
+  (`keyboardType` `visible-password`, no autocorrect, autofill or spell check), and so does the Compose one
+  (`KeyboardType.Password`, which keeps it out of the keyboard's learning but has no visual transformation). Only a
+  private tab sets the Recents and screenshot protection. A screen read of that page captures the words. Step 2, Choose
   Folder…: in the system picker open Documents › Ardia Sync, then Use This Folder and Allow.
 - When done: `relay stop`, then `mac stop` (it quits the instance and deletes `$W`), then
   `adb -s $S shell 'rm -rf "/sdcard/Documents/Ardia Sync"'` (the inner quotes are for the phone's shell, which
@@ -942,7 +957,12 @@ The render thread and the GPU don't appear there, so every run pairs the lines w
 
 #### Deck speed tester script (lab build)
 
-Run it once with the look off (lab › Look) and once with it on, at animator scale 1, with nine tabs that all have pictures (visit nine sites and wait on each until it has loaded). `$P` is the package. Swipes are in pixels for a 1080-wide screen; scale them for others.
+Run it once with the look off (lab › Look) and once with it on, at animator scale 1. `$P` is the package. Swipes are in pixels for a 1080-wide screen; scale them for others.
+
+The tab count is part of the run. Deck speed depends on it: with up to 19 tabs every card stays mounted, and with more the deck mounts cards as it moves (sync19 ran 26 tabs against sync16's 9, and its deck scroll looked twice as slow for that reason alone). So:
+- State the count before you start: 9 unless the brief says otherwise (26 for a large deck). Every tab must have a picture: open each site and wait until it has loaded, then launch with `--es ArdiaDeck "warm"` and wait until the `PAGELAB snapshot` lines stop.
+- Check it before every measured step: each deck open logs `PAGELAB deck shown with N tabs, M private`. If N isn't the stated count, or M isn't 0, fix the tabs before measuring; tabs sent from a Mac or opened by an earlier check count too.
+- Print it with every result: `tabs=N (checked HH:MM:SS from the deck line)` at the top of each gfxinfo and perf file, and the count in the report's table. Two runs with different counts aren't compared.
 
 1. `adb logcat -c`, then `adb shell dumpsys gfxinfo $P reset`.
 2. Deck scroll: open the deck. Five times, `adb shell input swipe 860 1300 220 1300 300`, then 1.5 s idle; then five times the other way, `adb shell input swipe 220 1300 860 1300 300`. Save `adb shell dumpsys gfxinfo $P > scroll-<look>.txt`.
