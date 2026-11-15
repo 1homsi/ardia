@@ -7,27 +7,34 @@ const { EDGE_FADE, EDGE_FADE_FLOOR } = await import("./tokens.ts");
 const VIEWPORT = 1000;
 const CONTENT = 3000;
 
+const chip = (scroll, start, width = 32) => edgeOpacityAt(scroll, start, start + width, VIEWPORT, CONTENT);
+
 test("nothing fades at the strip's start or end, where no tab is hidden", () => {
-  assert.equal(edgeOpacityAt(0, 20, VIEWPORT, CONTENT), 1);
-  assert.equal(edgeOpacityAt(CONTENT - VIEWPORT, CONTENT - 20, VIEWPORT, CONTENT), 1);
-  assert.equal(edgeOpacityAt(0, 500, VIEWPORT, 900), 1);
+  assert.equal(chip(0, 4), 1);
+  assert.equal(edgeOpacityAt(CONTENT - VIEWPORT, CONTENT - 40, CONTENT - 8, VIEWPORT, CONTENT), 1);
+  assert.equal(edgeOpacityAt(0, 500, 532, VIEWPORT, 900), 1);
 });
 
-test("a scrolled strip fades the tabs within the fade width of an edge that hides tabs, deepest at the edge", () => {
+test("a scrolled strip fades the tabs within the fade width of an edge that hides tabs, by the side nearest that edge", () => {
   const scroll = 1000;
-  const atEdge = edgeOpacityAt(scroll, scroll, VIEWPORT, CONTENT);
-  const halfway = edgeOpacityAt(scroll, scroll + EDGE_FADE / 2, VIEWPORT, CONTENT);
-  const inside = edgeOpacityAt(scroll, scroll + EDGE_FADE + 1, VIEWPORT, CONTENT);
-  assert.equal(atEdge, EDGE_FADE_FLOOR);
-  assert.ok(halfway > atEdge && halfway < 1);
-  assert.equal(inside, 1);
-  assert.equal(edgeOpacityAt(scroll, scroll + VIEWPORT, VIEWPORT, CONTENT), EDGE_FADE_FLOOR);
-  assert.equal(edgeOpacityAt(scroll, scroll + VIEWPORT / 2, VIEWPORT, CONTENT), 1);
+  assert.equal(chip(scroll, scroll - 10), EDGE_FADE_FLOOR);
+  assert.equal(chip(scroll, scroll), EDGE_FADE_FLOOR);
+  const halfway = chip(scroll, scroll + EDGE_FADE / 2);
+  assert.ok(halfway > EDGE_FADE_FLOOR && halfway < 1);
+  assert.equal(chip(scroll, scroll + EDGE_FADE + 1), 1);
+  assert.equal(chip(scroll, scroll + VIEWPORT - 32), EDGE_FADE_FLOOR);
+  assert.equal(chip(scroll, scroll + VIEWPORT / 2), 1);
+});
+
+test("a wide tab touching an edge fades as deeply as a narrow one: the fade follows its near side, not its centre", () => {
+  const scroll = 1000;
+  assert.equal(chip(scroll, scroll + 2, 128), chip(scroll, scroll + 2, 32));
+  assert.ok(chip(scroll, scroll + 2, 128) < 0.3);
 });
 
 test("the left fade eases in over the first points of a scroll instead of popping", () => {
-  const a = edgeOpacityAt(2, 2, VIEWPORT, CONTENT);
-  const b = edgeOpacityAt(12, 12, VIEWPORT, CONTENT);
+  const a = chip(2, 2);
+  const b = chip(12, 12);
   assert.ok(a > b && b > EDGE_FADE_FLOOR);
 });
 

@@ -22,9 +22,12 @@ export const PINNED_FACE_INSET = 2;
 export const pinnedFaceRadius = () => concentric(radius.chrome, PINNED_FACE_INSET);
 export const PINNED_RING_STROKE = 2;
 export const DOCK_GAP = 4.5;
-export const COMPACT_CHIP = 40;
+export const COMPACT_CHIP = 32;
+export const TITLED_CHIP = 64;
 export const SELECTED_MIN_CHIP = 128;
-export const TITLE_MIN_CHIP = 64;
+export const TITLE_MIN_CHIP = 52;
+export const TITLE_FADE_MIN = 8;
+export const TITLE_FADE_MAX = 24;
 export const CLOSE_MIN_CHIP = 84;
 export const MAX_CHIP = 173;
 export const GAP = 4;
@@ -47,6 +50,7 @@ export const NEW_TAB_ICON = 13;
 export const OVERFLOW_BUTTON = iconButton.s;
 export const NEW_TAB_ROOM = ITEM_HEIGHT + GAP + OVERFLOW_BUTTON.box;
 export const LIFT_SLOP = 12;
+export const STRIP_SCROLL_ID = "ardia-top-strip";
 export const AUTO_SCROLL_ZONE = 48;
 export const AUTO_SCROLL_MAX = 14;
 export const EDGE_FADE = 88;
@@ -68,6 +72,7 @@ export const FADE_IN_MS = duration.fast;
 export const TUCK_FADE_MS = 120;
 
 export const GROUP_SPRING = spring({ response: 0.3, damping: 0.82 });
+export const WIDTH_SPRING = { ...GROUP_SPRING, restDisplacementThreshold: 0.25, restSpeedThreshold: 2, useNativeDriver: false } as const;
 
 const REORDER_OMEGA = 90;
 

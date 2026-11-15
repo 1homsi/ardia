@@ -35,7 +35,7 @@ export type Landing = { dx: number; commit: () => void };
 export type Cross = { at: (dx: number, grab: number) => boolean; land: (dx: number, grab: number, ids: string[]) => Landing | null; clear: () => void };
 
 export type Dock = { ids: string[]; left: number; geometry: DragGeometry };
-export type Strip = { dock: Dock | null; top: DragGeometry; targets: (DropTarget | null)[]; chip: number; grow: Animated.Value; slotOf: (tabId: string) => number };
+export type Strip = { dock: Dock | null; top: DragGeometry; targets: (DropTarget | null)[]; chip: number; grow: Animated.Value; slotOf: (tabId: string) => number; animateWidths: boolean };
 
 export function reorder(ids: string[], { geometry, from, pinned, groupId }: StripDrag, to: number): boolean {
   return dropTabsInSlot(ids, geometry.slots, from, to, { pinned, groupId });

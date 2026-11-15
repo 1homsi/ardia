@@ -88,7 +88,7 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
     levels: 2,
   });
   const card = useStripCardHover(windowId, tabId, drag.ref, hover);
-  const edge = useEdgeOpacity(() => (stripRef?.current.dock ? [stripRef.current.dock.left + geometry.lefts[from]!, PINNED_CELL] : null));
+  const edge = useEdgeOpacity(tabId, () => (stripRef?.current.dock ? [stripRef.current.dock.left + geometry.lefts[from]!, PINNED_CELL] : null));
   if (!tab) return null;
   return (
     <Animated.View ref={drag.ref} {...card} mouseDownCanMoveWindow={false} style={[drag.style, { width: PINNED_CELL, height: ITEM_HEIGHT - 1 }]}>

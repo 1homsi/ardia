@@ -31,7 +31,8 @@ test("once an even share drops below the selected tab's minimum, the selected ta
   const noneShown = layout(tabs(30), "elsewhere");
   assert.deepEqual([noneShown.chip, noneShown.selected], [COMPACT_CHIP, COMPACT_CHIP]);
   const one = layoutStrip([tab("a")], "a", 120, measured(), null);
-  assert.deepEqual([one.chip, one.selected], [SELECTED_MIN_CHIP, SELECTED_MIN_CHIP]);
+  assert.deepEqual([one.chip, one.selected], [COMPACT_CHIP, SELECTED_MIN_CHIP]);
+  assert.equal(one.top.slots[0].width, SELECTED_MIN_CHIP);
   assert.ok(layout(tabs(4), "t0").selected <= MAX_CHIP);
 });
 

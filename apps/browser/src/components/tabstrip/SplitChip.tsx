@@ -10,6 +10,7 @@ import { font, space } from "../ui/tokens";
 import { DockContext, FloatingStrip } from "./context";
 import { SelectedTab } from "./SelectedTab";
 import { dragGeometry, type DragGeometry } from "./stripGroups";
+import type { GroupOut } from "./model";
 import { ItemRow, useWebsiteBand } from "./TabChip";
 import { CHIP_LABEL_GAP, CHIP_PAD, GAP, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
@@ -22,7 +23,7 @@ import { tabTitle } from "../../state/browser/model";
 import { useStruckTitle } from "../../state/sidebar/rowState";
 import { SLEEPING_TITLE_OPACITY } from "../sidebar/tokens";
 
-export function SplitChip({ tabIds, width, chip, geometry: givenGeometry, from: givenFrom, group }: { tabIds: string[]; width: number; chip?: number; geometry?: DragGeometry; from?: number; group: string | null }) {
+export function SplitChip({ tabIds, width, paneWidths, geometry: givenGeometry, from: givenFrom, group, out }: { tabIds: string[]; width: number; paneWidths?: number[]; geometry?: DragGeometry; from?: number; group: string | null; out?: GroupOut }) {
   const strip = useContext(DockContext);
   const scroll = useContext(StripScrollContext);
   const topLevel = !givenGeometry && !group;
@@ -39,8 +40,9 @@ export function SplitChip({ tabIds, width, chip, geometry: givenGeometry, from: 
   const ink = active && !floating && palette.background ? palette : null;
   const hover = useChipHover();
   const hovered = useChipHovered(hover);
-  const uneven = active && chip !== undefined && width > chip * tabIds.length + 1;
-  const paneWidth = (id: string) => (!uneven ? undefined : id === focusedId ? width - chip! * (tabIds.length - 1) : chip);
+  const shown = paneWidths?.slice(0, tabIds.length);
+  const even = !shown || shown.every((w) => Math.abs(w - shown[0]!) < 0.5) || Math.abs(shown.reduce((a, b) => a + b, 0) - width) > 1;
+  const paneWidth = (id: string) => (even ? undefined : shown![tabIds.indexOf(id)]);
   const drag = useStripDrag({
     tabId: null,
     ids: () => tabIds,
@@ -57,7 +59,8 @@ export function SplitChip({ tabIds, width, chip, geometry: givenGeometry, from: 
     scroll,
     axis: "x",
   });
-  const edge = useEdgeOpacity(() => {
+  const edge = useEdgeOpacity(tabIds.join(","), () => {
+    if (out) return out.slot >= 0 ? [out.left, width] : null;
     const from = fromOf();
     return topLevel && from >= 0 ? [geometryOf().lefts[from]!, geometryOf().slots[from]!.width] : null;
   });

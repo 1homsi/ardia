@@ -39,6 +39,17 @@ Metrics (definitions fixed before any change; points are window points):
                 the outer 8 pt at most half the strip's strongest)
   hardClips     favicons cut by an edge but still at full colour (a hard clip)
   overlaps      tab press areas overlapping + or the chevron, plus favicons overlapping each other
+Added in round 2 (fixed before the round 2 changes):
+  identifiable  now counts only tabs whose favicon colour is unique in the strip (a shared colour can't be attributed)
+  distinct      tabs you can tell apart without hovering, over all unpinned tabs: a wholly visible tab press area whose
+                favicon colour is unique among the visible ones, or whose legible title is at least 18 pt (about three
+                characters); a faded or favicon-less tab counts only by its title
+  titledTabs    visible unselected tabs with at least 18 pt of legible title
+  selPt         width of the selected tab's press area (a split pane's own)
+  fadeCueL/R    from the opacities the strip drives (its dev registry: each chip's centre, the scroll and the same
+                formula the native fade runs): 1 when that side hides chips and the outermost visible chip there is at
+                most 0.6 opaque
+  fadeErrors    chips at least the fade width plus 4 pt inside both edges drawn below 0.98 opacity
 
 interact runs the interactions (reveal on select, closing under a still pointer, new and background tabs, wheel and
 trackpad scrolls, an edge drag, resizes) and writes interact.json; frame bursts go to <out dir>/frames/<name>/.
@@ -80,6 +91,11 @@ const TITLES = [
 ];
 const titleOf = (i) => TITLES[i % TITLES.length](i);
 const hasFavicon = (i) => i % 10 !== 6;
+const SITE_WORDS = ["Issues", "Pulls", "Actions", "Wiki", "Insights", "Settings", "Releases", "Budget", "Roadmap", "Hiring", "Payroll", "Offsite", "Design", "Metrics", "Pricing", "Support", "Legal", "Launch", "Retro", "Standup", "Calendar", "Inbox", "Drafts", "Travel", "Recipes", "Garden", "Taxes", "Lease", "Quotes", "Invoice", "Mockups", "Tokens", "Specs", "Bugs", "Triage", "Backlog", "Sprint", "Review", "Deploy", "Alerts", "Logs", "Traces", "Storage", "Network", "Onboarding", "Payments", "Search", "Sync", "Themes", "Profiles", "Exports", "Imports", "Webhooks", "Keys", "Quota", "Usage", "Contracts", "Vendors", "Assets", "Fonts"];
+const SHARED_FAVICON = 138;
+const siteShared = (n, i) => (n <= 30 ? (i >= 5 && i <= 14) || [18, 21, 24, 27, 29].includes(i) : (i >= 10 && i <= 29) || [33, 37, 41, 45, 49, 53, 57].includes(i));
+const siteTitle = (i) => `${SITE_WORDS[i % SITE_WORDS.length]}${i >= SITE_WORDS.length ? ` ${i}` : ""} · project tracker page ${i}`;
+const siteFavicon = (n, i) => (siteShared(n, i) ? SHARED_FAVICON : hasFavicon(i) ? i : null);
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -177,11 +193,12 @@ function startServer() {
     if (/^\/slow\//.test(req.url)) return;
     if (page) {
       const i = Number(page[2]);
-      const k = page[1].startsWith("pin") ? 130 + (i % 10) : i;
-      const icon = page[1].startsWith("pin") || hasFavicon(i) ? `<link rel="icon" href="/fav/${k}.png">` : "";
-      const title = page[1].startsWith("pin") ? `Pinned ${i}` : titleOf(i);
+      const site = /^ss(\d+)/.exec(page[1]);
+      const k = page[1].startsWith("pin") ? 130 + (i % 10) : site ? siteFavicon(Number(site[1]), i) : hasFavicon(i) ? i : null;
+      const icon = k !== null ? `<link rel="icon" href="/fav/${k}.png">` : "";
+      const title = page[1].startsWith("pin") ? `Pinned ${i}` : site ? siteTitle(i) : titleOf(i);
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      return res.end(`<!doctype html><title>${title}</title>${icon}<body style="font:14px sans-serif;background:#fff">${title}</body>`);
+      return res.end(`<!doctype html><title>${title}</title>${icon}<body style="font:14px sans-serif;background:#fff;margin:0"><div style="height:6000px;background:linear-gradient(#fff,#ddd)">${title}</div></body>`);
     }
     res.writeHead(404);
     res.end();
@@ -189,21 +206,25 @@ function startServer() {
   return new Promise((r) => server.listen(0, "127.0.0.1", () => r(server)));
 }
 
-function tabsFor(windowId, n, port, { pinned = 0, profileId = "default" } = {}) {
+function tabsFor(windowId, n, port, { pinned = 0, profileId = "default", site = false } = {}) {
   const pins = Array.from({ length: pinned }, (_, i) => ({
     id: `${windowId}-p${i}`, windowId, profileId, pinned: true, pin: { as: "tile" },
     url: `http://127.0.0.1:${port}/page/pin/${i}`, title: `Pinned ${i}`, favicon: `http://127.0.0.1:${port}/fav/${130 + i}.png`, lastActiveAt: 1,
   }));
-  const tabs = Array.from({ length: n }, (_, i) => ({
-    id: `${windowId}-t${i}`, windowId, profileId,
-    url: `http://127.0.0.1:${port}/page/${windowId}/${i}`, title: titleOf(i),
-    favicon: hasFavicon(i) ? `http://127.0.0.1:${port}/fav/${i}.png` : null, lastActiveAt: 2 + i,
-  }));
+  const tabs = Array.from({ length: n }, (_, i) => {
+    const fav = site ? siteFavicon(n, i) : hasFavicon(i) ? i : null;
+    return {
+      id: `${windowId}-t${i}`, windowId, profileId,
+      url: `http://127.0.0.1:${port}/page/${windowId}/${i}`, title: site ? siteTitle(i) : titleOf(i),
+      favicon: fav !== null ? `http://127.0.0.1:${port}/fav/${fav}.png` : null, lastActiveAt: 2 + i,
+    };
+  });
   return [...pins, ...tabs];
 }
 
 const FAMILIES = {
-  counts: { counts: [5, 15, 30, 60, 120], pinned: 0 },
+  counts: { counts: [5, 10, 15, 20, 25, 30, 60, 120], pinned: 0 },
+  site: { counts: [30, 60], pinned: 0 },
   structure: { pinned: 0 },
   p4: { counts: [30, 60], pinned: 4 },
   p10a: { counts: [30], pinned: 10 },
@@ -218,7 +239,7 @@ function familySession(family, port) {
   const groups = [];
   let y = 40;
   const add = (id, n, extra = {}) => {
-    const ts = tabsFor(id, n, port, { pinned: spec.pinned });
+    const ts = tabsFor(id, n, port, { pinned: spec.pinned, site: family === "site" });
     tabs.push(...ts);
     windows.push({ id, frame: [40, y, 1280, WINDOW_HEIGHT], sidebarOpen: true, tabLayout: "top", tabIds: ts.map((t) => t.id), activeTabIds: { default: `${id}-t${Math.floor(n / 2)}` }, createdAt: windows.length + 1, ...extra });
     y += 3;
@@ -231,6 +252,13 @@ function familySession(family, port) {
     const g = (name, from, to, collapsed) => ({ id: `g4-${name}`, windowId: "g4", profileId: "default", name, icon: null, color: null, collapsed, pinned: false, tabIds: Array.from({ length: to - from }, (_, k) => `g4-t${from + k}`), createdAt: from });
     groups.push(g("Work", 4, 10, false), g("Shopping", 18, 26, true), g("Reading", 30, 38, false), g("Trip", 44, 52, true));
     add("s", 30);
+    add("sg", 40);
+    groups.push({ id: "sg-P", windowId: "sg", profileId: "default", name: "Pair", icon: null, color: null, collapsed: false, pinned: false, tabIds: [24, 25, 26, 27, 28, 29].map((i) => `sg-t${i}`), createdAt: 1 });
+    add("sh", 40);
+    groups.push({ id: "sh-P", windowId: "sh", profileId: "default", name: "Pair", icon: null, color: null, collapsed: false, pinned: false, tabIds: [4, 5, 6, 7, 8, 9].map((i) => `sh-t${i}`), createdAt: 1 });
+  } else if (family === "site") {
+    add("ss30", 30);
+    add("ss60", 60);
   } else if (family === "timing") {
     add("c120", 120);
     add("k120", 120, { tabLayout: "sidebar" });
@@ -244,6 +272,11 @@ const SCENARIOS = (() => {
   const list = [];
   const sc = (name, family, window, o) => list.push({ name, family, window, ...o });
   for (const n of [5, 15, 30, 60, 120]) for (const width of [900, 1280, 1728]) sc(`c${n}-${width}-mid`, "counts", `c${n}`, { n, width, sel: "mid" });
+  for (const n of [10, 20, 25]) for (const width of [900, 1280]) sc(`c${n}-${width}-mid`, "counts", `c${n}`, { n, width, sel: "mid" });
+  for (const width of [900, 1280, 1728]) sc(`ss30-${width}-mid`, "site", "ss30", { n: 30, width, sel: "mid" });
+  for (const width of [1280, 1728]) sc(`ss60-${width}-mid`, "site", "ss60", { n: 60, width, sel: "mid" });
+  sc("ss30-1280-inrun", "site", "ss30", { n: 30, width: 1280, sel: 9 });
+  sc("ss60-1280-inrun", "site", "ss60", { n: 60, width: 1280, sel: 20 });
   for (const n of [30, 120]) for (const sel of ["start", "end"]) sc(`c${n}-1280-${sel}`, "counts", `c${n}`, { n, width: 1280, sel });
   for (const n of [30, 120]) sc(`c${n}-1280-mid-light`, "counts", `c${n}`, { n, width: 1280, sel: "mid", theme: "light" });
   sc("c30-1280-mid-adorned", "counts", "c30", { n: 30, width: 1280, sel: "mid", adorn: true });
@@ -260,6 +293,12 @@ const SCENARIOS = (() => {
   sc("g4-60-1280-open", "structure", "g4", { n: 60, width: 1280, sel: 33 });
   sc("s-30-1280-splitsel", "structure", "s", { n: 30, width: 1280, sel: 15, split: [15, 16] });
   sc("s-30-1280-splitaway", "structure", "s", { n: 30, width: 1280, sel: 3, split: [15, 16] });
+  sc("sg-40-1280-open-splitsel", "structure", "sg", { n: 40, width: 1280, sel: 26, split: [26, 27], collapse: false });
+  sc("sg-40-1280-open-splitaway", "structure", "sg", { n: 40, width: 1280, sel: 35, split: [26, 27], collapse: false });
+  sc("sg-40-1280-collapsed-splitsel", "structure", "sg", { n: 40, width: 1280, sel: 26, split: [26, 27], collapse: true });
+  sc("sg-40-1280-collapsed-splitaway", "structure", "sg", { n: 40, width: 1280, sel: 35, split: [26, 27], collapse: true });
+  sc("sh-40-1280-open-splitsel", "structure", "sh", { n: 40, width: 1280, sel: 6, split: [6, 7], collapse: false });
+  sc("sh-40-1280-open-splitaway", "structure", "sh", { n: 40, width: 1280, sel: 2, split: [6, 7], collapse: false });
   return list;
 })();
 
@@ -308,6 +347,7 @@ ac.store.setState({ live });
 return Promise.resolve()
   .then(() => sc.adorn && !st().tabs[loose[loose.indexOf(pick) + 1]].muted ? ac.actions.toggleMute(loose[loose.indexOf(pick) + 1]) : null)
   .then(() => sc.split && !Object.values(st().splits).some((x) => x.windowId === id) ? st().openSplitPane(id, { tabId: loose[sc.split[1]], anchorTabId: loose[sc.split[0]], side: "right" }) : null)
+  .then(() => { if (sc.collapse === undefined) return; const g = Object.values(st().groups).find((x) => x.windowId === id); if (g && g.collapsed !== sc.collapse) st().updateGroup(g.id, { collapsed: sc.collapse }); })
   .then(() => ac.actions.switchToTab(pick))
   .then(() => D.devSetWindowFrame(id, [40 + Object.keys(s0.windows).indexOf(id) * 11, 60 + Object.keys(s0.windows).indexOf(id) * 7, sc.width, ${WINDOW_HEIGHT}]))
   .then((frame) => { nativeFrame = frame; })
@@ -320,7 +360,9 @@ return Promise.resolve()
     const order = stripOrder(id);
     const codes = hits.map((h) => classify(h));
     const chains = {}; hits.forEach((h, x) => { const c = codes[x]; if (c === "I" || c === "X") chains[h] = (chains[h] || 0) + 1; });
-    return { ok, n, codes: codes.join(""), chains, order, loose: order.filter((t) => !s.tabs[t].pin), pins: order.filter((t) => s.tabs[t].pin),
+    const page = (globalThis.topStripPages || {})[id + "|" + s.windows[id].profileId];
+    const strip = page ? { scroll: page.scroll(), chips: page.chips(), fadeWidth: page.fadeWidth } : null;
+    return { ok, n, strip, codes: codes.join(""), chains, order, loose: order.filter((t) => !s.tabs[t].pin), pins: order.filter((t) => s.tabs[t].pin),
       active: s.windows[id].activeTabIds[s.windows[id].profileId], picked: pick, frame: s.windows[id].frame,
       favicons: Object.fromEntries(order.map((t) => [t, s.tabs[t].favicon])), dark: s.settings.appearance !== "light",
       discarded: Object.keys(discarded), muted: order.filter((t) => s.tabs[t].muted) };
@@ -369,9 +411,18 @@ function analyse(img, scale, data, width) {
 
   const favs = [];
   const tol = 12;
+  const colourUse = {};
+  for (const tabId of data.order) {
+    const k = data.favicons[tabId] && /\/fav\/(\d+)\.png/.exec(data.favicons[tabId])?.[1];
+    if (k) colourUse[k] = (colourUse[k] || 0) + 1;
+  }
+  const sharedColour = (tabId) => {
+    const k = data.favicons[tabId] && /\/fav\/(\d+)\.png/.exec(data.favicons[tabId])?.[1];
+    return !!k && colourUse[k] > 1;
+  };
   for (const tabId of data.order) {
     const c = colourOfTab(tabId, data.favicons[tabId]);
-    if (!c) continue;
+    if (!c || sharedColour(tabId)) continue;
     let minX = Infinity, maxX = -1, minY = Infinity, maxY = -1, count = 0;
     for (let y = 8; y < 36; y++)
       for (let x = 0; x < W; x++) {
@@ -389,7 +440,7 @@ function analyse(img, scale, data, width) {
   }
   const favOf = new Map(favs.map((f) => [f.tabId, f]));
   const loose = data.loose;
-  const withFav = loose.filter((t) => data.favicons[t] && !data.discarded.includes(t));
+  const withFav = loose.filter((t) => data.favicons[t] && !data.discarded.includes(t) && !sharedColour(t));
   const shown = withFav.filter((t) => favOf.get(t)?.full);
   const shownIdx = shown.map((t) => loose.indexOf(t));
   const firstShown = shownIdx.length ? Math.min(...shownIdx) : -1;
@@ -457,7 +508,45 @@ function analyse(img, scale, data, width) {
     const shows = inkWidth(peek[0], peek[1], peek[0]).maxInk >= 40 || favs.some((f) => f.count >= 16 && f.x < peek[1] && f.x + f.w > peek[0]);
     return shows && inkWidth(a, a + 8, a).maxInk <= stripInk / 2 ? 1 : 0;
   };
+  const PINNED_COLOURS = new Set([130, 131, 132, 133, 134, 135, 136, 137, 139]);
+  const colourIn = (a, b) => {
+    const tally = new Map();
+    for (let y = 13; y <= 28; y++)
+      for (let x = a; x < b; x++) {
+        const p = px(x, y);
+        for (let k = 0; k < COLOURS.length; k++) if (diff(p, COLOURS[k]) <= tol) tally.set(k, (tally.get(k) || 0) + 1);
+      }
+    let best = null;
+    for (const [k, n] of tally) if (n >= 150 && (!best || n > best[1])) best = [k, n];
+    if (!best) return null;
+    let left = b;
+    for (let y = 13; y <= 28; y++) for (let x = a; x < b; x++) if (diff(px(x, y), COLOURS[best[0]]) <= tol) left = Math.min(left, x);
+    return { k: best[0], right: left + 16 };
+  };
+  const shown2 = tabRuns.filter(([a, b]) => a > viewport[0] + 1 && b < viewport[1] - 1).map(([a, b]) => {
+    const c = colourIn(a, b);
+    return { a, b, k: c?.k ?? null, title: inkWidth(a, b, c ? c.right + 2 : a + 28).pt, selected: selSpan[0] >= 0 && a < selSpan[1] && selSpan[0] < b };
+  }).filter((r) => r.k === null || !PINNED_COLOURS.has(r.k));
+  const kCount = {};
+  for (const r of shown2) if (r.k !== null) kCount[r.k] = (kCount[r.k] || 0) + 1;
+  const TITLE_USEFUL = 18;
+  const distinguishable = shown2.filter((r) => (r.k !== null && kCount[r.k] === 1) || r.title >= TITLE_USEFUL);
+  const distinct = loose.length ? +(distinguishable.length / loose.length).toFixed(3) : 1;
+  const titledTabs = shown2.filter((r) => !r.selected && r.title >= TITLE_USEFUL).length;
+  const selPt = selRun ? selRun[1] - selRun[0] : 0;
+  let fadeCueL = null, fadeCueR = null, fadeErrors = null, fadeUnplaced = null;
+  if (data.strip) {
+    const { scroll, chips, fadeWidth } = data.strip;
+    const L = scroll.x, R = scroll.x + scroll.viewport;
+    const placed = chips.filter((c) => c.centre > -1e5);
+    const vis = placed.filter((c) => c.centre >= L && c.centre <= R).sort((p, q) => p.centre - q.centre);
+    fadeCueL = placed.some((c) => c.centre < L) ? (vis.length && vis[0].opacity <= 0.6 ? 1 : 0) : null;
+    fadeCueR = placed.some((c) => c.centre > R) ? (vis.length && vis.at(-1).opacity <= 0.6 ? 1 : 0) : null;
+    fadeErrors = placed.filter((c) => c.centre >= L + fadeWidth + 4 && c.centre <= R - fadeWidth - 4 && c.opacity < 0.98).length;
+    fadeUnplaced = chips.length - placed.length;
+  }
   return {
+    distinct, titledTabs, selPt, fadeCueL, fadeCueR, fadeErrors, fadeUnplaced,
     selInView, selTitlePt, identifiable: withFav.length ? +(shown.length / withFav.length).toFixed(3) : 1, shown: shown.length, withFav: withFav.length,
     minTabPt, medTitlePt, newTab, dragMaxPt, deadPt, hiddenL, hiddenR, cueL: cue("L"), cueR: cue("R"), hardClips, overlaps,
     detail: { viewport, selSpan, lightsEnd, buttons: buttonRuns, drags: dragRuns.filter(([a, b]) => b - a >= 6), tabs: tabSpans.map((s) => [s.tabId.split("-").pop(), ...s.run, s.titlePt]), favs: favs.map((f) => [f.tabId.split("-").pop(), f.x, f.full ? 1 : 0]) },
@@ -517,12 +606,12 @@ async function capture(app, out) {
   }
 }
 
-const METRICS = ["selInView", "selTitlePt", "identifiable", "minTabPt", "medTitlePt", "newTab", "dragMaxPt", "deadPt", "hiddenL", "hiddenR", "cueL", "cueR", "hardClips", "overlaps"];
+const METRICS = ["selInView", "selTitlePt", "selPt", "identifiable", "distinct", "titledTabs", "minTabPt", "medTitlePt", "newTab", "dragMaxPt", "deadPt", "hiddenL", "hiddenR", "cueL", "cueR", "fadeCueL", "fadeCueR", "fadeErrors", "hardClips", "overlaps"];
 const summaryLine = (m) => METRICS.map((k) => `${k}=${m[k] ?? "-"}`).join(" ");
 const scoreTable = (scores) =>
   [`| scenario | ${METRICS.join(" | ")} |`, `|${" --- |".repeat(METRICS.length + 1)}`, ...Object.entries(scores).map(([name, m]) => `| ${name} | ${METRICS.map((k) => m[k] ?? "–").join(" | ")} |`)].join("\n") + "\n";
 
-const BETTER = { selInView: 1, selTitlePt: 1, identifiable: 1, minTabPt: 1, medTitlePt: 1, newTab: 1, dragMaxPt: 1, deadPt: -1, hiddenL: 0, hiddenR: 0, cueL: 1, cueR: 1, hardClips: -1, overlaps: -1 };
+const BETTER = { selPt: 1, distinct: 1, titledTabs: 1, fadeCueL: 1, fadeCueR: 1, fadeErrors: -1, selInView: 1, selTitlePt: 1, identifiable: 1, minTabPt: 1, medTitlePt: 1, newTab: 1, dragMaxPt: 1, deadPt: -1, hiddenL: 0, hiddenR: 0, cueL: 1, cueR: 1, hardClips: -1, overlaps: -1 };
 
 function compare(beforeDir, afterDir, outDir, names) {
   mkdirSync(outDir, { recursive: true });

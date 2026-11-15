@@ -11,18 +11,24 @@ export const TAB_CLICK_SLOP = 10;
 export const devTabPress = { switchOnPress: true };
 
 let heldPress: { windowId: string; tabId: string; startedAt: number | undefined; switched: boolean } | null = null;
-const pressEnds = new Set<() => void>();
+const pressEnds = new Set<{ windowId: string; listener: () => void }>();
 
 export const tabPressHeld = (windowId: string) => heldPress?.windowId === windowId;
 
-export function onTabPressEnd(listener: () => void) {
-  pressEnds.add(listener);
-  return () => void pressEnds.delete(listener);
+export function onTabPressEnd(windowId: string, listener: () => void) {
+  const entry = { windowId, listener };
+  pressEnds.add(entry);
+  return () => void pressEnds.delete(entry);
 }
 
 function releasePress() {
+  const windowId = heldPress?.windowId;
   heldPress = null;
-  for (const listener of [...pressEnds]) listener();
+  for (const entry of [...pressEnds]) {
+    if (entry.windowId !== windowId) continue;
+    pressEnds.delete(entry);
+    entry.listener();
+  }
 }
 
 type WithHistory = GestureResponderEvent & { touchHistory?: { touchBank: ({ startTimeStamp: number } | null | undefined)[] } };

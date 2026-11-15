@@ -1,6 +1,6 @@
 import type { StripDock, StripEntry, StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
 import type { Dock, DropTarget } from "./model";
-import { COMPACT_CHIP, DOCK_GAP, GAP, MAX_CHIP, NEW_TAB_ROOM, PINNED_CELL, PINNED_SPACING, SELECTED_MIN_CHIP } from "./tokens";
+import { COMPACT_CHIP, DOCK_GAP, GAP, MAX_CHIP, NEW_TAB_ROOM, PINNED_CELL, PINNED_SPACING, SELECTED_MIN_CHIP, TITLED_CHIP } from "./tokens";
 
 export const GROUP_MARGIN_LEFT = 3.5;
 export const GROUP_MARGIN_RIGHT = 4;
@@ -23,7 +23,7 @@ export function groupLayout(chip: number, widths: number[], gap: number, expande
   return { offsets, width: chip };
 }
 
-export type TabWidths = { chip: number; selected: number };
+export type TabWidths = { chip: number; titled: number; selected: number };
 
 const halfPoint = (w: number) => Math.round(w * 2) / 2;
 
@@ -31,12 +31,14 @@ export function stripTabWidths(o: {
   pageWidth: number;
   dockWidth: number;
   groups: { chip: number; expanded: boolean; shown: boolean }[];
-  tabUnits: number;
+  compactUnits: number;
+  titledUnits: number;
   selectedShown: boolean;
   fixed: number;
   gap: number;
   plus: number;
   min: number;
+  titledMin: number;
   selectedMin: number;
   max: number;
 }): TabWidths {
@@ -45,14 +47,24 @@ export function stripTabWidths(o: {
     const parts = g.expanded ? MEMBERS_INSET + TAIL_EXPANDED : g.shown ? MEMBERS_INSET + TAIL_COLLAPSED : 0;
     room -= GROUP_MARGIN_LEFT + GROUP_MARGIN_RIGHT + g.chip + parts + o.gap;
   }
-  if (!o.tabUnits) return { chip: o.max, selected: o.max };
-  const clamp = (w: number) => Math.max(o.min, Math.min(o.max, w));
-  const even = clamp(room / o.tabUnits - o.gap);
+  const units = o.compactUnits + o.titledUnits + (o.selectedShown ? 1 : 0);
+  if (!units) return { chip: o.max, titled: o.max, selected: o.max };
+  const at = (level: number, min: number) => Math.max(min, Math.min(o.max, level));
   const selectedMin = Math.min(o.max, o.selectedMin);
-  if (!o.selectedShown || even >= selectedMin) return { chip: halfPoint(even), selected: halfPoint(even) };
-  if (o.tabUnits === 1) return { chip: halfPoint(selectedMin), selected: halfPoint(selectedMin) };
-  const rest = clamp((room - selectedMin - o.gap) / (o.tabUnits - 1) - o.gap);
-  return { chip: halfPoint(rest), selected: halfPoint(selectedMin) };
+  const used = (level: number) =>
+    o.compactUnits * at(level, o.min) + o.titledUnits * at(level, o.titledMin) + (o.selectedShown ? at(level, selectedMin) : 0) + units * o.gap;
+  let level = o.max;
+  if (used(level) > room) {
+    let lo = 0;
+    let hi = o.max;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (used(mid) > room) hi = mid;
+      else lo = mid;
+    }
+    level = lo + 1e-6;
+  }
+  return { chip: halfPoint(at(level, o.min)), titled: halfPoint(at(level, o.titledMin)), selected: halfPoint(at(level, o.selectedShown ? selectedMin : o.min)) };
 }
 
 export type DragSlot = { tabIds: string[]; width: number; marginLeft?: number; marginRight?: number };
@@ -142,10 +154,12 @@ export const units = (m: StripMember, activeId: string) => (m.kind === "split" ?
 export const CELL_STEP = PINNED_CELL + PINNED_SPACING;
 export const dockWidth = (cells: number) => cells * CELL_STEP - PINNED_SPACING;
 
-export type StripMeasures = { groupChip: (groupId: string) => number | undefined; folderChip: (groupId: string) => number | undefined };
+export type StripMeasures = { groupChip: (groupId: string) => number | undefined; folderChip: (groupId: string) => number | undefined; needsTitle?: (tabId: string) => boolean };
 export type StripLayout = {
   chip: number;
   selected: number;
+  widths: TabWidths;
+  tabWidth: (tabId: string) => number;
   top: DragGeometry;
   targets: (DropTarget | null)[];
   memberWidth: (m: StripMember) => number;
@@ -163,30 +177,38 @@ export function layoutDock(dock: StripDock | undefined): Dock | null {
   return { ids: dock.ids, left: -dockSpan(dock), geometry: dragGeometry(dock.ids.map((id) => ({ tabIds: dockTabs(dock, id), width: PINNED_CELL })), PINNED_SPACING) };
 }
 
-export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null, held?: TabWidths): StripLayout {
+export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null, held?: TabWidths, wideId: string = activeId): StripLayout {
   const dock = dockEntry(entries);
   const rows = entries.filter((e): e is StripGroupEntry | StripMember => e.kind !== "dock");
   const groupChip = (g: StripGroupEntry) => measured.groupChip(g.id) ?? 0;
   const folderChip = (m: StripMember) => measured.folderChip(m.id) ?? 0;
   const visible = rows.flatMap((e) => (e.kind !== "group" ? [e] : e.collapsed ? e.members.filter((m) => holds(m, activeId)) : e.members));
-  const tabUnits = visible.reduce((n, m) => n + units(m, activeId), 0);
+  const needsTitle = measured.needsTitle ?? (() => false);
+  const shownTabs = (m: StripMember) =>
+    m.kind === "split" ? (m.tabIds.includes(wideId) ? [wideId, ...m.tabIds.filter((id) => id !== wideId)] : m.tabIds).slice(0, 2) : m.kind === "folder" ? (holds(m, activeId) ? [activeId] : []) : [m.id];
+  const visibleTabs = visible.flatMap(shownTabs);
+  const tabUnits = visibleTabs.length;
+  const wideShown = visibleTabs.includes(wideId);
+  const others = visibleTabs.filter((id) => id !== wideId);
   const widths = held ?? stripTabWidths({
     pageWidth,
     dockWidth: dockSpan(dock),
     groups: rows.flatMap((e) => (e.kind === "group" ? [{ chip: groupChip(e), expanded: !e.collapsed, shown: e.members.some((m) => holds(m, activeId)) }] : [])),
-    tabUnits,
-    selectedShown: visible.some((m) => holds(m, activeId)),
+    compactUnits: others.filter((id) => !needsTitle(id)).length,
+    titledUnits: others.filter(needsTitle).length,
+    selectedShown: wideShown,
     fixed: visible.reduce((n, m) => n + (m.kind === "folder" ? folderChip(m) + (holds(m, activeId) ? MEMBERS_INSET : GAP) : 0), 0),
     gap: GAP,
     plus: NEW_TAB_ROOM,
     min: COMPACT_CHIP,
+    titledMin: TITLED_CHIP,
     selectedMin: SELECTED_MIN_CHIP,
     max: MAX_CHIP,
   });
   const { chip, selected } = widths;
-  const bonus = selected - chip;
-  const unitsWidth = (m: StripMember) => chip * units(m, activeId) + (m.kind !== "folder" && holds(m, activeId) ? bonus : 0);
-  const memberWidth = (m: StripMember) => (m.kind === "folder" ? folderChip(m) + (holds(m, activeId) ? MEMBERS_INSET + selected : 0) : unitsWidth(m));
+  const tabWidth = (tabId: string) => (tabId === wideId ? selected : needsTitle(tabId) ? widths.titled : chip);
+  const unitsWidth = (m: StripMember) => shownTabs(m).reduce((n, id) => n + tabWidth(id), 0);
+  const memberWidth = (m: StripMember) => (m.kind === "folder" ? folderChip(m) + (holds(m, activeId) ? MEMBERS_INSET + tabWidth(activeId) : 0) : unitsWidth(m));
   const groups = new Map(
     rows.flatMap((e) => {
       if (e.kind !== "group") return [];
@@ -216,7 +238,15 @@ export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: 
     return [left + groupChip(row) + MEMBERS_INSET + offsets[at]!, widths[at]!];
   };
   const end = top.slots.length ? top.lefts.at(-1)! + top.slots.at(-1)!.width : 0;
-  return { chip, selected, top, targets, memberWidth, spanOf, tabsEnd: dockSpan(dock) + end, tabsShrink: tabUnits > 0 };
+  return { chip, selected, widths, tabWidth, top, targets, memberWidth, spanOf, tabsEnd: dockSpan(dock) + end, tabsShrink: tabUnits > 0 };
+}
+
+export function heldWideTab(entries: StripEntry[], wide: { tabId: string; slot: number }): { tabId: string; atEnd: boolean } {
+  const rows = entries.filter((e): e is StripGroupEntry | StripMember => e.kind !== "dock");
+  const atEnd = wide.slot >= rows.length;
+  const row = rows[Math.min(wide.slot, rows.length - 1)];
+  if (!row || row.kind === "group") return { tabId: wide.tabId, atEnd: false };
+  return { tabId: tabsOf(row)[0]!, atEnd };
 }
 
 export const newTabPinned = (chip: number, tabsEnd: number, pageWidth: number, tabsShrink = true) =>

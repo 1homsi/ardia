@@ -144,7 +144,7 @@ export function useStripDrag(item: StripDrag) {
     const scroll = latest.current.scroll;
     const g = drag.current.gesture;
     const viewport = drag.current.viewport;
-    if (!scroll || !g || !viewport || phase.current.kind !== "dragging" || latest.current.from < 0) return stopAutoScroll();
+    if (!scroll || !g || !viewport || phase.current.kind !== "dragging" || latest.current.from < 0 || !scroll.active()) return stopAutoScroll();
     const offset = scroll.offset();
     const speed = autoScrollSpeed(g.moveX, viewport, offset, scroll.max(), AUTO_SCROLL_ZONE, AUTO_SCROLL_MAX);
     if (!speed) return stopAutoScroll();
@@ -153,7 +153,7 @@ export function useStripDrag(item: StripDrag) {
       drag.current.frame = 0;
       const now = drag.current.gesture;
       const view = drag.current.viewport;
-      if (!now || !view || phase.current.kind !== "dragging") return;
+      if (!now || !view || phase.current.kind !== "dragging" || !scroll.active()) return;
       const at = scroll.offset();
       const step = autoScrollSpeed(now.moveX, view, at, scroll.max(), AUTO_SCROLL_ZONE, AUTO_SCROLL_MAX);
       if (!step) return;

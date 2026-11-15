@@ -2,11 +2,11 @@ import { memo, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useR
 import { Animated, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView, View } from "react-native";
 import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
-import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
+import { useShownTabIdFor, useStripEntries, useStripTitleNeeds } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
 import { dismissStripHoverIn, stripPageOffstage } from "../../state/tabs/stripHover";
 import { onTabPressEnd, tabPressHeld } from "../../state/sidebar/heldTabPress";
-import { noteTabStripCompact, noteTabStripOverflow, noteTabStripRevealAfterPress } from "../../state/telemetry/tabStripCounts";
+import { noteTabStripCompact, noteTabStripHeldClose, noteTabStripOverflow, noteTabStripRevealAfterPress, noteTabStripTitledTabs } from "../../state/telemetry/tabStripCounts";
 import { Offstage } from "../ui/useHover";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
@@ -17,14 +17,16 @@ import { chipKey, folderKey, type Strip } from "./model";
 import { NewTabButton } from "./NewTabButton";
 import { PinnedDock } from "./PinnedDock";
 import { SplitChip } from "./SplitChip";
-import { layoutDock, layoutStrip, newTabPinned, revealOffset, tabsOf, type DragGeometry, type TabWidths } from "./stripGroups";
+import { heldWideTab, layoutDock, layoutStrip, newTabPinned, revealOffset, tabsOf, type DragGeometry, type TabWidths } from "./stripGroups";
 import { StripGroup } from "./StripGroup";
 import { DraggableChip } from "./TabChip";
-import { createEdgeFade, EdgeFadeContext, refreshEdgeFade } from "./edgeFade";
+import { createEdgeFade, edgeOpacityAt, EdgeFadeContext, fadeEntries, refreshEdgeFade } from "./edgeFade";
+import { devRegister } from "../dev/devRegister";
 import { StripScrollContext, type StripScroll } from "./stripScroll";
-import { COMPACT_CHIP, EDGE_FADE, FLARE, GAP, NEW_TAB_ROOM } from "./tokens";
+import { COMPACT_CHIP, EDGE_FADE, FLARE, GAP, NEW_TAB_ROOM, STRIP_SCROLL_ID } from "./tokens";
 
-type Hold = { widths: TabWidths; end: number };
+type Wide = { tabId: string; slot: number };
+type Hold = { widths: TabWidths; end: number; wide: Wide; lead: boolean; needsTitle: (tabId: string) => boolean };
 
 const stripEnd = ({ slots, lefts }: DragGeometry) => (slots.length ? lefts.at(-1)! + slots.at(-1)!.width : 0);
 
@@ -34,6 +36,8 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
   const parsed = useStripEntries(windowId, profileId);
   const activeId = useShownTabIdFor(windowId, profileId);
+  const liveNeeds = useStripTitleNeeds(windowId, profileId);
+  const shownNeeds = useRef(liveNeeds);
   const groupIds = parsed.flatMap((e) => (e.kind === "group" ? [e.id] : []));
   const chipWidths = useMeasuredWidths(groupIds.map(chipKey));
   const folderIds = parsed.flatMap((e) => (e.kind === "group" ? e.members.flatMap((m) => (m.kind === "folder" ? [m.id] : [])) : []));
@@ -44,17 +48,27 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const dock = useMemo(() => layoutDock(dockEntry), [dockEntry]);
   const pointerIn = useRef(false);
   const held = useRef<Hold | null>(null);
-  const last = useRef<Hold & { count: number }>(null);
+  const last = useRef<Omit<Hold, "lead" | "needsTitle"> & { count: number; pageWidth: number; lastSlot: string | undefined }>(null);
   const closedTo = useRef("");
   const [releases, release] = useReducer((n: number) => n + 1, 0);
   const count = parsed.reduce((n, e) => n + (e.kind === "dock" ? 0 : e.kind === "group" ? e.members.flatMap(tabsOf).length : tabsOf(e).length), 0);
-  if (pointerIn.current && last.current && count < last.current.count) {
-    held.current ??= { widths: last.current.widths, end: last.current.end };
+  const closedWhileIn = pointerIn.current && !!last.current && count < last.current.count;
+  const heldClose = closedWhileIn && !!held.current;
+  if (closedWhileIn && last.current) {
+    held.current ??= { widths: last.current.widths, end: last.current.end, wide: last.current.wide, lead: false, needsTitle: shownNeeds.current };
+    const lastSlot = last.current.lastSlot;
+    if (lastSlot && !parsed.some((e) => e.kind !== "dock" && (e.kind === "group" ? e.members.some((m) => tabsOf(m).includes(lastSlot)) : tabsOf(e).includes(lastSlot)))) held.current.lead = true;
     closedTo.current = activeId;
   }
-  const { chip, selected, top, targets, memberWidth, spanOf: spanInStrip, tabsEnd, tabsShrink } = layoutStrip(parsed, activeId, pageWidth, { groupChip: chipOf, folderChip }, dock, held.current?.widths);
-  last.current = { count, widths: { chip, selected }, end: stripEnd(top) };
+  const needsTitle = held.current?.needsTitle ?? liveNeeds;
+  shownNeeds.current = needsTitle;
+  const holding = held.current ? heldWideTab(parsed, held.current.wide) : null;
+  const wideId = holding?.tabId ?? activeId;
+  const { chip, selected, widths, tabWidth, top, targets, memberWidth, spanOf: spanInStrip, tabsEnd, tabsShrink } = layoutStrip(parsed, activeId, pageWidth, { groupChip: chipOf, folderChip, needsTitle }, dock, held.current?.widths, wideId);
+  const animateWidths = !held.current && !!last.current && last.current.count === count && last.current.pageWidth === pageWidth;
+  last.current = { count, pageWidth, widths, end: stripEnd(top), lastSlot: top.slots.at(-1)?.tabIds[0], wide: { tabId: wideId, slot: Math.max(0, top.slots.findIndex((s) => s.tabIds.includes(wideId))) } };
   const spare = held.current ? Math.max(0, held.current.end - stripEnd(top)) : 0;
+  const leadSpare = !!held.current && (held.current.lead || !!holding?.atEnd);
   const pinned = newTabPinned(chip, tabsEnd + spare, pageWidth, tabsShrink);
   const newTab = <NewTabButton windowId={windowId} geometry={top} pinned={pinned} />;
   const leave = () => {
@@ -66,7 +80,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const slotOf = (id: string) => top.slots.findIndex((slot) => slot.tabIds[0] === id);
   const grow = useRef(new Animated.Value(0)).current;
   const strip = useRef<Strip>(null!);
-  strip.current = { top, targets, chip, grow, dock, slotOf };
+  strip.current = { top, targets, chip, grow, dock, slotOf, animateWidths };
   const incoming = useIncomingTab(windowId, current, top);
   const scroll = useRef<ScrollView>(null);
   const scrolled = useRef(0);
@@ -76,7 +90,10 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     const end = Math.max(0, content.current - viewport.current);
     if (scrolled.current > end + 0.5) scroll.current?.scrollTo({ x: end, animated: false });
   };
+  const onStage = useRef(current);
+  onStage.current = current;
   const [scroller] = useState<StripScroll>(() => ({
+    active: () => onStage.current,
     offset: () => scrolled.current,
     max: () => Math.max(0, content.current - viewport.current),
     scrollTo: (x) => {
@@ -91,6 +108,17 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const [edgeFade] = useState(() => createEdgeFade(scrollX));
   const fadeOrigin = inset + (dock ? -dock.left : 0);
   useLayoutEffect(() => refreshEdgeFade(edgeFade, fadeOrigin));
+  useEffect(
+    () =>
+      devRegister("topStripPages", `${windowId}|${profileId}`, {
+        current: () => current,
+        fadeWidth: EDGE_FADE,
+        scroll: () => ({ x: scrolled.current, viewport: viewport.current, content: content.current }),
+        chips: () => fadeEntries(edgeFade).map((e) => ({ ...e, opacity: edgeOpacityAt(scrolled.current, e.start, e.end, viewport.current, content.current) })),
+        scrollTo: (x: number) => scroller.scrollTo(x),
+      }),
+    [windowId, profileId, current],
+  );
   const fadeRange = () => {
     edgeFade.viewport.setValue(viewport.current);
     edgeFade.maxScroll.setValue(Math.max(0, content.current - viewport.current));
@@ -124,14 +152,19 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     if (revealed.current === activeId || (held.current && closedTo.current === activeId)) return;
     revealed.current = activeId;
     if (!current || !activeId || tabDragging()) return;
+    let frame = 0;
+    const later = () => void (frame = requestAnimationFrame(() => reveal(activeId, true)));
+    let unsubscribe = () => {};
     if (tabPressHeld(windowId)) {
       noteTabStripRevealAfterPress();
-      return onTabPressEnd(() => {
-        if (!tabDragging()) requestAnimationFrame(() => reveal(activeId, true));
+      unsubscribe = onTabPressEnd(windowId, () => {
+        if (!tabDragging()) later();
       });
-    }
-    const frame = requestAnimationFrame(() => reveal(activeId, true));
-    return () => cancelAnimationFrame(frame);
+    } else later();
+    return () => {
+      unsubscribe();
+      cancelAnimationFrame(frame);
+    };
   }, [activeId, current, releases]);
   useEffect(() => {
     if (!current) stripPageOffstage(windowId, profileId);
@@ -143,6 +176,13 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   useEffect(() => {
     if (current && pinned) noteTabStripOverflow(count);
   }, [current, pinned, count]);
+  useEffect(() => {
+    if (heldClose) noteTabStripHeldClose();
+  }, [count]);
+  const titledTabs = compact ? parsed.reduce((n, e) => n + (e.kind === "dock" ? 0 : (e.kind === "group" ? e.members.flatMap(tabsOf) : tabsOf(e)).filter(needsTitle).length), 0) : 0;
+  useEffect(() => {
+    if (titledTabs) noteTabStripTitledTabs(titledTabs);
+  }, [titledTabs]);
   let slotIndex = 0;
   const gap = (i: number) => (incoming.active ? <IncomingGap key={`gap${i}`} open={incoming.at === i} width={chip} origin={i === 0 ? incoming.origin : undefined} /> : null);
 
@@ -163,6 +203,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                 <Animated.ScrollView
                   ref={scroll}
                   horizontal
+                  testID={STRIP_SCROLL_ID}
                   disableScrollViewPanResponder
                   showsHorizontalScrollIndicator={false}
                   scrollEventThrottle={16}
@@ -185,6 +226,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                   {parsed.flatMap((e) => {
                     if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
                     const slot = slotIndex;
+                    const lead = slot === 0 && spare && leadSpare ? <View key="held-lead" style={{ width: spare, marginRight: -GAP }} /> : null;
                     const before = gap(slotIndex++);
                     if (e.kind === "group")
                       return [
@@ -195,6 +237,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                           geometry={top}
                           from={slotOf(e.members[0] ? tabsOf(e.members[0])[0]! : "")}
                           chip={selected}
+                          tabWidth={tabWidth}
                           activeId={activeId}
                           chipWidth={chipOf(e.id)}
                           onChipWidth={(width) => setMeasuredWidth(chipKey(e.id), width)}
@@ -203,12 +246,12 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                         />,
                       ];
                     if (e.kind === "split")
-                      return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={top.slots[slot]!.width} chip={chip} group={null} />];
-                    return [before, <DraggableChip key={e.id} tabId={e.id} width={top.slots[slot]!.width} group={null} />];
+                      return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={top.slots[slot]!.width} paneWidths={e.tabIds.map(tabWidth)} group={null} />];
+                    return [lead, before, <DraggableChip key={e.id} tabId={e.id} width={top.slots[slot]!.width} group={null} />];
                   })}
                   {gap(top.slots.length)}
                   {pinned ? null : newTab}
-                  {spare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
+                  {spare && !leadSpare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
                 </Animated.ScrollView>
                 {pinned ? <View pointerEvents="box-none" style={{ position: "absolute", top: 0, right: flare }}>{newTab}</View> : null}
               </Offstage.Provider>

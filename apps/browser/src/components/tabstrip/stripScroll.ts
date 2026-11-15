@@ -1,6 +1,7 @@
 import { createContext } from "react";
 
 export type StripScroll = {
+  active(): boolean;
   offset(): number;
   max(): number;
   scrollTo(x: number): void;
