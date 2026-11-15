@@ -12,8 +12,8 @@ import { capsule, font, space, Symbol, tabsMotion, toastLayout, toastMotion, use
 
 const ICONS: Record<ToastIcon, SymbolName> = {
   checkmark: "checkmark",
-  warning: "exclamationmarkTriangle",
-  download: "arrowDownCircle",
+  warning: "exclamationmarkTriangleFill",
+  download: "arrowDownCircleFill",
   blocking: "handRaised",
   link: "link",
   laptop: "laptop",

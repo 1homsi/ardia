@@ -182,6 +182,8 @@ export const downloadedToast = (fileName: string) => `Downloaded ${fileName}`;
 
 export const downloadFailedToast = (fileName: string) => (fileName ? `Couldn’t Download ${fileName}` : "Couldn’t Download File");
 
+export const stoppedPrivateDownloadsToast = (count: number) => (count === 1 ? "Stopped 1 Private Download" : `Stopped ${count} Private Downloads`);
+
 export const leadImageAspect = (width: number, height: number, tallest: number): number | null =>
   width > 1 && height > 1 ? Math.max(width / height, tallest) : null;
 

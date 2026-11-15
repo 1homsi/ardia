@@ -15,7 +15,7 @@ import { sendDeckCommand } from "../browse/deckCommands";
 import { isSyncableUrl } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
 import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from "./pageMenu";
-import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressPlan, type PressAction, type Request } from "./pagePrompts";
+import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressPlan, stoppedPrivateDownloadsToast, type PressAction, type Request } from "./pagePrompts";
 import { onboardingBack } from "../onboarding/store";
 import { openSettings, popSettings, type SettingsRoute } from "../settings/nav";
 import { pinToMac, sendTab } from "../sync/actions";
@@ -274,8 +274,27 @@ async function openPopup(openerId: string, popupId: string, url: string | null, 
   else if (!inBackground) openTab(tab.id);
 }
 
+const PRIVATE_STOPS_GATHER_MS = 250;
+let privateStops = 0;
+let privateStopsTimer: ReturnType<typeof setTimeout> | null = null;
+
+function notePrivateDownloadStopped() {
+  privateStops += 1;
+  if (privateStopsTimer) return;
+  privateStopsTimer = setTimeout(() => {
+    const count = privateStops;
+    privateStops = 0;
+    privateStopsTimer = null;
+    showToast(stoppedPrivateDownloadsToast(count), "warning", TOAST_LONG_DURATION_MS);
+  }, PRIVATE_STOPS_GATHER_MS);
+}
+
 function downloadEvent(event: DownloadEvent) {
   if (event.name !== "downloads.finished") return;
+  if (event.failure === "privateSessionEnded") {
+    notePrivateDownloadStopped();
+    return;
+  }
   if (event.failure) {
     showToast(downloadFailedToast(event.fileName), "warning");
     return;
@@ -299,7 +318,8 @@ function pageEvent(event: PageEngineEvent) {
       void openPopup(event.pageId, event.popupId, event.url, event.isPrivate, event.inBackground === true);
       return;
     case "page.download":
-      showToast(downloadingToast(event.fileName), "download");
+      if (event.downloadId === null) showToast(downloadFailedToast(event.fileName), "warning");
+      else showToast(downloadingToast(event.fileName), "download");
       return;
     case "page.longPress":
       if (event.pageId !== selectedId()) return;
