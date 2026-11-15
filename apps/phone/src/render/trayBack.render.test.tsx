@@ -1,4 +1,5 @@
 import { getAnimatedStyle } from "react-native-reanimated";
+import { BackHandler } from "react-native";
 import { act } from "react-test-renderer";
 
 type Handlers = { onProgress?: (progress: number, edge: "left" | "right") => void; onCancel?: () => void; onCommit?: () => void };
@@ -17,8 +18,15 @@ jest.mock("../platform/back", () => ({
 }));
 
 const telemetry = require("../state/telemetry/telemetry") as typeof import("../state/telemetry/telemetry");
+jest.mock("../components/ui/Overlay", () => ({
+  ...jest.requireActual("../components/ui/Overlay"),
+  useOverlayFrame: () => () => Promise.resolve({ x: 0, y: 0, width: 393, height: 873 }),
+}));
+
 const { SearchTray } = require("../components/search/SearchTray") as typeof import("../components/search/SearchTray");
 const { presentSearch, useSearch } = require("../state/search/store") as typeof import("../state/search/store");
+const { useVoice } = require("../state/voice/store") as typeof import("../state/voice/store");
+const { useTrayCovers } = require("../state/search/trayBack") as typeof import("../state/search/trayBack");
 const { renderSurface, unmount, withTabs } = require("../../test/render/harness") as typeof import("../../test/render/harness");
 
 beforeEach(() => {
@@ -26,6 +34,8 @@ beforeEach(() => {
   withTabs(1);
   mockBack.enabled = [];
   mockBack.handlers = null;
+  useTrayCovers.setState({ covers: 0 });
+  useVoice.setState({ presented: false });
 });
 
 afterEach(() => {
@@ -58,4 +68,39 @@ test("while the tray is up, Android's predictive back follows the swipe down by 
   expect(mockBack.enabled).toEqual([true, false]);
   unmount(root);
   counted.mockRestore();
+});
+
+test("with a row's menu open over the tray, Back goes to the menu: the tray's native back is switched off first, so the menu closes and search stays open", async () => {
+  act(() => presentSearch("page", "otters"));
+  const root = renderSurface(<SearchTray />);
+  act(() => jest.advanceTimersByTime(600));
+  expect(mockBack.enabled).toEqual([true]);
+  const listening = jest.spyOn(BackHandler, "addEventListener");
+  const row = root.root.findAll((node) => typeof node.props.onMenu === "function" && node.props.row !== undefined && Array.isArray(node.props.menu) && node.props.menu.length > 0)[0]!;
+  await act(async () => row.props.onMenu(row.props.row, 300));
+  await act(async () => jest.advanceTimersByTime(50));
+  expect(mockBack.enabled.at(-1)).toBe(false);
+  expect(mockBack.handlers).toBeNull();
+  expect(root.root.findAll((node) => node.props.accessibilityLabel === "Dismiss" && typeof node.type === "string").length).toBeGreaterThan(0);
+  const backs = listening.mock.calls.filter((call) => call[0] === "hardwareBackPress").map((call) => call[1]);
+  expect(backs.length).toBeGreaterThan(0);
+  act(() => {
+    for (const back of [...backs].reverse()) if (back()) break;
+  });
+  listening.mockRestore();
+  expect(root.root.findAll((node) => node.props.accessibilityLabel === "Dismiss" && typeof node.type === "string")).toHaveLength(0);
+  expect(useSearch.getState().open).toBe(true);
+  expect(mockBack.enabled.at(-1)).toBe(true);
+  unmount(root);
+});
+
+test("while voice search is up over the tray, the tray's native back stays off", () => {
+  act(() => presentSearch("page", "otters"));
+  const root = renderSurface(<SearchTray />);
+  act(() => jest.advanceTimersByTime(600));
+  act(() => useVoice.setState({ presented: true }));
+  expect(mockBack.enabled.at(-1)).toBe(false);
+  act(() => useVoice.setState({ presented: false }));
+  expect(mockBack.enabled.at(-1)).toBe(true);
+  unmount(root);
 });

@@ -17,7 +17,7 @@ import { rowFade, rowsFadeEdge, rowsOverflow, wholeRowsHeight } from "../../lib/
 import { haptics } from "../../state/app/haptics";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
-import { followTrayBack, trayBackTravel } from "../../state/search/trayBack";
+import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../state/search/trayBack";
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
@@ -274,8 +274,11 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     return heldLift.value >= 0 ? heldLift.value : liveLift(keyboard.height.value, safeBottom, hasLanded.value, isClosing.value);
   };
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * (1 - clampedProgress(drag.value, trayHeight + currentLift())) }), [trayHeight, safeBottom]);
+  const covered = useTrayCovers((state) => state.covers > 0);
+  const voicePresented = useVoice((state) => state.presented);
+  const trayOnTop = !closing && !covered && !voicePresented;
   useEffect(() => {
-    if (closing) return;
+    if (!trayOnTop) return;
     const stop = followTrayBack({
       onProgress: (progress) => {
         back.value = progress;
@@ -290,9 +293,9 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
     });
     return () => {
       stop();
-      back.value = 0;
+      back.value = withSpring(0, trayMotion.settle);
     };
-  }, [closing]);
+  }, [trayOnTop]);
   const trayStyle = useAnimatedStyle(() => {
     const lift = currentLift();
     const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
@@ -530,6 +533,8 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   const [bottoms, setBottoms] = useState<number[]>([]);
   const refine = useCallback((row: TrayRow) => setSearchText(refinedText(row)), []);
   const [menu, setMenu] = useState<{ row: TrayRow; y: number } | null>(null);
+  const menuOpen = menu !== null;
+  useEffect(() => (menuOpen ? coverTray() : undefined), [menuOpen]);
   const window = useWindowDimensions();
   const showMenu = useCallback((row: TrayRow, y: number) => {
     if (!trayRowActions(row).length) return;
