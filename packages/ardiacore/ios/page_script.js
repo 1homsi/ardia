@@ -246,7 +246,8 @@
     if (e.type === "play" || e.type === "playing") {
       active = m;
       watchRemoval(m);
-      if (timeline) anchorStartedMedia(timeline, m);
+      const joinedAt = timeline && anchorStartedMedia(timeline, m, performance.now());
+      if (joinedAt != null) restartTimelineClock(joinedAt);
     }
     noteHeard(m);
     if (e.type !== "volumechange") reportNowPlaying();
@@ -316,7 +317,8 @@
     const setPositionState = proto.setPositionState;
     proto.setPositionState = function (state) {
       const result = setPositionState.apply(this, arguments);
-      timeline = typeof state?.duration === "number" ? { position: state.position ?? 0, duration: state.duration, playbackRate: state.playbackRate ?? 1, mediaTimes: mediaTimesOf(reachableMedia()) } : null;
+      const media = reachableMedia();
+      timeline = typeof state?.duration === "number" ? { position: state.position ?? 0, duration: state.duration, playbackRate: state.playbackRate ?? 1, mediaTimes: mediaTimesOf(media), started: [...media, ...playingMedia].some(isPlaying) } : null;
       positionState = timeline ? state : null;
       if (timeline) {
         restartTimelineClock(timeline.position);
@@ -347,8 +349,13 @@
     return { position: Math.max(0, Math.min(reported.duration, position)), duration: reported.duration };
   };
   const mediaTimesOf = (media) => new WeakMap(media.map((m) => [m, m.currentTime]));
-  const anchorStartedMedia = (timeline, m) => {
-    if (!timeline.mediaTimes.has(m)) timeline.mediaTimes.set(m, m.currentTime);
+  const anchorStartedMedia = (timeline, m, now) => {
+    const started = timeline.started;
+    timeline.started = true;
+    if (timeline.mediaTimes.has(m)) return null;
+    const position = started ? clockPosition(timeline.playbackRate, timeline.clock, now) : timeline.position;
+    timeline.mediaTimes.set(m, m.currentTime - (position - timeline.position));
+    return position;
   };
   const mediaAdvanceOf = (el, timeline) => (el && timeline.mediaTimes.has(el) ? el.currentTime - timeline.mediaTimes.get(el) : null);
   const timelineReport = (timeline, el, now) => {
