@@ -80,37 +80,169 @@ internal class MainThreadWork(private val clock: () -> Long = System::nanoTime) 
     }
 }
 
+internal interface MessageLogging {
+    fun current(): android.util.Printer?
+    fun set(printer: android.util.Printer?)
+}
+
+internal object MainLooperLogging : MessageLogging {
+    private val slot = runCatching { Looper::class.java.getDeclaredField("mLogging").apply { isAccessible = true } }.getOrNull()
+
+    override fun current(): android.util.Printer? = runCatching { slot?.get(Looper.getMainLooper()) as? android.util.Printer }.getOrNull()
+
+    override fun set(printer: android.util.Printer?) = Looper.getMainLooper().setMessageLogging(printer)
+}
+
+internal class ChainedPrinter(private val own: android.util.Printer, val next: android.util.Printer?) : android.util.Printer {
+    @Volatile var forwardOnly = false
+
+    override fun println(line: String) {
+        if (!forwardOnly) own.println(line)
+        next?.println(line)
+    }
+}
+
+internal interface FrameReports {
+    fun start(report: (totalMillis: Double, waitMillis: Double, deadlineMillis: Double, dropped: Int) -> Unit)
+    fun stop()
+}
+
+internal class SampleSession(
+    private val logging: MessageLogging,
+    private val reports: FrameReports,
+    private val clock: () -> Long,
+    private val refreshMillis: Double,
+    private val done: (FrameSampler.Sample?) -> Unit,
+) {
+    private val totals = ArrayList<Double>()
+    private val deadlines = ArrayList<Double>()
+    private val waits = ArrayList<Double>()
+    private var dropped = 0L
+    private val work = MainThreadWork()
+    private var installed: ChainedPrinter? = null
+    private var previous: android.util.Printer? = null
+    private var started = 0L
+    private var foreignBefore = 0L
+    private var ticksBefore = 0L
+    private var finished = false
+
+    fun start(): Boolean {
+        try {
+            started = clock()
+            foreignBefore = LookActivity.foreignTraversals
+            ticksBefore = LookActivity.tickNanos
+            previous = logging.current()
+            val chained = ChainedPrinter(work, previous)
+            logging.set(chained)
+            installed = chained
+            reports.start { total, wait, deadline, lost ->
+                synchronized(this) {
+                    if (finished) return@synchronized
+                    totals += total
+                    waits += wait
+                    deadlines += deadline
+                    dropped += lost
+                }
+            }
+            return true
+        } catch (failure: Exception) {
+            close(null)
+            return false
+        }
+    }
+
+    private fun uninstall() {
+        val mine = installed ?: return
+        installed = null
+        mine.forwardOnly = true
+        if (logging.current() === mine) logging.set(previous)
+    }
+
+    fun end() {
+        if (finished) return
+        val window = (clock() - started).toDouble()
+        val foreign = LookActivity.foreignTraversals - foreignBefore
+        val ticks = (LookActivity.tickNanos - ticksBefore) / 1_000_000.0
+        val sample = synchronized(this) {
+            FrameSampler.Sample(totals.toList(), deadlines.toList(), refreshMillis, window, foreign, waits.toList(), ticks, work.nanos / 1_000_000.0, dropped)
+        }
+        close(sample)
+    }
+
+    fun cancel() = close(null)
+
+    private fun close(sample: FrameSampler.Sample?) {
+        if (finished) return
+        synchronized(this) { finished = true }
+        try {
+            runCatching { reports.stop() }
+            uninstall()
+        } finally {
+            done(sample)
+        }
+    }
+}
+
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double, val droppedReports: Long = 0L)
+
+    private var active: SampleSession? = null
+    private val main = Handler(Looper.getMainLooper())
+
+    fun cancel() {
+        active?.cancel()
+        active = null
+    }
+
+    internal fun begin(session: SampleSession, millis: Long, schedule: (Runnable, Long) -> Unit = { run, delay -> main.postDelayed(run, delay) }) {
+        active?.cancel()
+        active = session
+        if (!session.start()) {
+            if (active === session) active = null
+            return
+        }
+        schedule(Runnable {
+            if (active === session) active = null
+            session.end()
+        }, millis)
+    }
 
     fun sample(activity: Activity, millis: Long, done: (Sample?) -> Unit) {
         val window: Window = activity.window ?: return done(null)
-        val thread = HandlerThread("ardia-frame-sampler").apply { start() }
-        val handler = Handler(thread.looper)
-        val totals = ArrayList<Double>()
-        val deadlines = ArrayList<Double>()
-        val waits = ArrayList<Double>()
         val refreshRate = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) activity.display?.refreshRate else null) ?: @Suppress("DEPRECATION") activity.windowManager.defaultDisplay.refreshRate
         val interval = 1_000_000_000.0 / refreshRate.coerceAtLeast(1f)
-        val listener = Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
-            totals += metrics.getMetric(FrameMetrics.TOTAL_DURATION) / 1_000_000.0
-            waits += metrics.getMetric(FrameMetrics.UNKNOWN_DELAY_DURATION) / 1_000_000.0
-            val deadline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) metrics.getMetric(FrameMetrics.DEADLINE).toDouble() else interval
-            deadlines += (if (deadline > 0) deadline else interval) / 1_000_000.0
-        }
-        val started = SystemClock.uptimeMillis()
-        val foreignBefore = LookActivity.foreignTraversals
-        val ticksBefore = LookActivity.tickNanos
-        val mainWork = MainThreadWork()
-        Looper.getMainLooper().setMessageLogging(mainWork)
-        window.addOnFrameMetricsAvailableListener(listener, handler)
-        Handler(Looper.getMainLooper()).postDelayed({
-            Looper.getMainLooper().setMessageLogging(null)
-            runCatching { window.removeOnFrameMetricsAvailableListener(listener) }
-            handler.post {
-                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble(), LookActivity.foreignTraversals - foreignBefore, waits.toList(), (LookActivity.tickNanos - ticksBefore) / 1_000_000.0, mainWork.nanos / 1_000_000.0))
-                thread.quitSafely()
+        val thread = HandlerThread("ardia-frame-sampler").apply { start() }
+        val handler = Handler(thread.looper)
+        var listener: Window.OnFrameMetricsAvailableListener? = null
+        val reports = object : FrameReports {
+            override fun start(report: (Double, Double, Double, Int) -> Unit) {
+                val made = Window.OnFrameMetricsAvailableListener { _, metrics, lost ->
+                    val deadline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) metrics.getMetric(FrameMetrics.DEADLINE).toDouble() else interval
+                    report(
+                        metrics.getMetric(FrameMetrics.TOTAL_DURATION) / 1_000_000.0,
+                        metrics.getMetric(FrameMetrics.UNKNOWN_DELAY_DURATION) / 1_000_000.0,
+                        (if (deadline > 0) deadline else interval) / 1_000_000.0,
+                        lost,
+                    )
+                }
+                listener = made
+                window.addOnFrameMetricsAvailableListener(made, handler)
             }
-        }, millis)
+
+            override fun stop() {
+                listener?.let { runCatching { window.removeOnFrameMetricsAvailableListener(it) } }
+                listener = null
+            }
+        }
+        val session = SampleSession(MainLooperLogging, reports, SystemClock::uptimeMillis, interval / 1_000_000.0) { sample ->
+            handler.post {
+                try {
+                    done(sample)
+                } finally {
+                    thread.quitSafely()
+                }
+            }
+        }
+        begin(session, millis)
     }
 }

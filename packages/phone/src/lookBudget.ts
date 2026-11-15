@@ -8,6 +8,7 @@ type BudgetNative = {
   setLookBudget?: (state: string) => void;
   forceLookBudget?: (applied: string | null) => void;
   sampleFrames?: (millis: number) => Promise<FrameSample | null>;
+  cancelSampleFrames?: () => void;
 };
 
 const native = requireOptionalNativeModule<BudgetNative>("ArdiaPhoneLook");
@@ -74,7 +75,13 @@ export const lookBudget = {
     const judgement = judge(sample);
     const next = record(before, judgement, now);
     save(next);
-    const why = judgement.conclusive ? "" : judgement.foreignFrames ? ` (this sample dropped: ${judgement.foreignFrames} frame(s) drawn by something other than the backdrop)` : ` (this sample dropped: ${judgement.frames} frame(s), too few)`;
+    const why = judgement.conclusive
+      ? ""
+      : judgement.foreignFrames
+        ? ` (this sample dropped: ${judgement.foreignFrames} frame(s) drawn by something other than the backdrop)`
+        : judgement.droppedReports
+          ? ` (this sample dropped: ${judgement.droppedReports} frame report(s) lost)`
+          : ` (this sample dropped: ${judgement.frames} frame(s), too few)`;
     labLog(`PAGELAB look budget ${judgement.conclusive ? (judgement.over ? "over" : "within") : "inconclusive"}${why}: ${describe(next)}`);
     return next;
   },
@@ -84,6 +91,7 @@ export function useLookBudgetProbe(idle: boolean, system: SystemLook) {
   const probe = useRef<ReturnType<typeof createBudgetProbe> | null>(null);
   probe.current ??= createBudgetProbe({
     sample: (millis) => native?.sampleFrames?.(millis) ?? Promise.resolve(null),
+    cancelSample: () => native?.cancelSampleFrames?.(),
     schedule: (run, millis) => {
       const timer = setTimeout(run, millis);
       return () => clearTimeout(timer);

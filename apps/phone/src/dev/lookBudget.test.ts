@@ -197,6 +197,7 @@ function fakeProbe() {
   let now = 0;
   const asked: number[] = [];
   const recorded: FrameSample[] = [];
+  const cancelled: number[] = [];
   let answer: (sample: FrameSample | null) => void = () => undefined;
   const probe = createBudgetProbe({
     sample: (millis) => {
@@ -210,6 +211,7 @@ function fakeProbe() {
       return () => (timer.cancelled = true);
     },
     record: (sample) => recorded.push(sample),
+    cancelSample: () => cancelled.push(now),
   });
   const advance = (millis: number) => {
     now += millis;
@@ -222,7 +224,7 @@ function fakeProbe() {
     answer(sample);
     await new Promise((resolve) => setImmediate(resolve));
   };
-  return { probe, advance, settle, asked, recorded };
+  return { probe, advance, settle, asked, recorded, cancelled };
 }
 
 test("the probe skips the first second after the deck shows and samples only while it stays idle", async () => {
@@ -249,6 +251,35 @@ test("the deck stopping being idle cancels the wait, and a sample already runnin
   probe.update(false, true);
   await settle(frames(50, 40));
   assert.equal(recorded.length, 0, "the sample overlapped a scroll or a sheet");
+});
+
+test("a sample with lost frame reports decides nothing, however it measured", () => {
+  const lossy = judge({ totals: Array(35).fill(40), deadlines: Array(35).fill(16.7), windowMs: 2000, droppedReports: 2 });
+  assert.equal(lossy.conclusive, false);
+  assert.equal(lossy.over, false);
+  assert.equal(lossy.droppedReports, 2);
+  assert.equal(record(initialState("1"), lossy, 1000).verdict, "unknown");
+  assert.equal(judge({ totals: Array(35).fill(15), deadlines: Array(35).fill(16.7), windowMs: 2000, droppedReports: 0 }).droppedReports, undefined);
+});
+
+test("stopping the probe while a sample runs tells the sampler to stop, and only then", async () => {
+  const { probe, advance, settle, cancelled } = fakeProbe();
+  probe.update(true, true);
+  advance(500);
+  probe.update(false, true);
+  assert.deepEqual(cancelled, [], "nothing was sampling yet");
+  probe.update(true, true);
+  advance(LOOK_BUDGET.skipAfterShownMs);
+  probe.stop();
+  assert.equal(cancelled.length, 1);
+  probe.stop();
+  assert.equal(cancelled.length, 1, "a second stop has nothing to cancel");
+  await settle(null);
+  probe.update(true, true);
+  advance(LOOK_BUDGET.skipAfterShownMs);
+  await settle(frames(50, 9));
+  probe.stop();
+  assert.equal(cancelled.length, 1, "a finished sample is not cancelled");
 });
 
 test("one deck open gives at most one measurement, and a phone that needs none is never sampled", async () => {

@@ -49,9 +49,14 @@ class LookModule : Module() {
                 return@AsyncFunction
             }
             FrameSampler.sample(activity, millis.toLong().coerceIn(100L, 10_000L)) { sample ->
-                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis, "windowMs" to it.windowMillis, "foreignFrames" to it.foreignFrames, "waits" to it.waits, "tickMs" to it.tickMillis, "mainThreadMs" to it.mainThreadMillis) })
+                promise.resolve(sample?.let { mapOf("totals" to it.totals, "deadlines" to it.deadlines, "refreshMs" to it.refreshMillis, "windowMs" to it.windowMillis, "foreignFrames" to it.foreignFrames, "waits" to it.waits, "tickMs" to it.tickMillis, "mainThreadMs" to it.mainThreadMillis, "droppedReports" to it.droppedReports) })
             }
         }.runOnQueue(Queues.MAIN)
+
+        Function("cancelSampleFrames") {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { FrameSampler.cancel() }
+            Unit
+        }
 
         Function("lookCounts") {
             val counts = LookMemory.counts()
