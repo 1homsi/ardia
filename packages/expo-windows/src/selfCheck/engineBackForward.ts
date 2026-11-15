@@ -17,6 +17,16 @@ const httpPagesPort = () => {
 
 const titleOf = async () => (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs.find((tab) => tab.key === CACHE_KEY)?.title;
 
+const titleWithin = async (wanted: string, ms: number) => {
+  const by = Date.now() + ms;
+  let title = await titleOf();
+  while (title !== wanted && Date.now() < by) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    title = await titleOf();
+  }
+  return title;
+};
+
 const titled = async (titles: string[]) => {
   const by = Date.now() + LOAD_MS;
   let title = await titleOf();
@@ -91,14 +101,14 @@ const backForwardChecks = (port: string): Check[] => [
         await new Promise((resolve) => setTimeout(resolve, CACHED_MS));
         const whileCached = await alive(cachedAsk);
         await hostCall("tab.call", { key: CACHE_KEY, method: "goBack" });
-        const back = await titled(["restored a", "loaded a"]);
-        const reasons = back === "restored a" ? "" : await notRestoredReasons();
+        const back = await titleWithin("restored a", LOAD_MS);
+        const reasons = back === "restored a" ? "" : `${JSON.stringify(back)}, notRestoredReasons ${await notRestoredReasons()}`;
         const oldAskAfterBack = await alive(cachedAsk);
         const freshAsk = await alive(await ask("ardia-self-check-link:after-back"));
         expectEqual(
           { restoredFromTheCache: back === "restored a", whileCached, oldAskAfterBack, freshAsk },
           { restoredFromTheCache: true, whileCached: false, oldAskAfterBack: true, freshAsk: true },
-          `externalAppAlive around the back/forward cache${reasons ? `; the page wasn't restored from the cache: ${reasons}` : ""}`,
+          `externalAppAlive around the back/forward cache${reasons ? `; the page wasn't restored from the cache: titled ${reasons}` : ""}`,
         );
       } finally {
         await hostCall("tab.close", { key: CACHE_KEY });
