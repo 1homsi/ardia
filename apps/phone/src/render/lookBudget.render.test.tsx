@@ -1,4 +1,6 @@
 import { act } from "react-test-renderer";
+import { useArchiveCard } from "../state/browse/archiveCard";
+import { setPreference } from "../state/settings/store";
 
 const platformTelemetry = require("../platform/telemetry") as typeof import("../platform/telemetry");
 const posted: string[] = [];
@@ -50,7 +52,14 @@ test("the deck tells the budget's probe it is idle only while settled and untouc
     calls.push({ idle, reduceMotion: system.reduceMotion });
   });
   withTabs(9);
+  setPreference("archiveCardShown", false);
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const first = renderSurface(<TabDeck />);
+  act(() => jest.advanceTimersByTime(300));
+  expect(useArchiveCard.getState().showing).toBe(true);
+  expect(calls.at(-1)?.idle).toBe(false);
+  unmount(first);
+  useArchiveCard.setState({ showing: false });
   const root = renderSurface(<TabDeck />);
   expect(calls.at(-1)?.idle).toBe(true);
   act(() =>

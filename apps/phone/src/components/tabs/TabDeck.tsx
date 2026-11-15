@@ -553,7 +553,7 @@ export function TabDeck() {
         ))}
       </Shade>
       <DeckLookProbe
-        busy={phase.kind !== "settled" || menu !== null || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck"}
+        busy={phase.kind !== "settled" || menu !== null || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck" || archiveCard}
         touch={probeTouch}
       />
       {menu === "plus" ? (
