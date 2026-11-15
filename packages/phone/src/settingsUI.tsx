@@ -48,7 +48,7 @@ export const SettingsIconTile = piece<SettingsPieceProps & { systemImage: string
 
 export const SettingsRowLabel = piece<SettingsPieceProps & { title: string; systemImage: string; tint: SettingsTintName }>("SettingsRowLabelView");
 
-export const SettingsHeroContent = piece<SettingsPieceProps & { title: string; subtitle: string; systemImage: string; tint: SettingsTintName }>("SettingsHeroContentView");
+export const SettingsHeroContent = piece<SettingsPieceProps & { title: string; subtitle: string; subtitleIsWarning?: boolean; systemImage: string; tint: SettingsTintName }>("SettingsHeroContentView");
 
 export const SetupStepRow = piece<SettingsPieceProps & { number: number; title: string; detail: string; progress: SetupProgress }>("SetupStepRowView");
 

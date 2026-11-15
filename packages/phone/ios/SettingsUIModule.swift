@@ -54,6 +54,7 @@ struct SettingsRowLabelView: ExpoSwiftUI.View {
 final class SettingsHeroContentProps: UIBaseViewProps {
   @Field var title: String = ""
   @Field var subtitle: String = ""
+  @Field var subtitleIsWarning: Bool = false
   @Field var systemImage: String = "gearshape"
   @Field var tint: String = "neutral"
 }
@@ -62,8 +63,12 @@ struct SettingsHeroContentView: ExpoSwiftUI.View {
   @ObservedObject var props: SettingsHeroContentProps
   @Environment(\.profileLook) private var look
 
+  private var subtitle: Text {
+    props.subtitleIsWarning ? Text(props.subtitle).foregroundStyle(.ardiaInk(.orange)) : Text(props.subtitle)
+  }
+
   var body: some View {
-    SettingsHeroContent(LocalizedStringKey(props.title), subtitle: Text(props.subtitle), systemImage: props.systemImage, tint: SettingsTintChoice.color(props.tint, look: look)) {
+    SettingsHeroContent(LocalizedStringKey(props.title), subtitle: subtitle, systemImage: props.systemImage, tint: SettingsTintChoice.color(props.tint, look: look)) {
       Children()
     }
   }
