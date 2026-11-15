@@ -632,10 +632,30 @@ off in the lab`.
     says the sample was dropped, with the number of frames something other than the backdrop drew, or of frame
     reports lost, and nothing is stored. An idle sample must still come out conclusive. If it never does, report
     the line: the foreign-frame check is too eager.
+68. **Back closes what is open, on every Android version** (from sync20b). With 3-button navigation, the ◁ key:
+    - the page menu (⋯) open: ◁ closes the menu and the page stays;
+    - Settings open: ◁ closes Settings, or goes back one screen from a sub-screen;
+    - a confirm open (close all tabs in the deck, or clear history): ◁ closes it and nothing happens;
+    - the tray open: ◁ closes it; with voice search over the tray, ◁ closes voice search first;
+    - nothing open over the page and no page history: ◁ sends Ardia to the background. Reopen it from Recents and
+      try the menu and Settings again: ◁ still closes them;
+    - rotate with the page menu open, then ◁: the menu closes.
+    With gesture navigation, the same with an edge swipe.
+69. **Remove animations is followed while Ardia runs** (from sync20b). Open the deck: the blobs move. Without
+    closing Ardia, turn on Settings › Accessibility › Remove animations (or Developer options › Animator duration
+    scale › Animation off) and come back. The deck stands still at once, and the lab line reads `still (reduce
+    motion…)`. Turn it off and come back: the blobs move again, with no relaunch. Open a sheet each time: it fades
+    while the setting is on and springs while it is off. That half needs the screens' hook; until it lands, only the
+    deck follows, and its line says `read natively`.
+70. **The widgets take every change** (from sync20b). With both widgets on the home screen, change Settings › Color
+    three times within a minute (Green, then Purple, then Neutral): the Search widget ends on Neutral within a few
+    seconds and keeps it. Then Stop Syncing: Your Mac's Tabs shows its "turn on sync" message instead of the Mac's
+    tabs within a few seconds, as the Compose app's does.
 
 #### R8 pass (sync19-r8 and later R8 builds)
 
-`apps/phone/scripts/build-apk <name> --r8` shrinks the release with R8 (`android.enableMinifyInReleaseBuilds`).
+`apps/phone/scripts/build-apk <name>` shrinks the release with R8 (`android.enableMinifyInReleaseBuilds`) since
+sync20b; `--no-r8` builds the unshrunk control.
 The keep rules are in `apps/phone/android/app/proguard-rules.pro`. R8's reports (`mapping.txt`, `usage.txt`,
 `seeds.txt`, `configuration.txt`) land in `<name>-r8/` beside the APK in `/tmp/ardia-phone`.
 `apps/phone/test/r8/check-names.py <r8 apk> <unshrunk apk>` checks that what Android and the JavaScript reach by
@@ -1106,7 +1126,7 @@ folder first (619ede040 on Android, `pickFolder` on iPhone); the launch argument
 target height as its animation starts (5bf60a7fa); the onboarding step across a recreated activity (82d93e298).
 Inline completion is in and waits on a phone (the checklist below). Since then, in and waiting on a phone (tester steps 56 to 61): site permissions asking Android first (610f0578d), pull to refresh on Compose's spring and accent with the profile's surface behind a swipe (397f87ce4, fbefd2967), the pager's display corner (9e3bc50f9, 080cb4000), the widgets' Color (9a1014d1f, 35f46a55d), the bar thumbnail taken on the way out (14bbb3d2f; the lag was the 700 ms settle delay), the share sheet with Send to Your Mac (d2ecc1416, its sends counted through 48ce2cb87) and the tray's predictive back (76f0509d3, a1da434a0). What is left:
 
-- Release builds use R8 (`build-apk --r8`, 98684363b): 90.1 to 57.6 MB on sync19. It becomes the default for release builds, and the upgrade pair is rebuilt with it, once an R8 build passes a phone (the R8 pass below the tester steps).
+- Release builds use R8 by default since sync20b (98684363b; `build-apk --no-r8` for the control): 90.1 to 57.6 MB. sync19-r8 passed the F4 with nothing failing on the shrunk build only, and the upgrade pair is built with it.
 
 ### The iPhone redesign
 

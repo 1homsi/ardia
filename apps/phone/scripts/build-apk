@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds a release APK whose JavaScript is one commit, and stamps it with that commit and the native tree's state.
 #
-#   apps/phone/scripts/build-apk <name> [--commit REV] [--compose-key] [--store] [--direct] [--r8]
+#   apps/phone/scripts/build-apk <name> [--commit REV] [--compose-key] [--store] [--direct] [--no-r8]
 #
 # The bundle comes from an export of REV (default HEAD at start, see bundle-export.ts), so edits and commits in the
 # working tree during the build don't reach it; the export is deleted afterwards. Kotlin, resources and the native
@@ -9,8 +9,8 @@
 # written during the build. --direct bundles the working tree instead, behind the bundle guard. Writes
 # $ARDIA_APK_DIR/<name>.apk (default /tmp/ardia-phone) and <name>.txt beside it. --compose-key re-signs it with the
 # Compose app's key (~/.android/debug.keystore) for the upgrade test; --store builds without the lab switch.
-# --r8 shrinks the release with R8 and keeps its reports (mapping, usage, seeds, configuration, missing rules)
-# in <name>-r8/ beside the APK.
+# The release is shrunk with R8, and its reports (mapping, usage, seeds, configuration, missing rules) are kept
+# in <name>-r8/ beside the APK. --no-r8 builds the unshrunk control.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
   sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
@@ -21,7 +21,7 @@ shift
 composeKey=0
 lab=1
 direct=0
-r8=0
+r8=1
 rev=HEAD
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -29,6 +29,7 @@ while [ $# -gt 0 ]; do
     --store) lab=0 ;;
     --direct) direct=1 ;;
     --r8) r8=1 ;;
+    --no-r8) r8=0 ;;
     --commit) rev="$2"; shift ;;
     *) echo "unknown option $1" >&2; exit 64 ;;
   esac
