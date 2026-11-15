@@ -33,8 +33,15 @@ object FrostProbe {
         Log.i("PAGELAB", "PAGELAB look frost probe: ${frosts.size} frost(s) on screen, page mode ${FrostSources.pageMode.raw}")
         for (frost in frosts) {
             val location = IntArray(2).also(frost::getLocationInWindow)
-            val region = Rect(location[0], location[1], location[0] + frost.width, location[1] + frost.height)
-            val bitmap = Bitmap.createBitmap(frost.width, frost.height, Bitmap.Config.ARGB_8888)
+            val whole = Rect(location[0], location[1], location[0] + frost.width, location[1] + frost.height)
+            val decor = activity.window.decorView
+            val region = Rect(whole)
+            if (!region.intersect(0, 0, decor.width, decor.height)) {
+                Log.i("PAGELAB", "PAGELAB look frost probe ${frost.logLabel}: outside the window at $whole, nothing to copy")
+                continue
+            }
+            val clipped = if (region != whole) ", copied ${region.width()}x${region.height()} inside the window" else ""
+            val bitmap = Bitmap.createBitmap(region.width(), region.height(), Bitmap.Config.ARGB_8888)
             val choice = frost.lastChoice
             val from = FrostSources.find(frost.source)
             val page = from?.holdsPage == true
@@ -44,9 +51,9 @@ object FrostProbe {
                     if (result == PixelCopy.SUCCESS) {
                         val pixels = IntArray(bitmap.width * bitmap.height).also { bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height) }
                         val reading = read(pixels)
-                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.logLabel}: path ${choice?.path?.name?.lowercase() ?: "none"}, frost ${frost.width}x${frost.height}, source $sourceSize, page $page, mean luma ${reading.meanLuma}, near-black ${reading.nearBlackShare}%")
+                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.logLabel}: path ${choice?.path?.name?.lowercase() ?: "none"}, frost ${frost.width}x${frost.height}$clipped, source $sourceSize, page $page, mean luma ${reading.meanLuma}, near-black ${reading.nearBlackShare}%")
                     } else {
-                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.logLabel}: copy failed ($result)")
+                        Log.i("PAGELAB", "PAGELAB look frost probe ${frost.logLabel}: copy failed (${PixelCopyResult.name(result)}) for $region of a ${decor.width}x${decor.height} window")
                     }
                     bitmap.recycle()
                 }, Handler(Looper.getMainLooper()))
@@ -77,5 +84,17 @@ object FrostProbe {
                 }.onFailure { Log.i("PAGELAB", "PAGELAB look deck probe: copy refused (${it.javaClass.simpleName})") }
             }
         }
+    }
+}
+
+internal object PixelCopyResult {
+    fun name(result: Int): String = when (result) {
+        PixelCopy.SUCCESS -> "success"
+        PixelCopy.ERROR_UNKNOWN -> "1, unknown"
+        PixelCopy.ERROR_TIMEOUT -> "2, timed out"
+        PixelCopy.ERROR_SOURCE_NO_DATA -> "3, the window had no frame"
+        PixelCopy.ERROR_SOURCE_INVALID -> "4, the region is outside the window"
+        PixelCopy.ERROR_DESTINATION_INVALID -> "5, bad bitmap"
+        else -> result.toString()
     }
 }
