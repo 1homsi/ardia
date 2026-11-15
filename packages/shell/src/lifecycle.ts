@@ -25,7 +25,7 @@ export type OpenURLSource = { bundleId: string | null; appName: string | null };
 
 type ShellEvents = {
   onAppEvent: (e: AppEvent) => void;
-  onOpenURLs: (e: { urls: string[]; pointer?: [number, number]; source?: OpenURLSource }) => void;
+  onOpenURLs: (e: { urls: string[]; pointer?: [number, number]; source?: OpenURLSource; returnTo?: string }) => void;
 };
 
 export type ShellNative = {

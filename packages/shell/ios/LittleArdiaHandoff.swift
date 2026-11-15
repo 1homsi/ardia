@@ -6,8 +6,19 @@ final class LittleArdiaHandoff {
   static let shared = LittleArdiaHandoff()
 
   private static let ignoredSchemes: Set<String> = ["http", "https", "file", "x-apple.systempreferences"]
+  private static let activationWindow: TimeInterval = 3
   private var returnApps: [String: NSRunningApplication] = [:]
+  private var lastOtherApp: NSRunningApplication?
+  private var activatedAt = Date.distantPast
   private var started = false
+
+  private init() {
+    noteActive(NSWorkspace.shared.frontmostApplication)
+    NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) {
+      [weak self] note in
+      self?.noteActive(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
+    }
+  }
 
   func start() {
     guard !started else { return }
@@ -15,10 +26,18 @@ final class LittleArdiaHandoff {
     watchAppLinks()
   }
 
+  func appForLink(sentBy bundleId: String?) -> String? {
+    let sender = bundleId.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
+    if let sender, isOther(sender) { return bundleId }
+    let front = NSWorkspace.shared.frontmostApplication
+    if let front, isOther(front) { return front.bundleIdentifier }
+    return Date().timeIntervalSince(activatedAt) < Self.activationWindow ? lastOtherApp?.bundleIdentifier : nil
+  }
+
   func opened(_ id: String, linkFrom bundleId: String?) {
     let linkApp = bundleId.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
     let cameFrom = linkApp ?? NSWorkspace.shared.frontmostApplication
-    returnApps[id] = cameFrom?.activationPolicy == .regular && cameFrom != NSRunningApplication.current ? cameFrom : nil
+    returnApps[id] = cameFrom.flatMap { isOther($0) ? $0 : nil }
   }
 
   func forget(_ id: String) {
@@ -35,6 +54,19 @@ final class LittleArdiaHandoff {
       return
     }
     ShellEvents.send(.app, ["type": "littleArdiaReturnedToApp"])
+  }
+
+  private func isOther(_ app: NSRunningApplication) -> Bool {
+    app != NSRunningApplication.current && app.activationPolicy == .regular
+  }
+
+  private func noteActive(_ app: NSRunningApplication?) {
+    guard let app else { return }
+    if app == NSRunningApplication.current {
+      activatedAt = Date()
+    } else if isOther(app) {
+      lastOtherApp = app
+    }
   }
 
   private func isAppLink(_ url: URL) -> Bool {

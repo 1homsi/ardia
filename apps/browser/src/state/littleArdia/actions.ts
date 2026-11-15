@@ -27,12 +27,12 @@ export function openLittleArdia(url?: string, profileId?: string, adoptId?: Adop
 }
 
 
-export function openExternalUrls(given: string[], pointer?: [number, number], source?: LinkSourceInfo) {
+export function openExternalUrls(given: string[], pointer?: [number, number], source?: LinkSourceInfo, returnTo?: string) {
   const settings = store().settings;
   const urls = settings.allowJavaScriptFromAppleEvents ? given : given.filter((url) => !runsJavaScript(url, settings));
   if (!urls.length) return;
   const gate = linkGate();
-  const app = source?.bundleId ?? undefined;
+  const app = returnTo ?? source?.bundleId ?? undefined;
   if (!gate) return openUndecided(urls, pointer, false, app);
   const verdicts = urls.map((url): LinkGateResult | Promise<LinkGateResult> => {
     try {

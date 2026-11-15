@@ -54,7 +54,7 @@ export function startNativeSync() {
   onCommand((e) => settlingCommandFocus(e, runCommand));
   startWindowCloseGuard();
   startExtensionsBridge();
-  onOpenURLs((urls, pointer, source) => openExternalUrls(urls, pointer, source));
+  onOpenURLs((urls, pointer, source, returnTo) => openExternalUrls(urls, pointer, source, returnTo));
   startUnclaimedEscape();
   void lastTabClosesWindow()
     .catch(() => true)
