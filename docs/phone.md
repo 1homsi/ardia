@@ -967,6 +967,7 @@ What a simulator can't show. Install the Expo build over the SwiftUI app, with S
 - Licences are generated from the shipped code, not a hand-written list (aa44da003); the iPhone list's content is the gap above.
 - For the owner to confirm, no commit says why: the sync demo runs over the real tab store (76dcdde8a); Reset › Connect Again acknowledges the reset first as Compose does (SwiftUI just navigates); iPhone Spaces shows a Bookmarks section that SwiftUI lacks (253515009).
 - The tray's rows end at the last whole row and don't scroll at normal text sizes, so no partial row is drawn for a fade mask (992441306, 7287c72fd); both apps clip with a fade instead.
+- Matches both apps, not a gap: a cold start opens on the start page, never on the last page, and with Auto-Open Keyboard on raises the launch tray there, with the start page's logo and bar faded out behind it. Compose and SwiftUI both start on `Surface.Search`/`.search` and raise the tray when the start page appears (`SearchHomeView.kt` `openTrayIfWanted`, `SearchHomeView.swift`'s `.task`); neither brings back the page after a kill or a long absence. Back then closes the tray onto the selected tab's page, as Compose's `cancelSearch` (M3 sync12 item 6, checked 2026-11-15).
 - Matches Compose, not a gap: with the on-screen keyboard up, the first Back only drops the keyboard and the tray stays, with the start page's logo hidden behind it, because the keyboard takes that Back in both apps (F4 sync12, the owner's call on 2026-11-15).
 
 ## Build and run
