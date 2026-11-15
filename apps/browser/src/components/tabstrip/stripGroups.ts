@@ -1,6 +1,7 @@
 import type { StripDock, StripEntry, StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
 import type { Dock, DropTarget } from "./model";
-import { COMPACT_CHIP, DOCK_GAP, GAP, MAX_CHIP, NEW_TAB_ROOM, PINNED_CELL, PINNED_SPACING, SELECTED_MIN_CHIP, TITLED_CHIP } from "./tokens";
+import { COMPACT_CHIP, DOCK_GAP, GAP, MAX_CHIP, NEW_TAB_ROOM, PEEK_BORDER, PEEK_LEFT, PINNED_CELL, PINNED_SPACING, SELECTED_MIN_CHIP, TITLED_CHIP } from "./tokens";
+import { captionRoom, WINDOW_CHROME, type WindowChrome } from "../../lib/windowChrome";
 
 export const GROUP_MARGIN_LEFT = 3.5;
 export const GROUP_MARGIN_RIGHT = 4;
@@ -247,6 +248,11 @@ export function heldWideTab(entries: StripEntry[], wide: { tabId: string; slot: 
   const row = rows[Math.min(wide.slot, rows.length - 1)];
   if (!row || row.kind === "group") return { tabId: wide.tabId, atEnd: false };
   return { tabId: tabsOf(row)[0]!, atEnd };
+}
+
+export function stripCaptionRoom(floating: boolean, fullScreen: boolean, chrome: WindowChrome = WINDOW_CHROME): number {
+  if (fullScreen) return 0;
+  return captionRoom(floating ? PEEK_LEFT + PEEK_BORDER : 0, 0, chrome);
 }
 
 export const newTabPinned = (chip: number, tabsEnd: number, pageWidth: number, tabsShrink = true) =>
