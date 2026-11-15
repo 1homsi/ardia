@@ -35,6 +35,7 @@ export function LookLab() {
   const [blobRate, setBlobRate] = useState(() => lookLab.blobFramesPerSecond());
   const [budget, setBudget] = useState(() => lookBudget.describe());
   const [blurOverBackdrop, setBlurOverBackdrop] = useState(() => lookLab.blurOverBackdrop());
+  const [backdropDraw, setBackdropDraw] = useState(() => lookLab.backdropDraw());
   const budgetAction = (run: () => void) => {
     run();
     const now = lookBudget.describe();
@@ -75,6 +76,13 @@ export function LookLab() {
       </View>
       <Text style={styles.caption}>Look budget: {budget}. A change applies from the next time the deck is built.</Text>
       <View style={styles.row}>
+        <Button
+          label={`Backdrop: ${backdropDraw === "small" ? "small image" : backdropDraw === "full" ? "full size" : "flat colour"}`}
+          onPress={() => {
+            const next = backdropDraw === "small" ? "full" : backdropDraw === "full" ? "flat" : "small";
+            setBackdropDraw(lookLab.setBackdropDraw(next) ?? backdropDraw);
+          }}
+        />
         <Button
           label={blurOverBackdrop ? "Bar frosts: blur" : "Bar frosts: tinted fill"}
           onPress={() => setBlurOverBackdrop(lookLab.setBlurOverBackdrop(!blurOverBackdrop) ?? blurOverBackdrop)}

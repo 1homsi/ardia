@@ -92,6 +92,20 @@ class LookModule : Module() {
             blur
         }
 
+        Function("setBackdropDraw") { name: String ->
+            val context = appContext.reactContext ?: throw IllegalStateException("the app context is gone")
+            val draw = LookSwitch.BackdropDraw.entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: throw IllegalArgumentException("no backdrop draw named $name")
+            LookSwitch.setBackdropDraw(context, draw)
+            android.util.Log.i("PAGELAB", "PAGELAB look backdrop drawn as ${draw.label}")
+            DeckBackdrops.all().forEach { it.invalidate() }
+            draw.name.lowercase()
+        }
+
+        Function("backdropDraw") {
+            val context = appContext.reactContext ?: return@Function "small"
+            LookSwitch.backdropDraw(context).name.lowercase()
+        }
+
         Function("blurOverBackdrop") {
             val context = appContext.reactContext ?: return@Function false
             LookSwitch.blurOverBackdrop(context)

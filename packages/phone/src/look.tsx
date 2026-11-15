@@ -32,9 +32,13 @@ type LookNative = {
   setBlobFramesPerSecond?: (rate: number) => number;
   blobFramesPerSecond?: () => number;
   setBlurOverBackdrop?: (blur: boolean) => boolean;
+  setBackdropDraw?: (draw: BackdropDraw) => BackdropDraw;
+  backdropDraw?: () => BackdropDraw;
   blurOverBackdrop?: () => boolean;
   lookCounts?: () => LookCounts;
 };
+
+export type BackdropDraw = "small" | "full" | "flat";
 
 export type LookCounts = {
   sources: number;
@@ -64,6 +68,8 @@ export const lookLab = {
   counts: (): LookCounts | null => lookNative?.lookCounts?.() ?? null,
   setBlurOverBackdrop: (blur: boolean): boolean | null => lookNative?.setBlurOverBackdrop?.(blur) ?? null,
   blurOverBackdrop: (): boolean => lookNative?.blurOverBackdrop?.() ?? false,
+  setBackdropDraw: (draw: BackdropDraw): BackdropDraw | null => lookNative?.setBackdropDraw?.(draw) ?? null,
+  backdropDraw: (): BackdropDraw => lookNative?.backdropDraw?.() ?? "small",
 };
 
 const views = new Map<string, ComponentType<object>>();

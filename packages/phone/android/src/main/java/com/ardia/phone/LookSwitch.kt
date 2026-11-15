@@ -9,6 +9,7 @@ object LookSwitch {
     private const val KEY_OFF = "look.off"
     private const val KEY_BLOB_RATE = "look.blobFramesPerSecond"
     private const val KEY_BLUR_OVER_BACKDROP = "look.blurOverBackdrop"
+    private const val KEY_BACKDROP_DRAW = "look.backdropDraw"
 
     @Volatile
     private var knownBlurOverBackdrop: Boolean? = null
@@ -22,6 +23,28 @@ object LookSwitch {
         check(lab) { "blurring frosts over the backdrop is a lab switch" }
         (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean(KEY_BLUR_OVER_BACKDROP, blur).commit()
         knownBlurOverBackdrop = blur
+    }
+
+    enum class BackdropDraw(val label: String) {
+        Small("a small image scaled up"),
+        Full("full size, as Compose draws it"),
+        Flat("a flat colour at the blobs' pace, to measure what redrawing the rest costs"),
+    }
+
+    @Volatile
+    private var knownBackdropDraw: BackdropDraw? = null
+
+    fun backdropDraw(context: Context, lab: Boolean = PhoneLab.isOn): BackdropDraw {
+        if (!lab) return BackdropDraw.Small
+        return knownBackdropDraw ?: (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getString(KEY_BACKDROP_DRAW, null)
+            .let { stored -> BackdropDraw.entries.firstOrNull { it.name == stored } ?: BackdropDraw.Small }
+            .also { knownBackdropDraw = it }
+    }
+
+    fun setBackdropDraw(context: Context, draw: BackdropDraw, lab: Boolean = PhoneLab.isOn) {
+        check(lab) { "how the backdrop draws is a lab switch" }
+        (context.applicationContext ?: context).getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putString(KEY_BACKDROP_DRAW, draw.name).commit()
+        knownBackdropDraw = draw
     }
 
     @Volatile
@@ -61,5 +84,6 @@ object LookSwitch {
         known = null
         knownRate = null
         knownBlurOverBackdrop = null
+        knownBackdropDraw = null
     }
 }

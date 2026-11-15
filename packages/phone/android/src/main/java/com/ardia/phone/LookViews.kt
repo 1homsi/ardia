@@ -64,9 +64,27 @@ internal object LookPaint {
         }
     }
 
+    private val grainsOver = HashMap<String, Paint>()
+
+    fun grainOver(density: Float, opacity: Float, dark: Boolean, baseLightness: Float): Paint {
+        val alpha = opacity.coerceIn(0f, 1f)
+        val base = (baseLightness.coerceIn(0.05f, 0.95f) * 20f).toInt() / 20f
+        val key = "$density $alpha $dark $base"
+        return grainsOver.getOrPut(key) {
+            val pixels = GrainTexture.values().map { value -> GrainOver.pixel(value, alpha, dark, base) }.toIntArray()
+            val bitmap = Bitmap.createBitmap(pixels, GrainTexture.SIDE, GrainTexture.SIDE, Bitmap.Config.ARGB_8888)
+            Paint().apply {
+                shader = BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).apply {
+                    setLocalMatrix(Matrix().apply { setScale(density / 2f, density / 2f) })
+                }
+            }
+        }
+    }
+
     fun forgetCaches() {
         synchronized(meshes) { meshes.clear() }
         grains.clear()
+        grainsOver.clear()
     }
 
     fun mesh(look: ProfileLook, dark: Boolean): Bitmap = synchronized(meshes) {
@@ -154,6 +172,21 @@ abstract class LookView(context: Context, appContext: AppContext) : ExpoView(con
     protected open fun fallbackColor(): Int = runCatching { SystemPalette.background.resolve(isDark).toArgb() }.getOrDefault(Color.GRAY)
 }
 
+internal object GrainOver {
+    fun pixel(value: Int, opacity: Float, dark: Boolean, base: Float): Int {
+        val grain = value / 255f
+        val lift = 2f * grain - 1f
+        val share = if (dark) {
+            if (lift < 0f) -lift else lift * base / (1f - base)
+        } else {
+            if (lift > 0f) lift else -lift * (1f - base) / base
+        }
+        val alpha = (opacity * share * 255f).toInt().coerceIn(0, 255)
+        val channel = if (lift > 0f) 255 else 0
+        return Color.argb(alpha, channel, channel, channel)
+    }
+}
+
 internal object DeckBackdrops {
     private val shown = java.util.WeakHashMap<DeckBackdropView, Unit>()
 
@@ -169,6 +202,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     var reduceTransparency: Boolean = false
 
     private val meshPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val scenePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val sceneTarget = RectF()
     private val blobPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val source = Rect()
     private val target = Rect()
@@ -203,8 +238,12 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         paintedLook = null
         mesh = null
         blobShaders = emptyArray()
-        sample = null
-        sampledFrame = -1L
+        scene = null
+        scenePixels = IntArray(0)
+        sceneFresh = false
+        grainNode?.discardDisplayList()
+        grainNode = null
+        grainKey = null
     }
 
     internal var frames = 0L
@@ -267,8 +306,9 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             postDelayed(nextTick(), paceMillis)
         } else {
             moveOn(now)
+            sceneFresh = renderScene(clock(now))
             invalidate()
-            enclosingSource()?.let(FrostSources::redrawTintedFrostsOf)
+            enclosingSource()?.let(FrostSources::retintFrostsOf)
         }
     }
 
@@ -298,7 +338,8 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         val drawn = "${if (dark) "dark" else "light"}, look $look, ${width}x$height, " +
             "${if (reduceMotion) "still (reduce motion)" else if (budgetDegraded) "still (look budget)" else "moving"}, " +
             "${if (reduceTransparency) "no blobs (reduce transparency)" else if (budgetDegraded) "no blobs (look budget)" else "blobs"}, " +
-            if (lookIsOff) "look switched off in the lab: flat colour" else "look on"
+            (if (lookIsOff) "look switched off in the lab: flat colour" else "look on") +
+            ", backdrop drawn as ${LookSwitch.backdropDraw(context).label} (scene ${(width / SCENE_SCALE).coerceAtLeast(1)}x${(height / SCENE_SCALE).coerceAtLeast(1)})"
         if (drawn != drawnMode) {
             drawnMode = drawn
             if (PhoneLab.isOn) {
@@ -317,16 +358,20 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         }
         val w = width.toFloat()
         val h = height.toFloat()
-        if (!drawScene(canvas, look, dark, w, h)) return
-        if (noBlobs) return
+        val at = clock(SystemClock.uptimeMillis())
+        if (noBlobs) {
+            drawScene(canvas, look, dark, w, h, at)
+            sceneFresh = false
+            return
+        }
+        if (!paint(canvas, LookSwitch.backdropDraw(context), look, dark, at)) return
         val animated = !still
-        canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
         removeCallbacks(tick)
         if (animated && isShown) {
             when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
                 0L -> {
                     postInvalidateOnAnimation()
-                    postOnAnimation { enclosingSource()?.let(FrostSources::redrawTintedFrostsOf) }
+                    postOnAnimation { enclosingSource()?.let(FrostSources::retintFrostsOf) }
                 }
                 else -> {
                     paceMillis = delay
@@ -338,7 +383,33 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
 
     override fun fallbackColor(): Int = runCatching { LookSwitch.flatDeck(look, isDark).toArgb() }.getOrDefault(super.fallbackColor())
 
-    private fun drawScene(canvas: Canvas, look: ProfileLook, dark: Boolean, w: Float, h: Float): Boolean {
+    internal fun paint(canvas: Canvas, mode: LookSwitch.BackdropDraw, look: ProfileLook = this.look, dark: Boolean = isDark, at: Long = clock(SystemClock.uptimeMillis())): Boolean {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val fresh = sceneFresh
+        sceneFresh = false
+        when (mode) {
+            LookSwitch.BackdropDraw.Full -> {
+                if (!drawScene(canvas, look, dark, w, h, at)) return false
+                canvas.drawRect(0f, 0f, w, h, LookPaint.grain(density, DeckBackdropStyle.grainOpacity(dark)))
+                if (!fresh) renderScene(at)
+            }
+            LookSwitch.BackdropDraw.Small -> {
+                if (!fresh && !renderScene(at)) return false
+                val small = scene ?: return false
+                sceneTarget.set(0f, 0f, w, h)
+                canvas.drawBitmap(small, null, sceneTarget, scenePaint)
+                drawGrain(canvas, dark)
+            }
+            LookSwitch.BackdropDraw.Flat -> {
+                canvas.drawColor(LookSwitch.flatDeck(look, dark).toArgb())
+                if (!fresh) renderScene(at)
+            }
+        }
+        return true
+    }
+
+    private fun drawScene(canvas: Canvas, look: ProfileLook, dark: Boolean, w: Float, h: Float, at: Long): Boolean {
         val radius = LookRules.blobRadius(w, h)
         prepare(look, dark, radius)
         val meshBitmap = mesh ?: return false
@@ -347,7 +418,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         canvas.drawBitmap(meshBitmap, source, target, meshPaint)
         if (noBlobs) return true
         val animated = !still
-        val now = clock(SystemClock.uptimeMillis())
+        val now = at
         blobPaint.alpha = (DeckBackdropStyle.blobOpacity(dark) * 255f).toInt()
         for (index in blobShaders.indices) {
             val angle = if (animated) angle(index, now) else 0f
@@ -361,33 +432,80 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         return true
     }
 
-    private var sample: Bitmap? = null
-    private var sampledFrame = -1L
+    private var scene: Bitmap? = null
+    private var scenePixels = IntArray(0)
+    private var sceneAt = Long.MIN_VALUE
+    private var sceneLook: ProfileLook? = null
+    private var sceneDark = false
+    private var sceneFresh = false
+    private var grainNode: RenderNode? = null
+    private var grainKey: String? = null
 
-    internal fun sceneColours(left: Float, top: Float, right: Float, bottom: Float, out: IntArray): Boolean {
+    internal val sceneSize: Pair<Int, Int>? get() = scene?.let { it.width to it.height }
+
+    private fun renderScene(at: Long): Boolean {
         if (width <= 0 || height <= 0 || lookIsOff) return false
         val w = width.toFloat()
         val h = height.toFloat()
-        val sampleWidth = (width / FrostTint.SAMPLE_SCALE).coerceAtLeast(1)
-        val sampleHeight = (height / FrostTint.SAMPLE_SCALE).coerceAtLeast(1)
-        val kept = sample?.takeIf { it.width == sampleWidth && it.height == sampleHeight && sampledFrame == frames && paintedLook === look && paintedDark == isDark }
-        val bitmap = kept ?: (sample?.takeIf { it.width == sampleWidth && it.height == sampleHeight }
-            ?: Bitmap.createBitmap(sampleWidth, sampleHeight, Bitmap.Config.ARGB_8888).also { sample = it })
-        if (kept == null) {
-            bitmap.eraseColor(Color.TRANSPARENT)
-            val canvas = Canvas(bitmap)
-            canvas.scale(sampleWidth / w, sampleHeight / h)
-            sampledFrame = -1L
-            if (!drawScene(canvas, look, isDark, w, h)) return false
-            sampledFrame = frames
+        val sceneWidth = (width / SCENE_SCALE).coerceAtLeast(1)
+        val sceneHeight = (height / SCENE_SCALE).coerceAtLeast(1)
+        val look = look
+        val dark = isDark
+        val kept = scene?.takeIf { it.width == sceneWidth && it.height == sceneHeight }
+        if (kept != null && at == sceneAt && look === sceneLook && dark == sceneDark) return true
+        val bitmap = kept ?: Bitmap.createBitmap(sceneWidth, sceneHeight, Bitmap.Config.ARGB_8888).also {
+            scene = it
+            scenePixels = IntArray(sceneWidth * sceneHeight)
         }
-        val x0 = (left / w * sampleWidth).toInt().coerceIn(0, sampleWidth - 1)
-        val x1 = (right / w * sampleWidth).toInt().coerceIn(x0 + 1, sampleWidth)
-        val y0 = (top / h * sampleHeight).toInt().coerceIn(0, sampleHeight - 1)
-        val y1 = (bottom / h * sampleHeight).toInt().coerceIn(y0 + 1, sampleHeight)
+        bitmap.eraseColor(Color.TRANSPARENT)
+        val canvas = Canvas(bitmap)
+        canvas.scale(sceneWidth / w, sceneHeight / h)
+        sceneAt = Long.MIN_VALUE
+        if (!drawScene(canvas, look, dark, w, h, at)) return false
+        bitmap.getPixels(scenePixels, 0, sceneWidth, 0, 0, sceneWidth, sceneHeight)
+        sceneAt = at
+        sceneLook = look
+        sceneDark = dark
+        return true
+    }
+
+    private fun drawGrain(canvas: Canvas, dark: Boolean) {
+        val base = FrostTint.lightness(mesh?.let { it.getPixel(it.width / 2, it.height / 2) } ?: LookSwitch.flatDeck(look, dark).toArgb())
+        val paint = LookPaint.grainOver(density, DeckBackdropStyle.grainOpacity(dark), dark, base)
+        if (!canvas.isHardwareAccelerated) {
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+            return
+        }
+        val key = "${width}x$height $dark $base"
+        val node = grainNode ?: RenderNode("ardiaGrain").also { grainNode = it }
+        if (key != grainKey) {
+            node.setPosition(0, 0, width, height)
+            val recording = node.beginRecording(width, height)
+            try {
+                recording.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+            } finally {
+                node.endRecording()
+            }
+            grainKey = key
+        }
+        canvas.drawRenderNode(node)
+    }
+
+    internal fun sceneColours(left: Float, top: Float, right: Float, bottom: Float, out: IntArray): Boolean {
+        if (width <= 0 || height <= 0 || lookIsOff) return false
+        if (scene == null && !renderScene(clock(SystemClock.uptimeMillis()))) return false
+        val bitmap = scene ?: return false
+        val sceneWidth = bitmap.width
+        val sceneHeight = bitmap.height
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val x0 = (left / w * sceneWidth).toInt().coerceIn(0, sceneWidth - 1)
+        val x1 = (right / w * sceneWidth).toInt().coerceIn(x0 + 1, sceneWidth)
+        val y0 = (top / h * sceneHeight).toInt().coerceIn(0, sceneHeight - 1)
+        val y1 = (bottom / h * sceneHeight).toInt().coerceIn(y0 + 1, sceneHeight)
         val middle = ((y0 + y1) / 2).coerceIn(y0 + 1, y1)
-        out[0] = FrostTint.average(bitmap, x0, y0, x1, middle)
-        out[1] = FrostTint.average(bitmap, x0, if (middle < y1) middle else y0, x1, y1)
+        out[0] = FrostTint.average(scenePixels, sceneWidth, x0, y0, x1, middle)
+        out[1] = FrostTint.average(scenePixels, sceneWidth, x0, if (middle < y1) middle else y0, x1, y1)
         return true
     }
 
@@ -398,6 +516,10 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
             current = current.parent
         }
         return null
+    }
+
+    companion object {
+        const val SCENE_SCALE = 8
     }
 
     private fun angle(index: Int, now: Long): Float {
@@ -506,8 +628,8 @@ internal object FrostSources {
         for (frost in frosts()) if (frost.source != null && find(frost.source) === source) frost.invalidate()
     }
 
-    fun redrawTintedFrostsOf(source: FrostSourceView) {
-        for (frost in frosts()) if (frost.lastChoice?.path == FrostPage.Path.Tinted && frost.source != null && find(frost.source) === source) frost.invalidate()
+    fun retintFrostsOf(source: FrostSourceView) {
+        for (frost in frosts()) if (frost.lastChoice?.path == FrostPage.Path.Tinted && frost.source != null && find(frost.source) === source) frost.retint()
     }
 }
 
@@ -850,8 +972,16 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
     }
 
     private val sampled = IntArray(2)
+    private val tinted = IntArray(2)
+    private val drawnTint = IntArray(2)
+    private var tintDrawn = false
 
-    private fun tintedFill(canvas: Canvas, from: FrostSourceView, style: com.ardia.design.FrostedStyle, dark: Boolean): Boolean {
+    internal var retints = 0L
+        private set
+    internal var retintsSkipped = 0L
+        private set
+
+    private fun tintColours(from: FrostSourceView, style: com.ardia.design.FrostedStyle, dark: Boolean): Boolean {
         val backdrop = from.backdrop() ?: return false
         backdrop.getLocationInWindow(there)
         getLocationInWindow(here)
@@ -859,12 +989,31 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         val top = (here[1] - there[1]).toFloat()
         if (!backdrop.sceneColours(left, top, left + width, top + height, sampled)) return false
         val tint = style.tint.resolve(dark).toArgb()
-        val upper = FrostTint.frosted(sampled[0], style.saturation, tint)
-        val lower = FrostTint.frosted(sampled[1], style.saturation, tint)
+        tinted[0] = FrostTint.frosted(sampled[0], style.saturation, tint)
+        tinted[1] = FrostTint.frosted(sampled[1], style.saturation, tint)
+        return true
+    }
+
+    internal fun retint() {
+        val from = FrostSources.find(source) ?: return
+        if (!tintColours(from, LookRules.frost(variant, lookOrNull), isDark)) return invalidate()
+        if (tintDrawn && tinted[0] == drawnTint[0] && tinted[1] == drawnTint[1]) {
+            retintsSkipped += 1
+            return
+        }
+        retints += 1
+        invalidate()
+    }
+
+    private fun tintedFill(canvas: Canvas, from: FrostSourceView, style: com.ardia.design.FrostedStyle, dark: Boolean): Boolean {
+        if (!tintColours(from, style, dark)) return false
         paint.style = Paint.Style.FILL
-        paint.shader = LinearGradient(0f, 0f, 0f, height.toFloat(), upper, lower, Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(0f, 0f, 0f, height.toFloat(), tinted[0], tinted[1], Shader.TileMode.CLAMP)
         canvas.drawPath(clip, paint)
         paint.shader = null
+        drawnTint[0] = tinted[0]
+        drawnTint[1] = tinted[1]
+        tintDrawn = true
         return true
     }
 
@@ -989,15 +1138,15 @@ internal object LookMemory {
 }
 
 internal object FrostTint {
-    const val SAMPLE_SCALE = 40
+    fun lightness(colour: Int): Float = (0.213f * Color.red(colour) + 0.715f * Color.green(colour) + 0.072f * Color.blue(colour)) / 255f
 
-    fun average(bitmap: Bitmap, x0: Int, y0: Int, x1: Int, y1: Int): Int {
+    fun average(pixels: IntArray, stride: Int, x0: Int, y0: Int, x1: Int, y1: Int): Int {
         var r = 0L
         var g = 0L
         var b = 0L
         var n = 0L
         for (y in y0 until y1) for (x in x0 until x1) {
-            val pixel = bitmap.getPixel(x, y)
+            val pixel = pixels[y * stride + x]
             if (Color.alpha(pixel) == 0) continue
             r += Color.red(pixel)
             g += Color.green(pixel)
