@@ -140,3 +140,12 @@ test("before a page has reported a colour, the redesigned bar takes the app's ow
     spy.mockRestore();
   }
 });
+
+test("the page view is given the profile's surface for what shows behind a swipe to navigate, as Compose's look.surface", () => {
+  const root = page("original");
+  const view = root.root.findAll((node) => node.props.pageId !== undefined && node.props.surfaceColor !== undefined)[0]!;
+  const screen = root.root.findAll((node) => (node.type as { name?: string })?.name === "BrowsingScreen")[0]!;
+  const surface = StyleSheet.flatten(screen.findAll((node) => typeof node.type === "string")[0]!.props.style).backgroundColor;
+  expect(view.props.surfaceColor).toBe(surface);
+  unmount(root);
+});

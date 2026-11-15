@@ -6,10 +6,11 @@ import { tabSavedState } from "../../state/tabs/store";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { usePreferences } from "../../state/settings/hooks";
 import { pageSwipe } from "../../state/settings/settingsRules";
-import { PageView, type PageViewHandle } from "../ui";
+import { PageView, useTheme, type PageViewHandle } from "../ui";
 
 export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; toneBottom: number; obscured?: { top: number; bottom: number } }) {
   const handle = useRef<PageViewHandle>(null);
+  const theme = useTheme();
   const id = tab.id;
   const swipe = usePreferences((p) => p.swipeNavigation);
   const [setup] = useState(() => ({ url: tab.url, title: tab.title, saved: tabSavedState(id) ?? undefined }));
@@ -30,6 +31,7 @@ export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; to
       obscuredInsets={obscured}
       swipeNavigation={pageSwipe(swipe)}
       pullToRefresh
+      surfaceColor={theme.surface}
       onPageState={(state) => pageStateChanged(id, state)}
       onPageTone={(tone) => pageToneChanged(id, tone)}
     />
