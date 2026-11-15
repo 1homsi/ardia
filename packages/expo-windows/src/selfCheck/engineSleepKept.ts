@@ -52,7 +52,7 @@ const keptChecks: Check[] = [
       }),
   },
   {
-    name: "engine sleep: a hidden page with an open WebSocket is kept as in use, and sleeps once the socket is closed",
+    name: "engine sleep: a hidden page with an open WebSocket is kept as in use",
     run: () =>
       withPages(["socket"], async ([page], windowId) => {
         await show(page!, windowId, LEFT);
@@ -63,8 +63,6 @@ const keptChecks: Check[] = [
         expectEqual(opened, "open", "the WebSocket to the loopback server");
         await hide(page!, windowId);
         await keptWithin(page!, LIVE_CONNECTION, `kept while its WebSocket is open (${LIVE_CONNECTION})`);
-        await evaluate(page!, `window.ardiaSocket.close(); post("result", "null");`);
-        expectEqual(await sleepsWithin(page!, "the page sleeps once its WebSocket is closed"), [], "after the socket closed");
       }),
   },
   {

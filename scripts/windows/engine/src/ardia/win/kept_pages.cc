@@ -74,7 +74,7 @@ bool HasLiveConnection(const PageNode* page, content::WebContents* contents) {
   if (contents) {
     contents->GetPrimaryMainFrame()->ForEachRenderFrameHost(
         [&live](content::RenderFrameHost* frame) {
-          live = live || content::ArdiaFrameHasOpenConnection(frame);
+          live = live || content::ArdiaFrameHasLiveConnection(frame);
         });
   }
   return live;
