@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { act } from "react-test-renderer";
 import { SearchTray } from "../components/search/SearchTray";
 import { DesignProvider } from "../components/ui";
@@ -60,7 +61,7 @@ for (const design of ["redesigned", "original"] as Design[]) {
   });
 }
 
-test("a screen reader closes search with Close Search's own activate action, without a touch reaching the dim", () => {
+test("a screen reader closes search from Close Search itself, without a touch reaching the dim: VoiceOver's double tap on iPhone, TalkBack's activate on Android", () => {
   act(() => presentSearch("page", "otters"));
   const root = renderSurface(
     <DesignProvider design="redesigned">
@@ -68,10 +69,10 @@ test("a screen reader closes search with Close Search's own activate action, wit
     </DesignProvider>,
   );
   act(() => jest.advanceTimersByTime(600));
-  const close = root.root.findAll((node) => node.props.accessibilityLabel === "Close Search" && typeof node.props.onAccessibilityAction === "function")[0]!;
-  expect(close.props.accessibilityActions).toEqual([{ name: "activate" }]);
+  const close = root.root.findAll((node) => node.props.accessibilityLabel === "Close Search" && typeof node.type !== "string")[0]!;
   expect(useSearch.getState().open).toBe(true);
-  act(() => close.props.onAccessibilityAction({ nativeEvent: { actionName: "activate" } }));
+  if (Platform.OS === "ios") act(() => close.props.onAccessibilityTap());
+  else act(() => close.props.onAccessibilityAction({ nativeEvent: { actionName: "activate" } }));
   expect(useSearch.getState().open).toBe(false);
   unmount(root);
 });

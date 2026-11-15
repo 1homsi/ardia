@@ -21,7 +21,7 @@ import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, moveTo, radius, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, moveTo, radius, screenReaderActions, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -312,8 +312,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
         <Pressable
           accessibilityLabel="Close Search"
           accessibilityRole="button"
-          accessibilityActions={ACTIVATE}
-          onAccessibilityAction={(event) => event.nativeEvent.actionName === "activate" && closeFromTouch()}
+          {...screenReaderActions([{ name: "activate", run: closeFromTouch }])}
           onPressIn={closeOnPressIn}
           onPress={closeOnPress}
           style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }]}
@@ -382,8 +381,6 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 }
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
-
-const ACTIVATE = [{ name: "activate" as const }];
 
 const DepartContext = createContext<() => void>(() => undefined);
 
