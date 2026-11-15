@@ -1,6 +1,5 @@
+import type { KeptFollows } from "@ardia/shell";
 import { fieldKeepsKeyboardFrom, focusedFieldInAnotherTab, onFieldAsked } from "../appKeyboard";
-
-export type KeptFollows = { kept: number; used: number; dropped: number };
 
 const NONE: KeptFollows = { kept: 0, used: 0, dropped: 0 };
 

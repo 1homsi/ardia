@@ -208,6 +208,111 @@ test("Ctrl+T with the command bar, an address, Enter: the bar's field is focused
   await unmountAll();
 });
 
+test("prewarm: Enter in a New Tab page whose hidden page already exists keeps the ask through a slow open, as the page is being opened", async () => {
+  const opened = slowOpen("kf-prewarmed");
+  const { store, stop, shows } = ctrlT();
+  store.set(shows("kf-prewarmed", ""));
+  mount("kf-prewarmed");
+  showPage("kf-prewarmed", false, null);
+  await settle();
+  store.set(shows("kf-prewarmed", "https://typed.example/"));
+  showPage("kf-prewarmed", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-prewarmed"), [], "nothing before the page has opened");
+  later += 5000;
+  opened();
+  await settle();
+  assert.deepEqual(followed("kf-prewarmed"), followedOnce("kf-prewarmed"), "the page opened 5 s after Enter and still gets the keyboard");
+  later = 0;
+  stop();
+  await unmountAll();
+});
+
+test("switching to a loaded tab whose page is hidden keeps the ask until it shows, however late", async () => {
+  mount("kf-loaded");
+  await settle();
+  showPage("kf-loaded", true, shape);
+  await settle();
+  showPage("kf-loaded", false, null);
+  await settle();
+  followPage("kf-loaded", "w");
+  later += 5000;
+  await settle();
+  showPage("kf-loaded", true, { ...shape, width: 230 });
+  await settle();
+  assert.deepEqual(followed("kf-loaded"), followedOnce("kf-loaded"), "shown 5 s after the switch");
+  later = 0;
+  await unmountAll();
+});
+
+test("Split View: focusing a pane whose page is already showing in that window gets the call at once, not a kept ask", async () => {
+  mount("kf-pane-a");
+  mount("kf-pane-b");
+  await settle();
+  showPage("kf-pane-a", true, shape);
+  showPage("kf-pane-b", true, { ...shape, x: 200 });
+  await settle();
+  takeKeptFollows();
+  followPage("kf-pane-b", "w");
+  await settle();
+  assert.deepEqual(followed("kf-pane-b"), [{ key: "kf-pane-b", method: "focus", follow: true }], "sent at once, not deferred to a show");
+  assert.deepEqual(takeKeptFollows(), { kept: 0, used: 0, dropped: 0 }, "nothing was kept");
+  await unmountAll();
+});
+
+test("Peek: opening one asks its page, kept until the Peek's page shows", async () => {
+  const { store, stop } = ctrlT();
+  store.set({ peeks: { w: { tabId: "kf-peek", sourceId: "kf-before" } } });
+  mount("kf-peek");
+  later += 5000;
+  showPage("kf-peek", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-peek"), followedOnce("kf-peek"));
+  later = 0;
+  stop();
+  await unmountAll();
+});
+
+test("a pop-up that opens focused follows its page through the same rule: kept until its page shows in the pop-up window", async () => {
+  const popupWindow = "popup:kf";
+  mount("kf-popup-page", popupWindow);
+  await settle();
+  followPage("kf-popup-page", popupWindow);
+  later += 5000;
+  showPage("kf-popup-page", true, shape);
+  await settle();
+  assert.deepEqual(followed("kf-popup-page"), followedOnce("kf-popup-page"));
+  later = 0;
+  const popup = readFileSync(new URL("../../../../packages/expo-windows/src/engine/PopupWindow.tsx", import.meta.url), "utf8");
+  assert.match(popup, /return void \(popup\.focused \? followPage\(pageKey, windowId\) : undefined\);/, "the pop-up asks through followPage, not a timed focus call");
+  await unmountAll();
+});
+
+test("a tab moved to another window: its page still showing in the old window doesn't count, and the ask waits for the show in the new one", async () => {
+  mount("kf-moved", "w1");
+  await settle();
+  showPage("kf-moved", true, shape);
+  await settle();
+  followPage("kf-moved", "w2");
+  await settle();
+  assert.deepEqual(followed("kf-moved"), [], "not sent to the page while it still shows in w1");
+  mount("kf-moved", "w2");
+  await settle();
+  showPage("kf-moved", true, { ...shape, width: 240 });
+  await settle();
+  assert.deepEqual(followed("kf-moved"), followedOnce("kf-moved"), "given once it shows in w2");
+  await unmountAll();
+});
+
+test("no follow waits on the show timer: followPage either calls a page showing in that window, or keeps the ask", () => {
+  const pages = readFileSync(new URL("../../../../packages/expo-windows/src/engine/pages.ts", import.meta.url), "utf8");
+  assert.match(pages, /if \(page && !page\.closed && page\.show\?\.visible && page\.show === page\.showSent && \(!windowId \|\| page\.windowId === windowId\)\) return void callPage\(key, "focus", \{ follow: true \}\);\n  keepFollow\(key\);/);
+  assert.match(pages, /function followNow\(page: Page\) \{\n  lastAskedToFocus = page;\n  page\.focusArgs = \{ follow: true \};\n\}/, "a spent kept ask sets no show-wait time");
+  const follows = readFileSync(new URL("../state/focus/keyboardFollows.ts", import.meta.url), "utf8");
+  assert.match(follows, /follow\(shown, windowId\)/);
+  assert.match(follows, /follow\(peek, windowId\)/);
+});
+
 test("never pulls the keyboard out of a field in another window, such as Settings, when the page shows", async () => {
   followPage("kf-settings");
   mount("kf-settings");

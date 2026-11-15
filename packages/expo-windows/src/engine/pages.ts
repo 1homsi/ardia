@@ -233,7 +233,6 @@ function sendShow(page: Page): Promise<unknown> | undefined {
 function followNow(page: Page) {
   lastAskedToFocus = page;
   page.focusArgs = { follow: true };
-  page.focusAsked = Date.now();
 }
 
 const focusWaits = (page: Page) => lastAskedToFocus === page && page.focusAsked > 0 && Date.now() - page.focusAsked < FOCUS_WAITS_FOR_SHOW_MS;
@@ -244,8 +243,9 @@ function askShow(page: Page, args: ShowArgs) {
     page.ready.then((opened) => {
       if (!opened || page.show !== args) return noteShowStep(page.key, opened ? "askShow: superseded" : "askShow: not opened");
       const sent = sendShow(page);
-      if (args.visible && spendKeptFollow(page.key, page.windowId)) followNow(page);
-      if (!args.visible || !focusWaits(page)) return sent;
+      const kept = args.visible && spendKeptFollow(page.key, page.windowId);
+      if (kept) followNow(page);
+      if (!args.visible || !(kept || focusWaits(page))) return sent;
       page.focusAsked = 0;
       const focusArgs = page.focusArgs;
       if (fieldFocusedIn(page.windowId, page.key)) return sent;
@@ -369,9 +369,9 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }
 
-export function followPage(key: string) {
+export function followPage(key: string, windowId = "") {
   const page = pages.get(key);
-  if (page && !page.closed) return void callPage(key, "focus", { follow: true });
+  if (page && !page.closed && page.show?.visible && page.show === page.showSent && (!windowId || page.windowId === windowId)) return void callPage(key, "focus", { follow: true });
   keepFollow(key);
   lastAskedToFocus = null;
 }

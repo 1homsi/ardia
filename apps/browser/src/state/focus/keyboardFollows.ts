@@ -18,9 +18,9 @@ export function startKeyboardFollows(follow: FollowKeyboard | null = followKeybo
     if (s.windows === prev.windows && s.peeks === prev.peeks && s.tabs === prev.tabs) return;
     for (const windowId of Object.keys(s.windows)) {
       const shown = shownTabOf(s, windowId);
-      if (shown && (shown !== shownTabOf(prev, windowId) || gotItsFirstPage(s, prev, shown))) follow(shown);
+      if (shown && (shown !== shownTabOf(prev, windowId) || gotItsFirstPage(s, prev, shown))) follow(shown, windowId);
       const peek = s.peeks[windowId]?.tabId;
-      if (peek && peek !== prev.peeks[windowId]?.tabId) follow(peek);
+      if (peek && peek !== prev.peeks[windowId]?.tabId) follow(peek, windowId);
     }
   });
 }

@@ -22,7 +22,7 @@ export const engineModules: Record<string, Record<string, unknown>> = {
     dropTabReveals: () => {},
     revealOffered: () => {},
     discardOffered: (adoptId: string) => discardOffered(adoptId),
-    followKeyboard: (tabId: string) => followPage(tabId),
+    followKeyboard: (tabId: string, windowId?: string) => followPage(tabId, windowId),
     takeKeptFollows: () => takeKeptFollows(),
   },
 };
