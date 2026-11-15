@@ -262,3 +262,11 @@ export function mergeDeckOrder(shown: readonly string[], live: readonly string[]
   }
   return next;
 }
+
+export const DECK_CHROME_FROM = 0.6;
+
+export function deckChromeOpacity(positionProgress: number): number {
+  "worklet";
+  if (positionProgress >= 1 - 1e-3) return 1;
+  return Math.min(1, Math.max(0, (positionProgress - DECK_CHROME_FROM) / (1 - DECK_CHROME_FROM)));
+}

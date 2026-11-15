@@ -18,6 +18,7 @@ import {
   deckGeometry,
   archiveCardEdgeY,
   deckScrollActionTarget,
+  deckChromeOpacity,
   deckLeading,
   deckIsTap,
   deckDragKind,
@@ -206,8 +207,8 @@ export const TabDeck = memo(function TabDeck() {
     const target = archiveCard ? archiveShift : 0;
     cardsShift.value = reduceMotion ? withTiming(target, { duration: tabsMotion.fade }) : withSpring(target, deckChromeMotion.chromeShift);
   }, [archiveCard, archiveShift, redesigned]);
-  const chromeStyle = useAnimatedStyle(() => ({ opacity: Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
-  const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : Math.max(0, (positionProgress.value - CHROME_FROM) / (1 - CHROME_FROM)) }));
+  const chromeStyle = useAnimatedStyle(() => ({ opacity: deckChromeOpacity(positionProgress.value) }));
+  const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : deckChromeOpacity(positionProgress.value) }));
 
   const poofSeed = useRef(0);
   const searchedFor = useRef(needle);
@@ -821,7 +822,6 @@ const DECK_GESTURE_REACH = 3;
 
 const deckCardMounted = (index: number, anchor: number) => Math.abs(index - anchor) <= DECK_RENDER_REACH + DECK_GESTURE_REACH;
 const BACKDROP_LEAD = 1.4;
-const CHROME_FROM = 0.6;
 const POOF_LINGER_MS = 50;
 
 const styles = StyleSheet.create({

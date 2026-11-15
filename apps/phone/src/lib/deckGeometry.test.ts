@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DECK_CHROME_FROM,
+  deckChromeOpacity,
   deckSlot,
   mergeDeckOrder,
   deckSlotsNow,
@@ -221,4 +223,13 @@ test("in the redesign the cards sit under main's header, about 24 points lower, 
   const homeButton = deckGeometry(375, 667, 20, 0, 0, "ios", "redesigned", 48);
   assert.equal(homeButton.barCenterY, 667 - 20 - 11);
   assert.deepEqual(deckGeometry(412, 915, 48, 24, 0, "android", "original", 48), pixel7);
+});
+
+test("the deck chrome is fully opaque the moment its motion settles, even when a spring stops a hair short of 1, since UIKit draws no glass under a view that is even slightly transparent", () => {
+  assert.equal(deckChromeOpacity(1), 1);
+  assert.equal(deckChromeOpacity(0.9995), 1);
+  assert.equal(deckChromeOpacity(1.02), 1);
+  assert.equal(deckChromeOpacity(DECK_CHROME_FROM), 0);
+  assert.equal(deckChromeOpacity(0), 0);
+  assert.ok(Math.abs(deckChromeOpacity(0.8) - 0.5) < 1e-9);
 });
