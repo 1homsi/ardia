@@ -4,15 +4,15 @@ const { startKeyboardFollows } = await import("./keyboardFollows.ts");
 
 const windowOf = (profileId, active) => ({ profileId, activeTabIds: { [profileId]: active } });
 
-function fakeStore(windows, peeks = {}) {
-  let state = { windows, peeks };
+function fakeStore(windows, peeks = {}, tabs = {}) {
+  let state = { windows, peeks, tabs };
   const listeners = new Set();
   return {
     getState: () => state,
     subscribe: (listener) => (listeners.add(listener), () => listeners.delete(listener)),
-    set(windows, peeks = state.peeks) {
+    set(windows, peeks = state.peeks, tabs = state.tabs) {
       const prev = state;
-      state = { windows, peeks };
+      state = { windows, peeks, tabs };
       for (const listener of listeners) listener(state, prev);
     },
   };
@@ -48,5 +48,17 @@ test("the keyboard is asked to follow a Peek's page when the user opens one, as 
   store.set(windows, {});
   store.set(windows, { w1: { tabId: "peek2", sourceId: "a" } });
   assert.deepEqual(followed, ["peek1", "peek2"], "each new Peek once; closing it asks nothing here (the source page refocuses on close)");
+  stop();
+});
+
+test("a shown tab that gets its first page asks again, as Enter in a New Tab page's search box or the command bar over an empty tab does", () => {
+  const followed = [];
+  const windows = { w1: windowOf("p", "ntp") };
+  const store = fakeStore(windows, {}, { ntp: { id: "ntp", url: "" } });
+  const stop = startKeyboardFollows((tabId) => followed.push(tabId), store);
+  store.set(windows, {}, { ntp: { id: "ntp", url: "", title: "New Tab" } });
+  store.set(windows, {}, { ntp: { id: "ntp", url: "https://typed.example/" } });
+  store.set(windows, {}, { ntp: { id: "ntp", url: "https://typed.example/next" } });
+  assert.deepEqual(followed, ["ntp"], "once, when the empty tab takes its address; not for other tab changes, nor a later navigation");
   stop();
 });
