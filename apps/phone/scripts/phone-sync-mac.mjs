@@ -2,7 +2,7 @@
 // The Mac half of a sync test for an Android phone that has no Mac: a hidden Ardia for Mac on this Mac, syncing to
 // a folder here. phone-sync-relay.mjs, on the machine the phone is plugged into, mirrors that folder to the phone.
 //
-//   node apps/phone/scripts/phone-sync-mac.mjs start  [--work DIR] [--app APP] [--metro-port PORT]
+//   node apps/phone/scripts/phone-sync-mac.mjs start  [--work DIR] [--app APP] [--metro-port PORT] [--seed PROFILE_COPY]
 //   node apps/phone/scripts/phone-sync-mac.mjs status [--work DIR]
 //   node apps/phone/scripts/phone-sync-mac.mjs sync   [--work DIR]
 //   node apps/phone/scripts/phone-sync-mac.mjs send URL [--to DEVICE_ID] [--work DIR]
@@ -13,7 +13,9 @@
 // Metro for apps/browser on --metro-port (default 8099; started by this script when none is running), turns sync on
 // once against <work>/folder, writes the recovery phrase only to <work>/phrase.txt (mode 0600, never printed; the
 // relay's type-phrase puts it into the phone without it passing through a command line) and prints the folder and the
-// devices. status prints the devices the Mac sees (id, name, kind), each one's open tabs, and the tabs open on the
+// devices. --seed copies a copy of a real profile into <work>/mac first (only while <work>/mac doesn't exist yet), less
+// its sync.json, so the Mac starts with that profile's spaces and tabs and syncs only to <work>/folder; it refuses a
+// path under Library/Application Support or Library/Containers, so it is never pointed at a live profile. status prints the devices the Mac sees (id, name, kind), each one's open tabs, and the tabs open on the
 // Mac, where a tab sent from the phone arrives; sync syncs now and prints the same. send opens URL in a background
 // tab on the Mac and sends it to the phone (the only device it can send to, or --to). stop quits the instance and
 // the Metro it started (or hands that Metro to another phone's instance still using it), and deletes <work> unless
@@ -40,6 +42,7 @@ function options(argv) {
     else if (name === "--app") (found.app = path.resolve(value)), (index += 1);
     else if (name === "--metro-port") (found.metroPort = Number(value)), (index += 1);
     else if (name === "--to") (found.to = value), (index += 1);
+    else if (name === "--seed") (found.seed = path.resolve(value)), (index += 1);
     else if (name === "--keep") found.keep = true;
     else if (name.startsWith("--")) throw new Error(`unknown option ${name}`);
     else found.rest.push(name);
@@ -162,6 +165,18 @@ function printReport(state) {
   say(`tabs open on this Mac: ${state.macTabs.length}${state.macTabs.length ? `\n    ${state.macTabs.join("\n    ")}` : ""}`);
 }
 
+function seedProfile(seed, data) {
+  if (!fs.existsSync(seed)) throw new Error(`no profile copy at ${seed}`);
+  if (/\/Library\/Application Support\//.test(seed) || /\/Library\/Containers\//.test(seed)) throw new Error("--seed takes a copy of a profile, never the live one");
+  if (fs.existsSync(data)) {
+    say(`data ${data} already exists, so --seed is not copied again`);
+    return;
+  }
+  fs.cpSync(seed, data, { recursive: true });
+  for (const name of ["sync.json"]) fs.rmSync(path.join(data, name), { force: true });
+  say(`seeded ${data} from ${seed}, without its sync file`);
+}
+
 async function start(opts) {
   const { data, folder, phrase } = paths(opts.work);
   if (/^\/Applications\//.test(opts.app)) throw new Error("never an installed app");
@@ -169,6 +184,7 @@ async function start(opts) {
   const problems = appProblems(opts.app);
   if (problems.length > 0) throw new Error(bringUpToDate(problems));
   fs.mkdirSync(folder, { recursive: true });
+  if (opts.seed) seedProfile(opts.seed, data);
   try {
     attach(data);
     say(`already running for ${opts.work}`);
