@@ -1521,23 +1521,32 @@ The question is whether the Expo app is slower than the SwiftUI app it replaces 
 app, built Release for the same simulator (`/tmp/ardia-phone/swiftui-main.app`), against a Release `build-sim-app`
 build of the Expo app from head.
 
+Measured 2026-11-15 on one leased iPhone 17 Pro simulator (iOS 27), Expo at 5fbcd2308 and SwiftUI from main, at a
+load under 10 and under `scripts/agent/locked perflab`. Each timed row is the median of five recordings, taken in
+four rounds that alternate the apps. Times run from the first frame that changes to the last change before 0.5 s of
+stillness. The recordings, frame scripts and pages are in `/tmp/ardia-phone-shots/iphone-agent-speed/`
+(`rec/<app>-<measure>-<round><n>.mp4`, `analysis.json`).
+
 | Measure | SwiftUI | Expo | Difference | Judgement | Simulator trust |
 |---|---|---|---|---|---|
 | App size on disk (simulator build) | 47.5 MB | 72.0 MB | +24.5 MB (+52%) | larger | Good for the difference; a device download is thinned and compressed. The extensions are equal (21 MB each); the gap is React Native and Hermes (16.9 MB of frameworks, a 5.5 MB bundle, a 2 MB larger binary). |
-| Cold launch to the app's first own frame | not yet measured | not yet measured | | | Our own work and JavaScript start-up carry over in order of size; dyld, disk and the A-series CPU don't. |
-| Cold launch to a usable start page | not yet measured | not yet measured | | | As above. |
-| Deck opening from a page (first moving frame, settled) | not yet measured | not yet measured | | | Logic and animation length carry over; GPU cost, glass and blur don't. |
-| Card opening from the deck (first moving frame, settled) | not yet measured | not yet measured | | | As above. |
-| Search panel open to keyboard up and focused | not yet measured | not yet measured | | | The keyboard's own timing is the simulator's. |
-| Search submitted to the page's first paint (cached) | not yet measured | not yet measured | | | WebKit runs on the Mac's CPU; only the difference means anything. |
-| Tab swipe in the pager (first move to settled) | not yet measured | not yet measured | | | As the deck. |
+| Cold launch, first frame to settled | 395 ms | 410 ms | +15 ms (+4%) | level | Weak. The recording shows iOS's launch zoom over its cached launch snapshot, so it times iOS more than the app; the app's first own frame and a usable start page can't be told apart on video. Needs Instruments App Launch on a device. |
+| Deck opening from a page, settled | 233 ms | 305 ms | +72 ms (+31%) | slower | Animation length and our own work carry over; GPU cost of the deck's glass and blur doesn't. SwiftUI's first change is the Tabs button's press, with motion 47 ms later; Expo shows no press and its first change is the motion. |
+| Card opening from the deck, settled | 167 ms | 508 ms | +341 ms (3×) | slower | Carries over: the growth itself runs about 320 ms against SwiftUI's 167, and then the page jumps about 64 pt up and the bar appears at about 395 ms (the card's snapshot sits a status bar lower than the live page). Frames: `card-open-expo-frames.png`, `card-open-swiftui-frames.png`. |
+| Search panel open to keyboard up and focused | 570 ms | 657 ms | +87 ms (+15%) | slower | Our part carries over; the keyboard's own animation is the simulator's. |
+| Search submitted to the page's first paint (cached) | 112 ms | 95 ms | −17 ms | level | WebKit runs on the Mac's CPU; only the difference means anything. |
+| Search submitted to settled | 515 ms | 382 ms | −133 ms (−26%) | faster | As above. |
+| Tab swipe in the pager, settled (the 250 ms drag included) | 850 ms | 990 ms | +140 ms (+16%) | slower | The spring's length carries over. |
 | Back and forward by edge swipe | cannot be measured | cannot be measured | | | agent-device's gestures can't start at the screen edge; needs a device. |
-| Deck scrolling, long frames per scripted fling | not yet measured | not yet measured | | | Weak: simulator recordings are variable rate and not locked to the display (gaps of 4 to 40 ms), and frame pacing is the Mac's. |
-| Memory after nine tabs, and after a minute idle on the deck | not yet measured | not yet measured | | | Footprint of the app process carries over roughly; WebKit's content processes and the device's memory limits don't. |
+| Deck scrolling, frames over 34 ms per scripted swipe pair | 0 of 51–75 | 0 of 69–96 | none in either | level | Weak: simulator recordings are variable rate and not locked to the display, and the frame pacing is the Mac's. Hitches need Instruments Animation Hitches on a device. |
+| Memory after nine tabs (app + WebKit) | 416 MB (154 + 263) | 387 MB (165 + 222) | −29 MB | level | The app process carries over roughly (Expo +11 MB). WebKit's content processes run 33 MB each in Expo and 40 MB in SwiftUI here, which a device's limits may not repeat. |
+| Memory after a minute idle on the deck | 449 MB (185 + 264) | 388 MB (167 + 221) | −61 MB | lower | SwiftUI's app process grows 31 MB on the deck; Expo's 2 MB. As above for WebKit. |
 
-Status, 2026-11-15:
-- **Measured:** the size row.
-- **Not measured yet:** the timed rows. The Mac's load stayed between 260 and 770, and Simlock and T3 restarted twice, so any timing then would have measured the machine, not the apps. They're to be taken at a load under 30, holding `scripts/agent/locked perflab`.
+What to fix before a device run, from these numbers:
+- **Card opening** is the one real gap: three times as long, with a visible jump at the end. It is the screens
+  agent's card handover.
+- **Deck, search panel and pager** run 15–31% longer, which reads as the animations' set lengths and springs, not
+  frame drops. Each is worth matching to SwiftUI's timing curve by curve.
 
 The method:
 - **Setup:**
@@ -1593,6 +1602,32 @@ What it needs, for a yes or no:
    - energy.
 
    The simulator rows above settle only how long our own work and animations take, and app size.
+
+#### Default browser on iPhone, once Apple grants the entitlement
+
+Apple's web-browser entitlement (`com.apple.developer.web-browser`) has been requested. Until it is granted the
+app ships with the default browser off, and one build setting turns all of it on together:
+
+- **The switch.** `ARDIA_DEFAULT_BROWSER = NO` in the Debug and Release settings of the Ardia target in
+  `apps/phone/ios/Ardia.xcodeproj/project.pbxproj`. Flip both to `YES` (or pass `ARDIA_DEFAULT_BROWSER=YES` to
+  `xcodebuild`) for a build that should offer it.
+- **The entitlement.** `CODE_SIGN_ENTITLEMENTS = $(ARDIA_ENTITLEMENTS_$(ARDIA_DEFAULT_BROWSER))`, so `NO` signs with
+  `apps/ios/Config/Ardia.entitlements` and `YES` with `apps/ios/Config/Ardia-DefaultBrowser.entitlements`, the same
+  file plus `com.apple.developer.web-browser`. The SwiftUI app's `apps/ios/project.yml` does the same, so both apps
+  share the two files.
+- **Info.plist.** `ArdiaDefaultBrowser` is `$(ARDIA_DEFAULT_BROWSER)`, which ArdiaKit's
+  `DefaultBrowserStatus.isOffered` reads. The http and https `CFBundleURLTypes` iOS requires of a default browser are
+  already declared and do nothing until the system lists Ardia.
+- **What appears.** With `isOffered` true, `ArdiaPhoneDefaultBrowser.status()` returns `canAsk: true`: the
+  onboarding step shows (unless asked within 100 days, as in SwiftUI), and Settings › Default Browser opens the
+  system's Default Apps page. Page menu › Open in Default Browser hides once Ardia is the default. With `NO`,
+  `isDefault` and `canAsk` are both false and none of this shows.
+- **The signing side**, for the owner: the App ID `com.ardia.browser.ios` needs the Default Web Browser capability
+  once Apple grants it, and the provisioning profiles regenerated with it. A build with `YES` and an old profile
+  fails to sign, so it cannot ship half on.
+
+`apps/phone/src/dev/defaultBrowserSwitch.test.ts` keeps this true: every configuration says `NO`, the entitlement and
+the Info.plist key come from that one setting, and the two entitlement files differ only by the web-browser key.
 
 #### Sync on iPhone
 
