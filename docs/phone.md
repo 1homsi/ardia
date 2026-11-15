@@ -1763,8 +1763,9 @@ The question is whether the Expo app is slower than the SwiftUI app it replaces 
 app, built Release for the same simulator (`/tmp/ardia-phone/swiftui-main.app`), against a Release `build-sim-app`
 build of the Expo app from head.
 
-Two runs so far: on Expo 54 / React Native 0.81 (first table) and on Expo 58 / React Native 0.88 (second table), so
-the upgrade's own effect shows. The 0.88 table is the current one.
+Three runs so far: on Expo 54 / React Native 0.81 (first table), on Expo 58 / React Native 0.88 with Reanimated's
+settled re-render on (second table), and on 0.88 with it off (third table, cfbdc5050's
+`FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS: false`). The third table is the current one.
 
 Expo 54 / React Native 0.81: measured 2026-11-15 on one leased iPhone 17 Pro simulator (iOS 27), Expo at 5fbcd2308 and SwiftUI from main, at a
 load under 10 and under `scripts/agent/locked perflab`. Each timed row is the median of five recordings, taken in
@@ -1814,9 +1815,33 @@ SwiftUI round ended at 72, so its rows lean slow. Recordings and the analysis: `
 | Memory after nine tabs (app + WebKit) | 318 MB (124–129 + 189–194) | 360–415 MB (161–190 + 199–225) | +42 to +97 MB | higher | was lower on 0.81; the app process is 37–61 MB above SwiftUI's and WebKit 10–31 MB |
 | Memory after a minute idle on the deck | 387–390 MB (186–189 + 201) | 356–401 MB (155–183 + 201–218) | −34 to +11 MB | level | |
 
+Expo 58 / React Native 0.88 with Reanimated's settled re-render off: measured 2026-11-16 02:37–03:09, Expo's JS at
+a987eb84b with native d82a2839d (Pods installed after cfbdc5050, so `RNReanimated.release.xcconfig` carries
+`FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS:false`), against the same SwiftUI build. Same simulator model, method and
+nine pages, four alternating rounds, five recordings per measure, load 2 to 4 throughout, under the perflab lock.
+Evidence: `/tmp/ardia-phone-shots/iphone-agent-speed-nf/`.
+
+| Measure | SwiftUI | Expo 58 | Difference | Judgement | Against the second table |
+|---|---|---|---|---|---|
+| Cold launch, first frame to settled | 402 ms | 403 ms | +1 ms | level | level |
+| Deck opening from a page, settled | 240 ms | 133 ms | −107 ms | faster | Expo level (137); main's 217 read low last time |
+| Card opening from the deck, settled | 175 ms | 265 ms | +90 ms (+51%) | slower | Expo 28 ms faster than 293 |
+| Search panel open to keyboard up and focused | 578 ms | 418 ms | −160 ms (−28%) | faster | level |
+| Search submitted to settled | 512 ms | 298 ms | −214 ms (−42%) | faster | level |
+| Tab swipe in the pager, settled (the 250 ms drag included) | 848 ms | 800 ms | −48 ms (−6%) | level | level |
+| Deck scroll, frames over 34 ms | 0 in 5 | 0 in 5 | none in either | level | level |
+| Memory after nine tabs (app + WebKit) | 381–405 MB (138–153 + 243–252) | 380 MB (171–172 + 208–209) | −25 to 0 MB | level | was higher; within the run-to-run noise either way |
+| Memory after a minute idle on the deck | 430–434 MB (183–184 + 246–251) | 380–395 MB (179–183 + 201–212) | −35 to −54 MB | lower | |
+
+**Card opening, frame by frame** (one recording each, `expo-handover.png` in the evidence folder): both cards grow
+to full size over the same 170 ms. Main's address bar arrives during the growth, so its open ends there. Expo's card
+lands with its rounded corners and a sliver of the deck at the edge, holds still for 75 ms, then the bar appears and
+the corners go square in one change. That late hand-over is the whole remaining gap. Turning the settled re-render
+off took 28 ms off it, and nothing else moved beyond the noise.
+
 What 0.88 leaves to fix, from these numbers:
-- **Card opening** is still the one timed gap: 293 ms against 172. The growth now matches; the bar arrives about four
-  frames after full size. The screens agent has it.
+- **Card opening** is still the one timed gap: 265 ms against 175 in the third table. The growth matches; the bar
+  and the square corners arrive 75 ms after full size. The screens agent has it.
 - **Memory after nine tabs** is higher than SwiftUI's and higher than on 0.81. Hermes V1 and Reanimated 4.7 had a
   known memory regression before Expo 57.0.17; 58.0.25 should carry the fix. Worth a device check before the owner's
   phone, and an Instruments allocation trace of the app process.
