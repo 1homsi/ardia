@@ -847,6 +847,10 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   capture of a different kind). Stop ends the capturer's display capture through Chromium's capture indicator. Both
   reach only tabs of the caller's own kind of session, regular or private. With an older engine the shell refuses
   them as before (`hostCast.ts`). Neither has run against a real capture on Linux yet.
+- **Casting.** The engine's media router runs (Chromium's Cast discovery over mDNS; DIAL discovery is off in Helium),
+  and `PresentationRequest.start()` reaches it, but nothing connects it to Ardia's cast picker yet. The shell hands
+  every cast call to the engine only when it advertises all six (`castsTabs` in `hostCast.ts`), so a partial engine
+  keeps the "Casting Isn't Available" toast instead of a picker that can't start.
 
 ### ardia browse off-screen tabs
 
@@ -1799,7 +1803,9 @@ These were open at the time of the PR.
     input, which never tells the shell the pointer left (Pointer hand-off). A real pointer closes it.
   - A played video removed from the DOM keeps its media entry until the element is collected.
 - **Not available on Linux:**
-  - casting (Cast shows a toast);
+  - casting with an engine that doesn't advertise all six cast calls (`media.showCastDialog`, `startCasting`,
+    `stopCasting`, `closeCastDialog`, `watchCastRoutes`, `terminateCastRoute`): Cast shows a toast. No engine
+    advertises them yet;
   - translation (Bergamot isn't ported yet);
   - video upscaling;
   - installing updates: Ardia checks for them and opens the release page (Updates and kill switches);
