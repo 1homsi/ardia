@@ -3,7 +3,7 @@ import { lookBudget, systemLook } from "../../platform/look";
 import { create } from "zustand";
 import { createGate, type SharingSource } from "../../lib/telemetryGate";
 import { launchProps, legacyImportOutcome, pendingUsage, type Counted } from "../../lib/telemetrySchema";
-import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt, takePendingCounts } from "../../platform/telemetry";
+import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt, setUsageConsent, takePendingCounts } from "../../platform/telemetry";
 import { useBoot } from "../app/bootState";
 import { readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
@@ -24,7 +24,10 @@ const gate = createGate({
   now: () => Date.now(),
   setTimer: (run, ms) => setTimeout(run, ms),
   clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
-  onChange: (sharing) => useUsageSharing.setState({ sharing }),
+  onChange: (sharing) => {
+    useUsageSharing.setState({ sharing });
+    setUsageConsent(sharing);
+  },
 });
 
 let started = false;
@@ -38,6 +41,7 @@ export function startTelemetry() {
   started = true;
   gate.load();
   useUsageSharing.setState({ sharing: gate.isSharing() });
+  setUsageConsent(gate.isSharing());
   gate.rollDaily();
   countPendingUsage();
   AppState.addEventListener("change", (next) => {
