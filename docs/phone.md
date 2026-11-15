@@ -917,9 +917,22 @@ it once and turns the look down if it can't; the system settings always come fir
   frames it draws. An idle deck with
   the look off draws no frames at all, so every frame in the sample is the look's own. A sample that overlaps
   anything else is dropped, and one deck open gives at most one measurement.
-- **The verdict.** A sample is over budget when the look keeps the phone busy more than a third of the time
-  (the sum of its frames' costs over the window), or when its median frame is longer than the pace it was drawn
-  at (it cannot keep up at all). It decides nothing under 20 frames unless those few frames are already over.
+- **The verdict.** A sample is over budget when the look keeps the phone busy more than a third of the time,
+  or when its median frame's work is longer than the pace it was drawn at (it cannot keep up at all).
+- **What busy counts** (from sync20). Each frame's work: FrameMetrics `TOTAL_DURATION` less
+  `UNKNOWN_DELAY_DURATION`, which in `dumpsys gfxinfo … framestats` columns is `FrameCompleted − IntendedVsync`
+  less `HandleInputStart − IntendedVsync`, so from the moment the UI thread starts the frame to the GPU
+  finishing it. Plus all other work on the main thread during the window: every message the main Looper
+  dispatches except Choreographer's frame message, timed through `Looper.setMessageLogging` (`MainThreadWork`).
+  The wait left out is only the time between the vsync and the UI thread starting the frame. Our own work
+  can't hide in it. A native tick, a posted runnable, a React Native mount or anything else the main thread
+  runs is a message, so it is counted as main-thread work whether or not it delayed a frame. Work inside
+  the frame, such as Reanimated's and Fabric's frame callbacks, is in the frame's work. JavaScript runs on its
+  own thread and reaches the main thread only as one of those. What remains in the wait is the system's
+  delivery of the vsync, which on the F4 at 120 Hz was 4 to 8 ms a frame (sync17b) and varied from window to
+  window. The line also prints whole frames over the window, the share every run through sync17b was judged on
+  (`… busy B% of the time (whole frames, as judged through sync17b: W%)`), so a run can be read against the
+  F4's 19 to 30% and the M3's 29%. The verdict uses busy, against the same 33%. It decides nothing under 20 frames unless those few frames are already over.
   Why a duty cycle: an idle deck's paced frames, drawn between vsyncs while nothing else moves, make nothing
   stutter that a person can see. What they cost is battery and heat, and that is the share of time the GPU
   and CPU spend on them. The sum counts every frame, slow ones included, since heat is the total. The keep-up

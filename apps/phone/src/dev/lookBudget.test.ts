@@ -78,6 +78,21 @@ test("busy counts each frame's work, not its wait for the vsync, plus the backdr
   assert.ok(Math.abs(old.busyShare! - 0.221) < 0.001, "a sampler that sends no waits is judged on the whole frame, as before");
 });
 
+test("fixed frame stats always give the same two shares: work plus other main-thread work, and whole frames as judged through sync17b", () => {
+  const totals = [12.4, 13.1, 11.8, 15.2, 12.9, 13.6, 12.2, 14.0, 12.7, 13.3];
+  const waits = [6.1, 7.0, 5.2, 8.4, 6.6, 7.3, 5.9, 7.7, 6.4, 6.8];
+  const judged = judge({ totals, deadlines: Array(10).fill(11.7), waits, windowMs: 1000, mainThreadMs: 21.5, tickMs: 18 });
+  const work = totals.reduce((sum, total, index) => sum + total - waits[index]!, 0);
+  assert.equal(Math.round(work * 10) / 10, 63.8);
+  assert.equal(Math.round(judged.busyShare! * 10000) / 10000, 0.0853, "(63.8 ms of frame work + 21.5 ms of other main-thread work) / 1000 ms");
+  assert.equal(Math.round(judged.wholeFrameBusyShare! * 10000) / 10000, 0.1312, "131.2 ms of whole frames / 1000 ms");
+  assert.equal(judged.mainThreadMs, 21.5);
+  assert.equal(judged.tickMs, 18, "the ticks are reported, and counted inside the main-thread work, not twice");
+  assert.equal(Math.round(judged.waitMs! * 10) / 10, 6.7);
+  const again = judge({ totals: [...totals], deadlines: Array(10).fill(11.7), waits: [...waits], windowMs: 1000, mainThreadMs: 21.5, tickMs: 18 });
+  assert.deepEqual(again, judged);
+});
+
 test("the window is the sampler's own when it sends one, and the planned two seconds otherwise", () => {
   const sent = judge({ totals: Array(40).fill(10), deadlines: Array(40).fill(16.7), windowMs: 4000 });
   assert.equal(sent.busyShare, 0.1);

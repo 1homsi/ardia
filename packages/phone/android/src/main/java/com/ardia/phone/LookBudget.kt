@@ -57,8 +57,31 @@ object LookBudget {
     }
 }
 
+internal class MainThreadWork(private val clock: () -> Long = System::nanoTime) : android.util.Printer {
+    var nanos = 0L
+        private set
+    private var started = 0L
+    private var inMessage = false
+    private var counting = false
+
+    override fun println(line: String) {
+        if (line.startsWith(">>>>>")) {
+            counting = !isFrame(line)
+            started = clock()
+            inMessage = true
+        } else if (line.startsWith("<<<<<") && inMessage) {
+            if (counting) nanos += clock() - started
+            inMessage = false
+        }
+    }
+
+    companion object {
+        fun isFrame(line: String): Boolean = line.contains("Choreographer\$FrameDisplayEventReceiver") || line.contains("Choreographer\$FrameHandler")
+    }
+}
+
 internal object FrameSampler {
-    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double)
+    data class Sample(val totals: List<Double>, val deadlines: List<Double>, val refreshMillis: Double, val windowMillis: Double, val foreignFrames: Long, val waits: List<Double>, val tickMillis: Double, val mainThreadMillis: Double)
 
     fun sample(activity: Activity, millis: Long, done: (Sample?) -> Unit) {
         val window: Window = activity.window ?: return done(null)
@@ -78,11 +101,14 @@ internal object FrameSampler {
         val started = SystemClock.uptimeMillis()
         val foreignBefore = LookActivity.foreignTraversals
         val ticksBefore = LookActivity.tickNanos
+        val mainWork = MainThreadWork()
+        Looper.getMainLooper().setMessageLogging(mainWork)
         window.addOnFrameMetricsAvailableListener(listener, handler)
         Handler(Looper.getMainLooper()).postDelayed({
+            Looper.getMainLooper().setMessageLogging(null)
             runCatching { window.removeOnFrameMetricsAvailableListener(listener) }
             handler.post {
-                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble(), LookActivity.foreignTraversals - foreignBefore, waits.toList(), (LookActivity.tickNanos - ticksBefore) / 1_000_000.0))
+                done(Sample(totals.toList(), deadlines.toList(), interval / 1_000_000.0, (SystemClock.uptimeMillis() - started).toDouble(), LookActivity.foreignTraversals - foreignBefore, waits.toList(), (LookActivity.tickNanos - ticksBefore) / 1_000_000.0, mainWork.nanos / 1_000_000.0))
                 thread.quitSafely()
             }
         }, millis)
