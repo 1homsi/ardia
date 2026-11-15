@@ -86,4 +86,8 @@ export function markFirstWindow() {
 
 export { takeNotificationRequestCounts } from "./notificationRequestCounts";
 
+export { takeRecentlyClosedCounts } from "./recentlyClosedCounts";
+
+export { takeHistoryRemovalCounts } from "./historyRemovalCounts";
+
 export const devOmniboxSampler = () => ({ keystrokes, pending: latency.length });

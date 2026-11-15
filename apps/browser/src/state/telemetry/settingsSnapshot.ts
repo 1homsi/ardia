@@ -1,8 +1,10 @@
-import { SETTING_SPECS, type Settings, type SettingSpec } from "../settings/settings";
+import { customNewTabUrl, SETTING_SPECS, type Settings, type SettingSpec } from "../settings/settings";
 import { commandBarStartFlags } from "../omnibox/commandBarStart";
 import { lookUse, type LookBlocks } from "../../lib/themeLook";
 import { currentThemeLook } from "../config/basePalette";
+import type { BrowserWindow } from "../browser/types";
 import { systemIncreaseContrast } from "../app/systemContrast";
+import { isNavigationOrFunctionKey, storedShortcut } from "../commands/shortcuts";
 
 export const SETTINGS_SNAPSHOT_EVENT = "settings_snapshot";
 
@@ -22,6 +24,11 @@ function measured(spec: SettingSpec<unknown>, value: unknown): string | null {
   return null;
 }
 
+function customShortcutCounts(overrides: Settings["shortcuts"]): Record<string, string> {
+  const keys = Object.values(overrides).filter((stored) => stored[0]).map((stored) => storedShortcut(stored).key);
+  return { custom_shortcuts: String(keys.length), custom_shortcuts_navigation_keys: String(keys.filter(isNavigationOrFunctionKey).length) };
+}
+
 export function settingsSnapshot(settings: Settings): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, spec] of Object.entries(SETTING_SPECS) as [keyof Settings, SettingSpec<unknown>][]) {
@@ -31,7 +38,14 @@ export function settingsSnapshot(settings: Settings): Record<string, string> {
     out[`setting_${key}`] = value;
     out[`default_${key}`] = fallback;
   }
-  return { ...out, ...commandBarStartFlags(settings.commandBarStart), system_increase_contrast: encode(systemIncreaseContrast())!, unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0) };
+  return {
+    ...out,
+    ...commandBarStartFlags(settings.commandBarStart),
+    ...customShortcutCounts(settings.shortcuts),
+    system_increase_contrast: encode(systemIncreaseContrast())!,
+    unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0),
+    custom_new_tab_url: customNewTabUrl({ newTabOpens: "page", minimalismMode: false, newTabUrl: typeof settings.newTabUrl === "string" ? settings.newTabUrl : "" }) ? "true" : "false",
+  };
 }
 
 export const appIconSetting = (icon: string | null): Record<string, string> =>
@@ -39,6 +53,12 @@ export const appIconSetting = (icon: string | null): Record<string, string> =>
 
 export const customColorProfiles = (profiles: Record<string, { theme?: unknown }>): Record<string, string> => ({
   custom_color_profiles: String(Object.values(profiles).filter((profile) => !!profile.theme).length),
+});
+
+const FORMER_MIN_WINDOW_WIDTH = 720;
+
+export const narrowWindows = (windows: Record<string, Pick<BrowserWindow, "kind" | "frame" | "fullScreen">>): Record<string, string> => ({
+  narrow_windows: String(Object.values(windows).filter((w) => w.kind !== "small" && !w.fullScreen && !!w.frame && w.frame[2] < FORMER_MIN_WINDOW_WIDTH).length),
 });
 
 export function themeFileSnapshot(theme: string | null, blocks: LookBlocks | null): Record<string, string> {

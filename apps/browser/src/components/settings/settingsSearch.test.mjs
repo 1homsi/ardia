@@ -35,6 +35,8 @@ const TOP = [
   ["right sidebar", ["tabs.sidebarSide"]],
   ["vertical tabs", ["tabs.layout"]],
   ["pinned", ["profiles.shareTopApps", "tabs.balancedTopApps", "tabs.fadeUnloadedTabs"]],
+  ["strikethrough", ["tabs.strikeSleepingTabs"]],
+  ["sleeping tabs", ["tabs.strikeSleepingTabs"]],
   ["split", ["tabs.splitLinkModifier"]],
   ["split view", ["tabs.splitLinkModifier"]],
   ["peek", ["tabs.peekModifier", "tabs.peekLinksToOtherSites"]],
@@ -99,6 +101,7 @@ const TOP = [
   ["minimal", ["appearance.minimalismMode"]],
   ["minimalism", ["appearance.minimalismMode"]],
   ["mouse wheel", ["privacy.commandScrollZoom"]],
+  ["autoplay", ["privacy.blockAutoplayEverywhere"]],
   ["1password", ["passwords.managerApps"]],
   ["warn quitting", ["general.warnBeforeQuitting"]],
   ["trakers", ["privacy.blockTrackers"]],
@@ -325,4 +328,9 @@ test("Block requests to send notifications sits in All sites, outside the per-pr
   const entry = SETTINGS_INDEX.find((p) => p.entry.id === "privacy.blockNotificationRequests").entry;
   assert.equal(entry.section, "All sites");
   assert.match(entry.description, /stay blocked after you turn it off, until you allow each one in its Site Controls/);
+});
+
+test("Block autoplay on every site sits in All sites, outside the per-profile Site permissions list", () => {
+  const entry = SETTINGS_INDEX.find((p) => p.entry.id === "privacy.blockAutoplayEverywhere").entry;
+  assert.equal(entry.section, "All sites");
 });

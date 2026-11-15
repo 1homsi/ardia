@@ -65,6 +65,24 @@ test("a change made in the app stands until the file changes; every change event
   assert.ok(configFolder.schemaWrites.length >= 1);
 });
 
+test("a window that isn't the launch takes the theme but leaves settings and known problems alone until the file changes", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  fresh({ tabLayout: "sidebar" });
+  const window = S().createWindow({ url: "https://a.com/" });
+  files.set("themes/nord.json", JSON.stringify({ dark: { accent: "#88C0D0" } }));
+  writeConfig({ theme: "nord", settings: { tabLayout: "top", selectedTabGlow: "bright" } });
+  startConfigFiles(colorRoles, false);
+  firstWindowCommitted();
+  await elapse(t, 0);
+  assert.equal(S().settings.tabLayout, "sidebar");
+  assert.equal(useBasePalette.getState().theme, "nord");
+  assert.equal(useToasts.getState().toasts[window], undefined);
+  emitConfigChange();
+  await elapse(t, 100);
+  assert.equal(S().settings.tabLayout, "top");
+  assert.equal(useToasts.getState().toasts[window], undefined, "a problem the launch window showed isn't shown again");
+});
+
 test("taking a key out of the file, or deleting the file, keeps the current value", () => {
   fresh();
   writeConfig({ settings: { tabLayout: "top" } });
@@ -316,4 +334,21 @@ test("turning outlines off clears the outline role in both appearances, over a t
   writeConfig({ theme: null });
   reconcileConfig();
   assert.equal(useBasePalette.getState().palette, null);
+});
+
+test("Tab corners rounds the rows over a theme's radius, follows the theme while unset, and changes live", () => {
+  fresh();
+  writeConfig({ theme: "round" });
+  files.set("themes/round.json", JSON.stringify({ metrics: { radius: { row: 14 } } }));
+  startConfigFiles(colorRoles);
+  assert.equal(radius.chrome, 14, "unset, the theme's radius applies");
+  S().updateSettings({ tabCornerRadius: 3 });
+  assert.equal(radius.chrome, 3);
+  assert.equal(useBasePalette.getState().look.radii.chrome, 3, "Settings reads the radius in force from the look");
+  writeConfig({ theme: null });
+  reconcileConfig();
+  assert.equal(radius.chrome, 3, "the setting holds without a theme");
+  S().updateSettings({ tabCornerRadius: null });
+  assert.equal(radius.chrome, 10);
+  assert.equal(activeLook(), DEFAULT_LOOK);
 });
