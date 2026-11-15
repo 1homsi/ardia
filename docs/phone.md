@@ -41,6 +41,18 @@ forward.
   sends both on one `onPageEvent` channel; the wrapper splits them.
 - Handle: `loadUrl`, `goBack`, `goForward`, `reload`, `stopLoading`. `closePage(pageId)` ends a page.
 
+**What the Codex review of 15 November changed** (Android).
+- A page's picture is published by generation (`<stem>-<generation>-WxH.jpg`), so a newer capture always wins. Its
+  decoded bitmap stays pinned in Fresco's cache under the file's URI until the JPEG lands, then
+  `page.snapshotLanded` announces it. The tab's saved row keeps the last durable URI until then (fb35ea88d native,
+  ddb3463ad JS).
+- A closed page's pictures are cleaned up by the page's lifetime, not its id, so a reopened id never loses a live
+  page's files (fb35ea88d).
+- Android's camera, microphone or location dialog is raised only for the page on screen (activity resumed, page
+  view at least half visible), one at a time, and a closed page's ask is dropped. An ask lost to activity
+  recreation or a JS reload is asked again: the first answer wins, and one granted in the meantime skips the dialog.
+  An unanswered request is sent again when JS reopens a page it was already watching (07fca2a67).
+
 `browser`'s `Omnibox.kt` (the ScriptEngine bridge) and `PageSurface.kt` (Compose) are left out of the module's build:
 the Expo app calls `@ardia/core` itself and hosts the page's view natively.
 
@@ -136,6 +148,18 @@ The Expo app has the Compose app's entry points (`docs/android.md`), from its ow
   `FileChooserPlan`); the answers `takePhoto` and `recordVideo` capture through the shared capture provider.
 - **Open App Links In.** A global default (`pages.appLinksDefault`, `setAppLinksDefault`) with each site on,
   off or following it (`setOpensLinksInApps(host, null)`).
+
+**What the Codex review of 15 November changed.**
+- A share sent with Ardia cold waits for sync to load before it gives up. It is recorded before the wait, and a
+  WorkManager job resumes it if the process dies. The sheet's ViewModel holds one key, so rotation never sends
+  twice. Only sane extras are read (e8b5c7798).
+- Native counts, such as the share sheet's tabs_sent, are kept only while usage sharing is on and within its
+  consent generation. Turning sharing off clears them, and handing them to JS can lose a count but never double one
+  (61df46a9a native; JS tells native the choice at start and on each change, 20e253b30).
+- The tray's back callback is released with its module and rebound after activity recreation (8a9692af3). JS
+  enables it only while nothing covers the tray (f7b1b8f87).
+- The R8 name check finds Room's `WorkDatabase_Impl` constructor as one `<init>` method record with a `()V`
+  descriptor (998f62979).
 
 #### Entry points tester script (lab build)
 
@@ -582,6 +606,32 @@ off in the lab`.
     from the screen's edge: the tray moves down with the finger, up to 72 dp. Let go early: it springs back and
     stays open. Swipe all the way: it closes as Back did before. With the tray closed, Back works as before
     everywhere else (menus, dialogs, the Archive). Before Android 14, Back simply closes the tray.
+62. **A cold share** (from sync20). Signed in, force-stop Ardia. In Chrome, open a page, then Share › Ardia › Send
+    to Your Mac. "Sent to …" shows and the tab reaches the Mac although Ardia wasn't running. Share the same page
+    again: the Mac gets one tab for each share, never two.
+63. **A rotation in the middle of a send** (from sync20). Share › Ardia, tap Send to Your Mac and rotate the phone
+    at once. The sheet comes back in the new orientation, and the Mac gets exactly one tab. Repeat with Ardia
+    force-stopped first.
+64. **Back with a menu or voice search over the tray** (from sync20). Open the tray, long-press a row so its menu
+    opens, then press or swipe Back: the menu closes and the tray stays open; Back again closes the tray. A slow
+    predictive-back swipe with the menu open doesn't drag the tray. The same with voice search open over the tray:
+    Back closes voice search first.
+65. **A camera request from a background tab** (from sync20). On a fresh install with no camera permission, open
+    webcamtests.com in tab A and start the test, then switch to tab B before Android's dialog shows. No Android
+    dialog while tab B is in front. Go back to tab A: Android's camera dialog comes up now, and the site's dialog
+    follows once it is allowed. Close tab A while its request waits: nothing asks. Rotate while Android's dialog is
+    up and answer it: the site's dialog still follows (or the request ends, if refused). The lab log has
+    `PAGELAB page request camera from a page not on screen: Android is asked once the page shows`.
+66. **A deck open right after a page paints** (from sync20). Load a page and open the deck the moment it paints.
+    The card shows that page's picture at once, from memory, not an older one or a blank. The lab log then has
+    `PAGELAB snapshot <id> landed in N ms: generation G`. Close and reopen the deck: the same picture, with no flash
+    back to an older one.
+67. **The budget line's two shares** (from sync20). After a fresh install or cleared data, open the deck and leave
+    it idle for 4 s. The Look section's budget line gives two shares: work plus other main-thread work, and beside
+    it the whole-frame share as judged through sync17b. Drag a card or open a sheet during the sample: the line
+    says the sample was dropped, with the number of frames something other than the backdrop drew, or of frame
+    reports lost, and nothing is stored. An idle sample must still come out conclusive. If it never does, report
+    the line: the foreign-frame check is too eager.
 
 #### R8 pass (sync19-r8 and later R8 builds)
 
@@ -955,11 +1005,23 @@ it once and turns the look down if it can't; the system settings always come fir
   deadline, share missed) and can force full, force degraded, go back to measured, or reset. Lab builds log
   `PAGELAB look budget over|within|inconclusive: …` for each sample.
 
+**What the Codex review of 15 November changed.**
+- A sample has one owner. A new one cancels the old one, whose late timer touches nothing. The sampler chains onto
+  any Printer already on the main Looper and puts it back after. Setup that throws cleans up and answers once. JS
+  cancels a running sample when the probe stops. A sample that lost a frame report decides nothing (4e77b8375).
+- A frame is the backdrop's own only when no other view asked for it. Every traversal walks the views the backdrop
+  doesn't explain, meaning anything other than itself, the views it just put on layers, its frosts and their
+  parents. Any of those that is dirty, or that moved, scrolled or changed alpha since the last traversal, makes
+  the frame foreign. RenderThread-only animations such as ripples stay unseen (61b71906b).
+- The ticks stop and the resting layers are released when the deck is hidden or its activity stops, the look is
+  off, reduce motion, reduce transparency or a degraded budget stills it, or the hidden app releases the look, not
+  only on detach (61b71906b).
+
 Shared and per-phone parts:
 - Shared, in TypeScript (`packages/phone/src/lookBudgetRules.ts`): judging a sample, the two-sample agreement,
   the verdict per version, the re-measure, the system settings, the telemetry enum and the probe's timing (skip,
   idle only, one per open). `lookBudget.ts` keeps the state and gives the hook and the lab their calls.
-- Each phone supplies four calls on `ArdiaPhoneLook`, and makes its look views read the stored `apply`
+- Each phone supplies five calls on `ArdiaPhoneLook`, and makes its look views read the stored `apply`
   ("full" or "degraded") when they are built:
   - `sampleFrames(ms)`: resolves `{ totals, deadlines, refreshMs? }`, one entry per frame the app drew in that
     window, in milliseconds, and the display's refresh interval read at the start (Android:
@@ -969,7 +1031,9 @@ Shared and per-phone parts:
   - `lookBudget()`: `{ state, version, forced }`, the stored state as JSON text, the app's version (with the
     build commit, so a lab build counts as an update) and a lab force or null;
   - `setLookBudget(state)` stores the JSON;
-  - `forceLookBudget("full" | "degraded" | null)`, lab builds only.
+  - `forceLookBudget("full" | "degraded" | null)`, lab builds only;
+  - `cancelSampleFrames()` ends a running sample, which then resolves null. A sample also carries `foreignFrames`,
+    `waits`, `tickMs`, `mainThreadMs` and `droppedReports` where the phone has them.
   Android has all of it (`LookBudget.kt`); the iPhone half is not built yet.
 
 ## Telemetry
