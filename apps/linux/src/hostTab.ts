@@ -153,6 +153,16 @@ export class HostTab {
     });
   }
 
+  shownViewport(): TabViewport | undefined {
+    if (!this.lastViewport || this.nextViewport || this.viewportSend) return undefined;
+    const viewport = JSON.parse(this.lastViewport) as TabViewport;
+    return viewport.visible ? viewport : undefined;
+  }
+
+  presentsNow() {
+    return !this.disposed && !!this.identity && !this.viewportSend && claims.get(this.host)?.get(this.key) === this;
+  }
+
   detach() {
     if (this.releaseScheduled) return;
     this.releaseScheduled = true;
@@ -173,4 +183,25 @@ export class HostTab {
     this.unsubscribe();
     this.detach();
   }
+}
+
+export function showInPlaceOf(from: HostTab, to: HostTab): boolean {
+  const viewport = from.shownViewport();
+  if (!viewport || from.host !== to.host || !from.presentsNow() || !to.presentsNow() || to.shownViewport()) return false;
+  const shown: TabViewport = { rect: viewport.rect, visible: true };
+  const hidden: TabViewport = { rect: viewport.rect, visible: false };
+  const send = (method: string, args: Record<string, unknown>, undo: () => void) => {
+    void new Promise((resolve) => resolve(to.host.invoke(method, args))).catch((error: unknown) => {
+      undo();
+      console.error("[ardia host] early tab switch failed", error);
+    });
+  };
+  to.lastViewport = JSON.stringify(shown);
+  from.lastViewport = JSON.stringify(hidden);
+  const toId = to.identity!.browserId;
+  const fromId = from.identity!.browserId;
+  send("tab.presentations", { tabs: [{ id: toId, claim: to.claim, visible: true }, { id: fromId, claim: from.claim, visible: false }] }, () => {});
+  send("tab.viewport", { id: toId, claim: to.claim, ...shown }, () => { if (to.lastViewport === JSON.stringify(shown)) to.lastViewport = ""; });
+  send("tab.viewport", { id: fromId, claim: from.claim, ...hidden }, () => { if (from.lastViewport === JSON.stringify(hidden)) from.lastViewport = ""; });
+  return true;
 }
