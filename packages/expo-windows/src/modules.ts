@@ -1,3 +1,4 @@
+import type { OpenWindowOptions } from "@ardia/shell";
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { windowsMotion } from "./animation/motion";
 import { addNativeListener, type EventSubscription } from "./events";
@@ -40,7 +41,7 @@ const around: Record<string, Record<string, (native: Call) => Call>> = {
   ArdiaAppWindows: {
     openWindow: (native) => (id, options) => {
       setWindowDark(String(id), !!(options as { incognito?: unknown } | null)?.incognito);
-      noteAppWindow(String(id), (options as { kind?: string } | null)?.kind);
+      noteAppWindow(String(id), (options as OpenWindowOptions | null)?.kind);
       return native(id, options);
     },
   },

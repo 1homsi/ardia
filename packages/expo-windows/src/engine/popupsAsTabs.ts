@@ -1,4 +1,5 @@
 import type { OpenWindowRequest } from "@ardia/ardiacore";
+import type { OpenWindowOptions, WindowEvent } from "@ardia/shell";
 import { addNativeListener, type EventSubscription } from "../events";
 import { requestHost, type RequestPage } from "./requestHosts";
 
@@ -10,12 +11,12 @@ export function setPopupsOpenAsTabs(enabled: boolean) {
   popupsOpenAsTabs = enabled;
 }
 
-export function noteAppWindow(windowId: string, kind: string | undefined) {
+export function noteAppWindow(windowId: string, kind: OpenWindowOptions["kind"]) {
   if (kind !== "small") return void littleArdiaWindows.delete(windowId);
   littleArdiaWindows.add(windowId);
   windowCloses ??= addNativeListener("ArdiaAppWindows", "onWindowEvent", (payload) => {
-    const event = payload as { type?: unknown; id?: unknown } | null;
-    if (event?.type === "close" && typeof event.id === "string") littleArdiaWindows.delete(event.id);
+    const event = payload as WindowEvent | null;
+    if (event?.type === "close") littleArdiaWindows.delete(event.id);
   });
 }
 

@@ -586,7 +586,7 @@ test("with pop-ups as tabs on, a pop-up from a pop-up window opens as a tab besi
 });
 
 test("with pop-ups as tabs on, a pop-up from Little Ardia stays a pop-up window, as on the Mac", async () => {
-  assert.match(windowsSource("modules.ts"), /openWindow: \(native\) => \(id, options\) => \{\n(?:.*\n){0,2}\s+noteAppWindow\(String\(id\), \(options as \{ kind\?: string \} \| null\)\?\.kind\);\n(?:.*\n){0,2}\s+return native\(id, options\);/);
+  assert.match(windowsSource("modules.ts"), /openWindow: \(native\) => \(id, options\) => \{\n(?:.*\n){0,2}\s+noteAppWindow\(String\(id\), \(options as OpenWindowOptions \| null\)\?\.kind\);\n(?:.*\n){0,2}\s+return native\(id, options\);/);
   noteAppWindow("little-ardia-1", "small");
   const events = [];
   const unmount = mountPage("little-page", { url: "https://app.example/", profile: "p-work", windowId: "little-ardia-1" }, (name, data) => events.push([name, data]));
