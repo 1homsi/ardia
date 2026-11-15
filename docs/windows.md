@@ -271,8 +271,9 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   while the UI holds Escape (`captureEscape` in `platform/focus.ts`, for a page popover, a sidebar or bookmarks bar
   drag, and on Windows the Downloads popover too), `ArdiaFocus.setDragEscapeCapture` (`FocusModule.h`) has the
   keyboard hook in `MenuKeyboard.h` take a bare Escape in an Ardia window and send `dragEscape`. While the tab
-  switcher is open the hook takes every key, as on the Mac: Escape and the left and right arrows go to the switcher
-  and its own shortcut still runs. The launch log says `keys escape capture on|off` and
+  switcher is open the hook takes every key, as on the Mac: Escape and the left and right arrows go to the switcher,
+  W with Ctrl held (with or without Shift, never with Alt or as a key repeat) closes its highlighted row, and its own
+  shortcut still runs. The launch log says `keys escape capture on|off` and
   `keys escape sent to the open popover or drag`. The Mac's Downloads popover does not close on Escape yet
   (`PLATFORM_FEATURES.escapeClosesDownloads` is off there).
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
