@@ -1,8 +1,7 @@
 import { createElement, useCallback, useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { Pressable, Text, View, type NativeSyntheticEvent, type ViewStyle } from "react-native";
 import type { PageEvent } from "@ardia/ardiacore";
-import type { CaptionRegion, SymbolProps, WindowEvent, WindowControlsNative } from "@ardia/shell";
-import type { EventSubscription } from "../events";
+import type { CaptionRegion, SymbolProps, WindowControlsNative, WindowsNative } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 import { Symbol } from "../symbol/Symbol";
 import { useAppDark } from "../views/appearance";
@@ -11,7 +10,7 @@ import { callPage, followPage, pageOpened } from "./pages";
 import { POPUP_CAPTION_HEIGHT, POPUP_ORIGIN_STRIP_HEIGHT, popupOriginText, popupSecurity, popupTitle, type PopupSecurity } from "./popupPlacement";
 import { closePopupWindow, popupWindowInfo, requestPopupClose, setPopupWindowTitle, type PopupWindowInfo } from "./popupWindows";
 
-type Controls = WindowControlsNative & { addListener(name: "onWindowEvent", listener: (event: WindowEvent) => void): EventSubscription };
+type Controls = WindowControlsNative & Pick<WindowsNative, "addListener">;
 
 const controls = () => requireNativeModule<Controls>("ArdiaAppWindows");
 
