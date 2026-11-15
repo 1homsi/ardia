@@ -12,6 +12,9 @@
     },
     "ios": {
       "bundleIdentifier": "com.ardia.browser.ios"
+    },
+    "experiments": {
+      "tsconfigPaths": false
     }
   }
 }
