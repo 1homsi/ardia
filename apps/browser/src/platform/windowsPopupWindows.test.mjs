@@ -379,3 +379,116 @@ test("a lone pop-up's tab whose adoption fails, because its window closed first,
   }
   await popup.done();
 });
+
+async function popupOfMovedOpener(adopt, from = "p-work", to = "p-home") {
+  const key = `moved-${adopt}`;
+  const unmountFirst = mountPage(key, { url: "https://app.example/", profile: from, windowId: "main" }, () => {});
+  await settle();
+  emitTopic("tab.opened", { adopt, url: "https://auth.example/login", foreground: true, window: true, opener: key, profile: from, parent: "", fromClick: false, popup: {} });
+  await settle();
+  const made = opened.at(-1);
+  const info = popupWindowInfo(made.id);
+  const unmountPopupPage = mountPage(info.pageKey, { url: "", profile: from, adopt: info.adopt, windowId: made.id }, () => {});
+  await settle();
+  unmountFirst();
+  const inMoved = [];
+  const unmountMoved = mountPage(key, { url: "https://app.example/", profile: to, windowId: "main" }, (name, data) => inMoved.push([name, data]));
+  await settle();
+  return {
+    info,
+    made,
+    inMoved,
+    done: async () => {
+      unmountMoved();
+      unmountPopupPage();
+      turboModules.ArdiaAppWindows.closeWindow(made.id);
+      await settle();
+    },
+  };
+}
+
+test("opener moved to another profile: a tab its pop-up opens, with the pop-up profile's offered tab, never reaches the opener's page in the new profile", async () => {
+  const popup = await popupOfMovedOpener("ardiacore:80");
+  const before = windowRequests.length;
+  emitTopic("tab.opened", { adopt: "ardiacore:81", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
+  await settle();
+  assert.equal(popup.inMoved.filter(([name]) => name === "openWindow").length, 0, "the moved opener's page, now in another profile, gets nothing");
+  const sent = windowRequests.slice(before);
+  assert.equal(sent.length, 1, "it goes to a browser window of the pop-up's own profile instead");
+  assert.equal(sent[0].profile, "p-work");
+  assert.equal(sent[0].request.adoptId, "ardiacore:81");
+  await popup.done();
+});
+
+test("opener moved to another profile: a tab its pop-up opens goes to a listening page of the pop-up's profile when one is showing", async () => {
+  const popup = await popupOfMovedOpener("ardiacore:82");
+  const inWork = [];
+  const unmountWork = mountPage("work-page-82", { url: "https://work.example/", profile: "p-work", windowId: "work-window" }, (name, data) => inWork.push([name, data]));
+  await settle();
+  emitTopic("tab.opened", { adopt: "ardiacore:83", url: "https://help.example/", foreground: true, window: false, opener: popup.info.pageKey, profile: "p-work", parent: "", fromClick: false });
+  await settle();
+  assert.equal(popup.inMoved.filter(([name]) => name === "openWindow").length, 0);
+  assert.equal(inWork.filter(([name]) => name === "openWindow").at(-1)?.[1].adoptId, "ardiacore:83");
+  unmountWork();
+  await popup.done();
+});
+
+test("opener moved to another profile: a link its pop-up opens in a new window goes to the pop-up's profile, not the opener's new one", async () => {
+  const popup = await popupOfMovedOpener("ardiacore:84");
+  const before = windowRequests.length;
+  emitTopic("tab", { key: popup.info.pageKey, name: "openWindow", data: { url: "https://help.example/split", disposition: "window", userGesture: true } });
+  await settle();
+  assert.equal(popup.inMoved.filter(([name]) => name === "openWindow").length, 0);
+  const sent = windowRequests.slice(before);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].profile, "p-work");
+  assert.equal(sent[0].request.url, "https://help.example/split");
+  await popup.done();
+});
+
+test("opener moved to another profile: an app-link ask from its pop-up is never shown on the opener's page in the new profile", async () => {
+  const forgotten = [];
+  answerExternalAppsWith({ ask: async () => ({ id: "moved-ask", url: "ardiatest:hello" }), forget: (id) => forgotten.push(id), forgetPage: () => {} });
+  const popup = await popupOfMovedOpener("ardiacore:85");
+  emitTopic("tab", { key: popup.info.pageKey, name: "externalApp", data: { id: "e2", url: "ardiatest:hello" } });
+  await settle();
+  assert.equal(popup.inMoved.filter(([name]) => name === "externalApp").length, 0, "the other profile's page never shows it");
+  assert.deepEqual(forgotten, ["moved-ask"], "with no page of the pop-up's profile, the ask is forgotten");
+  await popup.done();
+});
+
+test("an offered tab whose profile isn't its opener page's, as when the tab moved profiles while the engine was opening it, never reaches that page", async () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  const inMoved = [];
+  const unmount = mountPage("moved-direct", { url: "https://app.example/", profile: "p-home", windowId: "main" }, (name, data) => inMoved.push([name, data]));
+  await settle();
+  emitTopic("tab.opened", { adopt: "ardiacore:86", url: "https://help.example/", foreground: true, window: false, opener: "moved-direct", profile: "p-work", parent: "", fromClick: true });
+  await settle();
+  console.warn = warn;
+  assert.equal(inMoved.filter(([name]) => name === "openWindow").length, 0);
+  assert.ok(discarded("ardiacore:86"), "with no page of its profile, the offered tab is closed");
+  unmount();
+});
+
+test("a private pop-up still reaches its opener: a tab it opens goes to the opener page of its private session", async () => {
+  const profile = "p-work@private-4";
+  const inOpener = [];
+  const unmount = mountPage("private-opener-87", { url: "https://app.example/", profile, windowId: "main" }, (name, data) => inOpener.push([name, data]));
+  await settle();
+  emitTopic("tab.opened", { adopt: "ardiacore:87", url: "https://auth.example/login", foreground: true, window: true, opener: "private-opener-87", profile, parent: "", fromClick: false, popup: {} });
+  await settle();
+  const made = opened.at(-1);
+  const info = popupWindowInfo(made.id);
+  const unmountPopupPage = mountPage(info.pageKey, { url: "", profile, adopt: info.adopt, windowId: made.id }, () => {});
+  await settle();
+  emitTopic("tab.opened", { adopt: "ardiacore:88", url: "https://help.example/", foreground: true, window: false, opener: info.pageKey, profile, parent: "", fromClick: false });
+  emitTopic("tab", { key: info.pageKey, name: "openWindow", data: { url: "https://help.example/new", disposition: "window", userGesture: true } });
+  await settle();
+  const asked = inOpener.filter(([name]) => name === "openWindow").map(([, data]) => data.adoptId ?? data.url);
+  assert.deepEqual(asked, ["ardiacore:88", "https://help.example/new"]);
+  unmountPopupPage();
+  unmount();
+  turboModules.ArdiaAppWindows.closeWindow(made.id);
+  await settle();
+});

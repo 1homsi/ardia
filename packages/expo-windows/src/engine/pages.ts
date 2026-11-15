@@ -89,7 +89,7 @@ function askExternalApp(page: Page, data: unknown) {
 const sendTo = (name: string, data: unknown) => (host: RequestPage) => [...host.listeners].forEach((listener) => listener(name, data));
 
 function handOpenedTab(asking: Page | undefined, opener: Page | undefined, request: OpenedRequest) {
-  const host = requestHost(opener, request.profile, pages.values());
+  const host = requestHost(opener, request.profile ?? asking?.profile, pages.values());
   if (host) return sendTo("openWindow", request)(host);
   const discard = () => quietly(hostCall("tab.discard", { adopt: request.adoptId }));
   if (asking && isPopupWindowId(asking.windowId)) return openInBrowserWindow(request, request.profile ?? asking.profile, asking.windowId, discard);

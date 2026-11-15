@@ -564,7 +564,12 @@ is plain Chromium.
   owns the decision, so a background tab it keeps for later stays; an offer nobody acknowledged within 30 s (4 s in a
   test instance) is closed, whatever lost it.
 - What a pop-up's page asks for goes to one place, `requestHost` (`engine/requestHosts.ts`): its opener's page while
-  that page is listening, else a browser page of its profile, else nobody. With nobody, a tab or link the pop-up opens
+  that page is listening and in the request's profile, else a browser page of that profile, else nobody. The profile
+  test is `takerOfOpenedTab`'s: the same name, or for a private request a private page of the same original profile.
+  An opener whose tab moved to another profile keys a new page in that profile while its pop-up stays in the old
+  one, so the opener's page is passed over and the pop-up's tabs, links and app-link asks never cross profiles. A
+  page's own offered tab takes the same test, for a tab that changed profile while the engine was opening one from
+  it. With nobody, a tab or link the pop-up opens
   reaches the app whole, as the `tabs.windowRequest` engine event (the request with its offered tab, disposition and
   engine profile; the Mac never sends it). The app (`state/tabs/openFromWindowlessPage.ts`) gives it to the most
   recently focused browser window of that profile, with or without a page, through the same `openFromPage` a page's
