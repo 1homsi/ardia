@@ -1,5 +1,5 @@
 {
-  "inputs": "b39e864fb396bd028e509e916f3c1f53b0a669a43481a149e487196903b6842e",
+  "inputs": "84eff2d2918d2f1f866c07fa2841565caa54c9beaa4c59bcffca9a252cdf542b",
   "packages": [
     {
       "name": "@babel/runtime",
@@ -106,12 +106,6 @@
     {
       "name": "expo-modules-core",
       "version": "58.1.0",
-      "license": "MIT",
-      "url": "https://github.com/expo/expo"
-    },
-    {
-      "name": "expo-navigation-bar",
-      "version": "58.0.4",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
