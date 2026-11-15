@@ -43,6 +43,15 @@ test("a container whose touches switch off is a real view in both states, so the
   assert.deepEqual(offenders, []);
 });
 
+test("a container whose touches switch off also leaves the accessibility tree while they are off, on both phones, so a real view left over the screen never hides what is under it from a screen reader", () => {
+  const offenders = sources(SRC).flatMap((file) =>
+    openingTags(readFileSync(file, "utf8"))
+      .filter((tag) => togglesTouchesOff(tag) && !(/\baccessibilityElementsHidden=\{/.test(tag) && /\bimportantForAccessibility=\{/.test(tag)))
+      .map((tag) => `${relative(SRC, file)}: ${tag.split("\n")[0]!.trim()}`),
+  );
+  assert.deepEqual(offenders, []);
+});
+
 test("the check reads whole opening tags across lines and sees a switched pointerEvents", () => {
   const [tag] = openingTags('<View\n  style={a}\n  pointerEvents={on ? "box-none" : "none"}\n  collapsable={false}\n>\n  <Text />\n</View>');
   assert.ok(tag!.includes("collapsable={false}"));

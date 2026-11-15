@@ -138,7 +138,7 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
   const shown = sheet ?? presenceShown(presence.current);
   if (!shown) return null;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={sheet ? "auto" : "none"} collapsable={false}>
+    <View style={StyleSheet.absoluteFill} pointerEvents={sheet ? "auto" : "none"} collapsable={false} importantForAccessibility={sheet ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={!sheet}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrim]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
       <GestureDetector gesture={drag}>
         <Animated.View

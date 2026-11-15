@@ -53,19 +53,18 @@ export function SearchTray() {
   }, [target]);
   const shown = target ?? presenceShown(presence.current);
   if (shown === null) return null;
-  const generation = presence.current.generation;
-  const closed = (finished: number) => {
-    const next = presenceSettled(presence.current, finished, true);
+  const closed = () => {
+    const next = presenceSettled(presence.current, presence.current.generation, true);
     if (next === presence.current) return;
     presence.current = next;
     redraw((count) => count + 1);
   };
-  return <TrayLayer key={presentation} session={shown} closing={target === null} generation={generation} onClosed={closed} />;
+  return <TrayLayer key={presentation} session={shown} closing={target === null} onClosed={closed} />;
 }
 
-type LayerProps = { session: number; closing: boolean; generation: number; onClosed: (generation: number) => void };
+type LayerProps = { session: number; closing: boolean; onClosed: () => void };
 
-function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
+function TrayLayer({ session, closing, onClosed }: LayerProps) {
   countRender("TrayLayer");
   const origin = useSearchOrigin();
   const theme = useTrayTheme();
@@ -244,7 +243,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
       }
       for (let polls = 0; polls < TRAY_LIFT.closePolls && keyboardIsUp(keyboard.height.value); polls++) await wait(TRAY_LIFT.closePollMs);
       await wait(TRAY_LIFT.removalDelayMs);
-      if (live) onClosed(generation);
+      if (live) onClosed();
     })();
     return () => {
       live = false;
@@ -307,7 +306,7 @@ function TrayLayer({ session, closing, generation, onClosed }: LayerProps) {
 
   return (
     <DepartContext.Provider value={beginDeparture}>
-    <View testID="trayRoot" style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"} collapsable={false}>
+    <View testID="trayRoot" style={StyleSheet.absoluteFill} pointerEvents={closing ? "none" : "box-none"} collapsable={false} importantForAccessibility={closing ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={closing}>
       <Animated.View testID="trayDim" style={[StyleSheet.absoluteFill, dimStyle]}>
         <Pressable
           accessibilityLabel="Close Search"

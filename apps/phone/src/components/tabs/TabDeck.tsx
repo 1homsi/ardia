@@ -713,7 +713,7 @@ export const TabDeck = memo(function TabDeck() {
           )
         ) : null}
         {redesigned ? (
-          <Animated.View style={[StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false}>
+          <Animated.View style={[StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
             <DeckHeader
               safeTop={g.safeTop}
               safeSide={0}
@@ -735,13 +735,13 @@ export const TabDeck = memo(function TabDeck() {
             />
           </Animated.View>
         ) : privateCount > 0 ? (
-          <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false}>
+          <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
             <IncognitoChip count={privateCount} top={g.safeTop} onPress={() => setMenu("chip")} />
           </Animated.View>
         ) : null}
         {redesigned ? null : (
           <Animated.View
-            pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false}
+            pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}
             style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }, chromeStyle]}
           >
             <DeckBar

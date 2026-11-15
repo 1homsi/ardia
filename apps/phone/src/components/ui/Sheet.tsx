@@ -124,6 +124,8 @@ export function Sheet({ open, onDismiss, onHidden, fill, children }: Props) {
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents={open ? "box-none" : "none"} collapsable={false}
+      importantForAccessibility={open ? "auto" : "no-hide-descendants"}
+      accessibilityElementsHidden={!open}
     >
       <Animated.View style={[StyleSheet.absoluteFill, dim]}>
         <Pressable

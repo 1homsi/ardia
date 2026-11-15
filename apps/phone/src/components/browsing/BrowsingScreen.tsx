@@ -128,6 +128,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
             <Animated.View
               pointerEvents={collapse.hidden ? "none" : design === "redesigned" ? "box-none" : "auto"} collapsable={false}
               importantForAccessibility={collapse.hidden ? "no-hide-descendants" : "auto"}
+              accessibilityElementsHidden={collapse.hidden}
               style={[styles.bar, { height: barHeight(insets.bottom, design) }, underBar ? null : barStyle, collapse.style]}
             >
               {design === "redesigned" ? (
