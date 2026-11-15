@@ -25,8 +25,8 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 74 rows, 51 work, 8 work with a difference, 4 do nothing, 7 are not offered
-and 4 were not walked. Works with a difference says
+who and on which build. Of the 74 rows, 54 work, 8 work with a difference, 4 do nothing, 7 are not offered
+and 1 was not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
 
@@ -63,11 +63,11 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
 | Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works. The pale box once left over the page's top-left came from visiting a second profile, not from Ctrl+S: the next profile's sidebar page, parked beside the sidebar, cut a hole in the page. Gone on d83398e1f, on a full-width tab and a split pane. With tabs across the top (72901e27a), the open and recently closed tabs button and New Tab stay clear of the caption buttons down to the narrowest window (600 px), where tabs scroll instead, and a right-click on the empty strip opens the tab menu | #1673, #1583 |
-| Minimalism mode (Ctrl+Alt+M) | Not walked: ported in #1831, which puts the window buttons in the band, the sidebar header or the tab strip in each of five layouts (`captionLayout.test.mjs`); nobody has seen it in the VM yet | #1831 |
+| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; the top edge does not resize where the page reaches it (sidebar right), because the page window sits above the caption region | #1831, #1888 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
-| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here) | #1531, #1708 |
+| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here). Its buttons at the top, left and right (53d5a2bee, walked 2026-11-14) are app UI over the page with a clean cut, answer clicks, include Split View's, and the tooltip reads "Open as Tab (Ctrl+O)" | #1531, #1576, #1708 |
 | A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
 | Pop-up windows from pages | Works: the pop-up stays a tab of its opener's window, so `window.opener` and `postMessage` keep working, and shows in a pop-up window the app draws, sized and placed as the page asked | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
@@ -80,14 +80,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Inline completion in the command bar | Works (top match completes inline) | #1520 |
 | Find in page | Works: the app's find bar, from a page or the app's UI (Ctrl+F); count, Enter, Shift+Enter, F3 and Shift+F3 step; Escape gives the page the keyboard back; private windows too | #1758 |
 | Page loading in the address field | Works (#1865's build 0bcabc63e, run 43642845254, 125%): while a slow page loads the glow fills the toolbar field, a Split View pane's field, a Peek's bar and Little Ardia's field, sweeps across when the load ends and fades; a load under 150 ms shows nothing; the tab's spinner and the stop button as before | #1820 |
-| Reading mode (Ctrl+Alt+R, F9) | Not walked: it draws the article inside the page through `evaluate`, which Windows forwards; nobody has seen it in the VM yet | #1831 |
+| Reading mode (Ctrl+Alt+R, F9) | Works (53d5a2bee, walked 2026-11-14): it draws on a local article and on Wikipedia; Larger Text and the font switch work, Escape leaves it, F9 and Ctrl+Alt+R toggle it and it stays across a tab switch. A reload leaves it, as on the Mac. Find in page finds nothing inside it, as the shared reader keeps the article in a closed shadow root | #1831, #1883 |
 | Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
 | Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
 | JavaScript alert, confirm and prompt | Works (Chromium's dialogs over the page) | |
 | Page, link and image menus | Differs: Chromium's (Reload, Save as, Print, Cast, View page source, Inspect) | #1518 |
 | Full-screen (a page element) | Works; Escape leaves it | |
 | Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
-| Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it; Ctrl+J opens it | #1519 |
+| Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it, including one held for Keep; Ctrl+J opens it and Escape closes it (53d5a2bee, walked 2026-11-14) | #1519, #1610 |
 | History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works | |
 | Bookmarks (Ctrl+D, Ctrl+Shift+O) | Works | |
 | mailto and other app links | Works: the app's prompt, then the handler (`mailto` opens the mail app without a prompt, as Chromium and the Mac allow it by default). The engine thread saw the prompt and the handler in the VM on build 347 of #1701; not walked here. The first click on the prompt works after using the page since #1749, and a data: page's prompt stops counting once its document is gone since #1750 (engine `-22`); the engine thread saw the first in the VM and the self-check proves the second on both CPUs. | #1590, #1701, #1749, #1750 |
@@ -118,7 +118,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Settings window, panes, search | Works (all twelve panes; search finds rows and opens their pane) | |
 | Profiles: create, switcher | Works | |
 | Appearance: light and dark | Works | |
-| Higher contrast text | Not walked: Automatic follows a Windows contrast theme through `AppTheme`; nobody has seen it in the VM yet | #1831 |
+| Higher contrast text | Works (403b48b2c, walked 2026-11-14): Automatic follows a Windows contrast theme turned on while the app runs and one already on at launch, through the shell's `isHighContrast` and its `highContrast` event (react-native-windows' `AppTheme` is UWP-only and always read off). Changing the theme while Settings is open can crash the window layer, on older builds too | #1831, #1882, #1900 |
 | Keyboard Shortcuts pane | Works, Windows keys | |
 | "…" menu | Works, except Check for Updates | #1517 |
 | Sync | Works: Turn On Sync at the default folder shows the Recovery Kit, the pane says updated just now, every What Syncs row but Passwords; a Mac and a PC exchanged pinned tabs and bookmarks both ways (#1594) | #1575, #1425 |

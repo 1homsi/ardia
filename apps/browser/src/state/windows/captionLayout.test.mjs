@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { cardCaptionRoom, cardTopInset, sidebarCaptionRoom, captionRegions, windowControlsPlace, windowControlsBottom, sidebarHeaderCollapsed, downloadsInSidebarFooter, collapsedSidebarHeader } = await import("./layout.ts");
+const { cardCaptionRoom, cardTopInset, sidebarCaptionRoom, captionRegions, windowControlsPlace, windowControlsBottom, sidebarHeaderCollapsed, downloadsInSidebarFooter, collapsedSidebarHeader, pageFrameIn } = await import("./layout.ts");
+const { toolbarRowOf } = await import("../../lib/toolbarRow.ts");
 const { SMALL_BAR_HEIGHT, SMALL_WINDOW_BAR_HEIGHT } = await import("./small.ts");
 const windows = (await import("../../lib/platformChrome.windows.ts")).WINDOW_CHROME;
 const mac = (await import("../../lib/platformChrome.ts")).WINDOW_CHROME;
@@ -232,4 +233,16 @@ test("Minimalism's frameless page leaves no full-width caption gutter over the c
   const regions = captionRegions(state({ minimalismMode: true }), "w", false, windows);
   assert.equal(regions.length, 1);
   assert.ok(regions[0][0] < 0, "only the buttons' own region, counted from the trailing edge");
+});
+
+test("in Borderless mode the window buttons sit on the toolbar's row at the window's top edge, and the gap beside them drags from the same row (#1892)", () => {
+  for (const compactToolbar of [false, true]) {
+    const s = state({ borderlessMode: true, compactToolbar });
+    assert.equal(pageFrameIn(s, "w"), 0);
+    const at = windowControlsPlace(s, "w", pageFrameIn(s, "w"), windows);
+    const row = toolbarRowOf(compactToolbar);
+    assert.deepEqual([at.host, at.centerY, at.size], ["toolbar", row.center, row.button], `compact ${compactToolbar}`);
+    const spaces = captionRegions(s, "w", false, windows);
+    assert.deepEqual(spaces.map(([, top, , height]) => [top, height]), [[0, windowControlsBottom(at)]], `compact ${compactToolbar}: the gap's caption region ends with the buttons' row, and no gutter`);
+  }
 });

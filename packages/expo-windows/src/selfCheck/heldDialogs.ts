@@ -8,8 +8,10 @@ import type { TabEvent } from "./engineHost";
 const LOAD_MS = 8000;
 const STALLED_MS = 3000;
 const SHOWN_MS = 4000;
+const CANCELLED_WITHIN_MS = 1000;
+const GIVE_UP_MS = 3000;
 
-const dialogs = () => requireNativeModule<Pick<DialogsModule, "openCount" | "devHoldConfirm" | "devReleaseDialogs">>("ArdiaDialogs");
+const dialogs = () => requireNativeModule<Pick<DialogsModule, "openCount" | "shownCount" | "devHoldConfirm" | "devHoldFileDialog" | "devReleaseDialogs">>("ArdiaDialogs");
 const windows = () => requireNativeModule<Pick<WindowsNative, "windowIds">>("ArdiaAppWindows");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -63,7 +65,59 @@ async function countStays(count: number, forMs: number) {
   return true;
 }
 
+async function closesWithin(withinMs: number) {
+  const began = Date.now();
+  while (Date.now() - began < withinMs) {
+    if (dialogs().openCount() === 0) return Date.now() - began;
+    await settled(20);
+  }
+  return null;
+}
+
+async function dialogWindowShown(withinMs: number) {
+  for (let waited = 0; waited < withinMs; waited += 50) {
+    if (dialogs().shownCount() > 0) return true;
+    await settled(50);
+  }
+  return false;
+}
+
+type CancelWhen = "shown" | "atOnce";
+
+async function heldFileDialogCancels(save: boolean, when: CancelWhen) {
+  const kind = save ? "save panel" : "file picker";
+  const [windowId] = await windows().windowIds();
+  expectTrue(windowId, "no window is open to own the held file dialog");
+  const held = dialogs().devHoldFileDialog(windowId, save);
+  try {
+    expectTrue(await heldConfirmShown(), `the held ${kind} never started`);
+    if (when === "shown") expectTrue(await dialogWindowShown(SHOWN_MS), `the held ${kind} never showed its window`);
+    const shownAtCancel = dialogs().shownCount() > 0;
+    dialogs().devReleaseDialogs();
+    const took = await closesWithin(CANCELLED_WITHIN_MS);
+    expectTrue(took !== null, `the ${kind} was still open ${CANCELLED_WITHIN_MS} ms after its cancel`);
+    console.info(`[ardia windows] held ${kind}, ${shownAtCancel ? "its window shown" : "still starting"} at its cancel, closed ${took} ms after it`);
+    expectTrue(dialogs().shownCount() === 0, `the ${kind}'s window is still recorded as shown after it closed`);
+    expectTrue((await held) === false, "the cancelled dialog reported a pick");
+  } finally {
+    dialogs().devReleaseDialogs();
+    await Promise.race([held, settled(GIVE_UP_MS)]);
+  }
+}
+
 export const checks: Check[] = [
+  {
+    name: "a file picker the app cancels (as at quit) once its window shows closes at once, so a quit with one open needn't wait",
+    run: () => heldFileDialogCancels(false, "shown"),
+  },
+  {
+    name: "a save panel the app cancels once its window shows closes at once too",
+    run: () => heldFileDialogCancels(true, "shown"),
+  },
+  {
+    name: "a file picker the app cancels the moment its thread starts closes too (the log says whether its window had shown by then)",
+    run: () => heldFileDialogCancels(false, "atOnce"),
+  },
   {
     name: "a second dialog for the same window waits until the first closes",
     async run() {
