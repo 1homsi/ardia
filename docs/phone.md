@@ -890,7 +890,7 @@ phone is listed as unverified, even where the code is in. Audited 2026-11-15 at 
 
 Nothing is left in JavaScript. The largest items left are Android's: the fade view's Android half, sync connect
 picking the folder first (shared with iPhone), Send to Your Mac in the share sheet and the tray's predictive back.
-iPhone has nothing left that isn't a decision for the owner. Everything else waits on a phone.
+iPhone follows the SwiftUI app on main since the merge of main (8203d0b3c, 2026-11-15), and main's redesign of that app (a2cf29dac, d199b885c) moved the reference: what iPhone needs now is "The iPhone redesign" below. The audit above predates it.
 
 ### Needs only JavaScript
 
@@ -918,13 +918,47 @@ Nothing left (2026-11-15).
 - Keyboard target at the start of its animation: React Native reports the keyboard's height only once it has stopped, so the first keyboard of a process can't drive the tray's rise (it lands on the 450 ms spring) and a keyboard that changes height drives it from its last height. Needs the IME animation's target height as it starts (`WindowInsetsAnimationCompat.Callback.onStart`'s upper bound), e.g. an `onKeyboardWillChange { target, durationMs }` event on the system module. `TrayPresentation.kt` `KeyboardReader` (`imeAnimationTarget`). Small.
 - Onboarding's step is lost when Android recreates the app; Compose keeps it with `rememberSaveable`. React Native has no saved instance state, so the module would need to hand the activity's saved bundle to JavaScript. `OnboardingView.kt`. Small.
 
-### Needs native code on iPhone
+### The iPhone redesign
 
-Nothing native or in JavaScript is left on iPhone that hasn't a decision against it. What remains needs a real iPhone (next section) or the owner (below).
+Since the merge of main, the reference for iPhone is the SwiftUI app on main, redesigned in a2cf29dac (bar, tabs, page menu, Settings, spaces) and d199b885c (motion). It is built as one design variant chosen in one place: a design value the tokens and layouts read, the new design on iPhone and the current one on Android until the owner decides whether Android takes it too. No scattered platform checks. Android's reference, the Compose app, did not change.
 
-- Wired: the deck bar on `Glass` at the SwiftUI app's position (6e0d72480); Clear Browsing Data passing its range's start (bc85d2cb4); the deck title and the tray's rows on `FadeView` (daa2c0c0a); Default Browser opening the system's default apps page through `defaultBrowser.openDefaultAppsSettings()`, reading the status again when you come back, and moving onboarding on as you leave, as SwiftUI does (f0fbeebcf); Enter Words and Add a List on `PasteButton` where `pasteButtonIsNative()`, 87⅓ × 34⅓ points (SwiftUI's PasteButton at the default text size, measured on the simulator), tinted with the form accent (2a3ba11d5); a link the page opens with Open in Background (`inBackground` on `page.popup`, d10c053d1) becomes a tab beside its opener without being selected (d44966b0b).
-- Simulator re-check at 2fbd950ca: these hold beside the SwiftUI app: the bar's place and glass in light and dark; the deck title fade at the next card; the tray's native bottom fade (the peeking row at contrast 32, SwiftUI's at 39); the system Paste pasting with no question; Open in Background; VoiceOver's action names and the Tabs button's double tap; Last Hour clearing website data modified since an hour ago; an opening card's picture landing 0 px from the live page; the welcome icon. Wired since, and re-checked on the simulator at dd36012eb: the deck bar's glass without the square hairline border, with SF-sized icons, and without the system Reduce Transparency setting passed as the prop (01e752e25); the tray's overflow decided once its rows are measured, so the fade isn't a render late (a47c01441); the paste control at SwiftUI's 87⅓ × 34⅓ points (dd36012eb). The same pass found no blank flash behind the launch tray over three cold starts, no touch reaching a page under an open tray, an even frame cadence when a card opens, and the same poof for a flick close as for a menu close. Default Browser can't run on a simulator: the page is only offered with Apple's web-browser entitlement.
-- For the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes.
+What main changed, by screen:
+- Page bar: three glass pieces instead of the tinted strip. A 48 pt tab-stack circle, an address capsule (favicon or Not Secure, the host, a `···` page menu button) and a 48 pt plus, 8 pt apart, 12 pt from the sides, their bottom 21.5 pt above the edge. Only the pieces take touches; no press scale (`BarControls.swift`, `BrowseTokens.swift`).
+- Page view: the page runs full screen under the bar, with `obscuredContentInsets` (top safe area, bottom 75) so fixed footers sit above the bar (33e8709be, ecdeaefc3). Collapse Bottom Bar shrinks the bar to a 30 pt host pill instead of hiding it; Find and the search panel hide it until the keyboard has gone (`BottomBarVisibility`, 53f7bece6).
+- Page menu: word rows without icons, icon-only Reader, Copy Link and Share capsules, new Print, History, Bookmarks, Downloads and Site Settings rows, Open in Default Browser on its own (`ToolbarSheet.swift`, `Menu/`).
+- Library: one History, Bookmarks and Downloads sheet. History merges this phone's visits with the current space's synced history and remembers deletions per space (`Library/`, `HistoryTimeline.swift`, 68440816a, 6cf89268b).
+- Site permissions: camera, microphone and location answers are saved per site and listed and revocable in Site Settings (`SitePermissions.swift`). On the Expo iPhone they last one launch until that list exists (40c4bff61).
+- Deck: header with the space switcher, an Incognito pill and a `···` menu (Archive, Spaces, New Incognito Tab, Reopen, Close All, Settings); bottom bar of a grid button, Search Tabs and plus; a grid view; a slim Archive capsule under the header; cards about 24 pt lower (`TabSwitcherView.swift`, `DeckChrome.swift`, `TabGridView.swift`, `TabsTokens.swift`, `TabsDeckGeometry.swift`).
+- Start page: no logo; the space switcher at 0.44 of the height, the space's pinned tiles (4 a row, icon only) and page dots; a sideways swipe changes space. In light mode a themed backdrop gets a 34% white veil (`SearchHomeView.swift`, `PinnedTiles.swift`, `ProfileBackdrop.themeVeil`).
+- Tray: a floating glass panel, 8 pt in from the sides and above the keyboard, radius 26; a submitted search lifts it 120 pt and fades it (`SearchTrayHost.swift`).
+- Spaces: tabs belong to one Mac space; the deck, the tab swipe and Switch to Tab show the current space's tabs, and the app takes its colour (`TabSpaces.swift`). The Spaces sheet gets the switcher and page dots.
+- Settings: an Appearance page (colour, Glass or Classic, Light or Dark, each able to match the Mac through the synced `look`); row icons dropped (`AppearancePage.swift`, `InterfaceStyle.swift`, `SyncedLook`).
+- Onboarding: 28 pt bold titles, capsule buttons, rows and tips without icons, faster steps.
+- Look and motion: every glass surface goes through `chromeSurface`, so Classic and Reduce Transparency work everywhere; toasts are glass and follow the appearance. Motion is two to three times faster with nothing bouncing (deck open 190 ms, card open spring 0.18); the tab swipe settles over the space's colour.
+- Not applicable: the iPhone Duo layouts; widgets, extensions, intents and Spotlight (already in step).
+
+Against the old reference, everything was wired and re-checked on the simulator beside the SwiftUI app (2fbd950ca, dd36012eb): the deck bar on `Glass`, `FadeView`, the system Paste, Default Browser, Open in Background, VoiceOver names, Clear Browsing Data by range, the card handover.
+
+The work, most visible first. JS is the screens agent's, native the iPhone agent's. Native wrappers land first, each with a fallback, and the screens agent is told their shape.
+1. Page bar redesign: JS, a day; Classic through `Glass` is native (item 6).
+2. The page under the bar: native `PageView` inset prop, then JS lays the page full screen. Half a day; ships with item 1.
+3. Search as a floating glass panel: JS, half a day.
+4. Start page (switcher, tiles, dots, no logo): JS, a day.
+5. Deck header and bar, Search Tabs, the new geometry: JS, a day.
+6. Spaces filtering, switching, Move to Space: JS only, a day (the sync module already carries every field).
+7. Appearance and Match My Mac: native bridges `look` from sync and gives `Glass` Classic and Reduce Transparency; JS adds the page, the two preferences and applies them to every glass surface. A day and a half.
+8. Page menu redesign: JS, a day. Print: native `print(pageId)` plus a row, a few hours.
+9. Bar collapse to a host pill, waiting for Find and the panel: JS, half a day.
+10. Motion timings and flow: JS, a day.
+11. Library sheet: JS, two to three days. Downloads list, open and delete: native, a day. Sync-cycle flag for history deletions: native, an hour.
+12. Grid view: JS, a day.
+13. Site Settings' saved permissions, listed and revocable: native and JS, half a day to a day; lifts the one-launch guard.
+14. Archive capsule, Spaces sheet, card details, toasts: JS, a day together.
+15. Onboarding and Settings words, fonts and icons: JS, half a day.
+16. The light-mode veil in the JS backdrop fallback and the status-bar ink choice: JS, an hour.
+Telemetry the redesign adds: space switches, Search Tabs, the grid, the appearance choice.
+
+Still for the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes. Apple's web-browser entitlement decides whether Default Browser is offered at all (check 18).
 
 ### Check on your iPhone
 
@@ -987,7 +1021,7 @@ sliding connect screen (e183ff72c).
 - iPhone fullscreen video covers the bottom bar and hides the status bar and home indicator.
 - iPhone Share from the long-press menu is not shown under an open sheet.
 - Android notification permission requests and the download notification compared with Compose's `PageRequests.kt`.
-- Bar collapse spring and travel against Compose's `Motion.barCollapse` and SwiftUI's `BottomBar.swift`.
+- Bar collapse spring and travel against Compose's `Motion.barCollapse`. On iPhone this is stale: main's SwiftUI shrinks the bar to a host pill instead ("The iPhone redesign", item 9).
 - Status-bar icons stay readable over the page menu, Reader and the long-press shade on both phones.
 - iPhone Desktop Site reloads the page as SwiftUI's `toggleDesktopSite` does.
 - The page's bar colour follows a page whose colour changes on scroll (Compose samples again 250 ms after a load and on scroll direction or top-of-page changes, `BrowsingView.kt`).
@@ -1043,7 +1077,7 @@ sliding connect screen (e183ff72c).
 - The deck bar sits 6 points above a three-button navigation bar instead of on it (2db78f033), placed from the screen the deck covers (22016d607); gesture navigation keeps Compose's numbers. The owner kept this on 2026-11-15: overlapping the system's buttons is worse.
 - Find on Page is the app's own bar on both phones, not WebKit's find panel as in SwiftUI (e508b6dd2); the commit gives no reason, so the owner should confirm it.
 - Opt-in usage stats (Settings, What's Sent, onboarding's last step) exist only in the Expo app (c6ebf08a8, the owner's approval).
-- Settings has no Appearance or Downloads rows because Compose has neither (f5d1ec9f2).
+- Settings has no Appearance or Downloads rows because Compose has neither (f5d1ec9f2). On iPhone this is stale: main's SwiftUI has both ("The iPhone redesign", items 7 and 11).
 - Toasts sit above the deck bar's measured top, not a fixed 64 dp, so they never cover + (87e9ed9e6).
 - After a reload the failure screen stays until that load ends, so the WebView's own error page never shows (becf40624).
 - Labs and the sync demo are gated by the build (`ARDIA_LAB`, `ARDIA_TEST_BUILD`), not by a debuggable build as in Compose (4f474ff95).
