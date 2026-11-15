@@ -352,8 +352,14 @@ static void FindJSThread(void) {
   if (gScrollWatch) [NSNotificationCenter.defaultCenter removeObserver:gScrollWatch];
   gScrollWatch = nil;
   gEntered = [NSHashTable weakObjectsHashTable];
+  Class views = NSClassFromString(@"RCTView");
+  SEL hoverChanged = NSSelectorFromString(@"ardia_markHoverDirty");
+  void (^checkHover)(void) = ^{
+    if ([views respondsToSelector:hoverChanged]) ((void (*)(id, SEL))objc_msgSend)(views, hoverChanged);
+  };
   if (![cmd[@"over"] isEqual:@"list"]) {
     gPointerWindow = 0;
+    checkHover();
     return [self answer:cid with:@{@"ok": @YES, @"over": @"real"}];
   }
   if (!sv.window) return [self answer:cid with:@{@"ok": @NO, @"error": @"no tall scroll view"}];
@@ -361,6 +367,7 @@ static void FindJSThread(void) {
   OverridePointer();
   gPointer = NSMakePoint(NSMidX(shown), NSMidY(shown));
   gPointerWindow = sv.window.windowNumber;
+  checkHover();
   __weak ACFramesProbe *weak = self;
   __weak NSWindow *window = sv.window;
   gScrollWatch = [NSNotificationCenter.defaultCenter addObserverForName:NSViewBoundsDidChangeNotification object:sv.contentView queue:nil
