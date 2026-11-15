@@ -888,9 +888,21 @@ what each tap does, what is remembered, animations and their timing. Every item 
 lives in the native app, and its size (small: an hour or two; a day; more). Anything not yet seen working on a
 phone is listed as unverified, even where the code is in. Audited 2026-11-15 at e1a9a4a7a.
 
-Nothing is left in JavaScript. The largest items left are Android's: the fade view's Android half, sync connect
-picking the folder first (shared with iPhone), Send to Your Mac in the share sheet and the tray's predictive back.
+Nothing is left in JavaScript against the old references. Android's largest items left are Send to Your Mac in
+the share sheet and the tray's predictive back. The owner's open choices are in "Waiting on the owner"; what
+nobody has seen working on a phone is the tester checklist below.
 iPhone follows the SwiftUI app on main since the merge of main (8203d0b3c, 2026-11-15), and main's redesign of that app (a2cf29dac, d199b885c) moved the reference: what iPhone needs now is "The iPhone redesign" below. The audit above predates it.
+
+### Waiting on the owner
+
+Seven choices, one line each; the first option is what the app does today.
+- Android and the iPhone redesign: Android keeps Compose's look (no work), or takes main's redesign too (one line in the design variant and a test run, then an Android phone pass).
+- Find on Page: the app's own find bar on both phones (no work; the phones match), or WebKit's find panel on iPhone as SwiftUI has (about a day in the iPhone module; the phones then differ).
+- The sync demo: runs over the real tab store (no work; a demo session can change the tester's own tabs), or gets tabs of its own kept in memory (about a day).
+- Reset › Connect Again: acknowledges the reset first on both phones, as Compose does (no work), or goes straight on to connecting on iPhone, as SwiftUI does (an hour).
+- Bookmarks in iPhone Spaces: kept, though SwiftUI's Spaces has none and main's redesign puts bookmarks in the Library sheet (no work; both phones the same), or dropped on iPhone (an hour).
+- Apple's web-browser entitlement: off, so neither iPhone app offers Default Browser (no work), or requested from Apple (an Apple account request and Apple's review; the code is in and checked as far as a simulator allows).
+- Menus: the app's drawn menus and centred confirmations on both phones (no work; the phones match), or iPhone's system context menus with lift and blur on deck cards, +, Archive and Spaces rows, and action sheets for Restore Defaults and Remove List (about a day for a native context-menu view, an hour for the action sheets).
 
 ### Needs only JavaScript
 
@@ -898,25 +910,19 @@ Nothing left (2026-11-15).
 
 ### Needs native code on Android
 
-- Bottom bar: the tab thumbnail reads only the saved snapshot file, so it lags about 700 ms behind a fresh capture; Compose draws the in-memory cover first (`BottomBar.kt` `TabThumbnail`). The module would need to hand JavaScript the captured cover before its file is written. Small.
-- A fade view, on both phones, built once to this shape: `FadeView` in `@ardia/phone-native` (module `ArdiaPhoneFade`), a container that multiplies its children's alpha by a linear ramp at each edge it is given. It serves the deck card header's 14-point trailing fade (`DeckCardHeaderItem` draws it with `BlendMode.DstIn`, SwiftUI with `.mask`) and the tray rows' fade at the keyboard's edge, which today fades whole rows (f5071fd5f). The deck backdrop is a native shader, so a gradient laid over the content can't stand in.
-  - Props: `top`, `bottom`, `leading`, `trailing`, each `{ length: number; floor?: number } | undefined`: the ramp runs from full alpha at `length` points inside the edge down to `floor` (default 0) at the edge. `leading`/`trailing` follow the layout direction. All undefined, or a length of 0, draws the children unmasked at no cost.
-  - The ramp follows the view's bounds every frame it is laid out, since the deck header's width animates on the UI thread; props change rarely and need not animate.
-  - Android: an offscreen layer with a `DstIn` gradient per edge, as `DeckCardHeaderItem`. iPhone: a `CAGradientLayer` mask (or one per edge composited) resized in `layoutSubviews`.
-  - Where the native view is missing (`requireOptionalNativeModule` returns null), the JS export is a plain `View` that ignores the fade props, and each caller keeps today's fallback: the deck title clips with no fade, the tray fades whole rows.
-  - The deck uses `trailing: { length: 14 }`; the tray uses `bottom: { length: 0.3 × room, floor: 0.15 }` while its rows overflow. Both are wired in the screens, and iPhone's half is in (de3736b41); Android's half is what remains.
-- Search field: inline completion is in the tray on Android (`CompletingField` through `TrayInput`, tester step 42), unverified on a phone; the tray's rise, drag, scrub, Paste and Go, the incognito toggle and the mic around it need a phone check with it.
+Checked against the log on 2026-11-15. In, and used by the app: the fade view's Android half (4e12b293d); Start
+Without Them (248b3f68a, with Compose's per-site settings in 1b33e2c47 and 191db304a); sync connect picking the
+folder first (619ede040 on Android, `pickFolder` on iPhone); the launch arguments (4e6ea841a); the keyboard's
+target height as its animation starts (5bf60a7fa); the onboarding step across a recreated activity (82d93e298).
+Inline completion is in and waits on a phone (the checklist below). What is left:
+
 - Search tray: no predictive back (the tray follows the back gesture down 72 dp); React Native's back handler gives no progress. `SearchTrayHost.kt` `PredictiveBackHandler`. A day.
 - Share sheet: no Send to Your Mac (Compose's ShareActivity offers Open, Search and Send). `share/ShareActivity.kt`, `ShareSheetModel.kt`, `ShareSheetView.kt`. A day.
-- Widgets: the Color setting doesn't tint them. `system/WidgetColors.kt`, `SystemSnapshotExport.kt`. Small.
+- Bottom bar: the tab thumbnail reads only the saved snapshot file, so it lags about 700 ms behind a fresh capture; Compose draws the in-memory cover first (`BottomBar.kt` `TabThumbnail`). The module would need to hand JavaScript the captured cover before its file is written. Small.
 - Page permission order: Compose asks Android for camera, mic or location first and shows the site's Allow dialog only once Android grants it (a refusal ends quietly); the app shows the site dialog first. Needs a check-or-request call before the dialog. `PageRequests.kt` `PermissionRequest`. Small.
-- **Upgrade import, Start Without Them on the native side.** The JavaScript importer is in ("The importer" in "Upgrade from the Compose app on Android"). Start Without Them needs `legacyImport.startFresh()` on both phones: open the gate (sync, page settings, held links) without writing the import receipt, so `source()` still reports `pending` and a later version can import. Per-site desktop-site and blockers-off from Compose (`desktopSite.sites`, `blockersOff.sites`) need no screen: the page module should apply the desktop default when it loads that host and report it in `isDesktopSite` (the page menu reads that), and blockers-off should join the exempt hosts in `ardia-blocking`, which Trusted Sites lists. `PhoneLegacy.kt`, `PhonePages.kt`, `PhoneBlocking.kt`. Small.
-- Sync connect: both apps pick the folder first, show its name and reuse it after a mismatch; the module's `connect(phrase)` opens the picker inside the call, so a retry asks again. Needs `pickFolder()` and `connect(phrase, folder)`. `SyncConnectSession.kt`, `SyncModule.kt`. A day (shared with iPhone).
 - Pull to refresh settles on a 250 ms animator instead of Compose's snappy spring, in a fixed #007AFF instead of the accent; the swipe-to-navigate target falls back to black or white instead of the profile's surface. `PageGestures.kt` vs `PageLayer.kt` `animatePull`. Small.
 - Tab pager corner radius is a fixed 55; Compose reads the display's real corner on Android 12+. `TabPager.kt` `rememberDisplayCornerRadius`. Small.
-- Launch arguments: `launchOptions()` must return an `arguments` map holding every intent extra whose name starts with `Ardia` or `Browse` (booleans as booleans, the rest as strings), in lab and test builds only, and `ArdiaDemo` must also switch the module's sync demo on (today only `com.ardia.phone.SYNC_DEMO` does). The app reads, applies and demos everything else (6bf8a7201, d806a4f18, 24a6723c5, 6ad98f6e0). `PageViewModule.kt`, `LaunchArguments.kt`. Small.
-- Keyboard target at the start of its animation: React Native reports the keyboard's height only once it has stopped, so the first keyboard of a process can't drive the tray's rise (it lands on the 450 ms spring) and a keyboard that changes height drives it from its last height. Needs the IME animation's target height as it starts (`WindowInsetsAnimationCompat.Callback.onStart`'s upper bound), e.g. an `onKeyboardWillChange { target, durationMs }` event on the system module. `TrayPresentation.kt` `KeyboardReader` (`imeAnimationTarget`). Small.
-- Onboarding's step is lost when Android recreates the app; Compose keeps it with `rememberSaveable`. React Native has no saved instance state, so the module would need to hand the activity's saved bundle to JavaScript. `OnboardingView.kt`. Small.
+- Widgets and the Color setting, to confirm: 0cc83c7ab gave the widgets day and night colours from `WidgetColors`, which take a profile look; whether the Expo app hands them the chosen colour is not checked. Small if it doesn't.
 
 ### The iPhone redesign
 
@@ -958,108 +964,121 @@ The work, most visible first. JS is the screens agent's, native the iPhone agent
 16. The light-mode veil in the JS backdrop fallback and the status-bar ink choice: JS, an hour.
 Telemetry the redesign adds: space switches, Search Tabs, the grid, the appearance choice.
 
-Still for the owner: SwiftUI uses system context menus (lift preview and blur) on deck cards, the + button, Archive rows and Spaces rows; the Expo app draws its own on both phones, which "Deliberately different" records as a decision. A native context-menu view would be a day's work if that decision changes. Apple's web-browser entitlement decides whether Default Browser is offered at all (check 18).
+The owner's two iPhone choices, system context menus and Apple's web-browser entitlement, are in "Waiting on the owner".
 
-### Check on your iPhone
+### Tester checklist for the next build
 
-What a simulator can't show. Install the Expo build over the SwiftUI app, with Sync connected to your Mac, then go down this list in order.
+Everything nobody has yet seen working on a phone, in the order a tester meets it. Each line is what to do, then
+what should happen. Lines marked **Android** or **iPhone** are for that phone only; the rest are for both. Note the
+build's `PAGELAB build` line first, and for a line that fails, keep a screen recording and the time. Android's
+own scripts stay as they are ("System entry points on Android", steps 1 to 55, and "Upgrade from the Compose app
+on Android"); a line here points at their step where one covers it. The deck's four motions (card open, deck open
+from a page, closing, a reloading tab) are not here: they are being matched to Compose frame by frame on the F4.
+iPhone lines on screens main's redesign changes ("The iPhone redesign") are checked again once those land.
 
-1. Update over the SwiftUI app. Before updating, note a Trusted Site, a My Filters rule, one site's page zoom, Night Shade, the Open App Links In choice, a few tabs and one archived tab. After the update: the app opens with the same tabs (the archived one in the Archive), and the page menu on that site shows its zoom, Night Shade and blockers off. Relaunch: nothing appears twice. Settings › Sync still shows your Mac.
-2. Sync in the background. Leave the app for an hour with the Mac open; open it: the Mac's tabs are current without waiting. Send a tab from the Mac: a toast names it for about two seconds.
-3. Swipe to Navigate. On a page with history, drag right from the middle of the page: the previous page slides in with a tick under your thumb as it commits; a short drag springs back with no tick. On a page with a sideways carousel (a news front page), a drag on the carousel scrolls it and doesn't go back.
-4. Pull to refresh. At the top of a page, pull down past the spinner: a light tick, the spinner turns, the page reloads.
-5. The search tray. Type "goo": "gle.com" is highlighted after the caret; Backspace removes only the highlight; Return opens google.com. With a Japanese or Chinese keyboard, no highlight appears. Type a word with more suggestions than fit: the next row peeks faded at the keyboard's edge; slide a finger from the first row down onto the keyboard and lift: the row laid out there opens.
-6. Voice search. Tap the mic in the tray, allow speech and the microphone, and say "otters": the words appear as you speak and the search runs; say nothing: after a few seconds it says it didn't hear anything.
-7. Scan to connect. Settings › Sync › Connect to Your Mac › Scan Code, pointed at the Mac's code: the code is outlined when found and pinch zooms; it connects without typing.
-8. Enter Words: copy the phrase on your Mac, tap Paste on the iPhone: the words fill in with no "Allow Paste" question. Settings › Ad Blocking › Filter Lists › Add a List does the same with an address copied on the Mac. (The simulator already shows the paste without a question; this checks the clipboard from another device.)
-9. Offline. Turn on Airplane Mode and open a page: the offline page shows a Wi-Fi-off icon. Turn it off: the page reloads by itself.
-10. Handoff. With a page open, look at the Mac's Dock: an Ardia (or browser) Handoff icon offers the same page; private tabs never offer one.
-11. Siri and Shortcuts. Say "Open Otter in Ardia" (a tab you have open): Ardia switches to it. In Shortcuts, add Ardia's Open Tab action: it lists your tabs with their sites; running it switches to the one you pick.
-12. Spotlight. Swipe down on the Home Screen and type a word from an open tab's title: the tab is listed under Ardia; tap it: Ardia opens that tab. An archived tab comes back from the Archive.
-13. Home Screen quick actions. Touch and hold the Ardia icon: Search, Voice Search and New Incognito Tab each open what they say.
-14. Share from Safari. Share a page to Ardia: it opens in a new tab.
-15. Long press on a link. The system menu shows Open in New Tab, Open in Background, Copy Link, Share… and Download Linked File; Open in Background leaves you on the page.
-16. VoiceOver. With VoiceOver on: each tray row and Close Search can be activated; on the deck, swipe up or down on a card to move between tabs.
-17. The deck bar. The three buttons light up and flex under your finger, as the SwiftUI app's do; with Settings › Accessibility › Display & Text Size › Reduce Transparency on, they turn white with an edge.
-18. Default Browser, once the app carries Apple's web-browser entitlement (`ARDIA_DEFAULT_BROWSER = YES`; it is off in both apps, so neither shows the step or the Settings row). Settings › Default Browser › Open Default Apps opens the system's Default Apps page; choose Ardia and come back: the page says Ardia is your default browser. In onboarding, the step moves on as you leave for Settings.
-19. Clear Browsing Data by range. Sign in to a site, use the phone for a day, then clear Last Hour with Cookies and Site Data on: you're still signed in to that site.
+Already seen on a phone, so not here: closing tabs from the deck and the last tab with no crash, ANR or JS error
+(40 closes on sync15); the Archive card and the + menu above their buttons, and Inactive Tabs shown once; no
+missing card on long flings; Go with no completion closing the tray and keyboard; a drag down from the field or
+the top edge leaving no keyboard and no dim; the tray's fourth row peeking and a slide under the keyboard opening
+it; one tab per Go before and after a connected upgrade; a typed tab not coming back from the Mac; a sent tab
+arriving by itself; an idle deck drawing no frames; flick and menu closes using the same poof; a deck opened from
+a page with no title-and-host placeholder (sync15); the bar frosts taking the tinted path. On the iPhone
+simulator, the list under "The iPhone redesign".
 
-### Unverified on a phone
+**1. Install and upgrade**
+- [ ] **iPhone:** before updating the SwiftUI app, note a Trusted Site, a My Filters rule, one site's page zoom, Night Shade, the Open App Links In choice, a few tabs and one archived tab, with Sync connected; install the Expo build over it and open it. Expect: no onboarding; the same tabs, the archived one in the Archive; that site's page menu shows its zoom, Night Shade and blockers off; Settings › Sync still shows the Mac.
+- [ ] **iPhone:** relaunch twice. Expect: nothing appears twice.
+- [ ] **iPhone:** open the deck, then update the app once more and open it again. Expect: imported cards keep their pictures both times.
+- [ ] **Android:** the upgrade script ("Upgrade from the Compose app on Android") if this build hasn't had it.
 
-Seen working on a phone so far, from the tester runs (sync11 on the M3; sync12, sync13 and sync14 on the F4):
-closing tabs from the deck and the last tab without a crash (20 to 22 closes a run, no crash, ANR or JS error);
-the Archive card and the + menu above their buttons, and the Inactive Tabs card shown once; no missing card on
-long flings; Go with no completion closing the tray and keyboard; a drag down from the field or the top edge
-leaving no keyboard and no dim; the tray's fourth row peeking faded and a slide under the keyboard opening it;
-one tab per Go, before and after a connected upgrade; a typed tab not coming back from the Mac; a sent tab
-arriving by itself; an idle deck drawing no frames; a flick close and a menu close using the same poof. On the
-iPhone simulator: the list in "Needs native code on iPhone" above. The perf lines read on the phones: deck open
-4 renders, card open 17 to 18 (sync13), scroll 2.5 to 3% janky with the look off on the F4.
+**2. Onboarding** (a fresh install, or a lab build launched with `ArdiaOnboarding`)
+- [ ] Go forward and back through every step. Expect: each step slides 60 points with a fade both ways; leaving the welcome crossfades the backdrop; each step ticks and the last gives a success haptic; the keyboard goes down between steps.
+- [ ] On the sync step. Expect: a Mac window with a QR code and a phone scanning it, not a symbol. Tap Connect to Your Mac: the connect screen slides up from the bottom; Cancel slides it down. Connect: the phone in the picture turns plum, its viewfinder shrinks away as a checkmark grows in, and the subtitle crossfades to "Connected."
+- [ ] **Android:** on the welcome, tap Continue at once. Expect: the default-browser step still shows.
+- [ ] **Android:** mid-onboarding, change the system font size so the activity is recreated (step 44). Expect: the same step comes back.
+- [ ] **iPhone:** the default-browser step. Expect: it shows only when SwiftUI's would (offered, and not asked within 100 days); with the entitlement off, as in test builds, it never shows.
+- [ ] At the largest text size. Expect: each step scrolls. With Reduce Motion on: the welcome fades instead of moving.
 
-Not yet on a phone, because they landed after the last tester build (sync14, 79d97536): the card open and
-handover (aa277716e, 3e9c18ee2: the page mounted before the spring, one render each for the screen and cover,
-the picture at the page view's frame, one bar colour from the first frame); the close without a ghost rectangle
-or a flash of the before- or after-close layout (c2ce353f6, df5ce3964, 33b5c13ac); a reloading tab keeping its
-saved colours (420dae775); the frost sources holding only the backdrop (63001023d); the pager's Reduce Motion
-and edge shadow (ae09f6010); Spaces' rows, large text and motion (5cb76386d, 567bb4e3b); Enter Words' push,
-crossfades and iPhone keyboard (1adb75e2f); the full-screen scanner (18af44858); onboarding's sync picture and
-sliding connect screen (e183ff72c).
+**3. Start page and the search tray**
+- [ ] With no tabs and sync on. Expect: the start page's leading button is Synced Tabs; the logo fades and grows from 0.92 and the bar fades as the tray comes and goes.
+- [ ] Open the tray. Expect: it comes up with the keyboard and sits on its top edge on every frame, with no gap or overlap (including over Android's navigation bar); with a hardware keyboard it lands after 450 ms; the dim fades in over 300 ms; with Reduce Motion it fades instead of moving. Close it: the keyboard goes and the tray follows it down.
+- [ ] Drag the tray down from the field, the incognito caption or the empty area. Expect: the dim lightens; past 8 points the keyboard goes down while the tray holds still; a short slow drag springs back and the keyboard returns; a long drag or a flick closes it.
+- [ ] Touch a row, slide along the rows and lift. Expect: the touched row lights at once, each row ticks as you pass it, and the last one opens on release with a confirm tick; the arrow on a query row refines; a 400 ms hold opens the row's menu; past 1.5x text size the list scrolls instead.
+- [ ] Type "otter", then "!w otter", then "12*12". Expect: nine rows with an "otter" search kept second; "Search Wikipedia" for the bang; "= 144", which copies with a "Copied 144" toast on a tap and offers Copy on a long press. A Mac tab row shows a laptop and its host and opens as a synced tab.
+- [ ] **Android:** inline completion (step 42). **iPhone:** type "goo". Expect: "gle.com" highlighted after the caret; Backspace removes only the highlight; Return opens google.com; with a Japanese or Chinese keyboard no highlight appears.
+- [ ] Type a word with more suggestions than fit. Expect: the next row peeks faded at the keyboard's edge; slide from the first row down onto the keyboard and lift: the row laid out there opens, with a tick per row on the way. (The peek and the slide are seen on Android; the ticks, and the slide on an iPhone, are not.)
+- [ ] Watch the tray as you type and clear. Expect: the caption, rows and empty tray crossfade; the Incognito label fades and grows from 0.9 at the toggle's edge; the field's text grows with the text size; past 1.5x rows wrap.
+- [ ] **Android:** copy a link, open the tray; copy plain text, open it again. Expect: "Link You Copied", then "Text You Copied".
+- [ ] Tap the incognito chip. Expect: what Compose's `IncognitoChip` does on Android; on iPhone a one-item menu, as SwiftUI shows.
+- [ ] With TalkBack or VoiceOver on, move to a row's refine arrow. Expect: reachable, read as "Refine" and the row's title; each row's menu items are listed as actions; Close Search can be activated.
+- [ ] Tap the mic in the tray, then Cancel. Expect: the keyboard goes down over the voice screen and comes back on the tray. **iPhone:** allow speech and the microphone and say "otters": the words appear as you speak and the search runs; say nothing: after a few seconds it says it didn't hear anything. Watch the voice screen: the transcript crossfades as words arrive, the logo has a soft shadow, on iPhone the waveform eases.
+- [ ] Select text in another app and choose Search in Ardia, and run a web search into Ardia (Android steps 4 and 5). Expect: results open at once. Open the voice shortcut: the voice screen opens over the tray. Open a tab widget's link to an archived tab: it is restored; to a private tab: nothing happens. **iPhone:** share a page to Ardia from Safari: it opens in a new tab, as shared.
 
-- iPhone look views on a device: the deck's animated backdrop, frosted controls and glass bar, and Reduce Motion and Reduce Transparency switching them.
-- Scroll position restore: scroll a long page, kill the app, relaunch; the same tab opens at the same offset, also after it was discarded in the background (both phones).
-- Card snapshot on deck entry: open the deck right after scrolling; the card shows the current view.
-- Deck gestures: a 400 ms hold opens the card menu without scrolling, a slow vertical drag lifts, a tap right after a settle opens the right card.
-- Incognito chip: compare its tap with Compose's `IncognitoChip` (SwiftUI shows a one-item menu, as the app does).
-- Voice from the tray: the keyboard goes down over the voice screen and comes back on the tray after Cancel.
-- Tray rows that don't fit above the keyboard: the peek and the slide into the keyboard are seen on Android and the iPhone simulator; still unseen are the tick per row and the slide on an iPhone.
-- Refine arrow with TalkBack and VoiceOver: reachable, read as "Refine <title>".
-- iPhone Lock Screen widgets and Control Center controls open the right link (the app target has its own intent copies).
-- iPhone search widget follows the profile colour and Match My Mac (`WidgetExporter.swift`).
-- Android Paste and Go: "Link You Copied" for a link, "Text You Copied" for text (c872c609f).
-- iPhone page permission prompts (camera, mic, location): Allow and Don't Allow from the app's dialog reach WebKit's grant.
-- iPhone file upload: WebKit's own picker appears for a file input and Take Photo works (the module answers no file requests itself).
-- iPhone fullscreen video covers the bottom bar and hides the status bar and home indicator.
-- iPhone Share from the long-press menu is not shown under an open sheet.
-- Android notification permission requests and the download notification compared with Compose's `PageRequests.kt`.
-- Bar collapse spring and travel against Compose's `Motion.barCollapse`. On iPhone this is stale: main's SwiftUI shrinks the bar to a host pill instead ("The iPhone redesign", item 9).
-- Status-bar icons stay readable over the page menu, Reader and the long-press shade on both phones.
-- iPhone Desktop Site reloads the page as SwiftUI's `toggleDesktopSite` does.
-- The page's bar colour follows a page whose colour changes on scroll (Compose samples again 250 ms after a load and on scroll direction or top-of-page changes, `BrowsingView.kt`).
-- A site's notification permission request, compared with Compose.
-- iPhone: a toast raised from Settings (Cleared Browsing Data) shows above the sheet, as SwiftUI's own toast window does.
-- A tab sent from the Mac shows a toast on both phones and tapping it opens the tab (SwiftUI `ReceivedTabsAnnouncer.swift`).
-- Turning Match My Mac off with a Mac custom theme keeps the colour Compose's `choiceAfterMatchToggle` keeps.
-- Site Settings and filter-list switches don't snap back for a moment while the native call and re-read run (`withBlocking`).
-- iPhone confirmations (Restore Defaults, Remove List) are centred dialogs where SwiftUI uses action sheets; the owner should say whether the drawn-menus decision covers them.
-- Where About and filter-list links open on iPhone (an Ardia tab or outside), against SwiftUI's `Link`.
-- Imported deck snapshots on iPhone are absolute `file://` Caches paths; cards keep their images after an app update and after iOS clears Caches.
-- iPhone default-browser step shows when SwiftUI's would (`DefaultBrowserStatus.isOffered`, asked within 100 days).
-- A real SwiftUI-to-Expo upgrade skips onboarding (`state/app/boot.ts`).
-- The scanner covers the screen from the overlay (18af44858), Cancel and Back stop the camera, and the status bar reads.
-- A Spaces row opened from a Mac counts as a typed visit (`AppModel.kt` `openRemote`).
-- The Spaces sheet can't be dragged closed while connecting (SwiftUI `interactiveDismissDisabled`).
-- The recent-tabs long-press haptic against Compose's `BottomBar.kt`.
-- A second flick during a pager settle neither jumps nor commits twice (`TabPager.kt`).
-- The crash view's icon, title and Try Again match Compose (`PageLoadFailure.kt`).
-- Not audited: Compose's `SyncSetupContent` internals inside onboarding, and the timing of DemoScenario's deck and pager scripts.
-- Tray rise (796b78f6f): on both phones the tray comes up with the keyboard and sits on its top edge frame by frame (no gap, no overlap, including Android's navigation bar); with a hardware keyboard it lands after 450 ms; closing lets the keyboard go and follows it down; the dim fades in 300 ms; Reduce Motion fades instead of moving.
-- Tray drag (9ecac6d12): a drag down on the field, the incognito caption or the empty area moves the tray and lightens the dim; past 8 points the keyboard goes down while the tray holds still; a short slow drag springs back and the keyboard returns; a long drag or a flick closes it.
-- Tray scrub (7287c72fd): a finger on a row lights it at once; sliding along the rows ticks on each and opens the last on release (with a confirm); a tap on a query row's arrow refines; a 400 ms hold opens the row's menu; past 1.5x text size the list scrolls instead.
-- Launch arguments, once both modules pass them: `ArdiaDemo` opens on the eight demo tabs (Sintra selected) with nothing written to the real store and the demo Macs in Spaces; each `Browse…` and `Ardia…` argument in `docs/android.md` and `docs/ios.md` does what it does in the native apps, at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
-- Tray rows (2de3b7695): nine rows; typing "otter" keeps an "otter" search second; "!w otter" shows "Search Wikipedia"; a Mac tab shows a laptop and its host and opens as a synced tab; "12*12" reads "= 144", copies with a "Copied 144" toast on tap and offers Copy on a long press.
-- Links (3f6409ae0): Search in Ardia on selected text and a web search open results at once; the voice shortcut opens the voice screen over the tray (Cancel lands on the tray, the keyboard down while voice is up and back after); a tab widget link restores an archived tab and does nothing for a private one; a page shared to Ardia on iPhone opens as shared.
-- Tray look (9f98c466a): the caption, rows and empty tray crossfade; the Incognito label fades and grows from 0.9 at the toggle's edge; the field's text is title3 and grows with the text size; past 1.5x text size rows wrap; TalkBack and VoiceOver list Refine and each menu item as actions on a row.
-- Start page (5c211809a): with no tabs and sync on, the leading button is Synced Tabs; the logo fades and grows from 0.92 and the bar fades as the tray comes and goes.
-- Voice screen (c0fa87652): the transcript crossfades as words arrive; the logo has a soft shadow; on iPhone the waveform eases.
-- Haptics (e043b58c2): with Android's touch feedback off, the app makes no haptics; on, the deck ticks per card while scrolling, taps on a flick-close and presses on confirming Close All; iPhone keeps its impacts.
-- Deck behaviour (98bd12f97): Back from the deck opens the selected tab with the expand animation; the card menu lists Send to each device and Pin to Mac; a lifted card can't be tapped open; a deck of 40 tabs scrolls without mounting all cards.
-- Deck look (5a3966c9c): cards fade in when the deck opens from the start page; the backdrop and bar fade with the open; snapshots fade in; two pages of one site share a placeholder colour; cards have the native shadow on both phones; a tab sent from the Mac shows "From Your Mac" until opened; the archive card scales in.
-- Deck motion (77e3d1b15): a flicked card goes up in a white poof (blurred on Android); with Reduce Motion cards close, open and settle without springs.
-- Archive (036e2dbef): day headers read Today, Yesterday, a weekday within six days, then the date (with the year only when it differs) and stay pinned with a tinted background; an empty Archive shows the archive tile even while searching; a search with no results shows the magnifier; rows show a plain favicon; restoring ticks; Delete All warns and is disabled when empty; Android Back clears a search first; on iPhone a swipe reveals Delete instead of deleting; a tab left for longer than the interval is archived within 15 minutes while the app stays open.
-- Page (02416c672): bottom-bar buttons and a landed tab swipe give haptics; on iPhone pinning from the menu gives a success haptic, the title's message lasts 1 s and crossfades, the title moves under the buttons at accessibility sizes and Find opens 350 ms after the menu closes; the bar slides away under the find bar; a link's Copy Link says "Copied URL Without Trackers".
-- Reader (e6005cbe8): text can be selected; a size change animates; a lead image that isn't a web address is skipped.
-- Toasts (1b5d17668): a toast slides up from slightly smaller and slides down as it leaves; a finger holds it, a drag or flick down dismisses it, a short drag springs back and it leaves 1.2 s later; showing the same toast again doesn't replay it; with the keyboard up it sits at the top; VoiceOver reads it on iPhone; a tab from an iPhone shows a phone.
-- Onboarding (06ff54ef1): steps slide 60 points with a fade both ways; leaving the welcome crossfades the backdrop; each step ticks and finishing gives a success haptic; the keyboard goes down between steps; on Android a quick Continue on the welcome still shows the default-browser step; at the largest text sizes each step scrolls; with Reduce Motion the welcome fades.
+**4. A page**
+- [ ] **iPhone:** on a page with history, drag right from the middle. Expect: the previous page slides in with a tick under your thumb as it commits; a short drag springs back with no tick; a drag on a sideways carousel scrolls it and doesn't go back. (Android: steps 21, 29 and 35.)
+- [ ] **iPhone:** at the top of a page, pull down past the spinner. Expect: a light tick, the spinner turns, the page reloads.
+- [ ] Scroll a long page. Expect: the bar collapses with Compose's `Motion.barCollapse` spring and travel on Android (on iPhone, main's host pill replaces this). On a page whose colour changes as it scrolls: the bar's colour follows within a quarter of a second.
+- [ ] Open the page menu, then drag its sheet down. Expect: it follows the finger and the dim lightens; a short drag springs back; a long drag or a flick closes it; with Reduce Motion it fades.
+- [ ] From the page menu: pin to the Mac, Find, Reader, Copy Link. Expect: bottom-bar buttons and a landed tab swipe give haptics; **iPhone:** pinning gives a success haptic and the title's message lasts 1 s and crossfades; the title moves under the buttons at accessibility sizes; Find opens 350 ms after the menu closes and the bar slides away under the find bar. A link's Copy Link says "Copied URL Without Trackers".
+- [ ] Open Reader. Expect: text can be selected, a size change animates, and a lead image that isn't a web address is skipped.
+- [ ] Open the page menu, Reader and a long-press menu in turn. Expect: the status-bar icons stay readable over each.
+- [ ] Long-press a link. **iPhone:** the system menu shows Open in New Tab, Open in Background, Copy Link, Share… and Download Linked File; Open in Background leaves you on the page; Share isn't offered while a sheet is open. **Android:** the app's drawn menu.
+- [ ] **iPhone:** turn on Desktop Site. Expect: the page reloads as desktop, as SwiftUI's `toggleDesktopSite` does.
+- [ ] **iPhone:** allow, then refuse, a site's camera, microphone and location requests. Expect: Allow and Don't Allow reach the page; the answers last until the app is relaunched (saving them waits on Site Settings, "The iPhone redesign" item 13).
+- [ ] **iPhone:** a file input. Expect: WebKit's own picker, and Take Photo works. **Android:** steps 13 and 14.
+- [ ] **iPhone:** play a video full screen. Expect: it covers the bottom bar and hides the status bar and the home indicator.
+- [ ] A site asks to send notifications; start a download. Expect: on Android the request and the download notification as Compose's `PageRequests.kt` show them.
+- [ ] Turn on Airplane Mode and open a page; turn it off. Expect: the offline page with a Wi-Fi-off icon, then a reload by itself (Android: step 36).
+- [ ] Load a page that fails, then Try Again. Expect: the failure view's icon, title and Try Again as Compose's `PageLoadFailure.kt`.
+- [ ] With Android's touch feedback off, use the deck and the bar. Expect: no haptics. On: the deck ticks per card while scrolling, a flick-close taps, Close All's confirm presses. iPhone keeps its impacts.
+- [ ] Scroll a long page, kill the app and relaunch; also leave it in the background until the page is discarded, then come back. Expect: the same tab at the same offset both times.
+
+**5. The deck and the tab pager**
+- [ ] Scroll a page, then open the deck at once. Expect: the card shows the page as it is now.
+- [ ] Hold a card for 400 ms; drag one slowly upward; tap a card right after a scroll settles. Expect: the hold opens its menu without scrolling, the slow drag lifts the card, the tap opens the card under the finger.
+- [ ] Press Back in the deck. Expect: the selected tab opens with the expand animation. The card menu lists Send to each device and Pin to Mac; a lifted card can't be tapped open; a deck of 40 tabs scrolls without stutter.
+- [ ] Open the deck from the start page. Expect: cards fade in; the backdrop and bar fade with the open; pictures fade in; two pages of one site share a placeholder colour; cards have the native shadow; a tab sent from the Mac shows "From Your Mac" until opened; the archive card scales in. With Reduce Motion: cards close, open and settle without springs.
+- [ ] Long-press the bottom bar's tab button. Expect: the recent-tabs menu with Compose's haptic.
+- [ ] Swipe the bar between tabs, and flick again while it settles. Expect: the incoming card has an edge shadow; the second flick neither jumps nor switches twice; with Reduce Motion the pager settles without a spring.
+- [ ] **iPhone:** with VoiceOver on, swipe up or down on a card. Expect: it moves between tabs; the Tabs button answers a double tap.
+- [ ] **iPhone:** press the deck bar's three buttons. Expect: they light up and flex under the finger as SwiftUI's do; with Reduce Transparency on, they turn white with an edge.
+- [ ] **iPhone:** the deck's animated backdrop, frosted controls and glass bar on a device, with Reduce Motion and Reduce Transparency switched on and off. Expect: each switches as SwiftUI's does.
+
+**6. The Archive**
+- [ ] Open the Archive with tabs archived over a week. Expect: headers read Today, Yesterday, a weekday within six days, then the date (the year only when it differs), pinned with a tinted background; rows show a plain favicon; restoring ticks; Delete All warns and is disabled when empty; a search with no results shows the magnifier; an empty Archive shows its tile even while searching; Android Back clears a search first; on iPhone a swipe reveals Delete rather than deleting.
+- [ ] Leave a tab longer than the archive interval with the app open. Expect: it is archived within 15 minutes.
+
+**7. Sync and Spaces**
+- [ ] **iPhone:** leave the app for an hour with the Mac open, then open it. Expect: the Mac's tabs are current without waiting.
+- [ ] Send a tab from the Mac. Expect: a toast names it for about two seconds on both phones, and tapping it opens the tab.
+- [ ] Settings › Sync › Connect to Your Mac › Scan Code, at the Mac's code. Expect: the scanner covers the whole screen with four corner arms; "Not an Ardia sync code." fades in for a wrong code; Cancel and Android's Back stop the camera; the status bar reads. **iPhone:** the code is outlined when found, pinch zooms, and it connects without typing. (Android: steps 19 and 28.)
+- [ ] Enter Words. Expect: it slides in from the right over the connect page; the counter and footer crossfade as you type; on iPhone the keyboard is ASCII and a drag on the list dismisses it. **iPhone:** copy the phrase on the Mac and tap Paste: the words fill in with no "Allow Paste" question; Add a List does the same with an address.
+- [ ] Open Spaces with the Mac connected. Expect: pinned tabs show their symbols; what you open or expand is kept when you come back; new rows fade in; the header crossfades; at 1.5x text size tab icons grow, titles take three lines and tiles drop their titles; a long press offers its menu to TalkBack and VoiceOver. With sync off, the empty state opens Connect. **iPhone:** the banner icons are the system's.
+- [ ] Open a Spaces row, then type its host in the tray. Expect: it is offered as a visit you typed (`AppModel.kt` `openRemote`).
+- [ ] While Spaces is connecting, drag its sheet down. Expect: it doesn't close.
+- [ ] Turn Match My Mac off while the Mac has a custom theme. Expect: the colour Compose's `choiceAfterMatchToggle` keeps.
+
+**8. Settings**
+- [ ] Toggle Site Settings and filter-list switches quickly. Expect: no switch snaps back for a moment.
+- [ ] **iPhone:** Clear Browsing Data from Settings. Expect: the "Cleared" toast shows above the sheet. Sign in to a site, use the phone for a day, then clear Last Hour with Cookies and Site Data on: you are still signed in.
+- [ ] **iPhone:** Restore Defaults and Remove List. Expect: today centred dialogs (SwiftUI uses action sheets; the owner's choice, "Waiting on the owner").
+- [ ] **iPhone:** tap About's links and a filter list's link. Expect: they open where SwiftUI's `Link` opens them.
+- [ ] **iPhone:** once the build carries the web-browser entitlement, Settings › Default Browser › Open Default Apps. Expect: the system's Default Apps page; choose Ardia and come back: the page says Ardia is your default browser.
+
+**9. Toasts**
+- [ ] Raise a toast, hold it, then drag or flick it down; raise the same one twice; raise one with the keyboard up. Expect: it slides up from slightly smaller and slides down as it leaves; a finger holds it; a drag or flick down dismisses it; a short drag springs back and it leaves 1.2 s later; the same toast doesn't replay; with the keyboard up it sits at the top; VoiceOver reads it; a tab from an iPhone shows a phone.
+
+**10. Outside the app (iPhone; Android's are steps 1 to 18 and 31)**
+- [ ] With a page open, look at the Mac's Dock. Expect: a Handoff icon offers the same page; private tabs never offer one.
+- [ ] Say "Open Otter in Ardia" for an open tab; add Shortcuts' Open Tab action and run it. Expect: Ardia switches to the tab; the action lists your tabs with their sites.
+- [ ] In Spotlight, type a word from an open tab's title and tap the result; do the same for an archived tab. Expect: Ardia opens that tab; the archived one comes back from the Archive.
+- [ ] Touch and hold the app icon. Expect: Search, Voice Search and New Incognito Tab each open what they say.
+- [ ] Add a Lock Screen widget and a Control Center control, and the search widget. Expect: each opens the right link; the search widget follows the profile colour and Match My Mac.
+
+**11. Lab builds only**
+- [ ] Launch with `ArdiaDemo`, then each `Browse…` and `Ardia…` argument in `docs/android.md` and `docs/ios.md` (Android: step 41). Expect: eight demo tabs with Sintra selected, nothing written to the real store, the demo Macs in Spaces; each argument does what it does in the native apps at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
+
+Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 
 ### Deliberately different
 
@@ -1075,7 +1094,7 @@ sliding connect screen (e183ff72c).
 - A suggestion whose text is an address opens that address, so a row tap does what Enter does (87bc6e89f).
 - A link that arrives during onboarding is held and only the last one runs afterwards (43753d1b5); both apps act at once.
 - The deck bar sits 6 points above a three-button navigation bar instead of on it (2db78f033), placed from the screen the deck covers (22016d607); gesture navigation keeps Compose's numbers. The owner kept this on 2026-11-15: overlapping the system's buttons is worse.
-- Find on Page is the app's own bar on both phones, not WebKit's find panel as in SwiftUI (e508b6dd2); the commit gives no reason, so the owner should confirm it.
+- Find on Page is the app's own bar on both phones, not WebKit's find panel as in SwiftUI (e508b6dd2); the owner's choice, in "Waiting on the owner".
 - Opt-in usage stats (Settings, What's Sent, onboarding's last step) exist only in the Expo app (c6ebf08a8, the owner's approval).
 - Settings has no Appearance or Downloads rows because Compose has neither (f5d1ec9f2). On iPhone this is stale: main's SwiftUI has both ("The iPhone redesign", items 7 and 11).
 - Toasts sit above the deck bar's measured top, not a fixed 64 dp, so they never cover + (87e9ed9e6).
@@ -1083,7 +1102,7 @@ sliding connect screen (e183ff72c).
 - Labs and the sync demo are gated by the build (`ARDIA_LAB`, `ARDIA_TEST_BUILD`), not by a debuggable build as in Compose (4f474ff95).
 - The Sync page's inbox-problem notice exists only in the Expo app (d9b85412f).
 - Licences are generated from the shipped code, not a hand-written list (aa44da003); the iPhone list's content is the gap above.
-- For the owner to confirm, no commit says why: the sync demo runs over the real tab store (76dcdde8a); Reset › Connect Again acknowledges the reset first as Compose does (SwiftUI just navigates); iPhone Spaces shows a Bookmarks section that SwiftUI lacks (253515009).
+- The sync demo over the real tab store (76dcdde8a), Reset › Connect Again acknowledging the reset first, and Bookmarks in iPhone Spaces (253515009) are the owner's choices, in "Waiting on the owner".
 - The tray's rows end at the last whole row and don't scroll at normal text sizes, so no partial row is drawn for a fade mask (992441306, 7287c72fd); both apps clip with a fade instead.
 - Matches both apps, not a gap: a cold start opens on the start page, never on the last page, and with Auto-Open Keyboard on raises the launch tray there, with the start page's logo and bar faded out behind it. Compose and SwiftUI both start on `Surface.Search`/`.search` and raise the tray when the start page appears (`SearchHomeView.kt` `openTrayIfWanted`, `SearchHomeView.swift`'s `.task`); neither brings back the page after a kill or a long absence. Back then closes the tray onto the selected tab's page, as Compose's `cancelSearch` (M3 sync12 item 6, checked 2026-11-15).
 - Matches Compose, not a gap: with the on-screen keyboard up, the first Back only drops the keyboard and the tray stays, with the start page's logo hidden behind it, because the keyboard takes that Back in both apps (F4 sync12, the owner's call on 2026-11-15).
