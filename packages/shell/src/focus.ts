@@ -8,4 +8,6 @@ export type FocusNative = {
   restoreKeyResponder(token: number): Promise<boolean>;
   discardKeyResponder(token: number): Promise<void>;
   switcherPointerMoved(): boolean;
+  pressesWithoutRelease(): number;
+  pressRepeated(): Promise<{ landedOn: string; ms: number } | null>;
 };

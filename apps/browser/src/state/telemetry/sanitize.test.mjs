@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cleanProperties, errorCode, errorMessage, errorType, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
-import { settingsSnapshot } from "./settingsSnapshot.ts";
+import { customColorProfiles, narrowWindows, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
 const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
 const leaks = (text, ...secrets) => secrets.filter((s) => text.includes(s));
@@ -72,6 +72,30 @@ test("event properties are flat, plain and scrubbed", () => {
   assert.deepEqual(out, { kind: "history", count: 3, ok: true, none: null, url: "<url>" });
 });
 
+test("the built-in page keeps its slash in the crash context, and still can't carry a path, address or id", () => {
+  assert.deepEqual(cleanProperties({ ctx_webui_page: "settings/cookies", prev_webui_page: "history", webui_page: null }), {
+    ctx_webui_page: "settings/cookies",
+    prev_webui_page: "history",
+    webui_page: null,
+  });
+  for (const bad of ["settings/https://private.example/a", "me@example.com/0123456789abcdef0123", "a/b/c/d/Users/someone/x.json", "/Users/someone/x.json"]) {
+    const page = cleanProperties({ ctx_webui_page: bad }).ctx_webui_page;
+    assert.match(page, /^<[a-z]+>(?:\/?<[a-z]+>)*$/, bad);
+    assert.deepEqual(leaks(page, "private", "someone", "example.com"), [], bad);
+  }
+  assert.equal(cleanProperties({ other_page: "settings/cookies" }).other_page, "<path>", "only the built-in page field is exempt from the path scrub");
+});
+
+test("a saved context keeps the built-in page only as a host and first path segment", async () => {
+  const { readContext } = await import("./savedContext.ts");
+  assert.equal(readContext({ at: 1, tabs: 3, webui_page: "settings/cookies" }).webui_page, "settings/cookies");
+  assert.equal(readContext({ at: 1, webui_page: null }).webui_page, null);
+  assert.equal("webui_page" in readContext({ at: 1, tabs: 3 }), false, "a sample saved before the field existed stays without it");
+  for (const bad of ["https://private.example/inbox?token=secret", "settings/cookies/detail", "Users/someone/x", "a b", 7, {}]) {
+    assert.equal(readContext({ at: 1, webui_page: bad }).webui_page, null, String(bad));
+  }
+});
+
 test("an uncaught NSException sends its name and its throw site first, never its reason", () => {
   const { name, signal, exceptions } = nativeCrashExceptions({
     exceptionType: "EXC_BREAKPOINT",
@@ -120,7 +144,7 @@ test("an exception without a name or reason still says what it was", () => {
 test("native frames keep their image offset and drop a stripped image's nearest export", () => {
   const frames = nativeFrames([
     { image: "Chromium Framework", symbol: "ArdiaCoreMain", symbolOffset: 66417332, offset: 0x41a36e8 },
-    { image: "Chromium Framework", symbol: "ac_engine_abi_version", offset: 0x2139600 },
+    { image: "Chromium Framework", symbol: "ac_engine_set_event_sink", offset: 0x2139600 },
     { image: "Chromium Framework", symbol: "ArdiaCoreMain", symbolOffset: 760, offset: 0x442c72c },
     { image: "Chromium Framework", offset: 0x2ef170 },
     { image: "Ardia", offset: 0x3fd9f0 },
@@ -243,6 +267,41 @@ test("every measured key survives the telemetry property cleaner unchanged", () 
   assert.ok(measured < Object.keys(SETTING_SPECS).length);
 });
 
+test("the settings snapshot reports borderless mode and its default without changing the saved frame", () => {
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, borderlessMode: true, pageFrame: 6 });
+  assert.equal(snap.setting_borderlessMode, "true");
+  assert.equal(snap.default_borderlessMode, "false");
+  assert.equal(snap.setting_pageFrame, "6");
+  assert.equal(snap.default_pageFrame, "9");
+  assert.deepEqual(cleanProperties(snap), snap);
+});
+
+test("the snapshot says whether text adjusts to the colour, and how many profiles have a custom colour, never which", () => {
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, adaptTextToColor: false });
+  assert.equal(snap.setting_adaptTextToColor, "false");
+  assert.equal(snap.default_adaptTextToColor, "true");
+  const theme = { stops: [{ x: 0, y: 0, color: { r: 0.88, g: 0.88, b: 0.88, a: 1 } }], intensity: 1, mode: "dark" };
+  const counted = customColorProfiles({ a: { name: "Work", theme }, b: { name: "Home" }, c: { name: "Play", theme: null } });
+  assert.deepEqual(counted, { custom_color_profiles: "1" });
+  assert.deepEqual(cleanProperties(counted), counted);
+});
+
+test("the snapshot counts browser windows narrower than the old 720 point minimum and those that narrow the sidebar, never their size", () => {
+  const frame = (width) => [10, 20, width, 600];
+  const counted = narrowWindows({
+    a: { kind: "main", frame: frame(500) },
+    b: { kind: "private", frame: frame(719) },
+    c: { kind: "main", frame: frame(720) },
+    d: { kind: "small", frame: frame(400) },
+    e: { kind: "main", frame: null },
+    f: { kind: "main", frame: frame(600), fullScreen: 1700000000000 },
+    g: { kind: "main", frame: frame(640) },
+  }, 400);
+  assert.deepEqual(counted, { narrow_windows: "3", sidebar_narrowed_windows: "2" });
+  assert.deepEqual(cleanProperties(counted), counted);
+  assert.deepEqual(narrowWindows({ a: { kind: "main", frame: frame(500) } }, 190), { narrow_windows: "1", sidebar_narrowed_windows: "0" });
+});
+
 test("a value the spec doesn't allow is left out rather than sent", () => {
   const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, interfaceStyle: "https://not-an-option.example" });
   assert.equal(snap.setting_interfaceStyle, undefined);
@@ -259,4 +318,18 @@ test("a native exception's free-text reason never leaves, whatever it holds", ()
     assert.equal(JSON.stringify(out).includes("Alice"), false, JSON.stringify(out));
     assert.equal("reason" in out, false);
   }
+});
+
+test("the theme file snapshot is flags and counts only, and survives sanitizing", () => {
+  assert.deepEqual(themeFileSnapshot(null, null), {
+    theme_file: "false", theme_type: "false", theme_metrics: "false", theme_layout: "false", theme_icons: "false",
+    theme_hidden_parts: "0", theme_moved_parts: "0", theme_icon_overrides: "0",
+  });
+  const snap = themeFileSnapshot("nord", { type: { family: "Avenir Next" }, layout: { hide: ["pinned", "profile"], addressField: "bottom" }, icons: { plus: "plus.circle" } });
+  assert.deepEqual(snap, {
+    theme_file: "true", theme_type: "true", theme_metrics: "false", theme_layout: "true", theme_icons: "true",
+    theme_hidden_parts: "2", theme_moved_parts: "1", theme_icon_overrides: "1",
+  });
+  assert.equal(JSON.stringify(snap).includes("nord") || JSON.stringify(snap).includes("Avenir"), false);
+  assert.deepEqual(cleanProperties(snap), snap);
 });

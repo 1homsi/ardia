@@ -14,14 +14,16 @@ import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Sym
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
+import { monoFace } from "../../ui/tokens";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { plural } from "../../../state/browser/model";
 import { importPasswordsCsv, revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";
 import { Favicon } from "../../favicon/Favicon";
 import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
+import { keptByExtensionNote } from "../keptByExtension";
 import { settingsLayout } from "../tokens";
-import { passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
+import { autofillToggleAsked, passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
@@ -43,6 +45,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   const profile = currentEngineProfile(profileId);
   const unlocked = usePasswordsUnlocked(profile);
   const [autofill = true] = useResource(passwordAutofill, profile);
+  const [asked] = useResource(autofillToggleAsked, profile, "passwords");
 
   const load = () => {
     void listPasswords(profile).catch(orWarn<SavedPassword[]>([])).then(setList);
@@ -83,8 +86,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
-        <Row anchor="passwords.offerToSave">
-          <Toggle value={autofill} onChange={(v) => void setPasswordAutofillFor(profile, v)} />
+        <Row anchor="passwords.offerToSave" description={keptByExtensionNote(autofill, asked)}>
+          <Toggle value={autofill} onChange={(v) => setPasswordAutofillFor(profile, v)} />
         </Row>
         <Row anchor="passwords.importPasswords" description={importStatus || undefined}>
           <Button title="Import CSV…" onPress={() => void importCsv()} />
@@ -170,7 +173,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
     const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
-    }).catch(orWarn(false));
+    }).catch(orWarn(false, "settings edit"));
     if (changed) onChanged();
     if (!open.current) return;
     setBusy(false);
@@ -186,7 +189,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
       destructive: true,
     });
     if (!confirmed) return setBusy(false);
-    await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false));
+    await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false, "settings delete"));
     onChanged();
     closeSettingsSheet();
   };
@@ -214,7 +217,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
               <TextField value={password ?? ""} onChangeText={setPassword} secure={!revealed} width={220} />
             ) : (
               <Box row gap="xs" style={CENTER}>
-                <Text selectable style={revealed ? MONO : undefined}>
+                <Text selectable style={revealed ? monoFace() : undefined}>
                   {password === null ? "…" : revealed ? password : "•".repeat(Math.min(password.length, 12))}
                 </Text>
                 <Button variant="icon" icon={revealed ? "eye.slash" : "eye"} size="m" onPress={() => setRevealed(!revealed)} tooltip={revealed ? "Hide" : "Show"} />
@@ -258,4 +261,3 @@ const LOCK_ICON = { width: 36, height: 36 } as const;
 const SHEET_BODY = { marginTop: space.xl } as const;
 const ERROR = { marginTop: space.ml } as const;
 const CENTER = { alignItems: "center" } as const;
-const MONO = { fontFamily: "Menlo" } as const;

@@ -30,6 +30,45 @@ NSString *const kLingeringPane = @"ardia.lingeringPane";
 @end
 
 namespace {
+constexpr CGFloat kContentDriftCounted = 0.5;
+constexpr CAAutoresizingMask kFillsWidget = kCALayerWidthSizable | kCALayerHeightSizable;
+NSUInteger gContentDriftFits = 0;
+NSUInteger gWidgetLayouts = 0;
+CGFloat gContentDriftMaxPoints = 0;
+}
+
+@interface ArdiaWidgetLayerFit : NSObject <CALayoutManager>
+@end
+
+@implementation ArdiaWidgetLayerFit
+
++ (instancetype)shared {
+  static ArdiaWidgetLayerFit *fit = [ArdiaWidgetLayerFit new];
+  return fit;
+}
+
+- (void)layoutSublayersOfLayer:(CALayer *)layer {
+  gWidgetLayouts++;
+  const CGRect bounds = layer.bounds;
+  for (CALayer *sublayer in layer.sublayers) {
+    const CGRect frame = sublayer.frame;
+    if (sublayer.autoresizingMask != kFillsWidget || CGRectEqualToRect(frame, bounds)) continue;
+    const CGFloat drift = MAX(MAX(fabs(CGRectGetMinX(frame) - CGRectGetMinX(bounds)), fabs(CGRectGetMaxX(frame) - CGRectGetMaxX(bounds))),
+                              MAX(fabs(CGRectGetMinY(frame) - CGRectGetMinY(bounds)), fabs(CGRectGetMaxY(frame) - CGRectGetMaxY(bounds))));
+    if (drift >= kContentDriftCounted) {
+      gContentDriftFits++;
+      gContentDriftMaxPoints = MAX(gContentDriftMaxPoints, drift);
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    sublayer.frame = bounds;
+    [CATransaction commit];
+  }
+}
+
+@end
+
+namespace {
 
 NSMapTable<NSWindow *, ArdiaNeighbourWake *> *NeighbourPagesAwake() {
   static NSMapTable *windows = [NSMapTable weakToStrongObjectsMapTable];
@@ -59,6 +98,24 @@ NSView *RenderWidgetIn(NSView *page) {
     [queue addObjectsFromArray:view.subviews];
   }
   return nil;
+}
+
+void FitRenderWidgetsIn(NSView *page) {
+  static Class widgetClass = NSClassFromString(@"RenderWidgetHostViewCocoa");
+  if (!page || !widgetClass) return;
+  NSMutableArray<NSView *> *queue = [NSMutableArray arrayWithObject:page];
+  while (queue.count) {
+    NSView *view = queue.firstObject;
+    [queue removeObjectAtIndex:0];
+    if (![view isKindOfClass:widgetClass]) {
+      [queue addObjectsFromArray:view.subviews];
+      continue;
+    }
+    CALayer *layer = view.layer;
+    if (!layer) continue;
+    if (layer.layoutManager != ArdiaWidgetLayerFit.shared) layer.layoutManager = ArdiaWidgetLayerFit.shared;
+    [layer setNeedsLayout];
+  }
 }
 
 NSArray *FrameMarkOf(NSView *widget) {
@@ -117,6 +174,15 @@ BOOL Above(NSView *a, NSView *b) {
   } else {
     page.frame = self.bounds;
   }
+  FitRenderWidgetsIn(page);
+}
+
++ (NSDictionary<NSString *, NSNumber *> *)takeContentDrift {
+  NSDictionary *drift = @{@"layouts" : @(gWidgetLayouts), @"fits" : @(gContentDriftFits), @"maxPoints" : @(gContentDriftMaxPoints)};
+  gWidgetLayouts = 0;
+  gContentDriftFits = 0;
+  gContentDriftMaxPoints = 0;
+  return drift;
 }
 
 - (BOOL)paints {
@@ -215,6 +281,7 @@ BOOL Above(NSView *a, NSView *b) {
 
 - (void)applyPainting {
   if (_frameHold.awaiting && !_visible && !_reveal.active) [self finishFrameHold];
+  if (_visible || _reveal.active) [self exposePage];
   if (_visible) [self sinkLingeringPane];
   if (_visible) [self takeFocusFromLingeringPane];
   [self beginFrameHoldIfCold];
@@ -228,9 +295,10 @@ BOOL Above(NSView *a, NSView *b) {
   }
   [CATransaction commit];
   if (TraceVisibility())
-    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d", _transferKey,
-          _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
-          (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor);
+    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d alpha=%d reveal=%d awaiting=%d",
+          _transferKey, _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
+          (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor, (int)self.alphaValue, _reveal.active,
+          _frameHold.awaiting);
 }
 
 + (void)noteShown:(ArdiaCoreTab *)tab {
@@ -240,6 +308,7 @@ BOOL Above(NSView *a, NSView *b) {
   [changes setObject:@(change) forKey:tab];
   ArdiaWebView *view = [ArdiaTabRegistry viewForTab:tab];
   if (view.seenByUser) return [tab noteShownByHost:YES];
+  if (view.autoPictureInPicture) return [tab noteShownByHost:NO];
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     if ([changes objectForKey:tab].unsignedIntegerValue != change) return;
     ArdiaWebView *now = [ArdiaTabRegistry viewForTab:tab];
@@ -263,6 +332,14 @@ BOOL Above(NSView *a, NSView *b) {
 - (void)userSightChanged {
   if (_tab) [ArdiaWebView noteShown:_tab];
   const BOOL seen = self.seenByUser;
+  const BOOL kept = seen && _visible && [ArdiaWindowController userSeesOnlyThroughWindowServer:self.window];
+  if (!kept) {
+    _reports.keptByWindowServer = NO;
+  } else if (!_reports.keptByWindowServer && self.playsForAutoPictureInPicture) {
+    _reports.keptByWindowServer = YES;
+    [self traceAutoPictureInPicture:@"app: the window server still shows the tab, AppKit's occlusion overruled"];
+    [self emit:@"autoPictureInPictureKept" payload:@{@"appSwitch" : @NO}];
+  }
   if (seen == _reports.seenByUser) return;
   _reports.seenByUser = seen;
   [self traceAutoPictureInPicture:seen ? @"app: the user sees the tab" : @"app: the user left the tab"];
@@ -326,6 +403,10 @@ BOOL Above(NSView *a, NSView *b) {
   NSView *page = _tab.view;
   return [self sharesScreenWith:incoming] && page.superview == self && !page.hidden && !_frameHold.awaiting &&
          self.alphaValue > 0 && !self.isHiddenOrHasHiddenAncestor;
+}
+
+- (void)exposePage {
+  if (_tab && self.window && _tab.view.superview == self) [_tab noteInShownSlot];
 }
 
 - (void)beginFrameHoldIfCold {
