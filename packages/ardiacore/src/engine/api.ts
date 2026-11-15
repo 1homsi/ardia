@@ -195,6 +195,7 @@ export type EngineCalls = {
   "webView.setVideoUpscaling": [{ enabled: boolean }, null];
   "webView.setVideoUpscalingTestConditions": [{ lowPower?: boolean; thermalPressure?: boolean }, null];
   "webView.videoUpscalingState": [{}, VideoUpscalingState | null];
+  "webView.takeContentDrift": [{}, { layouts: number; fits: number; maxPoints: number }];
 
   "webKit.removeDownloadStaging": [{ path: string }, boolean];
   "webKit.endPrivateSession": [{ session: string }, null];
