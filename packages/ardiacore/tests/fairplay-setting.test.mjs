@@ -100,13 +100,26 @@ test("protected video is baked out of the page script until the setting turns it
 });
 
 test("a page that started with the bridge baked the other way is reloaded once the setting is known", () => {
-  assert.match(pageScript, /send\("hello", \{ top: isTop, url: location\.href, protectedVideo: PROTECTED_VIDEO_ON \}\);/);
-  assert.match(messages, /if \(main\) \[ArdiaProtectedVideo helloFromTab:tab origin:VerifiedOrigin\(verifiedOrigin\) bridged:Flag\(dict, @"protectedVideo"\)\];/);
+  assert.match(pageScript, /send\("hello", \{ top: isTop, url: location\.href, protectedVideo: PROTECTED_VIDEO_ON, started: performance\.timeOrigin \}\);/);
+  assert.match(messages, /\[ArdiaProtectedVideo helloFromTab:tab origin:VerifiedOrigin\(verifiedOrigin\) bridged:Flag\(dict, @"protectedVideo"\) started:Finite\(dict, @"started", &startedMs\) \? startedMs \/ 1000 : 0\];/);
   const hello = between(protectedVideo, "+ (void)helloFromTab:(ArdiaCoreTab *)tab origin:", "\n}\n");
-  assert.match(hello, /if \(!tab \|\| bridged == gEnabled \|\| !\[self servesOrigin:origin\]\) return;/);
+  assert.match(hello, /if \(!tab \|\| !\[self servesOrigin:origin\]\) return;/);
+  assert.match(hello, /if \(bridged == gEnabled && !settled\) return;/);
   assert.match(hello, /-last\.timeIntervalSinceNow < kReloadGap\) return;/);
+  assert.match(hello, /\[OriginOf\(current\.url\) isEqualToString:origin\]\) \[current reload\];/);
 });
 
+test("a Netflix page that loaded before the user agent rules took hold is reloaded after they settle", () => {
+  assert.match(protectedVideo, /kUserAgentRuleOrigin = @"https:\/\/www\.netflix\.com";/);
+  const ruleHosts = JSON.parse(read("../extensions/protected-video-ua/rules.json"))[0].condition.requestDomains;
+  assert.ok(ruleHosts.includes("netflix.com"));
+  const load = between(protectedVideo, "+ (void)loadIntoProfile:(ArdiaCoreProfile *)profile {", "\n}\n");
+  assert.match(load, /\[self\.extensionLoads setObject:NSDate\.date forKey:profile\];/);
+  const settle = between(protectedVideo, "+ (NSTimeInterval)rulesSettleForTab:", "\n}\n");
+  assert.match(settle, /if \(!gEnabled \|\| started <= 0 \|\| !\[origin isEqualToString:kUserAgentRuleOrigin\]\) return 0;/);
+  assert.match(settle, /loaded\.timeIntervalSince1970 \+ kRulesSettle/);
+  assert.match(settle, /return loaded && started < settled \? settled : 0;/);
+});
 test("the local test origin is honoured only from a test instance, only on 127.0.0.1, and is spliced into the baked origins", () => {
   const launchConfig = read("../ios/ArdiaLaunchConfig.mm");
   assert.match(between(launchConfig, "NSArray<NSString *> *AppTestKeys() {", "\n}\n"), /@"protectedVideoOrigin"/);
@@ -174,11 +187,36 @@ test("encrypted samples wait for their licensed key, which reaches the renderers
 test("the page tells the native side the MediaSource duration whenever it changes", () => {
   const send = between(pageScript, "const sendDuration = (b) => {", "\n      };\n");
   assert.match(send, /const known = isFinite\(duration\) && duration > 0 \? duration : 0;\n {8}if \(known === b\.sentDuration\) return;/);
-  assert.match(send, /send\("protectedVideo", \{ op: "duration", media: b\.id, duration: known \}\);/);
+  assert.match(send, /sendMedia\(b, \{ op: "duration", media: b\.id, duration: known \}\);/);
   assert.match(between(pageScript, "const progress = (b) => {", "\n      };\n"), /sendDuration\(b\);/);
   assert.match(between(pageScript, "SourceProto.endOfStream = asNative(", "\n      });\n"), /sendDuration\(b\);/);
   assert.match(pageScript, /defineProperty\(SourceProto, "duration", \{[\s\S]{0,300}if \(b && bridgeOf\.get\(b\.el\) === b\) sendDuration\(b\);/);
   assert.match(sessionCore, /if \(!Bounded\(message, @"duration", 0, 1e8, &duration\) \|\| duration == _duration\) return;/);
+});
+
+test("a video given a source while the playing one plays is held, its messages kept, until the page plays it or the playing one lets go", () => {
+  assert.match(pageScript, /const sendMedia = \(b, data\) => \(b\.held \? b\.backlog\.push\(data\) : send\("protectedVideo", data\)\);/);
+  const bridgeCode = between(pageScript, "const bridge = (el, source) => {", "\n      };\n");
+  assert.match(bridgeCode, /const hold = !!\(bridged && bridged\.played && !bridged\.ended && bridged\.el !== el\);/);
+  assert.match(bridgeCode, /if \(bridged && !hold\) release\(bridged\.el\);/);
+  assert.match(bridgeCode, /if \(hold\) held = b;\n {8}else bridged = b;/);
+  const releaseCode = between(pageScript, "const release = (el) => {\n        const b = bridgeOf.get(el);", "\n      };\n");
+  assert.match(releaseCode, /if \(bridged === b\) \{\n {10}bridged = null;\n {10}if \(held\) takeOver\(held\);/);
+  const takeOverCode = between(pageScript, "const takeOver = (b) => {", "\n      };\n");
+  assert.match(takeOverCode, /if \(bridged && bridged !== b\) release\(bridged\.el\);[\s\S]*for \(const data of b\.backlog\.splice\(0\)\) send\("protectedVideo", data\);/);
+  assert.match(between(pageScript, 'method(Media, "play", (b, el) => {', "\n      });\n"), /b\.played = true;\n {8}if \(b\.held\) takeOver\(b\);/);
+  const shim = pageScript.slice(pageScript.indexOf("let bridged = null;"), pageScript.indexOf('method(Video, "requestPictureInPicture"'));
+  assert.doesNotMatch(shim.replace('send("protectedVideo", data)', "").replace('send("protectedVideo", data);', ""), /send\("protectedVideo"/);
+});
+
+test("a picture in picture deadline only acts for the request that set it", () => {
+  const start = between(pictureInPicture, "- (BOOL)startPictureInPicture {", "\n}\n");
+  assert.match(start, /const NSInteger request = \+\+_pipRequest;/);
+  assert.match(start, /session->_pipRequest != request \|\| !session->_pipWanted/);
+  const exit = between(pictureInPicture, "- (void)exitPictureInPicture {", "\n}\n");
+  assert.match(exit, /const NSInteger request = \+\+_pipRequest;/);
+  assert.match(exit, /session->_pipRequest != request \|\| !session->_inPip/);
+  assert.match(between(pictureInPicture, "pictureInPictureControllerDidStartPictureInPicture:", "\n}\n"), /_pipRequest\+\+;/);
 });
 
 test("picture in picture runs on the sample buffer layer, and its skip and play buttons reach the page as real events", () => {

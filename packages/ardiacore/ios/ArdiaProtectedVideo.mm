@@ -14,6 +14,8 @@ NSString *const kOriginsOff = @"const PROTECTED_VIDEO_ORIGINS = [\"https://www.n
 NSString *const kExtensionName = @"protected-video-ua";
 NSString *const kTestOriginPrefix = @"http://127.0.0.1:";
 constexpr NSTimeInterval kReloadGap = 5;
+constexpr NSTimeInterval kRulesSettle = 1;
+NSString *const kUserAgentRuleOrigin = @"https://www.netflix.com";
 BOOL gEnabled = NO;
 NSString *gOriginalScript;
 
@@ -51,6 +53,11 @@ NSSet<NSString *> *ProtectedVideoOrigins() {
   return extensions;
 }
 
++ (NSMapTable<ArdiaCoreProfile *, NSDate *> *)extensionLoads {
+  static NSMapTable *loads = [NSMapTable weakToStrongObjectsMapTable];
+  return loads;
+}
+
 + (BOOL)enabled {
   return gEnabled;
 }
@@ -65,6 +72,7 @@ NSSet<NSString *> *ProtectedVideoOrigins() {
   }
   if (!enabled) {
     [self.extensions removeAllObjects];
+    [self.extensionLoads removeAllObjects];
     for (ArdiaPVSession *session in self.sessions.objectEnumerator.allObjects) [session close];
     [self.sessions removeAllObjects];
   }
@@ -91,7 +99,9 @@ NSSet<NSString *> *ProtectedVideoOrigins() {
   if (![NSFileManager.defaultManager fileExistsAtPath:[path stringByAppendingPathComponent:@"manifest.json"]]) return;
   NSString *extensionId = [profile loadComponentExtension:path];
   Trace(@"user agent extension in %@: %@", profile.name, extensionId ?: @"not loaded");
-  if (extensionId) [self.extensions setObject:extensionId forKey:profile];
+  if (!extensionId) return;
+  [self.extensions setObject:extensionId forKey:profile];
+  [self.extensionLoads setObject:NSDate.date forKey:profile];
 }
 
 + (BOOL)servesOrigin:(NSString *)origin {
@@ -103,13 +113,28 @@ NSSet<NSString *> *ProtectedVideoOrigins() {
   return reloads;
 }
 
-+ (void)helloFromTab:(ArdiaCoreTab *)tab origin:(NSString *)origin bridged:(BOOL)bridged {
-  if (!tab || bridged == gEnabled || ![self servesOrigin:origin]) return;
++ (NSTimeInterval)rulesSettleForTab:(ArdiaCoreTab *)tab origin:(NSString *)origin started:(NSTimeInterval)started {
+  if (!gEnabled || started <= 0 || ![origin isEqualToString:kUserAgentRuleOrigin]) return 0;
+  NSDate *loaded = tab.profile ? [self.extensionLoads objectForKey:tab.profile] : nil;
+  const NSTimeInterval settled = loaded.timeIntervalSince1970 + kRulesSettle;
+  return loaded && started < settled ? settled : 0;
+}
+
++ (void)helloFromTab:(ArdiaCoreTab *)tab origin:(NSString *)origin bridged:(BOOL)bridged started:(NSTimeInterval)started {
+  if (!tab || ![self servesOrigin:origin]) return;
+  const NSTimeInterval settled = [self rulesSettleForTab:tab origin:origin started:started];
+  if (bridged == gEnabled && !settled) return;
   NSDate *last = [self.reloads objectForKey:tab];
   if (last && -last.timeIntervalSinceNow < kReloadGap) return;
   [self.reloads setObject:NSDate.date forKey:tab];
-  Trace(@"reload: the page started with the bridge %@", bridged ? @"on" : @"off");
-  [tab reload];
+  if (settled) Trace(@"reload: the page started before its user agent rules");
+  else Trace(@"reload: the page started with the bridge %@", bridged ? @"on" : @"off");
+  const NSTimeInterval wait = MAX(0, settled - NSDate.date.timeIntervalSince1970);
+  __weak ArdiaCoreTab *weakTab = tab;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    ArdiaCoreTab *current = weakTab;
+    if (current && [OriginOf(current.url) isEqualToString:origin]) [current reload];
+  });
 }
 
 + (void)tab:(ArdiaCoreTab *)tab frame:(NSString *)frameId message:(NSDictionary *)message {

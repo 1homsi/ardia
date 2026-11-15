@@ -170,6 +170,9 @@ using namespace ardia_protected_video;
   _hasRect = NO;
   _showing = NO;
   _duration = 0;
+  _droppedFrames = 0;
+  _shownFrames = 0;
+  _choppyReported = NO;
   Trace(@"attach %ld", (long)media);
 }
 
@@ -212,6 +215,9 @@ using namespace ardia_protected_video;
     track->_assembly = [NSMutableData data];
   }
   if (track->_assemblySeq != seq || track->_assemblyNext != part || track->_assembly.length + data.length > kMaxUnitBytes) {
+    if (track->_assemblySeq >= 0)
+      Trace(@"buffer %ld drops seq %ld at part %ld/%ld (assembling seq %ld, expected part %ld, %lu bytes)", (long)buffer, (long)seq, (long)part, (long)parts,
+            (long)track->_assemblySeq, (long)track->_assemblyNext, (unsigned long)track->_assembly.length);
     track->_assemblySeq = -1;
     track->_assembly = nil;
     return;
@@ -233,10 +239,14 @@ using namespace ardia_protected_video;
     return;
   }
   double start, end;
-  if (![kind isEqualToString:@"segment"] || !track->_init || !Bounded(message, @"start", -1e6, 1e8, &start) || !Bounded(message, @"end", start, 1e8, &end)) return;
+  if (![kind isEqualToString:@"segment"] || !track->_init || !Bounded(message, @"start", -1e6, 1e8, &start) || !Bounded(message, @"end", start, 1e8, &end)) {
+    Trace(@"buffer %ld drops seq %ld: kind %@ init %d", (long)buffer, (long)seq, kind, track->_init != nil);
+    return;
+  }
   if (![track parse:unit]) return [self failAt:@"playback" reason:track->_parseError];
   const int64_t decodeTime = FragmentDecodeTime(unit);
   const double offset = decodeTime >= 0 && track->_timescale ? start - (double)decodeTime / track->_timescale : 0;
+  if (!track->_parsedVideo.count && !track->_parsedAudio.count) Trace(@"buffer %ld segment %.3f-%.3f parsed no samples", (long)buffer, start, end);
   [self store:track->_parsedVideo in:_videoLane offset:offset key:track->_kid bytes:unit.length];
   [self store:track->_parsedAudio in:_audioLane offset:offset key:track->_kid bytes:unit.length];
   track->_parsedVideo = nil;
@@ -263,6 +273,13 @@ using namespace ardia_protected_video;
   segment->_bytes = bytes;
   segment->_kid = kid;
   segment->_serial = ++_serials;
+  if (Tracing()) {
+    NSMutableArray<NSString *> *replaced = [NSMutableArray array];
+    for (ArdiaPVSegment *old in lane->_stored)
+      if (segment->_start < old->_end - kOverlap && segment->_end > old->_start + kOverlap) [replaced addObject:[NSString stringWithFormat:@"%.3f-%.3f", old->_start, old->_end]];
+    if (replaced.count)
+      Trace(@"%@ segment %.3f-%.3f replaces %@", lane->_video ? @"video" : @"audio", segment->_start, segment->_end, [replaced componentsJoinedByString:@","]);
+  }
   [lane store:segment position:[self position]];
 }
 

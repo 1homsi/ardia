@@ -150,6 +150,7 @@ using namespace ardia_protected_video;
   lane->_feed = nil;
   lane->_dirty = NO;
   lane->_blocked = NO;
+  lane->_promisedFloor = kCMTimeInvalid;
 }
 
 - (void)restart:(ArdiaPVLane *)lane at:(double)time {
@@ -207,6 +208,16 @@ using namespace ardia_protected_video;
     [lane->_renderer enqueueSampleBuffer:queued];
     if (hidden) CFRelease(hidden);
     [lane->_enqueued addObject:segment];
+    if (lane->_video) [self promiseUpcoming:lane];
+  }
+}
+
+- (void)promiseUpcoming:(ArdiaPVLane *)lane {
+  if (@available(macOS 14.4, *)) {
+    const CMTime floor = [lane upcomingFloor];
+    if (!CMTIME_IS_NUMERIC(floor) || (CMTIME_IS_NUMERIC(lane->_promisedFloor) && CMTimeCompare(floor, lane->_promisedFloor) <= 0)) return;
+    lane->_promisedFloor = floor;
+    [_display.sampleBufferRenderer expectMinimumUpcomingSampleBufferPresentationTime:floor];
   }
 }
 
@@ -214,7 +225,7 @@ using namespace ardia_protected_video;
   CMFormatDescriptionRef format = CMSampleBufferGetFormatDescription(sample);
   if (!format || (lane->_format && CMFormatDescriptionEqual(format, lane->_format))) return;
   const CMVideoDimensions size = CMVideoFormatDescriptionGetDimensions(format);
-  Trace(@"video format %dx%d from %.3f", size.width, size.height, StartOf(sample));
+  Trace(@"video format %dx%d from %.3f decode %.3f", size.width, size.height, StartOf(sample), CMTimeGetSeconds(CMSampleBufferGetDecodeTimeStamp(sample)));
   CFRetain(format);
   if (lane->_format) CFRelease(lane->_format);
   lane->_format = format;
@@ -336,7 +347,15 @@ using namespace ardia_protected_video;
     [view autoPictureInPictureInputsChanged];
     [self playbackStateChanged];
   }
-  [self deliver:@{@"event" : @"time", @"media" : @(_media), @"seq" : @(_appliedSeq), @"time" : @(now), @"playing" : @(playing)}];
+  __weak ArdiaPVSession *weakSelf = self;
+  [video loadVideoPerformanceMetricsWithCompletionHandler:^(AVVideoPerformanceMetrics *metrics) {
+    if (!metrics) return;
+    const NSInteger total = metrics.totalNumberOfFrames, dropped = metrics.numberOfDroppedFrames;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [weakSelf noteFrames:total dropped:dropped];
+    });
+  }];
+  [self deliver:@{@"event" : @"time", @"media" : @(_media), @"seq" : @(_appliedSeq), @"time" : @(now), @"playing" : @(playing), @"dropped" : @(_droppedFrames)}];
   if (playing && !_stalled && !_endedSent) {
     const double end = [self bufferedEnd];
     if (!std::isfinite(end) || now >= end - 0.03) [self reachedBufferedEnd];
@@ -364,13 +383,23 @@ using namespace ardia_protected_video;
   }
 }
 
+- (void)noteFrames:(NSInteger)total dropped:(NSInteger)dropped {
+  _droppedFrames += dropped >= _rendererDropped ? dropped - _rendererDropped : dropped;
+  _rendererDropped = dropped;
+  _shownFrames += total >= _rendererFrames ? total - _rendererFrames : total;
+  _rendererFrames = total;
+  if (_choppyReported || _shownFrames < kChoppyMinimumFrames || _droppedFrames * kChoppyDropShare < _shownFrames) return;
+  _choppyReported = YES;
+  [self report:@{@"event" : @"choppy", @"video" : @YES}];
+}
+
 - (void)place {
   ArdiaCoreTab *tab = _tab;
   NSView *content = tab.view;
   NSView *host = content.superview;
   const BOOL show = _media && _showing && _hasRect && _rectVisible && host && content.window && !content.hiddenOrHasHiddenAncestor;
   if (!show) {
-    _view.hidden = YES;
+    if (!_view.hidden) _view.hidden = YES;
     return;
   }
   NSView *mirror = nil;
@@ -403,9 +432,9 @@ using namespace ardia_protected_video;
   CGRect layerFrame = NSRectToCGRect(inside);
   if (host.isFlipped) layerFrame.origin.y = NSHeight(visible) - CGRectGetMaxY(layerFrame);
   if (!_inPip && !CGRectEqualToRect(_display.frame, layerFrame)) _display.frame = layerFrame;
-  _display.contentsScale = content.window.backingScaleFactor ?: 2;
+  if (_display.contentsScale != backing) _display.contentsScale = backing;
   [CATransaction commit];
-  _view.hidden = _inPip;
+  if (_view.hidden != _inPip) _view.hidden = _inPip;
   [self preparePictureInPicture];
 }
 

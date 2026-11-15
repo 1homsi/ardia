@@ -29,6 +29,9 @@ constexpr NSUInteger kMaxStoredSegments = 4000;
 constexpr NSUInteger kMaxStoredBytes = 320 * 1024 * 1024;
 constexpr double kJoin = 0.3;
 constexpr double kOverlap = 0.05;
+constexpr NSUInteger kUpcomingWindow = 16;
+constexpr NSInteger kChoppyMinimumFrames = 600;
+constexpr NSInteger kChoppyDropShare = 20;
 constexpr double kKeepBehind = 30;
 constexpr double kResumeAhead = 1;
 constexpr double kPictureInPictureDeadline = 3;
@@ -106,6 +109,7 @@ double EndOf(CMSampleBufferRef sample);
   BOOL _blocked;
   NSHashTable<ArdiaPVSegment *> *_enqueued;
   CMFormatDescriptionRef _format;
+  CMTime _promisedFloor;
 }
 - (instancetype)initWithRenderer:(id<AVQueuedSampleBufferRendering>)renderer video:(BOOL)video;
 - (ArdiaPVSegment *)containing:(double)time;
@@ -116,6 +120,7 @@ double EndOf(CMSampleBufferRef sample);
 - (void)removeFrom:(double)start to:(double)end position:(double)position;
 - (void)evictBefore:(double)time position:(double)position;
 - (void)cueAt:(double)time;
+- (CMTime)upcomingFloor;
 - (void)clear;
 - (NSString *)ranges;
 @end
@@ -173,6 +178,7 @@ double EndOf(CMSampleBufferRef sample);
   BOOL _inPip;
   BOOL _pipWanted;
   CFTimeInterval _pipAskedAt;
+  NSInteger _pipRequest;
   CMTimeRange _tracedRange;
   __weak NSView *_pipPanel;
   id _pipPanelObserver;
@@ -188,6 +194,11 @@ double EndOf(CMSampleBufferRef sample);
   BOOL _licenseFailed;
   BOOL _endedSent;
   NSTimeInterval _lastTrace;
+  NSInteger _droppedFrames;
+  NSInteger _rendererDropped;
+  NSInteger _shownFrames;
+  NSInteger _rendererFrames;
+  BOOL _choppyReported;
 }
 - (instancetype)initWithTab:(ArdiaCoreTab *)tab frame:(NSString *)frameId;
 - (void)handle:(NSDictionary *)message;
@@ -220,6 +231,7 @@ double EndOf(CMSampleBufferRef sample);
 - (void)keysChanged;
 - (void)applyRate;
 - (void)tick;
+- (void)noteFrames:(NSInteger)total dropped:(NSInteger)dropped;
 - (void)place;
 @end
 

@@ -1045,6 +1045,9 @@
       "https://www.disneyplus.com": [".btm-media-player", "#hudson-wrapper", "disney-web-player"],
       "https://www.youtube.com": ["#movie_player", ".html5-video-player"],
     };
+    const PLAYER_OVERLAYS = {
+      "https://www.netflix.com": [".player-info"],
+    };
     const CAPTION_REGIONS = {
       "https://www.disneyplus.com": { region: ".timed-text-override-region", box: ".hive-subtitle-renderer-cue-positioning-box", relayoutEvent: "webkitfullscreenchange" },
     };
@@ -1058,6 +1061,7 @@
     const COVER = 0.9;
     const CANVAS_PIXELS = 160000;
     const CANVAS_CHARS = 48000;
+    const BLOB_PICTURES = 64;
     const VALUE_CHARS = 2000;
     const ATTR_CHARS = 100000;
     const BATCH_CHARS = 8000000;
@@ -1228,6 +1232,10 @@
         });
       }
       if (tag === "video" && !el.hasAttribute("width") && el.videoWidth) out.push(["width", String(el.videoWidth)], ["height", String(el.videoHeight)]);
+      if (tag === "img" && /^blob:/i.test((el.getAttribute("src") || "").trim())) {
+        const picture = blobPicture(el);
+        if (picture) out.push(["src", picture]);
+      }
       return out;
     };
     const formState = (el, out) => {
@@ -1245,6 +1253,51 @@
       } catch (e) {
         return null;
       }
+    };
+    const blobPictures = new Map();
+    const loadWatched = new WeakSet();
+    const repaintOnLoad = (img) => {
+      if (loadWatched.has(img)) return;
+      loadWatched.add(img);
+      img.addEventListener("load", () => {
+        if (!s || !s.known.has(img)) return;
+        s.dirtyAttrs.add(img);
+        schedule();
+      });
+    };
+    const dataUrlOf = (blob) =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    const blobPicture = (img) => {
+      const src = img.currentSrc || img.src;
+      if (blobPictures.has(src)) return blobPictures.get(src);
+      repaintOnLoad(img);
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!img.complete || !w || !h) return null;
+      blobPictures.set(src, null);
+      if (blobPictures.size > BLOB_PICTURES) blobPictures.delete(blobPictures.keys().next().value);
+      const scale = Math.min(1, Math.sqrt(CANVAS_PIXELS / (w * h)));
+      const c = new OffscreenCanvas(Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)));
+      try {
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      } catch (e) {
+        return null;
+      }
+      c.convertToBlob({ type: "image/jpeg", quality: 0.85 })
+        .then(dataUrlOf)
+        .then((url) => {
+          if (typeof url !== "string" || url.length > CANVAS_CHARS || !blobPictures.has(src)) return;
+          blobPictures.set(src, url);
+          if (!s || !s.known.has(img)) return;
+          s.dirtyAttrs.add(img);
+          schedule();
+        })
+        .catch(() => {});
+      return null;
     };
     const remember = (n, fresh) => {
       s.known.add(n);
@@ -1284,6 +1337,11 @@
           if (d) out.push(d);
         }
       }
+      if (parent === s.root)
+        for (const o of s.overlays) {
+          const d = s.known.has(o) && !fresh.has(o) ? { r: s.ids.get(o) } : describe(o, fresh);
+          if (d) out.push(d);
+        }
       return out;
     };
     const forget = (n) => {
@@ -1382,6 +1440,33 @@
       }
       while (best && best.getRootNode() !== document) best = best.getRootNode().host || null;
       return best && best !== document.body && best !== document.documentElement ? best : null;
+    };
+    const overlaysOf = (root) => {
+      const out = [];
+      for (const selector of PLAYER_OVERLAYS[location.origin] || []) {
+        let found = null;
+        try {
+          found = document.querySelector(selector);
+        } catch (e) {}
+        if (found && !composedContains(root, found) && !composedContains(found, root)) out.push(found);
+      }
+      return out;
+    };
+    const syncOverlays = () => {
+      const found = overlaysOf(s.root);
+      if (found.length === s.overlays.length && found.every((o, i) => o === s.overlays[i])) return;
+      for (const o of s.overlays) if (!found.includes(o)) forget(o);
+      for (const o of found) if (!s.overlays.includes(o)) s.observer.observe(o, options);
+      s.overlays = found;
+      s.dirtyChildren.add(s.root);
+    };
+    const pollOverlayValues = () => {
+      for (const o of s.overlays)
+        for (const el of o.querySelectorAll("textarea,input,select")) {
+          if (!s.known.has(el) || s.sentValues.get(el) === el.value) continue;
+          s.sentValues.set(el, el.value);
+          s.dirtyValues.add(el);
+        }
     };
     const shellsOf = (root) => {
       const list = [];
@@ -1543,11 +1628,14 @@
         if (s.resizer) s.resizer.observe(root);
       }
       resetTracking();
+      s.overlays = overlaysOf(root);
+      s.sentValues = new WeakMap();
       const fresh = new Set();
       const shellNodes = shellsOf(root);
       s.shellChain = shellNodes;
       const shells = shellNodes.map((n) => ({ i: remember(n, fresh), t: n.localName, a: attrsOf(n) }));
       s.observer.observe(root, options);
+      for (const o of s.overlays) s.observer.observe(o, options);
       for (const n of shellNodes) s.observer.observe(n, { attributes: true });
       if (document.head) s.observer.observe(document.head, { childList: true, subtree: true, characterData: true });
       const tree = describe(root, fresh);
@@ -1570,7 +1658,7 @@
       ops.push({ o: "c", i: s.ids.get(parent), c: childrenOf(parent, fresh) });
     };
     const inRoot = (n) => {
-      for (let x = n; x; x = composedParent(x)) if (x === s.root) return true;
+      for (let x = n; x; x = composedParent(x)) if (x === s.root || s.overlays.includes(x)) return true;
       return false;
     };
     const flush = () => {
@@ -1580,6 +1668,8 @@
       if (!s.root.isConnected || !composedContains(s.root, s.video) || shells.length !== s.shellChain.length || shells.some((n, i) => n !== s.shellChain[i]))
         return snapshot();
       const t0 = now();
+      syncOverlays();
+      if (s.slowDue) pollOverlayValues();
       const fresh = new Set();
       const pre = [];
       const ops = [];
@@ -1681,6 +1771,8 @@
       s = {
         video,
         root: null,
+        overlays: [],
+        sentValues: new WeakMap(),
         idSeq: 0,
         ids: new WeakMap(),
         known: new WeakSet(),
@@ -2622,7 +2714,9 @@
       const bridgeOfSource = new WeakMap();
       const sourceOfUrl = new Map();
       let bridged = null;
+      let held = null;
       let mediaSeq = 0;
+      const sendMedia = (b, data) => (b.held ? b.backlog.push(data) : send("protectedVideo", data));
       const bufferedOf = (b) => {
         const live = b.states.filter((st) => !st.removed);
         return live.length ? live.map((st) => mp4.merged(st.segments)).reduce(mp4.intersect) : [];
@@ -2643,7 +2737,7 @@
         const known = isFinite(duration) && duration > 0 ? duration : 0;
         if (known === b.sentDuration) return;
         b.sentDuration = known;
-        send("protectedVideo", { op: "duration", media: b.id, duration: known });
+        sendMedia(b, { op: "duration", media: b.id, duration: known });
       };
       const startMirror = (b) => {
         if (typeof videoMirror === "undefined") return;
@@ -2702,7 +2796,7 @@
         const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible].join();
         if (key === b.rectKey) return;
         b.rectKey = key;
-        send("protectedVideo", rect);
+        sendMedia(b, rect);
       };
       const watchRect = (b) => {
         const step = guard(() => {
@@ -2719,11 +2813,24 @@
         bridgeOfSource.delete(b.source);
         stopTicking(b);
         stopMirror(b);
-        if (bridged === b) bridged = null;
-        send("protectedVideo", { op: "detach", media: b.id });
+        sendMedia(b, { op: "detach", media: b.id });
+        if (held === b) held = null;
+        if (bridged === b) {
+          bridged = null;
+          if (held) takeOver(held);
+        }
+      };
+      const takeOver = (b) => {
+        if (held === b) held = null;
+        if (bridged && bridged !== b) release(bridged.el);
+        b.held = false;
+        bridged = b;
+        for (const data of b.backlog.splice(0)) send("protectedVideo", data);
       };
       const bridge = (el, source) => {
-        if (bridged) release(bridged.el);
+        const hold = !!(bridged && bridged.played && !bridged.ended && bridged.el !== el);
+        if (held) release(held.el);
+        if (bridged && !hold) release(bridged.el);
         const b = {
           id: ++mediaSeq,
           el,
@@ -2743,6 +2850,7 @@
           loaded: false,
           sourceEnded: false,
           frames: 0,
+          dropped: 0,
           lastPosition: 0,
           error: null,
           size: [0, 0],
@@ -2755,13 +2863,17 @@
           pipExit: [],
           sentDuration: -1,
           initDuration: 0,
+          played: false,
+          held: hold,
+          backlog: [],
         };
         bridgeOf.set(el, b);
         bridgeOfSource.set(source, b);
-        bridged = b;
-        send("protectedVideo", { op: "attach", media: b.id });
-        send("protectedVideo", { op: "volume", media: b.id, volume: el.volume, muted: el.muted });
-        if (b.rate !== 1) send("protectedVideo", { op: "rate", media: b.id, rate: b.rate });
+        if (hold) held = b;
+        else bridged = b;
+        sendMedia(b, { op: "attach", media: b.id });
+        sendMedia(b, { op: "volume", media: b.id, volume: el.volume, muted: el.muted });
+        if (b.rate !== 1) sendMedia(b, { op: "rate", media: b.id, rate: b.rate });
         sendDuration(b);
         watchRect(b);
       };
@@ -2769,7 +2881,7 @@
         const seq = ++st.seq;
         const parts = Math.max(1, Math.ceil(bytes.length / PART_BYTES));
         for (let part = 0; part < parts; part++)
-          send("protectedVideo", {
+          sendMedia(b, {
             op: "append",
             media: b.id,
             buffer: st.id,
@@ -2790,7 +2902,7 @@
         if (kept.length === st.segments.length) return;
         st.segments = kept;
         st.bytes = kept.reduce((sum, s) => sum + s.bytes, 0);
-        send("protectedVideo", { op: "remove", media: b.id, buffer: st.id, start, end: isFinite(end) ? end : 1e8 });
+        sendMedia(b, { op: "remove", media: b.id, buffer: st.id, start, end: isFinite(end) ? end : 1e8 });
       };
       const makeRoom = (b, st, incoming) => {
         const quota = st.video ? VIDEO_QUOTA : AUDIO_QUOTA;
@@ -2883,7 +2995,7 @@
             st.updating = true;
             if (b.sourceEnded) {
               b.sourceEnded = false;
-              send("protectedVideo", { op: "end", media: b.id, ended: false });
+              sendMedia(b, { op: "end", media: b.id, ended: false });
               fire(b.source, "sourceopen");
             }
             soon(() => {
@@ -2922,12 +3034,12 @@
           value: (type) => {
             if (UNDECODABLE.test(String(type))) throw new DOMException("The type provided ('" + type + "') is unsupported.", "NotSupportedError");
             st.video = /^video\//i.test(String(type));
-            send("protectedVideo", { op: "buffer", media: b.id, buffer: st.id, mime: String(type).slice(0, 200) });
+            sendMedia(b, { op: "buffer", media: b.id, buffer: st.id, mime: String(type).slice(0, 200) });
           },
         });
         b.states.push(st);
         b.buffers.push(sb);
-        send("protectedVideo", { op: "buffer", media: b.id, buffer: st.id, mime: mime.slice(0, 200) });
+        sendMedia(b, { op: "buffer", media: b.id, buffer: st.id, mime: mime.slice(0, 200) });
         return { sb, st };
       };
 
@@ -2966,7 +3078,7 @@
         if (!b) return apply(target, self, args);
         if (args[0]) return;
         b.sourceEnded = true;
-        send("protectedVideo", { op: "end", media: b.id, ended: true });
+        sendMedia(b, { op: "end", media: b.id, ended: true });
         sendDuration(b);
         fire(self, "sourceended");
       });
@@ -3044,7 +3156,7 @@
         const target = Math.max(0, isFinite(duration) ? Math.min(time, duration) : time);
         b.seekSeq++;
         b.ended = false;
-        send("protectedVideo", { op: "seek", media: b.id, time: target, seq: b.seekSeq });
+        sendMedia(b, { op: "seek", media: b.id, time: target, seq: b.seekSeq });
         if (!b.metadata) {
           b.time = target;
           b.stamp = now();
@@ -3069,11 +3181,12 @@
       getter(Video, "videoWidth", (b) => b.size[0]);
       getter(Video, "videoHeight", (b) => b.size[1]);
       getter(Video, "webkitDecodedFrameCount", (b) => Math.floor(b.frames));
-      getter(Video, "webkitDroppedFrameCount", () => 0);
+      const droppedOf = (b) => Math.min(Math.floor(b.dropped), Math.floor(b.frames));
+      getter(Video, "webkitDroppedFrameCount", droppedOf);
       getter(Media, "webkitVideoDecodedByteCount", (b) => Math.floor(b.frames) * 30000);
       getter(Media, "webkitAudioDecodedByteCount", (b) => Math.floor(b.frames) * 800);
       method(Video, "getVideoPlaybackQuality", (b) =>
-        own(create(VideoPlaybackQuality.prototype), { creationTime: now(), totalVideoFrames: Math.floor(b.frames), droppedVideoFrames: 0, corruptedVideoFrames: 0 })
+        own(create(VideoPlaybackQuality.prototype), { creationTime: now(), totalVideoFrames: Math.floor(b.frames), droppedVideoFrames: droppedOf(b), corruptedVideoFrames: 0 })
       );
       const frameCallbacks = new Map();
       let frameCallbackSeq = 0;
@@ -3114,12 +3227,14 @@
         }, 0);
       method(Media, "play", (b, el) => {
         if (b.error) return Promise.reject(new DOMException("The element has no supported sources.", "NotSupportedError"));
+        b.played = true;
+        if (b.held) takeOver(b);
         if (b.paused) {
           b.paused = false;
           b.stamp = now();
           b.lastPosition = positionOf(b);
           fireSoon(b, el, ["play"]);
-          send("protectedVideo", { op: "play", media: b.id });
+          sendMedia(b, { op: "play", media: b.id });
         }
         startTicking(b);
         return Promise.resolve();
@@ -3129,23 +3244,23 @@
         b.time = positionOf(b);
         b.paused = true;
         b.playing = false;
-        send("protectedVideo", { op: "pause", media: b.id });
+        sendMedia(b, { op: "pause", media: b.id });
         fireSoon(b, el, ["timeupdate", "pause"]);
       });
       setter(Media, "volume", (b, el, value, real) => {
         real();
-        send("protectedVideo", { op: "volume", media: b.id, volume: el.volume, muted: el.muted });
+        sendMedia(b, { op: "volume", media: b.id, volume: el.volume, muted: el.muted });
       });
       setter(Media, "muted", (b, el, value, real) => {
         real();
-        send("protectedVideo", { op: "volume", media: b.id, volume: el.volume, muted: el.muted });
+        sendMedia(b, { op: "volume", media: b.id, volume: el.volume, muted: el.muted });
       });
       setter(Media, "playbackRate", (b, el, value, real) => {
         real();
         b.time = positionOf(b);
         b.stamp = now();
         b.rate = el.playbackRate || 1;
-        send("protectedVideo", { op: "rate", media: b.id, rate: b.rate });
+        sendMedia(b, { op: "rate", media: b.id, rate: b.rate });
       });
       const pictureInPictureWindow = (b) => {
         const out = new EventTarget();
@@ -3163,7 +3278,7 @@
         if (b.pip) return Promise.resolve(b.pipWindow);
         return new Promise((resolve, reject) => {
           b.pipEnter.push({ resolve, reject });
-          send("protectedVideo", { op: "pip", media: b.id, enter: true });
+          sendMedia(b, { op: "pip", media: b.id, enter: true });
         });
       });
       const documentPip = getOwnPropertyDescriptor(Document.prototype, "pictureInPictureElement");
@@ -3184,7 +3299,7 @@
           if (!b || !b.pip || self !== document) return apply(target, self, args);
           return new Promise((resolve) => {
             b.pipExit.push(resolve);
-            send("protectedVideo", { op: "pip", media: b.id, enter: false });
+            sendMedia(b, { op: "pip", media: b.id, enter: false });
           });
         });
       const pipChanged = (b, active) => {
@@ -3251,6 +3366,7 @@
           if (m.seq !== b.seekSeq || b.seeking || !isFinite(m.time)) return;
           b.time = m.time;
           b.stamp = now();
+          if (isFinite(m.dropped) && m.dropped >= b.dropped) b.dropped = m.dropped;
           const playing = m.playing === true && !b.paused;
           if (playing && !b.playing) {
             b.playing = true;
@@ -4127,7 +4243,7 @@
     if (config.fieldTiming) setFieldTiming(true);
     if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
   };
-  send("hello", { top: isTop, url: location.href, protectedVideo: PROTECTED_VIDEO_ON });
+  send("hello", { top: isTop, url: location.href, protectedVideo: PROTECTED_VIDEO_ON, started: performance.timeOrigin });
 
   if (!isTop) return receive;
 

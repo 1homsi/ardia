@@ -95,11 +95,12 @@ void HideEmptyMirror(NSView *view) {
   if (_pip.pictureInPictureActive) return YES;
   _pipWanted = YES;
   _pipAskedAt = CACurrentMediaTime();
+  const NSInteger request = ++_pipRequest;
   if (_pip.pictureInPicturePossible) [_pip startPictureInPicture];
   __weak ArdiaPVSession *weakSelf = self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPictureInPictureDeadline * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaPVSession *session = weakSelf;
-    if (!session || !session->_pipWanted || session->_pip.pictureInPictureActive) return;
+    if (!session || session->_pipRequest != request || !session->_pipWanted || session->_pip.pictureInPictureActive) return;
     Trace(@"pip never became possible");
     session->_pipWanted = NO;
     [session deliverPictureInPicture];
@@ -113,13 +114,14 @@ void HideEmptyMirror(NSView *view) {
 
 - (void)exitPictureInPicture {
   _pipWanted = NO;
+  const NSInteger request = ++_pipRequest;
   Trace(@"pip stop requested: active=%d", _pip.pictureInPictureActive);
   if (_pip.pictureInPictureActive) {
     [_pip stopPictureInPicture];
     __weak ArdiaPVSession *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPictureInPictureDeadline * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       ArdiaPVSession *session = weakSelf;
-      if (!session || !session->_inPip) return;
+      if (!session || session->_pipRequest != request || !session->_inPip) return;
       Trace(@"pip never stopped (active=%d), closing it", session->_pip.pictureInPictureActive);
       if (session->_pip.pictureInPictureActive) [session dropPictureInPicture];
       [session pictureInPictureControllerDidStopPictureInPicture:session->_pip];
@@ -139,6 +141,7 @@ void HideEmptyMirror(NSView *view) {
 - (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)controller {
   Trace(@"pip started after %.0f ms", _pipWanted ? (CACurrentMediaTime() - _pipAskedAt) * 1000 : 0);
   _pipWanted = NO;
+  _pipRequest++;
   _inPip = YES;
   [self place];
   [self watchPictureInPicturePanel];

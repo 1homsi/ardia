@@ -328,6 +328,7 @@ bool IsSync(CMSampleBufferRef sample) {
     _video = video;
     _stored = [NSMutableArray array];
     _enqueued = [NSHashTable weakObjectsHashTable];
+    _promisedFloor = kCMTimeInvalid;
   }
   return self;
 }
@@ -435,6 +436,24 @@ bool IsSync(CMSampleBufferRef sample) {
   }
 }
 
+- (CMTime)upcomingFloor {
+  CMTime floor = kCMTimeInvalid;
+  ArdiaPVSegment *segment = _feed;
+  NSUInteger index = _feedIndex, seen = 0;
+  while (segment && seen < kUpcomingWindow) {
+    if (index >= segment->_samples.count) {
+      segment = [self following:segment];
+      index = 0;
+      continue;
+    }
+    const CMTime start = CMSampleBufferGetPresentationTimeStamp((__bridge CMSampleBufferRef)segment->_samples[index++]);
+    if (!CMTIME_IS_NUMERIC(start)) return kCMTimeInvalid;
+    if (!CMTIME_IS_NUMERIC(floor) || CMTimeCompare(start, floor) < 0) floor = start;
+    seen++;
+  }
+  return seen == kUpcomingWindow ? floor : kCMTimeInvalid;
+}
+
 - (void)clear {
   [_renderer stopRequestingMediaData];
   _requesting = NO;
@@ -445,6 +464,7 @@ bool IsSync(CMSampleBufferRef sample) {
   _dirty = NO;
   _blocked = NO;
   _from = 0;
+  _promisedFloor = kCMTimeInvalid;
   if (_format) CFRelease(_format);
   _format = NULL;
 }

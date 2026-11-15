@@ -148,7 +148,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON(self)];
     AnswerHello(tab, _profile, frameId, main, verifiedOrigin);
     if (main) [ArdiaVideoMirror helloFromTab:tab frame:frameId];
-    if (main) [ArdiaProtectedVideo helloFromTab:tab origin:VerifiedOrigin(verifiedOrigin) bridged:Flag(dict, @"protectedVideo")];
+    double startedMs = 0;
+    if (main) [ArdiaProtectedVideo helloFromTab:tab origin:VerifiedOrigin(verifiedOrigin) bridged:Flag(dict, @"protectedVideo") started:Finite(dict, @"started", &startedMs) ? startedMs / 1000 : 0];
     if (main) [ArdiaHLSVideo helloFromTab:tab origin:VerifiedOrigin(verifiedOrigin) bridged:Flag(dict, @"protectedVideo")];
     if (main && _littlePage.held) [self callFrame:frameId kind:@"firstPaint" json:@"{}"];
   } else if ([kind isEqualToString:@"displayMediaHello"]) {
