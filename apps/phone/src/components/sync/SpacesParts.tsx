@@ -120,7 +120,7 @@ export function Unavailable({ isOff }: { isOff: boolean }) {
       <Symbol name="macAndPhone" size={48} color={theme.secondaryLabel} />
       <Text style={[font.title2, styles.bold, styles.centered, { color: theme.label }]}>Your Mac’s Spaces</Text>
       <Text style={[font.subheadline, styles.centered, { color: theme.secondaryLabel }]}>{isOff ? "Every tab, anywhere." : "Waiting for your Mac."}</Text>
-      <Pressable accessibilityRole="button" onPress={() => openSettings({ page: "sync" })} style={[styles.primary, { backgroundColor: theme.label }]}>
+      <Pressable accessibilityRole="button" onPress={() => openSettings({ page: isOff ? "syncConnect" : "sync" })} style={[styles.primary, { backgroundColor: theme.label }]}>
         <Text style={[font.body, styles.bold, { color: theme.groupFill }]}>{isOff ? "Sync With Mac" : "Sync Settings"}</Text>
       </Pressable>
     </View>

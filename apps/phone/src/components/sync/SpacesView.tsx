@@ -12,6 +12,7 @@ import { openSettings } from "../../state/settings/nav";
 import { openRemote, selectProfile, syncNow } from "../../state/sync/actions";
 import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { remoteTitle, spaceGroupColor, spaceRows, type SpaceRow } from "../../state/sync/spaces";
+import { showAllDeviceTabs, toggleSpaceRow, useSpaceOpenFor } from "../../state/sync/spaceOpen";
 import { spaceTone } from "../../lib/profileLook";
 import { sfSymbol } from "../../lib/sfSymbols";
 import { syncBanner, type BannerIcon } from "../../state/sync/syncRules";
@@ -181,12 +182,13 @@ function HeaderButton({ icon, label, onPress }: { icon: SymbolName; label: strin
 
 function SpacePage({ profile, isShown, onMenu, bottom }: { profile: SyncedProfile; isShown: boolean; onMenu: (menu: RowMenu) => void; bottom: number }) {
   const theme = useTheme();
-  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const remembered = useSpaceOpenFor(profile.syncId);
+  const open = useMemo(() => new Set(remembered.open), [remembered.open]);
+  const expanded = useMemo(() => new Set(remembered.expanded), [remembered.expanded]);
   const [refreshing, setRefreshing] = useState(false);
   const frame = useSheetFrame();
   const rows = useMemo(() => spaceRows(profile, open, expanded), [profile, open, expanded]);
-  const toggle = (key: string) => setOpen((now) => (now.has(key) ? new Set([...now].filter((k) => k !== key)) : new Set([...now, key])));
+  const toggle = (key: string) => toggleSpaceRow(profile.syncId, key);
   const linkMenu = (url: string, title: string, y: number) => {
     menuOpenedHaptic();
     const sharing: MenuItem[] = /^https?:\/\//i.test(url)
@@ -220,7 +222,7 @@ function SpacePage({ profile, isShown, onMenu, bottom }: { profile: SyncedProfil
           row={item}
           profileId={profile.syncId}
           onToggle={toggle}
-          onShowAll={(id) => setExpanded((now) => new Set([...now, id]))}
+          onShowAll={(id) => showAllDeviceTabs(profile.syncId, id)}
           onLongPress={linkMenu}
           onFolder={(tile, anchor) =>
             onMenu({
@@ -262,7 +264,13 @@ function Row({ row, profileId, tint, onToggle, onShowAll, onLongPress, onFolder 
           onLongPress={(event) => onLongPress(row.url, row.title, event.nativeEvent.pageY)}
           style={({ pressed }) => [styles.row, { paddingLeft: space.l + INDENT * row.depth }, pressed ? { backgroundColor: theme.rowHighlight } : null]}
         >
-          <Favicon iconUrl={null} pageUrl={row.url} size={20} />
+          {tabSymbol(row.icon) ? (
+            <View testID="spaceTabSymbol" style={styles.tabSymbol}>
+              <Symbol name={tabSymbol(row.icon)!} size={TAB_ICON * 0.8} color={tint} />
+            </View>
+          ) : (
+            <Favicon iconUrl={null} pageUrl={row.url} size={TAB_ICON} />
+          )}
           <Text style={[font.body, styles.medium, styles.fill, { color: theme.label }]} numberOfLines={1}>
             {row.title}
           </Text>
@@ -311,6 +319,13 @@ function Row({ row, profileId, tint, onToggle, onShowAll, onLongPress, onFolder 
   }
 }
 
+const TAB_ICON = 20;
+
+function tabSymbol(icon: string | null): SymbolName | null {
+  const symbol = sfSymbol(icon, isSymbolName);
+  return symbol && isSymbolName(symbol) ? symbol : null;
+}
+
 function groupSymbol(icon: string | null): SymbolName {
   const symbol = sfSymbol(icon, isSymbolName);
   return symbol && isSymbolName(symbol) ? symbol : "folderFill";
@@ -318,6 +333,7 @@ function groupSymbol(icon: string | null): SymbolName {
 
 const styles = StyleSheet.create({
   column: { flex: 1 },
+  tabSymbol: { width: TAB_ICON, height: TAB_ICON, alignItems: "center", justifyContent: "center" },
   fill: { flex: 1 },
   bold: { fontWeight: "600" },
   medium: { fontWeight: "500" },
