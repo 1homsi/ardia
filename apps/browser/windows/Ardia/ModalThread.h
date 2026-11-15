@@ -2,6 +2,7 @@
 
 #include <objbase.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -10,6 +11,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <string_view>
 #include <thread>
 #include <string>
 #include <utility>
@@ -29,6 +31,7 @@ struct ModalRegistry {
   std::atomic<bool> stopping{false};
   std::atomic<int> threads{0};
   std::atomic<ULONGLONG> stoppedAt{0};
+  std::atomic<ULONGLONG> releasedAt{0};
 
   static ModalRegistry &Shared() noexcept {
     static ModalRegistry *registry = new ModalRegistry();
@@ -59,7 +62,13 @@ inline int StopAllModals() noexcept {
 }
 
 inline void ReleaseAllModals() noexcept {
+  ModalRegistry::Shared().releasedAt = GetTickCount64();
   ModalRegistry::Shared().releases++;
+}
+
+inline ULONGLONG AskedToCloseAt() noexcept {
+  ModalRegistry &registry = ModalRegistry::Shared();
+  return (std::max)(registry.stoppedAt.load(), registry.releasedAt.load());
 }
 
 struct OwnerSlot {
@@ -96,6 +105,13 @@ struct ModalWatchState {
   std::function<void()> stubborn;
   std::function<void()> tick;
   UINT_PTR stubbornTimer = 0;
+  std::wstring kind;
+  bool opensFolders = false;
+  ULONGLONG startedAt = 0;
+  ULONGLONG shownAt = 0;
+  ULONGLONG firstFolderAt = 0;
+  ULONGLONG cancelTakenAt = 0;
+  ULONGLONG askedAt = 0;
 };
 
 inline ModalWatchState &WatchState() noexcept {
@@ -123,21 +139,42 @@ inline void CALLBACK WatchOwner(HWND, UINT, UINT_PTR, DWORD) noexcept {
   std::function<void()> abandon = std::move(state.abandon);
   state.abandon = nullptr;
   if (!abandon) return;
+  state.cancelTakenAt = GetTickCount64();
+  state.askedAt = released || Stopping() ? AskedToCloseAt() : 0;
   abandon();
   if (state.stubborn && !state.stubbornTimer) state.stubbornTimer = SetTimer(nullptr, 0, StubbornAfterMs, &AfterAbandon);
 }
 
+inline std::wstring SinceStart(ModalWatchState const &state, ULONGLONG at) noexcept {
+  return std::to_wstring(at - state.startedAt) + L" ms";
+}
+
+inline std::wstring DialogLifetime(ModalWatchState const &state) noexcept {
+  std::wstring line = state.kind + L" gone " + SinceStart(state, GetTickCount64()) + L" after its thread started: ";
+  line += state.shownAt ? L"its window showed at " + SinceStart(state, state.shownAt) : std::wstring{L"its window never showed"};
+  if (state.opensFolders) line += state.firstFolderAt ? L", its first folder opened at " + SinceStart(state, state.firstFolderAt) : std::wstring{L", it opened no folder"};
+  if (state.cancelTakenAt) line += L", its thread took the cancel at " + SinceStart(state, state.cancelTakenAt);
+  if (state.cancelTakenAt && state.askedAt) line += L", " + std::to_wstring(state.cancelTakenAt - state.askedAt) + L" ms after the app asked";
+  return line;
+}
+
 struct ModalWatch {
-  explicit ModalWatch(HWND owner) noexcept {
+  ModalWatch(HWND owner, std::string_view kind) noexcept {
     ModalWatchState &state = WatchState();
     state.owner = owner;
     state.release = ModalRegistry::Shared().releases.load();
     state.abandon = nullptr;
+    state.kind.assign(kind.begin(), kind.end());
+    state.opensFolders = false;
+    state.startedAt = GetTickCount64();
+    state.shownAt = state.firstFolderAt = state.cancelTakenAt = state.askedAt = 0;
+    LaunchLog::Write(L"dialog", state.kind + L" thread started");
     m_timer = SetTimer(nullptr, 0, OwnerWatchMs, &WatchOwner);
   }
   ~ModalWatch() noexcept {
     if (m_timer) KillTimer(nullptr, m_timer);
     ModalWatchState &state = WatchState();
+    LaunchLog::Write(L"dialog", DialogLifetime(state));
     if (state.stubbornTimer) KillTimer(nullptr, state.stubbornTimer);
     state.stubbornTimer = 0;
     state.owner = nullptr;
@@ -158,6 +195,19 @@ struct ModalWatch {
     state.stubborn = nullptr;
   }
   static void OnTick(std::function<void()> tick) noexcept { WatchState().tick = std::move(tick); }
+  static void OpensFolders() noexcept { WatchState().opensFolders = true; }
+  static void NoteFirstFolder() noexcept {
+    ModalWatchState &state = WatchState();
+    if (state.firstFolderAt || !state.startedAt) return;
+    state.firstFolderAt = GetTickCount64();
+    LaunchLog::Write(L"dialog", state.kind + L" opened its first folder " + SinceStart(state, state.firstFolderAt) + L" after its thread started");
+  }
+  static void NoteShown() noexcept {
+    ModalWatchState &state = WatchState();
+    if (state.shownAt || !state.startedAt) return;
+    state.shownAt = GetTickCount64();
+    LaunchLog::Write(L"dialog", state.kind + L" window seen shown " + SinceStart(state, state.shownAt) + L" after its thread started");
+  }
 
  private:
   UINT_PTR m_timer = 0;
@@ -241,6 +291,7 @@ struct ModalParent {
     HWND dialog = Dialog();
     if (!dialog || !m_owner || !IsWindow(m_owner)) return;
     NoteModalDialog(m_owner, dialog);
+    ModalWatch::NoteShown();
     bool above = false;
     for (HWND higher = GetWindow(m_owner, GW_HWNDPREV); higher && !above; higher = GetWindow(higher, GW_HWNDPREV)) above = higher == dialog;
     if (!above) {

@@ -83,7 +83,7 @@ test("a file dialog cancelled at quit closes through Close and, if still open, t
   const thread = native("ModalThread.h");
   assert.match(thread, /abandon\(\);\n\s+if \(state\.stubborn && !state\.stubbornTimer\) state\.stubbornTimer = SetTimer\(nullptr, 0, StubbornAfterMs, &AfterAbandon\);/);
   assert.match(thread, /if \(state\.stubbornTimer\) KillTimer\(nullptr, state\.stubbornTimer\);/);
-  assert.match(dialogs, /~FileDialogWatch\(\) noexcept \{ ModalWatch::Disarm\(\); \}/);
+  assert.match(dialogs, /~FileDialogWatch\(\) noexcept \{\n\s+ModalWatch::Disarm\(\);\n\s+if \(m_events\) m_dialog->Unadvise\(m_events\);/);
   assert.match(source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts") , /await Promise\.race\(\[held, settled\(GIVE_UP_MS\)\]\);/);
   const held = source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts");
   assert.match(held, /if \(when === "shown"\) expectTrue\(await dialogWindowShown\(SHOWN_MS\), /, "the shown case waits for the dialog's own window, not only for the dialog thread to start");
@@ -94,4 +94,20 @@ test("a file dialog cancelled at quit closes through Close and, if still open, t
   assert.match(native("DialogsModule.h"), /int shownCount\(\) noexcept \{ return DialogParts::ShownDialogCount\(\); \}/);
   assert.match(thread, /if \(Stopping\(\)\) LaunchLog::Write\(L"dialog", L"a dialog's thread ended "/);
   assert.match(native("DialogsModule.h"), /REACT_METHOD\(devHoldFileDialog\)\n\s+void devHoldFileDialog\(std::string windowId, bool save, [^)]*\) noexcept \{\n\s+if \(!AppLaunch::Shared\(\)\.testInstance\) return promise\.Reject/);
+});
+
+test("every dialog's thread logs when it started, when its window showed, when a file dialog opened its first folder, and how late it took a cancel", () => {
+  const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
+  const thread = native("ModalThread.h");
+  assert.match(thread, /LaunchLog::Write\(L"dialog", state\.kind \+ L" thread started"\);/);
+  assert.match(thread, /NoteModalDialog\(m_owner, dialog\);\n\s+ModalWatch::NoteShown\(\);/, "shown is noted where the shown count learns of the window");
+  assert.match(thread, /state\.cancelTakenAt = GetTickCount64\(\);\n\s+state\.askedAt = released \|\| Stopping\(\) \? AskedToCloseAt\(\) : 0;\n\s+abandon\(\);/);
+  assert.match(thread, /LaunchLog::Write\(L"dialog", DialogLifetime\(state\)\);/);
+  assert.match(thread, /ModalRegistry::Shared\(\)\.releasedAt = GetTickCount64\(\);/);
+  const dialogs = native("NativeDialogs.h");
+  assert.match(dialogs, /HRESULT __stdcall OnFolderChange\(IFileDialog \*\) noexcept override \{\n\s+ModalWatch::NoteFirstFolder\(\);/);
+  assert.match(dialogs, /dialog->Advise\(events\.get\(\), &m_events\)/);
+  assert.ok(native("DialogsModule.h").includes("watch(owner, kind)"), "each dialog's watch knows its kind");
+  const smoke = readFileSync(new URL("../../../../scripts/windows/launch-smoke.ps1", import.meta.url), "utf8");
+  assert.ok(smoke.includes('-Pattern "self-check|webgl2 probe|^dialog |^(js-error|fatal|error) "'), "CI prints the dialog lines beside the self-check's");
 });
