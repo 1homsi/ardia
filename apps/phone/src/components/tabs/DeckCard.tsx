@@ -3,12 +3,13 @@ import { countRender } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
-import { DECK, DECK_HEADER, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
+import { DECK, DECK_HEADER, deckBarBand, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckVisibleWidth, lerp, titleReveal, type DeckGeometry } from "../../lib/deckGeometry";
 import { usePageTone } from "../../state/browse/hooks";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
-import { FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
+import { snapshotPageTop } from "../../lib/shownSnapshots";
+import { barHeight, FadeView, Favicon, font, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useTheme } from "../ui";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -160,7 +161,10 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g
     return { transform: [{ translateX: g.cardWidth - available + deckHeaderLeading(available, tabsLayout.faviconSize, tabsLayout.headerSpacing, titleWidth.value, titleReveal(available)) }] };
   });
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleReveal(placed.value.place.available) }));
-  const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: placed.value.expanded ? deckStatusStrip(g, scaleProgress.value) : 0 }] }), [g]);
+  const pageTop = (tab.snapshotFileName ? snapshotPageTop(tab.snapshotFileName) : null) ?? g.safeTop;
+  const faceStyle = useAnimatedStyle(() => ({ transform: [{ translateY: placed.value.expanded ? deckStatusStrip(g, scaleProgress.value, pageTop) : 0 }] }), [g, pageTop]);
+  const bar = deckBarBand(g, barHeight(g.safeBottom), 1);
+  const bandStyle = useAnimatedStyle(() => ({ transform: [{ scaleY: placed.value.expanded ? deckBarBand(g, 0, scaleProgress.value).grown : 0 }] }), [g]);
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
@@ -179,6 +183,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, isLast, geometry: g
         <Animated.View testID="deckCardFace" style={[StyleSheet.absoluteFill, faceStyle]}>
           <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} />
         </Animated.View>
+        <Animated.View testID="deckCardBarBand" pointerEvents="none" style={[styles.band, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }, bandStyle]} />
         {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
       </Animated.View>
       <Animated.View
@@ -246,6 +251,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     ...Platform.select({ android: { elevation: CARD_ELEVATION, shadowColor: tabsInk.cardShadow }, default: { boxShadow: `-2px 4px ${CARD_SHADOW_BLUR}px ${tabsInk.cardShadow}` } }),
   },
+  band: { position: "absolute", left: 0, right: 0, bottom: 0, transformOrigin: "bottom" },
   badge: {
     position: "absolute",
     top: RECEIVED_INSET,

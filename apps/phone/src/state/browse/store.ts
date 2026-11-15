@@ -45,7 +45,7 @@ import {
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
 import { copyText, pasteText, prefetchImage } from "../../platform/system";
-import { noteSnapshotShown } from "../../lib/shownSnapshots";
+import { noteSnapshotPageTop, noteSnapshotShown } from "../../lib/shownSnapshots";
 import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
 import { countUsage } from "../telemetry/telemetry";
@@ -373,6 +373,7 @@ async function readyPicture(id: string) {
 export async function captureSnapshot(id: string) {
   if (!snapshotAllowed(id)) return;
   const snapshot = await snapshotPage(id);
+  if (snapshot?.frame) noteSnapshotPageTop(snapshot.uri, snapshot.frame.y);
   if (snapshot && findTab(currentTabs(), id)) updateTabById(id, { snapshotFileName: snapshot.uri });
 }
 

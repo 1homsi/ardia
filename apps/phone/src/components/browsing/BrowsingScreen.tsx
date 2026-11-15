@@ -83,8 +83,12 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding);
   const layout = pageInsets(collapse.collapses, barHeight(insets.bottom), browseLayout.pageOverlap);
-  const statusStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(top, { duration: tabsMotion.barTone }) }), [top]);
-  const barStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(bottom, { duration: tabsMotion.barTone }) }), [bottom]);
+  const painted = useSharedValue(false);
+  useEffect(() => {
+    painted.value = true;
+  }, [painted]);
+  const statusStyle = useAnimatedStyle(() => ({ backgroundColor: painted.value ? withTiming(top, { duration: tabsMotion.barTone }) : top }), [top]);
+  const barStyle = useAnimatedStyle(() => ({ backgroundColor: painted.value ? withTiming(bottom, { duration: tabsMotion.barTone }) : bottom }), [bottom]);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]} onLayout={() => pageLaidOut(tab.id)}>
       <Shade shaded={menuOpen || readerId === tab.id || pressing || tabsMenu}>

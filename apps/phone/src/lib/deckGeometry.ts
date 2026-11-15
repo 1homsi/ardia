@@ -209,7 +209,12 @@ export function deckScrollActionTarget(focused: number, count: number, direction
   return target >= 0 && target < count ? target : null;
 }
 
-export function deckStatusStrip(g: DeckGeometry, scaleProgress: number): number {
+export function deckStatusStrip(g: DeckGeometry, scaleProgress: number, pageTop: number = g.safeTop): number {
   "worklet";
-  return g.safeTop * (g.cardWidth / Math.max(g.width, 1)) * (1 - Math.min(Math.max(scaleProgress, 0), 1));
+  return pageTop * (g.cardWidth / Math.max(g.width, 1)) * (1 - Math.min(Math.max(scaleProgress, 0), 1));
+}
+
+export function deckBarBand(g: DeckGeometry, barHeight: number, scaleProgress: number): { height: number; grown: number } {
+  "worklet";
+  return { height: barHeight * (g.cardWidth / Math.max(g.width, 1)), grown: 1 - Math.min(Math.max(scaleProgress, 0), 1) };
 }

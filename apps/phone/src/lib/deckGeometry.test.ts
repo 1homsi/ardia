@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   archiveCardEdgeY,
   deckScrollActionTarget,
+  deckBarBand,
   deckStatusStrip,
   deckBarCenterFromBottom,
   deckCardAt,
@@ -172,4 +173,14 @@ test("an expanding card grows a status-bar strip above its picture, so at full s
   assert.ok(Math.abs(deckStatusStrip(g, 0) * scale - 40) < 1e-9);
   assert.equal(deckStatusStrip(g, 1), 0);
   assert.ok(Math.abs(deckStatusStrip(g, 0.5) * scale - 20) < 1e-9);
+});
+
+test("an opening card's picture starts where the page view sat when it was captured, and its bar band grows to the bar's height", () => {
+  const g = deckGeometry(393, 873, 40, 24);
+  const scale = g.width / g.cardWidth;
+  assert.ok(Math.abs(deckStatusStrip(g, 0, 52) * scale - 52) < 1e-9);
+  const band = deckBarBand(g, 80, 0);
+  assert.ok(Math.abs(band.height * scale - 80) < 1e-9);
+  assert.equal(band.grown, 1);
+  assert.equal(deckBarBand(g, 80, 1).grown, 0);
 });
