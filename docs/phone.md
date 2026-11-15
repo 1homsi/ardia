@@ -1164,16 +1164,22 @@ the share sheet and the tray's predictive back. The owner's open choices are in 
 nobody has seen working on a phone is the tester checklist below.
 iPhone follows the SwiftUI app on main since the merge of main (8203d0b3c, 2026-11-15), and main's redesign of that app (a2cf29dac, d199b885c) moved the reference: what iPhone needs now is "The iPhone redesign" below. The audit above predates it.
 
+### Decided by the owner (2026-11-15)
+
+- One design on both phones: Android takes main's iPhone redesign too ("the same look on Android and iPhone … keep one design, not two"). Plan: flip Android to the redesign, run both suites and an Android phone pass, then delete the classic design and its tests in one commit, so there is never a third state. Where a platform has a native element it uses its own: on iPhone the system context menus with lift and blur and the action sheets, on Android their native equivalents, behind one JavaScript component; the drawn menus go once both are in. Android's native needs for the redesign (the page under the bar, `Glass` with Classic, Print, the Downloads list, the sync-cycle flag, the site permissions list and revoke) are with the Android agent.
+- The sync demo gets tabs of its own, kept in memory, and never touches the tester's real tabs (being built, with store tests that a demo leaves the real tab store byte for byte unchanged).
+- Default Browser: Apple's web-browser entitlement is requested; the iPhone code stays ready to switch on when it is granted. On Android, Default Browser is offered by default (the role prompt), in onboarding and Settings.
+
 ### Waiting on the owner
 
-Seven choices, one line each; the first option is what the app does today.
-- Android and the iPhone redesign: Android keeps Compose's look (no work), or takes main's redesign too (one line in the design variant and a test run, then an Android phone pass).
-- Find on Page: the app's own find bar on both phones (no work; the phones match), or WebKit's find panel on iPhone as SwiftUI has (about a day in the iPhone module; the phones then differ).
-- The sync demo: runs over the real tab store (no work; a demo session can change the tester's own tabs), or gets tabs of its own kept in memory (about a day).
-- Reset › Connect Again: acknowledges the reset first on both phones, as Compose does (no work), or goes straight on to connecting on iPhone, as SwiftUI does (an hour).
-- Bookmarks in iPhone Spaces: kept, though SwiftUI's Spaces has none and main's redesign puts bookmarks in the Library sheet (no work; both phones the same), or dropped on iPhone (an hour).
-- Apple's web-browser entitlement: off, so neither iPhone app offers Default Browser (no work), or requested from Apple (an Apple account request and Apple's review; the code is in and checked as far as a simulator allows).
-- Menus: the app's drawn menus and centred confirmations on both phones (no work; the phones match), or iPhone's system context menus with lift and blur on deck cards, +, Archive and Spaces rows, and action sheets for Restore Defaults and Remove List (about a day for a native context-menu view, an hour for the action sheets).
+- Find on Page: the app's own find bar on both phones (today), or WebKit's find panel on iPhone as SwiftUI has. The owner wants screenshots of both beside main's SwiftUI app first; the iPhone agent makes them.
+- Bookmarks in iPhone Spaces: kept (today), or dropped on iPhone as SwiftUI's Spaces has none.
+- Reset › Connect Again: acknowledges the reset first on both phones (today), or goes straight on to connecting on iPhone as SwiftUI does.
+- A question about iCloud on Android, which the owner is still clarifying; nothing to act on yet.
+
+### For the owner to check by eye
+
+- The deck's moving backdrop beside the old app's.
 
 ### Needs only JavaScript
 
@@ -1192,7 +1198,7 @@ Inline completion is in and waits on a phone (the checklist below). Since then, 
 
 ### The iPhone redesign
 
-Since the merge of main, the reference for iPhone is the SwiftUI app on main, redesigned in a2cf29dac (bar, tabs, page menu, Settings, spaces) and d199b885c (motion). It is built as one design variant chosen in one place: a design value the tokens and layouts read, the new design on iPhone and the current one on Android until the owner decides whether Android takes it too. No scattered platform checks. Android's reference, the Compose app, did not change.
+Since the merge of main, the reference for iPhone is the SwiftUI app on main, redesigned in a2cf29dac (bar, tabs, page menu, Settings, spaces) and d199b885c (motion). It was built as one design variant chosen in one place, the new design on iPhone and Compose's on Android; on 2026-11-15 the owner decided Android takes it too, so the variant goes once Android has passed on a phone ("Decided by the owner"). No scattered platform checks.
 
 What main changed, by screen:
 - Page bar: three glass pieces instead of the tinted strip. A 48 pt tab-stack circle, an address capsule (favicon or Not Secure, the host, a `···` page menu button) and a 48 pt plus, 8 pt apart, 12 pt from the sides, their bottom 21.5 pt above the edge. Only the pieces take touches; no press scale (`BarControls.swift`, `BrowseTokens.swift`).
@@ -1246,7 +1252,7 @@ Nothing here is done until it has been watched in the screens agent's own simula
 - Page load motion moved to the UI thread: the page's loading line (now a scaleX from the left edge where it animated its width, and fed from the store without renders) and the settings switch's knob and colour (now Reanimated). Seen on the F4 (`/tmp/ardia-phone-shots/loadline-proof/`): with a page loading, slow UI-thread frames 286 to 202 and janky 10.85% to 10.35%, the deck open's worst stall 108 to 92 ms; the card open keeps a 100 ms stall in both builds (another cause, the hand-over). Still to see on iPhone: the search panel's lift no longer frozen (`screens-depart9`).
 - Deck: the bar rising above the keyboard and back; Search Tabs typing (the gap-close, the scroll to the last match, the keyboard hiding on a tap); the plus menu above the new bar; the header and bar fading with the deck's open and close; the glass on the new pieces and the grid glyph.
 
-The owner's two iPhone choices, system context menus and Apple's web-browser entitlement, are in "Waiting on the owner".
+The owner's decisions on these (native menus on both phones, the entitlement requested) are in "Decided by the owner".
 
 ### Tester checklist for the next build
 
@@ -1343,7 +1349,7 @@ simulator, the list under "The iPhone redesign".
 **8. Settings**
 - [ ] Toggle Site Settings and filter-list switches quickly. Expect: no switch snaps back for a moment.
 - [ ] **iPhone:** Clear Browsing Data from Settings. Expect: the "Cleared" toast shows above the sheet. Sign in to a site, use the phone for a day, then clear Last Hour with Cookies and Site Data on: you are still signed in.
-- [ ] **iPhone:** Restore Defaults and Remove List. Expect: today centred dialogs (SwiftUI uses action sheets; the owner's choice, "Waiting on the owner").
+- [ ] **iPhone:** Restore Defaults and Remove List. Expect: today centred dialogs; action sheets once the native menus land ("Decided by the owner").
 - [ ] **iPhone:** tap About's links and a filter list's link. Expect: they open where SwiftUI's `Link` opens them.
 - [ ] **iPhone:** once the build carries the web-browser entitlement, Settings › Default Browser › Open Default Apps. Expect: the system's Default Apps page; choose Ardia and come back: the page says Ardia is your default browser.
 
