@@ -13,7 +13,7 @@ import type { Bookmarks, BookmarkNode, Tab } from "../browser/types";
 import { isInternalTab } from "../pages/urls";
 import { muteState, muteTitle } from "../tabs/mute";
 import { sidebarMenuState } from "../sidebar/commands";
-import { LITTLE_ARDIA_DISABLED_COMMANDS, PAGE_COMMANDS, PAGE_COMMANDS_OFF_INTERNAL_PAGES, settingChecks, WINDOW_COMMANDS } from "../commands/commandCatalog";
+import { LITTLE_ARDIA_DISABLED_COMMANDS, PAGE_COMMANDS, PAGE_COMMANDS_OFF_INTERNAL_PAGES, settingChecks, UNAVAILABLE_COMMANDS, WINDOW_COMMANDS } from "../commands/commandCatalog";
 import { extensionMenu } from "../extensions/actions";
 import { menuBarBindings } from "./commandShortcuts";
 import { focusedWindowOf } from "../windows/ui";
@@ -113,7 +113,7 @@ export function menuState(s: BrowserState): MenuState {
   if (!page || !canHideElements(s, page.id)) disabled.push("hideElement", "showHiddenElements");
 
   const sidebar = sidebarMenuState(s, windowId);
-  disabled.push(...sidebar.disabled);
+  disabled.push(...sidebar.disabled, ...UNAVAILABLE_COMMANDS);
   Object.assign(titles, sidebar.titles);
   if (peek) {
     titles.openFile = "Open Peek as Tab";

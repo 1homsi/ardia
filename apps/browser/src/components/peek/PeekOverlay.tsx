@@ -13,6 +13,8 @@ import { PageLabel, SMALL_BAR_BUTTON, SMALL_INSET, SMALL_WINDOW_FRAME, SmallBar,
 import { shadow, space } from "../ui/tokens";
 import type { PeekButtons } from "../../state/settings/settings";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
+import { keyText } from "../../state/commands/keyText";
+import { splitViewAvailable } from "../../state/splits/splits";
 import { notePinch } from "../../state/telemetry/usage";
 
 const INSET_FRACTION = 0.055;
@@ -32,8 +34,8 @@ export function peekFrame(width: number, height: number, buttons: PeekButtons = 
 
 function peekButtonList(windowId: string, splitFull: boolean): SmallBarButton[] {
   return [
-    { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
-    { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
+    ...(splitViewAvailable ? [{ icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) }] : []),
+    { icon: "arrow.up.left.and.arrow.down.right", tooltip: `Open as Tab (${keyText("⌘O")})`, onPress: () => openPeekAsTab(windowId) },
     { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
   ];
 }

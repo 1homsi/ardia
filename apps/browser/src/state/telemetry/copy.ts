@@ -1,3 +1,5 @@
+import { platformCopy } from "./platformCopy";
+
 export const SHARING_COPY = {
   toggle: "Share anonymous crash reports and usage stats",
   summary: "Crashes, errors, rough feature counts and speed. Never the sites you visit, anything you type or search, or what's in your tabs.",
@@ -222,6 +224,29 @@ export const LOCAL_COPY = {
     "Resetting your anonymous ID deletes it",
   ],
 } as const;
+
+const ADDED_ITEMS = {
+  Usage: [
+    "How many times the first-launch intro was shown, how many of those started with its music muted, how many were skipped and how many played to the end, and on Windows how many showed the moving meadow, the still picture, or the still picture after the meadow failed, and the time the meadow took to draw its first frame, rounded to a tenth of a second, summed up once an hour",
+    "On Windows, how many animations ran and how many of their frames came late, summed up once an hour",
+    "On Windows, how many links Ardia opened that it was started with while it wasn't running, summed up once an hour. Never which links or which app",
+    "How many times you asked to make Ardia your default browser (on Windows, how many times that opened Windows Settings), and whether Ardia was your default browser when it started, summed up once an hour",
+    "How many times the command bar completed an address inline as you typed, summed up once an hour. Never what you typed or which address",
+    "How many launches after an update didn't open the release notes because setting up Ardia for the first time was still under way, summed up once an hour",
+    "How many times the downloads panel opened from its button or from Downloads in a menu or shortcut, and how many times it closed with Escape, its button or the command, summed up once an hour. Never which files",
+    "When a page asked to open another app (mail, a meeting app and so on), how many times you clicked Open, Open with Always allow or Cancel. On Windows also how many links did open, how many Ardia refused to open after you allowed them (the page had gone or the link's app had changed) and how many opened on their own for a site you always allow. Summed up once an hour, never which page, link or app",
+    "On Windows, how many pages were opened while a dialog such as a confirm or a file picker was open, and how many of those hadn't loaded 10 seconds later, summed up once an hour. Never which page or dialog",
+    "How many times the find bar opened and how many times it stepped to the next or previous match, summed up once an hour. Never what you searched for or on which page",
+    "How many times bookmarks were exported to an HTML file, passwords were exported to a CSV file, and an extension was installed from a folder, and how many of those exports failed, summed up once an hour. Never which bookmarks, passwords, extensions or files",
+    "How many times Ardia freed engine memory after tabs closed, how many of those the engine refused, and how many times it gave up because you kept typing or moving the pointer, summed up once an hour",
+    "How many imports from another browser finished, how many kinds of data (bookmarks, history, passwords and so on) came over or failed, and how many times some passwords or cookies were left behind because they couldn't be decrypted, summed up once an hour. Never which browser, pages, names or passwords",
+    "How many deleted profiles had their browsing data removed from this Mac and how many removals had to wait or failed, summed up once an hour. Never which profile",
+    "On Windows, how many sync files waited because they were online-only or still being written, and how many online-only sync files Ardia downloaded, summed up once an hour. Never which files or what's in them",
+    "On Windows, how many times a tab you switched to had no page yet, so Ardia held on to giving that page the keyboard, and how many of those it then gave and how many it let go (you moved on, clicked another page or typed in a field), summed up once an hour. Never which tab or page",
+  ],
+};
+
+platformCopy({ SHARING_COPY, WHATS_SENT, IDENTITY_COPY, LOCAL_COPY }, ADDED_ITEMS);
 
 export const WATCH_COPY = {
   rowTitle: "Sharing to confirm a fix",

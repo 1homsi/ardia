@@ -5,7 +5,7 @@ import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
 import { takeSnapshotWrites, useSync } from "../sync/engine";
 import { takeSyncCodeCounts } from "../sync/recoveryKit";
-import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
+import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient, withHourlyExtras } from "./usageClient";
 import { reportLocalStore, startLocalStore } from "./localStoreReport";
 import { startWatchChecks } from "./watch";
 import { appIconSetting, currentThemeFileSnapshot, customColorProfiles, narrowWindows, SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
@@ -335,7 +335,7 @@ let launchCrashRead: ReturnType<typeof setTimeout> | undefined;
 
 function hourly() {
   snapshotSettings();
-  emitCounts();
+  withHourlyExtras(emitCounts);
   emitOmniboxLatency();
   emitJourneys();
   emitTabPresses();
@@ -384,7 +384,7 @@ export function startUsage(continuing = false) {
   });
 }
 
-export const emitWindowUsage = () => [emitCounts, emitOmniboxLatency, emitTabPresses].forEach((emit) => emit());
+export const emitWindowUsage = () => [() => withHourlyExtras(emitCounts), emitOmniboxLatency, emitTabPresses].forEach((emit) => emit());
 
 export function sessionEnding() {
   emitWindowUsage();
