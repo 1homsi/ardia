@@ -2,6 +2,7 @@ import { capture, isSharing } from "./client";
 import { appInfo } from "./transport";
 import { launchFirstWindow } from "./journeys";
 import type { PanelState } from "../browser/types";
+import type { AutofillToggle } from "../../platform/autofill";
 
 export type SuggestionType = "history" | "bookmark" | "tab" | "url" | "search" | "calc" | "action" | "create" | "extension" | "provider" | "typed";
 
@@ -41,6 +42,7 @@ export const trackCalendarConnect = (r: CalendarConnectReport) =>
   capture("calendar_connect", { before: r.before, after: r.after, responsible: r.responsible, errored: r.errored, settings_opened: r.settingsOpened, ms: Math.min(Math.max(0, Math.round(r.ms)), 600_000) });
 
 export const trackSettingsSection = (section: string) => capture("settings_section_opened", { section });
+export const trackAutofillToggleKept = (toggle: AutofillToggle) => capture("autofill_toggle_kept", { toggle });
 
 const SAMPLE_EVERY = 5;
 const MAX_SAMPLES = 500;
@@ -85,5 +87,11 @@ export function markFirstWindow() {
   if (!isSharing() || !start) return;
   if (firstWindowAt - start > 0 && firstWindowAt - start < 10 * 60_000) launchFirstWindow(firstWindowAt);
 }
+
+export { takeNotificationRequestCounts } from "./notificationRequestCounts";
+
+export { takeRecentlyClosedCounts } from "./recentlyClosedCounts";
+
+export { takeHistoryRemovalCounts } from "./historyRemovalCounts";
 
 export const devOmniboxSampler = () => ({ keystrokes, pending: latency.length });
