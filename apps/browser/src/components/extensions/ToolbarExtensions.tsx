@@ -22,6 +22,9 @@ import {
   useWindowExtensions,
   currentWindowExtensions,
   moveToolbarExtension,
+  setToolbarDrag,
+  endToolbarDrag,
+  useToolbarDrag,
   useToolbarReorderable,
   type Anchor,
 } from "../../state/extensions/actions";
@@ -84,20 +87,21 @@ function TabToolbarExtensions({
   const pitch = useToolbarRowContext().extensionButton + GAP;
   const reorderable = useToolbarReorderable(windowId);
   const movable = reorderable && pinned.length > 1;
-  const [drag, setDrag] = useState<ToolbarDrag | null>(null);
+  const drag = useToolbarDrag(windowId);
+  useEffect(() => () => endToolbarDrag(windowId), [windowId]);
   if (!pinned.length && !overflow && !routes.length) return <EmptyAnchor windowId={windowId} tabId={tabId} top={top} right={right} />;
   const reorder: Reorder | undefined = movable
     ? {
         count: pinned.length,
         pitch,
         drag,
-        move: (id, from, dx) => setDrag({ id, from, dx }),
+        move: (id, from, dx) => setToolbarDrag(windowId, { id, from, dx }),
         drop: (id, from, dx) => {
           const to = dropIndex(from, dx, pitch, pinned.length);
           if (to !== from) void moveToolbarExtension(windowId, id, to, "drag");
-          setDrag(null);
+          endToolbarDrag(windowId);
         },
-        cancel: () => setDrag(null),
+        cancel: () => endToolbarDrag(windowId),
       }
     : undefined;
   return (
