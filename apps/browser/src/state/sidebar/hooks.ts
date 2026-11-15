@@ -21,11 +21,12 @@ import { groupTabIds } from "./groupPanelRows";
 import { capture, type Capture } from "./listCapture";
 import { pinnedCollapsed, pinnedKept } from "./pinnedFold";
 import { useSidebarUi, type Hover } from "./sidebarUi";
+import { useShownSidebarWidth } from "./shownWidth";
 
 export function useSidebarWidth(windowId: string): number {
-  const saved = useBrowser((s) => s.settings.sidebarWidth);
+  const shown = useShownSidebarWidth(windowId);
   const dragging = useSidebarUi((u) => u.dragWidth[windowId]);
-  return dragging ?? saved;
+  return dragging ?? shown;
 }
 
 export const useDragGhostLabel = (folderName: string | undefined, groupId: string | undefined, tab: Tab | undefined) =>
