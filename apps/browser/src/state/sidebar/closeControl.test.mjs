@@ -74,3 +74,22 @@ for (const keep of [false, true]) {
     });
   }
 }
+
+test("− on a pinned group unloads a member split with a Top App while Keep Top Apps running is on", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://app.com/" });
+  const [app] = S().windows[w].tabIds;
+  const member = S().newTab(w, { url: "https://member.com/" });
+  const second = S().newTab(w, { url: "https://second.com/" });
+  S().newTab(w, { url: "https://other.com/" });
+  S().pinTabs([app], true);
+  const g = S().groupTabs([member, second], { name: "P" });
+  S().updateGroup(g, { pinned: true });
+  S().createSplit([app, member]);
+  S().updateSettings({ keepTopAppsRunning: true });
+  assert.equal(groupCloseControl(S(), g)?.icon, "minus");
+  pressGroupClose(g);
+  assert.equal(S().tabs[member].page.kind, "asleep");
+  assert.equal(S().tabs[second].page.kind, "asleep");
+  S().updateSettings({ keepTopAppsRunning: false });
+});

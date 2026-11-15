@@ -46,7 +46,7 @@ export const useGroupCloseControlWhile = (groupId: string, live: boolean) => use
 export function pressGroupClose(groupId: string) {
   const s = useBrowser.getState();
   const control = groupCloseControl(s, groupId);
-  if (control === UNLOAD_GROUP) s.closeTabs(openMembers(s, groupId));
+  if (control === UNLOAD_GROUP) s.closeTabs(openMembers(s, groupId), { keepTopApps: false });
   else if (control === CLOSE_GROUP) void closeGroup(groupId);
 }
 

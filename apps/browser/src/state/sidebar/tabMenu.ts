@@ -25,8 +25,7 @@ import { openMultiMenu } from "./multiTabMenu";
 import { tileFolderOf } from "../pins/tileFolders";
 import { sendTabFromMenu, sendTabMenuItem } from "../sync/menu";
 import { pageUnread } from "../tabs/unread";
-import { hasPage } from "../tabs/pageSession";
-import { closeIntent } from "../tabs/tabs";
+import { closeIntent, openPages } from "../tabs/tabs";
 import { noteTopAppUnloadedFromMenu } from "../telemetry/tabSleepCounts";
 import { ALL_UNREAD_TITLE, canChooseSiteUnread, isUnreadSiteHidden, showUnreadCounts, toggleSiteUnread, unreadSiteTitle } from "../tabs/unreadSites";
 
@@ -160,7 +159,7 @@ function unloadTopApp(tabId: string) {
 }
 
 function closeItems(s: BrowserState, tab: Tab, f: Facts): MenuItem[] {
-  if (f.housed) return f.section === "tile" && s.settings.keepTopAppsRunning && hasPage(tab) ? [{ id: "unloadTopApp", title: "Unload", symbol: "moon.zzz" }] : [];
+  if (f.housed) return f.section === "tile" && s.settings.keepTopAppsRunning && openPages(s, tab.id).length > 0 ? [{ id: "unloadTopApp", title: "Unload", symbol: "moon.zzz" }] : [];
   return [
     { id: "close", title: "Close", symbol: "xmark", ...hintWhen(f.active, "closeTab") },
     ...(f.split ? [{ id: "closeSplit", title: "Close Split View" }] : []),
