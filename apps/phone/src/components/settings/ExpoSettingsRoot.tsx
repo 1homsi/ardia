@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { PlatformColor } from "react-native";
 import { Button, Form, HStack, Image, LabeledContent, NavigationLink, Picker, Section, Text, Toggle, Toolbar, ToolbarItem, VStack } from "@expo/ui/swift-ui";
-import { background, buttonStyle, clipShape, contentTransition, font, foregroundStyle, frame, listRowBackground, listRowInsets, listSectionSpacing, multilineTextAlignment, navigationBarTitleDisplayMode, navigationTitle, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
+import { accessibilityElement, background, clipShape, contentTransition, font, foregroundStyle, frame, listRowBackground, listRowInsets, listSectionSpacing, multilineTextAlignment, navigationBarTitleDisplayMode, navigationTitle, padding, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
 import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
@@ -55,7 +55,7 @@ export function ExpoSettingsRoot() {
           </NavigationLink>
         </Section>
         <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }), listSectionSpacing(TOP_SECTION_SPACING)]}>
-          <HStack spacing={12}>
+          <HStack spacing={8}>
             <Shortcut title="Archive" onPress={() => leaveFor(openArchive)} />
             <Shortcut title="Spaces" onPress={() => leaveFor(openSpaces)} />
           </HStack>
@@ -159,7 +159,7 @@ function SyncRow() {
   const warningInk = useWarningInk();
   const line = syncRowSubtitle(useSyncStatus());
   return (
-    <HStack spacing={10}>
+    <HStack spacing={10} modifiers={[padding({ vertical: 6 }), accessibilityElement("combine")]}>
       {settingsUIAvailable() ? (
         <SettingsIconTile systemImage="macbook.and.iphone" tint="sync" baseSide={SYNC_TILE} />
       ) : (
@@ -175,7 +175,7 @@ function SyncRow() {
 
 function Shortcut({ title, onPress }: { title: string; onPress: () => void }) {
   return (
-    <Button onPress={onPress} modifiers={modifierList(buttonStyle("plain"), pressableStyle())}>
+    <Button onPress={onPress} modifiers={modifierList(pressableStyle(), foregroundStyle({ type: "hierarchical", style: "primary" }))}>
       <Text modifiers={[font({ textStyle: "body", weight: "medium" }), frame({ maxWidth: Number.MAX_SAFE_INTEGER, minHeight: 48 }), background(SHORTCUT_FILL), clipShape("capsule")]}>{title}</Text>
     </Button>
   );

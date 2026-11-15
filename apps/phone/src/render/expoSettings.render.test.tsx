@@ -93,3 +93,18 @@ onIos("on iPhone Appearance is main's page on Expo UI: Color with nine swatches,
   expect(usePreferences.getState().interfaceStyle).toBe("glass");
   unmount(root);
 });
+
+onIos("Archive and Spaces stay two buttons 8 points apart with no plain button style, so main's pressable style is the one applied and a screen reader finds both; the Sync row has main's 6-point vertical padding", () => {
+  openSettings();
+  const root = renderSurface(<SettingsView />);
+  const types = (node: ReactTestInstance) => ((node.props.modifiers as { $type: string }[] | undefined) ?? []).map((modifier) => modifier.$type);
+  const shortcuts = hosts(root, (props) => typeof props.onButtonPress === "function" || typeof props.onPress === "function").filter((node) => node.findAll((inner) => typeof inner.type === "string" && (inner.props.text === "Archive" || inner.props.text === "Spaces" || inner.props.children === "Archive" || inner.props.children === "Spaces")).length > 0);
+  expect(shortcuts.length).toBeGreaterThanOrEqual(2);
+  for (const button of shortcuts) expect(types(button)).not.toContain("buttonStyle");
+  const holds = (node: ReactTestInstance, title: string) => node.findAll((inner) => typeof inner.type === "string" && (inner.props.text === title || inner.props.children === title)).length > 0;
+  const pair = hosts(root, (props) => typeof props.spacing === "number").filter((node) => holds(node, "Archive") && holds(node, "Spaces"));
+  expect(pair.at(-1)?.props.spacing).toBe(8);
+  const syncStack = hosts(root, (props) => props.spacing === 10 && Array.isArray(props.modifiers) && (props.modifiers as { $type: string }[]).some((modifier) => modifier.$type === "padding"))[0];
+  expect((syncStack?.props.modifiers as { $type: string; vertical?: number }[]).find((modifier) => modifier.$type === "padding")?.vertical).toBe(6);
+  unmount(root);
+});
