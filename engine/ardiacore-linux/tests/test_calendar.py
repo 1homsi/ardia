@@ -66,9 +66,15 @@ class CalendarBusTests(unittest.TestCase):
 
     def run_bus(self, config, steps, session_config=None):
         driver = self.build()
-        session = [f'--config-file={session_config}'] if session_config else []
-        result = subprocess.run(['dbus-run-session', *session, '--', sys.executable, '-I', str(FIXTURES / 'fake_eds.py'), '--scenario',
-                                 str(driver), json.dumps(config), json.dumps(steps)], capture_output=True, text=True, timeout=120)
+        with tempfile.TemporaryDirectory(prefix='ardia-calendar-session-') as scratch:
+            if session_config is None:
+                root = pathlib.Path(scratch)
+                (root / 'services').mkdir()
+                session_config = root / 'session.conf'
+                session_config.write_text(f'''<busconfig><type>session</type><listen>unix:tmpdir={root}</listen>
+<servicedir>{root / 'services'}</servicedir><policy context="default"><allow send_destination="*" eavesdrop="true"/><allow eavesdrop="true"/><allow own="*"/></policy></busconfig>''')
+            result = subprocess.run(['dbus-run-session', f'--config-file={session_config}', '--', sys.executable, '-I', str(FIXTURES / 'fake_eds.py'),
+                                     '--scenario', str(driver), json.dumps(config), json.dumps(steps)], capture_output=True, text=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stderr)
         wrapped = json.loads(result.stdout.strip().splitlines()[-1])
         self.assertEqual(wrapped['code'], 0, wrapped['stderr'])
