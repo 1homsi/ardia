@@ -79,7 +79,10 @@ function apply(change: TabsChange) {
   for (const id of change.endedPages) if (archived.has(id)) void saveAndEnd(id);
   deletePageSnapshots([...change.remove, ...cleared]);
   for (const id of change.endedPages) privateStates.delete(id);
-  if (hadPrivate && change.data.privates.length === 0) endPrivateSession();
+  if (hadPrivate && change.data.privates.length === 0) {
+    endPrivateSession();
+    useTabs.setState({ incognito: false });
+  }
 }
 
 async function saveAndEnd(id: string) {
