@@ -554,6 +554,18 @@ is plain Chromium.
   closed with it. The app acknowledges each `tab.opened` it handled (`tab.offerHeard`, in `engine/host.ts`) and then
   owns the decision, so a background tab it keeps for later stays; an offer nobody acknowledged within 30 s (4 s in a
   test instance) is closed, whatever lost it.
+- What a pop-up's page asks for goes to one place, `requestHost` (`engine/requestHosts.ts`): its opener's page while
+  that page is listening, else a browser page of its profile, else nobody. With nobody, a tab or link the pop-up opens
+  reaches the app whole, as the `tabs.windowRequest` engine event (the request with its offered tab, disposition and
+  engine profile; the Mac never sends it). The app (`state/tabs/openFromWindowlessPage.ts`) gives it to the most
+  recently focused browser window of that profile, with or without a page, through the same `openFromPage` a page's
+  own request takes, or opens a window of that profile holding the tab when none is open. It is never treated as a
+  link from another app, so no external-link rule applies and it keeps its profile and live tab. A tab the app hasn't
+  adopted within 10 s is closed in the engine, never left hidden and running; a profile the app doesn't know closes
+  it at once. Known gap: a private pop-up's tab is closed and forgotten at once. The app makes a new private session
+  for each private window and can't open one on an existing session, and a regular window would leak it. An app-link
+  ask with nobody to show it is refused and forgotten (`externalAppForget`), where the Mac drops it unanswered: the
+  prompt is drawn on the asking page's tab, so a window with no page has nowhere to show it.
 - A pop-up window takes focus only if, when it opens, its opener's app window is the foreground window and the
   opener's page holds the keyboard (`keyboard.page`, asked by `WindowManager.h` at that moment, the same rule as page
   focus in #1658); a pop-up from a pop-up is placed and focused by that pop-up, while its tabs and prompts go to the
@@ -1057,10 +1069,10 @@ App side, an agent can do these now:
    thread.
 2. Changing a Windows contrast theme while Settings is open crashes Ardia, inside the Windows App SDK (#1900). S once
    the cause is seen on Windows.
-3. A pop-up left as the only window drops its open-in-another-app prompt and the tabs it opens (#1910). S, with the
-   engine thread.
-4. The top edge over a page that reaches it (#1888): the engine answers it, untried in the VM (the drag, the cursor, a
-   maximized window). S.
+3. A private pop-up left as the only window closes the tabs it opens at once, where a regular one gets a browser window
+   back (#1910): the app can't open a window on the pop-up's private session yet. S.
+4. The top edge over a page that reaches it (#1888): a real drag in CI resizes the window from the top; the cursor, a
+   double click and a maximized window are untried in the VM. S.
 5. The theme's grain draws nothing, and the sidebar and toolbar don't blur what is behind them (#1921). M.
 6. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise
    trimmed as on the Mac since #1811). S.

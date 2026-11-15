@@ -1,4 +1,4 @@
-import { lastTabClosesWindow } from "../../platform/tabs";
+import { lastTabClosesWindow, onWindowRequest } from "../../platform/tabs";
 import { onDownload } from "../../platform/downloads";
 import { releaseProfile } from "../../platform/profiles";
 import { closeWindow, onWindowEvent, openWindow, restoreFullScreen, setTrafficLightsCenter, setWindowTitle, windowIds } from "../../platform/windows";
@@ -31,6 +31,7 @@ import { useReader } from "../reader/reader";
 import { answerQuitAfterSaves, isQuitting, setQuitting } from "./quit";
 import { menuInputsChanged, trackedMenuState, type MenuReads } from "../commands/menuState";
 import { usePages } from "../tabs/pageState";
+import { openFromWindowlessPage } from "../tabs/openFromWindowlessPage";
 import { startCaptionRegionSync } from "../windows/captionRegions";
 
 const QUIT_SAVES_WAIT_MS = 3_000;
@@ -57,6 +58,7 @@ export function startNativeSync() {
   startWindowCloseGuard();
   startExtensionsBridge();
   onOpenURLs((urls, pointer, source, returnTo) => openExternalUrls(urls, pointer, source, returnTo));
+  onWindowRequest(({ request, profile }) => openFromWindowlessPage(request, profile));
   startUnclaimedEscape();
   startKeyboardFollows();
   void lastTabClosesWindow()
