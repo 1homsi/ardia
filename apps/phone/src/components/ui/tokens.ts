@@ -1,34 +1,10 @@
-export const ink = {
-  white: "#FFFFFF",
-  black: "#000000",
-  clear: "#00000000",
-  knobShadow: "rgba(0,0,0,0.25)",
-} as const;
+export const ink = { white: "#FFFFFF", black: "#000000", clear: "#00000000", knobShadow: "rgba(0,0,0,0.25)" } as const;
 
-export const toggleLayout = {
-  width: 51,
-  height: 31,
-  knob: 27,
-  inset: 2,
-} as const;
+export const toggleLayout = { width: 51, height: 31, knob: 27, inset: 2 } as const;
 
-export type ProfileColor =
-  | "plum"
-  | "blue"
-  | "purple"
-  | "pink"
-  | "red"
-  | "orange"
-  | "yellow"
-  | "green"
-  | "neutral";
+export type ProfileColor = "plum" | "blue" | "purple" | "pink" | "red" | "orange" | "yellow" | "green" | "neutral";
 
-export type ProfileColorSpec = {
-  name: string;
-  swatch: string;
-  tint?: string;
-  action?: string;
-};
+export type ProfileColorSpec = { name: string; swatch: string; tint?: string; action?: string };
 
 export const PROFILE_COLORS: Record<ProfileColor, ProfileColorSpec> = {
   plum: { name: "Plum", swatch: "#C07A98", tint: "#B25B6B", action: "#DD899B" },
@@ -74,14 +50,7 @@ const lightRoles = {
   panel: "#FFFFFF",
   divider: "rgba(0,0,0,0.09)",
   menuScrim: "rgba(0,0,0,0.12)",
-  placeholderTints: [
-    "#E8E6FB",
-    "#FBE7EE",
-    "#E3F0FB",
-    "#E6F5EA",
-    "#FDF0DD",
-    "#EFE6F8",
-  ] as readonly string[],
+  placeholderTints: ["#E8E6FB", "#FBE7EE", "#E3F0FB", "#E6F5EA", "#FDF0DD", "#EFE6F8"] as readonly string[],
   groupFill: "#FFFFFF",
   separator: "rgba(60,60,67,0.29)",
   tertiaryFill: "rgba(118,118,128,0.12)",
@@ -126,14 +95,7 @@ const darkRoles: ColorRoles = {
   panel: "#2A2A2A",
   divider: "rgba(255,255,255,0.09)",
   menuScrim: "rgba(0,0,0,0.3)",
-  placeholderTints: [
-    "#262447",
-    "#3F2532",
-    "#1E3046",
-    "#1F3527",
-    "#3D3020",
-    "#30243F",
-  ] as readonly string[],
+  placeholderTints: ["#262447", "#3F2532", "#1E3046", "#1F3527", "#3D3020", "#30243F"] as readonly string[],
   groupFill: "#1C1C1E",
   separator: "rgba(84,84,88,0.6)",
   tertiaryFill: "rgba(118,118,128,0.24)",
@@ -159,53 +121,19 @@ export const menuLayout = {
   sheetTopGap: 24,
 } as const;
 
-export const toastLayout = {
-  minHeight: 44,
-  verticalPadding: 11,
-  iconSize: 17,
-  barClearance: 64,
-  sideInset: 32,
-  shadowRadius: 14,
-  shadowY: 6,
-} as const;
+export const toastLayout = { minHeight: 44, verticalPadding: 11, iconSize: 17, barClearance: 64, sideInset: 32, shadowRadius: 14, shadowY: 6 } as const;
 
 export const pageInk = { findError: "#C93333" } as const;
 
 export const readerInk = {
-  light: {
-    background: "#FFFFFF",
-    ink: "#1C1C1E",
-    secondary: "rgba(28,28,30,0.6)",
-  },
-  sepia: {
-    background: "#F8F1E3",
-    ink: "#4F321C",
-    secondary: "rgba(79,50,28,0.6)",
-  },
-  dark: {
-    background: "#121214",
-    ink: "#E3E3E6",
-    secondary: "rgba(227,227,230,0.6)",
-  },
+  light: { background: "#FFFFFF", ink: "#1C1C1E", secondary: "rgba(28,28,30,0.6)" },
+  sepia: { background: "#F8F1E3", ink: "#4F321C", secondary: "rgba(79,50,28,0.6)" },
+  dark: { background: "#121214", ink: "#E3E3E6", secondary: "rgba(227,227,230,0.6)" },
 } as const;
 
-export const readerLayout = {
-  minLeadAspect: 0.75,
-  maxWidth: 680,
-  topBar: 52,
-  lineHeight: 1.52,
-  titleScale: 1.55,
-  titleLine: 1.2,
-  paragraphGap: 0.9,
-  headerGap: 1.2,
-} as const;
+export const readerLayout = { minLeadAspect: 0.75, maxWidth: 680, topBar: 52, lineHeight: 1.52, titleScale: 1.55, titleLine: 1.2, paragraphGap: 0.9, headerGap: 1.2 } as const;
 
-export const dialogLayout = {
-  width: 312,
-  radius: 28,
-  fieldHeight: 48,
-  choiceHeight: 48,
-} as const;
+export const dialogLayout = { width: 312, radius: 28, fieldHeight: 48, choiceHeight: 48 } as const;
 
 export const settingsLayout = {
   groupRadius: 26,
@@ -248,20 +176,11 @@ export const settingsTint = {
   bottomBar: "#30B0C7",
 } as const;
 
-export const faviconInk = {
-  letter: "#FFFFFF",
-  lightPlate: "rgba(255,255,255,0.92)",
-  darkPlate: "rgba(0,0,0,0.78)",
-} as const;
+export const faviconInk = { letter: "#FFFFFF", lightPlate: "rgba(255,255,255,0.92)", darkPlate: "rgba(0,0,0,0.78)" } as const;
 
 export const menuShadow = { opacity: 0.18, radius: 24, offsetY: 8 } as const;
 
-export const trayShadow = {
-  opacity: 0.14,
-  radius: 24,
-  offsetY: -4,
-  elevation: 12,
-} as const;
+export const trayShadow = { opacity: 0.14, radius: 24, offsetY: -4, elevation: 12 } as const;
 
 export const scanInk = {
   glass: "rgba(255,255,255,0.2)",
@@ -271,14 +190,7 @@ export const scanInk = {
   soft: "rgba(255,255,255,0.75)",
 } as const;
 
-export const scanLayout = {
-  frame: 250,
-  frameRadius: 24,
-  frameStroke: 3,
-  frameArmShare: 0.18,
-  noteRadius: 12,
-  cancelInset: 8,
-} as const;
+export const scanLayout = { frame: 250, frameStroke: 3, frameArmShare: 0.18, noteRadius: 12, cancelInset: 8 } as const;
 
 export const voiceInk = {
   label: "#FFFFFF",
@@ -305,23 +217,9 @@ export const voiceLayout = {
 
 export const failureLayout = { icon: 36, textWidth: 320, button: 40 } as const;
 
-export const archiveCardLayout = {
-  radius: 16,
-  tile: 28,
-  maxWidth: 520,
-  aboveBarCenter: 28,
-  tint: "#B059EE",
-} as const;
+export const archiveCardLayout = { radius: 16, tile: 28, maxWidth: 520, aboveBarCenter: 28, tint: "#B059EE" } as const;
 
-export const onboardingArt = {
-  appIcon: 60,
-  linkCardWidth: 210,
-  linkCardRadius: 18,
-  stripHeight: 64,
-  arrowLift: 26,
-  shadowRadius: 12,
-  sheetRadius: 38,
-} as const;
+export const onboardingArt = { appIcon: 60, linkCardWidth: 210, linkCardRadius: 18, stripHeight: 64, arrowLift: 26, shadowRadius: 12, sheetRadius: 38 } as const;
 
 export const syncSketch = {
   macWidth: 250,
@@ -372,11 +270,7 @@ export const syncSketch = {
 
 export const sheetInk = { scrim: "rgba(0,0,0,0.25)" } as const;
 
-export const sheetLayout = {
-  topGap: 10,
-  radius: 32,
-  backgroundRadius: 24,
-} as const;
+export const sheetLayout = { topGap: 10, radius: 32, backgroundRadius: 24 } as const;
 
 export const syncInk = { banner: "#FF9500" } as const;
 
@@ -409,11 +303,7 @@ export const tabsInk = {
   onDarkSoft: "rgba(255,255,255,0.55)",
   onDarkChip: "rgba(255,255,255,0.6)",
   pagerBlack: "#000000",
-  pagerShadow: [
-    "rgba(0,0,0,0)",
-    "rgba(0,0,0,0.08)",
-    "rgba(0,0,0,0.26)",
-  ] as const,
+  pagerShadow: ["rgba(0,0,0,0)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0.26)"] as const,
   barShadeOnDark: "rgba(255,255,255,0.06)",
   barShadeOnLight: "rgba(0,0,0,0.025)",
 } as const;
@@ -444,25 +334,9 @@ export const tabsLayout = {
   archiveTile: 28,
 } as const;
 
-export const space = {
-  none: 0,
-  hair: 1,
-  tight: 2,
-  xs: 4,
-  s: 8,
-  m: 12,
-  l: 16,
-  xl: 20,
-  xxl: 24,
-  huge: 32,
-} as const;
+export const space = { none: 0, hair: 1, tight: 2, xs: 4, s: 8, m: 12, l: 16, xl: 20, xxl: 24, huge: 32 } as const;
 
-export const shadowRadius = {
-  tile: 1.5,
-  knob: 2,
-  card: 16,
-  lifted: 24,
-} as const;
+export const shadowRadius = { tile: 1.5, knob: 2, card: 16, lifted: 24 } as const;
 
 export const radius = { row: 14, field: 16, card: 20, sheet: 40 } as const;
 

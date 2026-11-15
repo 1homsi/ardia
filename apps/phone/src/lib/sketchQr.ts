@@ -27,11 +27,5 @@ export const SKETCH_QR_ROWS: readonly string[] = [
 ];
 
 export function sketchQrPath(rows: readonly string[] = SKETCH_QR_ROWS): string {
-  return rows
-    .flatMap((row, y) =>
-      [...row].flatMap((cell, x) =>
-        cell === "1" ? [`M${x} ${y}h1v1h-1z`] : [],
-      ),
-    )
-    .join("");
+  return rows.flatMap((row, y) => [...row].flatMap((cell, x) => (cell === "1" ? [`M${x} ${y}h1v1h-1z`] : []))).join("");
 }
