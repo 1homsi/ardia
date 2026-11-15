@@ -11,6 +11,7 @@ struct OmniboxTextField: UIViewRepresentable {
   var isIncognito: Bool
   var selectsAllOnFocus: Bool
   var isRevealed = true
+  var isLeaving = false
   var onReveal: (CFTimeInterval) -> Void = { _ in }
   var onSubmit: (String) -> Void
 
@@ -72,6 +73,7 @@ struct OmniboxTextField: UIViewRepresentable {
         field.becomeFirstResponder()
       }
     } else if !isFocused, field.isFirstResponder {
+      if isLeaving { field.freezeAppearance() }
       DispatchQueue.main.async {
         guard !self.isFocused, field.isFirstResponder else { return }
         field.resignFirstResponder()
@@ -169,7 +171,7 @@ struct OmniboxTextField: UIViewRepresentable {
       if !parent.isFocused { parent.isFocused = true }
       if parent.selectsAllOnFocus, !didSelectAllOnFocus, !(textField.text ?? "").isEmpty {
         didSelectAllOnFocus = true
-        DispatchQueue.main.async { textField.selectAll(nil) }
+        DispatchQueue.main.async { (textField as? CompletingTextField)?.selectAllShowingStart() ?? textField.selectAll(nil) }
       }
     }
 
@@ -211,6 +213,29 @@ final class CompletingTextField: UITextField {
     DispatchQueue.main.async { [weak self] in
       guard let self, self.wantsFocus, self.window != nil, !self.isFirstResponder else { return }
       self.becomeFirstResponder()
+    }
+  }
+
+  func selectAllShowingStart() {
+    selectedTextRange = textRange(from: beginningOfDocument, to: endOfDocument)
+    UIView.performWithoutAnimation {
+      layoutIfNeeded()
+      for scroller in Self.scrollers(in: self) { scroller.setContentOffset(.zero, animated: false) }
+    }
+  }
+
+  func freezeAppearance() {
+    guard let still = snapshotView(afterScreenUpdates: false) else { return }
+    still.frame = bounds
+    still.isUserInteractionEnabled = false
+    addSubview(still)
+  }
+
+  private static func scrollers(in view: UIView) -> [UIScrollView] {
+    view.subviews.flatMap { child -> [UIScrollView] in
+      let nested = scrollers(in: child)
+      guard let scroller = child as? UIScrollView else { return nested }
+      return [scroller] + nested
     }
   }
 

@@ -8,6 +8,7 @@ import UIKit
 final class TrayMotion {
   private(set) var lift: CGFloat = 0
   private(set) var revealsContents = true
+  private(set) var isLeaving = false
   var isFocused = false
   @ObservationIgnored var reduceMotion = false
   @ObservationIgnored var releaseVelocity: CGFloat = 0
@@ -75,6 +76,7 @@ final class TrayMotion {
     releaseTask?.cancel()
     dropMorph()
     controller.dim.onTap = onDimTap
+    if isLeaving { isLeaving = false }
     move(.immediate) { [self] in
       self.dimLevel = dimLevel
       isShown = true
@@ -110,6 +112,7 @@ final class TrayMotion {
   }
 
   func close(departing: Bool, morphing look: TrayMorphLook?) {
+    isLeaving = true
     landingTask?.cancel()
     releaseTask?.cancel()
     defer { releaseVelocity = 0 }

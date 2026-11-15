@@ -56,7 +56,7 @@ struct SearchTrayHost: View {
 
   private func tray(for request: BrowseSession.SearchRequest, maxHeight: CGFloat, isCommandBar: Bool) -> AnyView {
     AnyView(
-      SearchTray(request: request, isFocused: focus, maxHeight: maxHeight, dismissDrag: dismissDrag, revealsContents: motion.revealsContents, onReveal: { [motion] base in motion.fieldDidReveal(at: base) })
+      SearchTray(request: request, isFocused: focus, maxHeight: maxHeight, dismissDrag: dismissDrag, revealsContents: motion.revealsContents, isLeaving: motion.isLeaving, onReveal: { [motion] base in motion.fieldDidReveal(at: base) })
         .id(presentation)
         .padding(.horizontal, isCommandBar ? DuoLayout.commandSide : 0)
         .environment(app)

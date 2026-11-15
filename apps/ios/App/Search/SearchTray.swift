@@ -8,6 +8,7 @@ struct SearchTray<Drag: Gesture>: View {
   let maxHeight: CGFloat
   let dismissDrag: Drag
   var revealsContents = true
+  var isLeaving = false
   var onReveal: (CFTimeInterval) -> Void = { _ in }
 
   @Environment(AppModel.self) private var app
@@ -94,6 +95,7 @@ struct SearchTray<Drag: Gesture>: View {
         isIncognito: isIncognito,
         selectsAllOnFocus: request.selectsAll,
         isRevealed: revealsContents,
+        isLeaving: isLeaving,
         onReveal: onReveal,
         onSubmit: submit
       )
