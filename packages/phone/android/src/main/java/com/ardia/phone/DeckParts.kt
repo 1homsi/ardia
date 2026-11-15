@@ -15,6 +15,8 @@ internal object DeckParts {
         Layers("partly transparent views held on hardware layers"),
         Bar("the deck bar's plates hidden"),
         Headers("card headers (fade views) hidden"),
+        Under("everything drawn under the deck hidden"),
+        Pages("web pages hidden"),
         Restore("everything put back"),
     }
 
@@ -33,6 +35,8 @@ internal object DeckParts {
         val largeImages: Int,
         val fadeViews: Int,
         val lookViews: Int,
+        val fullScreen: List<String>,
+        val webViews: Int,
     )
 
     fun isOffscreenEachFrame(view: View): Boolean =
@@ -50,6 +54,24 @@ internal object DeckParts {
     }
 
     private fun overflow(view: View): String? = (view as? ReactViewGroup)?.overflow
+
+    private fun drawsSomething(view: View): Boolean =
+        view.background != null || view is LookView || view is android.webkit.WebView || view is android.view.SurfaceView || view is android.view.TextureView || view is ImageView
+
+    private fun deckBackdrop(): DeckBackdropView? = DeckBackdrops.all().firstOrNull { it.isShown }
+
+    private fun underDeck(): List<View> {
+        val out = ArrayList<View>()
+        var child: View = deckBackdrop() ?: return out
+        var parent = child.parent as? ViewGroup
+        while (parent != null) {
+            val at = parent.indexOfChild(child)
+            for (index in 0 until at) parent.getChildAt(index).takeIf { it.visibility == View.VISIBLE }?.let(out::add)
+            child = parent
+            parent = parent.parent as? ViewGroup
+        }
+        return out
+    }
 
     fun inventory(root: View): Inventory {
         val views = shownViews(root)
@@ -70,6 +92,9 @@ internal object DeckParts {
             largeImages = views.count { it is ImageView && it.width >= 100 * density },
             fadeViews = views.count { it is FadeView },
             lookViews = views.count { it is LookView || it is FrostSourceView },
+            fullScreen = views.filter { it.width.toLong() * it.height >= root.width.toLong() * root.height * 8 / 10 && drawsSomething(it) }
+                .map { "${FrameTrace.label(it)}${if (it.background != null) " with a background" else ""}" },
+            webViews = views.count { it is android.webkit.WebView },
         )
     }
 
@@ -78,7 +103,9 @@ internal object DeckParts {
             (if (inventory.offscreenEachFrame.isEmpty()) "" else " [${inventory.offscreenEachFrame.take(12).joinToString("; ")}${if (inventory.offscreenEachFrame.size > 12) "; and ${inventory.offscreenEachFrame.size - 12} more" else ""}]") +
             "; ${inventory.hardwareLayers} hardware layer(s), ${"%.1f".format(inventory.hardwareLayerPixels / 1_000_000.0)} Mpx; ${inventory.shadows} with elevation; " +
             "${inventory.outlineClips} outline clip(s), ${inventory.overflowClips} overflow-hidden clip(s); ${inventory.images} image view(s), ${inventory.largeImages} of them pictures; " +
-            "${inventory.fadeViews} fade view(s); ${inventory.lookViews} look view(s); applied: ${applied.joinToString { it.name.lowercase() }.ifEmpty { "nothing" }}"
+            "${inventory.fadeViews} fade view(s); ${inventory.lookViews} look view(s); ${inventory.webViews} web view(s) shown; " +
+            "${inventory.fullScreen.size} full-screen view(s) that draw, in drawing order [${inventory.fullScreen.joinToString("; ")}]; " +
+            "${underDeck().size} view(s) drawn under the deck; applied: ${applied.joinToString { it.name.lowercase() }.ifEmpty { "nothing" }}"
 
     fun apply(activity: Activity, part: Part): String {
         val root = activity.window?.decorView ?: return "PAGELAB deck parts: no window"
@@ -91,6 +118,13 @@ internal object DeckParts {
         }
         val density = root.resources.displayMetrics.density
         var changed = 0
+        if (part == Part.Under) {
+            for (view in underDeck()) {
+                view.visibility = View.INVISIBLE
+                restores += { view.visibility = View.VISIBLE }
+                changed += 1
+            }
+        }
         for (view in shownViews(root)) {
             when (part) {
                 Part.Shadows -> if (view.elevation > 0f || view.translationZ > 0f) {
@@ -142,7 +176,12 @@ internal object DeckParts {
                     restores += { view.visibility = View.VISIBLE }
                     changed += 1
                 }
-                Part.Restore -> Unit
+                Part.Pages -> if (view is android.webkit.WebView) {
+                    view.visibility = View.INVISIBLE
+                    restores += { view.visibility = View.VISIBLE }
+                    changed += 1
+                }
+                Part.Under, Part.Restore -> Unit
             }
         }
         applied += part
