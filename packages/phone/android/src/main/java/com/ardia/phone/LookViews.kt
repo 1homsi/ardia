@@ -248,6 +248,41 @@ internal object DeckLayers {
     }
 }
 
+internal class ForeignDraws(private val dirty: (View) -> Boolean = View::isDirty) {
+    private val placed = java.util.WeakHashMap<View, Int>()
+
+    private fun placement(view: View): Int = arrayOf<Any>(
+        view.left, view.top, view.right, view.bottom, view.scrollX, view.scrollY, view.translationX, view.translationY, view.translationZ,
+        view.scaleX, view.scaleY, view.rotation, view.rotationX, view.rotationY, view.alpha, view.visibility,
+    ).contentHashCode()
+
+    private fun moved(view: View): Boolean {
+        val now = placement(view)
+        val before = placed.put(view, now)
+        return before != null && before != now
+    }
+
+    fun first(root: View, own: Collection<View>): View? {
+        val explained = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<View, Boolean>())
+        for (view in own) {
+            var at: View? = view
+            while (at != null && explained.add(at)) at = at.parent as? View
+        }
+        return walk(root, explained)
+    }
+
+    private fun walk(view: View, explained: Set<View>): View? {
+        val movedItself = moved(view)
+        if (view !in explained) return if (movedItself || dirty(view)) view else null
+        var found: View? = if (movedItself) view else null
+        if (view is android.view.ViewGroup) for (index in 0 until view.childCount) {
+            val other = walk(view.getChildAt(index), explained)
+            if (found == null) found = other
+        }
+        return found
+    }
+}
+
 internal object AttachedLookViews {
     private val attached = java.util.WeakHashMap<LookView, Unit>()
 
@@ -346,24 +381,45 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
 
     private var lastOthersDrew = 0L
     private var ownDrawPending = false
+    private val foreignDraws = ForeignDraws()
     private val counted = ViewTreeObserver.OnPreDrawListener {
-        if (ownDrawPending) {
-            ownDrawPending = false
-        } else {
-            lastOthersDrew = SystemClock.uptimeMillis()
-            LookActivity.foreignTraversals += 1
-            releaseResting()
-        }
+        judgeTraversal()
         true
     }
 
+    internal fun judgeTraversal(): Boolean {
+        val own = ArrayList<View>(justLayered.size + 1)
+        own += this
+        own += justLayered
+        enclosingSource()?.let { own += FrostSources.frostsOf(it) }
+        val other = foreignDraws.first(rootView, own)
+        val ours = ownDrawPending && other == null
+        ownDrawPending = false
+        justLayered.clear()
+        if (ours) return false
+        lastOthersDrew = SystemClock.uptimeMillis()
+        LookActivity.foreignTraversals += 1
+        releaseResting()
+        return true
+    }
+
+    internal val holdsRestingLayers: Boolean get() = layered.isNotEmpty()
+
+    internal fun stopMotion() {
+        removeCallbacks(tick)
+        ownDrawPending = false
+        releaseResting()
+    }
+
     private val layered = ArrayList<Pair<View, Int>>()
+    private val justLayered = ArrayList<View>()
 
     private fun holdRestingOnLayers() {
         if (layered.isNotEmpty() || !LookSwitch.deckLayers(context)) return
         for (view in DeckLayers.layerable(this)) {
             if (view.layerType == LAYER_TYPE_HARDWARE) continue
             layered += view to view.layerType
+            justLayered += view
             view.setLayerType(LAYER_TYPE_HARDWARE, null)
         }
         if (layered.isEmpty()) return
@@ -378,6 +434,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (layered.isEmpty()) return
         for ((view, type) in layered) view.setLayerType(type, null)
         layered.clear()
+        justLayered.clear()
         LookActivity.restingLayered = 0
     }
     private var clockBase = 0L
@@ -401,24 +458,25 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     }
 
     private var paceMillis = 40L
-    private val tick = Runnable {
+    private val tick = Runnable { advanceBlobs() }
+
+    internal fun advanceBlobs() {
+        if (!isAnimating) return stopMotion()
         val now = SystemClock.uptimeMillis()
         if (LookRules.othersMovedRecently(lastOthersDrew, now)) {
             holdStill(now)
-            postDelayed(nextTick(), paceMillis)
-        } else {
-            val started = SystemClock.elapsedRealtimeNanos()
-            moveOn(now)
-            sceneFresh = renderScene(clock(now))
-            ownDrawPending = true
-            holdRestingOnLayers()
-            invalidate()
-            enclosingSource()?.let(FrostSources::retintFrostsOf)
-            LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - started
+            postDelayed(tick, paceMillis)
+            return
         }
+        val started = SystemClock.elapsedRealtimeNanos()
+        moveOn(now)
+        sceneFresh = renderScene(clock(now))
+        ownDrawPending = true
+        holdRestingOnLayers()
+        invalidate()
+        enclosingSource()?.let(FrostSources::retintFrostsOf)
+        LookActivity.tickNanos += SystemClock.elapsedRealtimeNanos() - started
     }
-
-    private fun nextTick(): Runnable = tick
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -429,9 +487,19 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
     override fun onDetachedFromWindow() {
         DeckBackdrops.detach(this)
         viewTreeObserver.removeOnPreDrawListener(counted)
-        removeCallbacks(tick)
-        releaseResting()
+        stopMotion()
         super.onDetachedFromWindow()
+    }
+
+    override fun onVisibilityAggregated(isVisible: Boolean) {
+        super.onVisibilityAggregated(isVisible)
+        if (!isVisible) stopMotion() else invalidate()
+    }
+
+    private fun stopMotionAfterDraw() {
+        removeCallbacks(tick)
+        ownDrawPending = false
+        if (layered.isNotEmpty()) post { if (!isAnimating) releaseResting() }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -461,6 +529,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         frames += 1
         LookActivity.backdropFrames += 1
         if (lookIsOff) {
+            stopMotionAfterDraw()
             fillBounds(canvas, LookSwitch.flatDeck(look, dark).toArgb())
             return
         }
@@ -468,6 +537,7 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         val h = height.toFloat()
         val at = clock(SystemClock.uptimeMillis())
         if (noBlobs) {
+            stopMotionAfterDraw()
             drawScene(canvas, look, dark, w, h, at)
             sceneFresh = false
             return
@@ -475,7 +545,9 @@ class DeckBackdropView(context: Context, appContext: AppContext) : LookView(cont
         if (!paint(canvas, LookSwitch.backdropDraw(context), look, dark, at)) return
         val animated = !still
         removeCallbacks(tick)
-        if (animated && isShown) {
+        if (!animated || !isShown) {
+            stopMotionAfterDraw()
+        } else {
             when (val delay = LookRules.nextBlobFrameMillis(LookSwitch.blobFramesPerSecond(context), w, h)) {
                 0L -> {
                     ownDrawPending = true
@@ -777,6 +849,8 @@ internal object FrostSources {
     fun retintFrostsOf(source: FrostSourceView) {
         for (frost in frosts()) if (frost.lastChoice?.path == FrostPage.Path.Tinted && frost.source != null && find(frost.source) === source) frost.retint()
     }
+
+    fun frostsOf(source: FrostSourceView): List<FrostView> = frosts().filter { it.source != null && find(it.source) === source }
 }
 
 class FrostSourceView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
@@ -1287,6 +1361,7 @@ internal object LookMemory {
         }
         FrostSources.allSources().forEach { it.release() }
         DeckBackdrops.all().forEach {
+            it.stopMotion()
             it.forgetPaint()
             it.invalidate()
         }

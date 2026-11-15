@@ -1,0 +1,140 @@
+package com.ardia.phone
+
+import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
+import android.widget.FrameLayout
+import expo.modules.kotlin.AppContext
+import java.time.Duration
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowSystemClock
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class ForeignDrawsTest {
+    private val activity: Activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+
+    private val appContext: AppContext = run {
+        val unsafe = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe").apply { isAccessible = true }.get(null)
+        unsafe.javaClass.getMethod("allocateInstance", Class::class.java).invoke(unsafe, AppContext::class.java) as AppContext
+    }
+
+    @org.junit.Before
+    fun reactFlags() = com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests.setUp()
+
+    private val root = FrameLayout(activity)
+    private val deck = DeckBackdropView(activity, appContext).apply { color = "#B04A7A" }
+    private val card = FrameLayout(activity)
+    private val cardText = View(activity)
+    private val badge = View(activity)
+    private val canvas by lazy { Canvas(Bitmap.createBitmap(root.rootView.width.coerceAtLeast(1), root.rootView.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)) }
+
+    private fun show() {
+        card.addView(cardText, FrameLayout.LayoutParams(40, 20))
+        root.addView(deck, FrameLayout.LayoutParams(200, 400))
+        root.addView(card, FrameLayout.LayoutParams(120, 80))
+        root.addView(badge, FrameLayout.LayoutParams(20, 20))
+        activity.setContentView(root)
+        layoutAndDraw()
+        deck.judgeTraversal()
+        layoutAndDraw()
+        quiet()
+    }
+
+    private fun layoutAndDraw() {
+        root.measure(View.MeasureSpec.makeMeasureSpec(200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, 200, 400)
+        root.rootView.draw(canvas)
+    }
+
+    private fun quiet() = ShadowSystemClock.advanceBy(Duration.ofMillis(LookRules.QUIET_BEFORE_MOVING_MILLIS + 50))
+
+    private fun frame(): Boolean = deck.judgeTraversal().also { layoutAndDraw() }
+
+    @Test
+    fun aTickOnItsOwnIsTheBackdropsFrame() {
+        show()
+        val before = LookActivity.foreignTraversals
+        deck.advanceBlobs()
+        assertTrue("the first tick holds the resting cards on layers", deck.holdsRestingLayers)
+        assertFalse("the backdrop's redraw and the layers it just made are its own", frame())
+        quiet()
+        deck.advanceBlobs()
+        assertFalse(frame())
+        assertEquals(before, LookActivity.foreignTraversals)
+    }
+
+    @Test
+    fun aViewRedrawnInTheSameFrameAsATickIsForeign() {
+        show()
+        deck.advanceBlobs()
+        assertFalse(frame())
+        quiet()
+        deck.advanceBlobs()
+        cardText.invalidate()
+        val before = LookActivity.foreignTraversals
+        assertTrue("a pending tick no longer claims a frame something else asked for", frame())
+        assertEquals(before + 1, LookActivity.foreignTraversals)
+        assertFalse("the foreign frame lets the cards go off their layers", deck.holdsRestingLayers)
+    }
+
+    @Test
+    fun aParentScrolledOrAViewMovedWithoutRedrawingIsForeign() {
+        show()
+        deck.advanceBlobs()
+        assertFalse(frame())
+        quiet()
+        deck.advanceBlobs()
+        root.scrollTo(0, 12)
+        assertTrue("the backdrop's own parent scrolled", frame())
+        quiet()
+        deck.advanceBlobs()
+        assertFalse(frame())
+        quiet()
+        val draws = ForeignDraws { false }
+        assertNull(draws.first(root, listOf(deck)))
+        badge.translationY = 6f
+        assertSame("a property-only move shows even when nothing is marked dirty", badge, draws.first(root, listOf(deck)))
+    }
+
+    @Test
+    fun hidingTheDeckOrStillingItStopsTheTicksAndLetsTheLayersGo() {
+        show()
+        deck.advanceBlobs()
+        assertTrue(deck.holdsRestingLayers)
+        assertEquals(View.LAYER_TYPE_HARDWARE, card.layerType)
+        root.visibility = View.INVISIBLE
+        assertFalse(deck.holdsRestingLayers)
+        assertEquals(View.LAYER_TYPE_NONE, card.layerType)
+        deck.advanceBlobs()
+        assertFalse("a tick that lands while hidden does nothing", deck.holdsRestingLayers)
+        root.visibility = View.VISIBLE
+        layoutAndDraw()
+        quiet()
+        deck.advanceBlobs()
+        assertTrue(deck.holdsRestingLayers)
+        deck.reduceMotion = true
+        deck.invalidate()
+        layoutAndDraw()
+        deck.advanceBlobs()
+        assertFalse("a tick after reduce motion came on lets the layers go", deck.holdsRestingLayers)
+        deck.reduceMotion = false
+        quiet()
+        deck.advanceBlobs()
+        assertTrue(deck.holdsRestingLayers)
+        LookMemory.releaseAll()
+        assertFalse("the hidden app's release lets them go too", deck.holdsRestingLayers)
+    }
+}
