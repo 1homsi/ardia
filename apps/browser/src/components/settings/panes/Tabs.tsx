@@ -55,6 +55,7 @@ function LinkKeys() {
       <Row anchor="tabs.newTabLinksOpenIn">
         <PopUp value={newTabLinks} options={NEW_TAB_LINKS} onChange={(newTabLinksOpenIn) => updateSettings({ newTabLinksOpenIn })} />
       </Row>
+      <SettingToggle anchor="tabs.popupsOpenAsTabs" />
       <Row anchor="tabs.peekButtons">
         <PopUp value={peekButtons} options={PEEK_BUTTONS} onChange={(peekButtons) => updateSettings({ peekButtons })} />
       </Row>
