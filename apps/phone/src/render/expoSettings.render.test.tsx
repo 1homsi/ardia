@@ -1,6 +1,8 @@
 import { Platform } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { SettingsView } from "../components/settings/SettingsView";
+import { SettingsShortcuts } from "../components/ui";
+import { useBrowse } from "../state/browse/store";
 import { openSettings, pushSettings, settingsNav } from "../state/settings/nav";
 import { usePreferences } from "../state/settings/store";
 import { PHONE_SHARING_COPY } from "../lib/telemetryCopy";
@@ -94,18 +96,18 @@ onIos("on iPhone Appearance is main's page on Expo UI: Color with nine swatches,
   unmount(root);
 });
 
-onIos("Archive and Spaces sit 12 points apart with only main's pressable style, no plain style or ink that would blank their labels; the Sync row has main's 6-point vertical padding and 14-point gap", () => {
+onIos("Archive and Spaces are main's own SwiftUI buttons, the settings piece SettingsShortcuts, so a screen reader finds both; each opens its surface; the Sync row has main's 6-point vertical padding and 14-point gap", () => {
   openSettings();
   const root = renderSurface(<SettingsView />);
-  const types = (node: ReactTestInstance) => ((node.props.modifiers as { $type: string }[] | undefined) ?? []).map((modifier) => modifier.$type);
-  const shortcuts = hosts(root, (props) => typeof props.onButtonPress === "function" || typeof props.onPress === "function").filter((node) => node.findAll((inner) => typeof inner.type === "string" && (inner.props.text === "Archive" || inner.props.text === "Spaces" || inner.props.children === "Archive" || inner.props.children === "Spaces")).length > 0);
-  expect(shortcuts.length).toBeGreaterThanOrEqual(2);
-  for (const button of shortcuts) expect(types(button)).not.toContain("buttonStyle");
-  const holds = (node: ReactTestInstance, title: string) => node.findAll((inner) => typeof inner.type === "string" && (inner.props.text === title || inner.props.children === title)).length > 0;
-  const pair = hosts(root, (props) => typeof props.spacing === "number").filter((node) => holds(node, "Archive") && holds(node, "Spaces"));
-  expect(pair.at(-1)?.props.spacing).toBe(12);
-  for (const button of shortcuts) expect(types(button)).not.toContain("foregroundStyle");
-  const syncStack = hosts(root, (props) => props.spacing === 14 && Array.isArray(props.modifiers) && (props.modifiers as { $type: string }[]).some((modifier) => modifier.$type === "padding"))[0];
-  expect((syncStack?.props.modifiers as { $type: string; vertical?: number }[]).find((modifier) => modifier.$type === "padding")?.vertical).toBe(6);
+  const piece = root.root.findAll((node) => node.type === SettingsShortcuts)[0]!;
+  expect(piece.props.shortcuts).toEqual([{ id: "archive", title: "Archive" }, { id: "spaces", title: "Spaces" }]);
+  act(() => piece.props.onPress("spaces"));
+  act(() => jest.advanceTimersByTime(600));
+  expect(useBrowse.getState().sheet).toBe("spaces");
   unmount(root);
+  openSettings();
+  const again = renderSurface(<SettingsView />);
+  const syncStack = again.root.findAll((node) => typeof node.type === "string" && node.props.spacing === 14 && Array.isArray(node.props.modifiers) && (node.props.modifiers as { $type: string }[]).some((modifier) => modifier.$type === "padding"))[0];
+  expect((syncStack?.props.modifiers as { $type: string; vertical?: number }[]).find((modifier) => modifier.$type === "padding")?.vertical).toBe(6);
+  unmount(again);
 });

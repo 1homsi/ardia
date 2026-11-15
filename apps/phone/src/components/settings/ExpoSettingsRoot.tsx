@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { PlatformColor } from "react-native";
 import { Button, Form, HStack, Image, LabeledContent, NavigationLink, Picker, Section, Text, Toggle, Toolbar, ToolbarItem, VStack } from "@expo/ui/swift-ui";
-import { accessibilityElement, background, clipShape, contentTransition, font, foregroundStyle, frame, listRowBackground, listRowInsets, listSectionSpacing, multilineTextAlignment, navigationBarTitleDisplayMode, navigationTitle, padding, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
+import { accessibilityElement, contentTransition, font, foregroundStyle, frame, listRowBackground, listRowInsets, listSectionSpacing, multilineTextAlignment, navigationBarTitleDisplayMode, navigationTitle, padding, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
 import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
@@ -15,7 +15,7 @@ import { closeSettings, settingsRouteKey, type SettingsRoute } from "../../state
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
-import { contentMargins, modifierList, pressableStyle, PROFILE_COLORS, settingsChrome, settingsLayout, SettingsIconTile, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
+import { contentMargins, modifierList, PROFILE_COLORS, settingsChrome, settingsLayout, SettingsIconTile, SettingsShortcuts, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
 import { ExpoRowLabel } from "./ExpoRowLabel";
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
@@ -23,7 +23,7 @@ const APP_LINKS = [
   { id: "ardia", title: "Ardia" },
   { id: "app", title: "App" },
 ] as const;
-const SHORTCUT_FILL = PlatformColor("secondarySystemGroupedBackground");
+const SHORTCUTS = [{ id: "archive", title: "Archive" }, { id: "spaces", title: "Spaces" }];
 const SYNC_TILE = 56;
 const TOP_SECTION_SPACING = 12;
 
@@ -55,10 +55,7 @@ export function ExpoSettingsRoot() {
           </NavigationLink>
         </Section>
         <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }), listSectionSpacing(TOP_SECTION_SPACING)]}>
-          <HStack spacing={12}>
-            <Shortcut title="Archive" onPress={() => leaveFor(openArchive)} />
-            <Shortcut title="Spaces" onPress={() => leaveFor(openSpaces)} />
-          </HStack>
+          <SettingsShortcuts shortcuts={SHORTCUTS} onPress={(id) => leaveFor(id === "archive" ? openArchive : openSpaces)} />
         </Section>
         <Section>
           <NavigationLink value={link({ page: "appearance" })}>
@@ -170,13 +167,5 @@ function SyncRow() {
         <Text modifiers={[font({ textStyle: "subheadline" }), foregroundStyle(line.isWarning ? warningInk : { type: "hierarchical", style: "secondary" }), contentTransition("opacity")]}>{line.text}</Text>
       </VStack>
     </HStack>
-  );
-}
-
-function Shortcut({ title, onPress }: { title: string; onPress: () => void }) {
-  return (
-    <Button onPress={onPress} modifiers={modifierList(pressableStyle())}>
-      <Text modifiers={[font({ textStyle: "body", weight: "medium" }), frame({ maxWidth: Number.MAX_SAFE_INTEGER, minHeight: 48 }), background(SHORTCUT_FILL), clipShape("capsule")]}>{title}</Text>
-    </Button>
   );
 }
