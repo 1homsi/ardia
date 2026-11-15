@@ -7,6 +7,7 @@ import { curve, useGated } from "../ui/motion";
 import { Panel, reduceMotion, WindowBackdrop, WindowDragRegion } from "../ui";
 import { useSettings, useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { useCardTopInset, useSidebarControlsRowIn, useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
 import { ResizeHandle } from "../sidebar/ResizeHandle";
@@ -107,10 +108,10 @@ export function DockedLayout({
   children: ReactNode;
 }) {
   const windowId = useWindowId();
-  const [open, sidebarWidth, addressBar] = useSidebarDockState(windowId);
+  const [open, addressBar] = useSidebarDockState(windowId);
   const right = useSidebarSide(windowId) === "right";
   const dragWidth = useSidebarUi((u) => u.dragWidth[windowId]);
-  const width = dragWidth ?? sidebarWidth;
+  const width = useSidebarWidth(windowId);
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
   const toolbarLights = useToolbarLightsCenter();
   const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : toolbarLights;

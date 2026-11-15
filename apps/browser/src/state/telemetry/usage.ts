@@ -324,7 +324,7 @@ function snapshotSettings() {
   if (settingsSnapshotDay() === today) return;
   markSettingsSnapshot(today);
   const state = useBrowser.getState();
-  const settings = { ...settingsSnapshot(state.settings), ...customColorProfiles(state.profiles), ...narrowWindows(state.windows), ...airTrafficSnapshot(), ...currentThemeFileSnapshot() };
+  const settings = { ...settingsSnapshot(state.settings), ...customColorProfiles(state.profiles), ...narrowWindows(state.windows, state.settings.sidebarWidth), ...airTrafficSnapshot(), ...currentThemeFileSnapshot() };
   void currentAppIcon()
     .catch(() => null)
     .then((icon) => capture(SETTINGS_SNAPSHOT_EVENT, { ...settings, ...appIconSetting(icon) }));

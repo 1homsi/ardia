@@ -11,6 +11,7 @@ import { BROWSER_WINDOW_BUTTONS, captionClearTop, captionRoom, WINDOW_CHROME, WI
 import { toolbarRowOf } from "../../lib/toolbarRow";
 import { SMALL_BAR_HEIGHT } from "./small";
 import type { CaptionRegion } from "../../platform/windowControls";
+import { sidebarWidthIn } from "../sidebar/shownWidth";
 
 export { frameCornerRadius, windowCornerRadius, windowFrame } from "../../platform/windows";
 
@@ -56,7 +57,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   if (!w) return null;
   const open = tabsShownIn(s, windowId);
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
-  const width = s.settings.sidebarWidth;
+  const width = sidebarWidthIn(s, windowId);
   const frame = pageFrameInsetOf(s.settings.pageFrame, {
     borderlessMode: s.settings.borderlessMode || minimalismIn(s, windowId),
     zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
