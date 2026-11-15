@@ -25,7 +25,7 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 75 rows, 54 work, 8 work with a difference, 4 do nothing, 8 are not offered
+who and on which build. Of the 76 rows, 54 work, 8 work with a difference, 4 do nothing, 9 are not offered
 and 1 was not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
@@ -70,6 +70,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here). Its buttons at the top, left and right (53d5a2bee, walked 2026-11-14) are app UI over the page with a clean cut, answer clicks, include Split View's, and the tooltip reads "Open as Tab (Ctrl+O)" | #1531, #1576, #1708 |
 | A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
 | Pop-up windows from pages | Works: the pop-up stays a tab of its opener's window, so `window.opener` and `postMessage` keep working, and shows in a pop-up window the app draws, sized and placed as the page asked | #1518 |
+| Open pop-up windows as tabs (Settings › Tabs › Links) | Not offered; hidden: the Mac's native layer turns a pop-up into a tab (`webView.setPopupsOpenAsTabs`); on Windows the app opens the pop-up window itself (`tab.opened` in `engine/pages.ts`), so this can be done in the app | |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
 
 **Pages**
@@ -1107,6 +1108,8 @@ App side, an agent can do these now:
     `windows-engine-20261115-3`; that the new order sticks, and the drag itself, are untried on Windows. S.
 11. A group's and a live folder's icon is the plain folder symbol, filled while open, not the Mac's animated folder
     (main's #376; `views/FolderIcon.tsx`). S.
+12. Open pop-up windows as tabs (main's #1272): the setting is hidden; the app can do it where it takes the engine's
+    offered pop-up (`tab.opened` in `engine/pages.ts`). S.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - password sync on Windows: the engine's login read is ready (#1918); Sync still has to handle its errors before
@@ -1123,9 +1126,9 @@ Decisions for Shivam:
 - publishing a `windows-alpha` release, so Check for Updates has something to find (#1517);
 - signing, or a per-machine install (#1659).
 
-With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 4, 9 and 10 are
-bugs a user hits, and 5 to 8 and 11 are visible differences from the Mac. Everything else in the table works or differs only
-where the engine, Windows itself or a decision stands in the way.
+With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 4, 9 and 10 are bugs a
+user hits, and 5 to 8, 11 and 12 are visible differences from the Mac. Everything else in the table works or differs
+only where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work
 
