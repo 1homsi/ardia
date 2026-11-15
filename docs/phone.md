@@ -1515,6 +1515,85 @@ Watch your own frames before you hand a change on. The loop, for any agent:
      appears in a plain `snapshot` (not `snapshot -i`), before typing, or a Go press does nothing.
    - In zsh, `$var:a…` is a modifier; write `${var}:path`.
 
+#### Speed against the SwiftUI app
+
+The question is whether the Expo app is slower than the SwiftUI app it replaces on iPhone. The bar is main's SwiftUI
+app, built Release for the same simulator (`/tmp/ardia-phone/swiftui-main.app`), against a Release `build-sim-app`
+build of the Expo app from head.
+
+| Measure | SwiftUI | Expo | Difference | Judgement | Simulator trust |
+|---|---|---|---|---|---|
+| App size on disk (simulator build) | 47.5 MB | 72.0 MB | +24.5 MB (+52%) | larger | Good for the difference; a device download is thinned and compressed. The extensions are equal (21 MB each); the gap is React Native and Hermes (16.9 MB of frameworks, a 5.5 MB bundle, a 2 MB larger binary). |
+| Cold launch to the app's first own frame | not yet measured | not yet measured | | | Our own work and JavaScript start-up carry over in order of size; dyld, disk and the A-series CPU don't. |
+| Cold launch to a usable start page | not yet measured | not yet measured | | | As above. |
+| Deck opening from a page (first moving frame, settled) | not yet measured | not yet measured | | | Logic and animation length carry over; GPU cost, glass and blur don't. |
+| Card opening from the deck (first moving frame, settled) | not yet measured | not yet measured | | | As above. |
+| Search panel open to keyboard up and focused | not yet measured | not yet measured | | | The keyboard's own timing is the simulator's. |
+| Search submitted to the page's first paint (cached) | not yet measured | not yet measured | | | WebKit runs on the Mac's CPU; only the difference means anything. |
+| Tab swipe in the pager (first move to settled) | not yet measured | not yet measured | | | As the deck. |
+| Back and forward by edge swipe | cannot be measured | cannot be measured | | | agent-device's gestures can't start at the screen edge; needs a device. |
+| Deck scrolling, long frames per scripted fling | not yet measured | not yet measured | | | Weak: simulator recordings are variable rate and not locked to the display (gaps of 4 to 40 ms), and frame pacing is the Mac's. |
+| Memory after nine tabs, and after a minute idle on the deck | not yet measured | not yet measured | | | Footprint of the app process carries over roughly; WebKit's content processes and the device's memory limits don't. |
+
+Status, 2026-11-15:
+- **Measured:** the size row.
+- **Not measured yet:** the timed rows. The Mac's load stayed between 260 and 770, and Simlock and T3 restarted twice, so any timing then would have measured the machine, not the apps. They're to be taken at a load under 30, holding `scripts/agent/locked perflab`.
+
+The method:
+- **Setup:**
+  - Both apps on one leased iPhone 17 Pro simulator, iOS 27.
+  - Fresh install and onboarding, then the same nine local pages (`http://localhost:8766/p1.html` … `p9.html`, each a coloured header and text, so the network doesn't vary).
+- **Recording:** each measure recorded five times with `simctl io recordVideo`, the two apps alternating in rounds.
+- **Reading the frames:** times come from the frames.
+  - The first frame that changes is the touch's own response, such as the button's press.
+  - The first large change is the result starting.
+  - The settle is the last change before 0.5 s of stillness.
+  - The touch itself isn't in a simulator recording.
+
+What a simulator can say:
+- **Carries over:** how long our own logic and JavaScript take, and how long an animation is set to run.
+- **Doesn't carry over:**
+  - GPU cost, including Liquid Glass and blur;
+  - frame pacing at 120 Hz (the simulator draws at the Mac's rate);
+  - touch-to-screen latency;
+  - thermal throttling;
+  - launch on real storage;
+  - WebKit's content-process memory and the device's memory limits.
+
+#### Measuring speed on a real iPhone
+
+What it needs, for a yes or no:
+
+1. **The build.** A development-signed Release build of the Expo app, made with Xcode from `apps/phone/ios/Ardia.xcworkspace` (Release, a device destination).
+   - Development signing keeps it debuggable, so Instruments can profile it. A TestFlight build can't be profiled that way.
+   - It can't sit beside the TestFlight SwiftUI app as things are: both are `com.ardia.browser.ios`, with extensions `com.ardia.browser.ios.share`, `.open` and `.widgets`, and the app group `group.com.ardia.browser.ios`. Installing it replaces the SwiftUI app and its data on that phone.
+   - The cleaner way is a second bundle id for measurement only: `com.ardia.browser.ios.measure`, built without the three extensions and the app group. Then both apps sit side by side and nothing of the owner's is touched. That's a build-setting change on our side, plus the signing below.
+2. **The signing,** all the owner's to do (agents never touch the Apple developer account, certificates, profiles or the device list).
+   - Register the phone's UDID in team U5L5T3NGVV's devices, or let Xcode do it while signed in as a team member with automatic signing, which is what the projects use (`CODE_SIGN_STYLE = Automatic`).
+   - Let Xcode create a development certificate and profile for the bundle id. For the measurement id, that means an App ID `com.ardia.browser.ios.measure`, with no capabilities beyond the defaults if it's built without the app group.
+   - On the phone, turn on Developer Mode (Settings › Privacy & Security › Developer Mode) and trust the Mac.
+3. **The devices.**
+   - The oldest iPhone that runs iOS 27 (the deployment target is iOS 27.0 in both apps). It shows the worst case for JavaScript, glass and memory.
+   - A current one, with 120 Hz ProMotion, for frame pacing.
+   - Which phones he has is his to say.
+4. **The Mac.** This Mac, with Xcode 27.1, over a cable for the first pairing, then over the same network.
+5. **The tools.**
+   - Instruments' **App Launch** template (or `xcrun xctrace record --template 'App Launch' --device <udid> --launch -- com.ardia.browser.ios.measure`) for cold and warm launch.
+   - **Animation Hitches** for the deck, the card opening, the tab swipe and scrolling: hitch time ratio and long frames, at 120 Hz.
+   - **Time Profiler** for where JavaScript and native time goes.
+   - **Allocations** and the VM Tracker for memory, with the WebKit processes counted.
+   - Touch-to-screen latency: the phone's own screen recording at 60 fps shows the result but not the touch. A 240 fps slow-motion film of the phone, taken with another phone, shows both the finger and the frame.
+   - MetricKit isn't needed for this: it reports field data a day later, from users' phones.
+6. **What only a device can settle:**
+   - launch time on real storage;
+   - touch-to-screen latency, and the back and forward edge swipes;
+   - the deck's and the bar's glass and blur cost and hitches at 120 Hz;
+   - memory pressure and the WebKit processes;
+   - heat over a long session;
+   - energy.
+
+   The simulator rows above settle only how long our own work and animations take, and app size.
+
 #### Sync on iPhone
 
 `ArdiaPhoneSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
