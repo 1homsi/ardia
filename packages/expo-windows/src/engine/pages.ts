@@ -325,9 +325,10 @@ function closePage(page: Page) {
   closings.set(page.key, closing);
 }
 
-export function showPage(key: string, visible: boolean, shape: PageShape | null): boolean {
+export function showPage(key: string, visible: boolean, shape: PageShape | null, askedIn?: string): boolean {
   const page = pages.get(key);
   if (!page || page.closed) return (noteShowStep(key, page ? "showPage: closed" : "showPage: no page"), false);
+  if (askedIn !== undefined && askedIn !== page.windowId) return (noteShowStep(key, `showPage: asked in ${askedIn}, the page is in ${page.windowId}`), false);
   return (askShow(page, visible && shape ? { key, visible: true, ...shape } : { key, visible: false }), true);
 }
 
