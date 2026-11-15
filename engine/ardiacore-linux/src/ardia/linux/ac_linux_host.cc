@@ -377,6 +377,22 @@ class ShellTransparency : public content::WebContentsObserver {
   }
 };
 
+class ShellFirstPaint : public content::WebContentsObserver {
+ public:
+  ShellFirstPaint(content::WebContents* shell, base::OnceClosure painted)
+      : content::WebContentsObserver(shell), painted_(std::move(painted)) {}
+
+  void DidFirstVisuallyNonEmptyPaint() override {
+    if (painted_) std::move(painted_).Run();
+  }
+
+ private:
+  base::OnceClosure painted_;
+};
+
+constexpr base::TimeDelta kShellCurtainSettle = base::Milliseconds(100);
+constexpr base::TimeDelta kShellCurtainLimit = base::Seconds(4);
+
 class ViewportView : public views::WebView {
  public:
   METADATA_HEADER(ViewportView, views::WebView)
@@ -1635,6 +1651,8 @@ class ShellHostView : public views::View,
   void ReportWindowGeometry();
   void LayoutOverlay();
   void HideCaptionButtons();
+  void ShellPainted();
+  void LiftCurtain();
   void ReattachViewports();
   void OnViewBoundsChanged(views::View*) override { LayoutOverlay(); }
   void OnViewIsDeleting(views::View*) override;
@@ -1661,6 +1679,9 @@ class ShellHostView : public views::View,
   std::vector<std::unique_ptr<views::ViewTracker>> under_glass_;
   std::vector<gfx::Rect> shell_pass_;
   std::unique_ptr<ShellTransparency> shell_transparency_;
+  raw_ptr<views::View> curtain_ = nullptr;
+  std::unique_ptr<ShellFirstPaint> shell_first_paint_;
+  base::OneShotTimer curtain_timer_;
   raw_ptr<HostMessageHandler> handler_ = nullptr;
   uint64_t renderer_generation_ = 0;
   std::optional<uint64_t> live_generation_;
@@ -2498,6 +2519,11 @@ ShellHostView::ShellHostView(BrowserWindowInterface* browser, BrowserView* paren
       }, GetWeakPtr())));
   shell_ = AddChildView(std::make_unique<LinuxShellWebView>(app_profile));
   shell_->SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
+  auto curtain = std::make_unique<views::View>();
+  curtain->SetPaintToLayer();
+  curtain->SetBackground(views::CreateSolidBackground(kColorWebContentsBackground));
+  curtain->SetCanProcessEventsWithinSubtree(false);
+  curtain_ = AddChildView(std::move(curtain));
   view_observation_.Observe(parent);
   browser->GetTabStripModel()->AddObserver(this);
 }
@@ -2613,6 +2639,10 @@ void ShellHostView::Initialize() {
   }
   shell_->LoadInitialURL(GURL("chrome://ardia/"));
   shell_transparency_ = std::make_unique<ShellTransparency>(shell());
+  shell_first_paint_ = std::make_unique<ShellFirstPaint>(
+      shell(), base::BindOnce(&ShellHostView::ShellPainted, base::Unretained(this)));
+  curtain_timer_.Start(FROM_HERE, kShellCurtainLimit,
+                       base::BindOnce(&ShellHostView::LiftCurtain, base::Unretained(this)));
   ApplyShellInput();
   ardiacore::WatchLinuxShellInput(shell());
 }
@@ -3194,10 +3224,26 @@ void ShellHostView::LayoutOverlay() {
   SetBoundsRect(browser_view_->GetLocalBounds());
   shell_->SetBoundsRect(GetLocalBounds());
   if (glass_) glass_->SetBoundsRect(GetLocalBounds());
+  if (curtain_) curtain_->SetBoundsRect(GetLocalBounds());
   browser_view_->GetActiveContentsWebView()->SetVisible(false);
   if (extension_surfaces_) extension_surfaces_->Relayout();
   Restack();
   HideCaptionButtons();
+}
+
+void ShellHostView::ShellPainted() {
+  if (!curtain_) return;
+  curtain_timer_.Start(FROM_HERE, kShellCurtainSettle,
+                       base::BindOnce(&ShellHostView::LiftCurtain, base::Unretained(this)));
+}
+
+void ShellHostView::LiftCurtain() {
+  curtain_timer_.Stop();
+  shell_first_paint_.reset();
+  if (!curtain_) return;
+  views::View* curtain = curtain_;
+  curtain_ = nullptr;
+  RemoveChildViewT(curtain);
 }
 
 void ShellHostView::HideCaptionButtons() {
@@ -5812,6 +5858,7 @@ void ShellHostView::Restack() {
   if (glass_) ReorderChildView(glass_, children().size());
   ReorderChildView(shell_, children().size());
   if (extension_surfaces_) extension_surfaces_->RaisePopups();
+  if (curtain_) ReorderChildView(curtain_, children().size());
   ApplyShellInput();
 }
 
