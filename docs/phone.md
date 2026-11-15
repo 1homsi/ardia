@@ -829,7 +829,6 @@ and gestures, folder-before-phrase sync connect and the launch arguments are in 
 - Spaces: the empty state's Sync With Mac opens Settings › Sync, not Connect; pinned tabs with a symbol show a favicon (`row.icon` never drawn); open groups, folders and devices are kept per profile only while the sheet is open (Compose keeps them across launches). `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
 - Spaces at large text and motion: rows don't wrap, icons and tiles don't grow, the switcher doesn't scroll when profiles overflow; the folder chevron, Show All and group expansion snap and the header doesn't crossfade; the banner uses Compose's icons on iPhone; rows and tiles have no accessibility action for their menu. `SyncedSpacesView.kt`, `SyncedSpacesView.swift`. Small.
 - Page menu sheet: can't be dragged down to close (flick 800, or past 35% of its height capped at 120); it and the tab pager ignore Reduce Motion; the incoming pager card has no edge shadow though `incomingPose` computes it. `BrowsingSheet.kt`, `TrayDrag.kt`, `BrowsingRules.kt`, `TabPager.kt`. Half a day.
-- Loading placeholder under `BrowseLoadFreeze` (Compose's `PageLoadingPlaceholder`): the page cover now draws the tab's face, but the load-freeze capture still shows the page. `PageLayer.kt`. Small.
 
 ### Needs native code on Android
 

@@ -6,6 +6,7 @@ import { PAGE_COVER, pageCoverNeeded } from "../../lib/pageCover";
 import { useNavigation, usePageTone, useSurface } from "../../state/browse/hooks";
 import { pageNavigation } from "../../state/pages/store";
 import { display } from "../../state/search/omnibox";
+import { launchArguments } from "../../state/app/launchFlags";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { TabFace, useTheme } from "../ui";
 
@@ -16,13 +17,14 @@ export function PageCover({ tab }: { tab: BrowserTab }) {
   const live = useNavigation(tab.id, (n) => n?.isLive ?? false);
   const loading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
   const shownAlone = useSurface() === "browsing";
-  const [needed] = useState(() => pageCoverNeeded(pageNavigation(tab.id), Boolean(tab.snapshotFileName)));
+  const [frozen] = useState(() => launchArguments().loadFreeze !== null);
+  const [needed] = useState(() => frozen || pageCoverNeeded(pageNavigation(tab.id), Boolean(tab.snapshotFileName)));
   const [gone, setGone] = useState(!needed);
   const opacity = useSharedValue(needed ? 1 : 0);
   const fading = useRef(false);
   const sawLoading = useRef(false);
   const fade = () => {
-    if (fading.current) return;
+    if (fading.current || frozen) return;
     fading.current = true;
     opacity.value = withTiming(0, { duration: PAGE_COVER.fadeMs }, (finished) => {
       if (finished) runOnJS(setGone)(true);
@@ -58,7 +60,7 @@ export function PageCover({ tab }: { tab: BrowserTab }) {
       accessibilityElementsHidden
       style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }, style]}
     >
-      <TabFace tab={tab} title={tab.title || shown.host} host={shown.host} tone={tone?.top ?? null} roles={theme} />
+      <TabFace tab={frozen ? { ...tab, snapshotFileName: null } : tab} title={tab.title || shown.host} host={shown.host} tone={tone?.top ?? null} roles={theme} />
     </Animated.View>
   );
 }
