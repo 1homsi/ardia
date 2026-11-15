@@ -1,8 +1,7 @@
 import { StyleSheet } from "react-native";
-import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { SearchTray } from "../components/search/SearchTray";
-import { DesignProvider } from "../components/ui";
+import { DesignProvider, MotionView } from "../components/ui";
 import * as browse from "../state/browse/store";
 import { dismissSearch, presentSearch } from "../state/search/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
@@ -28,6 +27,8 @@ const open = (design: "original" | "redesigned") => {
 
 const host = (root: ReturnType<typeof renderSurface>, testID: string) => root.root.findAll((node) => node.props.testID === testID && typeof node.type === "string")[0];
 
+const departure = (root: ReturnType<typeof renderSurface>) => root.root.findAll((node) => node.type === MotionView)[0]!;
+
 test("in the redesign search is a floating panel: 8 points in from the sides and above the keyboard, 26-point corners, the field 9 points in, on a tinted surface over glass", () => {
   const root = open("redesigned");
   const panel = StyleSheet.flatten(host(root, "trayPanel")!.props.style);
@@ -46,20 +47,15 @@ test("in the original design search is still the sheet from the bottom edge", ()
   unmount(root);
 });
 
-test("in the redesign a submitted search lifts the panel 120 points and fades it over 200 ms instead of dropping it with the keyboard", () => {
+test("in the redesign a submitted search lifts the panel 120 points and fades it over 200 ms on main's depart curve, played in the render server on iPhone, instead of dropping it with the keyboard", () => {
   const root = open("redesigned");
-  const panel = () => host(root, "trayPanel");
-  const lifted = () => ((getAnimatedStyle(panel()!).transform as { translateY?: number }[]) ?? []).reduce((sum, step) => sum + (step.translateY ?? 0), 0);
   act(() => jest.advanceTimersByTime(600));
-  const resting = lifted();
+  const motion = departure(root);
+  expect(motion.findAll((node) => node.props.testID === "trayPanel" && typeof node.type === "string")).toHaveLength(1);
+  expect(motion.props.to).toEqual({ opacity: 1, translateY: 0 });
   act(() => dismissSearch("submitted"));
-  act(() => jest.advanceTimersByTime(100));
-  expect(lifted()).toBeLessThan(resting - 60);
-  const halfway = getAnimatedStyle(panel()!).opacity as number;
-  expect(halfway).toBeGreaterThan(0);
-  expect(halfway).toBeLessThan(1);
-  act(() => jest.advanceTimersByTime(150));
-  expect(getAnimatedStyle(panel()!).opacity).toBe(0);
+  expect(departure(root).props.to).toEqual({ opacity: 0, translateY: -120 });
+  expect(departure(root).props.motion).toEqual({ type: "timing", durationMs: 200, curve: [0.2, 0, 0, 1] });
   unmount(root);
 });
 
@@ -90,9 +86,7 @@ test("pressing Go starts the panel's departure from the submit itself", () => {
   act(() => jest.advanceTimersByTime(600));
   const input = root.root.findAll((node) => typeof node.props.onSubmitEditing === "function" || (typeof node.props.onSubmit === "function" && node.props.testID === "completingField"))[0]!;
   act(() => (input.props.onSubmitEditing ? input.props.onSubmitEditing({ nativeEvent: { text: "otters" } }) : input.props.onSubmit("otters")));
-  act(() => jest.advanceTimersByTime(100));
-  const opacity = getAnimatedStyle(host(root, "trayPanel")!).opacity as number;
-  expect(opacity).toBeLessThan(1);
+  expect(departure(root).props.to).toEqual({ opacity: 0, translateY: -120 });
   unmount(root);
   jest.restoreAllMocks();
 });

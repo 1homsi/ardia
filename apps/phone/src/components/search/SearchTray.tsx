@@ -21,7 +21,7 @@ import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, moveTo, radius, screenReaderActions, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -74,7 +74,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
   const reduceMotion = useReduceMotion();
   const keyboard = useTrayKeyboard();
   const landing = useSharedValue(0);
-  const depart = useSharedValue(0);
+  const [departed, setDeparted] = useState(false);
   const back = useSharedValue(0);
   const departing = useRef(false);
   const beginDeparture = () => {
@@ -84,7 +84,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
       "worklet";
       if (heldLift.value < 0) heldLift.value = liveLift(keyboard.height.value, bottomNow.value, hasLanded.value, false);
     })();
-    depart.value = withTiming(1, { duration: floatingPanelLayout.departMs, easing: tabsCurve.depart });
+    setDeparted(true);
   };
   const hasLanded = useSharedValue(false);
   const isClosing = useSharedValue(closing);
@@ -299,8 +299,8 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
     const lift = currentLift();
     const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
     return {
-      opacity: (reduceMotion ? dim.value : 1) * (1 - depart.value),
-      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) - floatingPanelLayout.departLift * depart.value + back.value * trayBackTravel }],
+      opacity: reduceMotion ? dim.value : 1,
+      transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) + back.value * trayBackTravel }],
     };
   }, [trayHeight, safeBottom, reduceMotion, panel]);
 
@@ -318,6 +318,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
         />
       </Animated.View>
       {panel ? (
+        <MotionView style={StyleSheet.absoluteFill} pointerEvents="box-none" to={departed ? PANEL_DEPARTED : PANEL_HOME} motion={PANEL_DEPART}>
         <Animated.View
           testID="trayPanel"
           style={[
@@ -347,6 +348,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
             <TrayRows dismissDrag={dismissDrag} />
           </View>
         </Animated.View>
+        </MotionView>
       ) : (
       <Animated.View
         style={[
@@ -382,6 +384,10 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 const DepartContext = createContext<() => void>(() => undefined);
+
+const PANEL_HOME: MotionTarget = { opacity: 1, translateY: 0 };
+const PANEL_DEPARTED: MotionTarget = { opacity: 0, translateY: -floatingPanelLayout.departLift };
+const PANEL_DEPART: MotionCurve = { type: "timing", durationMs: floatingPanelLayout.departMs, curve: [0.2, 0, 0, 1] };
 
 function useLeavingActions() {
   const depart = useContext(DepartContext);

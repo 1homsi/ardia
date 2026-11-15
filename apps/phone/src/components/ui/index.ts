@@ -31,4 +31,5 @@ export { FadingBackdrop } from "./FadingBackdrop";
 export { ChromeSurface, DeckLookBackdrop, DeckLookBackdropBase, LookBackdrop, LookBackdropBase, LookFrost, LookGlass, SURFACES_FROST, usesGlass } from "./LookViews";
 export { appDesign, DesignProvider, useDesign, usePageUnderBars } from "./design";
 export { FadeView, fadeIsNative, FrostSource, pageObscuresInsets, PasteButton, pasteButtonIsNative, ScrollActions } from "@ardia/phone-native";
+export { MotionView, type MotionCurve, type MotionTarget } from "@ardia/phone-native";
 export { AppIconPreview, CheckmarkLabel, chromeSurface, ColorSwatch, legibleInk, modifierList, pressableStyle, profileLook, settingsChrome, SettingsHeroContent, SettingsIconTile, settingsPage, SettingsRowLabel, settingsSwitchStyle, settingsUIAvailable, SetupStepRow, type ProfilePresetName, type SettingsTintName, type SetupProgress } from "./settingsPieces";
