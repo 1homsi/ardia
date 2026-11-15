@@ -143,6 +143,19 @@ inline bool PasswordlessLoginsPassThrough() {
       !SyncLogins::SealedLogins(R"({"logins":[{"realm":"https://a.example/","username":"ada","created":1}]})", *keys);
 }
 
+inline bool PasswordWinsOverPasswordless() {
+  std::optional<Keys> keys = ZeroKeys();
+  if (!keys) return false;
+  std::string const blank = R"({"realm":"https://a.example/","username":"ada","passwordless":true,"created":1})";
+  std::string const real = R"({"realm":"https://a.example/","username":"ada","password":"stays secret","created":2})";
+  for (std::string const &reply : {R"({"logins":[)" + blank + "," + real + "]}", R"({"logins":[)" + real + "," + blank + "]}"}) {
+    std::optional<std::string> sealed = SyncLogins::SealedLogins(reply, *keys);
+    if (!sealed || sealed->find("stays secret") != std::string::npos || sealed->find("passwordless") != std::string::npos) return false;
+    if (sealed->find(R"("username":"ada","sealed":")") == std::string::npos) return false;
+  }
+  return true;
+}
+
 inline std::string FileSteps(std::string const &folder) {
   std::string report = "{";
   auto note = [&report](char const *key, std::string const &value) {
@@ -194,6 +207,7 @@ inline winrt::Microsoft::ReactNative::JSValue Primitives() {
   report["padding"] = PaddingRoundTrips();
   report["logins"] = LoginsStayHidden();
   report["passwordless"] = PasswordlessLoginsPassThrough();
+  report["passwordWins"] = PasswordWinsOverPasswordless();
   report["protectedStorage"] = SyncSecrets::ProtectedStorageRoundTrip();
   return winrt::Microsoft::ReactNative::JSValue{std::move(report)};
 }
