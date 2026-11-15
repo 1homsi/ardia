@@ -992,7 +992,9 @@ check, an engine release the token can't read), build the release's commit on it
 
 ```bash
 gh workflow run windows.yml -R ardia-browser/ardia --ref v<version> -f version=<version>
-gh run download <run id> -R ardia-browser/ardia -p 'windows-release-*' -D dist/<version>/windows
+for artifact in windows-release-x64 windows-release-arm64 windows-release-source; do
+  gh run download <run id> -R ardia-browser/ardia -n "$artifact" -D dist/<version>/windows
+done
 gh release upload v<version> -R ardia-browser/ardia dist/<version>/windows/Ardia-<version>-windows-*
 scripts/windows/publish-alpha.sh --installers dist/<version>/windows --commit v<version>
 ```
@@ -1000,7 +1002,7 @@ scripts/windows/publish-alpha.sh --installers dist/<version>/windows --commit v<
 When the cause is in the code (a stale engine pin needs a new engine release and `prebuilt.json`), fix it on `main`;
 Windows skips this version and ships with the next release. When only `windows-update` failed, the installers are on
 the release already: re-run that job alone (its re-run touches nothing else), or run the last line above on its
-`windows-release-*` artifacts.
+`windows-release-*` artifacts, downloaded into one folder as above.
 
 ## Test instances
 
