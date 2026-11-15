@@ -972,19 +972,19 @@ What main changed, by screen:
 Against the old reference, everything was wired and re-checked on the simulator beside the SwiftUI app (2fbd950ca, dd36012eb): the deck bar on `Glass`, `FadeView`, the system Paste, Default Browser, Open in Background, VoiceOver names, Clear Browsing Data by range, the card handover.
 
 The work, most visible first. JS is the screens agent's, native the iPhone agent's. Native wrappers land first, each with a fallback, and the screens agent is told their shape.
-1. Page bar redesign: JS, a day; Classic through `Glass` is native (item 6).
-2. The page under the bar: native `PageView` inset prop, then JS lays the page full screen. Half a day; ships with item 1.
+1. Page bar redesign: JS, a day; Classic through `Glass` is native (item 7). In (0043d844e); on the simulator beside main its pieces sit within a pixel of SwiftUI's, but its glass is forced dark in dark mode and private tabs where main's follows the page's tone, and its `···` and + glyphs are about 25-35% small.
+2. The page under the bar: native `PageView` inset prop, then JS lays the page full screen. Half a day; ships with item 1. Native in (`obscuredInsets`, `pageObscuresInsets()`, 86b1d53bc); JS in (ccf4e02da).
 3. Search as a floating glass panel: JS, half a day.
 4. Start page (switcher, tiles, dots, no logo): JS, a day.
 5. Deck header and bar, Search Tabs, the new geometry: JS, a day.
 6. Spaces filtering, switching, Move to Space: JS only, a day (the sync module already carries every field).
-7. Appearance and Match My Mac: native bridges `look` from sync and gives `Glass` Classic and Reduce Transparency; JS adds the page, the two preferences and applies them to every glass surface. A day and a half.
-8. Page menu redesign: JS, a day. Print: native `print(pageId)` plus a row, a few hours.
+7. Appearance and Match My Mac: native bridges `look` from sync and gives `Glass` Classic and Reduce Transparency; JS adds the page, the two preferences and applies them to every glass surface. A day and a half. Native in: `SyncedView.look` (d2ce70978), `Glass` `surface`, `tinted` and `barShadow` (2f4e947fb).
+8. Page menu redesign: JS, a day. Print: native `print(pageId)` plus a row, a few hours. Native in (`pages.print`, `pages.canPrint()`, f6a5c0613).
 9. Bar collapse to a host pill, waiting for Find and the panel: JS, half a day.
 10. Motion timings and flow: JS, a day.
-11. Library sheet: JS, two to three days. Downloads list, open and delete: native, a day. Sync-cycle flag for history deletions: native, an hour.
+11. Library sheet: JS, two to three days. Downloads list, open and delete: native, a day. Sync-cycle flag for history deletions: native, an hour. Native in: `downloads.files`, `preview`, `delete`, `deleteAll` (373ecfb03) and `sync.isCycleRunning()` (58995bf44).
 12. Grid view: JS, a day.
-13. Site Settings' saved permissions, listed and revocable: native and JS, half a day to a day; lifts the one-launch guard.
+13. Site Settings' saved permissions, listed and revocable: native and JS, half a day to a day; lifts the one-launch guard. Native in (`pages.sitePermissions`, `revokeSitePermission`, ae9767f78); the guard (`PhonePages.remembersSitePermissions`, false) is flipped when the JS list and revoke land.
 14. Archive capsule, Spaces sheet, card details, toasts: JS, a day together.
 15. Onboarding and Settings words, fonts and icons: JS, half a day.
 16. The light-mode veil in the JS backdrop fallback and the status-bar ink choice: JS, an hour.
