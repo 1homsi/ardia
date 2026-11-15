@@ -1470,44 +1470,57 @@ build from `gradle-locked`.
 
 ### Size on Android
 
-What a phone downloads and installs, measured on 2026-11-15 from store builds of 266764af8 (R8 on, lab off) and the
-Compose app's non-debuggable release (`ardia-compose-release.apk`, R8 and resource shrinking). "Download" is the
-APK with every entry deflated, about what the Play Store sends; a directly downloaded APK costs its file size.
+What an arm64 phone downloads and installs. "Download" is every entry an arm64 phone gets, each deflated on its own
+(zlib level 9), which is close to what the Play Store sends; a directly downloaded APK costs its file size. Store
+builds (R8 on, lab off) against the Compose app's non-debuggable release (`ardia-compose-release.apk`, R8 and
+resource shrinking).
 
-| Packaging | File | Download | Installed on an arm64 phone |
+| Build | File | Download | Installed |
 | --- | --- | --- | --- |
-| Expo, arm64-v8a and x86_64 (the release build until 8af216ccb) | 57.7 MB | about 14.5 MB | the whole file, 57.7 MB |
-| Expo, arm64-v8a only (`build-apk`'s default since 8af216ccb) | 38.9 MB | about 10.2 MB | 38.9 MB |
-| Expo app bundle (`build-apk --bundle`), what Play hands an arm64 phone | 25.4 MB AAB (with debug symbols) | about 10 MB | about 39 MB |
-| Compose release, arm64-v8a and x86_64 | 16.9 MB | | |
-| Compose release, arm64-v8a only (its x86_64 libraries taken out) | about 12.0 MB | about 5.5 MB | about 12 MB |
+| Expo 58 / React Native 0.88, arm64-v8a (7dd666526, without `@expo/ui`) | 41.0 MB | 15.6 MB | 41.0 MB |
+| The same with `@expo/ui` 58.0.28 linked | 45.8 MB | 17.6 MB | 45.8 MB |
+| Expo 54 / React Native 0.81, arm64-v8a (266764af8) | 38.9 MB | about 14 MB | 38.9 MB |
+| Expo 54 with arm64-v8a and x86_64 (the release build until 8af216ccb) | 57.7 MB | | 57.7 MB |
+| Compose release, arm64-v8a only (its x86_64 libraries taken out) | about 12.0 MB | 5.7 MB | about 12 MB |
 
-By part, arm64-v8a only:
+An earlier version of this table gave the Expo 54 download as about 10.2 MB and both ABIs as about 14.5 MB: those
+were wrong, since its own parts (6.1 + 5.7 + 1.7 MB deflated, plus resources) already come to about 14. The Expo
+app bundle (`build-apk --bundle`, 25.4 MB with debug symbols) hands an arm64 phone the same native code and dex,
+so its download is about the arm64 APK's.
 
-| Part | Expo | Compose |
-| --- | --- | --- |
-| Native libraries | 18.1 MB (6.1 deflated) | 4.7 MB (1.8 deflated) |
-| Dex after R8 | 14.7 MB (5.7 deflated) | 5.5 MB (2.8 deflated) |
-| JS bundle (Hermes bytecode) | 3.9 MB (1.7 deflated) | none |
-| Resources and assets | about 1.5 MB | about 1.3 MB |
-| The lab's share | about 0.06 MB of the bundle in a lab build, none in a store build | none |
+By part, arm64-v8a only, file (deflated):
 
-The Expo build stores the native libraries, the dex and the bundle uncompressed (37.8 of its 38.9 MB), so Android
-maps them straight from the APK: what the file costs is what the phone keeps.
+| Part | Expo 58 | Expo 54 | Compose |
+| --- | --- | --- | --- |
+| Native libraries | 22.7 MB (7.8) | 18.1 MB (6.1) | 4.7 MB (1.8) |
+| Dex after R8 | 11.5 MB (4.8) | 14.7 MB (5.7) | 5.5 MB (2.8) |
+| JS bundle (Hermes bytecode) | 4.5 MB (1.8) | 3.9 MB (1.7) | none |
+| Resources and assets | 2.3 MB (0.9) | about 1.5 MB | about 1.3 MB |
 
-Where the 18 MB of native code goes: React Native 5.9 MB, Hermes 2.1, expo-sqlite 1.8 (the app's database), Reanimated
-1.4, Expo's modules core 1.3, the C++ runtime 1.3, the generated app modules 1.0, worklets 0.9, SVG 0.7 (the logo and
-the sync pictures), Fresco's image transcoder 0.6, then JSI, fbjni, safe-area, Hermes tooling, our script shim and
-CameraX's two small libraries. The page engine is the system WebView, so it costs nothing here; sync is Kotlin and
-sits in the dex. The Compose app carries its own Hermes (2.7 MB, for the sync script) and the C++ runtime (1.3 MB).
+The Expo build stores the native libraries, the dex and the bundle uncompressed, so Android maps them straight from
+the APK: what the file costs is what the phone keeps.
 
-Where the 14.7 MB of dex goes, by the classes' original package: kotlin.reflect 1.1 MB (Expo's modules need it),
+Where Expo 58's 22.7 MB of native code goes: React Native 7.1 MB, Hermes V1 2.7 (`libhermesvm.so`, which the sync
+runtime shares), expo-sqlite 1.7 (the app's database), Reanimated 1.7, Expo's modules core 1.6, worklets 1.3, the C++
+runtime 1.3, the generated app modules 1.0, SVG 0.8 (the logo and the sync pictures), zstd 0.7 (`expo/fetch`'s
+decompression, new in 58), Fresco's image transcoder 0.6, then JSI, Gesture Handler's codegen, Expo's modules v2 and
+the rest. The page engine is the system WebView, so it costs nothing here; sync is Kotlin and sits in the dex.
+From 54 to 58 the native code grew 4.6 MB (React Native 1.2, Hermes V1 0.6, zstd 0.7, Expo's two module layers 0.6,
+Reanimated and worklets 0.7) and the dex shrank 3.2 MB, since AGP 9 runs R8 with its optimize preset.
+
+`@expo/ui` adds no native code: 3.7 MB of dex (1.6 deflated) and 1.2 MB of resources (0.3 deflated), 4.8 MB on the
+file and 2.0 MB on the download. Most of it is not Compose, which the app already ships for its widgets and share
+sheet, but Material Components for Android (`com.google.android.material`) with the RecyclerView, ViewPager2,
+CardView and CoordinatorLayout it pulls in.
+
+Where the Expo 54 dex went, by the classes' original package: kotlin.reflect 1.1 MB (Expo's modules need it),
 React Native 1.0, Compose UI, runtime and Glance 1.6 together (the widgets and the share sheet), CameraX 1.0 (only
 the sync code scanner), our own code 0.5, Expo's Kotlin layer 0.5, then AndroidX, OkHttp, kotlinx and the rest.
 
-On an arm64 phone the Expo app is about three times the Compose release, 38.9 MB against about 12. The difference
-is React Native itself: its libraries, Hermes, Reanimated and Expo's modules come to about 13 MB of native code the
-Compose app doesn't have, the JS bundle adds 3.9 MB, and React Native's and Expo's Kotlin about 3 MB of dex.
+On an arm64 phone the Expo app is between three and four times the Compose release: 41.0 MB against about 12 on
+the file, 15.6 against 5.7 on the download, before `@expo/ui`. The difference is React Native itself: its
+libraries, Hermes, Reanimated, worklets and Expo's modules come to about 18 MB of native code the Compose app doesn't
+have, and the JS bundle adds 4.5 MB.
 
 Nothing big can go without losing something:
 - x86_64 runs only on emulators and a few Chromebooks, so release builds leave it out; `--abi arm64-v8a,x86_64`
