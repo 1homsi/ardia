@@ -1,5 +1,5 @@
 import { confirm } from "../../platform/dialogs";
-import { closeWindow, isPopupWindowId, onWindowEvent } from "../../platform/windows";
+import { closeWindow as closeNativeWindow, onWindowEvent } from "../../platform/windows";
 import { useBrowser } from "../browser/store";
 import { inPinnedContainer, plural, profileFor } from "../browser/model";
 import { tabsLostWithWindow } from "../tabs/sharedWindowClose";
@@ -8,15 +8,16 @@ import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
 import { isEmptyCardTab } from "../omnibox/newTabBarPolicy";
 import { askBeforeQuitting } from "./quitWarning";
+import { startClosingWindow, stopClosingWindow } from "./closingWindows";
 
 const MIN_TABS = 2;
 
 const pending = new Set<string>();
 
-export function requestWindowClose(windowId: string) {
+export function requestWindowClose(windowId: string, onceAgreed?: () => void) {
   if (pending.has(windowId)) return;
   pending.add(windowId);
-  void requestClose(windowId).finally(() => pending.delete(windowId));
+  void requestClose(windowId, onceAgreed).finally(() => pending.delete(windowId));
 }
 
 export function startWindowCloseGuard() {
@@ -25,11 +26,27 @@ export function startWindowCloseGuard() {
   });
 }
 
-async function requestClose(windowId: string) {
+let windowsWithoutTabsClosing: Promise<void> = Promise.resolve();
+
+function closeWindowWithoutTabs(windowId: string, onceAgreed?: () => void) {
+  const closing = windowsWithoutTabsClosing.then(async () => {
+    if ((await askBeforeQuitting(windowId)) === "cancelled") return;
+    onceAgreed?.();
+    startClosingWindow(windowId);
+    try {
+      await closeNativeWindow(windowId);
+    } finally {
+      stopClosingWindow(windowId);
+    }
+  });
+  windowsWithoutTabsClosing = closing.catch(() => undefined);
+  return closing;
+}
+
+async function requestClose(windowId: string, onceAgreed?: () => void) {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
-  if (!w && isPopupWindowId(windowId)) return closePopupAfterAsking(windowId);
-  if (!w) return;
+  if (!w) return closeWindowWithoutTabs(windowId, onceAgreed);
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
   const quitWarning = await askBeforeQuitting(windowId);
   if (quitWarning === "cancelled") return;
@@ -48,10 +65,6 @@ async function requestClose(windowId: string) {
     for (const id of closing) asked.add(id);
   }
   closeWindowAnimated(windowId, { keepsLastWindow: last });
-}
-
-async function closePopupAfterAsking(windowId: string) {
-  if ((await askBeforeQuitting(windowId)) !== "cancelled") await closeWindow(windowId);
 }
 
 export const unpinnedOpenTabIds = (windowId: string) => {

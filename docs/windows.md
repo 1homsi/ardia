@@ -25,8 +25,8 @@ a fresh data folder, as a user would: 41 driven runs, every row below seen on th
 changed by #1658, #1686 and #1691 were seen again, and Tour and Open at login walked, on run 43565273476 (commit
 d83398e1f, engine `windows-engine-20261113-16`), and the intro, onboarding and tab strip that evening on #1737's
 build 72901e27a (run 43624897005, engine `windows-engine-20261113-21`); those rows say so, and rows others saw say
-who and on which build. Of the 74 rows, 51 work, 8 work with a difference, 4 do nothing, 7 are not offered
-and 4 were not walked. Works with a difference says
+who and on which build. Of the 74 rows, 54 work, 8 work with a difference, 4 do nothing, 7 are not offered
+and 1 was not walked. Works with a difference says
 what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
 `PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
 
@@ -38,7 +38,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | First launch after the installer | Works: onboarding, no release notes | #1517 |
 | First launch with a link | Works: the link opens in a Little Ardia window in front, onboarding waits in the main window behind it | |
 | Onboarding (main's walk-through, #1762) | Works (72901e27a): eight steps (source, layout, tabs, look, search and privacy, pins, default browser, outro), Edge found on this PC, Windows wording, Ctrl+T, Ctrl+L and Ctrl+S key caps, no Dock card or trial, no app icon row; Skip on every step; Get Started and Take the Tour. Gaps: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812); the default-browser hand-off to Windows Settings wasn't seen (the VM's default is already Ardia) | #1812 |
-| Intro animation and music | Differs: the dawn poster stands in for the animated meadow, then hands over to onboarding; at night it is the plain dark background. Seen on #1737's build 72901e27a, where the meadow page is built but WebGL is unavailable in the VM (`ardia://gpu`: software compositing only, and the engine has no SwiftShader), so all 14 launches fell back to the poster within about 0.4 s; the animated scene hasn't drawn on any Windows machine yet. Music not checked (the VM has no audio out) | #1547, #1546, #1737, #1249 |
+| Intro animation and music | Differs: no Windows machine with a real GPU has run the animated meadow yet. Where Chromium gives no WebGL2 (the VM and the CI runners: no GPU, and the engine has no SwiftShader) the dawn poster stands in, or the plain dark background at night, within about 0.4 s (14 of 14 launches on 72901e27a). On software rendering (WARP, turned on with test switches) the scene draws: in the VM on 65dd9760b, in light with the page's own icon and wordmark and at night with the moon and fireflies; Tab, Space and Enter work Mute and Skip, and a click on Skip ends it. The WARP self-check runs it on every PR on x64 and ARM64. Music not checked (the VM has no audio out) | #1547, #1546, #1737, #1249 |
 | Tour | Works (d83398e1f): Take the Tour shows five stops (search, tabs in the sidebar, room to focus, two pages side by side, all set) with Back, Next and Skip Tour; Done ends it | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
 | Check for updates | Differs: Check Now says "No Windows update published yet" and names the build (0.2.47-nightly.1, Windows alpha 290) | #1517 |
@@ -63,11 +63,11 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
 | Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
 | Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works. The pale box once left over the page's top-left came from visiting a second profile, not from Ctrl+S: the next profile's sidebar page, parked beside the sidebar, cut a hole in the page. Gone on d83398e1f, on a full-width tab and a split pane. With tabs across the top (72901e27a), the open and recently closed tabs button and New Tab stay clear of the caption buttons down to the narrowest window (600 px), where tabs scroll instead, and a right-click on the empty strip opens the tab menu | #1673, #1583 |
-| Minimalism mode (Ctrl+Alt+M) | Not walked: ported in #1831, which puts the window buttons in the band, the sidebar header or the tab strip in each of five layouts (`captionLayout.test.mjs`); nobody has seen it in the VM yet | #1831 |
+| Minimalism mode (Ctrl+Alt+M) | Works, except one edge (53d5a2bee, walked 2026-11-14): in all five layouts (sidebar left, right, hidden; tabs on top with the strip shown and hidden) the window buttons sit in the band, the sidebar header or the strip with only app UI under them; minimize, maximize, restore and close work, the band, strip or header drags and double-click maximizes; Split View, full screen, a second window and turning it off behave, at 100% and 125%. Left, right and bottom resize work; the top edge does not resize where the page reaches it (sidebar right), because the page window sits above the caption region | #1831, #1888 |
 | Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
 | Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
 | Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Seen on #1686's build: Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window and gets Escape | #1490, #1658 |
-| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here) | #1531, #1708 |
+| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it. Keys reach the Peek's page without a click, and after Escape they reach the source page with the link still focused, as on the Mac (the engine thread saw both in the VM on build 339 of #1708; not re-walked here). Its buttons at the top, left and right (53d5a2bee, walked 2026-11-14) are app UI over the page with a clean cut, answer clicks, include Split View's, and the tooltip reads "Open as Tab (Ctrl+O)" | #1531, #1576, #1708 |
 | A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
 | Pop-up windows from pages | Works: the pop-up stays a tab of its opener's window, so `window.opener` and `postMessage` keep working, and shows in a pop-up window the app draws, sized and placed as the page asked | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
@@ -80,14 +80,14 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Inline completion in the command bar | Works (top match completes inline) | #1520 |
 | Find in page | Works: the app's find bar, from a page or the app's UI (Ctrl+F); count, Enter, Shift+Enter, F3 and Shift+F3 step; Escape gives the page the keyboard back; private windows too | #1758 |
 | Page loading in the address field | Works (#1865's build 0bcabc63e, run 43642845254, 125%): while a slow page loads the glow fills the toolbar field, a Split View pane's field, a Peek's bar and Little Ardia's field, sweeps across when the load ends and fades; a load under 150 ms shows nothing; the tab's spinner and the stop button as before | #1820 |
-| Reading mode (Ctrl+Alt+R, F9) | Not walked: it draws the article inside the page through `evaluate`, which Windows forwards; nobody has seen it in the VM yet | #1831 |
+| Reading mode (Ctrl+Alt+R, F9) | Works (53d5a2bee, walked 2026-11-14): it draws on a local article and on Wikipedia; Larger Text and the font switch work, Escape leaves it, F9 and Ctrl+Alt+R toggle it and it stays across a tab switch. A reload leaves it, as on the Mac. Find in page finds nothing inside it, as the shared reader keeps the article in a closed shadow root | #1831, #1883 |
 | Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
 | Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
 | JavaScript alert, confirm and prompt | Works (Chromium's dialogs over the page) | |
 | Page, link and image menus | Differs: Chromium's menu, trimmed as on the Mac (no Open link in split view, Cast, reading mode, QR code, send to your devices, Lens or other-profile items; Save as shows no Ctrl+S), but without the Mac's own items for a selection (search with Ardia's engine, Share) | #1811 |
 | Full-screen (a page element) | Works; Escape leaves it | |
 | Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
-| Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it; Ctrl+J opens it | #1519 |
+| Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it, including one held for Keep; Ctrl+J opens it and Escape closes it (53d5a2bee, walked 2026-11-14) | #1519, #1610 |
 | History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works | |
 | Bookmarks (Ctrl+D, Ctrl+Shift+O) | Works | |
 | mailto and other app links | Works: the app's prompt, then the handler (`mailto` opens the mail app without a prompt, as Chromium and the Mac allow it by default). The engine thread saw the prompt and the handler in the VM on build 347 of #1701; not walked here. The first click on the prompt works after using the page since #1749, and a data: page's prompt stops counting once its document is gone since #1750 (engine `-22`); the engine thread saw the first in the VM and the self-check proves the second on both CPUs. | #1590, #1701, #1749, #1750 |
@@ -107,7 +107,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | ardia://extensions | Works | |
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
 | Hide anything (Hide Element) | Not offered; hidden: its rules are kept by the content blocker, which Windows lacks | #1425 |
-| Block autoplay on every site | Not offered; hidden: the engine call behind the setting is missing on Windows | #1425 |
+| Block autoplay on every site, and Autoplay per site in Site Controls | Not offered; hidden: on the Mac the page script blocks media nobody asked to play, from the global switch and the site's Autoplay choice, and the Windows page script has no such blocking, so the switch (`webView.setBlockAutoplayEverywhere` is missing) and the per-site choice (stored, never read) are hidden behind `blocksAutoplay` | #1425, #1774 |
 | Bookmark export | Works: Windows' Save As, then the HTML file is written | #1551 |
 | Password export | Works up to Windows' own sign-in prompt over the app window; the walk cancelled it there (the VM account's password is not typed in a test), so the file was not written | #1551 |
 
@@ -118,7 +118,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Settings window, panes, search | Works (all twelve panes; search finds rows and opens their pane) | |
 | Profiles: create, switcher | Works | |
 | Appearance: light and dark | Works | |
-| Higher contrast text | Not walked: Automatic follows a Windows contrast theme through `AppTheme`; nobody has seen it in the VM yet | #1831 |
+| Higher contrast text | Works (403b48b2c, walked 2026-11-14): Automatic follows a Windows contrast theme turned on while the app runs and one already on at launch, through the shell's `isHighContrast` and its `highContrast` event (react-native-windows' `AppTheme` is UWP-only and always read off). Changing the theme while Settings is open can crash the window layer, on older builds too | #1831, #1882, #1900 |
 | Keyboard Shortcuts pane | Works, Windows keys | |
 | "…" menu | Works, except Check for Updates | #1517 |
 | Sync | Works: Turn On Sync at the default folder shows the Recovery Kit, the pane says updated just now, every What Syncs row but Passwords; a Mac and a PC exchanged pinned tabs and bookmarks both ways (#1594) | #1575, #1425 |
@@ -1025,16 +1025,21 @@ Ranked by how much a user notices. Sizes are rough: S is under a day, M is one t
 App side, an agent can do these now:
 1. A new tab opened with an address (Ctrl+T, the address, Enter) gets no keyboard (#1689). S, with the engine
    thread.
-2. Onboarding: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812). S.
-3. Warn before quitting doesn't ask when Settings or Import is the last window (#1803). S.
-4. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise trimmed as on the Mac since #1811). S.
-5. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
-   needs). M each once the engine reports them.
-6. The intro's animated meadow (#1737) isn't merged yet: it draws on software rendering (CI on both CPUs, and the
-   VM), and no real GPU has run it. S.
-7. Quitting with a file picker open waits 2 s and leaves the dialog's thread running (#1747). S.
-8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
-9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
+2. Changing a Windows contrast theme while Settings is open crashes Ardia, inside the Windows App SDK (#1900). S once
+   the cause is seen on Windows.
+3. Onboarding: Tab leaves the intro for the page behind it, and the links step names the Mac's Notes (#1812). S.
+4. A pop-up left as the only window drops its open-in-another-app prompt and the tabs it opens (#1910). S, with the
+   engine thread.
+5. The window's top edge doesn't resize where the page reaches it, as in Minimalism mode (#1888). S, in the engine.
+6. The theme's grain draws nothing, and the sidebar and toolbar don't blur what is behind them (#1921). M.
+7. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise
+   trimmed as on the Mac since #1811). S.
+8. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
+   needs). M each once the engine reports them. A pop-up's prompts go to its opener's window, as on the Mac's
+   `ArdiaPopupWindow` (else any window of its profile). Today Chromium's own prompt shows, most likely in the
+   pop-up's window (not yet seen in the VM).
+9. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
+10. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
 - `ac_passwords_logins` answering on Windows, where Chromium's `kSkipUndecryptablePasswords` is on by default (password
@@ -1051,8 +1056,8 @@ Decisions for Shivam:
 - publishing a `windows-alpha` release, so Check for Updates has something to find (#1517);
 - signing, or a per-machine install (#1659).
 
-With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 3 and 7 to 9 are bugs or
-gaps a user hits, and 4 to 6 are visible differences from the Mac. Everything else in the table works or differs only
+With the engine and owner items set aside, the app side has not reached parity yet: items 1 to 5 and 10 are bugs a
+user hits, and 6 to 9 are visible differences from the Mac. Everything else in the table works or differs only
 where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work

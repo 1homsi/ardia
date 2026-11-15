@@ -513,7 +513,7 @@ try {
 }
 
 if (Test-Path $checkLog) {
-  Select-String -Path $checkLog -Pattern "self-check|^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
+  Select-String -Path $checkLog -Pattern "self-check|webgl2 probe|^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
   $done = Select-String -Path $checkLog -Pattern "self-check done: (\d+) passed, (\d+) failed" | Select-Object -First 1
   if (-not $done) { $failures += "the self-check never reported its result" }
   elseif ([int]$done.Matches[0].Groups[2].Value -gt 0) { $failures += "$($done.Matches[0].Groups[2].Value) self-checks failed" }
@@ -521,6 +521,21 @@ if (Test-Path $checkLog) {
   if (Select-String -Path $checkLog -Pattern "^(js-error|fatal|error) " -Quiet) { $failures += "the self-check log has errors" }
 } else {
   $failures += "the self-check wrote no log"
+}
+
+if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "chrome.dll")) {
+  $warpLog = Join-Path $Out "self-check-warp.log"
+  $env:ARDIA_TEST = "selfCheckOnly=meadow:,meadowWebGL=required"
+  $warp = Start-Process -FilePath $App -ArgumentList "--self-check", "--ignore-gpu-blocklist", "--use-angle=d3d11-warp", "--log-file=`"$warpLog`"" -PassThru
+  $env:ARDIA_TEST = ""
+  if (-not $warp.WaitForExit(120000)) { $failures += "the meadow self-check on WARP did not finish within 120 s"; Stop-Process -Id $warp.Id -Force -ErrorAction SilentlyContinue }
+  if (Test-Path $warpLog) {
+    Select-String -Path $warpLog -Pattern "webgl2 probe|meadow|self-check (pass|FAIL|done)" | ForEach-Object { Write-Host "warp: $($_.Line)" }
+    $warpDone = Select-String -Path $warpLog -Pattern "self-check done: (\d+) passed, (\d+) failed" | Select-Object -First 1
+    if (-not $warpDone) { $failures += "the meadow self-check on WARP never reported its result" }
+    elseif ([int]$warpDone.Matches[0].Groups[2].Value -gt 0) { $failures += "$($warpDone.Matches[0].Groups[2].Value) meadow self-checks on WARP failed" }
+    elseif ([int]$warpDone.Matches[0].Groups[1].Value -lt 2) { $failures += "the meadow self-check on WARP ran $($warpDone.Matches[0].Groups[1].Value) checks, not 2" }
+  } else { $failures += "the meadow self-check on WARP wrote no log" }
 }
 
 $gateApp = (Resolve-Path -LiteralPath $App).Path

@@ -21,7 +21,7 @@ export const asksBeforeQuit = (asking: Asking) => asking.quitsWithLastWindow && 
 
 export function windowsStayingOpen(openWindowIds: readonly string[], closing: string, browserWindowIds: ReadonlySet<string>, isClosing: (id: string) => boolean) {
   if (openWindowIds.length === 0) return [closing];
-  return openWindowIds.filter((id) => id !== closing && (browserWindowIds.has(id) ? !isClosing(id) : isUtilityWindowId(id) || isPopupWindowId(id)));
+  return openWindowIds.filter((id) => id !== closing && !isClosing(id) && (browserWindowIds.has(id) || isUtilityWindowId(id) || isPopupWindowId(id)));
 }
 
 export const quitWarningMayAsk = () => PLATFORM_FEATURES.quitsWithLastWindow && !backgroundInstance && useBrowser.getState().settings.warnBeforeQuitting;
