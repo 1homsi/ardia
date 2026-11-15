@@ -32,6 +32,24 @@ class PageSnapshotsTest {
     private fun files(): List<File> = File(RuntimeEnvironment.getApplication().filesDir, "PageSnapshots").listFiles()?.toList().orEmpty()
 
     @Test
+    fun fiveCapturesOfOnePageReleaseEveryPinAndLeaveOneFile() = runBlocking {
+        val live = java.util.concurrent.atomic.AtomicInteger()
+        val landings = java.util.concurrent.CountDownLatch(5)
+        val lifetime = Any()
+        repeat(5) {
+            snapshots.publish("tabpins", lifetime, page(), page(), isPrivate = false, quality = 80, hold = { _, _ ->
+                live.incrementAndGet()
+                PageSnapshots.Held { live.decrementAndGet() }
+            }) { _, _ -> landings.countDown() }
+            Thread.sleep(2)
+        }
+        assertTrue("every capture lands", landings.await(10, java.util.concurrent.TimeUnit.SECONDS))
+        assertEquals("a decoded picture is pinned only until its own file lands", 0, live.get())
+        assertEquals("only the newest generation's file is kept", 1, files().count { it.name.startsWith("tabpins-") })
+        assertEquals("each older generation was handed back so its decoded picture could be dropped", 4, removed.count { it.startsWith("tabpins-") })
+    }
+
+    @Test
     fun aBlankCaptureKeepsTheGoodThumbnailItWouldHaveReplaced() = runBlocking {
         val good = snapshots.write("tab-1", page(), isPrivate = false, quality = 80)
         assertNotNull(good)
