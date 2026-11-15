@@ -7,7 +7,7 @@ globalThis.fetch = async () => ({ status: 200 });
 
 const client = await import("./client.ts");
 const usage = await import("./usage.ts");
-const occlusion = await import("./windowOcclusionCounts.ts");
+await import("./windowOcclusionCounts.ts");
 after(() => client.setSharing(false, "settings"));
 
 const chromeWindow = (key, chromeOccluded, occlusionVisible = true) => ({
@@ -22,16 +22,26 @@ async function sentCounts() {
   return saved.events.filter((e) => e.event === "usage_counts").map((e) => [e.properties.focused_window_checks, e.properties.focused_window_pages_occluded]);
 }
 
-test("a focused window whose pages Chrome holds occluded while macOS shows it is counted, and the counts start again from zero", async () => {
+test("a focused window whose pages Chrome holds occluded while macOS shows it is counted once its focus settles, and the counts start again from zero", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   client.loadChoice();
   client.setSharing(true, "onboarding");
+  const settle = async (list) => {
+    stub.chromeWindowList.splice(0, Infinity, ...list);
+    t.mock.timers.tick(1500);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  };
 
-  stub.chromeWindowList.splice(0, Infinity, chromeWindow(true, true), chromeWindow(false, true));
-  await occlusion.checkFocusedWindowOcclusion();
-  stub.chromeWindowList.splice(0, Infinity, chromeWindow(true, false), chromeWindow(false, true));
-  await occlusion.checkFocusedWindowOcclusion();
-  stub.chromeWindowList.splice(0, Infinity, chromeWindow(true, true, false));
-  await occlusion.checkFocusedWindowOcclusion();
+  stub.windows.emit({ type: "focus", id: "w1" });
+  t.mock.timers.tick(1000);
+  stub.windows.emit({ type: "focus", id: "w2" });
+  t.mock.timers.tick(1000);
+  await settle([chromeWindow(true, true), chromeWindow(false, true)]);
+  stub.windows.emit({ type: "focus", id: "w1" });
+  await settle([chromeWindow(true, false), chromeWindow(false, true)]);
+  stub.windows.emit({ type: "focus", id: "w2" });
+  await settle([chromeWindow(true, true, false)]);
+  t.mock.timers.reset();
   usage.sessionEnding();
   assert.deepEqual(await sentCounts(), [[3, 1]]);
 

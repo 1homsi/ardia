@@ -5,7 +5,7 @@ const NONE = { focused_window_checks: 0, focused_window_pages_occluded: 0 };
 let counts = { ...NONE };
 let settling: ReturnType<typeof setTimeout> | null = null;
 
-export async function checkFocusedWindowOcclusion() {
+async function checkFocusedWindowOcclusion() {
   const key = (await chromeWindows().catch(() => [])).find((w) => w.key && w.visible);
   if (!key) return;
   counts.focused_window_checks++;
