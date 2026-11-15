@@ -17,6 +17,7 @@ test("a WebKit tab hands 英数 and かな to the input source before WebKit see
     body(read("../ios/WebKitWebView.swift"), "override func keyDown(with event: NSEvent) {"),
     [
       "override func keyDown(with event: NSEvent) {",
+      "keyUpOfReservedKey = nil",
       "if InputSourceKeys.consume(event) { return }",
       "super.keyDown(with: event)",
     ].join("\n"),

@@ -8,6 +8,7 @@ import {
   setPopover,
   usePage,
 } from "../../state/tabs/pageState";
+import { dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { useState } from "react";
 import { Image, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -96,7 +97,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
   };
   const profile = () => currentEngineProfile(currentTab(tabId)?.profileId ?? "");
   return (
-    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
+    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={() => dismissPopoverByPress(tabId)}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
         <PromptBody
           icons={["macwindow.badge.plus"]}
@@ -270,7 +271,7 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
     <Popover key={request.id} width={EXTERNAL_APP_WIDTH} top={top} left={left} modal={false}>
       <View>
         <PromptBody
-          icons={request.icon ? [] : [request.app ? "app" : "questionmark.app.dashed"]}
+          icons={request.icon ? [] : ["app"]}
           image={request.icon}
           title={request.title}
           message={request.message}
@@ -278,14 +279,8 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
             request.remember ? <CheckRow value={always} onChange={guard(setAlways)} label={request.remember} /> : undefined
           }
         >
-          {request.app ? (
-            <>
-              <Button variant="pill" title="Cancel" onPress={() => answer(false)} />
-              <Button variant="pill" title="Open" primary onPress={() => answer(true)} />
-            </>
-          ) : (
-            <Button variant="pill" title="OK" primary onPress={() => answer(false)} />
-          )}
+          <Button variant="pill" title="Cancel" onPress={() => answer(false)} />
+          <Button variant="pill" title="Open" primary onPress={() => answer(true)} />
         </PromptBody>
         <PanelCloseButton onPress={() => answer(false)} />
       </View>

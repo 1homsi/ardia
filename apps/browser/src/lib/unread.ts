@@ -32,9 +32,10 @@ const STAR_MEANS_UNREAD = ["slack.com"];
 
 const looksLikeYear = (digits: string) => digits.length === 4 && +digits >= 1900 && +digits <= 2100;
 
-function countOf(digits: string, plus: string): Unread | null {
+function countOf(raw: string, plus: string): Unread | null {
+  const digits = raw.replace(/,/g, "");
   if (looksLikeYear(digits)) return null;
-  const n = Number(digits.replace(/,/g, ""));
+  const n = Number(digits);
   if (!Number.isFinite(n) || n <= 0) return null;
   return unreadCount(n, !!plus);
 }
@@ -43,6 +44,17 @@ export function unreadCount(n: number, more = false): Unread | null {
   if (!Number.isFinite(n) || n < 1) return null;
   const whole = Math.floor(n);
   return { kind: "count", label: whole > 99 ? "99+" : more ? `${whole}+` : String(whole) };
+}
+
+const LEADING_MARK = new RegExp(String.raw`^\s*(?:[(\[]${COUNT}[)\]]\s*|•\s+)(?=\S)`, "u");
+
+export function titleWithoutUnread(title: string, unread: Unread | null): string {
+  if (!unread) return title;
+  const mark = LEADING_MARK.exec(title);
+  if (!mark) return title;
+  const said = mark[1] === undefined ? UNREAD_DOT : countOf(mark[1], mark[2]!);
+  const same = !!said && said.kind === unread.kind && (said.kind === "dot" || said.label === (unread as typeof said).label);
+  return same ? title.slice(mark[0].length) : title;
 }
 
 export function hostOfOrigin(origin: string): string {
