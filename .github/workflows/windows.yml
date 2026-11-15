@@ -276,6 +276,10 @@ jobs:
         if: env.SLUG == 'x64' && env.PART == 'launch'
         shell: pwsh
         run: scripts/windows/process-tree.test.ps1
+      - name: Check the PE import reader
+        if: env.SLUG == 'x64' && env.PART == 'launch'
+        shell: pwsh
+        run: scripts/windows/pe-imports.test.ps1
       - name: Take the app this run compiled
         if: env.COMPILED == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -326,9 +330,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: scripts/windows/fetch-engine.ps1 -Cpu $env:SLUG -Out "${{ runner.temp }}/engine"
       - name: Assemble with the engine
+        id: assemble
         if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
         shell: pwsh
         run: scripts/windows/assemble.ps1 -App $env:APP -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia" -Build ${{ github.run_number }}
+      - name: Every DLL the assembled app needs is in it or in a clean Windows 11
+        if: ${{ !cancelled() && steps.assemble.outcome == 'success' && env.PART == 'launch' }}
+        shell: pwsh
+        run: scripts/windows/dependency-check.ps1 -App "${{ runner.temp }}/Ardia"
       - name: Launch it
         if: ${{ !cancelled() && (env.FULL == 'true' || steps.engine.outcome != 'success' || env.COMPILED == 'true') }}
         timeout-minutes: 12

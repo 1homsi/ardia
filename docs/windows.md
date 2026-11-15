@@ -380,6 +380,16 @@ is one folder: Chromium's launcher as `Ardia.exe`, `chrome.dll`, and the app's l
 manifest entries). With `ArdiaApp.dll` beside the launcher the browser process runs the app; without it the same build
 is plain Chromium.
 
+- The Visual C++ runtime ships inside the folder. React Native's DLLs import the app-container CRT (`vcruntime140_app.dll`,
+  `msvcp140_app.dll` and the other `*_app.dll`), whose exports forward to the desktop `VCRUNTIME140.dll`, `MSVCP140.dll`
+  and friends. A clean Windows 11 has none of those, and the per-user installer can't run `vc_redist`, so
+  `assemble.ps1` (`vc-runtime.ps1`) reads every PE file's imports, delay-loads and forwarded exports and copies each
+  redist DLL they reach from the build machine's Visual Studio (`VC\Redist\MSVC\<version>\<cpu>`, the version from
+  `Microsoft.VCRedistVersion.default.txt`, found with vswhere; `-VcRedist <folder>` overrides it), for the launcher's
+  CPU. A forwarder whose target the redist lacks (C++ AMP's `vcamp140_app.dll` on ARM64) is left out when nothing loads
+  it. Without this the app fails with "Class not registered" on a machine without the VC++ redist, and GitHub's
+  runners have it, so only `dependency-check.ps1` below catches it in CI (#2036).
+
 - `//ardia/win` (`scripts/windows/engine/src/ardia/win`, copied into the tree by `series_win.py`) is the engine's side.
   It starts Chromium with no window of its own, turns the launch variables into switches as the Mac's launcher does
   (`ARDIA_DATA_DIR` keeps Chromium's data in `<dir>\Chromium`; `ARDIA_REMOTE_DEBUGGING_PORT`, `ARDIA_TEST` and
@@ -1080,6 +1090,13 @@ does run in a test instance. A scratch folder with the marker must get both powe
   button does not do so; a drag of the toolbar's empty middle is not the app's own move; Ctrl+T matches no command; the sidebar button does not take its click; or the pointer just outside the
   window's left edge does not bring the hidden sidebar's edge over and away. The ARM runner's desktop is covered by
   Windows' own first-run screen, so its screenshots show that screen and it skips the input.
+- After assembling, `scripts/windows/dependency-check.ps1` (x64 and ARM64) reads the import table, delay-load table and
+  forwarded exports of every PE file in the folder (`pe-imports.ps1`) and fails when a DLL they name is neither in
+  the folder, an API set (`api-ms-win-*`, `ext-ms-*`), nor on its explicit list of DLLs a clean Windows 11 ships in
+  System32 (checked against a clean 25H2 install). The Visual C++ runtime (`vcruntime*`, `msvcp*`, `concrt*`,
+  `vccorlib*`, `vcomp*`, `vcamp*`, `ucrtbased`) can never be on that list. `pe-imports.test.ps1` checks the reader and
+  the runtime deployment against PE images it builds in memory. A new system DLL an engine or app update imports goes
+  on the list once it is confirmed in a clean Windows 11's System32.
 - Both runs then write the library's WinRT list into a copy of `Ardia.exe` with `scripts/windows/host-manifest.ps1`
   and read it back, so the script the engine's launcher depends on is exercised on every build.
 - `scripts/windows/tour.ps1` drives a full screenshot tour and writes `tour.md`, one line per stop with the facts it
