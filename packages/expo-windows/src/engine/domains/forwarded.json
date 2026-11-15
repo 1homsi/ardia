@@ -93,7 +93,6 @@
       "setAutoPictureInPicture",
       "setBlockAutoplayEverywhere",
       "setFairPlayInChromium",
-      "setPopupsOpenAsTabs",
       "setVideoUpscaling",
       "setVideoUpscalingTestConditions",
       "videoUpscalingState"

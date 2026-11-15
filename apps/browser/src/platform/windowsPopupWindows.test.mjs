@@ -492,3 +492,170 @@ test("a private pop-up still reaches its opener: a tab it opens goes to the open
   turboModules.ArdiaAppWindows.closeWindow(made.id);
   await settle();
 });
+
+const { domainCall } = await import("../../../../packages/expo-windows/src/engine/domains/tables.ts");
+const { noteAppWindow } = await import("../../../../packages/expo-windows/src/engine/popupsAsTabs.ts");
+const { readFileSync } = await import("node:fs");
+const windowsSource = (path) => readFileSync(new URL(`../../../../packages/expo-windows/src/${path}`, import.meta.url), "utf8");
+const forwardedRows = JSON.parse(windowsSource("engine/domains/forwarded.json"));
+const settingEngine = { call: async () => "{}", emit: () => {}, missing: async () => "null", host: async () => ({}) };
+const setPopupsAsTabs = async (enabled) => JSON.parse(await domainCall(forwardedRows, settingEngine, "webView")("setPopupsOpenAsTabs", "", JSON.stringify({ enabled })));
+const openWindowAsks = (events) => events.filter(([name]) => name === "openWindow").map(([, data]) => data);
+
+async function withPopupsAsTabs(run) {
+  assert.equal(await setPopupsAsTabs(true), null);
+  try {
+    await run();
+  } finally {
+    await setPopupsAsTabs(false);
+  }
+}
+
+test("Open pop-up windows as tabs is a setting Windows keeps itself, and it takes only a boolean", async () => {
+  assert.ok(!forwardedRows.missing.webView.includes("setPopupsOpenAsTabs"));
+  assert.equal(await setPopupsAsTabs(false), null);
+  await assert.rejects(domainCall(forwardedRows, settingEngine, "webView")("setPopupsOpenAsTabs", "", JSON.stringify({ enabled: "yes" })), /enabled/);
+});
+
+test("with pop-ups as tabs on, a page's pop-up goes to it as the Mac's foreground pop-up tab, with its offered tab and profile, and no window opens", async () => {
+  const events = [];
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, (name, data) => events.push([name, data]));
+  await settle();
+  const before = opened.length;
+  await withPopupsAsTabs(async () => {
+    popupOpened("ardiacore:100", { width: 400, height: 300 });
+    await settle();
+  });
+  assert.equal(opened.length, before, "no pop-up window opens");
+  assert.deepEqual(openWindowAsks(events), [{ url: "https://auth.example/login", disposition: "foreground", adoptId: "ardiacore:100", userGesture: true, profile: "p-work", fromClick: false, point: undefined, popup: true }]);
+  popupOpened("ardiacore:101", {});
+  await settle();
+  assert.equal(opened.length, before + 1, "with the setting off again, the next pop-up is a window");
+  assert.equal(openWindowAsks(events).length, 1);
+  turboModules.ArdiaAppWindows.closeWindow(opened.at(-1).id);
+  await settle();
+  unmount();
+});
+
+test("with pop-ups as tabs on, a pop-up from a Peek goes to the Peek's page, which the app keeps as a tab", async () => {
+  const inMain = [];
+  const inPeek = [];
+  const unmountMain = mountPage("peek-source", { url: "https://app.example/", profile: "p-work", windowId: "main" }, (name, data) => inMain.push([name, data]));
+  const unmountPeek = mountPage("peek-page", { url: "https://signin.example/start", profile: "p-work", windowId: "main" }, (name, data) => inPeek.push([name, data]));
+  await settle();
+  const before = opened.length;
+  await withPopupsAsTabs(async () => {
+    popupOpened("ardiacore:102", {}, "peek-page");
+    await settle();
+  });
+  assert.equal(opened.length, before);
+  assert.equal(openWindowAsks(inMain).length, 0);
+  assert.deepEqual(openWindowAsks(inPeek).map(({ adoptId, popup, disposition }) => ({ adoptId, popup, disposition })), [{ adoptId: "ardiacore:102", popup: true, disposition: "foreground" }]);
+  unmountPeek();
+  unmountMain();
+});
+
+test("with pop-ups as tabs on, a pop-up from a pop-up window opens as a tab beside the first page, and the open pop-up window stays a window", async () => {
+  const events = [];
+  const unmount = mountPage("opener-page", { url: "https://app.example/", profile: "p-work", windowId: "main" }, (name, data) => events.push([name, data]));
+  await settle();
+  popupOpened("ardiacore:103", {});
+  await settle();
+  const first = opened.at(-1);
+  const info = popupWindowInfo(first.id);
+  const inPopup = [];
+  const shown = mountPage(info.pageKey, { url: "", profile: info.profile, adopt: info.adopt, windowId: first.id }, (name, data) => inPopup.push([name, data]));
+  await settle();
+  const before = opened.length;
+  await withPopupsAsTabs(async () => {
+    await settle();
+    assert.ok(popupWindowInfo(first.id), "switching the setting on leaves the open pop-up window a window");
+    assert.ok(!closed.includes(first.id));
+    assert.equal(openWindowAsks(events).length, 0);
+    popupOpened("ardiacore:104", {}, info.pageKey);
+    await settle();
+  });
+  assert.equal(opened.length, before, "the pop-up's own pop-up opens no second window");
+  assert.equal(openWindowAsks(inPopup).length, 0, "nor a tab inside the pop-up");
+  assert.deepEqual(openWindowAsks(events).map(({ adoptId, popup }) => ({ adoptId, popup })), [{ adoptId: "ardiacore:104", popup: true }]);
+  assert.ok(popupWindowInfo(first.id), "and the first pop-up stays open");
+  turboModules.ArdiaAppWindows.closeWindow(first.id);
+  await settle();
+  shown();
+  unmount();
+});
+
+test("with pop-ups as tabs on, a pop-up from Little Ardia stays a pop-up window, as on the Mac", async () => {
+  assert.match(windowsSource("modules.ts"), /openWindow: \(native\) => \(id, options\) => \{\n(?:.*\n){0,2}\s+noteAppWindow\(String\(id\), \(options as OpenWindowOptions \| null\)\?\.kind\);\n(?:.*\n){0,2}\s+return native\(id, options\);/);
+  noteAppWindow("little-ardia-1", "small");
+  const events = [];
+  const unmount = mountPage("little-page", { url: "https://app.example/", profile: "p-work", windowId: "little-ardia-1" }, (name, data) => events.push([name, data]));
+  await settle();
+  const before = opened.length;
+  await withPopupsAsTabs(async () => {
+    popupOpened("ardiacore:105", {}, "little-page");
+    await settle();
+  });
+  assert.equal(opened.length, before + 1);
+  assert.equal(popupWindowInfo(opened.at(-1).id)?.openerKey, "little-page");
+  assert.equal(openWindowAsks(events).length, 0);
+  turboModules.ArdiaAppWindows.closeWindow(opened.at(-1).id);
+  DeviceEventEmitter.emit("ArdiaAppWindows:onWindowEvent", { type: "close", id: "little-ardia-1" });
+  await settle();
+  unmount();
+});
+
+test("with pop-ups as tabs on, a private window's pop-up opens as a tab in that private window, never in a regular one", async () => {
+  const profile = "p-work@private-5";
+  const inPrivate = [];
+  const inRegular = [];
+  const unmountRegular = mountPage("regular-page-106", { url: "https://app.example/", profile: "p-work", windowId: "main" }, (name, data) => inRegular.push([name, data]));
+  const unmountPrivate = mountPage("private-page-106", { url: "https://app.example/", profile, windowId: "private-window" }, (name, data) => inPrivate.push([name, data]));
+  await settle();
+  const before = opened.length;
+  await withPopupsAsTabs(async () => {
+    emitTopic("tab.opened", { adopt: "ardiacore:106", url: "https://auth.example/login", foreground: true, window: true, opener: "private-page-106", profile, parent: "", fromClick: false, popup: {} });
+    await settle();
+  });
+  assert.equal(opened.length, before);
+  assert.equal(openWindowAsks(inRegular).length, 0);
+  assert.deepEqual(openWindowAsks(inPrivate).map(({ adoptId, profile, popup }) => ({ adoptId, profile, popup })), [{ adoptId: "ardiacore:106", profile, popup: true }]);
+  unmountPrivate();
+  unmountRegular();
+});
+
+test("with pop-ups as tabs on, a pop-up with no page to open beside stays a window", async () => {
+  const before = opened.length;
+  await withPopupsAsTabs(async () => {
+    popupOpened("ardiacore:107", {}, "nobody-knows-this-page");
+    await settle();
+  });
+  assert.equal(opened.length, before + 1);
+  assert.equal(opened.at(-1).options.focus, false);
+  turboModules.ArdiaAppWindows.closeWindow(opened.at(-1).id);
+  await settle();
+});
+
+test("with pop-ups as tabs on, a pop-up whose opener moved to another profile goes to a page of the pop-up's profile, or stays a window when none is showing", async () => {
+  const inMoved = [];
+  const unmountMoved = mountPage("moved-opener-108", { url: "https://app.example/", profile: "p-home", windowId: "main" }, (name, data) => inMoved.push([name, data]));
+  await settle();
+  const before = opened.length;
+  await withPopupsAsTabs(async () => {
+    popupOpened("ardiacore:108", {}, "moved-opener-108");
+    await settle();
+    assert.equal(opened.length, before + 1, "with no page of its profile showing, it opens as a window");
+    turboModules.ArdiaAppWindows.closeWindow(opened.at(-1).id);
+    await settle();
+    const inWork = [];
+    const unmountWork = mountPage("work-page-108", { url: "https://work.example/", profile: "p-work", windowId: "work-window" }, (name, data) => inWork.push([name, data]));
+    await settle();
+    popupOpened("ardiacore:109", {}, "moved-opener-108");
+    await settle();
+    assert.equal(opened.length, before + 1, "with one showing, it opens there as a tab");
+    assert.deepEqual(openWindowAsks(inWork).map(({ adoptId, popup }) => ({ adoptId, popup })), [{ adoptId: "ardiacore:109", popup: true }]);
+    unmountWork();
+  });
+  assert.equal(openWindowAsks(inMoved).length, 0, "the opener's page in its new profile gets nothing");
+  unmountMoved();
+});
