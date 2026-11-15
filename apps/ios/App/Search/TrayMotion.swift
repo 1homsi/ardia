@@ -33,6 +33,7 @@ final class TrayMotion {
   @ObservationIgnored var barTarget: () -> BarTarget? = { nil }
   @ObservationIgnored private var morph: TrayMorph?
   @ObservationIgnored private var fadingMorph: TrayMorph?
+  @ObservationIgnored private var arrival: BarArrival?
   @ObservationIgnored private var awaitedFlight: CGFloat?
   @ObservationIgnored private var flightFallback: Task<Void, Never>?
 
@@ -86,6 +87,14 @@ final class TrayMotion {
       guard let self, !Task.isCancelled, isShown, !isClosing, !hasLanded else { return }
       rise = move(.timing(reduceMotion ? Self.reducedMotion : Motion.riseCurve)) { [self] in self.hasLanded = true }
     }
+  }
+
+  func rememberBar(_ target: BarTarget?) {
+    guard let target, let face = controller.view.window?.resizableSnapshotView(from: target.frame, afterScreenUpdates: false, withCapInsets: .zero) else {
+      arrival = nil
+      return
+    }
+    arrival = BarArrival(owner: target.owner, size: target.frame.size, face: face)
   }
 
   func close(departing: Bool, morphing look: TrayMorphLook?) {
@@ -214,7 +223,7 @@ final class TrayMotion {
     }
     target.frame = controller.view.convert(target.frame, from: nil)
     if abs(velocity) < 1, let clock = KeyboardClock(layer: controller.keyboardSentinel.layer) {
-      morph.fly(to: target, timing: clock.timing, duration: clock.duration)
+      morph.fly(to: target, carrying: arrival, timing: clock.timing, duration: clock.duration)
     } else {
       let distance = target.frame.midY - morph.view.frame.midY
       let spring = TrayMorph.flightSpring
@@ -223,7 +232,7 @@ final class TrayMotion {
         bounce: spring.bounce,
         initialVelocity: CGVector(dx: 0, dy: Motion.relativeVelocity(velocity, over: distance))
       )
-      morph.fly(to: target, timing: timing, duration: spring.settlingDuration)
+      morph.fly(to: target, carrying: arrival, timing: timing, duration: spring.settlingDuration)
     }
   }
 

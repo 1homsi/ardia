@@ -10,8 +10,19 @@ struct TrayMorphLook {
 }
 
 struct BarTarget {
+  var owner: BarOwner
   var frame: CGRect
   var style: UIUserInterfaceStyle
+}
+
+struct BarArrival {
+  let owner: BarOwner
+  let size: CGSize
+  let face: UIView
+
+  func fits(_ target: BarTarget) -> Bool {
+    owner == target.owner && abs(size.width - target.frame.width) < 1 && abs(size.height - target.frame.height) < 1
+  }
 }
 
 @MainActor
@@ -27,6 +38,8 @@ final class TrayMorph {
   static let handoff = Motion.fadeCurve
   static let flightSpring = Motion.smoothSpring
   static let arrival: CGFloat = 2
+  static let arrivalFade = MotionCurve.easeOut(duration: 0.15)
+  static let arrivalDelay: TimeInterval = 0.12
 
   init(card: CGRect, of tray: UIView, in stage: UIView, look: TrayMorphLook) {
     let frame = tray.convert(card, to: stage).offsetBy(dx: 0, dy: Self.unfinishedTravel(of: tray))
@@ -56,10 +69,14 @@ final class TrayMorph {
     max(abs(shown.minX - target.minX), abs(shown.minY - target.minY), abs(shown.maxX - target.maxX), abs(shown.maxY - target.maxY))
   }
 
-  func fly(to target: BarTarget, timing: UITimingCurveProvider, duration: TimeInterval) {
+  func fly(to target: BarTarget, carrying arrival: BarArrival?, timing: UITimingCurveProvider, duration: TimeInterval) {
     guard !hasFlown else { return }
     hasFlown = true
     destination = target.frame
+    if let arrival, arrival.fits(target) {
+      view.carry(arrival.face)
+      fades.append(Self.run(Self.arrivalFade, after: Self.arrivalDelay) { [view] in view.arrival.alpha = 1 })
+    }
     let animator = UIViewPropertyAnimator(duration: duration, timingParameters: timing)
     animator.addAnimations { [view] in
       view.shape(to: target.frame, radius: target.frame.height / 2)
@@ -87,9 +104,9 @@ final class TrayMorph {
   }
 
   @discardableResult
-  private static func run(_ curve: MotionCurve, _ changes: @escaping () -> Void) -> UIViewPropertyAnimator {
+  private static func run(_ curve: MotionCurve, after delay: TimeInterval = 0, _ changes: @escaping () -> Void) -> UIViewPropertyAnimator {
     let animator = UIViewPropertyAnimator(duration: curve.duration, controlPoint1: curve.start, controlPoint2: curve.end, animations: changes)
-    animator.startAnimation()
+    animator.startAnimation(afterDelay: delay)
     return animator
   }
 }
@@ -98,6 +115,7 @@ final class TrayMorphView: UIView {
   private var surface = UIView()
   let tint = UIView()
   let contents = UIView()
+  let arrival = UIView()
   private var classicFill: UIColor?
 
   init() {
@@ -106,6 +124,18 @@ final class TrayMorphView: UIView {
     accessibilityElementsHidden = true
     contents.clipsToBounds = true
     contents.layer.cornerCurve = .continuous
+    arrival.alpha = 0
+    arrival.clipsToBounds = true
+    arrival.layer.cornerCurve = .continuous
+  }
+
+  func carry(_ face: UIView) {
+    arrival.subviews.forEach { $0.removeFromSuperview() }
+    arrival.bounds = CGRect(origin: .zero, size: face.bounds.size)
+    arrival.layer.cornerRadius = face.bounds.height / 2
+    arrival.center = CGPoint(x: bounds.midX, y: bounds.midY)
+    face.frame.origin = .zero
+    arrival.addSubview(face)
   }
 
   required init?(coder: NSCoder) { nil }
@@ -125,7 +155,7 @@ final class TrayMorphView: UIView {
     tint.overrideUserInterfaceStyle = look.panelStyle
     tint.layer.cornerCurve = .continuous
     tint.clipsToBounds = true
-    [surface, tint, contents].forEach(addSubview)
+    [surface, tint, contents, arrival].forEach(addSubview)
     if let snapshot {
       snapshot.frame.origin = .zero
       contents.addSubview(snapshot)
@@ -145,6 +175,7 @@ final class TrayMorphView: UIView {
     }
     tint.layer.cornerRadius = radius
     contents.layer.cornerRadius = radius
+    arrival.center = CGPoint(x: bounds.midX, y: bounds.midY)
   }
 
   func settle(style: UIUserInterfaceStyle) {

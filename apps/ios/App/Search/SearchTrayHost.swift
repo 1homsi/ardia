@@ -73,6 +73,7 @@ struct SearchTrayHost: View {
 
   private func present(_ request: BrowseSession.SearchRequest) {
     removalTask?.cancel()
+    if shown == nil, !app.browse.trayHoldsKeyboard { motion.rememberBar(Self.barTarget(in: app)) }
     if shown == nil || motion.isClosing { presentation += 1 }
     shown = request
     reserveBarPill()
@@ -149,7 +150,7 @@ struct SearchTrayHost: View {
     default: return nil
     }
     guard let anchor = app.browse.barAnchors[owner], !anchor.frame.isEmpty else { return nil }
-    return BarTarget(frame: anchor.frame, style: anchor.isDark ? .dark : .light)
+    return BarTarget(owner: owner, frame: anchor.frame, style: anchor.isDark ? .dark : .light)
   }
 
   private var dismissDrag: some Gesture {
