@@ -89,7 +89,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Full-screen (a page element) | Works; Escape leaves it | |
 | Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
 | Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it, including one held for Keep; Ctrl+J opens it and Escape closes it (53d5a2bee, walked 2026-11-14) | #1519, #1610 |
-| History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works | |
+| History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works; history is kept past 90 days and an import keeps its older pages, as on the Mac (engine `windows-engine-20261115-17` passes `keep-old-history`; seen by the `engine history:` self-check in CI) | #2009 |
 | Bookmarks (Ctrl+D, Ctrl+Shift+O) | Works | |
 | mailto and other app links | Works: the app's prompt, then the handler (`mailto` opens the mail app without a prompt, as Chromium and the Mac allow it by default). The engine thread saw the prompt and the handler in the VM on build 347 of #1701; not walked here. The first click on the prompt works after using the page since #1749, and a data: page's prompt stops counting once its document is gone since #1750 (engine `-22`); the engine thread saw the first in the VM and the self-check proves the second on both CPUs. | #1590, #1701, #1749, #1750 |
 | Translate | Not offered | #1520 |
