@@ -481,6 +481,7 @@ export function TabDeck() {
               }
               plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
               frost={{ source: DECK_FROST, variant: "bar" }}
+              covered={trayOpen}
               onPlus={newTab}
               onPlusMenu={() => setMenu("plus")}
               onSettings={() => openSettings()}

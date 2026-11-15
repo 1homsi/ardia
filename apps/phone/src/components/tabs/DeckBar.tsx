@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import { StyleSheet, View } from "react-native";
 import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
 import type { FrostVariant } from "@ardia/phone-native";
@@ -13,9 +13,21 @@ type Props = {
   onPlus: () => void;
   onPlusMenu: () => void;
   onSettings: () => void;
+  covered?: boolean;
 };
 
-export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSettings }: Props) {
+type PlateProps = ComponentProps<typeof LookGlass>;
+
+function PlainPlate({ cornerRadius, fill, style, children }: PlateProps) {
+  return (
+    <View testID="deckBarPlain" style={[style, { backgroundColor: fill, borderRadius: cornerRadius }]}>
+      {children}
+    </View>
+  );
+}
+
+export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSettings, covered = false }: Props) {
+  const Plate = covered ? PlainPlate : LookGlass;
   const theme = useTheme();
   const plus = tabsLayout.barPlus;
   const glass = usesGlass();
@@ -32,11 +44,11 @@ export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSetti
       <View style={styles.side}>
         {leading ? (
           <PressScale label={leading.label} onPress={leading.onPress} style={styles.hit}>
-            <LookGlass {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, edge]}>
+            <Plate {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, edge]}>
               <View pointerEvents="none">
                 <Symbol name={leading.icon} size={sideSize(leading.icon)} color={theme.secondaryLabel} />
               </View>
-            </LookGlass>
+            </Plate>
           </PressScale>
         ) : null}
       </View>
@@ -47,19 +59,19 @@ export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSetti
         onLongPress={onPlusMenu}
         style={{ width: plus.width, height: plus.height }}
       >
-        <LookGlass {...frost} shape="capsule" cornerRadius={capsule(plus.height)} fill={theme.deckControl} style={[styles.plus, edge]}>
+        <Plate {...frost} shape="capsule" cornerRadius={capsule(plus.height)} fill={theme.deckControl} style={[styles.plus, edge]}>
           <View pointerEvents="none">
             <Symbol name="plus" size={glass ? GLASS_GLYPHS.plus : FROST_ICONS.plus} color={theme.label} />
           </View>
-        </LookGlass>
+        </Plate>
       </PressScale>
       <View style={[styles.side, styles.end]}>
         <PressScale label="Settings" onPress={onSettings} style={styles.hit}>
-          <LookGlass {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, edge]}>
+          <Plate {...frost} shape="circle" cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, edge]}>
             <View pointerEvents="none">
               <Symbol name="gearshape" size={sideSize("gearshape")} color={theme.secondaryLabel} />
             </View>
-          </LookGlass>
+          </Plate>
         </PressScale>
       </View>
     </View>

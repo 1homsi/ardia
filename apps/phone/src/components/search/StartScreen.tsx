@@ -65,6 +65,7 @@ export function StartScreen() {
             leading={leading}
             plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
             frost={{ source: START_FROST, variant: "glass", incognito }}
+            covered={trayUp}
             onPlus={newTab}
             onPlusMenu={() => setMenu(true)}
             onSettings={() => openSettings()}
