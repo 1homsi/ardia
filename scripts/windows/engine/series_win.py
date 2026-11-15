@@ -246,14 +246,18 @@ def windows_sources(text):
         if re.match(r'^ardia_sources \+?= \[$', stripped):
             listing = all(blocks)
             continue
-        assigned = re.match(r'^sources \+?= (.+)$', stripped)
+        if re.match(r'^ardia_sources\s*-=', stripped):
+            raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), n)}: the Windows build can\'t follow sources taken out '
+                             f'of the list: `{stripped}`')
+        assigned = re.match(r'^sources\s*(\+=|-=|=)\s*(.+)$', stripped)
         if assigned and all(blocks):
-            if assigned.group(1) == '[':
+            operator, value = assigned.groups()
+            if operator == '+=' and value == '[':
                 listing = True
                 continue
-            if assigned.group(1) != 'ardia_sources':
-                raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), n)}: the Windows build can\'t read sources it would '
-                                 f'compile: `{stripped}`')
+            if not (operator == '=' and value == 'ardia_sources'):
+                raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), n)}: the Windows build only follows '
+                                 f'`sources = ardia_sources` and `sources += [...]`, not `{stripped}`')
         if stripped.startswith('}') and stripped != '}':
             raise InputError(f'{where(os.path.join(REPO, LAYER_BUILD), n)}: the Windows build can\'t read `{stripped}`')
         if stripped == '}':

@@ -839,6 +839,70 @@ void TestClientForTest(content::WebContents* contents,
   std::move(reply).Run(Ok());
 }
 
+const char* EligibilityName(
+    performance_manager::policies::CanDiscardResult result) {
+  switch (result) {
+    case performance_manager::policies::CanDiscardResult::kEligible:
+      return "eligible";
+    case performance_manager::policies::CanDiscardResult::kProtected:
+      return "protected";
+    case performance_manager::policies::CanDiscardResult::kDisallowed:
+      return "disallowed";
+  }
+  return "unknown";
+}
+
+void DiscardEligibilityForTest(content::WebContents* contents,
+                               const base::DictValue& args,
+                               Reply reply) {
+  namespace policies = performance_manager::policies;
+  using performance_manager::PerformanceManager;
+  if (!ardiacore::TestInstance()) {
+    std::move(reply).Run(
+        Error("discardEligibilityForTest is for test instances"));
+    return;
+  }
+  base::WeakPtr<performance_manager::PageNode> page =
+      PerformanceManager::IsAvailable()
+          ? PerformanceManager::GetPrimaryPageNodeForWebContents(contents)
+          : nullptr;
+  auto* eligibility =
+      page ? policies::DiscardEligibilityPolicy::GetFromGraph(page->GetGraph())
+           : nullptr;
+  if (!eligibility) {
+    std::move(reply).Run(Error("no discard eligibility for the page"));
+    return;
+  }
+  using DiscardReason = policies::DiscardEligibilityPolicy::DiscardReason;
+  const std::string reason_name = Text(args, "reason");
+  const DiscardReason reason =
+      reason_name == "urgent"   ? DiscardReason::URGENT
+      : reason_name == "frozen" ? DiscardReason::FROZEN_WITH_GROWING_MEMORY
+                                : DiscardReason::PROACTIVE;
+  auto* const host = policies::g_ardia_keeps_page;
+  if (args.FindBool("withoutHost").value_or(false)) {
+    policies::g_ardia_keeps_page = nullptr;
+  }
+  std::vector<policies::CannotDiscardReason> reasons;
+  const policies::CanDiscardResult result =
+      eligibility->CanDiscardWithCustomRecentVisibilityWindow(
+          page.get(), reason, base::TimeDelta(), &reasons);
+  policies::g_ardia_keeps_page = host;
+  base::ListValue chromium;
+  for (policies::CannotDiscardReason each : reasons) {
+    chromium.Append(static_cast<int>(each));
+  }
+  base::ListValue kept;
+  for (int code : KeptBy(page.get())) {
+    kept.Append(code);
+  }
+  base::DictValue answer;
+  answer.Set("result", EligibilityName(result));
+  answer.Set("reasons", std::move(chromium));
+  answer.Set("keptBy", std::move(kept));
+  std::move(reply).Run(std::move(answer));
+}
+
 void ClickForTest(content::WebContents* contents,
                   const base::DictValue& args,
                   Reply reply) {
@@ -957,6 +1021,7 @@ constexpr NamedMethod kMethods[] = {
     {"insertText", &InsertTextForTest},
     {"clickForTest", &ClickForTest},
     {"testClient", &TestClientForTest},
+    {"discardEligibilityForTest", &DiscardEligibilityForTest},
     {"setFrozen", &SetFrozen},
     {"resolveUnresponsive", &ResolveUnresponsive},
     {"externalAppAlive", &ExternalAppAliveCall},

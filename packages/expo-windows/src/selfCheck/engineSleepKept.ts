@@ -1,7 +1,7 @@
 import { engineAvailable, hostCall, leaveOffersFromUnheard } from "../engine/host";
 import { mountPage } from "../engine/pages";
 import { setPopupsOpenAsTabs } from "../engine/popupsAsTabs";
-import { expectEqual, type Check } from "./check";
+import { expectEqual, expectTrue, type Check } from "./check";
 import { httpPagesPort } from "./engineBackForward";
 import { click, evaluate, firstWindow, hide, keptBy, LEFT, listed, loaded, RIGHT, show, until, withPages } from "./engineSleep";
 
@@ -15,16 +15,40 @@ const UNHEARD_POPUP = "ardia-sleep-check-unheard";
 const TAB_POPUP = "ardia-sleep-check-as-tab";
 const OFFER_MS = 8000;
 
-const keptWithin = (key: string, code: number | number[], what: string) => {
-  const wanted = Array.isArray(code) ? code : [code];
-  return until(what, SIGNAL_MS, () => keptBy(key, 0), (kept) => Array.isArray(kept) && kept.some((each) => wanted.includes(each as number)));
-};
+const DISCARD_REASONS = ["proactive", "urgent", "frozen"] as const;
+
+type Eligibility = { result?: unknown; reasons?: unknown; keptBy?: unknown };
+
+const eligibility = (key: string, reason: (typeof DISCARD_REASONS)[number], withoutHost = false) =>
+  hostCall<Eligibility>("tab.call", { key, method: "discardEligibilityForTest", reason, withoutHost });
+
+async function keptWithin(key: string, code: number, what: string) {
+  await until(what, SIGNAL_MS, () => eligibility(key, "proactive"), (answer) => Array.isArray(answer.keptBy) && answer.keptBy.includes(code));
+  for (const reason of DISCARD_REASONS) {
+    const asked = await eligibility(key, reason);
+    expectEqual(asked.result, "protected", `Chromium's own ${reason} discard asks the host and is refused (${JSON.stringify(asked)})`);
+    await until(`without the host's answer, Chromium's own ${reason} discard would take the page`, SIGNAL_MS, () => eligibility(key, reason, true), (answer) => answer.result === "eligible");
+  }
+  const kept = await keptBy(key, 0);
+  expectTrue(Array.isArray(kept) && kept.includes(code), `sleepIfHidden keeps it too (${code}): ${JSON.stringify(kept)}`);
+}
 
 const sleepsWithin = (key: string, what: string) => until(what, SIGNAL_MS, () => keptBy(key, 0), (kept) => Array.isArray(kept) && kept.length === 0);
 
 const BEFORE_UNLOAD = `addEventListener("beforeunload", (e) => { e.preventDefault(); e.returnValue = ""; }); post("result", "null");`;
 
 const keptChecks: Check[] = [
+  {
+    name: "engine sleep: an ordinary hidden page is eligible for Chromium's own proactive, urgent and frozen-growth discards",
+    run: () =>
+      withPages(["plain"], async ([page], windowId) => {
+        await show(page!, windowId, LEFT);
+        await hide(page!, windowId);
+        for (const reason of DISCARD_REASONS) {
+          await until(`an ordinary hidden page is eligible for a ${reason} discard`, SIGNAL_MS, () => eligibility(page!, reason), (answer) => answer.result === "eligible");
+        }
+      }),
+  },
   {
     name: "engine sleep: a hidden page with a beforeunload handler the user has used is kept; the same page nobody used sleeps",
     run: () =>
