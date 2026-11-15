@@ -30,7 +30,6 @@ struct ArdiaLeave {
 
 struct ArdiaFrameHold {
   BOOL awaiting{};
-  BOOL restoring{};
   NSUInteger generation{};
   NSArray *mark;
   __weak NSView *pane;
@@ -98,6 +97,7 @@ struct ArdiaCommits {
 struct ArdiaPageFocusState {
   ArdiaPageFocus page{ArdiaPageFocus::Unknown};
   __weak NSView *devTools;
+  __weak NSView *elsewhere;
   BOOL onActivate{};
   BOOL keepsOutgoing{};
   CFTimeInterval activatedAt{};
@@ -163,6 +163,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (BOOL)canTake:(ArdiaCoreTab *)tab;
 - (ArdiaTransfer)takeTransferredTab;
 - (void)bindRestoreKey;
+- (void)forgetRestoreKey;
 @end
 
 @interface ArdiaWebView (TabInternal)
@@ -172,11 +173,15 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (BOOL)holdTransferOf:(ArdiaCoreTab *)tab;
 - (void)attach:(ArdiaCoreTab *)tab;
 - (void)detach;
+@property(nonatomic, readonly) NSString *keptFromUnloadingBy;
+- (BOOL)unloadKeepingHistory;
 - (void)stashPageReports;
 - (void)takePageReports;
 - (void)placeTab;
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
 - (void)openedLinkTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
+- (void)openedPopupTab:(ArdiaCoreTab *)tab;
+- (BOOL)opensPopupsAsTabs;
 - (void)announceOpenedTab:(ArdiaCoreTab *)tab
                   adoptId:(NSString *)adoptId
               disposition:(NSString *)disposition
@@ -207,6 +212,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)leaveScreen;
 - (void)beginFrameHoldIfCold;
 - (void)exposePage;
+- (BOOL)releasePageForOffscreen;
 - (void)finishFrameHold;
 - (void)stopHolding;
 - (void)takeFocusFromLingeringPane;
@@ -327,6 +333,7 @@ void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
 NSString *PeekConfigJSON(ArdiaWebView *view);
 NSDictionary *_Nullable RecentClickPoint(ArdiaWebView *view);
+BOOL MayHoldUserActivation(NSWindow *window);
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();

@@ -180,7 +180,7 @@ writeDocument(DOC, versionedJson(data, VERSION));
 - Covered: `session.json` (10), `downloads.json` (3), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
   `telemetry-queue.json`, `telemetry-daily.json`, `release-notes.json`, `onboarding.json`,
   `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `shared-folders.json`, `ardia-cli.json`,
-  `bangs-state.json` and `Scripts/status.json` (all 1).
+  `bangs-state.json`, `Scripts/status.json`, `air-traffic.json` and `link-sources.json` (all 1).
 - Native code reads through `ArdiaSavedDocument` (packages/ardiacore/ios), with the same rules: `session.json` and
   `onboarding.json` (any version up to the one JS writes; a test pins each) and `launch-layout.json` (4, written and
   read by native code only, so any other version reads as nothing).
@@ -271,6 +271,12 @@ still counts:
 - `ARDIA_TEST` and `ARDIA_TRACE` work only in a test instance (not signed for distribution, a scratch data dir, the
   mock keychain); a release build ignores them and logs that once. CDP, argv and extra switches reach Chrome only with
   the mock keychain.
+- On Windows the launch config is `apps/browser/windows/Ardia/LaunchConfig.h` (with `Paths.h` and `TestGate.h`), and
+  no other native file reads the environment (`platform/windowsLaunchConfig.test.mjs`). Windows builds aren't signed,
+  so a test instance there is an absolute scratch `ARDIA_DATA_DIR` that isn't, inside or around the real profile
+  folders (compared by final path) and an `Ardia.test-build` marker beside `Ardia.exe`, which only test harnesses
+  write and no installer ships. `ARDIA_CONFIG_DIR` and the test-only `ARDIA_INSTANCE` keys need it too
+  (`docs/windows.md` › Test instances).
 - An experiment ends by keeping the winning path and deleting the other branch and its toggle. One still being tried
   is an entry in the registry (`EXPERIMENTS`), not a new variable.
 - Every key, area and value: `docs/agent-brief.md` › Launch variables.

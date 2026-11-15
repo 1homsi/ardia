@@ -14,7 +14,7 @@ import { updateSettings } from "../../../state/settings/actions";
 import { useProfile, useProfiles, useSettings } from "../../../state/browser/hooks";
 import { sharingProfiles } from "../../../state/profiles/profiles";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
-import { Group, PaneIntro, Row, SectionHeader } from "../Form";
+import { Group, PaneIntro, Row, SectionHeader, SettingToggle } from "../Form";
 import { ColorStack } from "../../profiles/CreateProfile";
 import { PROFILE_SYMBOLS, ProfileBadge } from "../../profiles/ProfileIcons";
 import { iconSymbol } from "../../../lib/customIcon";
@@ -71,6 +71,7 @@ export function ProfilesPane() {
 
       <SectionHeader title="Profile switcher" />
       <Group>
+        <SettingToggle anchor="profiles.showProfileDots" />
         <Row anchor="profiles.switcherIcons">
           <Toggle value={switcherIcons} onChange={(profileSwitcherIcons) => updateSettings({ profileSwitcherIcons })} />
         </Row>
@@ -164,7 +165,7 @@ function ProfileList() {
   return (
     <Box fill="groupFill" border="groupBorder" radius="panel">
       {order.map((id, i) => (
-        <ProfileRow key={id} profileId={id} first={i === 0} offset={offsetOf(id)} lifted={dragging === id} controller={controller} />
+        <ProfileRow key={id} profileId={id} first={i === 0} last={i === order.length - 1} offset={offsetOf(id)} lifted={dragging === id} controller={controller} />
       ))}
     </Box>
   );
@@ -175,12 +176,14 @@ type DragController = { start(id: string): void; move(dy: number): void; end(com
 function ProfileRow({
   profileId,
   first,
+  last,
   offset,
   lifted,
   controller,
 }: {
   profileId: string;
   first: boolean;
+  last: boolean;
   offset: Animated.Value;
   lifted: boolean;
   controller: DragController;
@@ -204,6 +207,7 @@ function ProfileRow({
   ).current;
   if (!profile) return null;
 
+  const cardInnerRadius = radius.panel - StyleSheet.hairlineWidth * 2;
   const description = [isDefault ? "Default" : null, names.length ? `Shares data with ${listOf(names)}` : null].filter(Boolean).join(" · ");
   const openMenu = () => openProfileItemMenu(profileId, "settings", SETTINGS_WINDOW_ID, badge.current);
 
@@ -231,6 +235,10 @@ function ProfileRow({
                 flexDirection: "row",
                 alignItems: "center",
                 gap: space.ml,
+                borderTopLeftRadius: first ? cardInnerRadius : 0,
+                borderTopRightRadius: first ? cardInnerRadius : 0,
+                borderBottomLeftRadius: last ? cardInnerRadius : 0,
+                borderBottomRightRadius: last ? cardInnerRadius : 0,
                 backgroundColor: hovered && !lifted ? theme.rowHover : undefined,
               }}
             >
