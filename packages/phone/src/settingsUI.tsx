@@ -75,4 +75,6 @@ export const legibleInk = (tint: SettingsTintName | "formAccent") => ardia("legi
 export const profileLook = (look: LookColors & { usesGlass?: boolean }) =>
   ardia("profileLook", { color: look.color ?? null, themeColors: look.themeColors ?? [], darkThemeColors: look.darkThemeColors ?? null, usesGlass: look.usesGlass ?? true });
 
+export const contentMargins = (params: { edges: "top" | "bottom" | "all"; length: number }) => ardia("contentMargins", params);
+
 export const modifierList = (...items: (ModifierConfig | null | undefined | false)[]): ModifierConfig[] => items.filter((item): item is ModifierConfig => !!item);

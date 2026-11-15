@@ -191,6 +191,23 @@ struct LegibleInkResolver: ViewModifier {
   }
 }
 
+struct ContentMarginsModifier: ViewModifier, Record {
+  @Field var edges: String = "top"
+  @Field var length: Double = 0
+
+  private var edgeSet: Edge.Set {
+    switch edges {
+    case "bottom": .bottom
+    case "all": .all
+    default: .top
+    }
+  }
+
+  func body(content: Content) -> some View {
+    content.contentMargins(edgeSet, CGFloat(length), for: .scrollContent)
+  }
+}
+
 struct ProfileLookModifier: ViewModifier, Record {
   @Field var color: String? = nil
   @Field var themeColors: [String] = []
@@ -205,7 +222,7 @@ struct ProfileLookModifier: ViewModifier, Record {
 }
 
 enum SettingsUIModifiers {
-  static let names = ["ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook"]
+  static let names = ["ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"]
 
   static func register() {
     ViewModifierRegistry.register("ardia.settingsChrome") { params, context, _ in try SettingsChromeModifier(from: params, appContext: context) }
@@ -215,6 +232,7 @@ enum SettingsUIModifiers {
     ViewModifierRegistry.register("ardia.pressableStyle") { params, context, _ in try PressableStyleModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.legibleInk") { params, context, _ in try LegibleInkModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.profileLook") { params, context, _ in try ProfileLookModifier(from: params, appContext: context) }
+    ViewModifierRegistry.register("ardia.contentMargins") { params, context, _ in try ContentMarginsModifier(from: params, appContext: context) }
   }
 
   static func unregister() {
