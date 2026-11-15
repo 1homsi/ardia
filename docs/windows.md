@@ -84,7 +84,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
 | Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
 | JavaScript alert, confirm and prompt | Works (Chromium's dialogs over the page) | |
-| Page, link and image menus | Differs: Chromium's (Reload, Save as, Print, Cast, View page source, Inspect) | #1518 |
+| Page, link and image menus | Differs: Chromium's menu, trimmed as on the Mac (no Open link in split view, Cast, reading mode, QR code, send to your devices, Lens or other-profile items; Save as shows no Ctrl+S), but without the Mac's own items for a selection (search with Ardia's engine, Share) | #1811 |
 | Full-screen (a page element) | Works; Escape leaves it | |
 | Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
 | Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it, including one held for Keep; Ctrl+J opens it and Escape closes it (53d5a2bee, walked 2026-11-14) | #1519, #1610 |
@@ -661,13 +661,15 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   denied schemes, with the request's user gesture). For a tab the host keeps, `ardia/win/external_apps.cc` sends the
   `externalApp` tab event (`id`, `url`, `origin` or null, `userGesture`, `offTheRecord`) to `domains/externalApps.ts`
   and keeps the asking document. The `externalAppAlive` page call answers `{ alive: true }` once per request while
-  that document lives, as the Mac's `ResolveExternalApp` checks. Every request with an initiating origin that isn't an
+  that document is the one showing: still there, active (not kept in the back/forward cache, not pending deletion
+  after a navigation) and in the tab's primary page. The Mac's `ResolveExternalApp` checks only that the document
+  still exists. Every request with an initiating origin that isn't an
   extension's counts as a page's, opaque origins included: a `data:` page or a sandboxed frame needs its document
   alive too. Only a request with no initiating origin (the browser) or an extension's needs just its tab. The prompt
   shows an origin only when it isn't opaque; otherwise it says "This page wants to open this application." and never
   borrows another page's name. A cross-site navigation drops the page's prompt (`state/tabs/pageEvents.ts`
   `leftPage`, as on the Mac); after a same-site navigation or a reload the prompt can stay, and Open then launches
-  nothing because the asking document is gone. The engine keeps a page's 8 newest asks at most, and the app tells it
+  nothing because the asking document is no longer the one showing, even while the back/forward cache keeps it. The engine keeps a page's 8 newest asks at most, and the app tells it
   (`externalAppForget`) whenever it drops one without launching: a no, no handler, a closed page or a forgotten
   profile. `mailto` never asks: Chromium allows it by default and opens the mail app itself,
   as on the Mac.
@@ -686,8 +688,9 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
     site, outside private windows, and kept per profile in `external-app-allowances.json`; deleting a profile
     forgets them. A remembered site opens the app without asking only when the request had a user gesture.
   - **Lifetime:** an ask belongs to its page and is dropped when the page closes. Before any launch the engine must
-    answer `true` to the `externalAppAlive` page call, as the Mac checks that the asking document is still alive, so
-    a prompt survives a single-page site's route change but opens nothing once its document is gone.
+    answer `true` to the `externalAppAlive` page call, which needs the asking document to be the active one in the
+    tab's primary page, so a prompt survives a single-page site's route change but opens nothing once its document
+    is no longer shown, cached or not.
     The prompt carries an id the app makes, so two pages whose engine ids collide never answer each other's
     prompt. The engine's origin must be a serialized origin (no user info, path or spaces), and a profile deleted
     while a yes waits for the engine keeps no allowance and opens nothing.
@@ -1028,9 +1031,12 @@ App side, an agent can do these now:
    engine thread.
 4. The window's top edge doesn't resize where the page reaches it, as in Minimalism mode (#1888). S, in the engine.
 5. The theme's grain draws nothing, and the sidebar and toolbar don't blur what is behind them (#1921). M.
-6. The app's own page, link and image menus instead of Chromium's (#1518). M.
+6. The Mac's own items in the page menu: search a selection with Ardia's engine and Share (Chromium's menu is otherwise
+   trimmed as on the Mac since #1811). S.
 7. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
-   needs). M each once the engine reports them.
+   needs). M each once the engine reports them. A pop-up's prompts go to its opener's window, as on the Mac's
+   `ArdiaPopupWindow` (else any window of its profile). Today Chromium's own prompt shows, most likely in the
+   pop-up's window (not yet seen in the VM).
 8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 9. A pop-up whose opener wrote its document shows about:blank in its origin strip (#1863). S.
 10. Dragging a pinned extension to reorder the toolbar (main's #1935) doesn't keep its new place until the Windows

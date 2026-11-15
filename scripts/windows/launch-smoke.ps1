@@ -477,9 +477,43 @@ foreach ($fixture in @(@("firefox", "Firefox\Profiles\abcd1234.default-release")
     if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $to }
   }
 }
+$httpPagesPort = 9353
+$httpPagesScript = Join-Path (New-DataDirectory "http-pages") "serve.ps1"
+Set-Content -LiteralPath $httpPagesScript -Encoding utf8NoBOM -Value @'
+param([int]$Port)
+$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+$listener.Start()
+while ($true) {
+  $client = $listener.AcceptTcpClient()
+  try {
+    $client.ReceiveTimeout = 2000
+    $stream = $client.GetStream()
+    $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 1024, $true)
+    $request = $reader.ReadLine()
+    while ($reader.ReadLine()) { }
+    $name = @{ "/a" = "a"; "/b" = "b" }[$(if ($request) { $request.Split(" ")[1] } else { "" })]
+    $status = if ($name) { "200 OK" } else { "404 Not Found" }
+    $text = if ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
+    $body = [System.Text.Encoding]::UTF8.GetBytes($text)
+    $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
+    $stream.Write($head, 0, $head.Length)
+    $stream.Write($body, 0, $body.Length)
+    $stream.Flush()
+  } catch { } finally { $client.Close() }
+}
+'@
+$httpPages = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList "-NoProfile", "-NonInteractive", "-File", "`"$httpPagesScript`"", "-Port", $httpPagesPort -WindowStyle Hidden -PassThru
+$httpPagesBy = (Get-Date).AddSeconds(15)
+$httpPagesUp = $false
+while (-not $httpPagesUp -and (Get-Date) -lt $httpPagesBy -and -not $httpPages.HasExited) {
+  $probe = New-Object System.Net.Sockets.TcpClient
+  try { $httpPagesUp = $probe.ConnectAsync("127.0.0.1", $httpPagesPort).Wait(1000) -and $probe.Connected } catch { } finally { $probe.Dispose() }
+  if (-not $httpPagesUp) { Start-Sleep -Milliseconds 300 }
+}
+if (-not $httpPagesUp) { $failures += "the loopback page server never listened on port $httpPagesPort" }
 $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 $env:ARDIA_BACKGROUND = "1"
-$env:ARDIA_TEST = "pipHover=first,pipHover=last"
+$env:ARDIA_TEST = "pipHover=first,pipHover=last,httpPages=$httpPagesPort"
 $leftover = Join-Path $env:ARDIA_DATA_DIR "Chromium\Ardia self-check-stuck (removing)"
 $held = $null
 $check = $null
@@ -509,6 +543,7 @@ try {
   } finally {
     if ($held) { $held.Dispose() }
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $leftover
+    if (-not $httpPages.HasExited) { Stop-Process -Id $httpPages.Id -Force -ErrorAction SilentlyContinue }
   }
 }
 
