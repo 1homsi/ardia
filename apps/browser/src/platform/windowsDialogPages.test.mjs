@@ -86,8 +86,9 @@ test("a file dialog cancelled at quit closes through Close and, if still open, t
   assert.match(dialogs, /~FileDialogWatch\(\) noexcept \{\n\s+ModalWatch::Disarm\(\);\n\s+if \(m_events\) m_dialog->Unadvise\(m_events\);/);
   assert.match(source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts") , /await Promise\.race\(\[held, settled\(GIVE_UP_MS\)\]\);/);
   const held = source("../../../../packages/expo-windows/src/selfCheck/heldDialogs.ts");
-  assert.match(held, /const shownAfter = when === "shown" \? await dialogWindowShown\(SHOWN_ON_A_COLD_RUNNER_MS\) : null;/, "the shown case waits for the dialog's own window, not only for the dialog thread to start");
-  assert.match(held, /const SHOWN_ON_A_COLD_RUNNER_MS = 15000;/, "a cold runner's first dialog was seen still starting after 5 s (#1956)");
+  assert.match(held, /const settledAfter = when === "shown" \? await dialogSettled\(SETTLED_ON_A_COLD_RUNNER_MS\) : null;/, "the shown case waits until the dialog's window shows and its thread settles, not only for the dialog thread to start");
+  assert.match(held, /const SETTLED_ON_A_COLD_RUNNER_MS = 20000;/, "a cold runner's first file picker showed its window 12.3 s after its thread started (#1956)");
+  assert.match(held, /if \(dialogs\(\)\.settledCount\(\) > 0\) return Date\.now\(\) - began;/);
   assert.match(held, /run: \(\) => heldFileDialogCancels\(false, "atOnce"\),/);
   assert.doesNotMatch(held, /while it is still starting/, "no check claims a cancel during startup it can't force");
   assert.match(held, /\$\{shownAtCancel \? "its window shown" : "still starting"\} at its cancel/);
@@ -125,4 +126,18 @@ test("a cancel reaches each dialog's thread at once, not at its next 250 ms chec
   assert.match(thread, /Listed\(false\);\n\s+DestroyWindow\(m_window\);/, "a parent leaves the list before its window goes");
   assert.match(thread, /inline void CALLBACK AfterAbandon\(HWND, UINT, UINT_PTR, DWORD\) noexcept \{\n\s+std::function<void\(\)> stubborn = WatchState\(\)\.stubborn;/, "the window Cancel repeats until the dialog returns and Disarm stops it");
   assert.match(native("DialogsModule.h"), /if \(!ModalWatch::Cancelled\(\)\) parent\.KeepDialogAboveOwner\(\);/);
+});
+
+test("a dialog counts as settled only once its window shows and its thread's last two checks came on time, the sign the shell's startup work is done", () => {
+  const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
+  const thread = native("ModalThread.h");
+  assert.match(thread, /bool onTime = state\.lastTickAt && now - state\.lastTickAt <= OwnerWatchMs \+ LateTickSlackMs;/, "a timer message only comes when the thread's queue is empty, so a late one means the thread was busy");
+  assert.match(thread, /state\.idleTicks = state\.shownAt && onTime \? state\.idleTicks \+ 1 : 0;/);
+  assert.match(thread, /if \(timer\) NoteTick\(state\);/, "only the timer counts, not the wake message");
+  assert.match(thread, /constexpr int SettledAfterIdleTicks = 2;/);
+  assert.match(thread, /ModalWatch::NoteShown\(\);\n\s+if \(ModalWatch::SettledNow\(\)\) NoteModalSettled\(m_owner\);/);
+  assert.match(thread, /if \(!dialog\) dialogs\.settled\.erase\(owner\);/, "a closed dialog leaves the settled count");
+  assert.match(native("DialogsModule.h"), /REACT_SYNC_METHOD\(settledCount\)\n\s+int settledCount\(\) noexcept \{ return DialogParts::SettledDialogCount\(\); \}/);
+  assert.match(native("AppModule.h"), /const int windowsApiVersion = 22;/);
+  assert.match(readFileSync(new URL("./nativeApi.ts", import.meta.url), "utf8"), /export const WINDOWS_NATIVE_API_VERSION = 22;/);
 });

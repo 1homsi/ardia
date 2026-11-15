@@ -22,6 +22,8 @@ namespace Ardia::DialogParts {
 
 constexpr UINT OwnerWatchMs = 250;
 constexpr UINT StubbornEveryMs = 100;
+constexpr UINT LateTickSlackMs = 100;
+constexpr int SettledAfterIdleTicks = 2;
 constexpr UINT ModalCancelMessage = WM_APP + 56;
 
 struct ModalRegistry {
@@ -123,6 +125,9 @@ struct ModalWatchState {
   ULONGLONG firstFolderAt = 0;
   ULONGLONG cancelTakenAt = 0;
   ULONGLONG askedAt = 0;
+  ULONGLONG lastTickAt = 0;
+  int idleTicks = 0;
+  ULONGLONG settledAt = 0;
 };
 
 inline ModalWatchState &WatchState() noexcept {
@@ -135,11 +140,19 @@ inline void CALLBACK AfterAbandon(HWND, UINT, UINT_PTR, DWORD) noexcept {
   if (stubborn) stubborn();
 }
 
-inline void CALLBACK WatchOwner(HWND, UINT, UINT_PTR, DWORD) noexcept {
+inline void NoteTick(ModalWatchState &state) noexcept {
+  ULONGLONG now = GetTickCount64();
+  bool onTime = state.lastTickAt && now - state.lastTickAt <= OwnerWatchMs + LateTickSlackMs;
+  state.lastTickAt = now;
+  state.idleTicks = state.shownAt && onTime ? state.idleTicks + 1 : 0;
+}
+
+inline void CALLBACK WatchOwner(HWND, UINT, UINT_PTR timer, DWORD) noexcept {
   ModalWatchState &state = WatchState();
   bool ownerGone = state.owner && !IsWindow(state.owner);
   bool released = ModalRegistry::Shared().releases.load() != state.release;
   if (!ownerGone && !released && !Stopping()) {
+    if (timer) NoteTick(state);
     if (state.tick) state.tick();
     return;
   }
@@ -159,6 +172,7 @@ inline std::wstring SinceStart(ModalWatchState const &state, ULONGLONG at) noexc
 inline std::wstring DialogLifetime(ModalWatchState const &state) noexcept {
   std::wstring line = state.kind + L" gone " + SinceStart(state, GetTickCount64()) + L" after its thread started: ";
   line += state.shownAt ? L"its window showed at " + SinceStart(state, state.shownAt) : std::wstring{L"its window never showed"};
+  if (state.settledAt) line += L", its thread settled at " + SinceStart(state, state.settledAt);
   if (state.opensFolders) line += state.firstFolderAt ? L", its first folder opened at " + SinceStart(state, state.firstFolderAt) : std::wstring{L", it opened no folder"};
   if (state.cancelTakenAt) line += L", its thread took the cancel at " + SinceStart(state, state.cancelTakenAt);
   if (state.cancelTakenAt && state.askedAt) line += L", " + std::to_wstring(state.cancelTakenAt - state.askedAt) + L" ms after the app asked";
@@ -174,7 +188,8 @@ struct ModalWatch {
     state.kind.assign(kind.begin(), kind.end());
     state.opensFolders = false;
     state.startedAt = GetTickCount64();
-    state.shownAt = state.firstFolderAt = state.cancelTakenAt = state.askedAt = 0;
+    state.shownAt = state.firstFolderAt = state.cancelTakenAt = state.askedAt = state.lastTickAt = state.settledAt = 0;
+    state.idleTicks = 0;
     LaunchLog::Write(L"dialog", state.kind + L" thread started");
     m_timer = SetTimer(nullptr, 0, OwnerWatchMs, &WatchOwner);
   }
@@ -210,6 +225,14 @@ struct ModalWatch {
     state.firstFolderAt = GetTickCount64();
     LaunchLog::Write(L"dialog", state.kind + L" opened its first folder " + SinceStart(state, state.firstFolderAt) + L" after its thread started");
   }
+  static bool SettledNow() noexcept {
+    ModalWatchState &state = WatchState();
+    if (state.idleTicks < SettledAfterIdleTicks) return false;
+    if (state.settledAt) return true;
+    state.settledAt = GetTickCount64();
+    LaunchLog::Write(L"dialog", state.kind + L" settled " + SinceStart(state, state.settledAt) + L" after its thread started: its last " + std::to_wstring(SettledAfterIdleTicks) + L" checks came on time");
+    return true;
+  }
   static void NoteShown() noexcept {
     ModalWatchState &state = WatchState();
     if (state.shownAt || !state.startedAt) return;
@@ -224,6 +247,7 @@ struct ModalWatch {
 struct ModalDialogs {
   std::mutex lock;
   std::map<HWND, HWND> byOwner;
+  std::set<HWND> settled;
 
   static ModalDialogs &Shared() noexcept {
     static ModalDialogs *dialogs = new ModalDialogs();
@@ -237,6 +261,25 @@ inline void NoteModalDialog(HWND owner, HWND dialog) noexcept {
   std::lock_guard<std::mutex> guard(dialogs.lock);
   if (dialog) dialogs.byOwner[owner] = dialog;
   else dialogs.byOwner.erase(owner);
+  if (!dialog) dialogs.settled.erase(owner);
+}
+
+inline void NoteModalSettled(HWND owner) noexcept {
+  if (!owner) return;
+  ModalDialogs &dialogs = ModalDialogs::Shared();
+  std::lock_guard<std::mutex> guard(dialogs.lock);
+  dialogs.settled.insert(owner);
+}
+
+inline int SettledDialogCount() noexcept {
+  ModalDialogs &dialogs = ModalDialogs::Shared();
+  std::lock_guard<std::mutex> guard(dialogs.lock);
+  int settled = 0;
+  for (HWND owner : dialogs.settled) {
+    auto found = dialogs.byOwner.find(owner);
+    if (found != dialogs.byOwner.end() && found->second && IsWindowVisible(found->second)) settled++;
+  }
+  return settled;
 }
 
 inline HWND ModalDialogOf(HWND owner) noexcept {
@@ -309,6 +352,7 @@ struct ModalParent {
     if (!dialog || !m_owner || !IsWindow(m_owner)) return;
     NoteModalDialog(m_owner, dialog);
     ModalWatch::NoteShown();
+    if (ModalWatch::SettledNow()) NoteModalSettled(m_owner);
     bool above = false;
     for (HWND higher = GetWindow(m_owner, GW_HWNDPREV); higher && !above; higher = GetWindow(higher, GW_HWNDPREV)) above = higher == dialog;
     if (!above) {
