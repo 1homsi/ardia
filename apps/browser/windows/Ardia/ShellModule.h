@@ -440,6 +440,9 @@ struct ShellModule {
   REACT_METHOD(startDictation)
   void startDictation() noexcept {}
 
+  REACT_SYNC_METHOD(dictationAvailable)
+  bool dictationAvailable() noexcept { return false; }
+
   REACT_METHOD(fetchBangList)
   void fetchBangList(std::optional<std::string> etag, winrt::Microsoft::ReactNative::ReactPromise<ShellBangListReply> promise) noexcept {
     try {
