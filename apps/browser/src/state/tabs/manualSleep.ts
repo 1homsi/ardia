@@ -5,6 +5,7 @@ import { tabEngine } from "../engines/engines";
 import { withSharedFamily } from "../pins/pinShare";
 import { noteTabsSleptFromMenu } from "../telemetry/tabSleepCounts";
 import { splitOf, splitTabIdsOf, withPinnedPanes } from "../splits/splits";
+import { inUse } from "./loadedTabBudget";
 import { hasLoadedPage } from "./pageSession";
 import { shownTabIds } from "./shownTabs";
 import { isSleeping } from "./sleepingTabs";
@@ -27,6 +28,7 @@ export async function sleepTab(id: string, { keepProtected = false } = {}): Prom
   const view = webviews.get(id);
   if (keepProtected) {
     if (!view) return "already";
+    if (inUse(s, id)) return "kept";
     const keptBy = await view.sleepIfHidden(0).catch(() => [-1]);
     return keptBy.length ? "kept" : "asleep";
   }
