@@ -433,3 +433,19 @@ test("⌘1–⌘9 count a collapsed group as one row, plus the tabs kept under i
   S().updateGroup(inner, { collapsed: false });
   assert.deepEqual(hosts(numberedTabs(S(), w)), ["a", "b", "c", "d", "e"], "expanded groups number every tab again");
 });
+
+test("a collapsed group's number reaches its hidden tab, not the other pane of a split kept under its header", () => {
+  reset();
+  const { w, ids } = windowWith("x", "a", "b", "c", "e");
+  const [x, a, b, c, e] = ids;
+  const group = S().groupTabs([a, b, c], { pinned: false, name: "G" });
+  S().createSplit([b, c]);
+  const now = Date.now();
+  for (const [id, at] of [[x, 1], [a, 2], [e, 3], [b, 4], [c, 5]]) S().updateTab(id, { lastActiveAt: now - 100 + at });
+  S().activate(b);
+  S().updateGroup(group, { collapsed: true });
+  const numbered = hosts(numberedTabs(S(), w));
+  assert.equal(numbered.length, 4, "x, the group header, the kept split row, e");
+  assert.equal(numbered[1], "a", "the header's number opens the hidden tab, not c of the visible split");
+  assert.equal(numbered[2], "b", "the kept split row's number opens the pane on screen");
+});

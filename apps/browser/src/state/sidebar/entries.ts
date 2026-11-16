@@ -88,9 +88,11 @@ export function numberedTabs(s: BrowserState, windowId: string): string[] {
   const profileId = s.windows[windowId]?.profileId;
   const latest = (ids: string[]) => ids.reduce<string | undefined>((a, b) => (!a || s.tabs[b]!.lastActiveAt > s.tabs[a]!.lastActiveAt ? b : a), undefined);
   const collapsedGroup = (groupId: string): string[] => {
-    const kept = profileId ? keptEntries(s, windowId, profileId, groupId).flatMap(rowTab) : [];
+    const keptRows = profileId ? keptEntries(s, windowId, profileId, groupId) : [];
+    const kept = keptRows.flatMap(rowTab);
+    const onScreen = new Set(keptRows.flatMap((entry) => entryTabIds(s, entry)));
     const members = s.groups[groupId]!.tabIds.filter((id) => s.tabs[id]);
-    const header = latest(members.filter((id) => !kept.includes(id))) ?? latest(members);
+    const header = latest(members.filter((id) => !onScreen.has(id))) ?? latest(members);
     return header ? [header, ...kept] : kept;
   };
   const rowTab = (entry: string): string[] => {
@@ -145,6 +147,13 @@ export function showsExtraTabs(s: BrowserState, windowId: string, profileId: str
     const { kind, id } = parseEntry(entry);
     return kind === "group" && !!s.groups[id]?.collapsed && showsExtraTabs(s, windowId, profileId, id);
   });
+}
+
+function entryTabIds(s: BrowserState, entry: string): string[] {
+  const { kind, id } = parseEntry(entry);
+  if (kind === "group") return s.groups[id]?.tabIds ?? [];
+  if (kind === "split") return splitTabIdsOf(s.splits[id]) ?? [];
+  return [id];
 }
 
 export function holdsTab(s: BrowserState, entry: string, tabId: string): boolean {

@@ -208,9 +208,9 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "share":
       return void shareTab(page, windowId, arg?.startsWith("via:") ? arg.slice(4) : null);
     case "copyUrl":
-      return copySelectedTabUrls(s, windowId, false) || !page ? undefined : void copyPageUrl(page.id);
+      return (!targeted && copySelectedTabUrls(s, windowId, false)) || !page ? undefined : void copyPageUrl(page.id);
     case "copyUrlAsMarkdown":
-      if (copySelectedTabUrls(s, windowId, true) || !page) return;
+      if ((!targeted && copySelectedTabUrls(s, windowId, true)) || !page) return;
       noteUrlCopied(awaitsFirstPage(page.id));
       return copyText(markdownLink(page.customTitle || page.title, page.url));
     case "findInPage":
