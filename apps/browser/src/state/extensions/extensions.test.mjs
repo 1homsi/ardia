@@ -486,3 +486,33 @@ test("a private window's Extensions menu opens the store in that private window,
   openWebStore(priv);
   assert.deepEqual(S().windows[priv].tabIds.map((id) => S().tabs[id].url).slice(1), ["https://chromewebstore.google.com/category/extensions"]);
 });
+
+test("a panel closed with the X isn't kept running when a tab switch cuts its closing short", async () => {
+  const { w, a, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  const panelA = E().sidePanels[w];
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  const panelB = E().sidePanels[w];
+  S().activate(a);
+  void panels.syncSidePanel(w);
+  await answer(2, "chrome-extension://ext/panel.html?tabId=a");
+  assert.equal(panels.panelKept(w, panelB, panels.panelKey(panelA)), true, "B's panel keeps running while A shows");
+  panels.closeSidePanelOnTab(w);
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(3, "chrome-extension://ext/panel.html?tabId=b");
+  const shown = panels.panelKey(E().sidePanels[w]);
+  assert.equal(panels.panelKept(w, panelA, shown), false, "A's closed panel is dropped though its tab is still open");
+  assert.equal(panels.panelKept(w, panelB, shown), true);
+  S().activate(a);
+  await panels.syncSidePanel(w);
+  assert.equal(E().sidePanels[w].hidden, true, "A stays closed");
+  const reopened = panels.openSidePanel(w, "ext");
+  await answer(4, "chrome-extension://ext/panel.html?tabId=a");
+  await reopened;
+  assert.equal(panels.panelKept(w, panelA, panels.panelKey(E().sidePanels[w])), true, "opening it again on A brings it back");
+});

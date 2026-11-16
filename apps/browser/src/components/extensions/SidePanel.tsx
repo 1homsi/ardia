@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS } from "../../state/settings/settings";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelKept, panelKey, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 import { useResizeDrag } from "../sidebar/useResizeDrag";
@@ -19,9 +19,6 @@ import { useResizeDrag } from "../sidebar/useResizeDrag";
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 600;
 const HEADER = 40;
-
-const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
-const alive = (windowId: string, p: SidePanel, currentKey: string) => panelTabOpen(windowId, p.tabId) || panelKey(p) === currentKey;
 
 export function ExtensionSidePanel() {
   const windowId = useWindowId();
@@ -67,7 +64,7 @@ export function ExtensionSidePanel() {
     if (!panel) return;
     setShown(panel);
     setKept((k) => {
-      const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && alive(windowId, p, panelKey(panel)));
+      const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && panelKept(windowId, p, panelKey(panel)));
       const next = k.filter(keep);
       return next.some((p) => panelKey(p) === panelKey(panel)) ? next.map((p) => (panelKey(p) === panelKey(panel) ? panel : p)) : [...next, panel];
     });
@@ -77,7 +74,7 @@ export function ExtensionSidePanel() {
       useBrowser.subscribe((s, prev) => {
         if (s.tabs === prev.tabs) return;
         setKept((k) => {
-          const open = k.filter((p) => alive(windowId, p, shownKey.current));
+          const open = k.filter((p) => panelKept(windowId, p, shownKey.current));
           return open.length === k.length ? k : open;
         });
       }),

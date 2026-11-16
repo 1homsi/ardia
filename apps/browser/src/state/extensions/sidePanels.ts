@@ -168,3 +168,8 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
   if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile && now.opened === panel.opened && now.tabId === panel.tabId && !now.hidden) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
 }
+
+export const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
+
+export const panelKept = (windowId: string, p: SidePanel, shownKey: string) =>
+  panelKey(p) === shownKey || (panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId));
