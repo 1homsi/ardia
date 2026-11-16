@@ -399,4 +399,44 @@ class SyncControllerTest {
     }
 
     private fun withTimeoutBlocking(block: suspend () -> Unit) = runBlocking { withTimeout(10_000) { block() } }
+
+    @Test
+    fun aCycleSaysItIsRunningOnlyWhileTheDeviceSyncs() {
+        val h = launched()
+        val seen = ArrayList<Boolean>()
+        h.device.duringSync = { seen += h.controller.isCycleRunning }
+        assertFalse(h.controller.isCycleRunning)
+        runBlocking { h.controller.syncNow() }
+        assertEquals(listOf(true), seen)
+        assertFalse(h.controller.isCycleRunning)
+    }
+
+    @Test
+    fun aBackgroundCycleSaysItIsRunningToo() {
+        val h = launched()
+        val seen = ArrayList<Boolean>()
+        h.device.duringSync = { seen += h.controller.isCycleRunning }
+        runBlocking { h.controller.backgroundCycle() }
+        assertEquals(listOf(true), seen)
+        assertFalse(h.controller.isCycleRunning)
+    }
+
+    @Test
+    fun aCycleThatFailsStillEndsTheFlag() {
+        val h = launched()
+        h.device.duringSync = { throw IllegalStateException("the folder went away") }
+        runCatching { runBlocking { h.controller.syncNow() } }
+        assertFalse(h.controller.isCycleRunning)
+    }
+
+    @Test
+    fun aDeviceThatIsOffIsNeverCycling() {
+        val h = Harness(enabled = false)
+        val seen = ArrayList<Boolean>()
+        h.device.duringSync = { seen += h.controller.isCycleRunning }
+        h.controller.start()
+        runBlocking { h.controller.syncNow() }
+        assertTrue(seen.isEmpty())
+        assertFalse(h.controller.isCycleRunning)
+    }
 }

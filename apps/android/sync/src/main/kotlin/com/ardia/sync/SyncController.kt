@@ -105,6 +105,10 @@ class SyncController(
     private var inForeground = false
 
     @Volatile
+    var isCycleRunning: Boolean = false
+        private set
+
+    @Volatile
     private var ready: SyncDevice? = null
     private var made: SyncDevice? = null
     private val announced = HashSet<String>()
@@ -258,7 +262,7 @@ class SyncController(
     }
 
     suspend fun backgroundCycle(): Boolean = onSyncThread(onCancel = ::cancelCoordination) { current ->
-        val updated = current.backgroundCycle()
+        val updated = running { current.backgroundCycle() }
         announce(current.takeReceived())
         publish()
         updateBackground()
@@ -337,7 +341,7 @@ class SyncController(
         }
         val slow = timers.after(SLOW_CYCLE_MS) { showUpdating(token) }
         try {
-            current.syncNow()
+            running { current.syncNow() }
         } finally {
             slow.cancel()
             synchronized(lock) {
@@ -349,6 +353,15 @@ class SyncController(
         publish()
         if (current.isEnabled) rescheduleLoop() else stopLoop()
         updateBackground()
+    }
+
+    private inline fun <T> running(work: () -> T): T {
+        isCycleRunning = true
+        try {
+            return work()
+        } finally {
+            isCycleRunning = false
+        }
     }
 
     private fun requestCycle() {

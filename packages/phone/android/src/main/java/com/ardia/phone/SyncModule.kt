@@ -153,6 +153,8 @@ class SyncModule : Module() {
 
         AsyncFunction("syncNow") Coroutine { -> controller.syncNow() }
 
+        AsyncFunction("isCycleRunning") { -> controller.isCycleRunning }
+
         AsyncFunction("setDeviceName") { name: String -> controller.setDeviceName(name) }
 
         AsyncFunction("selectProfile") { profileSyncId: String? -> controller.selectProfile(profileSyncId) }
