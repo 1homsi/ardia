@@ -1080,7 +1080,8 @@ public static class ArdiaSnapKeys {
     Send-Chord @([byte]0x11) ([byte]0x57)
     if (-not $ready) { return @("snap keys (pop-up page): the keyboard was not in the pop-up's page after a click there") }
     $failures = @()
-    if ($was -ne $now) { $failures += "snap keys (pop-up page): Win+Up moved the pop-up window from $was to $now" }
+    if (-not $before -or -not $after) { $failures += "snap keys (pop-up page): the pop-up window's position could not be read before and after Win+Up (before $was, after $now)" }
+    elseif ($was -ne $now) { $failures += "snap keys (pop-up page): Win+Up moved the pop-up window from $was to $now" }
     if (-not ($kept -and $reached)) { $failures += "snap keys (pop-up page): after Win+Up the pop-up's page lost the keyboard (the foreground window is $(Get-SnapDescription $front); typing reached it: $reached)" }
     return $failures
   }
