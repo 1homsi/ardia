@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { answerRequest, dismissPress, pressAction } from "../../state/page/actions";
 import { usePageRequest, usePress } from "../../state/page/hooks";
 import { confirmAnswer, pressHeading, pressMenuGroups, PRESS_TITLES, requestPlan, type PressAction, type Request, type RequestChoice } from "../../state/page/pagePrompts";
+import { presentSystemRequest } from "./systemRequest";
 import { dialogLayout, Dialog, font, Menu, radius, space, Symbol, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 export function PageRequestHost({ tabId }: { tabId: string }) {
@@ -20,8 +21,9 @@ function RequestDialog({ tabId, request }: { tabId: string; request: Request }) 
   const [password, setPassword] = useState("");
   useEffect(() => {
     if (plan.kind === "answer") answerRequest(tabId, request, plan.answer);
+    else if (SYSTEM_DIALOGS) presentSystemRequest(request, plan.dialog, (answer) => answerRequest(tabId, request, answer));
   }, []);
-  if (plan.kind === "answer") return null;
+  if (plan.kind === "answer" || SYSTEM_DIALOGS) return null;
   const dialog = plan.dialog;
   const dismiss = () => answerRequest(tabId, request, { type: "dismiss" });
   const confirm = () => answerRequest(tabId, request, confirmAnswer(request, text, user, password));
@@ -73,6 +75,8 @@ function RequestDialog({ tabId, request }: { tabId: string; request: Request }) 
     </Dialog>
   );
 }
+
+const SYSTEM_DIALOGS = Platform.OS === "ios";
 
 const CHOICE_ICONS: Record<RequestChoice["icon"], SymbolName> = { camera: "camera", video: "video", folder: "folderFill" };
 

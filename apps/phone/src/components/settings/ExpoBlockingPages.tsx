@@ -325,7 +325,7 @@ export function ExpoMyFiltersPage() {
   };
   return (
     <Toolbar>
-      <VStack spacing={0} modifiers={modifierList(navigationTitle("My Filters"), navigationBarTitleDisplayMode("inline"), navigationBarBackButtonHidden(changed), tint(BLUE))}>
+      <VStack spacing={0} modifiers={modifierList(navigationTitle("My Filters"), navigationBarTitleDisplayMode("inline"), navigationBarBackButtonHidden(changed), tint(BLUE), settingsChrome())}>
         <ZStack alignment="topLeading">
           <FilterTextEditor text={text} onTextChange={setDraft} />
           {text ? null : (
@@ -344,7 +344,7 @@ export function ExpoMyFiltersPage() {
             <Button label="Revert" onPress={() => setDraft(null)} />
           </ToolbarItem>
         ) : null}
-        <ToolbarItem placement="confirmationAction">{applying ? <ProgressView /> : <Button label="Apply" onPress={() => void apply()} modifiers={[disabled(!changed)]} />}</ToolbarItem>
+        <ToolbarItem placement="confirmationAction">{applying ? <ProgressView /> : <Button label="Apply" onPress={() => void apply()} modifiers={[buttonStyle("glassProminent"), disabled(!changed)]} />}</ToolbarItem>
       </Toolbar.Content>
     </Toolbar>
   );

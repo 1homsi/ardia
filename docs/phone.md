@@ -1339,7 +1339,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Page | Private | match | Same page and bar with the Incognito glasses | |
 | Page | Loading | match | Main's centred placeholder (44 pt icon, 17 pt semibold title, host), its theme-colour and title rules, 250 ms wait then 150 ms fade | |
 | Page | Failure | match | Main's filled Try Again capsule, 50 pt, and the icon at main's size | |
-| Page | Page dialogs | different | Main shows the system alert (glass, a full-width OK capsule); ours draws a JavaScript `Dialog` (PageRequests.tsx) like the old card with a blue OK on the right. React Native's `Alert.alert` and `Alert.prompt` are UIAlertController and get the system look (`s-e-light`/`s-m-light`/dialog-alert) | screens |
+| Page | Page dialogs | match | On iPhone a page's alert, confirm, prompt and sign-in are the system's own (`Alert.alert`, `Alert.prompt` with plain-text or login-password) and a file input's choices the system action sheet, as main's are: the glass alert with a full-width OK capsule, seen on the simulator (`dialogs/`). Android keeps the drawn dialog | |
 | Page | Collapsed bar (host pill) | match | Main's glass host pill on scroll down, tap or scroll up to expand, 3fa565c4f | |
 | Page | Tabs button menu | match | Main's BarControls: up to eight recent tabs, a divider, Close Tab; Previous and Next Tab are its VoiceOver actions, not menu items. Ours is the system menu with the same items | |
 | Page | Find on Page | match by decision | The system find navigator by default since ec6f9bc52 | |
@@ -1363,7 +1363,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Settings | Site Settings | match | Permissions persist (942dc45df); the permission rows carry main's 22 pt favicons, d09343dba | |
 | Settings | Trusted Sites | match | Empty state the same | |
 | Settings | Filter Lists | match | The demo now uses main's demo lists (`FilterLists.demo`, as main's AppModel does): a fresh demo install shows 11 lists and 271,481 rules at once, no downloads. Neither app bundles list files: a real install downloads them, and the built-in seed rules block from the first page, network or not (`PhoneBlockingTests`); on the simulator 46 requests were blocked within 5 s of a fresh launch | |
-| Settings | My Filters | different | Same editor and footer; main's top bar is drawn in the space's colour and its Apply is a filled glass capsule, ours a white bar and a pale Apply (`pairs3`, `pairs4`) | screens |
+| Settings | My Filters | match | Same editor and footer; the page now takes the settings chrome (the bar in the space's colour) and Apply is the prominent glass capsule, as main's `role: .confirm` draws it, seen on the simulator (`dialogs/ours-myfilters.png`) | |
 | Settings | About | match | The app icon since 042a23ace (main's asset catalog); the version reads "Ardia Dev (1)", as current main's AppVersionLabel does for a build without a release version (the reference SwiftUI build predates it) | |
 | Settings | Licenses | match | | |
 | Settings | Connect pages | match | The connect flow worked end to end on 2026-11-16 | |
