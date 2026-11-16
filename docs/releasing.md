@@ -360,10 +360,17 @@ UUID. The framework itself is already stripped, so strip-engine.sh's copies in `
 "Chromium Framework + 0x2e2334" is named with `scripts/symbolicate-crash.sh <Chromium Framework UUID> 0x2e2334 …`: it
 finds the engine release whose rows hold that UUID, downloads that dSYM into `dist/engine-symbols` and runs
 `atos -arch arm64 -l 0x0` on the offsets. Engines published before the symbols were uploaded have none: the next build
-overwrites `out/`'s dSYMs. To backfill one, rebuild its engine key, and if the framework comes back with the published
-UUID, run `scripts/lib/pack-symbols.sh <framework> <its dSYM dir> <archive> <uuids file>` and upload both with
-`gh release upload engine-<tree:12> --clobber`, under the names `engine_symbols_name` and `engine_uuids_name` give in
-`scripts/lib/releases.sh`.
+overwrites `out/`'s dSYMs. To backfill one, rebuild its engine key; if the framework comes back with the published UUID,
+copy the framework and its dSYMs out of `out/` under the lock and upload the pair under the exact names
+`symbolicate-crash.sh` downloads (`key` is the release tag without `engine-`):
+
+```sh
+key=<tree:12> dir="dist/engine-$key-backfill" release_out="$HOME/chromium-build/chromium_git/chromium/src/out/Release_GN_arm64"
+mkdir -p "$dir/dsyms"
+scripts/agent/locked chromium -- bash -c 'cp -cR "$1/Chromium Framework.framework" "$2/" && cp -cR "$1"/*.dSYM "$2/dsyms/"' copy "$release_out" "$dir"
+scripts/lib/pack-symbols.sh "$dir/Chromium Framework.framework" "$dir/dsyms" "$dir/ArdiaCore-$key-symbols.tar.xz" "$dir/ArdiaCore-$key-uuids.txt"
+gh release upload "engine-$key" -R mantrakp04/ardia --clobber "$dir/ArdiaCore-$key-symbols.tar.xz" "$dir/ArdiaCore-$key-uuids.txt"
+```
 
 ## The engine switch (0.2.21 → 0.2.22)
 

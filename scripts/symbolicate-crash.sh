@@ -8,8 +8,9 @@
 # The UUID and the offsets are what the crash records for the image: "Chromium Framework + 0x2e2334" is the offset
 # 0x2e2334, and a leading + is accepted. scripts/publish-engine.sh uploads ArdiaCore-<tree:12>-uuids.txt (one
 # "<uuid> <arch> <DWARF file>" row per image) and ArdiaCore-<tree:12>-symbols.tar.xz (the build's dSYMs) to each
-# engine-<tree:12> prerelease; the releases are searched newest first, or --tag names one. Downloads are kept in --cache
-# (default dist/engine-symbols). Prints "<offset> <frame>" per offset and warns about any atos could not name.
+# engine-<tree:12> prerelease; every release is searched newest first, or --tag names one. Each run downloads into its
+# own folder and moves only the image it checked into --cache (default dist/engine-symbols), so runs can share a
+# cache. Prints "<offset> <frame>" per offset and warns about any atos could not name.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -45,43 +46,61 @@ done
 image_row() { awk -F '\t' -v u="$uuid" '$1 == u { print; exit }' "$1"; }
 image_uuid() { dwarfdump --uuid "$1" | awk -v a="($2)" '/^UUID: / && $3 == a { print tolower($2); exit }'; }
 
-row=""
-if [ -n "$tag" ]; then
-  candidates="$tag"
-else
-  candidates="$(gh release list -R "$REPO" --limit 500 --json tagName -q '.[].tagName')" \
-    || die "couldn't list $REPO's releases: is gh signed in?"
-  candidates="$(grep '^engine-' <<<"$candidates" || true)"
-  [ -n "$candidates" ] || die "$REPO has no engine-* releases"
-fi
-while IFS= read -r candidate; do
-  sidecar="$cache/$candidate/$(engine_uuids_name "$candidate")"
+mkdir -p "$cache"
+run="$(mktemp -d "$cache/.run.XXXXXX")"
+trap 'rm -rf "$run"' EXIT
+
+lists_image() {
+  local candidate="$1" name sidecar
+  name="$(engine_uuids_name "$candidate")"
+  sidecar="$cache/$candidate/$name"
   if [ ! -f "$sidecar" ]; then
-    mkdir -p "$cache/$candidate"
-    gh release download "$candidate" -R "$REPO" -p "$(engine_uuids_name "$candidate")" -D "$cache/$candidate" --clobber >/dev/null 2>&1 \
-      || { [ -z "$tag" ] || die "$candidate has no $(engine_uuids_name "$candidate"): its symbols weren't published"; continue; }
+    mkdir -p "$run/$candidate" "$cache/$candidate"
+    gh release download "$candidate" -R "$REPO" -p "$name" -D "$run/$candidate" >/dev/null 2>&1 || return 2
+    mv -f "$run/$candidate/$name" "$sidecar"
   fi
   row="$(image_row "$sidecar")"
-  if [ -n "$row" ]; then
-    tag="$candidate"
-    break
-  fi
-  [ "$candidate" != "${tag:-}" ] || die "$candidate's symbols don't list the image $uuid"
-done <<<"$candidates"
+  [ -n "$row" ]
+}
+
+row=""
+if [ -n "$tag" ]; then
+  status=0
+  lists_image "$tag" || status=$?
+  [ "$status" != 2 ] || die "$tag has no $(engine_uuids_name "$tag"): its symbols weren't published"
+  [ "$status" = 0 ] || die "$tag's symbols don't list the image $uuid"
+else
+  page=1 engines=0
+  while [ -z "$row" ]; do
+    releases="$(gh api "repos/$REPO/releases?per_page=100&page=$page" --jq '.[] | [.tag_name, ([.assets[].name] | join(" "))] | @tsv')" \
+      || die "couldn't list $REPO's releases: is gh signed in?"
+    [ -n "$releases" ] || break
+    while IFS=$'\t' read -r candidate assets; do
+      [[ "$candidate" == engine-* ]] || continue
+      engines=$((engines + 1))
+      [[ " $assets " == *" $(engine_uuids_name "$candidate") "* ]] || continue
+      if lists_image "$candidate"; then
+        tag="$candidate"
+        break
+      fi
+    done <<<"$releases"
+    page=$((page + 1))
+  done
+  [ "$engines" -gt 0 ] || die "$REPO has no engine-* releases"
+fi
 [ -n "$row" ] || die "no engine release lists the image $uuid: its symbols weren't published (releases before the symbols were uploaded have none)"
 
 IFS=$'\t' read -r _ arch rel <<<"$row"
-dir="$cache/$tag"
-binary="$dir/symbols/$rel"
+binary="$cache/$tag/symbols/$rel"
 if [ "$(image_uuid "$binary" "$arch" 2>/dev/null || true)" != "$uuid" ]; then
-  archive="$dir/$(engine_symbols_name "$tag")"
-  gh release download "$tag" -R "$REPO" -p "$(engine_symbols_name "$tag")" -D "$dir" --clobber \
-    || die "couldn't download $(engine_symbols_name "$tag") from $tag"
-  mkdir -p "$dir/symbols"
-  tar -xJf "$archive" -C "$dir/symbols" "$rel" || die "couldn't unpack $rel from $(engine_symbols_name "$tag")"
-  rm -f "$archive"
-  found="$(image_uuid "$binary" "$arch")"
+  name="$(engine_symbols_name "$tag")"
+  mkdir -p "$run/$tag/symbols"
+  gh release download "$tag" -R "$REPO" -p "$name" -D "$run/$tag" || die "couldn't download $name from $tag"
+  tar -xJf "$run/$tag/$name" -C "$run/$tag/symbols" "$rel" || die "couldn't unpack $rel from $name"
+  found="$(image_uuid "$run/$tag/symbols/$rel" "$arch" || true)"
   [ "$found" = "$uuid" ] || die "$rel in $tag has UUID ${found:-none}, not $uuid"
+  mkdir -p "$(dirname "$binary")"
+  mv -f "$run/$tag/symbols/$rel" "$binary"
 fi
 
 echo "$rel ($uuid, $arch) from $tag" >&2

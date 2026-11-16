@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { after, before, test } from "node:test";
@@ -17,7 +17,11 @@ const stubs = {
   gh: `#!/usr/bin/env bash
 echo "gh $*" >>"$STUB_LOG"
 case "$1 $2" in
-  "release list") cat "$STUB_RELEASES" ;;
+  "api repos/"*)
+    page="\${2##*page=}"
+    [ "$3" = "--jq" ] || { echo "expected --jq" >&2; exit 2; }
+    jq -r "$4" "$STUB_RELEASES/page-$page.json" 2>/dev/null || echo "[]" | jq -r "$4"
+    ;;
   "release download")
     tag="$3"; shift 3
     pattern="" dir=""
@@ -26,7 +30,10 @@ case "$1 $2" in
       shift
     done
     [ -f "$STUB_ASSETS/$tag/$pattern" ] || { echo "release asset not found" >&2; exit 1; }
-    cp "$STUB_ASSETS/$tag/$pattern" "$dir/"
+    [ -z "\${STUB_SLOW:-}" ] || perl -e 'select(undef, undef, undef, $ENV{STUB_SLOW})'
+    cp "$STUB_ASSETS/$tag/$pattern" "$dir/$pattern.part"
+    [ -z "\${STUB_SLOW:-}" ] || perl -e 'select(undef, undef, undef, $ENV{STUB_SLOW})'
+    mv "$dir/$pattern.part" "$dir/$pattern"
     ;;
   *) echo "unexpected: gh $*" >&2; exit 2 ;;
 esac
@@ -106,10 +113,12 @@ before(() => {
     PATH: `${bin}:${process.env.PATH}`,
     STUB_LOG: join(work, "stub.log"),
     STUB_ASSETS: assets,
-    STUB_RELEASES: join(work, "releases.txt"),
+    STUB_RELEASES: join(work, "releases"),
   };
   writeFileSync(env.STUB_LOG, "");
-  writeFileSync(env.STUB_RELEASES, ["engine-bbbbbbbbbbbb", "v0.2.43", "engine-cccccccccccc", "engine-aaaaaaaaaaaa", ""].join("\n"));
+  mkdirSync(env.STUB_RELEASES);
+  const release = (tag) => ({ tag_name: tag, assets: (existsSync(join(assets, tag)) ? readdirSync(join(assets, tag)) : []).map((name) => ({ name })) });
+  const apps = (from, count) => Array.from({ length: count }, (_, i) => `v0.${from + i}.0-nightly.1`);
   publish("engine-bbbbbbbbbbbb", { "Chromium Framework": NEWER_UUID });
   publish("engine-aaaaaaaaaaaa", {
     "Chromium Framework": FRAMEWORK_UUID,
@@ -118,6 +127,12 @@ before(() => {
   });
   const mismatched = publish("engine-dddddddddddd", { "Chromium Framework": "dddddddd-dddd-dddd-dddd-dddddddddddd" });
   cpSync(join(assets, "engine-aaaaaaaaaaaa/ArdiaCore-aaaaaaaaaaaa-symbols.tar.xz"), join(mismatched, "ArdiaCore-dddddddddddd-symbols.tar.xz"));
+  const pages = [
+    ["engine-bbbbbbbbbbbb", "v0.2.43", "engine-cccccccccccc", ...apps(0, 97)],
+    apps(100, 100),
+    [...apps(200, 99), "engine-aaaaaaaaaaaa"],
+  ];
+  pages.forEach((tags, i) => writeFileSync(join(env.STUB_RELEASES, `page-${i + 1}.json`), JSON.stringify(tags.map(release))));
 });
 
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -155,7 +170,7 @@ test("pack-symbols refuses a framework whose own dSYM is missing or from another
   assert.match(nothing.stderr, /no framework at/);
 });
 
-test("a crash's image UUID and offsets resolve through the engine release that holds them", () => {
+test("a crash's image UUID and offsets resolve through the engine release that holds them, past the first pages of releases", () => {
   const result = run(symbolicate, ["--cache", cache, FRAMEWORK_UUID.toUpperCase(), "0x2e2334", "+0x3cae9d8"]);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(
@@ -166,6 +181,9 @@ test("a crash's image UUID and offsets resolve through the engine release that h
   const log = readFileSync(env.STUB_LOG, "utf8");
   assert.ok(log.includes(`atos -arch arm64 -o ${join(cache, "engine-aaaaaaaaaaaa/symbols", FRAMEWORK_DWARF)} -l 0x0 0x2e2334 0x3cae9d8\n`), log);
   assert.equal(downloads("-symbols.tar.xz").length, 1);
+  assert.deepEqual(downloads("-uuids.txt").map((line) => line.split(" ")[3]), ["engine-bbbbbbbbbbbb", "engine-aaaaaaaaaaaa"]);
+  assert.deepEqual(readFileSync(env.STUB_LOG, "utf8").match(/&page=\d+/g), ["&page=1", "&page=2", "&page=3"]);
+  assert.deepEqual(readdirSync(cache).filter((name) => name.startsWith(".run")), []);
 });
 
 test("a second run reuses the downloaded symbols, and finds other images of the same engine", () => {
@@ -180,13 +198,38 @@ test("a second run reuses the downloaded symbols, and finds other images of the 
   assert.equal(downloads("-symbols.tar.xz").length, before + 1);
 });
 
+const runAsync = (args, extra) =>
+  new Promise((resolve) => {
+    const child = spawn(symbolicate, args, { env: { ...env, ...extra } });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
+    child.on("close", (status) => resolve({ status, stdout, stderr }));
+  });
+
+test("concurrent runs on one cache each download and unpack their own copy", async () => {
+  const shared = join(work, "cache-concurrent");
+  const helper = "99999999-8888-7777-6666-555555555555";
+  const results = await Promise.all(
+    [FRAMEWORK_UUID, LIBRARY_UUID, helper, FRAMEWORK_UUID].map((id) => runAsync(["--tag", "engine-aaaaaaaaaaaa", "--cache", shared, id, "0x10"], { STUB_SLOW: "0.3" })),
+  );
+  for (const result of results) assert.equal(result.status, 0, result.stderr);
+  assert.match(results[1].stderr, /libfoo\.dylib/);
+  assert.match(results[2].stderr, /chrome_crashpad_handler/);
+  for (const rel of ["Chromium Framework", "Libraries/libfoo.dylib", "Helpers/chrome_crashpad_handler"]) {
+    assert.ok(existsSync(join(shared, "engine-aaaaaaaaaaaa/symbols", dwarfOf(rel))), rel);
+  }
+  assert.deepEqual(readdirSync(shared).filter((name) => name.startsWith(".run")), []);
+  assert.deepEqual(readdirSync(join(shared, "engine-aaaaaaaaaaaa")).sort(), ["ArdiaCore-aaaaaaaaaaaa-uuids.txt", "symbols"]);
+});
+
 test("--tag goes straight to one engine release", () => {
   const cold = join(work, "cache-tag");
   const logged = readFileSync(env.STUB_LOG, "utf8").length;
   const result = run(symbolicate, ["--tag", "engine-bbbbbbbbbbbb", "--cache", cold, NEWER_UUID, "0x54cc"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stderr, /from engine-bbbbbbbbbbbb/);
-  assert.doesNotMatch(readFileSync(env.STUB_LOG, "utf8").slice(logged), /release list/);
+  assert.doesNotMatch(readFileSync(env.STUB_LOG, "utf8").slice(logged), /gh api/);
 
   const wrong = run(symbolicate, ["--tag", "engine-bbbbbbbbbbbb", "--cache", cold, FRAMEWORK_UUID, "0x54cc"]);
   assert.notEqual(wrong.status, 0);
