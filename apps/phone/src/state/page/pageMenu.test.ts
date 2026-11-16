@@ -240,3 +240,9 @@ test("the reader's lead image takes the picture's real shape, capped so a tall o
   assert.equal(leadImageAspect(1, 1, 0.75), null);
   assert.equal(leadImageAspect(0, 400, 0.75), null);
 });
+
+test("Open in Default Browser is offered only when the system lets Ardia ask and Ardia isn't the default, as main shows it whenever it isn't", () => {
+  assert.equal(menuModel(input({ isDefaultBrowser: false, canOfferDefaultBrowser: true })).offersDefaultBrowser, true);
+  assert.equal(menuModel(input({ isDefaultBrowser: true, canOfferDefaultBrowser: true })).offersDefaultBrowser, false);
+  assert.equal(menuModel(input({ isDefaultBrowser: false, canOfferDefaultBrowser: false })).offersDefaultBrowser, false);
+});

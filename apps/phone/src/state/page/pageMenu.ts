@@ -16,6 +16,7 @@ export type MenuInput = {
   blockersEnabled: boolean;
   blockedRequests: number;
   isDefaultBrowser?: boolean;
+  canOfferDefaultBrowser?: boolean;
 };
 
 export type MenuModel = {
@@ -71,7 +72,7 @@ export function menuModel(input: MenuInput): MenuModel {
     desktopSite: input.isDesktopSite,
     blockersEnabled: input.blockersEnabled,
     blockedCount: input.blockersEnabled && input.blockedRequests > 0 ? grouped(input.blockedRequests) : null,
-    offersDefaultBrowser: !input.isDefaultBrowser,
+    offersDefaultBrowser: (input.canOfferDefaultBrowser ?? true) && !input.isDefaultBrowser,
   };
 }
 

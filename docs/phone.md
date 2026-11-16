@@ -1333,7 +1333,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Page | Collapsed bar (host pill) | missing | Expo's bar slides away instead | screens |
 | Page | Tabs button menu | match | Main's BarControls: up to eight recent tabs, a divider, Close Tab; Previous and Next Tab are its VoiceOver actions, not menu items. Ours is the system menu with the same items | |
 | Page | Find on Page | match by decision | The system find navigator by default since ec6f9bc52 | |
-| Page menu | Rows and groups | different | The sheet now reaches the safe top as main's large detent does, and rows land at main's places; left: main's Open in Default Browser row after Site Settings, and our tile glyphs drawn a little smaller | screens |
+| Page menu | Rows and groups | match | The sheet now reaches the safe top as main's large detent does, and rows land at main's places; the action glyphs are main's size; Open in Default Browser shows, as main's does, only when Ardia can ask to be the default and isn't (hidden in builds without the entitlement) | |
 | Page menu | History, Bookmarks, Downloads rows | match | Main's group after Find, Send and Print, opening the Library sheet | |
 | Reader | Article | match | | |
 | Reader | Top buttons | match | Main's glass circle (textformat.size, label colour) and glass Done capsule, 16 pt from each side; the lead image's 12 pt corners | |

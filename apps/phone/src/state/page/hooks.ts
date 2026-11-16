@@ -1,3 +1,4 @@
+import { offersDefaultBrowser } from "../settings/settingsRules";
 import { usePages } from "../pages/store";
 import { useDarkScheme } from "../settings/appearance";
 import { usePreferences } from "../settings/store";
@@ -28,7 +29,8 @@ export function useMenuModel(id: string): MenuModel {
   const tabUrl = useTabs((s) => s.open.find((t) => t.id === id)?.url ?? s.privates.find((t) => t.id === id)?.url ?? "");
   const site = usePageUi((s) => s.menuSite);
   const levels = usePageUi((s) => s.zoomLevels);
-  const isDefault = useDefaultBrowser((s) => s.status?.isDefault ?? false);
+  const browserStatus = useDefaultBrowser((s) => s.status);
+  const isDefault = browserStatus?.isDefault ?? false;
   return menuModel({
     url: state?.url ?? tabUrl,
     hasPage: state !== null,
@@ -43,6 +45,7 @@ export function useMenuModel(id: string): MenuModel {
     blockersEnabled: site?.blockersEnabled ?? true,
     blockedRequests: state?.blockedRequests ?? 0,
     isDefaultBrowser: isDefault,
+    canOfferDefaultBrowser: offersDefaultBrowser(browserStatus),
   });
 }
 

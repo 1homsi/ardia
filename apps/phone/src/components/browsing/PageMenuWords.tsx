@@ -156,7 +156,7 @@ function ActionCapsule({ icon, label, enabled, onPress }: { icon: SymbolName; la
   return (
     <ChromeSurface testID={`pageMenuAction:${label}`} shape="capsule" cornerRadius={capsule(menuLayout.capsuleHeight)} style={styles.action}>
       <PressScale label={label} disabled={!enabled} onPress={onPress} grow pressedScale={pageMenuLayout.pressedScale} pressSpring={pageMenuMotion.press} style={styles.actionHit}>
-        <Symbol name={icon} size={19} color={enabled ? theme.label : theme.tertiaryLabel} />
+        <Symbol name={icon} size={pageMenuLayout.actionGlyph} color={enabled ? theme.label : theme.tertiaryLabel} />
       </PressScale>
     </ChromeSurface>
   );
