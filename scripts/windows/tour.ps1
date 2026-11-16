@@ -1068,7 +1068,16 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
         $stop.Facts.Add("no text box showed within 3 s; typed into whatever had focus")
       }
     }
-    Send-HumanText "example.com" $keyReads $KeyMs
+    $rested = $null
+    if ($Submit -eq "Go") {
+      Send-HumanText "e" $keyReads $KeyMs
+      $rested = @(Find-Named $Session.Main "Go") | Select-Object -First 1
+      if ($rested) { Send-MouseMove $rested.X $rested.Y }
+      $stop.Facts.Add("after the first letter, moved the mouse onto Go: $([bool]$rested)")
+      Send-HumanText "xample.com" $keyReads $KeyMs
+    } else {
+      Send-HumanText "example.com" $keyReads $KeyMs
+    }
     $settle = [System.Diagnostics.Stopwatch]::StartNew()
     $typed = Read-FocusedText
     $reads.Add("0ms '$typed'")
@@ -1208,7 +1217,7 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-go" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session
-    Invoke-TypeStop $session "human-go" "First run: the mouse resting on the bar, Ctrl+T after Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, moved the mouse onto the first tab's Go (the new tab's bar sits in the same place), pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, noted where Go was when the field settled, waited 2 s while the late suggestions came in and clicked there. Go has to stay put and open what the field says (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); $rest = @(Find-Named $session.Main "Go") | Select-Object -First 1; if ($rest) { Send-MouseMove $rest.X $rest.Y }; $stop.Facts.Add("mouse moved onto the first tab's Go: $([bool]$rest)") } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireLoaded | Out-Null
+    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, the mouse resting on the bar, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click, typed e 100 ms after it, moved the mouse onto Go (rows then grow above it, so the pointer stays over the bar), typed xample.com 30 ms a key, noted where Go was when the field settled, waited 2 s while the late suggestions came in and clicked there. Go has to stay put and open what the field says (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireLoaded | Out-Null
   }
 
   Invoke-FirstRunLaunch "faster-than-a-person" "" {
