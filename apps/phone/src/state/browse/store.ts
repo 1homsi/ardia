@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import { create } from "zustand";
 import { history } from "../history/store";
 import { HISTORY_RETENTION_MS } from "../history/historySummary";
@@ -45,9 +44,7 @@ import {
   updateTabById,
   useTabs,
 } from "../tabs/store";
-import { isLabBuild, labTrace } from "../../platform/lab";
-import { launchArguments } from "../app/launchFlags";
-import { launchTrayFrames } from "../../lib/launchTray";
+import { labTrace } from "../../platform/lab";
 import { pictureCaptured, pictureLanded } from "../tabs/pictures";
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
@@ -92,13 +89,7 @@ export function startBrowser(beforeOpening: () => void = () => undefined) {
   listenToPages(pageEvent);
   watchFrontScroll(frontPageId);
   if (!currentPreferences().hasFinishedOnboarding) showOnboarding();
-  else if (currentPreferences().autoOpensKeyboard) raiseLaunchTray();
-}
-
-function raiseLaunchTray() {
-  const raise = () => presentSearch("home", "", useTabs.getState().incognito);
-  if (launchTrayFrames(Platform.OS, isLabBuild, launchArguments().deferLaunchTray) === 0) return raise();
-  requestAnimationFrame(() => requestAnimationFrame(raise));
+  else if (currentPreferences().autoOpensKeyboard) presentSearch("home", "", useTabs.getState().incognito);
 }
 
 let appActive = true;
