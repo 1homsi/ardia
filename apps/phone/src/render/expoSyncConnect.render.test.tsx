@@ -59,3 +59,13 @@ onIos("on iPhone Connect to Your Mac is main's two steps on Expo UI; Enter Words
   expect(byLabel(connect(), "Change")).toBeTruthy();
   unmount(root);
 });
+
+onIos("on iPhone Scan Code presents the scanner as a full-screen cover over the Settings sheet, as main does, instead of pushing a page into the sheet", async () => {
+  openSettings({ page: "syncConnect" });
+  const root = renderSurface(<SettingsView />);
+  await act(async () => undefined);
+  const connect = () => destination(root, "syncConnect");
+  await press(byLabel(connect(), "Scan Code"));
+  expect(settingsNav().stack.at(-1)).toEqual({ page: "syncConnect" });
+  unmount(root);
+});

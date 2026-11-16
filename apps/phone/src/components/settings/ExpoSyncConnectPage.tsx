@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { PlatformColor, useWindowDimensions } from "react-native";
-import { Button, Form, HStack, Label, ProgressView, Section, Spacer, Text, VStack } from "@expo/ui/swift-ui";
+import { Modal, PlatformColor, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Button, Form, HStack, Label, ProgressView, RNHostView, Section, Spacer, Text, VStack, ZStack } from "@expo/ui/swift-ui";
 import { buttonBorderShape, buttonStyle, disabled, fixedSize, font, foregroundStyle, interactiveDismissDisabled, labelStyle, lineLimit, tint } from "@expo/ui/swift-ui/modifiers";
 import { copy } from "../../lib/platformCopy";
 import type { ConnectResult } from "../../platform/sync";
@@ -12,6 +12,7 @@ import { IDLE_CONNECT, type ConnectState } from "../../state/sync/connectSession
 import { canScanCodes } from "../../state/sync/scan";
 import { chooseFolderTitle, connectMessage, MAC_HINT } from "../../state/sync/syncRules";
 import { legibleInk, modifierList, settingsChrome, settingsPage, useTheme } from "../ui";
+import { SyncScan } from "../sync/SyncScan";
 import { ExpoHero, ExpoStep } from "./ExpoSettingsParts";
 
 const SECONDARY = { type: "hierarchical", style: "secondary" } as const;
@@ -36,6 +37,7 @@ export function ExpoSyncConnectPage() {
   const buttonsFit = window.width - STEP_CHROME >= PHRASE_BUTTONS_WIDTH * window.fontScale;
   const phrase = useConnectDraft((s) => s.phrase);
   const [scans] = useState(canScanCodes);
+  const [scanning, setScanning] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ConnectResult["result"] | null>(null);
@@ -79,6 +81,7 @@ export function ExpoSyncConnectPage() {
   const capsule = [buttonBorderShape("capsule"), labelStyle("titleAndIcon"), lineLimit(1), fixedSize({ horizontal: true, vertical: false })];
   const prominent = [buttonStyle("borderedProminent"), tint(theme.primaryAction), foregroundStyle(theme.onPrimaryAction)];
   return (
+    <ZStack>
     <Form modifiers={modifierList(settingsPage("Connect to Your Mac"), tint(PlatformColor("systemBlue")), settingsChrome(), interactiveDismissDisabled(busy))}>
       <ExpoHero title="Connect to Your Mac" subtitle="Two steps, and your Mac’s tabs are here." systemImage="macbook.and.iphone" tint="sync" />
       <Section title="Two Steps" footer={<Text>{copy().phraseStays}</Text>}>
@@ -91,7 +94,7 @@ export function ExpoSyncConnectPage() {
             </HStack>
           ) : (
             <PhraseButtons stacked={!buttonsFit}>
-              {scans ? <Button label="Scan Code" systemImage="qrcode.viewfinder" onPress={() => pushSettings({ page: "syncScan" })} modifiers={[...prominent, ...capsule]} /> : null}
+              {scans ? <Button label="Scan Code" systemImage="qrcode.viewfinder" onPress={() => setScanning(true)} modifiers={[...prominent, ...capsule]} /> : null}
               <Button label="Enter Words" systemImage="character.cursor.ibeam" onPress={() => pushSettings({ page: "syncWords" })} modifiers={[...(scans ? [buttonStyle("bordered")] : prominent), ...capsule]} />
             </PhraseButtons>
           )}
@@ -114,5 +117,29 @@ export function ExpoSyncConnectPage() {
         </ExpoStep>
       </Section>
     </Form>
+      <RNHostView matchContents>
+        <Modal visible={scanning} presentationStyle="fullScreen" animationType="slide" onRequestClose={() => setScanning(false)}>
+          <View style={styles.cover}>
+            <SyncScan
+              inline
+              onScan={(text) => {
+                haptics.success();
+                setConnectPhrase(text);
+                setScanning(false);
+              }}
+              onEnterWords={() => {
+                setScanning(false);
+                pushSettings({ page: "syncWords" });
+              }}
+              onCancel={() => setScanning(false)}
+            />
+          </View>
+        </Modal>
+      </RNHostView>
+    </ZStack>
   );
 }
+
+const styles = StyleSheet.create({
+  cover: { flex: 1 },
+});

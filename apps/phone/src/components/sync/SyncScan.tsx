@@ -11,9 +11,9 @@ import { capsule, CodeCamera, font, ink, Portal, scanInk, scanLayout, space, Sym
 
 const CAMERA_STOP_MS = 120;
 
-type Props = { onScan: (phrase: string) => void; onEnterWords: () => void; onCancel: () => void };
+type Props = { onScan: (phrase: string) => void; onEnterWords: () => void; onCancel: () => void; inline?: boolean };
 
-export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
+export function SyncScan({ onScan, onEnterWords, onCancel, inline = false }: Props) {
   const insets = useSafeAreaInsets();
   const [access, setAccess] = useState<CameraAccess | "checking">("checking");
   const [rejected, setRejected] = useState(false);
@@ -47,8 +47,7 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
       setRejected(true);
     }
   };
-  return (
-    <Portal>
+  const screen = (
       <View testID="syncScanner" style={styles.screen}>
         {access === "checking" ? <ActivityIndicator style={styles.center} color={ink.white} /> : null}
         {access === "granted" ? (
@@ -99,8 +98,8 @@ export function SyncScan({ onScan, onEnterWords, onCancel }: Props) {
           <Text style={[font.body, styles.white]}>Cancel</Text>
         </Pressable>
       </View>
-    </Portal>
   );
+  return inline ? screen : <Portal>{screen}</Portal>;
 }
 
 function FinderCorners() {
