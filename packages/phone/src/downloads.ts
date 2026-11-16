@@ -14,6 +14,7 @@ type DownloadsNative = {
   delete?(uri: string): Promise<boolean>;
   deleteAll?(): Promise<number>;
   preview?(uri: string): Promise<boolean>;
+  share?(uri: string): Promise<boolean>;
 };
 
 let loaded: DownloadsNative | undefined;
@@ -28,5 +29,6 @@ export const downloads = {
   delete: (uri: string): Promise<boolean> => native().delete?.(uri) ?? Promise.resolve(false),
   deleteAll: (): Promise<number> => native().deleteAll?.() ?? Promise.resolve(0),
   preview: (uri: string): Promise<boolean> => native().preview?.(uri) ?? Promise.resolve(false),
+  share: (uri: string): Promise<boolean> => native().share?.(uri) ?? native().open(uri),
   addListener: (listener: (event: DownloadEvent) => void): Subscription => native().addListener("onDownloadEvent", listener),
 };

@@ -57,5 +57,15 @@ class DownloadsModule : Module() {
                 false
             }
         }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("files") { -> DownloadedFiles.list(context) }
+
+        AsyncFunction("delete") { uri: String -> DownloadedFiles.delete(context, uri) }
+
+        AsyncFunction("deleteAll") { -> DownloadedFiles.deleteAll(context) }
+
+        AsyncFunction("preview") { uri: String -> DownloadedFiles.preview(context, uri) }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("share") { uri: String -> DownloadedFiles.share(context, uri) }.runOnQueue(Queues.MAIN)
     }
 }
