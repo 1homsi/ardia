@@ -1098,6 +1098,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     if ($Submit -eq "Go") {
       $aimedAt = @(Find-Named $Session.Main "Go") | Select-Object -First 1
       $holdMark = Get-LogCount $Session
+      if ($script:SuggestRelease) { New-Item -ItemType File -Force -Path $script:SuggestRelease | Out-Null }
       if ($aimedAt) {
         Start-Sleep -Milliseconds 3000
         $after = @(Find-Named $Session.Main "Go")
@@ -1168,12 +1169,16 @@ function Start-Hogs([string]$Folder) {
 $script:SuggestPort = 41793
 $script:LateQuery = "example.com"
 $script:LateRows = @("example.com tour one", "example.com tour two", "example.com tour three")
-$script:LateMs = 1500
+$script:LateMs = 500
+
+$script:SuggestRelease = $null
 
 function Start-SuggestServer([string]$Log) {
   Remove-Item -Force -ErrorAction SilentlyContinue $Log
-  return Start-Job -ArgumentList $script:SuggestPort, $script:LateQuery, $script:LateRows, $script:LateMs, $Log {
-    param($port, $lateQuery, $lateRows, $lateMs, $log)
+  $script:SuggestRelease = "$Log.release"
+  Remove-Item -Force -ErrorAction SilentlyContinue $script:SuggestRelease
+  return Start-Job -ArgumentList $script:SuggestPort, $script:LateQuery, $script:LateRows, $script:LateMs, $Log, $script:SuggestRelease {
+    param($port, $lateQuery, $lateRows, $lateMs, $log, $release)
     $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
     $listener.Start()
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
@@ -1189,6 +1194,8 @@ function Start-SuggestServer([string]$Log) {
         $asked = $clock.ElapsedMilliseconds
         $rows = @()
         if ($query -eq $lateQuery) {
+          $waited = [System.Diagnostics.Stopwatch]::StartNew()
+          while (-not (Test-Path -LiteralPath $release) -and $waited.ElapsedMilliseconds -lt 15000) { Start-Sleep -Milliseconds 50 }
           Start-Sleep -Milliseconds $lateMs
           $rows = $lateRows
         }
@@ -1226,6 +1233,8 @@ function Initialize-SuggestProfile([string]$Name) {
   if (-not $saved) { $saved = @{ version = 11 } }
   if ($saved["settings"] -isnot [System.Collections.IDictionary]) { $saved["settings"] = @{} }
   foreach ($entry in (Get-SuggestSettings).GetEnumerator()) { $saved["settings"][$entry.Key] = $entry.Value }
+  if ($saved["settingsMeta"] -isnot [System.Collections.IDictionary]) { $saved["settingsMeta"] = @{ chosen = @(); inferred = @() } }
+  $saved["settingsMeta"]["chosen"] = @(@($saved["settingsMeta"]["chosen"]) + @("searchEngine", "customSearchEngines") | Where-Object { $_ } | Select-Object -Unique)
   Set-Content -LiteralPath $path -Value ($saved | ConvertTo-Json -Depth 64 -Compress) -Encoding utf8NoBOM
   return "the tour search engine written into $how"
 }
@@ -1300,7 +1309,7 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-go" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session
-    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, the mouse resting on the bar, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click, typed e 100 ms after it, moved the mouse onto Go (rows then grow above it, so the pointer stays over the bar), typed xample.com 30 ms a key, noted where Go was when the field settled, waited 3 s while the late suggestions came in and clicked there. The profile's default search engine is a custom one whose suggest URL is the tour's own loopback server: it answers every request at once with no rows, except example.com, which gets three rows after $($script:LateMs) ms, so the late rows always come after the mouse rests and Go's position is noted. Required: the first key lands, the bar held the late rows under the pointer, Go stayed put and Go opened Example Domain (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireGoHold | Out-Null
+    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, the mouse resting on the bar, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click, typed e 100 ms after it, moved the mouse onto Go (rows then grow above it, so the pointer stays over the bar), typed xample.com 30 ms a key, noted where Go was when the field settled, waited 3 s while the late suggestions came in and clicked there. The profile's default search engine is a custom one whose suggest URL is the tour's own loopback server: it answers every request at once with no rows, except example.com, which it answers with three rows only once the stop has noted Go's position and taken its log mark, then $($script:LateMs) ms later, so the late rows always come after the mouse rests and the measurement starts. Required: the first key lands, the bar held the late rows under the pointer, Go stayed put and Go opened Example Domain (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireGoHold | Out-Null
   } -OwnSuggestions
   } finally {
     $suggestServer | Stop-Job -ErrorAction SilentlyContinue
