@@ -548,12 +548,13 @@ is plain Chromium.
   app window is no longer in front; arrows the hook saw go down are forgotten at the next Windows key press once they
   are physically up. When the sent key's up arrives, 500 ms later the app asks the window's Peek page, or else its
   shown tab, to follow (`snapKeyHandedBack` to `followHandedBack`, the rule above), unless the window is minimized,
-  lost the foreground or another key came first. Win+Z leaves the keyboard in the app window, for the snap layouts. A
-  background instance only logs it. Unlike a native press, it acts on the arrow's key-up, a held arrow doesn't repeat,
-  and the page sees one blur and focus. Every other Windows key chord (Win+V, Win+., Win+H) is left alone and the page
-  keeps the keyboard. The launch log counts the keys sent and handed back ("snap keys: … so far"); the launch check's
-  snap pass presses each key with the sidebar and then a page focused, and a page field keeps the keyboard through
-  Win+V and Win+. and Escape.
+  lost the foreground or another key came first. After Win+Left or Win+Right the shell's Snap Assist takes the
+  foreground, so the keyboard then stays in the app window. Win+Z leaves the keyboard in the app window, for the snap
+  layouts. A background instance only logs it. Unlike a native press, it acts on the arrow's key-up, a held arrow
+  doesn't repeat, and the page sees one blur and focus. Every other Windows key chord (Win+V, Win+., Win+H) is left
+  alone and the page keeps the keyboard. The launch log counts the keys sent and handed back ("snap keys: … so far");
+  the launch check's snap pass presses each key with the sidebar and then a page focused, then Win+Up from a page with
+  the Windows key still held, and a page field keeps the keyboard through Win+V and Win+. and Escape.
 - Find in page is the app's bar, as on the Mac. Ctrl+F in a page reaches the app's `findInPage` through `MenuKeyboard`'s
   thread keyboard hook, which sees keys meant for the page windows (the hosted windows have no Chromium shortcuts), so
   Chromium's own find bar never shows. React Native for Windows fires both `onKeyDown` and `onSubmitEditing` for one

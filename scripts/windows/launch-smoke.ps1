@@ -959,6 +959,31 @@ public static class ArdiaSnapKeys {
     return $failures
   }
 
+  function Test-SnapKeyWithWindowsHeld([System.Diagnostics.Process]$Process) {
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) { return @("snap keys (page, Windows key held): the window never showed") }
+    $work = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    Set-SnapHome $handle $work
+    Set-SnapFocus $Process "page"
+    $foreground = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
+    if (-not (Test-SnapFocusHeld $handle "page")) { return @("snap keys (page, Windows key held): the keyboard was not in the page after a click; the foreground window was $foreground") }
+    [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 80
+    [ArdiaInput]::keybd_event(0x26, 0, 1, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+    [ArdiaInput]::keybd_event(0x26, 0, 3, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 900
+    $zoomedHeld = [ArdiaInput]::IsZoomed($handle)
+    [ArdiaInput]::keybd_event(0x5B, 0, 3, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 1200
+    $zoomed = [ArdiaInput]::IsZoomed($handle)
+    $held = Test-SnapFocusHeld $handle "page"
+    Write-Host "Snap keys (page, Windows key held): Win+Up with the Windows key held 900 ms past the arrow, foreground window $foreground; maximized while held $zoomedHeld, after $zoomed; the keyboard back in the page: $held."
+    Set-SnapHome $handle $work
+    if (-not $zoomed) { return @("snap keys (page, Windows key held): Win+Up with the Windows key still held did not maximize the window") }
+    return @()
+  }
+
   function Send-WindowsChord([byte]$Key) {
     [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 80
@@ -1013,6 +1038,7 @@ public static class ArdiaSnapKeys {
       $snapApp.Refresh()
       Test-SnapKeys $snapApp "sidebar" | ForEach-Object { $failures += $_ }
       Test-SnapKeys $snapApp "page" | ForEach-Object { $failures += $_ }
+      Test-SnapKeyWithWindowsHeld $snapApp | ForEach-Object { $failures += $_ }
       if (Test-Path $snapLog) { Select-String -Path $snapLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log: $($_.Line)" } }
     }
   } finally {
