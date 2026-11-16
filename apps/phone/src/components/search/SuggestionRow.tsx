@@ -1,9 +1,20 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
+import type { Design } from "../../lib/design";
 import { browseLayout, Favicon, font, radius, screenReaderActions, space, Symbol, tabsMotion, useDesign, type ColorRoles, type SymbolName } from "../ui";
 
-const FAVICON_SIZE = 20;
+const ROW_LOOK: Record<Design, { glyph: number; favicon: number; switchGlyph: boolean; title3: TextStyle; body: TextStyle; subheadline: TextStyle }> = {
+  original: { glyph: 19, favicon: 20, switchGlyph: true, title3: font.title3, body: font.body, subheadline: font.subheadline },
+  redesigned: {
+    glyph: 25,
+    favicon: browseLayout.suggestionIconSlot * 0.82,
+    switchGlyph: false,
+    title3: { fontSize: font.title3.fontSize },
+    body: { fontSize: font.body.fontSize },
+    subheadline: { fontSize: font.subheadline.fontSize },
+  },
+};
 
 const LEADING: Record<TrayRow["kind"], SymbolName> = { query: "magnifyingglass", page: "globe", calc: "equalCircleFill", paste: "docOnDoc" };
 
@@ -59,31 +70,32 @@ const LARGE_TEXT = 1.5;
 
 function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow; typed: string; roles: ColorRoles; interactive: boolean; onRefine: (row: TrayRow) => void }) {
   const design = useDesign();
+  const look = ROW_LOOK[design];
   const large = useWindowDimensions().fontScale > LARGE_TEXT;
   return (
     <>
       <View style={styles.leading}>
-        {row.kind === "page" ? <Favicon iconUrl={row.favicon} pageUrl={row.url} size={FAVICON_SIZE} /> : <Symbol name={row.kind === "paste" && row.offer === "link" ? "link" : LEADING[row.kind]} size={19} color={roles.rowIcon} />}
+        {row.kind === "page" ? <Favicon iconUrl={row.favicon} pageUrl={row.url} size={look.favicon} /> : <Symbol name={row.kind === "paste" && row.offer === "link" ? "link" : LEADING[row.kind]} size={look.glyph} color={roles.rowIcon} />}
       </View>
       <View style={styles.label}>
         {row.kind === "query" ? (
           <>
-            <QueryTitle title={row.title} typed={typed} roles={roles} lines={large ? 4 : 2} />
+            <QueryTitle title={row.title} typed={typed} roles={roles} lines={large ? 4 : 2} style={look.title3} />
             {row.detail ? (
-              <Text style={[font.subheadline, { color: roles.foregroundSecondary }]} numberOfLines={1}>
+              <Text style={[look.subheadline, { color: roles.foregroundSecondary }]} numberOfLines={1}>
                 {row.detail}
               </Text>
             ) : null}
           </>
         ) : (
           <>
-            <Text style={[font.body, { color: roles.foregroundPrimary }]} numberOfLines={large ? 3 : 1}>
+            <Text style={[look.body, { color: roles.foregroundPrimary }]} numberOfLines={large ? 3 : 1}>
               {row.title}
             </Text>
             <View style={styles.detail}>
-              {row.kind === "page" && row.switchesTab ? <Symbol name="arrowRightCircle" size={13} color={roles.foregroundSecondary} /> : null}
+              {row.kind === "page" && row.switchesTab && look.switchGlyph ? <Symbol name="arrowRightCircle" size={13} color={roles.foregroundSecondary} /> : null}
               {row.kind === "page" && row.fromMac ? <Symbol name="laptop" size={13} color={roles.foregroundSecondary} /> : null}
-              <Text style={[font.subheadline, styles.detailText, { color: roles.foregroundSecondary }]} numberOfLines={1}>
+              <Text style={[look.subheadline, styles.detailText, { color: roles.foregroundSecondary }]} numberOfLines={1}>
                 {row.detail}
               </Text>
             </View>
@@ -109,10 +121,10 @@ function RowContent({ row, typed, roles, interactive, onRefine }: { row: TrayRow
   );
 }
 
-function QueryTitle({ title, typed, roles, lines }: { title: string; typed: string; roles: ColorRoles; lines: number }) {
+function QueryTitle({ title, typed, roles, lines, style }: { title: string; typed: string; roles: ColorRoles; lines: number; style: TextStyle }) {
   const prefix = queryPrefixLength(title, typed);
   return (
-    <Text style={[font.title3, { color: roles.foregroundPrimary }]} numberOfLines={lines}>
+    <Text style={[style, { color: roles.foregroundPrimary }]} numberOfLines={lines}>
       {prefix > 0 ? <Text style={{ color: roles.foregroundSecondary }}>{title.slice(0, prefix)}</Text> : null}
       {title.slice(prefix)}
     </Text>

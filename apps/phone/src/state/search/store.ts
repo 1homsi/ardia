@@ -58,6 +58,8 @@ export function feedSources() {
   const profile = selectedProfile();
   const local = history().summary();
   setSources(buildSources(spaceTabs(currentTabs()), profile ? mergeSyncedHistory(local, profile.history) : local, profile ? syncedBookmarks(profile) : []));
+  const shown = useSearch.getState();
+  if (shown.open && !shown.text.trim()) useSearch.setState({ rows: rowsFor(shown.text, []) });
 }
 
 function suggestionsFor(text: string, remoteValues: readonly string[]): { rows: TrayRow[]; completion: string } {
@@ -137,7 +139,8 @@ function showRows(text: string) {
     void remoteSuggestions(text, controller.signal).then((outcome) => {
       if (controller.signal.aborted || useSearch.getState().text !== text) return;
       remote = { text, values: outcome.values };
-      useSearch.setState({ rows: rowsFor(text, outcome.values) });
+      const merged = suggestionsFor(text, outcome.values);
+      useSearch.setState({ rows: merged.rows, completion: merged.completion, completedFor: text });
     });
   }, REMOTE_DELAY_MS);
 }

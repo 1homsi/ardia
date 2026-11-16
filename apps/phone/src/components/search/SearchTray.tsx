@@ -31,6 +31,8 @@ import { useTrayKeyboard } from "./useTrayKeyboard";
 
 const SHEET_ABOVE_KEYBOARD = 274;
 
+const PANEL_GLYPHS = { mic: 22, clear: 21 } as const;
+
 
 function useTrayTheme() {
   const base = useTheme();
@@ -470,7 +472,7 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
 
   return (
     <View style={useDesign() === "redesigned" ? styles.panelFieldArea : styles.fieldArea}>
-      <View style={[styles.field, panelField ? (theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight) : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
+      <View style={[styles.field, panelField ? [styles.panelField, theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight] : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
         {fieldGone ? (
           <Text testID="trayFieldLeaving" numberOfLines={1} style={[font.title3, styles.input, styles.leavingText, { color: lastText.current ? theme.foregroundPrimary : theme.foregroundTertiary }]}>
             {lastText.current || "Search…"}
@@ -481,7 +483,7 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
             input.current = field;
             trayInput = field;
           }}
-          style={styles.input}
+          style={[styles.input, panelField ? styles.panelInput : null]}
           start={start}
           selectsStart={first && Boolean(initialText)}
           color={theme.foregroundPrimary}
@@ -500,7 +502,7 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
         )}
         {hasText ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => setSearchText("")}>
-            <Symbol name="xmarkCircleFill" size={18} color={theme.foregroundTertiary} />
+            <Symbol name="xmarkCircleFill" size={panelField ? PANEL_GLYPHS.clear : 18} color={theme.foregroundTertiary} />
           </Pressable>
         ) : (
           <VoiceButton />
@@ -515,10 +517,11 @@ function VoiceButton() {
   const theme = useTrayTheme();
   const incognito = useIncognito();
   const { fontScale } = useWindowDimensions();
+  const panelField = useDesign() === "redesigned";
   if (incognito || fontScale > LARGE_FONT_SCALE || !canSearchByVoice()) return null;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Voice Search" style={styles.accessory} onPress={presentVoiceSearch}>
-      <Symbol name="mic" size={19} color={theme.foregroundTertiary} />
+      <Symbol name="mic" size={panelField ? PANEL_GLYPHS.mic : 19} color={theme.foregroundTertiary} />
     </Pressable>
   );
 }
@@ -526,12 +529,13 @@ function VoiceButton() {
 function IncognitoToggle() {
   const theme = useTrayTheme();
   const on = useIncognito();
+  const panelField = useDesign() === "redesigned";
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={on ? "Deactivate Incognito" : "Activate Incognito"}
       onPress={toggleTrayIncognito}
-      style={styles.incognito}
+      style={[styles.incognito, panelField ? styles.panelIncognito : null]}
     >
       {on ? (
         <Animated.Text entering={modeToggleIn} exiting={modeToggleOut} style={[font.footnote, styles.medium, styles.toggleLabel, { color: tabsInk.onDarkSoft }]}>
@@ -767,7 +771,10 @@ const styles = StyleSheet.create({
   },
   panelFieldLight: { backgroundColor: floatingPanelLayout.fieldLight.fill, borderColor: floatingPanelLayout.fieldLight.edge, borderWidth: floatingPanelLayout.fieldEdge },
   panelFieldDark: { backgroundColor: floatingPanelLayout.fieldDark.fill, borderColor: floatingPanelLayout.fieldDark.edge, borderWidth: floatingPanelLayout.fieldEdge },
-  panelFieldArea: { paddingHorizontal: floatingPanelLayout.fieldInset, paddingTop: floatingPanelLayout.fieldInset, paddingBottom: floatingPanelLayout.fieldBottom },
+  panelFieldArea: { paddingHorizontal: floatingPanelLayout.fieldInset, paddingTop: floatingPanelLayout.fieldInset, paddingBottom: space.xs },
+  panelField: { gap: space.s },
+  panelInput: { minHeight: browseLayout.searchFieldHeight - floatingPanelLayout.fieldEdge * 2 },
+  panelIncognito: { paddingRight: space.xs + 2 },
   field: {
     minHeight: browseLayout.searchFieldHeight,
     borderRadius: capsule(browseLayout.searchFieldHeight),

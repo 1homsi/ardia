@@ -47,7 +47,7 @@ const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingIn
       {...SHARED}
       style={style}
       text={typed}
-      offer={inlineOffer(typed, completion, completedFor)}
+      offer={inlineOffer(completion, completedFor)}
       highlightColor={withAlpha(accent, 0.3)}
       cursorColor={accent}
       selectionColor={withAlpha(accent, 0.3)}

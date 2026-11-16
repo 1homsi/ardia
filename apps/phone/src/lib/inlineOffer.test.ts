@@ -3,15 +3,22 @@ import test from "node:test";
 import { withAlpha } from "./color.ts";
 import { inlineOffer } from "./inlineOffer.ts";
 
-test("the field is offered the typed text with the omnibox's completion after it, keeping what was typed", () => {
-  assert.deepEqual(inlineOffer("goo", "gle.com", "goo"), { query: "goo", completion: "google.com" });
-  assert.deepEqual(inlineOffer("Goo", "gle.com", "Goo"), { query: "Goo", completion: "Google.com" });
+test("the field is offered the text the omnibox answered for, with its completion after it, as main's SearchSuggestionsModel.completion", () => {
+  assert.deepEqual(inlineOffer("gle.com", "goo"), { query: "goo", completion: "google.com" });
+  assert.deepEqual(inlineOffer("gle.com", "Goo"), { query: "Goo", completion: "Google.com" });
 });
 
-test("no offer without a completion, for empty text, or for completions of text the field no longer holds", () => {
-  assert.equal(inlineOffer("goo", "", "goo"), null);
-  assert.equal(inlineOffer("", "x", ""), null);
-  assert.equal(inlineOffer("goo", "gle.com", "go"), null);
+test("an answer with no completion still reaches the field, so it drops a suffix that answer no longer backs", () => {
+  assert.deepEqual(inlineOffer("", "goo"), { query: "goo", completion: "" });
+});
+
+test("an answer for shorter text stays on offer, and the field's editor decides whether it still fits what was typed", () => {
+  assert.deepEqual(inlineOffer("ogle.com", "go"), { query: "go", completion: "google.com" });
+});
+
+test("no offer before the omnibox has answered for any text", () => {
+  assert.equal(inlineOffer("", ""), null);
+  assert.equal(inlineOffer("x", ""), null);
 });
 
 test("the completion highlight is the accent at 30% alpha", () => {

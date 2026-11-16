@@ -72,8 +72,8 @@ test("typing offers the omnibox's completion after the typed text, highlighted i
   act(() => useSearch.setState({ completion: "gle.com", completedFor: "goo" }));
   expect(field(root)!.props.offer).toEqual({ query: "goo", completion: "google.com" });
   expect(field(root)!.props.highlightColor).toMatch(/^rgba\(\d+, \d+, \d+, 0\.3\)$/);
-  act(() => useSearch.setState({ completion: "gle.com", completedFor: "go" }));
-  expect(field(root)!.props.offer).toBeNull();
+  act(() => useSearch.setState({ completion: "ogle.com", completedFor: "go" }));
+  expect(field(root)!.props.offer).toEqual({ query: "go", completion: "google.com" });
   unmount(root);
 });
 
