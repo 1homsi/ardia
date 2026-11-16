@@ -516,3 +516,21 @@ test("a panel closed with the X isn't kept running when a tab switch cuts its cl
   await reopened;
   assert.equal(panels.panelKept(w, panelA, panels.panelKey(E().sidePanels[w])), true, "opening it again on A brings it back");
 });
+
+test("opening another extension's side panel drops the first extension's kept panels, so none keeps running unseen", async () => {
+  const { w, a, b, answer } = setup();
+  useExtensions.setState({ lists: { "": [EXT, { ...EXT, id: "ext2", name: "Ext 2" }] } });
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  const panelA = E().sidePanels[w];
+  assert.equal(panelA.tabId, a);
+  S().activate(b);
+  const other = panels.openSidePanel(w, "ext2");
+  await answer(1, "chrome-extension://ext2/panel.html?tabId=b");
+  await other;
+  const shown = E().sidePanels[w];
+  assert.equal(shown.extensionId, "ext2");
+  assert.equal(panels.panelKept(w, shown, panels.panelKey(shown)), true);
+  assert.equal(panels.panelKept(w, panelA, panels.panelKey(shown)), false, "the first extension's panel on tab a is dropped though tab a is open");
+});

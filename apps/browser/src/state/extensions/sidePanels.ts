@@ -172,4 +172,5 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
 export const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
 
 export const panelKept = (windowId: string, p: SidePanel, shownKey: string) =>
-  panelKey(p) === shownKey || (panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId));
+  panelKey(p) === shownKey ||
+  (wanted.get(windowId) === p.extensionId && panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId));
