@@ -1859,8 +1859,9 @@ main is settled at 2.282 s, 174 ms after it starts. What's left is about one fra
 
 What 0.88 leaves to fix, from these numbers:
 - **Card opening is level** since 51c36153c: 177 ms against 172.5, 4.5 ms apart, under a frame. With that, every
-  timed row in the iPhone table is level with main's app or faster. The card's `from` (the growth starting in the
-  tap's own frame) is still to come, and it gets one more timing when it lands.
+  timed row in the iPhone table is level with main's app or faster. Starting the growth in the tap's own frame (MotionView's
+  `from`) was tried and left out on iPhone: the page's readiness waits then ran to their 250 ms cap, and the page took
+  over at about 300 ms.
 - **Memory after nine tabs** is higher than SwiftUI's and higher than on 0.81. Hermes V1 and Reanimated 4.7 had a
   known memory regression before Expo 57.0.17; 58.0.25 should carry the fix. Worth a device check before the owner's
   phone, and an Instruments allocation trace of the app process.
