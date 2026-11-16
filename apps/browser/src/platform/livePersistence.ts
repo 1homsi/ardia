@@ -28,13 +28,16 @@ export function createLivePersistence(): LivePersistenceBinding {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: LiveProjection | undefined;
   let counter = 0;
+  let lastSaved: string | undefined;
   const save = () => {
     clearTimeout(timer);
     timer = undefined;
     const projection = pending;
     pending = undefined;
     if (!projection) return;
-    try { writeDocument(DOC, versionedJson(projection, DOC_VERSION)); }
+    const json = versionedJson(projection, DOC_VERSION);
+    if (json === lastSaved) return;
+    try { writeDocument(DOC, json); lastSaved = json; }
     catch (error) { console.warn("Couldn't save live folders", error); }
   };
   return {
