@@ -7,19 +7,26 @@ import { PageLab } from "./PageLab";
 const LAUNCH_POLL_MILLIS = 50;
 const LAUNCH_POLL_LIMIT = 60;
 
+const launchMode = (): "app" | "lab" | null => {
+  const options = pages.launchOptions();
+  return options === null ? null : options.pageLab ? "lab" : "app";
+};
+
 export function LaunchRoot() {
-  const [mode, setMode] = useState<"pending" | "app" | "lab">("pending");
+  const [first] = useState(launchMode);
+  const [mode, setMode] = useState<"app" | "lab">(first ?? "app");
   useEffect(() => {
+    if (first !== null) return;
     let attempts = 0;
     const timer = setInterval(() => {
-      const options = pages.launchOptions();
       attempts += 1;
-      if (options === null && attempts < LAUNCH_POLL_LIMIT) return;
+      const known = launchMode();
+      if (known === null && attempts < LAUNCH_POLL_LIMIT) return;
       clearInterval(timer);
-      setMode(options?.pageLab ? "lab" : "app");
+      if (known === "lab") setMode("lab");
     }, LAUNCH_POLL_MILLIS);
     return () => clearInterval(timer);
-  }, []);
+  }, [first]);
   useEffect(() => {
     if (mode !== "app") return;
     const resumed = AppState.addEventListener("change", (state) => {
@@ -27,6 +34,5 @@ export function LaunchRoot() {
     });
     return () => resumed.remove();
   }, [mode]);
-  if (mode === "pending") return null;
   return mode === "lab" ? <PageLab /> : <App />;
 }
