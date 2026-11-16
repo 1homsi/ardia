@@ -1,24 +1,32 @@
-import { useRef } from "react";
+import { useReducer, useRef } from "react";
 import { noteRowsHeldUnderPointer } from "../../state/telemetry/inlineCompletionCounts";
 
 export type SteadyList<V> = { key: string; value: V };
 
-export function steadyRows<V extends { items: unknown[] }>(shown: SteadyList<V> | null, value: V, key: string, holding: boolean): SteadyList<V> {
-  const growing = !!shown && value.items.length > shown.value.items.length;
-  if (holding && growing && shown!.key === key && shown!.value.items.length > 0) return shown!;
+const sameRows = <T,>(a: T[], b: T[], rowKey: (row: T) => string) => a.length === b.length && a.every((row, i) => rowKey(row) === rowKey(b[i]!));
+
+export function steadyRows<T, V extends { items: T[] }>(shown: SteadyList<V> | null, value: V, key: string, holding: boolean, rowKey: (row: T) => string): SteadyList<V> {
+  if (holding && shown && shown.key === key && shown.value.items.length > 0 && !sameRows(shown.value.items, value.items, rowKey)) return shown;
   return { key, value };
 }
 
-export function useSteadyRows<V extends { items: unknown[] }>(value: V, key: string, pointerOver: boolean, selected: number): V {
+export function useSteadyRows<T, V extends { items: T[] }>(value: V, key: string, pointerOver: boolean, rowKey: (row: T) => string) {
   const shown = useRef<SteadyList<V> | null>(null);
-  const lastSelected = useRef(selected);
   const counted = useRef<string | null>(null);
-  const keyboard = selected !== lastSelected.current;
-  lastSelected.current = selected;
-  shown.current = steadyRows(shown.current, value, key, pointerOver && !keyboard);
-  if (shown.current.value !== value && counted.current !== key) {
+  const freed = useRef<string | null>(null);
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  if (!pointerOver) freed.current = null;
+  shown.current = steadyRows(shown.current, value, key, pointerOver && freed.current !== key, rowKey);
+  const held = shown.current.value !== value;
+  if (held && counted.current !== key) {
     counted.current = key;
     noteRowsHeldUnderPointer();
   }
-  return shown.current.value;
+  const release = () => {
+    freed.current = key;
+    if (!held) return;
+    shown.current = null;
+    redraw();
+  };
+  return { value: shown.current.value, held, release };
 }

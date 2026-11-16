@@ -1,4 +1,4 @@
-import type { SearchScope } from "@ardia/core";
+import { suggestionKey, type SearchScope } from "@ardia/core";
 import { useMemo, type RefObject } from "react";
 import type { TextInput } from "react-native";
 import { previewText } from "./barText";
@@ -54,7 +54,8 @@ export function useBarItems({
   const idle = opensTab && !scope && !typed.trim();
   const openTabs = useOpenTabsStart(idle, windowId, profileId);
   const listed = { items: dropdown && !edited && !scope ? start : idle ? openTabs : suggested, completion: suggestedCompletion };
-  const { items, completion } = useSteadyRows(listed, `${scope?.kind ?? ""}:${scope?.name ?? ""}:${typed}`, overRows, selected);
+  const rows = useSteadyRows(listed, `${scope?.kind ?? ""}:${scope?.name ?? ""}:${typed}`, overRows, suggestionKey);
+  const { items, completion } = rows.value;
   const selectedIndex = Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
   const preview = !idle && selectedIndex > 0 ? (previewText(current) ?? typed) : null;
@@ -66,5 +67,5 @@ export function useBarItems({
     () => (!scope && edited && !previewing ? offeredScope(typed, shownCompletion, windowId) : null),
     [scope, edited, previewing, typed, shownCompletion, windowId],
   );
-  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, rowsHover };
+  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, rowsHover, rowsHeld: rows.held, releaseRows: rows.release };
 }
