@@ -39,7 +39,6 @@ export const nativePaths = [
   "apps/phone/app.json",
   "packages/phone/android",
   "packages/phone/expo-module.config.json",
-  "apps/android/app/src/main",
   "apps/phone/pnpm-lock.yaml",
   "apps/phone/pnpm-workspace.yaml",
   "patches",

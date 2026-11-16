@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PageScriptsTest {
-    private val iphoneWeb = File("../../ios/Packages/ArdiaKit/Sources/ArdiaBrowser/Web")
+    private val iphoneWeb = File("../ios/ArdiaKit/Sources/ArdiaBrowser/Web")
     private val assets = File("src/main/assets/ardia-browser")
 
     private fun swiftScript(file: String, marker: String): List<String> {

@@ -2,30 +2,20 @@ apply plugin: "com.android.library"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "org.jetbrains.kotlin.plugin.compose"
 
-def design = new File(rootDir, "../../android/design/src/main")
-def designInThisModule = ['ProfileLook.kt', 'Monogram.kt', 'Colors.kt', 'MeshGradient.kt', 'GrainTexture.kt', 'TabsBackdropMotion.kt', 'FrostedStyle.kt', 'BrowseTokens.kt', 'Tokens.kt', 'ProfileBackdropStyle.kt', 'ArdiaTheme.kt', 'ArdiaLogoMark.kt', 'ArdiaSymbols.kt', 'Motion.kt', 'Typography.kt', 'SymbolGeometry.kt', 'Settings.kt', 'SettingsTokens.kt', 'ColorChoice.kt', 'ProfileBackdrop.kt']
-
 android {
     namespace 'com.ardia.design'
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
         minSdkVersion rootProject.ext.minSdkVersion
     }
-    sourceSets {
-        main {
-            manifest.srcFile "src/main/AndroidManifest.xml"
-            java.srcDirs = ["${design}/kotlin"]
-            res.srcDirs = ["${design}/res"]
-        }
+    testOptions {
+        unitTests.returnDefaultValues = true
+        unitTests.all { test -> test.filter.failOnNoMatchingTests = false }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-}
-
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    exclude { element -> !element.directory && !(element.name in designInThisModule) }
 }
 
 dependencies {
@@ -36,4 +26,6 @@ dependencies {
     api "androidx.compose.ui:ui-unit"
     api "androidx.compose.foundation:foundation"
     api "androidx.compose.material3:material3"
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2"
 }

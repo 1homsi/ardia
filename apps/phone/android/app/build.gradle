@@ -70,12 +70,6 @@ tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAs
     }
 }
 
-def composeApp = "${projectRoot}/../android/app/src/main"
-def composeSystemInThisApp = ['ArdiaWidgets.kt', 'SystemSnapshot.kt', 'SystemSnapshots.kt', 'SearchTileService.kt', 'ShortcutActivity.kt', 'WidgetColors.kt', 'ShareSheetModel.kt', 'ShareSheetView.kt']
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    exclude { element -> !element.directory && element.file.canonicalPath.startsWith(new File("${composeApp}/kotlin").canonicalPath) && !(element.name in composeSystemInThisApp) }
-}
-
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
 android {
@@ -84,8 +78,12 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace 'com.ardia.browser.android'
-    sourceSets.main.res.srcDirs += "${composeApp}/res-system"
-    sourceSets.main.java.srcDirs += "${composeApp}/kotlin"
+    sourceSets.main.res.srcDirs += "src/main/res-system"
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.returnDefaultValues = true
+        unitTests.all { test -> test.filter.failOnNoMatchingTests = false }
+    }
     defaultConfig {
         applicationId 'com.ardia.browser.android'
         minSdkVersion rootProject.ext.minSdkVersion
@@ -143,4 +141,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-compose:1.13.0")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("androidx.test:core:1.7.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }

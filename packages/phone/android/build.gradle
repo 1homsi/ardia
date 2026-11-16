@@ -8,29 +8,9 @@ group = 'com.ardia.phone'
 version = '0.0.0'
 
 def repository = file("${projectDir}/../../..")
-def androidApp = file("${repository}/apps/android")
-def pageEngine = file("${androidApp}/browser/src/main")
-def contentBlocking = file("${androidApp}/blocking/src/main")
-def scriptRuntime = file("${androidApp}/shared/src/main")
-def syncEngine = file("${androidApp}/sync/src")
 def syncBundle = file("${repository}/packages/phone/ios/ArdiaKit/Sources/ArdiaShared/Scripts/ardia-sync.js")
 def syncFixtures = file("${repository}/packages/sync/tests/fixtures")
 def phoneSchema = file("${repository}/apps/phone/src/state/store/schema.ts")
-def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
-def appModel = file("${androidApp}/appmodel/src/main/kotlin")
-def codeScanner = file("${androidApp}/settings/src/main/kotlin")
-def speech = file("${androidApp}/search/src/main/kotlin")
-def faviconPixels = file("${androidApp}/design/src/main/kotlin")
-def completionEditor = file("${androidApp}/store/src/main/kotlin")
-def completingFieldTests = file("${androidApp}/search/src/test/kotlin")
-def composeSourcesInThisModule = [
-  (appModel): ['SystemLink.kt', 'SystemActions.kt', 'LaunchArguments.kt'],
-  (codeScanner): ['SyncCodeReading.kt', 'SyncCodeCamera.kt'],
-  (speech): ['SpeechRecorder.kt', 'DictationTypes.kt', 'ClipboardOffer.kt', 'CompletingFieldState.kt'],
-  (completionEditor): ['InlineCompletionEditor.kt'],
-  (completingFieldTests): ['CompletingFieldStateTest.kt'],
-  (faviconPixels): ['FaviconPixels.kt'],
-]
 def cameraXVersion = '1.6.0'
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
 def architectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64').split(',').collect { it.trim() }
@@ -137,12 +117,13 @@ android {
     versionName "0.0.0"
     externalNativeBuild {
       cmake {
-        arguments "-DANDROID_STL=c++_shared", "-DARDIA_SCRIPT_SHIM=${scriptRuntime}/cpp/ardia_hermes.cpp", "-DARDIA_SCRIPT_LOGS=${findProperty('ardiaLab') == 'true' ? 'ON' : 'OFF'}"
+        arguments "-DANDROID_STL=c++_shared", "-DARDIA_SCRIPT_SHIM=${projectDir}/src/main/cpp/ardia_hermes.cpp", "-DARDIA_SCRIPT_LOGS=${findProperty('ardiaLab') == 'true' ? 'ON' : 'OFF'}"
         abiFilters(*architectures)
         targets "ardiahermes"
       }
     }
     buildConfigField "boolean", "ARDIA_LAB", (findProperty('ardiaLab') == 'true').toString()
+    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
   }
   buildFeatures {
     prefab true
@@ -164,17 +145,6 @@ android {
       }
     }
   }
-  sourceSets {
-    main {
-      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel, codeScanner, speech, faviconPixels, completionEditor]
-      assets.srcDirs += "${pageEngine}/assets"
-      res.srcDirs += "${pageEngine}/res"
-      resources.srcDirs += "${contentBlocking}/resources"
-    }
-    test {
-      java.srcDirs += ["${syncEngine}/test/kotlin", completingFieldTests]
-    }
-  }
   packagingOptions {
     excludes += [
       "**/libc++_shared.so",
@@ -192,16 +162,13 @@ android {
     unitTests.all { test ->
       test.systemProperty("ardia.syncFixtures", syncFixtures.absolutePath)
       test.systemProperty("ardia.phoneSchema", phoneSchema.absolutePath)
+      findProperty('ardiaBlockingLists')?.with { test.systemProperty("ardia.blockingLists", it) }
+      ["ardia.crossCheck.swiftWrote", "ardia.crossCheck.kotlinWrites"].each { key ->
+        System.getProperty(key)?.with { test.systemProperty(key, it) }
+      }
+      test.outputs.upToDateWhen { System.getProperty("ardia.crossCheck.swiftWrote") == null }
+      test.filter.failOnNoMatchingTests = false
     }
-  }
-}
-
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-  exclude(pageEngineOutsideThisModule)
-  exclude { element ->
-    if (element.directory) return false
-    def root = composeSourcesInThisModule.keySet().find { element.file.toPath().startsWith(it.toPath()) }
-    root != null && !(element.name in composeSourcesInThisModule[root])
   }
 }
 
@@ -234,4 +201,9 @@ dependencies {
   testImplementation "org.json:json:20240303"
   testImplementation "org.xerial:sqlite-jdbc:3.41.2.2"
   testImplementation "org.robolectric:robolectric:4.17"
+  testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2"
+  androidTestImplementation "junit:junit:4.13.2"
+  androidTestImplementation "androidx.test:runner:1.7.0"
+  androidTestImplementation "androidx.test:core:1.7.0"
+  androidTestImplementation "androidx.test.ext:junit:1.3.0"
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 # corex-test <commit> [--patch FILE] [Gradle --tests filters…]
-# Runs the phone's Kotlin unit tests (:ardia-phone-native:testDebugUnitTest) on corex, in the bots container, in
+# Runs the phone's Kotlin unit tests (:ardia-phone-native, :app and :ardia-design testDebugUnitTest) on corex, in the bots container, in
 # corex-build's build-only clone at a pushed commit, so no Gradle runs on the Mac. --patch FILE (or - for stdin)
 # applies a diff from the main checkout on top of the commit for this run only; the clone is reset when the run
 # ends, as every build resets it. Waits like corex-build for another Gradle run or memory, and holds the clone's lock
@@ -75,15 +75,15 @@ pinned="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$src/apps/phon
 export PATH="$base/pnpm-$pinned/node_modules/.bin:$PATH"
 export TMPDIR="$base/tmp"
 (cd "$src/apps/phone" && pnpm install --frozen-lockfile --reporter=silent)
-results="$src/packages/phone/android/build/test-results/testDebugUnitTest"
-rm -rf "$results"
+results=("$src/packages/phone/android/build/test-results/testDebugUnitTest" "$src/apps/phone/android/app/build/test-results/testDebugUnitTest" "$src/apps/phone/android/ardia-design/build/test-results/testDebugUnitTest")
+rm -rf "${results[@]}"
 started=$(date +%s)
 status=0
-(cd "$src/apps/phone/android" && ARDIA_LAB=1 EXPO_PUBLIC_ARDIA_LAB=true flock -w 540 /tmp/ardia-android-gradle.lock ./gradlew -PardiaLab=true --no-daemon -Pkotlin.compiler.execution.strategy=in-process :ardia-phone-native:testDebugUnitTest ${filters[@]+"${filters[@]}"} --max-workers=4 --console=plain -q > "$base/test.log" 2>&1) || status=$?
-python3 - "$results" <<'SUMMARY'
+(cd "$src/apps/phone/android" && ARDIA_LAB=1 EXPO_PUBLIC_ARDIA_LAB=true flock -w 540 /tmp/ardia-android-gradle.lock ./gradlew -PardiaLab=true --no-daemon -Pkotlin.compiler.execution.strategy=in-process :ardia-phone-native:testDebugUnitTest :app:testDebugUnitTest :ardia-design:testDebugUnitTest ${filters[@]+"${filters[@]}"} --max-workers=4 --console=plain -q > "$base/test.log" 2>&1) || status=$?
+python3 - "${results[@]}" <<'SUMMARY'
 import glob, re, sys
 total = failed = 0
-for path in sorted(glob.glob(sys.argv[1] + "/TEST-*.xml")):
+for path in sorted(p for folder in sys.argv[1:] for p in glob.glob(folder + "/TEST-*.xml")):
     text = open(path, encoding="utf-8", errors="replace").read()
     tests, failures, errors = map(int, re.search(r'tests="(\d+)".*?failures="(\d+)".*?errors="(\d+)"', text).groups())
     total += tests
