@@ -1406,13 +1406,13 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Onboarding step | level | Both slide 72 pt and fade on main's `step` curve (0.05, 0.7, 0.1, 1 over 0.3 s), 911cbb80b. Main keeps the leaving step above both backdrops (its zIndex 1); ours had no order, so the steps' backdrop, fading in fast, covered the leaving welcome within a frame. With main's layers the welcome's icon and title fade over the new step for about four frames against main's five (`onboard-step/strips2.png`) |
 | Welcome appear (`rise`, 50 ms delay) | level | Three alternating cold launches each, from the tap: the system's icon zoom (0 to 300 ms), then the white launch screen in both. Main's backdrop fades in from about 1,200 ms; ours showed white until about 1,450 ms (JavaScript starting, as on Android). The welcome itself is level: both start it at about 1,470 ms and settle at about 1,700. Since the launch backdrop (React Native's loading view drawing main's themed `ProfileBackdrop` in the last start page look), ours fades from white at about 1,050 to 1,250 ms and settles at 1,600 to 1,650 against main's 1,670 to 1,730 (`iphone-audit/launch`, `launch2`). The single 0.8 s run was a first launch under load; three first launches each settle at 1.8 to 2.1 s against main's 1.75 to 2.5 s |
 | Pager background in the space's colour | match | iPhone paints the space's surface, as main's look.surface; Android keeps black, d09343dba |
-| Loading line (0.15/0.3/0.15/0.2 s, 100 ms delay) | not seen on iPhone | Seen on Android |
+| Loading line (0.15/0.3/0.15/0.2 s, 100 ms delay) | level | Seen on Android; on the iPhone 18 Pro simulator, a localhost page that answers in 0.8 s and holds two images 1.5 s, opened with the keyboard's Go in both apps: the line appears about 0.1 s after Go, holds near a tenth of the width while the page waits, then fills and fades within about 0.3 s, the same at 10 fps sampling (`loadline/band-pair.png`); the four segments aren't separable at that rate |
 | Close poof (0.3 s), fly away (0.16 s), settle (0.28 s) | not seen | Re-recorded in both apps; the scripted swipe closed no card in either |
 | Placeholder fade-out (0.12 s) | not seen | |
 | Archive capsule yielding, grid cross-fade | not seen | No grid in Expo |
 | Search panel dim, dismiss, settle, results-in, surface swap and fade | dismiss level | Over a page: rise 430 against 600 ms, dismiss 270 against 300 ms (panel.mp4); dim, settle and results-in not separated |
 | Press scale (`press`, 0.16) | level | A start tile held: the press runs about 20 frames in both, and the system menu arrives in 10 frames against main's 13 (tilepress.mp4) |
-| Spaces backdrop (`smooth`) | not seen | Native `spaceBackdrop` uses `Motion.smooth` |
+| Spaces backdrop (`smooth`) | level | Native `spaceBackdrop` uses `Motion.smooth`. Two swipes each way in the Spaces sheet, at a quiet load: ours changes colour in 167 to 267 ms, main in 167 to 300 ms, each pair within a frame or two (`spaces-backdrop/`) |
 
 Telemetry the redesign adds: space switches, Search Tabs, the grid, the appearance choice.
 
