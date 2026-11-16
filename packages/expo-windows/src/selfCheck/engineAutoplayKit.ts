@@ -13,7 +13,7 @@ export const PER_PAGE_COUNT = 20;
 export const TRANSIENT_ACTIVATION_MS = 6000;
 export const TOUCH_POINT = { x: 80, y: 45 };
 
-export type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean };
+export type Played = { paused?: boolean; ended?: boolean; ready?: number; time?: number; tries?: string[]; active?: boolean };
 
 export const port = engineAvailable() ? httpPagesPort() : null;
 export const origin = `http://127.0.0.1:${port}`;
@@ -62,7 +62,7 @@ export async function refusedThenStill(key: string, media: string, what: string)
   expectEqual((await stateOf(key, "window.lastMedia")).paused, true, `${what}: it stays paused`);
 }
 
-export const played = async (key: string) => ((await evaluate(key, 'post("result", JSON.stringify({ paused: m.paused, time: m.currentTime, tries }));')) ?? {}) as Played;
+export const played = async (key: string) => ((await evaluate(key, 'post("result", JSON.stringify({ paused: m.paused, ended: m.ended, ready: m.readyState, time: m.currentTime, tries }));')) ?? {}) as Played;
 export const framed = async (key: string) => ((await evaluate(key, 'post("result", JSON.stringify(frameState || {}));')) ?? {}) as Played;
 export const playing = (state: Played) => state.paused === false && (state.time ?? 0) > 0.3;
 export const held = (state: Played) => state.paused === true && (state.tries?.length ?? 0) > 0;

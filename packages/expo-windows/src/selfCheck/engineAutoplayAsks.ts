@@ -7,16 +7,19 @@ import { CTRL, DETACHED_MUTED_VIDEO, LOAD_MS, NEXT_LINK, PER_PAGE_COUNT, PLAY_BU
 const raced = (media: string) =>
   `Promise.race([${media}.play().then(() => "played", (error) => error.name), new Promise((resolve) => setTimeout(() => resolve("pending"), 1500))]).then((result) => post("result", JSON.stringify(result)));`;
 const playsOn = (media: string) =>
-  `Promise.race([${media}.play().then(() => new Promise((resolve) => { const start = ${media}.currentTime; setTimeout(() => resolve(!${media}.paused && ${media}.currentTime > start ? "played" : "stalled at " + ${media}.currentTime), 800); }), (error) => error.name), new Promise((resolve) => setTimeout(() => resolve("pending"), 3000))]).then((result) => post("result", JSON.stringify(result)));`;
+  `Promise.race([${media}.play().then(() => new Promise((resolve) => { const start = ${media}.currentTime; setTimeout(() => resolve(!${media}.paused && !${media}.ended && ${media}.readyState >= 2 && ${media}.currentTime !== start ? "played" : "stalled at " + ${media}.currentTime), 800); }), (error) => error.name), new Promise((resolve) => setTimeout(() => resolve("pending"), 3000))]).then((result) => post("result", JSON.stringify(result)));`;
 const POPUP_VIDEO = (popup: string) => `Object.assign(${popup}.document.createElement("video"), { muted: true, loop: true, src: location.origin + "/tone.wav" })`;
 const CUT_POPUP_VIDEO = `const popup = window.open(""); window.cutPopup = popup; popup.opener = null; const video = ${POPUP_VIDEO("popup")}; ${playsOn("video")}`;
 const WAITING_POPUP_VIDEO = `const video = ${POPUP_VIDEO("window.waitPopup")}; ${playsOn("video")}`;
+
+const HAVE_CURRENT_DATA = 2;
 
 async function advances(key: string, what: string) {
   const first = await played(key);
   await pause(800);
   const later = await played(key);
-  expectEqual({ paused: later.paused, advanced: (later.time ?? 0) > (first.time ?? 0) }, { paused: false, advanced: true }, `${what} (currentTime ${first.time} then ${later.time})`);
+  const going = (state: typeof first) => state.paused === false && state.ended === false && (state.ready ?? 0) >= HAVE_CURRENT_DATA;
+  expectEqual({ playing: going(first) && going(later), moved: later.time !== first.time }, { playing: true, moved: true }, `${what} (currentTime ${first.time} then ${later.time}, readyState ${later.ready})`);
 }
 
 async function waitingPopupPlays(key: string, meanwhile: () => Promise<void>) {
