@@ -44,6 +44,7 @@ constexpr char kWaitedForPreviousSwitch[] = "ardia-waited-for-previous-ms";
 constexpr wchar_t kChromiumLockFile[] = L"lockfile";
 constexpr int kLockFilePollMs = 100;
 constexpr int kLockFileGraceMs = 2000;
+constexpr int kOwnerStartWaitMs = 10000;
 constexpr wchar_t kStartsFile[] = L"launch-starts.txt";
 constexpr wchar_t kLogFolder[] = L"Logs";
 constexpr wchar_t kLogFile[] = L"launch.log";
@@ -195,6 +196,10 @@ bool Acquired(DWORD wait) {
   return wait == WAIT_OBJECT_0 || wait == WAIT_ABANDONED;
 }
 
+std::wstring ChromiumLockFile(const std::wstring& chromium_user_data_dir) {
+  return Joined(Trimmed(chromium_user_data_dir), kChromiumLockFile);
+}
+
 bool LockFileHeld(const std::wstring& lock) {
   HANDLE file = ::CreateFileW(
       lock.c_str(), GENERIC_WRITE,
@@ -209,8 +214,7 @@ bool LockFileHeld(const std::wstring& lock) {
 }
 
 bool ProfileHeldByAnotherBrowser(const std::wstring& chromium_user_data_dir) {
-  const std::wstring lock =
-      Joined(Trimmed(chromium_user_data_dir), kChromiumLockFile);
+  const std::wstring lock = ChromiumLockFile(chromium_user_data_dir);
   for (int waited = 0;; waited += kLockFilePollMs) {
     if (!LockFileHeld(lock)) {
       return false;
@@ -231,7 +235,37 @@ void ResetLeftoverExiting(const std::wstring& name) {
   ::CloseHandle(leftover);
 }
 
-bool WaitForExitingPredecessor(const std::wstring& key) {
+bool WaitForStartingOwner(const std::wstring& chromium_user_data_dir) {
+  GuardState& state = State();
+  const std::wstring lock = ChromiumLockFile(chromium_user_data_dir);
+  const base::TimeTicks started = base::TimeTicks::Now();
+  bool acquired = false;
+  while (!LockFileHeld(lock) &&
+         base::TimeTicks::Now() - started <
+             base::Milliseconds(kOwnerStartWaitMs)) {
+    if (Acquired(::WaitForSingleObject(state.alive, kLockFilePollMs))) {
+      state.owns_alive = true;
+      ResetLeftoverExiting(state.exiting_name);
+      acquired = true;
+      break;
+    }
+  }
+  const int waited =
+      static_cast<int>((base::TimeTicks::Now() - started).InMilliseconds());
+  if (waited >= kLockFilePollMs) {
+    const std::string line =
+        "launch guard: waited " + std::to_string(waited) +
+        " ms for the Ardia starting on this profile" +
+        (acquired ? std::string(", then took its place")
+                  : std::string(", then handed over to it"));
+    LOG(WARNING) << "Ardia " << line;
+    AppendLog(line);
+  }
+  return acquired;
+}
+
+bool WaitForExitingPredecessor(const std::wstring& key,
+                               const std::wstring& chromium_user_data_dir) {
   GuardState& state = State();
   const std::wstring alive_name = L"Local\\ArdiaBrowser." + key + L".alive";
   state.exiting_name = L"Local\\ArdiaBrowser." + key + L".exiting";
@@ -251,7 +285,7 @@ bool WaitForExitingPredecessor(const std::wstring& key) {
   HANDLE exiting = ::OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE,
                                 state.exiting_name.c_str());
   if (!exiting) {
-    return false;
+    return WaitForStartingOwner(chromium_user_data_dir);
   }
   const base::TimeTicks started = base::TimeTicks::Now();
   const base::TimeTicks deadline =
@@ -357,7 +391,8 @@ void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir,
                         base::CommandLine* command_line) {
   GuardState& state = State();
   const bool primary =
-      WaitForExitingPredecessor(ProfileKey(chromium_user_data_dir));
+      WaitForExitingPredecessor(ProfileKey(chromium_user_data_dir),
+                                chromium_user_data_dir);
   int inherited = -1;
   if (base::StringToInt(
           command_line->GetSwitchValueASCII(kWaitedForPreviousSwitch),
