@@ -55,6 +55,15 @@ function Keep-Log([string]$name) {
 
 function Launch-Log { if (Test-Path -LiteralPath $log) { return @(Get-Content -LiteralPath $log) } return @() }
 
+function Assert-ShutDownFinished([int]$processId, [string]$what) {
+  $previousLog = Join-Path $data "Logs\launch.previous.log"
+  $ended = @(Get-Content -LiteralPath $previousLog -ErrorAction SilentlyContinue | Where-Object { $_ -match 'process ending' }).Count
+  if (-not $ended) {
+    Keep-Log $what
+    throw "$what`: the previous Ardia ($processId) ended without finishing its shutdown (no 'process ending' in its log), so what it hadn't saved was lost"
+  }
+}
+
 function Wait-Window([string]$what, [int]$seconds = 120) {
   $deadline = (Get-Date).AddSeconds($seconds)
   while ((Get-Date) -lt $deadline) {
@@ -130,7 +139,10 @@ try {
     Start-Ardia | Out-Null
     $previous = $shown.Pid
     $shown = Wait-Window "relaunch $round right after closing"
-    if ($shown.Pid -ne $previous) { Wait-Exit $previous "relaunch $round" | Out-Null }
+    if ($shown.Pid -ne $previous) {
+      Wait-Exit $previous "relaunch $round" | Out-Null
+      Assert-ShutDownFinished $previous "relaunch $round right after closing"
+    }
     Start-Sleep -Seconds 2
     Assert-OneBrowser "relaunch $round right after closing"
     Note "relaunch $round right after closing: a window in browser $($shown.Pid)"
@@ -138,6 +150,7 @@ try {
 
   Close-Window $shown
   $exitMs = Wait-Exit $shown.Pid "closing"
+  if ($exitMs -gt 15000) { throw "closing: the browser took $exitMs ms to exit after its window closed; it must end once Chromium's shutdown returns (#1706 lingered about 30 s)" }
   Note "closing: the browser exited $exitMs ms after its window closed"
   Start-Ardia | Out-Null
   $shown = Wait-Window "relaunch after a full exit"
