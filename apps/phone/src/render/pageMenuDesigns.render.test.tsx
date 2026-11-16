@@ -1,3 +1,4 @@
+import { useDefaultBrowser } from "../state/settings/defaultBrowser";
 import { Dimensions, Platform, StyleSheet } from "react-native";
 import { act, type ReactTestRenderer } from "react-test-renderer";
 import "../platform/copy";
@@ -30,6 +31,7 @@ beforeEach(() => {
   page("https://site0.example/");
   useBrowse.setState({ surface: "browsing", sheet: null });
   useSettingsNav.setState({ open: false, stack: [{ page: "root" }], popping: false });
+  useDefaultBrowser.setState({ status: { isDefault: false, canAsk: true } });
   useSync.setState((state) => ({ ...state, status: OFF_STATUS, view: { devices: [], profiles: [], search: null, syncedAt: null, selectedProfileId: null, receivers: [] } as never }));
   jest.spyOn(pages, "canPrint").mockReturnValue(true);
   printed = jest.spyOn(pages, "print").mockResolvedValue(true);
