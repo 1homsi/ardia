@@ -30,6 +30,7 @@ export type LaunchArguments = {
   pagerFreeze: number | null;
   pagerScript: boolean;
   loadFreeze: number | null;
+  demoScale: number;
   openingCard: boolean;
   oneContainerScroll: boolean;
   redesign: boolean;
@@ -107,6 +108,7 @@ export function parseLaunchArguments(values: Record<string, LaunchValue>): Launc
     pagerFreeze: isDemo ? number(values, "BrowsePagerFreeze") : null,
     pagerScript: isDemo && flag(values, "BrowsePagerScript"),
     loadFreeze: isDemo ? number(values, "BrowseLoadFreeze") : null,
+    demoScale: isDemo ? Math.max(0, whole(values, "ArdiaDemoScale") ?? 0) : 0,
     openingCard: flag(values, "ArdiaOpeningCard"),
     oneContainerScroll: flag(values, "ArdiaOneContainerScroll"),
     redesign: flag(values, "ArdiaRedesign"),

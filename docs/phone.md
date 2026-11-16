@@ -2630,6 +2630,8 @@ Ranked by how much a person feels it, worst first:
 | – | Search panel open from a page, to settled, against main at e945077b6 (#2010's growing pill), 2026-11-16 19:18–19:33 | 393 ms (383–557) | 410 ms (382–417) | | level; Expo is the old search motion (JS at 82888f79f on native from 3e5ae048c), not the uncommitted native stage |
 | – | Search submitted (Go) to the page's first paint, same session | 143 ms (58–287) | 98 ms (65–367) | | faster; WebKit's own time on the Mac's CPU |
 | – | Search submitted to settled, same session | 332 ms (282–530) | 328 ms (263–997) | | level |
+| – | Search panel open from a page, tap to settled, against main at e945077b6 with the native stage (e4b1e1739's stage-7), 2026-11-16 21:50, iPhone 18 Pro, still pages on loopback, ten each in alternating rounds, load 4–5 | 537.5 ms (458–558); first movement 150 ms after the tap | **435 ms** (423–540); first movement 54 ms | | faster |
+| – | Search submitted (Go) to settled, same session | 315 ms (295–485) | **333 ms** (313–942; two first-of-round outliers) | | level |
 | – | Memory after the round (app process only) | 73 MB | 81–93 MB | | Expo +8 to +20 MB |
 
 What was found, and what the fix does (this commit):
@@ -2673,17 +2675,23 @@ Scrolling, what was found and what the stepped window and the pages do:
 - Archive gained less (10.5 to 7.5); its rows sit in native `Section`s, and what is left there is not yet found.
 
 Left, and the next step for each (2026-11-16, the screens agent took these over from the speed agent):
-- Archive scroll, 7.5 long frames a flick against main's 3. The next step is a `sample` of the main thread during one flick
-  on the seeded state (1,000 archived tabs), to find what the native `Section`s rebuild beyond the stepped window; that
-  needs the seeded container, which `seed.py` (in the speed agent's scratch, not committed) writes into a local
-  simulator's data container, so it can't run on a leased Simlock device.
+- Archive and History scroll, re-measured 2026-11-16 21:40 on the iPhone 18 Pro with the lab's `-ArdiaDemoScale 1000`
+  (1,004 archived tabs, 3,007 visits over 30 days; the demo seed now writes them, so any leased device can be seeded),
+  one 150 ms flick a recording, load 4–8: Archive 5 long frames a flick (4, 5, 7, 5; worst 49 ms), History 4.5 (3, 6, 1,
+  12; worst 44 ms). Main wasn't re-measured in this session (its demo seed has a handful of rows); its figures above
+  are the speed agent's 3 and 0.5. A `sample` of the app across one History flick found the main thread mostly in the
+  test driver's own work: about 39% of it building XCTest's accessibility snapshot for the gesture command
+  (`XCTElementSnapshotRequest`, `_accessibilityUserTestingSnapshotWithOptions:`), against about 6% in Core Animation's
+  commit and 4% in the list's collection-view layout. So these counts are measured through the driver, and the
+  driver's cost grows with the accessibility tree: our History row exposes seven nodes (cell, container, button,
+  title, a device badge's container and image, detail) where main's exposes five (cell, container, button, title,
+  detail). The next step is a flick that doesn't snapshot (or one timed from the app's own frame callback) to separate
+  the list's real long frames from the driver's, before changing the rows; flattening the device badge into the detail
+  text, as main's is, would also cut two views a row.
 - Archive open, about 100 ms behind main (409 against 308 ms to the sheet moving). What is left is the part of Expo UI's
   first SwiftUI frame build the deck-idle warm-up doesn't reach. The next step is warming the sheet's toolbar and
   search field as well as its list, and timing the ··· menu again, since warming at menu open delayed the menu by
   150–200 ms.
-- History scroll, 3.5 long frames a flick against main's 0.5. What is left is SwiftUI walking the visible days' rows on
-  each window step. The next step is fewer, larger steps once a flick is gliding, or native sections per day as
-  Archive's; either is a change to the recycling hook that needs a sample before and after on the seeded state.
 
 The deck as one piece (`ContainedDeck`, the Android agent's container that moves by one transform) was tried on iPhone
 and left off: at 100 tabs, four drags spent 81–117 ms of the main thread in Reanimated worklets with the current deck

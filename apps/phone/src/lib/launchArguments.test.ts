@@ -65,3 +65,10 @@ test("the lab's redesigned Android is off unless ArdiaRedesign asks for it", () 
   assert.equal(parseLaunchArguments({ ArdiaRedesign: "YES" }).redesign, true);
   assert.equal(parseLaunchArguments({ ArdiaRedesign: "0" }).redesign, false);
 });
+
+test("the lab's demo seed scale is read only in a demo session, and never below zero", () => {
+  assert.equal(NO_LAUNCH_ARGUMENTS.demoScale, 0);
+  assert.equal(parseLaunchArguments({ ArdiaDemo: "YES", ArdiaDemoScale: "1000" }).demoScale, 1000);
+  assert.equal(parseLaunchArguments({ ArdiaDemoScale: "1000" }).demoScale, 0);
+  assert.equal(parseLaunchArguments({ ArdiaDemo: "YES", ArdiaDemoScale: "-5" }).demoScale, 0);
+});

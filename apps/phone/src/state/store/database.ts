@@ -22,7 +22,7 @@ function demoDatabase(): SqlDatabase {
   if (demo) return demo;
   const seeded = openMemoryDatabase();
   migrate(seeded);
-  writeImport(seeded, demoSeed(Date.now(), newUuid), DEMO_MARKER, "1");
+  writeImport(seeded, demoSeed(Date.now(), newUuid, launchArguments().demoScale), DEMO_MARKER, "1");
   demo = seeded;
   return demo;
 }

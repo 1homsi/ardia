@@ -33,7 +33,11 @@ export const DEMO_HISTORY: readonly Page[] = [
 
 const ARCHIVED_IDLE_MS = 600_000;
 
-export function demoSeed(now: number, newId: () => string): ImportRows {
+const DAY_MINUTES = 24 * 60;
+const SCALED_DAYS = 30;
+const VISITS_PER_ARCHIVED = 3;
+
+export function demoSeed(now: number, newId: () => string, scale = 0): ImportRows {
   const ago = (minutes: number) => now - Math.round(minutes * 60_000);
   const tab = (page: Page, position: number, lastActive: number, archivedAt: number | null): BrowserTab => ({
     id: newId(),
@@ -55,5 +59,16 @@ export function demoSeed(now: number, newId: () => string): ImportRows {
   const archived = DEMO_ARCHIVED.map((page, index) => tab(page, (index + 1) * POSITION_STEP, ago(page.minutesAgo) - ARCHIVED_IDLE_MS, ago(page.minutesAgo)));
   const open = DEMO_OPEN.map((page, index) => tab(page, (DEMO_ARCHIVED.length + index + 1) * POSITION_STEP, ago(page.minutesAgo), null));
   const visits = DEMO_HISTORY.map((page) => ({ url: page.url, title: page.title, visitedAt: ago(page.minutesAgo), profileSyncId: null, transition: "typed" as const }));
-  return { tabs: [...archived, ...open], states: [], visits, preferences: {} };
+  const spread = (index: number, count: number) => DAY_MINUTES + (index * SCALED_DAYS * DAY_MINUTES) / count;
+  const scaledArchived = Array.from({ length: scale }, (_, index) => {
+    const page = DEMO_ARCHIVED[index % DEMO_ARCHIVED.length]!;
+    const minutes = spread(index, scale);
+    return tab({ ...page, url: `${page.url}#archived-${index}`, title: `${page.title} ${index + 1}`, minutesAgo: minutes }, -(index + 1) * POSITION_STEP, ago(minutes) - ARCHIVED_IDLE_MS, ago(minutes));
+  });
+  const visitCount = scale * VISITS_PER_ARCHIVED;
+  const scaledVisits = Array.from({ length: visitCount }, (_, index) => {
+    const page = DEMO_HISTORY[index % DEMO_HISTORY.length]!;
+    return { url: `${page.url}#visit-${index}`, title: `${page.title} ${index + 1}`, visitedAt: ago(spread(index, visitCount)), profileSyncId: null, transition: "typed" as const };
+  });
+  return { tabs: [...archived, ...scaledArchived, ...open], states: [], visits: [...visits, ...scaledVisits], preferences: {} };
 }
