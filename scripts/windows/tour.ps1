@@ -955,6 +955,7 @@ function Get-BarGaps($Session, [int]$Mark) {
 }
 
 $script:FocusBoundMs = 90
+$script:FirstLetters = [System.Collections.Generic.List[object]]::new()
 
 function Format-BarMarks($Session, [int]$Mark) {
   $lines = @(Get-LinesSince $Session $Mark "\[ardia windows\] (bar |js stall|new tab bar |new tab pane )" | ForEach-Object { $_ -replace '\[ardia windows\] ', '' } | Select-Object -First 60)
@@ -1039,7 +1040,7 @@ function Invoke-TypingTour {
   Stop-Ardia $session
 }
 
-function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$RequireGoHold) {
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$RequireGoHold, [switch]$JudgeLaterLetters) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = $Did
@@ -1059,6 +1060,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $chord = Send-QuickChord @(0x11) 0x54
       $left = $FirstKeyMs - $chord.ElapsedMilliseconds
       if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+      $firstKeyAt = $chord.ElapsedMilliseconds
       $stop.Facts.Add("Ctrl+T sent $($clock.ElapsedMilliseconds - $chord.ElapsedMilliseconds) ms after the step began; first key $($chord.ElapsedMilliseconds) ms after its T key went down")
     } elseif ($Into -eq "box") {
       $box = $null
@@ -1070,6 +1072,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
         $stop.Facts.Add("no text box showed within 3 s; typed into whatever had focus")
       }
     }
+    $firstKeyAt = $null
     $rested = $null
     $holdMark = $null
     $goStayed = $false
@@ -1141,7 +1144,16 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       if (Test-Path -LiteralPath $served) { $stop.Facts.Add("the tour's suggest server: $((Get-Content -LiteralPath $served | Select-Object -Last 4) -join ' / ')") }
       $stop.Facts.Add("required (#2102): the mouse rested on Go, the bar held the late rows under it after Go's position was noted, and Go stayed put: $heldUnderPointer; $Submit opened Example Domain: $([bool]$loaded)")
     }
-    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } elseif ($RequireGoHold) { $firstKeyOk -and [bool]$loaded -and $heldUnderPointer } else { $firstKeyOk }))
+    $laterKept = $false
+    if ($JudgeLaterLetters) {
+      $laterKept = $typed -eq "example.com" -or $typed -eq "xample.com"
+      $firstKept = Test-FirstKeyKept ([string]$typed) "example.com"
+      $focusFirst = [bool]($null -ne $gaps.FocusedMs -and $null -ne $firstKeyAt -and $gaps.FocusedMs -lt $firstKeyAt)
+      $firstRead = if ($null -ne $keyReads -and $keyReads.Count) { $keyReads[0] } else { "" }
+      $script:FirstLetters.Add([pscustomobject]@{ Number = $stop.Number; Slug = $Slug; Kept = $firstKept; FocusFirst = $focusFirst; FirstRead = $firstRead; Field = [string]$typed; Mounts = $gaps.Mounts })
+      $stop.Facts.Add("required (#2101): no letter lost after the first: $laterKept; counted for the first-letter stop (#2124): first letter kept $firstKept, the bar had focus before it $focusFirst")
+    }
+    Set-Seen $stop ($(if ($JudgeLaterLetters) { $laterKept } elseif ($JudgeWholeText) { $whole } elseif ($RequireGoHold) { $firstKeyOk -and [bool]$loaded -and $heldUnderPointer } else { $firstKeyOk }))
   }
   if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
   return $stop
@@ -1345,10 +1357,22 @@ function Invoke-FirstRunTour {
       Invoke-FirstRunLaunch "cadence-$keyMs-$repeat" "" {
         param($session)
         $walk = Walk-OnboardingToOutro $session -SkipEach
-        Invoke-TypeStop $session "cadence-$keyMs-$repeat" "First run: Ctrl+T after Get Started, then typing at $keyMs ms a key, try $repeat of 10" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, $keyMs ms a key, reading the field after every key, then pressed Enter. A person's pace: every letter has to land." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101; a first letter lost before the bar had focus is #2099, with the page mounted twice #2115" -KeyMs $keyMs -ReadEachKey -JudgeWholeText -Required | Out-Null
+        Invoke-TypeStop $session "cadence-$keyMs-$repeat" "First run: Ctrl+T after Get Started, then typing at $keyMs ms a key, try $repeat of 10" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, $keyMs ms a key, reading the field after every key, then pressed Enter. A person's pace: no letter after the first may go missing (#2101); the first letter is counted by the first-letter stop after these launches (#2124)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101; the first letter is counted by the first-letter stop (#2124)" -KeyMs $keyMs -ReadEachKey -JudgeLaterLetters -Required | Out-Null
       }
     }
   }
+  Invoke-Stop $null "first-letter" "First run: the first letter typed 100 ms after Ctrl+T, at 80 and 120 ms a key, in all $($script:FirstLetters.Count) launches" {
+    param($stop)
+    $stop.Did = "Counted, over the 80 and 120 ms launches above, whether the first letter typed 100 ms after Ctrl+T reached the new tab's bar."
+    $stop.Expected = "the first letter lands in every launch (#2124)."
+    $lost = @($script:FirstLetters | Where-Object { -not $_.Kept })
+    $inTime = @($script:FirstLetters | Where-Object { $_.FocusFirst })
+    $lostInTime = @($lost | Where-Object { $_.FocusFirst })
+    $stop.Facts.Add("first letter lost in $($lost.Count) of $($script:FirstLetters.Count); with the bar focused before it: lost in $($lostInTime.Count) of $($inTime.Count)")
+    foreach ($try in $lost) { $stop.Facts.Add("stop $($try.Number) $($try.Slug): '$($try.Field)', focus first $($try.FocusFirst), page mounted $($try.Mounts) time(s), first read $($try.FirstRead)") }
+    Set-Seen $stop ($lost.Count -eq 0 -and $script:FirstLetters.Count -gt 0)
+  } | ForEach-Object { if ($_.Seen -ne "yes") { $script:Required.Add("$($_.Number) the first letter after Ctrl+T (#2124)") } }
+
 }
 
 function Invoke-ContextMenuStop($Session, [string]$Slug, [string]$Title, [string]$Where, [scriptblock]$Point, [switch]$NoArea) {

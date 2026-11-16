@@ -1,6 +1,6 @@
 import type { SearchScope } from "@ardia/core";
 import { useLayoutEffect, useRef, type ComponentProps, type RefObject } from "react";
-import { TextInput } from "react-native";
+import { findNodeHandle, TextInput } from "react-native";
 import { useTheme } from "../ui";
 import { barFieldMarks } from "../../state/omnibox/barMarks";
 import { PASTED_TYPES } from "./omniboxKeys";
@@ -33,6 +33,12 @@ export function BarField({
     const native = nativeText.current;
     if (native !== null && events.value !== undefined && events.value !== native) barFieldMarks.write(variant, events.value.length, native.length);
   }, [events.value]);
+  const tag = () => findNodeHandle(inputRef.current);
+  useLayoutEffect(() => {
+    const mounted = tag();
+    barFieldMarks.field("mount", variant, mounted);
+    return () => barFieldMarks.field("unmount", variant, mounted);
+  }, []);
   const repair = useRevertRepair(inputRef, variant, events.value, events.onChangeText, onSelection);
   const type = variant === "hero" ? BAR_TYPE.heroField : variant === "sidebar" || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
   return (
@@ -40,6 +46,9 @@ export function BarField({
       ref={inputRef}
       {...events}
       onChangeText={repair.changed}
+      onFocus={(e) => (barFieldMarks.field("focus", variant, tag()), events.onFocus?.(e))}
+      onBlur={(e) => (barFieldMarks.field("blur", variant, tag()), events.onBlur?.(e))}
+      onLayout={(e) => (barFieldMarks.field(`layout ${Math.round(e.nativeEvent.layout.x)},${Math.round(e.nativeEvent.layout.y)} ${Math.round(e.nativeEvent.layout.width)}x${Math.round(e.nativeEvent.layout.height)}`, variant, tag()), events.onLayout?.(e))}
       onChange={(e) => {
         nativeText.current = e.nativeEvent.text;
         barFieldMarks.change(variant, e.nativeEvent.eventCount, e.nativeEvent.text.length);
