@@ -4,7 +4,7 @@ import SwiftUI
 
 #if canImport(UIKit)
 public enum SpaceColors {
-  public static func color(named name: String?) -> Color? {
+  nonisolated public static func color(named name: String?) -> Color? {
     guard let name = name?.lowercased(), !name.isEmpty else { return nil }
     if name.hasPrefix("#") { return LookRGB(hexString: name).map { Color(red: $0.red, green: $0.green, blue: $0.blue) } }
     switch name {
@@ -25,7 +25,7 @@ public enum SpaceColors {
     }
   }
 
-  public static func symbol(_ name: String?) -> String? {
+  nonisolated public static func symbol(_ name: String?) -> String? {
     guard let name, !name.isEmpty, UIImage(systemName: name) != nil else { return nil }
     return name
   }
@@ -95,21 +95,21 @@ public struct SpaceGlyph: View {
     .accessibilityHidden(true)
   }
 
-  public static func initial(of name: String) -> String {
+  nonisolated public static func initial(of name: String) -> String {
     name.trimmingCharacters(in: .whitespacesAndNewlines).first.map { String($0).uppercased() } ?? "•"
   }
 
-  public static func filled(_ symbol: String) -> String {
+  nonisolated public static func filled(_ symbol: String) -> String {
     let fill = symbol + ".fill"
     return symbol.hasSuffix(".fill") || UIImage(systemName: fill) == nil ? symbol : fill
   }
 
-  public static func emoji(_ icon: String?) -> String? {
+  nonisolated public static func emoji(_ icon: String?) -> String? {
     guard let icon, !icon.isEmpty, icon.count <= 2, icon.unicodeScalars.contains(where: { $0.properties.isEmojiPresentation }) else { return nil }
     return icon
   }
 
-  public static func menuSymbol(for space: SyncedProfile) -> String {
+  nonisolated public static func menuSymbol(for space: SyncedProfile) -> String {
     if let symbol = SpaceColors.symbol(space.icon) { return filled(symbol) }
     let letter = initial(of: space.name).lowercased()
     let circled = "\(letter).circle.fill"
