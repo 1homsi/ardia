@@ -279,7 +279,7 @@ final class FocusHandoff {
       return
     }
     afterPendingUI { [weak self, weak window] in
-      guard let self, let window, window.isKeyWindow, Self.unfocused(window) else { return }
+      guard let self, let window, window.isKeyWindow, Self.unfocused(window), self.gates[ObjectIdentifier(window)] == nil else { return }
       self.note("refocus page")
       ArdiaWebView.focusVisiblePage(in: window)
     }

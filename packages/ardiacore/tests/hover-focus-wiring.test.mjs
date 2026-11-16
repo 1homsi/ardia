@@ -41,7 +41,18 @@ test("applyPainting takes focus from a lingering pane only after it unhides the 
 test("taking focus from a lingering pane gives it to the page when the page is visible and shown", () => {
   const take = body(painting, "- (void)takeFocusFromLingeringPane {");
   assert.match(take, /if \(!\[window makeFirstResponder:nil\]\) return;/);
-  assert.match(take, /_visible && !_standalone && page && page\.superview == self && !page\.isHiddenOrHasHiddenAncestor\) \[self focusPage\];/);
+  assert.match(take, /if \(!_visible \|\| _standalone \|\| !page \|\| page\.superview != self \|\| page\.isHiddenOrHasHiddenAncestor\) return;/);
+  assert.match(take, /\[self focusPage\];/);
+});
+
+test("taking focus from a lingering pane gives it back to the tab's remembered DevTools field", () => {
+  const take = body(painting, "- (void)takeFocusFromLingeringPane {");
+  assert.match(take, /_focus\.page == ArdiaPageFocus::DevTools && devTools\.window == window && _devtoolsView && \[devTools isDescendantOf:_devtoolsView\]\) \{\s*\[window makeFirstResponder:devTools\];/);
+});
+
+test("a focus handoff's late page refocus stands down when a newer gate has opened in the window", () => {
+  const end = body(handoff, "private func end(_ gate: Gate, restoring: Bool) {", "\n  }\n");
+  assert.match(end, /Self\.unfocused\(window\), self\.gates\[ObjectIdentifier\(window\)\] == nil else \{ return \}/);
 });
 
 test("lending a page to a successor asks the successor to take the focus the page held", () => {
