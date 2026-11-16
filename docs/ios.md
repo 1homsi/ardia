@@ -24,7 +24,7 @@ apps/ios/
   scripts/asc.mjs              App Store Connect client for the TestFlight release
 ```
 
-Targets: iOS 27, iPhone only, Swift 6 with strict concurrency. The app target defaults to MainActor isolation.
+Targets: iOS 27, iPhone and iPad, Swift 6 with strict concurrency. The app target defaults to MainActor isolation.
 
 ## Code shared with the Mac
 
@@ -189,7 +189,7 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   device ("Tab from MacBook Pro").
 - **iPhone Duo and wide windows.** `RootView` reads the space it is given into a `ScreenLayout` (`App/Duo`), in the
   environment as `screenLayout`: `phone`, `column` (a side inset on one edge only, where the system puts the vertical
-  status bar: the closed Duo's sensor edge), `wide` (a window at least 600 pt both ways: the open Duo, later the iPad)
+  status bar: the closed Duo's sensor edge), `wide` (a window at least 600 pt both ways: the open Duo and the iPad; an iPad window in Split View or Slide Over narrower than that gets the phone layout)
   and `split` (the hinge half open with a horizontal division band). It comes from the system, never the device
   model: the safe area, `UITraitCollection.verticalBarEdge`, SwiftUI's `onHingeChange` (`DeviceHinge.status`) and the
   `.division` reserved regions (`GeometryProxy.reservedRegions`), all iOS 27.1. The probe ignores the keyboard, so
@@ -241,8 +241,8 @@ starts in that space. Captures can be driven without touch:
 `-ArdiaColorScheme light|dark`, `-ArdiaSettingsPage <route>` (for example `appearance`, `siteSettings`, `searchEngine`,
 `about`), `-ArdiaOpenSheet history|bookmarks|downloads` and `-ArdiaNoSitePermissions` (demo mode otherwise seeds
 three allowed sites). `-ArdiaDeckQuery <text>` types into the closed Duo's deck search. `-ArdiaDuoCanvas open|half`
-(DEBUG) draws the app at the open Duo's 669 by 951 pt inside a larger screen, open or half open, for an iPad
-simulator built with `TARGETED_DEVICE_FAMILY=1,2` on the `xcodebuild` command line (never in the project). The Duo
+(DEBUG) draws the app at the open Duo's 669 by 951 pt inside a larger screen, open or half open, on an iPad
+simulator. The Duo
 simulator itself folds without a person: the `agent-device` `fold closed|half-open|open` command, then
 `orientation landscape-left` for the portrait open window and `orientation portrait` once closed again.
 Motion captures: `-BrowsePagerFreeze <fraction>` holds a tab swipe part way (negative swipes toward the
