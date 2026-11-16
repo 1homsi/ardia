@@ -716,7 +716,7 @@ try the site's other pages or another source, and name what stayed blocked. On B
 agents lost by 30+ points showed such a block, and the agent usually gave up after one try. Each page read also carries a scope line
 when the page states its own extent: `(scope: page says "1–20 of 340 results"; has a Next page link, pages up to 17)`
 (a count range, an "N results"-style total, "page N of M", a rel=next or Next link, a Load more button, the highest
-number in a pagination nav); `read` of the session's tab ends with `[scope: …]`. On BU Bench, coverage was the rubric
+number in a pagination nav); `read` of the session's tab ends with `[scope: …]`, then `[read <UTC time>]`, the moment it read the page (also `readAt` in `--json`), which agents used to take with `date -u` at the wrong moment, before or after the filter the answer depended on. On BU Bench, coverage was the rubric
 family Ardia's agents failed most (45% violated), and Browser Use's prompt has its agent check counts and coverage
 against the source. The cap rose from 6,000 to 12,000 (6,000 a page for multi-page reads, up to 36,000): 746 of
 5,755 baseline commands hit it and 704 of those reran with `--max-output`; Browser Use's agent allows 12,000. A script
