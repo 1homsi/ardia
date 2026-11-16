@@ -1528,7 +1528,7 @@ function Get-PageWindow($Session, [string]$TitlePattern) {
   return @(Get-TopWindows $Session | Where-Object { $_.ClassName -match "^Chrome_" -and $_.Title -match $TitlePattern -and $_.Width -ge 100 -and $_.Height -ge 100 }) | Select-Object -First 1
 }
 
-function Invoke-PeekTour([string]$Name, [hashtable]$Settings, [string]$Look) {
+function Invoke-PeekTour([string]$Name, [hashtable]$Settings, [string]$Look, [int]$Height = 0) {
   if (-not (Start-TourPages)) {
     $script:Lines.Add("- The $Name part found no loopback page server on port $($script:TourPagesPort).")
     return
@@ -1539,6 +1539,12 @@ function Invoke-PeekTour([string]$Name, [hashtable]$Settings, [string]$Look) {
     $stop.Did = "Opened a loopback page with one link, then Shift-clicked the link."
     $stop.Expected = "a Peek card over the page with all four corners rounded alike, its page green, the page behind dimmed."
     if (-not (Test-Usable $session)) { $stop.Seen = "no"; return }
+    if ($Height -gt 0) {
+      $frame = Get-Frame $session.Main
+      [ArdiaTour]::SetWindowPos($session.Main, [IntPtr]::Zero, $frame.Left, $frame.Top, $frame.Width, $Height, 0x0014) | Out-Null
+      Start-Sleep -Milliseconds 1200
+      $stop.Facts.Add("the main window was made $Height pixels tall")
+    }
     Focus-Window $session $session.Main $stop | Out-Null
     $mark = Get-LogCount $session
     Send-Chord @(0x11) 0x54
@@ -1699,6 +1705,12 @@ if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $App) "chrome.dll")) {
   $tours += @{ Name = "pages"; Run = { Invoke-PagesTour } }
   $tours += @{ Name = "peek"; Run = { Invoke-PeekTour "peek-light" @{ appearance = "light" } "light" } }
   $tours += @{ Name = "peek-dark"; Run = { Invoke-PeekTour "peek-dark" @{ appearance = "dark" } "dark" } }
+  $tours += @{ Name = "peek-layouts"; Run = {
+      Invoke-PeekTour "peek-sidebar-address" @{ appearance = "light"; addressBar = "sidebar" } "light, address bar in the sidebar"
+      Invoke-PeekTour "peek-borderless" @{ appearance = "light"; borderlessMode = $true } "light, Borderless"
+      Invoke-PeekTour "peek-top-tabs" @{ appearance = "light"; tabLayout = "top" } "light, tabs on top"
+      Invoke-PeekTour "peek-short" @{ appearance = "light" } "light, a 460 pixel tall window" 460
+    } }
 }
 
 if ($Only.Count) {
