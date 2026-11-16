@@ -177,11 +177,17 @@ class PasswordFieldTests(unittest.TestCase):
                            'Clipboard', 'std::u16string text_', 'LOG(']:
                 self.assertFalse(needle in source, needle)
         self.assertEqual(field.count('SetValue('), 1)
+        blur = field[field.index('void PasswordField::OnBlur() {'):]
+        blur = blur[:blur.index('\n}\n')]
+        self.assertNotIn('DropComposition()', blur)
+        self.assertIn('Accept(text_.Insert(composition_.view()));', blur)
         for needle in ['SecretText text_;', 'SecretText composition_;']:
             self.assertTrue(needle in header, needle)
         for needle in ['ui::TEXT_INPUT_TYPE_PASSWORD', 'SetIsProtected(true)', 'Bullets(total)', 'accessibility.SetValue(Bullets(total));',
                        'SetTextSelStart(static_cast<int32_t>(selected ? 0 : caret));',
                        'SetTextSelEnd(static_cast<int32_t>(selected ? total : caret));',
+                       '!overflowed_ && text_.Insert(composition_.view())', 'Accept(text_.Insert(std::u16string_view(&unit, 1)));',
+                       'Accept(text_.Insert(text));', 'Accept(composition_.Insert(composition.text));',
                        'bool PasswordField::GetTextFromRange(const gfx::Range& range, std::u16string* text) const {\n  return false;\n}',
                        'bool PasswordField::GetTextRange(gfx::Range* range) const {\n  return false;\n}',
                        'case ui::VKEY_V:']:

@@ -71,6 +71,7 @@ class PasswordField : public views::View, public ui::TextInputClient {
 
  private:
   void Changed();
+  void Accept(bool inserted);
   void DropComposition();
   void Detach();
   int BulletWidth(size_t count) const;
@@ -79,6 +80,7 @@ class PasswordField : public views::View, public ui::TextInputClient {
 
   SecretText text_;
   SecretText composition_;
+  bool overflowed_ = false;
   ui::TextInputClient::FocusReason focus_reason_ = ui::TextInputClient::FOCUS_REASON_NONE;
   base::WeakPtrFactory<PasswordField> weak_factory_{this};
 };

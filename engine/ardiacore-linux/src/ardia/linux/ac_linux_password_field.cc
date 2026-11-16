@@ -86,7 +86,7 @@ PasswordField::~PasswordField() {
 }
 
 std::unique_ptr<SecretBytes> PasswordField::TakeUtf8() {
-  std::unique_ptr<SecretBytes> utf8 = text_.Insert(composition_.view()) ? text_.Utf8() : nullptr;
+  std::unique_ptr<SecretBytes> utf8 = !overflowed_ && text_.Insert(composition_.view()) ? text_.Utf8() : nullptr;
   Clear();
   return utf8;
 }
@@ -94,11 +94,19 @@ std::unique_ptr<SecretBytes> PasswordField::TakeUtf8() {
 void PasswordField::Clear() {
   DropComposition();
   text_.Clear();
+  overflowed_ = false;
   Changed();
+}
+
+void PasswordField::Accept(bool inserted) {
+  overflowed_ = overflowed_ || !inserted;
 }
 
 void PasswordField::Changed() {
   SchedulePaint();
+  if (text_.empty() && composition_.empty()) {
+    overflowed_ = false;
+  }
   const size_t caret = text_.CodePointsBeforeCursor() + composition_.CodePoints();
   const size_t total = text_.CodePoints() + composition_.CodePoints();
   const bool selected = text_.all_selected();
@@ -249,11 +257,14 @@ void PasswordField::OnFocus() {
 }
 
 void PasswordField::OnBlur() {
-  DropComposition();
+  if (!composition_.empty()) {
+    Accept(text_.Insert(composition_.view()));
+    composition_.Clear();
+  }
   Detach();
   focus_reason_ = ui::TextInputClient::FOCUS_REASON_NONE;
   View::OnBlur();
-  SchedulePaint();
+  Changed();
 }
 
 void PasswordField::RemovedFromWidget() {
@@ -270,12 +281,14 @@ void PasswordField::SetCompositionText(const ui::CompositionText& composition) {
     text_.Clear();
   }
   composition_.Clear();
-  composition_.Insert(composition.text);
+  Accept(composition_.Insert(composition.text));
   Changed();
 }
 
 size_t PasswordField::ConfirmCompositionText(bool keep_selection) {
-  const size_t confirmed = text_.Insert(composition_.view()) ? composition_.size() : 0;
+  const bool inserted = text_.Insert(composition_.view());
+  Accept(inserted);
+  const size_t confirmed = inserted ? composition_.size() : 0;
   composition_.Clear();
   Changed();
   return confirmed;
@@ -288,7 +301,7 @@ void PasswordField::ClearCompositionText() {
 
 void PasswordField::InsertText(const std::u16string& text, InsertTextCursorBehavior cursor_behavior) {
   composition_.Clear();
-  text_.Insert(text);
+  Accept(text_.Insert(text));
   Changed();
 }
 
@@ -297,7 +310,7 @@ void PasswordField::InsertChar(const ui::KeyEvent& event) {
     return;
   }
   const char16_t unit = event.GetCharacter();
-  text_.Insert(std::u16string_view(&unit, 1));
+  Accept(text_.Insert(std::u16string_view(&unit, 1)));
   Changed();
 }
 
