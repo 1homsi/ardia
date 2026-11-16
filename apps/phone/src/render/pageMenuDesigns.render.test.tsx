@@ -82,7 +82,8 @@ function withOneMac() {
   }));
 }
 
-test("the original menu is unchanged: icon rows and tiles, no glass capsules, no Print, and Site Settings opens inside the menu", async () => {
+test("the original menu is unchanged: icon rows and tiles, no glass capsules, Print only where the phone can print, and Site Settings opens inside the menu", async () => {
+  jest.spyOn(pages, "canPrint").mockReturnValue(false);
   const root = await openMenu("original");
   expect(host(root, "pageMenuWords")).toBeUndefined();
   expect(hosts(root, (id) => id.startsWith("pageMenuAction:"))).toHaveLength(0);
