@@ -203,9 +203,9 @@ case "postscroll":
       let (point, fixed, coarse): (CGEventField, CGEventField, CGEventField) = horizontal
         ? (.scrollWheelEventPointDeltaAxis2, .scrollWheelEventFixedPtDeltaAxis2, .scrollWheelEventDeltaAxis2)
         : (.scrollWheelEventPointDeltaAxis1, .scrollWheelEventFixedPtDeltaAxis1, .scrollWheelEventDeltaAxis1)
-      event.setDoubleValueField(point, value: dy)
-      event.setDoubleValueField(fixed, value: dy)
       event.setIntegerValueField(coarse, value: Int64(max(-10, min(10, (dy / 10).rounded()))))
+      event.setIntegerValueField(point, value: Int64(dy.rounded()))
+      event.setDoubleValueField(fixed, value: dy)
       event.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
       event.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentum)
     }
