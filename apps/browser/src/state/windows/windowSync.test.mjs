@@ -178,6 +178,21 @@ test("a frame the host fitted to a smaller display keeps the saved Little Ardia 
   assert.deepEqual(S().settings.littleArdiaSize, [1200, 800]);
 });
 
+test("a fitted Little Ardia moved to another profile and then dragged keeps the saved size; only a resize saves", () => {
+  reset();
+  S().updateSettings({ littleArdiaSize: [2406, 1085] });
+  const replacement = S().createWindow({ kind: "small", url: "https://link.example/", frame: [-1512, 0, 1512, 950] });
+  const native = fakePort();
+  const sync = start(native);
+  sync.sync(S());
+  native.emit({ type: "frame", id: replacement, frame: [-1512, 0, 1512, 950] });
+  native.emit({ type: "frame", id: replacement, frame: [-1480, 30, 1512, 950] });
+  assert.deepEqual(S().windows[replacement].frame, [-1480, 30, 1512, 950]);
+  assert.deepEqual(S().settings.littleArdiaSize, [2406, 1085]);
+  native.emit({ type: "frame", id: replacement, frame: [-1480, 30, 1300, 900] });
+  assert.deepEqual(S().settings.littleArdiaSize, [1300, 900]);
+});
+
 test("each time the host fits a Little Ardia window below the saved size is counted once, a repeat of the fitted size or a fit that keeps the size is not", () => {
   reset();
   S().updateSettings({ littleArdiaSize: [2406, 1085] });
