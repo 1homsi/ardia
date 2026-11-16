@@ -20,6 +20,7 @@ struct LaunchGuardFacts {
   int predecessor_wait_ms = -1;
   int unfinished_starts_before = 0;
   std::wstring recovered_to;
+  bool profile_held_by_another = false;
 };
 
 std::wstring AppDataDirectory();

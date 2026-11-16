@@ -382,6 +382,7 @@ void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir,
     return;
   }
   if (ProfileHeldByAnotherBrowser(chromium_user_data_dir)) {
+    state.facts.profile_held_by_another = true;
     const std::string line =
         "launch guard: another Ardia still holds this profile; this start "
         "is not counted and nothing is recovered";

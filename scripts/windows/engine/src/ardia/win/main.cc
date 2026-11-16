@@ -303,7 +303,9 @@ void SaveLaunchGuardFacts(const LaunchGuardFacts& facts) {
       ",\"unfinishedStartsBefore\":" +
       std::to_string(facts.unfinished_starts_before) +
       ",\"restoreStateSetAside\":" +
-      (facts.recovered_to.empty() ? "false" : "true") + "}\n";
+      (facts.recovered_to.empty() ? "false" : "true") +
+      ",\"profileHeldByAnother\":" +
+      (facts.profile_held_by_another ? "true" : "false") + "}\n";
   FILE* file = nullptr;
   if (_wfopen_s(&file, (data_dir + L"\\launch-guard.json").c_str(), L"wb") !=
           0 ||
