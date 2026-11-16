@@ -1834,6 +1834,9 @@ gh run watch --exit-status                                     the run's summary
 - there's no debuggable flag, and the native code is exactly `arm64-v8a`;
 - the stamps: the commit, a clean tree, and the JS from the export;
 - sync isn't offered, the shell's profiling is off, and the release version is stamped;
+- the main window is locked to portrait. Store builds set `screenOrientation` portrait through the manifest placeholder
+  `ardiaScreenOrientation`, and lab builds leave it free so landscape work goes on. A full-screen video still turns.
+  When landscape ships, the placeholder and `--orientation "free to turn"` change together;
 - `check-names.py` passes.
 
 **The version.** One source, no hand edits: the `version` input, or else the Mac app's `MARKETING_VERSION` at that
@@ -1873,9 +1876,12 @@ commit, as `release-ios` takes it.
   `.zip`.
 
 **What is left, and who presses it.**
-1. **Me:** put `android-release.yml` on `main` with the owner's OK, since it's a change to `main`.
+1. **Me:** put `android-release.yml` on `main` through its own pull request (#2161, closing #2160); the owner merges it.
+   The file is the same as this branch's. On `main` it stops at its first step until the Expo branch brings the scripts.
 2. **The owner, the first time** (the first use of the release key on CI): dispatch the dry run.
-3. **Me:** the phone pass on that artifact's APK on the F4 (evidence in `/tmp/ardia-phone-shots/android-rc1/`).
+3. **Me:** the full phone pass runs on corex's release-style build (`rc1`, the debug key, store settings), with
+   evidence in `/tmp/ardia-phone-shots/android-rc1/`. The dry run's release-key APK then gets a short check: install,
+   launch, and refusing to install over a build signed with another key.
 4. **The owner:** dispatch `mode=draft` for the release version.
 5. **The owner:** publish the draft on GitHub. Keep it a prerelease, and never set it as latest.
 
