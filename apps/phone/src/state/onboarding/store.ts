@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { haptics } from "../app/haptics";
 import { presentSearch } from "../search/store";
-import { closeSettings } from "../settings/nav";
+import { closeSettings, openSettings } from "../settings/nav";
 import { defaultBrowserStatus, refreshDefaultBrowser } from "../settings/defaultBrowser";
 import { keepRestorable, restoredValue } from "../../platform/restorable";
 import { nextStep, offersDefaultBrowser, previousStep, restoredOnboardingStep, type OnboardingStep } from "../settings/settingsRules";
@@ -11,7 +11,7 @@ import { heldLinks } from "../links/heldLinks";
 import { opensLaunchTray } from "../links/linkRules";
 import { syncOffered } from "../../platform/system";
 
-export const useOnboarding = create<{ showing: boolean; step: OnboardingStep; forward: boolean }>()(() => ({ showing: false, step: "welcome", forward: true }));
+export const useOnboarding = create<{ showing: boolean; step: OnboardingStep; forward: boolean; fromSettings: boolean }>()(() => ({ showing: false, step: "welcome", forward: true, fromSettings: false }));
 
 export const onboardingShowing = () => useOnboarding.getState().showing;
 
@@ -24,7 +24,7 @@ useOnboarding.subscribe((state, previous) => {
 
 export function showOnboarding() {
   closeSettings();
-  useOnboarding.setState({ showing: true, step: restoredOnboardingStep(restoredValue(STEP_KEY), syncOffered()), forward: true });
+  useOnboarding.setState({ showing: true, step: restoredOnboardingStep(restoredValue(STEP_KEY), syncOffered()), forward: true, fromSettings: false });
   void refreshDefaultBrowser();
 }
 
@@ -45,8 +45,16 @@ export function onboardingBack(): boolean {
   if (!showing) return false;
   const previous = previousStep(step, offers(), syncOffered());
   if (previous) useOnboarding.setState({ step: previous, forward: false });
-  else finishOnboarding();
+  else if (useOnboarding.getState().fromSettings) {
+    useOnboarding.setState({ showing: false, fromSettings: false });
+    openSettings();
+  } else finishOnboarding();
   return true;
+}
+
+export function showOnboardingFromSettings() {
+  showOnboarding();
+  useOnboarding.setState({ fromSettings: true });
 }
 
 export function finishOnboarding() {

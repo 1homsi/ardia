@@ -376,7 +376,22 @@ export function reopenLastClosed() {
 
 export const openArchive = () => useBrowse.setState({ sheet: "archive" });
 
-export const closeArchive = () => useBrowse.setState({ sheet: null });
+let sheetFromSettings = false;
+
+export const markSheetFromSettings = () => {
+  sheetFromSettings = useBrowse.getState().sheet !== null;
+};
+
+export const takeSheetFromSettings = () => {
+  const was = sheetFromSettings;
+  sheetFromSettings = false;
+  return was;
+};
+
+export const closeArchive = () => {
+  sheetFromSettings = false;
+  useBrowse.setState({ sheet: null });
+};
 
 export const openSpaces = () => {
   if (syncOffered()) useBrowse.setState({ sheet: "spaces" });

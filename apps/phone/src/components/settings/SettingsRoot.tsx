@@ -3,10 +3,10 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-na
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig } from "react-native-reanimated";
 import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
-import { openArchive, openSpaces } from "../../state/browse/store";
+import { markSheetFromSettings, openArchive, openSpaces } from "../../state/browse/store";
 import { useSyncEnabled, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName, syncRowSubtitle } from "../../state/sync/syncRules";
-import { showOnboarding } from "../../state/onboarding/store";
+import { showOnboardingFromSettings } from "../../state/onboarding/store";
 import { appVersion, exportOpenTabs, setAppLinks, setArchiveInterval, setAutoOpenKeyboard, setSearchSuggestions, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
@@ -56,6 +56,7 @@ export function SettingsRoot() {
           onPress={() => {
             closeSettings();
             openArchive();
+            markSheetFromSettings();
           }}
           style={[styles.shortcut, stacks ? null : styles.fill, { backgroundColor: theme.groupFill }]}
         >
@@ -68,6 +69,7 @@ export function SettingsRoot() {
             onPress={() => {
               closeSettings();
               openSpaces();
+              markSheetFromSettings();
             }}
             style={[styles.shortcut, stacks ? null : styles.fill, { backgroundColor: theme.groupFill }]}
           >
@@ -116,7 +118,7 @@ export function SettingsRoot() {
         <NavRow title={PHONE_SHARING_COPY.whatsSent} icon="info" tint={settingsTint.neutral} onPress={() => pushSettings({ page: "whatsSent" })} />
       </Group>
       <Group>
-        <Pressable accessibilityRole="button" onPress={showOnboarding} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
+        <Pressable accessibilityRole="button" onPress={showOnboardingFromSettings} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
           <IconTile icon="handWave" tint={settingsTint.onboarding} />
           <Text style={[font.body, { color: theme.label }]}>Show Onboarding</Text>
         </Pressable>

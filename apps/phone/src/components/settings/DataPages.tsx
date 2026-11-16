@@ -90,8 +90,8 @@ export function AboutPage() {
   );
 }
 
-export const DATA_CREDITS = [
-  { name: "Ardia", use: "This app, and the Mac browser it syncs with.", license: "Apache License 2.0", url: "https://github.com/mantrakp04/ardia" },
+export const dataCredits = () => [
+  { name: "Ardia", use: copy().ardiaCredit, license: "Apache License 2.0", url: "https://github.com/mantrakp04/ardia" },
   { name: "EasyList", use: "The list behind Block Ads.", license: "CC BY-SA 3.0 or GPLv3", url: "https://easylist.to" },
   { name: "EasyPrivacy", use: "The list behind Block Trackers.", license: "CC BY-SA 3.0 or GPLv3", url: "https://easylist.to" },
   { name: "Fanboy’s Cookie Monster List", use: "The list behind Block Cookie Banners.", license: "CC BY-SA 3.0 or GPLv3", url: "https://secure.fanboy.co.nz" },
@@ -104,7 +104,7 @@ export function LicensesPage() {
   const theme = useTheme();
   return (
     <SettingsPage title="Open Source Licenses" onBack={popSettings}>
-      {DATA_CREDITS.map((credit) => (
+      {dataCredits().map((credit) => (
         <Group key={credit.name}>
           <View style={styles.credit}>
             <Text style={[font.body, styles.bold, { color: theme.label }]}>{credit.name}</Text>

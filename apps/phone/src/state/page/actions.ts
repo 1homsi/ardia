@@ -5,13 +5,12 @@ import { pages, type PageEngineEvent, type PageRequestAnswer } from "../../platf
 
 export type { ReadableContent } from "../../platform/pages";
 import { copyText, openExternal, preferredLanguage, pressHaptic, shareLink, successHaptic } from "../../platform/system";
-import { cancelSearch, closeArchive, leaveDeck, openTab, showDeck, useBrowse } from "../browse/store";
+import { cancelSearch, closeArchive, openTab, showDeck, takeSheetFromSettings, useBrowse } from "../browse/store";
 import { display } from "../search/omnibox";
 import { presentSearch, searchState } from "../search/store";
 import { setPreference } from "../settings/store";
 import { listenToPages, openPageInBackground, pageHandle, pageIsFullscreen, pageRequest, settled, storeFind, storeFullscreen, storeRequest, usePages } from "../pages/store";
 import { closeTabById, currentTabs, openNewTab, useTabs } from "../tabs/store";
-import { sendDeckCommand } from "../browse/deckCommands";
 import { isSyncableUrl } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
 import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from "./pageMenu";
@@ -407,15 +406,12 @@ export function handleSystemBack(): boolean {
     return true;
   }
   if (sheet) {
+    const backToSettings = takeSheetFromSettings();
     closeArchive();
+    if (backToSettings) openSettings();
     return true;
   }
-  if (surface === "deck") {
-    if (dismissArchiveCard()) return true;
-    if (currentTabs().open.length || currentTabs().privates.length) sendDeckCommand({ kind: "openSelected" });
-    else leaveDeck();
-    return true;
-  }
+  if (surface === "deck") return dismissArchiveCard();
   const layer = backLayer({
     isFullscreen: surface === "browsing" && pageIsFullscreen(id),
     hasRequest: surface === "browsing" && pageRequest(id) !== null,

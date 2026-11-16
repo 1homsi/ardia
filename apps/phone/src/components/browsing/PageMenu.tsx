@@ -3,6 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig } from "react-native-reanimated";
 import { copy } from "../../lib/platformCopy";
 import {
+  canPrintPages,
+  printCurrentPage,
   closeMenuSubpage,
   closePageMenu,
   copyCurrentLink,
@@ -90,7 +92,8 @@ function MenuMain({ tabId, model, onTranslate }: { tabId: string; model: MenuMod
       <Group>
         <Row icon="textMagnifyingglass" title="Find on Page" enabled={model.find} divider={model.pageRows} onPress={showFind} />
         {model.pageRows ? <SendRow tabId={tabId} enabled={model.isWebPage} /> : null}
-        {model.pageRows ? <Row icon="translate" title="Translate" enabled={model.translate} divider={false} onPress={onTranslate} /> : null}
+        {model.pageRows ? <Row icon="translate" title="Translate" enabled={model.translate} divider={canPrintPages()} onPress={onTranslate} /> : null}
+        {model.pageRows && canPrintPages() ? <Row icon="printer" title="Print" enabled={model.print} divider={false} onPress={printCurrentPage} /> : null}
       </Group>
       {model.pageRows ? (
         <>

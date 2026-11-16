@@ -18,6 +18,7 @@ export type PlatformCopy = {
   chooseFolderDetail: string;
   historyClears: string;
   privacy: string;
+  ardiaCredit: string;
   cantScanTitle: string;
   alreadyPinnedToast: string;
   filterRulesUnsupported: string;
@@ -59,6 +60,7 @@ const ANDROID: PlatformCopy = {
   chooseFolderDetail: "Choose the Ardia Sync folder your Mac syncs to.",
   historyClears: "History clears from this phone. Your Mac’s history stays on your Mac.",
   privacy: "No accounts. Your data stays on your devices and in the sync folder you choose.",
+  ardiaCredit: "This app, and the Mac browser it syncs with.",
   cantScanTitle: "Can’t Scan on This Phone",
   alreadyPinnedToast: "Pinned to Your Mac",
   filterRulesUnsupported: "Some rules need features Ardia can’t run.",
@@ -100,6 +102,7 @@ const IOS: PlatformCopy = {
   chooseFolderDetail: "Choose the Ardia Sync folder in iCloud Drive.",
   historyClears: "History clears from this iPhone. Your Mac’s history stays on your Mac.",
   privacy: "No accounts. Your data stays on your devices and in your iCloud Drive.",
+  ardiaCredit: "This app, and the Mac browser it syncs with.",
   cantScanTitle: "Can’t Scan on This iPhone",
   alreadyPinnedToast: "Already Pinned to Your Mac",
   filterRulesUnsupported: "Some rules need features Safari can’t run.",
@@ -131,8 +134,14 @@ let current: PlatformCopy = ANDROID;
 
 export const copyTable = (platform: CopyPlatform): PlatformCopy => TABLES[platform];
 
-export function selectCopy(os: string) {
-  current = TABLES[os === "ios" ? "ios" : "android"];
+const SYNC_FREE: Record<CopyPlatform, Pick<PlatformCopy, "historyClears" | "privacy" | "ardiaCredit">> = {
+  android: { historyClears: "History clears from this phone.", privacy: "No accounts. Your data stays on this phone.", ardiaCredit: "This app." },
+  ios: { historyClears: "History clears from this iPhone.", privacy: "No accounts. Your data stays on this iPhone.", ardiaCredit: "This app." },
+};
+
+export function selectCopy(os: string, offersSync = true) {
+  const platform: CopyPlatform = os === "ios" ? "ios" : "android";
+  current = offersSync ? TABLES[platform] : { ...TABLES[platform], ...SYNC_FREE[platform] };
 }
 
 export const copy = (): PlatformCopy => current;

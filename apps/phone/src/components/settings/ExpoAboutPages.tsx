@@ -5,7 +5,7 @@ import { copy } from "../../lib/platformCopy";
 import { appVersion, openFromSettings } from "../../state/settings/actions";
 import { settingsRouteKey } from "../../state/settings/nav";
 import { AppIconPreview, modifierList, settingsChrome, settingsUIAvailable, useTheme } from "../ui";
-import { DATA_CREDITS, LIBRARY_CREDITS } from "./DataPages";
+import { dataCredits, LIBRARY_CREDITS } from "./DataPages";
 
 const FILL = Number.MAX_SAFE_INTEGER;
 const SECONDARY = { type: "hierarchical", style: "secondary" } as const;
@@ -54,7 +54,7 @@ export function ExpoAboutPage() {
 export function ExpoLicensesPage() {
   return (
     <Form modifiers={page("Open Source Licenses")}>
-      {DATA_CREDITS.map((credit) => (
+      {dataCredits().map((credit) => (
         <Section key={credit.name}>
           <VStack alignment="leading" spacing={4} modifiers={[padding({ vertical: 2 }), frame({ maxWidth: FILL, alignment: "leading" })]}>
             <Text modifiers={[font({ textStyle: "body", weight: "semibold" })]}>{credit.name}</Text>

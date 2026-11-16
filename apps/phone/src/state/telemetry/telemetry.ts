@@ -4,12 +4,13 @@ import { create } from "zustand";
 import { createGate, DAILY_KEY, type SharingSource } from "../../lib/telemetryGate";
 import { backdropProps, COUNTED, launchProps, legacyImportOutcome, parseDaily, pendingUsage, type Counted } from "../../lib/telemetrySchema";
 import { canPostTelemetry, deviceFacts, JS_STARTED_AT, launchBackdropShownAt, newTelemetryId, postTelemetry, processStartedAt, setUsageConsent, takePendingCounts } from "../../platform/telemetry";
-import { appearanceTelemetry } from "../../lib/appearance";
+import { appearanceTelemetry, offeredInterfaceStyle, offeredScheme } from "../../lib/appearance";
 import { useBoot } from "../app/bootState";
 import { isDemoSession } from "../app/launchFlags";
 import { currentPreferences } from "../settings/store";
 import { readPreferences, writePreference } from "../store/browserDatabase";
 import { browserDatabase } from "../store/database";
+import { syncOffered } from "../../platform/system";
 
 const DAILY_CHECK_MS = 60 * 60_000;
 
@@ -72,7 +73,7 @@ export async function reportLaunch(firstScreenAt: number) {
   const boot = useBoot.getState();
   const look = lookBudget.mode(await systemLook());
   const { interfaceStyle, schemeChoice } = currentPreferences();
-  gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures, look_mode: look, ...appearanceTelemetry(interfaceStyle, schemeChoice) });
+  gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures, look_mode: look, ...appearanceTelemetry(offeredInterfaceStyle(interfaceStyle, syncOffered()), offeredScheme(schemeChoice, syncOffered())) });
   const processStart = await processStartedAt();
   const timings = launchProps(processStart, JS_STARTED_AT, firstScreenAt);
   if (timings) gate.capture("perf_launch", timings);
