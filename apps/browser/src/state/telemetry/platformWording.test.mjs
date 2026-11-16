@@ -76,10 +76,11 @@ test("the rules touch only whole words outside quotes", () => {
 test("the branch's own sentences come last in Usage, after main's", () => {
   const usage = copy.WHATS_SENT.find((group) => group.title === "Usage");
   assert.ok(usage);
-  assert.ok(usage.items.at(-1).startsWith("On Windows, how many times the command bar put back a letter"));
-  assert.ok(usage.items.at(-2).startsWith("On Windows, how many times a tab you switched to had no page yet"));
-  assert.ok(usage.items.at(-3).startsWith("On Windows, how many sync files waited"));
-  assert.ok(usage.items.at(-17).startsWith("How many times the first-launch intro was shown"));
+  assert.ok(usage.items.at(-1).startsWith("How many times a window's interface was started a second time"));
+  assert.ok(usage.items.at(-2).startsWith("On Windows, how many times the command bar put back a letter"));
+  assert.ok(usage.items.at(-3).startsWith("On Windows, how many times a tab you switched to had no page yet"));
+  assert.ok(usage.items.at(-4).startsWith("On Windows, how many sync files waited"));
+  assert.ok(usage.items.at(-18).startsWith("How many times the first-launch intro was shown"));
 });
 
 test("WATCH_COPY, which the platform pass skips, has nothing the rules would change", () => {

@@ -23,6 +23,7 @@
 #include "AppIcon.h"
 #include "Events.h"
 #include "Host.h"
+#include "InstanceLoad.h"
 #include "ModalThread.h"
 #include "LaunchLog.h"
 #include "LaunchConfig.h"
@@ -220,7 +221,7 @@ struct WindowManager {
       ApplyTheme(entry, m_dark);
       Place(entry, request);
       Watch(entry);
-      Mount(entry);
+      if (InstanceLoad::Shared().loaded) Mount(entry);
       ConnectNonClientInput(entry);
       ApplyInputRegions(entry);
 
@@ -232,6 +233,11 @@ struct WindowManager {
       auto appWindow = entry.appWindow;
       m_order.push_back(entry.id);
       auto placed = m_windows.emplace(entry.id, std::move(entry)).first;
+      if (!InstanceLoad::Shared().loaded) {
+        InstanceLoad::Shared().WhenLoaded(std::wstring(L"window ").append(Paths::Wide(placed->first)), [this, id = placed->first]() {
+          if (ManagedWindow *found = Find(id)) Mount(*found);
+        });
+      }
       if (fades) BeginEntrance(placed->second);
       bool quietPopup = !activate && placed->second.kind == "popup";
       if (quietPopup) ShowAboveOpener(hwnd, openedFrom);

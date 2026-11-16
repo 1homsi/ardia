@@ -1,56 +1,84 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { REVERT_WINDOW_MS, freshRevertWatch, readNativeText } from "./revertedText.ts";
+import { REVERT_WINDOW_MS, freshRevertWatch, readNativeText, wroteOverField } from "./revertedText.ts";
 
 const at = (n) => ({ start: n, end: n });
 
-function typeInto(changes, start = 1000) {
+function run(steps, start = 1000) {
   let watch = freshRevertWatch();
   const seen = [];
-  for (const [i, change] of changes.entries()) {
-    const [next, caret = at(next.length), now = start + i * 80] = change;
+  for (const [i, step] of steps.entries()) {
+    if (step === "js write") {
+      watch = wroteOverField(watch);
+      continue;
+    }
+    const [next, caret = at(next.length), now = start + i * 80] = step;
     const read = readNativeText(watch, next, caret, now);
     watch = read.watch;
-    seen.push({ text: read.text, caret: read.caret });
+    seen.push(read);
   }
   return seen;
 }
 
-test("the field's first change reverted under the second letter is grafted back, with the caret after it", () => {
-  const seen = typeInto([["e"], ["ex"], ["ea", at(2)], ["eam"]]);
-  assert.deepEqual(seen.map((s) => s.text), ["e", "ex", "exa", "exam"]);
+const texts = (seen) => seen.map((s) => s.text);
+
+test("the letters a stale first change erased are put back where they were, once, with the caret after them", () => {
+  const seen = run([["e"], ["ex"], ["ea", at(2)], ["eam"]]);
+  assert.deepEqual(texts(seen), ["e", "ex", "exa", "exam"]);
+  assert.deepEqual(seen[2].restored, { at: 1, text: "x" });
   assert.deepEqual(seen.map((s) => s.caret), [null, null, 3, 4]);
+  assert.deepEqual(seen.map((s) => s.restored).filter(Boolean).length, 1);
 });
 
-test("once native holds the grafted text again, changes pass through", () => {
-  const seen = typeInto([["e"], ["ex"], ["ea"], ["exam"], ["examp"]]);
-  assert.deepEqual(seen.map((s) => s.text), ["e", "ex", "exa", "exam", "examp"]);
+test("several erased letters come back in order", () => {
+  assert.deepEqual(texts(run([["e"], ["ex"], ["exa"], ["em"]])), ["e", "ex", "exa", "exam"]);
+});
+
+test("once the field holds the restored text again, its changes pass through", () => {
+  const seen = run([["e"], ["ex"], ["ea"], ["exam"], ["examp"]]);
+  assert.deepEqual(texts(seen), ["e", "ex", "exa", "exam", "examp"]);
+  assert.equal(run([["e"], ["ex"], ["ea"], ["eam"], ["examp"]])[4].text, "examp");
   assert.deepEqual(seen.slice(3).map((s) => s.caret), [null, null]);
 });
 
-test("ordinary typing, Backspace and a word deleted at the end pass through untouched", () => {
-  assert.deepEqual(typeInto([["e"], ["ex"], ["exa"], ["ex"], ["exa"], ["e"]]).map((s) => s.text), ["e", "ex", "exa", "ex", "exa", "e"]);
+test("an edit while letters are being restored ends the restoring and keeps what the field holds", () => {
+  assert.deepEqual(texts(run([["e"], ["ex"], ["ea"], ["e"]])), ["e", "ex", "exa", "e"]);
 });
 
-test("replacing a selection is the person's own edit, not a revert", () => {
-  const seen = typeInto([["e"], ["ex"], ["ea", at(2)]].map(([t, c], i) => (i === 2 ? [t, { start: 1, end: 2 }] : [t, c])));
-  assert.equal(seen[2].text, "ea");
+test("ordinary typing, Backspace and a word deleted at the end pass through", () => {
+  assert.deepEqual(texts(run([["e"], ["ex"], ["exa"], ["ex"], ["exa"], ["e"], ["ea"]])), ["e", "ex", "exa", "ex", "exa", "e", "ea"]);
 });
 
-test("an edit in the middle of the text is never grafted", () => {
-  assert.equal(typeInto([["e"], ["ex"], ["ea", at(1)]])[2].text, "ea");
+test("a selection replaced or text typed in the middle is never taken for a stale change", () => {
+  assert.equal(run([["e"], ["ex"], ["ea", { start: 1, end: 2 }]])[2].text, "ea");
+  assert.equal(run([["e"], ["ex"], ["ea", at(1)]])[2].text, "ea");
 });
 
-test("a revert is only looked for once, and only soon after the first change", () => {
-  assert.equal(typeInto([["e"], ["ex"], ["ea"], ["e"], ["ex"], ["ea"]])[5].text, "ea");
-  assert.equal(typeInto([["e", undefined, 0], ["ex", undefined, 50], ["ea", undefined, REVERT_WINDOW_MS + 1]])[2].text, "ea");
+test("nothing is restored when the field ever changed by more than one typed letter", () => {
+  assert.equal(run([["exam"], ["examp"], ["examl"]])[2].text, "examl");
+  assert.equal(run([["e"], ["exa"], ["em"]])[2].text, "em");
+  assert.equal(run([["e"], ["ex", at(0)], ["ea"]])[2].text, "ea");
 });
 
-test("text that does not start from the first change is left alone", () => {
-  assert.equal(typeInto([["e"], ["ex"], ["a"]])[2].text, "a");
-  assert.equal(typeInto([["ab"], ["abc"], ["abc"]])[2].text, "abc");
+test("nothing is restored after JS wrote the field, as a completion, a reset or a scope does", () => {
+  assert.equal(run([["e"], "js write", ["ex"], ["ea"]])[2].text, "ea");
 });
 
-test("a paste as the first change is grafted the same way", () => {
-  assert.deepEqual(typeInto([["exam"], ["examp"], ["examl"]]).map((s) => s.text), ["exam", "examp", "exampl"]);
+test("the erased letter typed again is proven by the text not changing, so it is restored", () => {
+  assert.deepEqual(texts(run([["g"], ["go"], ["go"], ["gog"], ["gogl"]])), ["g", "go", "goo", "goog", "googl"]);
+});
+
+test("a change that could be Backspace is never taken for a stale change", () => {
+  assert.equal(run([["e"], ["ex"], ["exa"], ["ex"]])[3].text, "ex");
+});
+
+test("a composition that turns typed letters into other characters is never taken for a stale change", () => {
+  assert.equal(run([["e"], ["ek"], ["eか"]])[2].text, "eか");
+  assert.equal(run([["n"], ["ni"], ["n你"]])[2].text, "n你");
+});
+
+test("a revert is looked for only once, and only soon after the field's first change", () => {
+  assert.equal(run([["e"], ["ex"], ["ea"], ["exam"], ["e"], ["ex"], ["ea"]])[6].text, "ea");
+  assert.equal(run([["e"], ["ex"], ["ea"], ["exam"], ["exa"], ["ex"], ["e"]])[6].text, "e");
+  assert.equal(run([["e", undefined, 0], ["ex", undefined, 50], ["ea", undefined, REVERT_WINDOW_MS + 1]])[2].text, "ea");
 });
