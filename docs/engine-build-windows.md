@@ -100,7 +100,7 @@ The toolchain made on Linux is MSVC **14.52.37025** with SDK 10.0.28000 (hash `4
 Visual Studio's channel no longer offers 14.51.36231, the Mac's. Chromium's clang-cl takes only its headers and
 libraries.
 
-Times on 2026-11-16 (xlarge VMs, `windows-engine-20261116-10` to `-12`): step 1 6 min (the whole checkout and every CIPD
+Times on 2026-11-16 (xlarge VMs, `windows-engine-20261116-10` to `-13`): step 1 6 min (the whole checkout and every CIPD
 package), the toolchain 2 min (download and pack), step 1 again 2 to 6 min, step 3 2 min, steps 4 and 2 under a
 minute, step 5 at `JOBS=16` about 85 min for x64 (78,800 steps) and 2 h 40 min for arm64 on a VM of its own, step 6
 20 s. The first pass lost 57 x64 and 37 arm64 compiles to "Too many open files": `ciopfs` had inherited a limit of
