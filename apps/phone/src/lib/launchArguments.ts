@@ -32,6 +32,7 @@ export type LaunchArguments = {
   loadFreeze: number | null;
   openingCard: boolean;
   oneContainerScroll: boolean;
+  redesign: boolean;
 };
 
 export const LAUNCH_TIMING = { delaySeconds: 6, stepGapSeconds: 1.5, deckOpenMs: 3000, sheetMs: 600, toastMs: 1500, deckScriptStartMs: 1200, snapWaitMs: 5000 } as const;
@@ -108,6 +109,7 @@ export function parseLaunchArguments(values: Record<string, LaunchValue>): Launc
     loadFreeze: isDemo ? number(values, "BrowseLoadFreeze") : null,
     openingCard: flag(values, "ArdiaOpeningCard"),
     oneContainerScroll: flag(values, "ArdiaOneContainerScroll"),
+    redesign: flag(values, "ArdiaRedesign"),
   };
 }
 

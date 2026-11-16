@@ -103,6 +103,20 @@ test("in the redesign the page runs full screen under the bar, told the top safe
   unmount(root);
 });
 
+test("the bands under the bars take the colours the bars use: the page's sampled tones, and the profile's surface before a page has one", () => {
+  jest.spyOn(pageViewModule, "pageObscuresInsets").mockImplementation(() => true);
+  const tab = currentTabs().open[0]!;
+  const fresh = page("redesigned", tab);
+  const before = fresh.root.findAll((node) => node.props.pageId !== undefined && node.props.obscuredColors !== undefined)[0]!;
+  expect(before.props.obscuredColors).toEqual({ top: before.props.surfaceColor, bottom: before.props.surfaceColor });
+  unmount(fresh);
+  act(() => storeTone(tab.id, { top: "#F2F4F6", bottom: "#101418" }));
+  const toned = page("redesigned", tab);
+  const view = toned.root.findAll((node) => node.props.pageId !== undefined && node.props.obscuredColors !== undefined)[0]!;
+  expect(view.props.obscuredColors).toEqual({ top: "#F2F4F6", bottom: "#101418" });
+  unmount(toned);
+});
+
 test("where the page view can't take obscured insets, and in the original design, the page stops above the bar as before", () => {
   jest.spyOn(pageViewModule, "pageObscuresInsets").mockImplementation(() => false);
   for (const design of DESIGNS) {

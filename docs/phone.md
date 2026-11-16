@@ -2152,7 +2152,7 @@ touch:
 - `ArdiaDeck <script>`, `ArdiaOnboarding`, `ArdiaOpenSheet <sheet>`, `ArdiaOpenSettings`, `ArdiaRestingStart`,
   `ArdiaColor <name>`, `ArdiaToast <text>`, `ArdiaTrustedSites`;
 - motion captures, demo only: `BrowsePagerFreeze <fraction>`, `BrowsePagerScript`, `BrowseLoadFreeze <progress>`;
-- the lab's own flags, such as `ArdiaOneContainerScroll`, `ArdiaOpeningCard` and `ArdiaNativeGlass`.
+- the lab's own flags, such as `ArdiaOneContainerScroll`, `ArdiaOpeningCard`, `ArdiaNativeGlass` and `ArdiaRedesign` (Android draws the redesigned design, for checking the page under the bar before it becomes Android's default).
 
 Flags take `--ez` (or any string but false, no and 0); everything else can be `--es`. The list is `LaunchArguments.kt`
 (`packages/phone/android/src/main/java/com/ardia/appmodel`).

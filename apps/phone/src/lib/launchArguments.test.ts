@@ -59,3 +59,9 @@ test("the lab's one-container deck scroll is off unless ArdiaOneContainerScroll 
   assert.equal(parseLaunchArguments({ ArdiaOneContainerScroll: "NO" }).oneContainerScroll, false);
   assert.equal(parseLaunchArguments({ ArdiaOpeningCard: "1" }).oneContainerScroll, false);
 });
+
+test("the lab's redesigned Android is off unless ArdiaRedesign asks for it", () => {
+  assert.equal(NO_LAUNCH_ARGUMENTS.redesign, false);
+  assert.equal(parseLaunchArguments({ ArdiaRedesign: "YES" }).redesign, true);
+  assert.equal(parseLaunchArguments({ ArdiaRedesign: "0" }).redesign, false);
+});
