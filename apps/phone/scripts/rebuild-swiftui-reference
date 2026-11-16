@@ -1,12 +1,12 @@
 #!/bin/bash
 # Usage: apps/phone/scripts/rebuild-swiftui-reference [<commit>] [<out dir>] [--help]
-#   Rebuilds main's SwiftUI iPhone app from <commit> (default a6ab643116b53c7a7079521adbb9374537eaec0f, the pinned
+#   Rebuilds main's SwiftUI iPhone app from <commit> (default e945077b66efc7595382510e4a3c78c8e541957f, the pinned
 #   reference) for the simulator: Release, ad hoc signed with simulated entitlements. Writes
 #   <out dir>/swiftui-main-rebuilt.app and .txt (default ~/Developer/ardia-phone-references).
 set -euo pipefail
 case "${1:-}" in -h|--help) sed -n '2,5p' "$0" | cut -c3-; exit 0 ;; esac
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
-commit="$(git -C "$root" rev-parse "${1:-a6ab643116b53c7a7079521adbb9374537eaec0f}^{commit}")"
+commit="$(git -C "$root" rev-parse "${1:-e945077b66efc7595382510e4a3c78c8e541957f}^{commit}")"
 out="${2:-$HOME/Developer/ardia-phone-references}"
 work="${TMPDIR:-/tmp}/ardia-swiftui-rebuild/${commit:0:12}"
 rm -rf "$work"

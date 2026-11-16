@@ -2062,8 +2062,11 @@ Expo app builds from and what comparisons need. `main` keeps it until this branc
 
 **The pinned reference.** `~/Developer/ardia-phone-references/swiftui-main.app` (linked from
 `/tmp/ardia-phone/swiftui-main.app`), with `swiftui-main.txt`, is main's SwiftUI app built from
-`a6ab643116b53c7a7079521adbb9374537eaec0f`: Release, for the simulator, ad hoc signed with simulated entitlements.
-It is the one SwiftUI build the launch check, the upgrade proof and the speed comparisons install. To rebuild it once
+`e945077b66efc7595382510e4a3c78c8e541957f` (PR #2010's search morph): Release, for the simulator, ad hoc signed with
+simulated entitlements. It is the one SwiftUI build the launch check, the upgrade proof and the speed comparisons
+install. Install the folder, not the `/tmp` link: the Simlock upload refuses links. The previous pin, from
+`a6ab643116b53c7a7079521adbb9374537eaec0f`, stays beside it as `swiftui-main-a6ab64311.app` until the audit rows for
+search and the bar are re-checked against the new one. To rebuild it once
 `apps/ios` is gone here:
 
 ```
