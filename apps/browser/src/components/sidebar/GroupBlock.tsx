@@ -19,7 +19,7 @@ import { GROUP_BORDER, GROUP_INNER_RADIUS, GROUP_INDENT, GROUP_INSET, GROUP_RADI
 import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/geometry";
 import { dismissHover } from "../../state/sidebar/hover";
 import { useGroupHover, useRowHover } from "./hoverController";
-import { useGroupBoxOpacity } from "./hoverMotion";
+import { useHoverFade } from "./hoverMotion";
 import { GhostSlot, ListMotionContext, useGroupMotion } from "./ListMotion";
 import { pressGroupClose, useGroupCloseControlWhile } from "../../state/sidebar/closeControl";
 import { openGroupMenu } from "../../state/sidebar/menus";
@@ -91,7 +91,7 @@ export const GroupBlock = memo(function GroupBlock({
   const box = useGroupHover(windowId, groupId);
   const dropInto = useDropInto() === groupId;
   const nested = useInnermostHover(groupId, box.hovered);
-  const boxOpacity = useGroupBoxOpacity(nested.innermost || dropInto || groupBoxAtRest(color));
+  const boxOpacity = useHoverFade(nested.innermost || dropInto || groupBoxAtRest(color));
 
   const { fill, stroke } = groupSurface(color, tokens);
 

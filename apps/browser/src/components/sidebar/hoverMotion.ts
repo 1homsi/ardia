@@ -99,7 +99,7 @@ export function useHoverCardMotion<T>(key: string, target: T | null) {
   return { drawn, leaving, entering, motion };
 }
 
-export function useGroupBoxOpacity(shown: boolean) {
+export function useHoverFade(shown: boolean) {
   const [opacity] = useState(() => new Animated.Value(shown ? 1 : 0));
   useEffect(() => {
     const fade = Animated.timing(opacity, { toValue: shown ? 1 : 0, duration: HOVER_CARD_FADE_MS, easing: curve.fade, useNativeDriver: true });
