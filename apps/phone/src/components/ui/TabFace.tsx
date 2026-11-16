@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { isLabBuild } from "../../platform/lab";
 import { launchArguments } from "../../state/app/launchFlags";
-import { tabFaceDecodesAtDrawnSize } from "../../lib/tabFaceDecode";
+import { tabFaceDecodesAtDrawnSize } from "../../lib/launchTray";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
 import { forgetPicturePainted, notePicturePainted, noteSnapshotAspect, noteSnapshotShown, pictureKey, snapshotAspect, snapshotWasShown } from "../../lib/shownSnapshots";
