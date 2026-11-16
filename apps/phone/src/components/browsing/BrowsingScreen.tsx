@@ -138,6 +138,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
                 <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - floatingBarLayout.control / 2 }]} pointerEvents="box-none">
                   <Animated.View
                     testID="floatingBarFold"
+                    collapsable={false}
                     style={collapse.fold.bar}
                     pointerEvents={collapse.collapsed ? "none" : "box-none"}
                     importantForAccessibility={collapse.collapsed ? "no-hide-descendants" : "auto"}
@@ -160,6 +161,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
                   {collapse.fold.pillMounted ? (
                     <Animated.View
                       testID="hostPillFold"
+                    collapsable={false}
                       style={[styles.pillPlace, collapse.fold.pill]}
                       pointerEvents={collapse.collapsed ? "box-none" : "none"}
                       importantForAccessibility={collapse.collapsed ? "auto" : "no-hide-descendants"}
