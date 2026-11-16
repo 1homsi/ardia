@@ -60,9 +60,9 @@ import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad,
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
 
-type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null; opening: string | null; leaving: string | null };
+type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null; opening: string | null; veiled: string | null; leaving: string | null };
 
-export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null, opening: null, leaving: null }));
+export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null, opening: null, veiled: null, leaving: null }));
 
 const lastVisits = new Map<string, Visit>();
 
@@ -188,12 +188,38 @@ function showSpaceOf(id: string) {
   if (space) showSpace(space);
 }
 
-export function beginOpeningTab(id: string) {
+export function beginOpeningTab(id: string, veiled = false) {
   showSpaceOf(id);
   setIncognito(isPrivateTab(currentTabs(), id));
   selectTabById(id);
-  useBrowse.setState({ opening: id });
+  useBrowse.setState({ opening: id, veiled: veiled ? id : null });
 }
+
+export function unveilOpeningPage(id: string) {
+  if (useBrowse.getState().veiled === id) useBrowse.setState({ veiled: null });
+}
+
+const drawnWaiters = new Map<string, () => void>();
+
+export function whenPageDrawn(id: string, capMs: number, then: (drawn: boolean) => void): () => void {
+  let called = false;
+  const stop = () => {
+    called = true;
+    clearTimeout(cap);
+    if (drawnWaiters.get(id) === drawn) drawnWaiters.delete(id);
+  };
+  const finish = (wasDrawn: boolean) => {
+    if (called) return;
+    stop();
+    then(wasDrawn);
+  };
+  const drawn = () => finish(true);
+  const cap = setTimeout(() => finish(false), capMs);
+  drawnWaiters.set(id, drawn);
+  return stop;
+}
+
+export const pageDrawn = (id: string) => drawnWaiters.get(id)?.();
 
 const laidOutWaiters = new Map<string, () => void>();
 
@@ -214,7 +240,7 @@ export function whenPageLaidOut(id: string, capMs: number, then: () => void) {
 export const pageLaidOut = (id: string) => laidOutWaiters.get(id)?.();
 
 export function stopOpeningTab(id: string) {
-  if (useBrowse.getState().opening === id) useBrowse.setState({ opening: null });
+  if (useBrowse.getState().opening === id) useBrowse.setState({ opening: null, veiled: null });
 }
 
 export function openTab(id: string) {
@@ -224,7 +250,7 @@ export function openTab(id: string) {
   showSpaceOf(id);
   setIncognito(isPrivateTab(currentTabs(), id));
   if (currentTabs().selectedId !== id) selectTabById(id);
-  useBrowse.setState({ surface: "browsing", sheet: null, opening: null });
+  useBrowse.setState({ surface: "browsing", sheet: null, opening: null, veiled: null });
   const tab = findTab(currentTabs(), id);
   if (tab && !tab.snapshotFileName && loading.get(id) === false) scheduleSnapshot(id);
 }
@@ -286,7 +312,7 @@ export async function showDeck() {
   }
   const leaving = surface === "browsing" ? selected : null;
   labTrace(`PAGELAB deck shown with ${currentTabs().open.length} tabs, ${currentTabs().privates.length} private`);
-  useBrowse.setState({ surface: "deck", deckEntrance: leaving, frozenOrder: null, opening: null, leaving });
+  useBrowse.setState({ surface: "deck", deckEntrance: leaving, frozenOrder: null, opening: null, veiled: null, leaving });
 }
 
 export const peekDeckEntrance = () => useBrowse.getState().deckEntrance;

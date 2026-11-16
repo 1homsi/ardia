@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
-import { pageStateChanged, pageToneChanged } from "../../state/browse/store";
+import { pageDrawn, pageStateChanged, pageToneChanged } from "../../state/browse/store";
+import { usePageVeiled } from "../../state/browse/hooks";
 import { registerPageHandle } from "../../state/pages/store";
 import { tabSavedState } from "../../state/tabs/store";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -13,6 +14,7 @@ export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; to
   const theme = useTheme();
   const id = tab.id;
   const swipe = usePreferences((p) => p.swipeNavigation);
+  const veiled = usePageVeiled(id);
   const [setup] = useState(() => ({ url: tab.url, title: tab.title, saved: tabSavedState(id) ?? undefined }));
   useEffect(() => {
     registerPageHandle(id, handle.current);
@@ -21,7 +23,7 @@ export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; to
   return (
     <PageView
       ref={handle}
-      style={StyleSheet.absoluteFill}
+      style={veiled ? [StyleSheet.absoluteFill, styles.veiled] : StyleSheet.absoluteFill}
       pageId={id}
       initialUrl={setup.url}
       title={setup.title}
@@ -34,6 +36,9 @@ export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; to
       surfaceColor={theme.surface}
       onPageState={(state) => pageStateChanged(id, state)}
       onPageTone={(tone) => pageToneChanged(id, tone)}
+      onPageDrawn={() => pageDrawn(id)}
     />
   );
 }
+
+const styles = StyleSheet.create({ veiled: { opacity: 0 } });

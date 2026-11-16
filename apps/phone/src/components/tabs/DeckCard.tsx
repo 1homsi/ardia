@@ -20,6 +20,8 @@ import { useTabSpaces } from "../../state/tabs/hooks";
 import { moveTargets } from "../../state/tabs/spaces";
 import { moveTabToSpace } from "../../state/tabs/store";
 import type { SyncedProfile } from "../../state/sync/store";
+import { isLabBuild } from "../../platform/lab";
+import { launchArguments } from "../../state/app/launchFlags";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -295,20 +297,26 @@ function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: BrowserTab
   );
 }
 
-export const OPENS_WITH_OPENING_CARD = iPhoneOr(true, false);
+export type CardOpen = "openingCard" | "coveringCard" | "deckCard";
+
+const androidCardOpen = (): CardOpen => (isLabBuild && launchArguments().openingCard ? "coveringCard" : "deckCard");
+
+export const cardOpen: () => CardOpen = iPhoneOr(() => "openingCard", androidCardOpen);
+
 export const OPENING_CARD_RESPONSE = iPhoneOr(0.18, 0.3);
 export const OPENING_CARD_MOTION: MotionCurve = { type: "spring", response: OPENING_CARD_RESPONSE, dampingFraction: 1 };
 
-type OpeningCardProps = { tab: BrowserTab; geometry: DeckGeometry; centerX: number; centerY: number; onGrowing: () => void };
+type OpeningCardProps = { tab: BrowserTab; geometry: DeckGeometry; centerX: number; centerY: number; growsAtMount?: boolean; onGrowing: () => void };
 
-export function OpeningCard({ tab, geometry: g, centerX, centerY, onGrowing }: OpeningCardProps) {
+export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount = false, onGrowing }: OpeningCardProps) {
   const theme = useTheme();
   const design = useDesign();
   const toneNow = shownTone(useHeldPageTone(tab.id), tab.themeColorHex);
   const [tone] = useState(toneNow);
   const underBars = usePageUnderBars();
-  const [grown, setGrown] = useState(false);
+  const [grown, setGrown] = useState(growsAtMount);
   useEffect(() => {
+    if (growsAtMount) return;
     const frame = requestAnimationFrame(() => setGrown(true));
     return () => cancelAnimationFrame(frame);
   }, []);
@@ -320,22 +328,24 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, onGrowing }: O
   const bar = deckBarBand(g, barHeight(g.safeBottom), 1);
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
-  const to = grown ? { translateX: 0, translateY: 0, scale: full, cornerRadius: DECK.displayCornerRadius / full } : { translateX: centerX - g.width / 2, translateY: centerY - g.height / 2, scale: 1, cornerRadius: DECK.cardRadius };
+  const start = { translateX: centerX - g.width / 2, translateY: centerY - g.height / 2, scale: 1, cornerRadius: DECK.cardRadius };
+  const to = grown ? { translateX: 0, translateY: 0, scale: full, cornerRadius: DECK.displayCornerRadius / full } : start;
   return (
     <MotionView
       testID="openingCard"
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
+      from={growsAtMount ? start : undefined}
       to={to}
       motion={OPENING_CARD_MOTION}
       style={[styles.opening, { left: (g.width - g.cardWidth) / 2, top: (g.height - g.cardHeight) / 2, width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface }]}
     >
-      <MotionView testID="openingCardFace" style={StyleSheet.absoluteFill} to={{ translateY: grown ? deckStatusStrip(g, 0, pageTop) : 0 }} motion={OPENING_CARD_MOTION}>
+      <MotionView testID="openingCardFace" style={StyleSheet.absoluteFill} from={growsAtMount ? { translateY: 0 } : undefined} to={{ translateY: grown ? deckStatusStrip(g, 0, pageTop) : 0 }} motion={OPENING_CARD_MOTION}>
         <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} paintedAs={`deck:${tab.id}`} />
       </MotionView>
       {underBars ? null : (
-        <MotionView testID="openingCardBand" style={[styles.openingBand, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }]} to={{ translateY: grown ? 0 : bar.height }} motion={OPENING_CARD_MOTION}>
+        <MotionView testID="openingCardBand" style={[styles.openingBand, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }]} from={growsAtMount ? { translateY: bar.height } : undefined} to={{ translateY: grown ? 0 : bar.height }} motion={OPENING_CARD_MOTION}>
           {design === "original" ? <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
         </MotionView>
       )}

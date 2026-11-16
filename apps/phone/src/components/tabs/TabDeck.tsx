@@ -53,6 +53,8 @@ import {
   openSpaces,
   openTab,
   reopenLastClosed,
+  unveilOpeningPage,
+  whenPageDrawn,
   whenPageLaidOut,
 } from "../../state/browse/store";
 import { menuOpenedHaptic } from "../../state/browse/tabMenus";
@@ -65,8 +67,8 @@ import { isTabPinned, sendTargetsFor, spaceMoveTargets } from "../../state/sync/
 import { currentTabs } from "../../state/tabs/store";
 import { tabMatchesQuery } from "../../state/tabs/tabModels";
 import { DeckBar } from "./DeckBar";
-import { cardMenuItems as deckCardMenu, DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, OPENS_WITH_OPENING_CARD, type DeckMotion } from "./DeckCard";
-import { MotionView, type MotionCurve } from "../ui";
+import { cardMenuItems as deckCardMenu, cardOpen, DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, type CardOpen, type DeckMotion } from "./DeckCard";
+import { MotionView, pageReportsDrawn, type MotionCurve } from "../ui";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
 import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
 import { ArchiveCapsule, ArchiveIntervalCard } from "./ArchiveIntervalCard";
@@ -189,7 +191,7 @@ export const TabDeck = memo(function TabDeck() {
   const flyLift = useSharedValue(0);
   const flyVanish = useSharedValue(0);
   const covering = useSharedValue("");
-  const [openingCard, setOpeningCard] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [openingCard, setOpeningCard] = useState<{ id: string; x: number; y: number; path: CardOpen } | null>(null);
   const orderIds = useSharedValue<readonly string[]>(first.ids);
   const shiftBy = useSharedValue(0);
   const fromSlots = useSharedValue<DeckSlots>({});
@@ -219,6 +221,8 @@ export const TabDeck = memo(function TabDeck() {
   const spaceShown = useRef(shownSpace);
   const openingId = useRef<string | null>(null);
   const handedOver = useRef<string | null>(null);
+  const openPath = useRef<CardOpen>("deckCard");
+  const stopDrawnWait = useRef<() => void>(() => undefined);
   const landing = useSharedValue(false);
   const touching = useSharedValue(false);
 
@@ -244,6 +248,7 @@ export const TabDeck = memo(function TabDeck() {
     landing.value = false;
     covering.value = "";
     prepared.current = null;
+    stopDrawnWait.current();
     setOpeningCard(null);
     placeCards(order, deckScrollFor(order, heldSelected));
     deckPhase.value = DECK_PHASE.settled;
@@ -434,7 +439,10 @@ export const TabDeck = memo(function TabDeck() {
     openingId.current = id;
     handedOver.current = null;
     prepared.current = null;
-    if (OPENS_WITH_OPENING_CARD) setOpeningCard({ id, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + (redesigned ? cardsShift.value : 0) });
+    const path = cardOpen();
+    openPath.current = path;
+    if (path !== "deckCard") setOpeningCard({ id, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + (redesigned ? cardsShift.value : 0), path });
+    if (path === "coveringCard") return;
     requestAnimationFrame(() => {
       if (openingId.current !== id) return;
       landing.value = true;
@@ -460,7 +468,7 @@ export const TabDeck = memo(function TabDeck() {
 
   const prepared = useRef<{ id: string; ready: boolean; landed: boolean } | null>(null);
   const finishOpen = (id: string) => {
-    if (OPENS_WITH_OPENING_CARD) {
+    if (openPath.current !== "deckCard") {
       if (openingId.current === id) settledOpen(id);
       return;
     }
@@ -468,11 +476,11 @@ export const TabDeck = memo(function TabDeck() {
       if (openingId.current === id) settledOpen(id);
     });
   };
-  const prepareHandOver = (id: string) => {
+  const prepareHandOver = (id: string, veiled = false) => {
     if (openingId.current !== id || prepared.current?.id === id) return;
     const state = { id, ready: false, landed: false };
     prepared.current = state;
-    beginOpeningTab(id);
+    beginOpeningTab(id, veiled);
     const picture = tabs.get(id)?.snapshotFileName ?? null;
     let waiting = picture ? 2 : 1;
     const ready = () => {
@@ -484,7 +492,39 @@ export const TabDeck = memo(function TabDeck() {
     whenPageLaidOut(id, HANDOVER_CAP_MS, ready);
     if (picture) whenPicturePainted(pictureKey(`cover:${id}`, picture), HANDOVER_CAP_MS, ready);
   };
+  const coverDeck = (id: string) => {
+    if (openingId.current !== id) return;
+    prepareHandOver(id, true);
+    requestAnimationFrame(() => {
+      if (openingId.current !== id) return;
+      runOnUI((covered: string) => {
+        "worklet";
+        covering.value = covered;
+        scaleProgress.value = 0;
+        positionProgress.value = withSpring(0, tabsMotion.expand);
+      })(id);
+    });
+    setTimeout(() => landCoveringCard(id), criticalSpringLandsMs(OPENING_CARD_RESPONSE, CARD_LANDED));
+  };
+  const landCoveringCard = (id: string) => {
+    if (openingId.current !== id || handedOver.current === id) return;
+    positionProgress.value = 0;
+    unveilOpeningPage(id);
+    if (!pageReportsDrawn()) {
+      handOver(id);
+      return;
+    }
+    handedOver.current = id;
+    stopDrawnWait.current = whenPageDrawn(id, DRAWN_CAP_MS, (drawn) => {
+      if (!drawn && !tabs.get(id)?.isPrivate) countUsage("card_opens_waited");
+      finishOpen(id);
+    });
+  };
   const openingCardGrowing = (id: string) => {
+    if (openPath.current === "coveringCard") {
+      coverDeck(id);
+      return;
+    }
     covering.value = id;
     setTimeout(() => prepareHandOver(id), PAGE_MOUNT_AFTER_GROWTH_MS);
     setTimeout(() => handOver(id), criticalSpringLandsMs(OPENING_CARD_RESPONSE, CARD_LANDED));
@@ -755,7 +795,7 @@ export const TabDeck = memo(function TabDeck() {
             <ArchiveIntervalCard edgeY={archiveCardEdgeY(g, archiveCardLayout.aboveBarCenter)} />
           )
         ) : null}
-        {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} onGrowing={() => openingCardGrowing(openingCard.id)} /> : null}
+        {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} growsAtMount={openingCard.path === "coveringCard"} onGrowing={() => openingCardGrowing(openingCard.id)} /> : null}
         <MotionView testID="deckChromeFade" style={StyleSheet.absoluteFill} pointerEvents="box-none" to={{ opacity: openingCard ? 0 : 1 }} motion={openingCard ? OPENING_CARD_MOTION : CHROME_BACK}>
         {redesigned ? (
           <Animated.View style={[StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
@@ -853,6 +893,7 @@ const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
 const HANDOVER_CAP_MS = 250;
+const DRAWN_CAP_MS = 200;
 const CARD_LANDED = 0.02;
 const CHROME_BACK: MotionCurve = { type: "timing", durationMs: 0 };
 const PAGE_MOUNT_AFTER_GROWTH_MS = 34;
