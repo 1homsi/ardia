@@ -460,6 +460,11 @@ while ($true) {
     while ($line = $reader.ReadLine()) { if ($line -match '^Sec-WebSocket-Key:\s*(\S+)') { $socketKey = $Matches[1] } }
     $path = if ($request) { $request.Split(" ")[1] } else { "" }
     if ($Log -and $path) { Add-Content -LiteralPath $Log -Value $path }
+    if (($path -replace '\?.*$', '') -eq "/hold") {
+      $held.Add($client)
+      $keep = $true
+      continue
+    }
     if (($path -replace '\?.*$', '') -eq "/ws" -and $socketKey) {
       $accept = [Convert]::ToBase64String([System.Security.Cryptography.SHA1]::HashData([System.Text.Encoding]::ASCII.GetBytes($socketKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")))
       $upgrade = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 101 Switching Protocols`r`nUpgrade: websocket`r`nConnection: Upgrade`r`nSec-WebSocket-Accept: $accept`r`n`r`n")
