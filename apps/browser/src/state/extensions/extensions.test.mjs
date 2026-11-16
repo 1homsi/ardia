@@ -534,3 +534,22 @@ test("opening another extension's side panel drops the first extension's kept pa
   assert.equal(panels.panelKept(w, shown, panels.panelKey(shown)), true);
   assert.equal(panels.panelKept(w, panelA, panels.panelKey(shown)), false, "the first extension's panel on tab a is dropped though tab a is open");
 });
+
+test("a kept panel that closes itself while another tab's panel shows stays closed when you go back to its tab", async () => {
+  const { w, a, b, asked, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  const panelA = E().sidePanels[w];
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  assert.equal(E().sidePanels[w].tabId, b);
+  assert.equal(panels.closeKeptPanel(w, panelA, false), false, "the hidden card goes away where it is kept, B's panel stays");
+  assert.equal(E().sidePanels[w].hidden, undefined, "B's panel still shows");
+  assert.equal(panels.panelClosedOnTab(w, a), true);
+  S().activate(a);
+  await panels.syncSidePanel(w);
+  assert.equal(E().sidePanels[w].hidden, true, "going back to A doesn't bring back the panel that closed itself");
+  assert.equal(asked.length, 2, "A's panel isn't asked for again");
+});

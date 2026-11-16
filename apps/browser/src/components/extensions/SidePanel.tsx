@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS } from "../../state/settings/settings";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelKept, panelKey, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeKeptPanel, closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelKept, panelKey, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 import { useResizeDrag } from "../sidebar/useResizeDrag";
@@ -99,7 +99,7 @@ export function ExtensionSidePanel() {
         {kept.map((p) => {
           const current = (!!panel || leaving) && panelKey(p) === panelKey(shown);
           const close = () => {
-            if (current && closeSidePanelOnTab(windowId, p.tabId)) return;
+            if (closeKeptPanel(windowId, p, current)) return;
             setKept((k) => k.filter((x) => x !== p));
           };
           return <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={current} onWindowClose={close} />;

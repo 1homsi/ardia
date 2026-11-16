@@ -174,3 +174,9 @@ export const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p
 export const panelKept = (windowId: string, p: SidePanel, shownKey: string) =>
   panelKey(p) === shownKey ||
   (wanted.get(windowId) === p.extensionId && panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId));
+
+export function closeKeptPanel(windowId: string, panel: SidePanel, current: boolean): boolean {
+  if (current) return closeSidePanelOnTab(windowId, panel.tabId);
+  if (panel.tabId) closeSidePanelOnTab(windowId, panel.tabId);
+  return false;
+}
