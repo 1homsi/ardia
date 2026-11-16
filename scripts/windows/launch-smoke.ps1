@@ -990,7 +990,9 @@ public static class ArdiaSnapKeys {
       Send-Text $chord.Letter
       Start-Sleep -Milliseconds 800
       $reached = (Test-Path $httpPagesLog) -and @(Select-String -Path $httpPagesLog -SimpleMatch "/event/typed?$typed").Count -gt 0
-      Write-Host "Page field keys: before $($chord.Name) the foreground window was $before; with it open, $shown; after Escape, $back (the page: $held); typing reached the field: $reached."
+      $opened = $shown -ne $before
+      $verdict = if ($opened) { "its flyout opened" } else { "no flyout took the foreground on this machine, so only the field's keyboard is checked" }
+      Write-Host "Page field keys: before $($chord.Name) the foreground window was $before; with it pressed, $shown ($verdict); after Escape, $back (the page: $held); typing reached the field: $reached."
       if (-not ($held -and $reached)) { $failures += "page field keys: after $($chord.Name) and Escape the page field lost the keyboard (the foreground window was $back; typing reached the field: $reached)" }
     }
     return $failures
