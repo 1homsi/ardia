@@ -11,6 +11,7 @@ const CTRL = 2;
 const AUTOPLAY_SETTLES_MS = 2500;
 const PER_PAGE_COUNT = 20;
 
+type ListedTab = { key?: unknown; url?: unknown; title?: unknown; loading?: unknown };
 type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean };
 
 const port = engineAvailable() ? httpPagesPort() : null;
@@ -240,7 +241,7 @@ const autoplayChecks: Check[] = [
       withMedia("iframe-click", "framed?quiet", "framed page", async (key) => {
         await until("the iframe reports", SETTLE_MS, () => framed(key), (state) => state.paused === true);
         await click(key, PLAY_BUTTON.x, PLAY_BUTTON.y);
-        await pause(500);
+        await until("the click reaches the iframe's play button", SETTLE_MS, () => framed(key), (state) => (state.tries?.length ?? 0) > 0);
         await refusedThenStill(key, DETACHED_SOUND, "the top page's play with sound after a click in the iframe");
       }),
     ),
@@ -258,19 +259,21 @@ const autoplayChecks: Check[] = [
   {
     name: "engine autoplay: a background tab opened by Ctrl+click on a same-site link does not play",
     run: blocked(() =>
-      withMedia("ctrl", "media", "media page", async (key, windowId) => {
+      withMedia("ctrl", "media", "media page", async (key) => {
+        const before = new Set(((await hostCall<{ tabs?: ListedTab[] }>("tabs.list")).tabs ?? []).map((tab) => String(tab.key)));
         const opened = heard("tab.opened", (event) => event.opener === key, "a background tab from Ctrl+click");
         await click(key, NEXT_LINK.x, NEXT_LINK.y, CTRL);
-        const adopt = (await opened as { adopt?: unknown }).adopt;
-        expectEqual(typeof adopt, "string", "the background tab is offered to the app");
-        const background = `${key}-background`;
+        await opened;
+        const background = await until(
+          "the app takes the background tab and it loads",
+          LOAD_MS,
+          async () => ((await hostCall<{ tabs?: ListedTab[] }>("tabs.list")).tabs ?? []).find((tab) => !before.has(String(tab.key)) && String(tab.url).endsWith("/media?second") && tab.loading === false && tab.title === "media page"),
+          (tab) => !!tab,
+        );
         try {
-          await hostCall("tab.create", { key: background, adopt, profile: "" }, windowId);
-          await show(background, windowId, LEFT);
-          await loadedAt(background, "/media?second", "media page");
-          await refusedThenStill(background, DETACHED_SOUND, "the background tab's play with sound");
+          await refusedThenStill(String(background!.key), DETACHED_SOUND, "the background tab's play with sound");
         } finally {
-          await hostCall("tab.close", { key: background }).catch(() => null);
+          await hostCall("tab.close", { key: String(background!.key) }).catch(() => null);
         }
       }),
     ),
