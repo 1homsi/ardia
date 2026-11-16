@@ -37,6 +37,15 @@ export async function processStartedAt(): Promise<number | null> {
   }
 }
 
+export function launchBackdropShownAt(): number | null {
+  try {
+    const at = system.launchBackdropShownAt();
+    return typeof at === "number" && Number.isFinite(at) && at > 0 ? at : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function postTelemetry(body: string, signal: AbortSignal): Promise<number> {
   const response = await fetch(LOGS_URL, { method: "POST", headers: { "Content-Type": "application/json", [INGEST_KEY_HEADER]: APP_INGEST_KEY }, body, signal });
   return response.status;

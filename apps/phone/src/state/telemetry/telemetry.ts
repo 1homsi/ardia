@@ -2,8 +2,8 @@ import { AppState } from "react-native";
 import { lookBudget, systemLook } from "../../platform/look";
 import { create } from "zustand";
 import { createGate, DAILY_KEY, type SharingSource } from "../../lib/telemetryGate";
-import { COUNTED, launchProps, legacyImportOutcome, parseDaily, pendingUsage, type Counted } from "../../lib/telemetrySchema";
-import { canPostTelemetry, deviceFacts, JS_STARTED_AT, newTelemetryId, postTelemetry, processStartedAt, setUsageConsent, takePendingCounts } from "../../platform/telemetry";
+import { backdropProps, COUNTED, launchProps, legacyImportOutcome, parseDaily, pendingUsage, type Counted } from "../../lib/telemetrySchema";
+import { canPostTelemetry, deviceFacts, JS_STARTED_AT, launchBackdropShownAt, newTelemetryId, postTelemetry, processStartedAt, setUsageConsent, takePendingCounts } from "../../platform/telemetry";
 import { appearanceTelemetry } from "../../lib/appearance";
 import { useBoot } from "../app/bootState";
 import { isDemoSession } from "../app/launchFlags";
@@ -73,8 +73,11 @@ export async function reportLaunch(firstScreenAt: number) {
   const look = lookBudget.mode(await systemLook());
   const { interfaceStyle, schemeChoice } = currentPreferences();
   gate.capture("app_launched", { legacy_import: legacyImportOutcome(boot.outcome), legacy_import_failures: boot.failures, look_mode: look, ...appearanceTelemetry(interfaceStyle, schemeChoice) });
-  const timings = launchProps(await processStartedAt(), JS_STARTED_AT, firstScreenAt);
+  const processStart = await processStartedAt();
+  const timings = launchProps(processStart, JS_STARTED_AT, firstScreenAt);
   if (timings) gate.capture("perf_launch", timings);
+  const backdrop = backdropProps(processStart, launchBackdropShownAt());
+  if (backdrop) gate.capture("perf_backdrop", backdrop);
 }
 
 export function usageToday(): { day: string | null; counts: Partial<Record<Counted, number>>; sharing: boolean } {

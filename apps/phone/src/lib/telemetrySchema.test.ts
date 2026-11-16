@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { appVersionOf, launchProps, legacyImportOutcome, osVersionOf, parseDaily, pendingUsage, rollOver } from "./telemetrySchema.ts";
+import { appVersionOf, backdropProps, launchProps, legacyImportOutcome, osVersionOf, parseDaily, pendingUsage, rollOver } from "./telemetrySchema.ts";
 
 test("launch timings are measured from the process start, and dropped when it is unknown or out of range", () => {
   assert.deepEqual(launchProps(1000, 1300, 1900), { launch_ms: 900, js_ms: 300 });
@@ -36,4 +36,11 @@ test("counts kept by native while JavaScript wasn't running come back as one cou
   assert.deepEqual(pendingUsage({ tabs_sent: 1, tabs_opened: 1 }), ["tabs_opened", "tabs_sent"]);
   assert.deepEqual(pendingUsage({ made_up: 3, tabs_sent: -1, searches: 1.5, pins_to_mac: "2" }), []);
   assert.equal(pendingUsage({ tabs_sent: 1e9 }).length, 1000);
+});
+
+test("the backdrop's time is the native backdrop's first frame after the process start, and nothing without either", () => {
+  assert.deepEqual(backdropProps(1000, 2100), { backdrop_ms: 1100 });
+  assert.equal(backdropProps(null, 2100), null);
+  assert.equal(backdropProps(1000, null), null);
+  assert.equal(backdropProps(3000, 2100), null);
 });

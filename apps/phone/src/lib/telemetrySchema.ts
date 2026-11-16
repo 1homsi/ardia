@@ -40,6 +40,7 @@ export const EVENT_FIELDS = {
     color_scheme: { kind: "enum", values: ["match_mac", "system", "light", "dark"] },
   },
   perf_launch: { launch_ms: { kind: "ms" }, js_ms: { kind: "ms" } },
+  perf_backdrop: { backdrop_ms: { kind: "ms" } },
   usage_counts: {
     tabs_opened: { kind: "count" },
     searches: { kind: "count" },
@@ -217,6 +218,12 @@ export function launchProps(processStart: number | null, jsStart: number, firstF
   const js = Math.round(jsStart - processStart);
   if (!(launch >= 0 && launch <= MAX_MS) || !(js >= 0 && js <= launch)) return null;
   return { launch_ms: launch, js_ms: js };
+}
+
+export function backdropProps(processStart: number | null, backdropShownAt: number | null): EventProps<"perf_backdrop"> | null {
+  if (processStart === null || backdropShownAt === null) return null;
+  const backdrop = Math.round(backdropShownAt - processStart);
+  return backdrop >= 0 && backdrop <= MAX_MS ? { backdrop_ms: backdrop } : null;
 }
 
 export const legacyImportOutcome = (outcome: "imported" | "startedFresh" | "none" | null): EventProps<"app_launched">["legacy_import"] =>
