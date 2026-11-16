@@ -1,6 +1,7 @@
 import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
 import { shownPageId } from "../peek/peek";
+import { noteSidePanelKept } from "../telemetry/usage";
 import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions, type SidePanel } from "./store";
 
 const wanted = new Map<string, string>();
@@ -159,6 +160,7 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
   const s = useBrowser.getState();
   const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, opened: openings.get(windowId) ?? 0, tabId: readyTab };
   if (readyTab) {
+    if (shownTabs.get(windowId)?.has(readyTab) && useExtensions.getState().sidePanels[windowId]?.tabId !== readyTab) noteSidePanelKept();
     tabsOf(shownTabs, windowId).add(readyTab);
     removedTabs.get(windowId)?.delete(readyTab);
   }
