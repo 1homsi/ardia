@@ -3,7 +3,7 @@ import { advanceCrashCursor, capture, crashCursor, loadChoice, saveQueueNow } fr
 import { contextAt, contextProperties, sessionStart } from "./diagnostics";
 import type { SavedContext } from "./savedContext";
 import { recordLog } from "./logs";
-import { errorCode, errorMessage, errorType, jsFatalReason, nativeCrashExceptions, nativeCrashTermination, parseStack, type ExceptionFrame } from "./sanitize";
+import { errorCode, errorMessage, errorType, jsFatalKind, nativeCrashExceptions, nativeCrashTermination, parseStack, type ExceptionFrame } from "./sanitize";
 
 type Mechanism = "onerror" | "onunhandledrejection" | "react" | "console" | "native_crash" | "helper_crash";
 
@@ -157,16 +157,13 @@ export async function reportNativeCrashes(contexts: (SavedContext | null)[] = []
         crashed_engine_version: browser ? null : optional(report.engineVersion, ENGINE_VERSION),
         crash_uptime_s: whole(report.uptimeSeconds),
         crash_vm_writable_mb: whole(report.vmWritableMB),
+        crash_js_fatal: browser ? jsFatalKind(report.jsFatalSource, report.jsFatal) : null,
         ...contextProperties(context, "ctx_", report.time),
       },
       {
         urgent: true,
         persist: true,
-        raw: {
-          ...exceptionProperties(exceptions, mechanism, false),
-          crash_images: images,
-          crash_js_reason: browser ? jsFatalReason(report.jsFatal) : null,
-        },
+        raw: { ...exceptionProperties(exceptions, mechanism, false), crash_images: images },
       },
     );
   }

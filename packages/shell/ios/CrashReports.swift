@@ -24,6 +24,7 @@ enum CrashReports {
         let report = parse(url, owner: ours, time: modified) else { continue }
       reports.append(report)
     }
+    attachHermesFatal(&reports)
     let sorted = reports.sorted { ($0["fileTime"] as? Double ?? 0) < ($1["fileTime"] as? Double ?? 0) }
     let browser = sorted.filter { $0["process"] as? String == "browser" }.suffix(perProcessKind)
     let helperReports = sorted.filter { $0["process"] as? String != "browser" }.suffix(perProcessKind)
@@ -178,8 +179,9 @@ enum CrashReports {
       report["uptimeSeconds"] = Int(captured.timeIntervalSince(launched).rounded())
     }
     if let writable = writableMegabytes(body["vmSummary"] as? String) { report["vmWritableMB"] = writable }
-    if process == "browser", let reason = jsFatal(body, signal: exception["signal"] as? String, crashedAt: crashed) {
+    if process == "browser", let reason = reactNativeFatal(body) {
       report["jsFatal"] = reason
+      report["jsFatalSource"] = "reactNative"
     }
     return report
   }
@@ -223,8 +225,22 @@ enum CrashReports {
 
   private static let reactNativeFatal = "RCTFatalException: "
 
-  private static func jsFatal(_ body: [String: Any], signal: String?, crashedAt crashed: Date) -> String? {
-    if signal == "SIGABRT", let reason = HermesFatal.take(crashedAt: crashed) { return reason }
+  private static func attachHermesFatal(_ reports: inout [[String: Any]]) {
+    guard let pending = HermesFatal.pending() else { return }
+    let aborts = reports.indices.filter { reports[$0]["process"] as? String == "browser" && reports[$0]["signal"] as? String == "SIGABRT" }
+    let crashed = aborts.map { Date(timeIntervalSince1970: (reports[$0]["time"] as? Double ?? 0) / 1000) }
+    if let match = FatalMatch.crash(forFileWrittenAt: pending.written, among: crashed) {
+      if let reason = pending.reason {
+        reports[aborts[match]]["jsFatal"] = reason
+        reports[aborts[match]]["jsFatalSource"] = "hermes"
+      }
+      HermesFatal.settle()
+    } else if Date().timeIntervalSince(pending.written) > HermesFatal.unmatchedLifetime {
+      HermesFatal.settle()
+    }
+  }
+
+  private static func reactNativeFatal(_ body: [String: Any]) -> String? {
     guard thrownExceptionName(body) == "RCTFatalException" else { return nil }
     var full = (body["exceptionReason"] as? [String: Any])?["name"] as? String
     if full == nil {

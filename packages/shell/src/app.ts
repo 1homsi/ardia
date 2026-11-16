@@ -61,6 +61,7 @@ export type CrashReport = {
   uptimeSeconds?: number;
   vmWritableMB?: number;
   jsFatal?: string;
+  jsFatalSource?: "hermes" | "reactNative";
   exceptionType?: string;
   signal?: string;
   frames: NativeFrame[];

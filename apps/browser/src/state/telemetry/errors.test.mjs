@@ -69,21 +69,18 @@ test("a native crash carries the built-in page its session was on as ctx_webui_p
   }
 });
 
-test("a browser crash carries the JS engine's or React Native's fatal reason as crash_js_reason, scrubbed and length-limited, and no other crash does", async () => {
+test("a browser crash carries the kind of JS fatal that stopped it as crash_js_fatal, never the message, and no other crash does", async () => {
   const time = Date.now() + 3 * 60 * 60_000;
-  const long = `Hades OOM: ${"heap ".repeat(80)}`;
-  const hermes = (process, jsFatal, at) => ({ time: at, fileTime: at, process, exceptionType: "EXC_CRASH", signal: "SIGABRT", jsFatal, frames: [{ image: "hermes", offset: 0x19bea4 }] });
-  const reactNative = (process, jsFatal, at) => ({ time: at, fileTime: at, process, exceptionType: "EXC_BREAKPOINT", signal: "SIGTRAP", exceptionName: "RCTFatalException", jsFatal, frames: [{ image: "Ardia", offset: 0x444da4 }] });
+  const hermes = (process, jsFatal, at) => ({ time: at, fileTime: at, process, exceptionType: "EXC_CRASH", signal: "SIGABRT", jsFatal, jsFatalSource: "hermes", frames: [{ image: "hermes", offset: 0x19bea4 }] });
+  const reactNative = (process, jsFatal, at) => ({ time: at, fileTime: at, process, exceptionType: "EXC_BREAKPOINT", signal: "SIGTRAP", exceptionName: "RCTFatalException", jsFatal, jsFatalSource: "reactNative", frames: [{ image: "Ardia", offset: 0x444da4 }] });
   const cases = [
-    [hermes, "browser", "Out of memory allocating the young generation", "Out of memory allocating the young generation"],
-    [hermes, "browser", "OOM at https://example.com/private?q=secret on /Users/someone/Library/page.json for me@example.com", null],
-    [hermes, "browser", long, null],
+    [hermes, "browser", "OOM: error_code(value = 1, category = vm_allocate_category, message = Max heap size was exceeded)", "hermes_heap_limit"],
+    [hermes, "browser", "OOM at https://example.com/private?q=secret on /Users/someone/Library/page.json for me@example.com", "hermes_out_of_memory"],
     [hermes, "browser", "", null],
     [hermes, "browser", undefined, null],
-    [hermes, "browser", 42, null],
-    [hermes, "renderer", "Out of memory allocating the young generation", null],
-    [reactNative, "browser", "Exception in HostFunction: Unknown native module", "Exception in HostFunction: Unknown native module"],
-    [reactNative, "browser", "Unhandled JS Exception: TypeError: cannot read https://example.com/private?q=secret", null],
+    [hermes, "renderer", "OOM: error_code(value = 1, category = vm_allocate_category, message = Max heap size was exceeded)", null],
+    [reactNative, "browser", "Exception in HostFunction: Unknown native module at https://example.com/private?q=secret", "rn_host_function"],
+    [reactNative, "browser", "Unhandled JS Exception: TypeError: cannot read title of /Users/someone/page.json", "rn_js_type_error"],
   ];
   let n = 0;
   for (const [make, process, jsFatal, expected] of cases) {
@@ -95,12 +92,9 @@ test("a browser crash carries the JS engine's or React Native's fatal reason as 
     const props = sent.properties;
     assert.equal(props.crash_process, process);
     if (report.exceptionName) assert.equal(props.objc_exception, report.exceptionName);
-    const reason = props.crash_js_reason;
-    if (expected !== null) assert.equal(reason, expected);
-    else if (typeof jsFatal === "string" && jsFatal && process === "browser") {
-      assert.equal(typeof reason, "string");
-      assert.ok(reason.length <= 160, `${reason.length} characters`);
-      for (const leak of ["example.com", "secret", "/Users", "someone", "page.json"]) assert.equal(JSON.stringify(sent).includes(leak), false, leak);
-    } else assert.equal(reason, null, `${process} ${String(jsFatal)}`);
+    assert.equal(props.crash_js_fatal, expected, `${process} ${String(jsFatal)}`);
+    assert.equal("crash_js_reason" in props, false);
+    const json = JSON.stringify(sent);
+    for (const leak of ["example.com", "secret", "/Users", "someone", "page.json", "native module", "Max heap size", "cannot read"]) assert.equal(json.includes(leak), false, leak);
   }
 });
