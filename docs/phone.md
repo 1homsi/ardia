@@ -1837,6 +1837,7 @@ Evidence: `/tmp/ardia-phone-shots/iphone-agent-speed-nf/`.
 | Deck opening from a page, settled | 240 ms | 133 ms | −107 ms | faster | Expo level (137); main's 217 read low last time |
 | Card opening from the deck, settled | 175 ms | 265 ms | +90 ms (+51%) | slower | Expo 28 ms faster than 293 |
 | Card opening, re-timed 2026-11-16 at 996b1f307 (growth in MotionView, page mounted at the tap; 10 opens each, load 2.5–3.9) | 173 ms (163–180) | 195 ms (188–212) | +22 ms (+13%) | close, not level | from +90 ms; deck open in the same run 231 against 138 |
+| Card opening, re-timed 2026-11-16 at 51c36153c (de35df77d's header and bar fading over the growing card; 10 opens each, load 2.4–3.5) | 172.5 ms (165–182) | 177 ms (175–193) | +4.5 ms | level | under a frame and inside main's own spread; deck open in the same run 237 against 137.5 |
 | Search panel open to keyboard up and focused | 578 ms | 418 ms | −160 ms (−28%) | faster | level |
 | Search submitted to settled | 512 ms | 298 ms | −214 ms (−42%) | faster | level |
 | Tab swipe in the pager, settled (the 250 ms drag included) | 848 ms | 800 ms | −48 ms (−6%) | level | level |
@@ -1857,9 +1858,9 @@ main is settled at 2.282 s, 174 ms after it starts. What's left is about one fra
 (`/tmp/ardia-phone-shots/iphone-agent-card-996b/`, `expo-tail.png` and `main-tail.png`).
 
 What 0.88 leaves to fix, from these numbers:
-- **Card opening** is the one row not level: 195 ms against 173 at 996b1f307, down from 265. The open is one motion
-  now, but the bar and the square corners arrive in one step at the end instead of during the growth, about one
-  frame late. The screens agent has it.
+- **Card opening is level** since 51c36153c: 177 ms against 172.5, 4.5 ms apart, under a frame. With that, every
+  timed row in the iPhone table is level with main's app or faster. The card's `from` (the growth starting in the
+  tap's own frame) is still to come, and it gets one more timing when it lands.
 - **Memory after nine tabs** is higher than SwiftUI's and higher than on 0.81. Hermes V1 and Reanimated 4.7 had a
   known memory regression before Expo 57.0.17; 58.0.25 should carry the fix. Worth a device check before the owner's
   phone, and an Instruments allocation trace of the app process.
