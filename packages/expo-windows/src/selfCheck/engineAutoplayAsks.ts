@@ -1,8 +1,25 @@
-import { hostCall } from "../engine/host";
+import { hostCall, leaveOffersFromUnheard } from "../engine/host";
 import { mountPage } from "../engine/pages";
 import { expectEqual, expectTrue, type Check } from "./check";
 import { click, evaluate, firstWindow, LEFT, listed, pause, RIGHT, show, until } from "./engineSleep";
 import { CTRL, DETACHED_MUTED_VIDEO, LOAD_MS, NEXT_LINK, PER_PAGE_COUNT, PLAY_BUTTON, SETTLE_MS, TOUCH_POINT, TRANSIENT_ACTIVATION_MS, blocked, countsOf, framed, held, loadedAt, mediaCommand, origin, played, playing, port, refusedThenStill, restore, setAutoplay, withMedia } from "./engineAutoplayKit";
+
+const raced = (media: string) =>
+  `Promise.race([${media}.play().then(() => "played", (error) => error.name), new Promise((resolve) => setTimeout(() => resolve("pending"), 1500))]).then((result) => post("result", JSON.stringify(result)));`;
+const CUT_POPUP_VIDEO = `const popup = window.open(""); window.cutPopup = popup; popup.opener = null; const video = Object.assign(popup.document.createElement("video"), { muted: true, loop: true, src: location.origin + "/tone.wav" }); ${raced("video")}`;
+const NESTED_BLANK_VIDEO = `let doc = document; for (let i = 0; i < 64; i++) { const frame = doc.createElement("iframe"); (doc.body || doc.documentElement).append(frame); doc = frame.contentDocument; } const video = Object.assign(doc.createElement("video"), { muted: true, loop: true, src: location.origin + "/tone.wav" }); ${raced("video")}`;
+const SCROLLER = 'window.downs = 0; addEventListener("pointerdown", () => { downs++; }, true); const scroller = document.body.appendChild(document.createElement("div")); scroller.style.cssText = "position:fixed;left:0;top:0;width:200px;height:150px;overflow-y:scroll;z-index:9;background:#eee"; scroller.appendChild(document.createElement("div")).style.height = "2000px"; post("result", "true");';
+const SCROLLBAR_POINT = { x: 196, y: 60 };
+
+async function cutPopupPlays(key: string) {
+  leaveOffersFromUnheard(key);
+  try {
+    return await evaluate(key, CUT_POPUP_VIDEO, true);
+  } finally {
+    leaveOffersFromUnheard(null);
+    await evaluate(key, 'if (window.cutPopup) window.cutPopup.close(); post("result", "true");').catch(() => null);
+  }
+}
 
 const askChecks: Check[] = [
   {
@@ -158,6 +175,42 @@ const askChecks: Check[] = [
       }
     },
   },
+  {
+    name: "engine autoplay: on a site that blocks nothing, a pop-up whose opener link the page cut plays muted media",
+    run: () =>
+      withMedia("cut-popup", "media", "media page", async (key) => {
+        const result = await cutPopupPlays(key);
+        expectTrue(result !== "NotAllowedError", `the cut pop-up's muted play() is not refused (got ${JSON.stringify(result)})`);
+      }),
+  },
+  {
+    name: "engine autoplay: a blocked site's pop-up whose opener link the page cut refuses muted media",
+    run: blocked(() =>
+      withMedia("cut-popup-blocked", "media", "media page", async (key) => {
+        expectEqual(await cutPopupPlays(key), "NotAllowedError", "the cut pop-up's muted play() on a blocked site");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: a video in the innermost of 64 nested blank iframes on a blocked site is refused",
+    run: blocked(() =>
+      withMedia("nested", "media", "media page", async (key) => {
+        expectEqual(await evaluate(key, NESTED_BLANK_VIDEO), "NotAllowedError", "the innermost blank iframe's muted play()");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: a touch an element's scrollbar takes does not count as the user asking",
+    run: blocked(() =>
+      withMedia("scrollbar-touch", "media", "media page", async (key) => {
+        await evaluate(key, SCROLLER);
+        await hostCall("tab.call", { key, method: "touchForTest", x: SCROLLBAR_POINT.x, y: SCROLLBAR_POINT.y });
+        await pause(300);
+        const downs = await evaluate(key, 'post("result", JSON.stringify(window.downs));');
+        expectEqual(downs, 0, "the touch on the scrollbar reached the page as no pointerdown (the case under test)");
+        expectEqual(await evaluate(key, raced(DETACHED_MUTED_VIDEO)), "NotAllowedError", "a muted play() after the scrollbar touch");
+      }),
+    ),
+  },
 ];
-
 export const checks: Check[] = port ? askChecks : [];

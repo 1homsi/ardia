@@ -274,6 +274,19 @@
  }
  
  bool WebLocalFrameImpl::HasStickyUserActivation() {
+@@ -2511,6 +2523,12 @@
+   }
+ 
+   Frame* opener_frame = opener ? ToCoreFrame(*opener) : nullptr;
++
++  // Ardia: a new frame copies its maker's autoplay decision now, so a later
++  // opener = null or removal from its parent changes nothing.
++  AutoplayPolicy::ArdiaInheritFrameBlocked(
++      *frame_, parent_frame ? DynamicTo<LocalFrame>(parent_frame)
++                            : DynamicTo<LocalFrame>(opener_frame));
+ 
+   // We must call init() after frame_ is assigned because it is referenced
+   // during init().
 --- a/third_party/blink/renderer/core/loader/document_loader.h
 +++ b/third_party/blink/renderer/core/loader/document_loader.h
 @@ -876,6 +876,9 @@
@@ -328,7 +341,7 @@
  class IntersectionObserver;
  class IntersectionObserverEntry;
  
-@@ -59,6 +60,27 @@
+@@ -59,6 +60,31 @@
    // Returns true if the given |document| is capturing user media.
    static bool DocumentIsCapturingUserMedia(const Document&);
  
@@ -338,6 +351,10 @@
 +  static void ArdiaSetFrameBlocked(LocalFrame& frame,
 +                                   bool blocked,
 +                                   bool pause_unasked);
++
++  // Ardia: a frame the renderer makes takes its decision from |creator|, its
++  // local parent or a new main frame's local opener, once, at creation.
++  static void ArdiaInheritFrameBlocked(LocalFrame& frame, LocalFrame* creator);
 +
 +  // Ardia: trusted input reached |frame|'s document, which then counts as
 +  // asked, as the Mac's page script counts it.
@@ -356,7 +373,7 @@
    explicit AutoplayPolicy(HTMLMediaElement*);
    AutoplayPolicy(const AutoplayPolicy&) = delete;
    AutoplayPolicy& operator=(const AutoplayPolicy&) = delete;
-@@ -68,6 +90,10 @@
+@@ -68,6 +94,10 @@
    // Called when the media element is moved to a new document.
    void DidMoveToNewDocument(Document& old_document);
  
@@ -379,19 +396,18 @@
  #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
  #include "third_party/blink/renderer/platform/network/network_state_notifier.h"
  #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-@@ -42,6 +45,132 @@
+@@ -41,7 +44,115 @@
+     "https://goo.gl.qjz9zk/xX8pDD";
  const char kErrorAutoplayFuncMobile[] =
      "play() can only be initiated by a user gesture.";
- 
++
 +// Ardia: Windows' autoplay blocking. A frame keeps the browser's word on
-+// whether its tab blocks autoplay; a frame never told follows its local
-+// parent, or a main frame its local opener, and with nothing to follow it
-+// counts as blocked. A document is asked once trusted input reached it
-+// (the Mac's usedHere), or, in a subframe, while the frame has transient
-+// activation.
++// whether its tab blocks autoplay, copied at creation from the frame that
++// made it when the renderer makes it; a frame nothing decided for does not
++// block. A document is asked once trusted input reached it (the Mac's
++// usedHere), or, in a subframe, while the frame has transient activation.
 +int g_ardia_media_commands = 0;
 +constexpr int kArdiaMostReportedRefusals = 20;
-+constexpr int kArdiaMostOpenerHops = 64;
 +
 +class ArdiaFrameAutoplay final : public GarbageCollected<ArdiaFrameAutoplay>,
 +                                 public Supplement<LocalFrame> {
@@ -460,24 +476,8 @@
 +const char ArdiaDocumentAutoplay::kSupplementName[] = "ArdiaDocumentAutoplay";
 +
 +bool ArdiaFrameBlocked(LocalFrame* frame) {
-+  if (!frame) {
-+    return false;
-+  }
-+  int opener_hops = 0;
-+  while (frame) {
-+    if (ArdiaFrameAutoplay* state = ArdiaFrameAutoplay::Find(*frame);
-+        state && state->blocked.has_value()) {
-+      return *state->blocked;
-+    }
-+    if (Frame* parent = frame->Tree().Parent()) {
-+      frame = DynamicTo<LocalFrame>(parent);
-+    } else if (++opener_hops > kArdiaMostOpenerHops) {
-+      return true;
-+    } else {
-+      frame = DynamicTo<LocalFrame>(frame->Opener());
-+    }
-+  }
-+  return true;
++  ArdiaFrameAutoplay* state = frame ? ArdiaFrameAutoplay::Find(*frame) : nullptr;
++  return state && state->blocked.value_or(false);
 +}
 +
 +void ArdiaNoteMediaCommand(Document& document) {
@@ -497,7 +497,7 @@
 +  return frame && !frame->IsMainFrame() &&
 +         LocalFrame::HasTransientUserActivation(frame);
 +}
-+
+ 
 +void ArdiaReportRefusal(Document& document) {
 +  ArdiaDocumentAutoplay& state = ArdiaDocumentAutoplay::From(document);
 +  if (state.reported_refusals >= kArdiaMostReportedRefusals) {
@@ -512,7 +512,7 @@
  // Return true if and only if the document settings specifies media playback
  // requires user gesture on the element.
  bool ComputeLockPendingUserGestureRequired(const Document& document) {
-@@ -162,6 +291,62 @@
+@@ -162,8 +273,71 @@
        autoplay_uma_helper_(MakeGarbageCollected<AutoplayUmaHelper>(element)) {
    locked_pending_user_gesture_ =
        ComputeLockPendingUserGestureRequired(element->GetDocument());
@@ -544,12 +544,19 @@
 +  }
 +}
 +
++void AutoplayPolicy::ArdiaInheritFrameBlocked(LocalFrame& frame,
++                                              LocalFrame* creator) {
++  if (creator) {
++    ArdiaFrameAutoplay::From(frame).blocked = ArdiaFrameBlocked(creator);
++  }
++}
++
 +void AutoplayPolicy::ArdiaNoteUsedHere(LocalFrame* frame) {
 +  if (frame && frame->GetDocument()) {
 +    ArdiaDocumentAutoplay::From(*frame->GetDocument()).used_here = true;
 +  }
-+}
-+
+ }
+ 
 +AutoplayPolicy::ArdiaMediaCommandScope::ArdiaMediaCommandScope() {
 +  ++g_ardia_media_commands;
 +}
@@ -572,10 +579,12 @@
 +  }
 +  ArdiaReportRefusal(document);
 +  return true;
- }
- 
++}
++
  void AutoplayPolicy::VideoWillBeDrawnToCanvas() const {
-@@ -179,6 +364,7 @@
+   autoplay_uma_helper_->VideoWillBeDrawnToCanvas();
+ }
+@@ -179,6 +353,7 @@
      locked_pending_user_gesture_ = true;
  
    autoplay_uma_helper_->DidMoveToNewDocument(old_document);
@@ -583,7 +592,7 @@
  }
  
  bool AutoplayPolicy::IsEligibleForAutoplayMuted() const {
-@@ -248,6 +434,12 @@
+@@ -248,6 +423,12 @@
    if (!ShouldAutoplay())
      return false;
  
@@ -596,7 +605,7 @@
    autoplay_uma_helper_->OnAutoplayInitiated(AutoplaySource::kAttribute);
  
    if (IsGestureNeededForPlayback())
-@@ -287,6 +479,17 @@
+@@ -287,6 +468,17 @@
  }
  
  std::optional<DOMExceptionCode> AutoplayPolicy::RequestPlay() {
@@ -614,7 +623,7 @@
    // Block autoplay only if the media element's visibility state is known.
    if (!element_->CanPlayWhileHidden() && element_->IsFrameHidden()) {
      return DOMExceptionCode::kNotAllowedError;
-@@ -397,7 +600,7 @@
+@@ -397,7 +589,7 @@
      if (!self)
        return;
  
@@ -699,16 +708,20 @@
  #include "third_party/blink/renderer/core/frame/local_frame_view.h"
  #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
  #include "third_party/blink/renderer/core/html/html_dialog_element.h"
-@@ -826,6 +827,9 @@
-   if (is_pointer_down) {
-     discarded_event_.target = kInvalidDOMNodeId;
-     discarded_event_.time = base::TimeTicks();
-+    // Ardia: the Mac's page script counts a trusted pointerdown, touch and
-+    // pen too, before the page's own handlers run.
-+    AutoplayPolicy::ArdiaNoteUsedHere(pointer_event_target.target_frame);
-   }
+@@ -220,6 +221,13 @@
+       !check_for_listener || target->HasEventListeners(event_type);
  
-   if (HandleScrollbarTouchDrag(event, pointer_event_target.scrollbar))
+   if (!should_filter || listeners_exist) {
++    // Ardia: the Mac's page script counts a trusted pointerdown, touch and
++    // pen too, as it reaches the document and before the page's handlers.
++    if (event_type == event_type_names::kPointerdown &&
++        pointer_event->pointerType() != "mouse" && target->ToNode()) {
++      AutoplayPolicy::ArdiaNoteUsedHere(
++          target->ToNode()->GetDocument().GetFrame());
++    }
+     DispatchEventResult dispatch_result = target->DispatchEvent(*pointer_event);
+     return event_handling_util::ToWebInputEventResult(dispatch_result);
+   }
 --- a/third_party/blink/renderer/modules/mediasession/media_session.cc
 +++ b/third_party/blink/renderer/modules/mediasession/media_session.cc
 @@ -19,6 +19,7 @@
@@ -729,17 +742,3 @@
    }
  
    auto v8_action = MojomActionToActionEnum(action);
---- a/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc
-+++ b/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc
-@@ -802,7 +802,10 @@
- 
-       audio_renderer_->SetVolume(volume_);
-       audio_renderer_->Start();
--      audio_renderer_->Play();
-+      // Ardia: a new audio track starts playing only if the element is.
-+      if (!paused_) {
-+        audio_renderer_->Play();
-+      }
-       break;
- 
-     case RendererReloadAction::REMOVE_RENDERER:

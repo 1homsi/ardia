@@ -120,7 +120,7 @@ void EvictIfChanged(content::WebContents* contents,
   }
   const bool blocked = BlockedAt(contents, frame->GetLastCommittedOrigin());
   AutoplayPage* page = AutoplayPage::GetForPage(frame->GetPage());
-  if (!page || page->blocked != blocked) {
+  if (page && page->blocked.has_value() && *page->blocked != blocked) {
     frame->IsInactiveAndDisallowActivation(
         content::kMinEmbedderDisallowActivationReason);
   }
