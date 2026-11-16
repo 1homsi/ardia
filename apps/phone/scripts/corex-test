@@ -74,6 +74,7 @@ fi
 pinned="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$src/apps/phone/package.json")"
 export PATH="$base/pnpm-$pinned/node_modules/.bin:$PATH"
 export TMPDIR="$base/tmp"
+export GRADLE_OPTS="${GRADLE_OPTS:-} -Djava.net.preferIPv4Stack=true"
 (cd "$src/apps/phone" && pnpm install --frozen-lockfile --reporter=silent)
 results=("$src/packages/phone/android/build/test-results/testDebugUnitTest" "$src/apps/phone/android/app/build/test-results/testDebugUnitTest" "$src/apps/phone/android/ardia-design/build/test-results/testDebugUnitTest")
 rm -rf "${results[@]}"

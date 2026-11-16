@@ -105,6 +105,7 @@ pnpmHome="$base/pnpm-$pinned"
 [ -x "$pnpmHome/node_modules/.bin/pnpm" ] || npm install --silent --prefix "$pnpmHome" "pnpm@$pinned"
 export PATH="$pnpmHome/node_modules/.bin:$PATH"
 export TMPDIR="$base/tmp"
+export GRADLE_OPTS="${GRADLE_OPTS:-} -Djava.net.preferIPv4Stack=true"
 mkdir -p "$TMPDIR"
 [ "$(pnpm --version)" = "$pinned" ] || { echo "pnpm on the path is $(pnpm --version), not $pinned" >&2; exit 1; }
 started=$(date +%s)
