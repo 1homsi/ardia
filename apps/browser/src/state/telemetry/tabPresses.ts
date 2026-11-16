@@ -36,6 +36,7 @@ const empty = () => ({
   no_press_drift_unknown: 0,
   range_selects: 0,
   range_from_shown: 0,
+  page_refused: 0,
 });
 let tally = empty();
 let pending = false;
@@ -135,6 +136,8 @@ export function notePagePress(tabId: string) {
   if (ms >= 0 && ms < PAGE_CLICK_WINDOW_MS && toPageClick.length < MAX_SAMPLES) toPageClick.push(ms);
 }
 
+export const notePagePressRefused = () => void tally.page_refused++;
+
 export function emitTabPresses() {
   const counts = tally;
   const samples = toPageClick.sort((a, b) => a - b);
@@ -148,7 +151,7 @@ export function emitTabPresses() {
   const landedOn = [...repeatsLandedOn].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   forgetRepeats();
   const hoverCards = takeHoverCardCounts();
-  if (!counts.presses && !counts.range_selects && !lostReleases && !repeated.presses && !Object.values(hoverCards).some(Boolean)) return;
+  if (!counts.presses && !counts.range_selects && !counts.page_refused && !lostReleases && !repeated.presses && !Object.values(hoverCards).some(Boolean)) return;
   const at = (list: number[], p: number) => (list.length ? percentile(list, p) : null);
   capture("tab_presses", {
     ...counts,

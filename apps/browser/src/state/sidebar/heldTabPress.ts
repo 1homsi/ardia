@@ -23,6 +23,25 @@ export type TabPress = {
 };
 
 let heldPress: TabPress | null = null;
+const pressEnds = new Set<{ windowId: string; listener: () => void }>();
+
+export const tabPressHeld = (windowId: string) => heldPress?.windowId === windowId;
+
+export function onTabPressEnd(windowId: string, listener: () => void) {
+  const entry = { windowId, listener };
+  pressEnds.add(entry);
+  return () => void pressEnds.delete(entry);
+}
+
+function releasePress() {
+  const windowId = heldPress?.windowId;
+  heldPress = null;
+  for (const entry of [...pressEnds]) {
+    if (entry.windowId !== windowId) continue;
+    pressEnds.delete(entry);
+    entry.listener();
+  }
+}
 
 type WithHistory = GestureResponderEvent & { touchHistory?: { touchBank: ({ startTimeStamp: number } | null | undefined)[] } };
 
@@ -71,7 +90,7 @@ export function holdTabPress(windowId: string, tabId: string, press: GestureResp
 
 export function clickHeldTabPress(windowId: string, tabId: string, release: GestureResponderEvent, press: TabPress | null = null) {
   const held = heldPress;
-  heldPress = null;
+  releasePress();
   if (press) press.answered = true;
   notePressEnded("click", tabId);
   dismissHover();
@@ -89,7 +108,7 @@ export function pressOutTabPress(press: TabPress | null, e: GestureResponderEven
 
 export function endHeldTabPress(tabIds: string[], release: GestureResponderEvent | null) {
   const held = heldPress;
-  heldPress = null;
+  releasePress();
   if (!held) return;
   const dropped = (why: TabPressDrop) => notePressEnded("drag", null, why);
   if (!release) return dropped("no_release");

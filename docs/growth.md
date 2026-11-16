@@ -213,7 +213,8 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     switch on release would have added), `page_click_ms_p50`/`_p75`/`page_click_n` (from opening a tab with a press
     to the first press in its page, within 60 s), `range_selects` (⇧-clicks that selected a range of tabs) and
     `range_from_shown` (those whose last clicked tab was no longer the shown one, so the range started at the shown tab:
-    #1074, where it started at a Top Apps tile and took every pinned tab). Issue #1386 (a sidebar tab sometimes needs a second click) adds
+    #1074, where it started at a Top Apps tile and took every pinned tab), `page_refused` (presses on the sidebar or anything else drawn over a
+    WebKit page that the page turned away, `WebKitPagePresses.swift`). Issue #1386 (a sidebar tab sometimes needs a second click) adds
     counts of where a press is lost: `drop_no_release`/`drop_not_dragged`/`drop_no_start`/`drop_start_mismatch` (the
     condition that stopped a drag from being rescued as a click; they add up to `drags`), `press_out_no_press` (presses
     Pressable ended without `onPress`), `unfocused_presses` and `unfocused_no_press` (presses that began while the
