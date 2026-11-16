@@ -86,7 +86,7 @@ test("a page loaded over plain http shows a red open lock in place of its icon, 
   expect(barAddress(tab)).toMatchObject({ host: "plain.example", insecure: true });
   const root = page("redesigned", tab);
   expect(host(root, "floatingBarNotSecure")).toBeDefined();
-  expect(root.root.findAll((node) => node.props.accessibilityLabel === "Address, Not Secure")).not.toHaveLength(0);
+  expect(root.root.findAll((node) => node.props.accessibilityLabel === "Address" && node.props.accessibilityValue?.text === "Not Secure, plain.example")).not.toHaveLength(0);
   unmount(root);
 });
 

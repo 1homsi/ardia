@@ -39,6 +39,8 @@ export function siteHost(url: string): string | null {
   return withoutPort(display(url).host, url) || null;
 }
 
+export const spokenAddress = (address: BarAddress | null): string => (address ? [address.isPrivate ? "Incognito" : null, address.insecure ? "Not Secure" : null, address.host].filter(Boolean).join(", ") : "");
+
 export function barAddress(tab: BrowserTab): BarAddress {
   const shown = display(tab.url);
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(tab.url)?.[1]?.toLowerCase() ?? null;
@@ -67,17 +69,16 @@ export function FloatingBar({ tab, order, roles, dark, showsPlus, anchors = true
         <Animated.View testID="floatingBarCentreGlyphs" nativeID={ids?.face} collapsable={false} style={[styles.addressRow, back.centreGlyphs]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={address.insecure ? "Address, Not Secure" : "Address"}
-          accessibilityValue={{ text: address.host }}
+          accessibilityLabel="Address"
+          accessibilityValue={{ text: spokenAddress(address) }}
           accessibilityHint="Opens search with this page’s address."
           onPress={onAddress}
           style={styles.addressHit}
         >
+          {address.isPrivate ? <Symbol name="eyeglassesThin" size={floatingBarLayout.privateSymbol} color={ink.secondary} /> : null}
           {address.insecure ? (
             <NotSecureLock testID="floatingBarNotSecure" size={floatingBarLayout.siteIcon} color={ink.notSecure} />
-          ) : address.isPrivate ? (
-            <Symbol name="eyeglassesThin" size={floatingBarLayout.privateSymbol} color={ink.secondary} />
-          ) : address.pageUrl ? (
+          ) : address.isPrivate ? null : address.pageUrl ? (
             <Favicon iconUrl={address.iconUrl} pageUrl={address.pageUrl} size={floatingBarLayout.siteIcon} />
           ) : null}
           <Text testID="floatingBarHost" maxFontSizeMultiplier={floatingBarLayout.maxTextScale} numberOfLines={1} ellipsizeMode="middle" style={[styles.host, { color: ink.foreground }]}>

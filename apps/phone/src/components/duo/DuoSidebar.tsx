@@ -18,7 +18,7 @@ import { recencyOrder, type BrowserTab } from "../../state/tabs/tabModels";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { capsule, ChromeSurface, ConfirmDialog, Favicon, font, rolesFor, startInk, startLayout, Symbol, tabsInk, tabsLayout, useTheme, type Confirmation, type MenuItem } from "../ui";
 import { confirmInSheet, MenuTrigger, spaceSystemImage } from "../ui/MenuTrigger";
-import { barAddress } from "../browsing/FloatingBar";
+import { barAddress, spokenAddress } from "../browsing/FloatingBar";
 import { spaceMenuSymbol, SpaceTitle } from "../search/StartSpaces";
 import { DUO } from "./duoLayout";
 import { HostLabel, SidebarGlyph } from "./DuoToolbar";
@@ -141,8 +141,8 @@ function AddressField({ dark, onClose }: { dark: boolean; onClose: () => void })
     <ChromeSurface testID="duoSidebarAddress" shape="capsule" cornerRadius={capsule(DUO.sidebarFieldHeight)} dark={dark} style={styles.field}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={address?.insecure ? "Address, Not Secure" : "Address"}
-        accessibilityValue={{ text: address?.host ?? "" }}
+        accessibilityLabel="Address"
+        accessibilityValue={{ text: spokenAddress(address) }}
         accessibilityHint="Opens search with this page’s address."
         onPress={edit}
         style={styles.fieldHit}
