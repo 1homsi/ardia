@@ -3,11 +3,16 @@
 
 #include <string>
 
+namespace base {
+class CommandLine;
+}
+
 namespace ardia_win {
 
 inline constexpr int kUnfinishedStartsBeforeRecovery = 2;
 inline constexpr int kStartSettlesAfterSeconds = 15;
 inline constexpr int kPredecessorWaitSeconds = 45;
+inline constexpr int kPredecessorPollMs = 200;
 
 struct LaunchGuardFacts {
   int predecessor_wait_ms = -1;
@@ -21,15 +26,20 @@ std::wstring LaunchLogPath();
 
 void RotateLaunchLog();
 
-void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir);
+void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir,
+                        base::CommandLine* command_line);
 
 void MarkExiting();
+
+void ClearExiting();
 
 void MarkStartSettled();
 
 const LaunchGuardFacts& GuardFacts();
 
 int NextUnfinishedStarts(int recorded, bool* recover);
+
+bool HandsOverToDeElevatedCopy(const base::CommandLine& command_line);
 
 }
 

@@ -10,10 +10,15 @@
 #include <cwctype>
 #include <string>
 
+#include "base/command_line.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "base/win/win_util.h"
+#include "chrome/common/chrome_switches.h"
+#include "content/public/common/content_switches.h"
 
 namespace ardia_win {
 
@@ -26,6 +31,7 @@ constexpr const wchar_t* kRestoreStateFiles[] = {
     L"bookmarks-cache.json",
 };
 
+constexpr char kWaitedForPreviousSwitch[] = "ardia-waited-for-previous-ms";
 constexpr wchar_t kStartsFile[] = L"launch-starts.txt";
 constexpr wchar_t kLogFolder[] = L"Logs";
 constexpr wchar_t kLogFile[] = L"launch.log";
@@ -160,6 +166,15 @@ void AppendLog(const std::string& line) {
   fclose(file);
 }
 
+void ResetLeftoverExiting(const std::wstring& name) {
+  HANDLE leftover = ::OpenEventW(EVENT_MODIFY_STATE, FALSE, name.c_str());
+  if (!leftover) {
+    return;
+  }
+  ::ResetEvent(leftover);
+  ::CloseHandle(leftover);
+}
+
 bool WaitForExitingPredecessor(const std::wstring& key) {
   GuardState& state = State();
   const std::wstring alive_name = L"Local\\ArdiaBrowser." + key + L".alive";
@@ -170,29 +185,52 @@ bool WaitForExitingPredecessor(const std::wstring& key) {
   }
   DWORD owned = ::WaitForSingleObject(state.alive, 0);
   if (owned != WAIT_TIMEOUT) {
+    ResetLeftoverExiting(state.exiting_name);
     return true;
   }
-  HANDLE exiting = ::OpenEventW(SYNCHRONIZE, FALSE, state.exiting_name.c_str());
+  HANDLE exiting = ::OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE,
+                                state.exiting_name.c_str());
   if (!exiting) {
     return false;
   }
   const base::TimeTicks started = base::TimeTicks::Now();
-  owned = ::WaitForSingleObject(state.alive, kPredecessorWaitSeconds * 1000);
+  const base::TimeTicks deadline =
+      started + base::Seconds(kPredecessorWaitSeconds);
+  bool stayed = false;
+  owned = WAIT_TIMEOUT;
+  while (base::TimeTicks::Now() < deadline) {
+    owned = ::WaitForSingleObject(state.alive, kPredecessorPollMs);
+    if (owned != WAIT_TIMEOUT) {
+      break;
+    }
+    if (::WaitForSingleObject(exiting, 0) == WAIT_TIMEOUT) {
+      stayed = true;
+      break;
+    }
+  }
+  if (owned != WAIT_TIMEOUT && !stayed) {
+    ::ResetEvent(exiting);
+  }
   ::CloseHandle(exiting);
   const int waited =
       static_cast<int>((base::TimeTicks::Now() - started).InMilliseconds());
   state.facts.predecessor_wait_ms = waited;
-  const std::string line =
-      owned == WAIT_TIMEOUT
-          ? "launch guard: the previous Ardia on this profile was still "
-            "exiting after " +
-                std::to_string(waited) + " ms; starting anyway"
-          : "launch guard: waited " + std::to_string(waited) +
-                " ms for the previous Ardia on this profile to finish "
-                "exiting";
+  std::string line;
+  if (stayed) {
+    line = "launch guard: the previous Ardia on this profile took this "
+           "launch after " +
+           std::to_string(waited) + " ms instead of exiting";
+  } else if (owned == WAIT_TIMEOUT) {
+    line = "launch guard: the previous Ardia on this profile was still "
+           "exiting after " +
+           std::to_string(waited) + " ms; starting anyway";
+  } else {
+    line = "launch guard: waited " + std::to_string(waited) +
+           " ms for the previous Ardia on this profile to finish exiting";
+  }
   LOG(WARNING) << "Ardia " << line;
   AppendLog(line);
-  return true;
+  return !stayed;
 }
 
 }
@@ -240,12 +278,45 @@ int NextUnfinishedStarts(int recorded, bool* recover) {
   return again ? 1 : recorded + 1;
 }
 
-void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir) {
-  if (!WaitForExitingPredecessor(ProfileKey(chromium_user_data_dir))) {
+bool HandsOverToDeElevatedCopy(const base::CommandLine& command_line) {
+  for (const char* name :
+       {switches::kDoNotDeElevateOnLaunch, switches::kEnableAutomation,
+        switches::kIsolated, switches::kTestType}) {
+    if (command_line.HasSwitch(name)) {
+      return false;
+    }
+  }
+  return base::win::UserAccountIsUnnecessarilyElevated();
+}
+
+void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir,
+                        base::CommandLine* command_line) {
+  GuardState& state = State();
+  const bool primary =
+      WaitForExitingPredecessor(ProfileKey(chromium_user_data_dir));
+  int inherited = -1;
+  if (base::StringToInt(
+          command_line->GetSwitchValueASCII(kWaitedForPreviousSwitch),
+          &inherited) &&
+      inherited >= 0 && state.facts.predecessor_wait_ms < 0) {
+    state.facts.predecessor_wait_ms = inherited;
+  }
+  command_line->RemoveSwitch(kWaitedForPreviousSwitch);
+  if (!primary) {
+    return;
+  }
+  if (HandsOverToDeElevatedCopy(*command_line)) {
+    if (state.alive) {
+      ::ReleaseMutex(state.alive);
+    }
+    if (state.facts.predecessor_wait_ms >= 0) {
+      command_line->AppendSwitchASCII(
+          kWaitedForPreviousSwitch,
+          base::NumberToString(state.facts.predecessor_wait_ms));
+    }
     return;
   }
   RotateLaunchLog();
-  GuardState& state = State();
   const std::wstring data_dir = AppDataDirectory();
   if (data_dir.empty()) {
     return;
@@ -277,6 +348,16 @@ void MarkExiting() {
     return;
   }
   state.exiting = ::CreateEventW(nullptr, TRUE, TRUE, state.exiting_name.c_str());
+}
+
+void ClearExiting() {
+  GuardState& state = State();
+  if (!state.exiting) {
+    return;
+  }
+  ::ResetEvent(state.exiting);
+  ::CloseHandle(state.exiting);
+  state.exiting = nullptr;
 }
 
 void MarkStartSettled() {

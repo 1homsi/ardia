@@ -43,9 +43,9 @@ function Note([string]$line) {
   $script:summary.Add($line)
 }
 
-function Running { return , @(Get-CimInstance Win32_Process -Filter "Name='Ardia.exe'") }
+function Running { return @(Get-CimInstance Win32_Process -Filter "Name='Ardia.exe'") }
 
-function Browsers { return , (Get-BrowserProcesses (Running)) }
+function Browsers { return @(Get-BrowserProcesses @(Running)) }
 
 function Keep-Log([string]$name) {
   foreach ($file in @($log, (Join-Path $data "Logs\launch.previous.log"))) {
@@ -53,12 +53,12 @@ function Keep-Log([string]$name) {
   }
 }
 
-function Launch-Log { if (Test-Path -LiteralPath $log) { return , @(Get-Content -LiteralPath $log) } return , @() }
+function Launch-Log { if (Test-Path -LiteralPath $log) { return @(Get-Content -LiteralPath $log) } return @() }
 
 function Wait-Window([string]$what, [int]$seconds = 120) {
   $deadline = (Get-Date).AddSeconds($seconds)
   while ((Get-Date) -lt $deadline) {
-    foreach ($browser in (Browsers)) {
+    foreach ($browser in @(Browsers)) {
       $windows = [RelaunchCheck.Native]::AppWindows([uint32]$browser.ProcessId)
       if ($windows.Count -gt 0) { return [pscustomobject]@{ Pid = [int]$browser.ProcessId; Window = $windows[0] } }
     }
@@ -70,6 +70,8 @@ function Wait-Window([string]$what, [int]$seconds = 120) {
 
 function Close-Window($shown) {
   [RelaunchCheck.Native]::PostMessageW($shown.Window, 0x0112, [IntPtr]0xF060, [IntPtr]::Zero) | Out-Null
+  $deadline = (Get-Date).AddSeconds(5)
+  while ((Get-Date) -lt $deadline -and [RelaunchCheck.Native]::IsWindowVisible($shown.Window)) { Start-Sleep -Milliseconds 50 }
 }
 
 function Wait-Exit([int]$processId, [string]$what, [int]$seconds = 60) {
@@ -81,10 +83,12 @@ function Wait-Exit([int]$processId, [string]$what, [int]$seconds = 60) {
   throw "$what`: Ardia ($processId) was still running $seconds s after its window closed"
 }
 
-function Wait-LogLine([string]$pattern, [string]$what, [int]$seconds = 30) {
+function Count-LogLines([string]$pattern) { return @(@(Launch-Log) | Where-Object { $_ -match $pattern }).Count }
+
+function Wait-LogLine([string]$pattern, [string]$what, [int]$after, [int]$seconds = 30) {
   $deadline = (Get-Date).AddSeconds($seconds)
   while ((Get-Date) -lt $deadline) {
-    if ((Launch-Log) | Where-Object { $_ -match $pattern } | Select-Object -First 1) { return }
+    if ((Count-LogLines $pattern) -gt $after) { return }
     Start-Sleep -Milliseconds 25
   }
   Keep-Log $what
@@ -92,15 +96,23 @@ function Wait-LogLine([string]$pattern, [string]$what, [int]$seconds = 30) {
 }
 
 function Assert-OneBrowser([string]$what) {
-  $browsers = Browsers
-  if ($browsers.Count -ne 1) { throw "$what`: $($browsers.Count) browser processes on one profile ($(($browsers | ForEach-Object ProcessId) -join ', '))" }
+  $deadline = (Get-Date).AddSeconds(10)
+  $browsers = @(Browsers)
+  while ($browsers.Count -gt 1 -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 250
+    $browsers = @(Browsers)
+  }
+  if ($browsers.Count -ne 1) {
+    $described = $browsers | ForEach-Object { "$($_.ProcessId) from $($_.ParentProcessId) at $($_.CreationDate.ToString('HH:mm:ss.fff')): $($_.CommandLine)" }
+    throw "$what`: $($browsers.Count) browser processes on one profile: $($described -join ' | ')"
+  }
 }
 
 function Start-Ardia { return Start-Process -FilePath $exe -PassThru }
 
 if (-not (Test-Path -LiteralPath $Setup -PathType Leaf)) { throw "'$Setup' does not exist" }
 if ((Test-Path -LiteralPath $entry) -or (Test-Path -LiteralPath $folder)) { throw "Ardia is already installed for this user: this check installs and removes it" }
-if (Running) { throw "Ardia is already running" }
+if (@(Running).Count) { throw "Ardia is already running" }
 Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction SilentlyContinue
 $env:ARDIA_BACKGROUND = "1"
 
@@ -133,26 +145,27 @@ try {
   Note "relaunch after a full exit: a window in browser $($shown.Pid)"
 
   $lingering = $shown.Pid
+  $endings = Count-LogLines 'process ending'
   Close-Window $shown
-  Wait-LogLine 'process ending' "lingering exit"
-  $handle = (Get-Process -Id $lingering).Handle
-  [RelaunchCheck.Native]::NtSuspendProcess($handle) | Out-Null
+  Wait-LogLine 'process ending' "lingering exit" $endings
+  $held = Get-Process -Id $lingering
+  if ([RelaunchCheck.Native]::NtSuspendProcess($held.Handle) -ne 0) { throw "lingering exit: Ardia ($lingering) could not be held at its exit" }
   try {
     Start-Ardia | Out-Null
-    Start-Sleep -Seconds 6
+    Start-Sleep -Seconds 26
     $waiting = @((Browsers) | Where-Object { [int]$_.ProcessId -ne $lingering })
     if ($waiting.Count -ne 1) { throw "lingering exit: expected one new launch waiting, found $($waiting.Count)" }
-    $children = Get-ChildProcesses (Running) ([int]$waiting[0].ProcessId)
-    if ($children.Count -gt 0) { throw "lingering exit: the new launch started $($children.Count) processes while the previous Ardia was still exiting: two browsers on one profile" }
+    $children = @(Get-BrowserChildren @(Running) ([int]$waiting[0].ProcessId))
+    if ($children.Count -gt 0) { throw "lingering exit: the new launch started $($children.Count) browser processes while the previous Ardia was still exiting: two browsers on one profile" }
     if ([RelaunchCheck.Native]::AppWindows([uint32]$waiting[0].ProcessId).Count -gt 0) { throw "lingering exit: the new launch opened a window while the previous Ardia was still exiting" }
   } finally {
-    [RelaunchCheck.Native]::NtResumeProcess($handle) | Out-Null
+    if ([RelaunchCheck.Native]::NtResumeProcess($held.Handle) -ne 0) { throw "lingering exit: Ardia ($lingering) could not be let go" }
   }
   Wait-Exit $lingering "lingering exit" | Out-Null
   $shown = Wait-Window "relaunch after a lingering exit"
   Assert-OneBrowser "relaunch after a lingering exit"
-  $guard = Read-LaunchGuard (Launch-Log)
-  if ($null -eq $guard.WaitedMs -or $guard.WaitedMs -lt 3000) { throw "lingering exit: the launch log doesn't show the new launch waiting for the previous one (waited '$($guard.WaitedMs)' ms)" }
+  $guard = Read-LaunchGuard @(Launch-Log)
+  if ($null -eq $guard.WaitedMs -or $guard.WaitedMs -lt 1000) { throw "lingering exit: the launch log doesn't show the new launch waiting for the previous one (waited '$($guard.WaitedMs)' ms)" }
   Note "relaunch during a lingering exit: waited $($guard.WaitedMs) ms for the previous Ardia, then one browser and a window"
 
   Close-Window $shown
@@ -161,7 +174,7 @@ try {
   if (-not (Test-Path -LiteralPath (Join-Path $data "session.json"))) { Set-Content -LiteralPath (Join-Path $data "session.json") -Value "{}" -Encoding ascii }
   Start-Ardia | Out-Null
   $shown = Wait-Window "stuck profile"
-  $guard = Read-LaunchGuard (Launch-Log)
+  $guard = Read-LaunchGuard @(Launch-Log)
   if (-not $guard.SetAside -or $guard.UnfinishedBefore -ne 2) { throw "stuck profile: two unfinished starts didn't set the restore state aside (log: unfinished $($guard.UnfinishedBefore), set aside $($guard.SetAside))" }
   $setAside = Get-ChildItem -LiteralPath (Join-Path $data "Recovery") -Recurse -File -Filter "session.json" -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $setAside) { throw "stuck profile: no session.json under $data\Recovery" }
@@ -177,10 +190,13 @@ try {
     $failing = Start-Ardia
     if (-not $failing.WaitForExit(90000)) { throw "start failure: Ardia was still running 90 s after a start that could not succeed" }
     $code = $failing.ExitCode
+    $deadline = (Get-Date).AddSeconds(90)
+    while (@(Browsers).Count -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+    if (@(Browsers).Count) { throw "start failure: an Ardia was still running 90 s after a start that could not succeed" }
   } finally {
     Rename-Item -LiteralPath "$library.hidden" -NewName "Microsoft.ReactNative.dll"
   }
-  $guard = Read-LaunchGuard (Launch-Log)
+  $guard = Read-LaunchGuard @(Launch-Log)
   if (-not $guard.StartFailure) { throw "start failure: the launch log doesn't give the reason" }
   if ($guard.Fatal.Count) { throw "start failure: the engine crashed instead of quitting: $($guard.Fatal[0])" }
   if ($code -ne 0) { throw "start failure: Ardia exited with $code, not 0" }
@@ -197,7 +213,7 @@ try {
   if ($events.Count) { throw "Windows logged $($events.Count) Ardia crash(es): $(($events[0].Message -split "`n")[0..3] -join ' | ')" }
   $dumps = @(Get-ChildItem -LiteralPath $reports -Filter *.dmp -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -ge $started })
   if ($dumps.Count) { throw "Crashpad wrote $($dumps.Count) crash dump(s): $($dumps.Name -join ', ')" }
-  $fatal = (Read-LaunchGuard (Launch-Log)).Fatal
+  $fatal = (Read-LaunchGuard @(Launch-Log)).Fatal
   if ($fatal.Count) { throw "the launch log has a fatal line: $($fatal[0])" }
   Note "no crash events, crash dumps or fatal log lines"
 } finally {

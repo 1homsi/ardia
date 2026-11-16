@@ -405,8 +405,14 @@ bool PreTranslate(const MSG& msg) {
   return taken;
 }
 
+bool Background() {
+  return Set(Environment(L"ARDIA_BACKGROUND")) ||
+         base::CommandLine::ForCurrentProcess()->HasSwitch(
+             ardiacore::kBackgroundSwitch);
+}
+
 void ShowStartFailureAndQuit(const std::wstring& reason) {
-  if (!Set(Environment(L"ARDIA_BACKGROUND"))) {
+  if (!Background()) {
     const std::wstring log = LaunchLogPath();
     std::wstring text = L"Ardia couldn't start.\n\n" + reason +
                         L"\n\nInstalling Ardia again from ardia.dev usually "
@@ -438,7 +444,7 @@ std::wstring AppRefusal(HMODULE module, int result) {
 }
 
 void ShowRecoveryNotice(const std::wstring& folder) {
-  if (Set(Environment(L"ARDIA_BACKGROUND"))) {
+  if (Background()) {
     return;
   }
   const std::wstring text =
@@ -549,6 +555,7 @@ bool KeepsWindowWithoutTabs(const BrowserWindowInterface* browser) {
 
 bool Relaunched(const base::CommandLine& command_line,
                 const base::FilePath& cur_dir) {
+  ClearExiting();
   base::ListValue urls;
   for (const base::CommandLine::StringType& argument :
        command_line.GetArgs()) {
@@ -584,8 +591,9 @@ void BeforeChromeMain() {
          (data_dir.back() == L'\\' || data_dir.back() == L'/')) {
     data_dir.pop_back();
   }
-  GuardBrowserLaunch(data_dir.empty() ? ChromiumUserDataDir()
-                                      : data_dir + L"\\Chromium");
+  GuardBrowserLaunch(
+      data_dir.empty() ? ChromiumUserDataDir() : data_dir + L"\\Chromium",
+      command_line);
   AddLaunchSwitches(command_line);
   g_ardia_win_hosts_normal_windows = true;
   g_ardia_win_frame_view = &CreateHostedFrameView;

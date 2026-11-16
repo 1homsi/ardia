@@ -1,9 +1,13 @@
 function Get-BrowserProcesses([object[]]$Running) {
-  return , @($Running | Where-Object { $_ -and $_.CommandLine -and $_.CommandLine -notmatch '(^|\s)"?--type=' })
+  return @($Running | Where-Object { $_ -and $_.CommandLine -and $_.CommandLine -notmatch '(^|\s)"?--type=' })
 }
 
 function Get-ChildProcesses([object[]]$Running, [int]$Parent) {
-  return , @($Running | Where-Object { $_ -and [int]$_.ParentProcessId -eq $Parent })
+  return @($Running | Where-Object { $_ -and [int]$_.ParentProcessId -eq $Parent })
+}
+
+function Get-BrowserChildren([object[]]$Running, [int]$Parent) {
+  return @(Get-ChildProcesses $Running $Parent | Where-Object { $_.CommandLine -notmatch '--type=crashpad-handler' })
 }
 
 function Read-LaunchGuard([string[]]$Lines) {

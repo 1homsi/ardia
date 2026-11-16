@@ -22,7 +22,9 @@ Check "a process without --type is a browser process" "10,20" ((Get-BrowserProce
 Check "an address that contains --type is still a browser process" $true ((Get-BrowserProcesses $running | ForEach-Object ProcessId) -contains 20)
 Check "a process with no command line is not counted" $false ((Get-BrowserProcesses $running | ForEach-Object ProcessId) -contains 30)
 Check "children are found by parent id" "11,12" ((Get-ChildProcesses $running 10 | ForEach-Object ProcessId) -join ",")
-Check "a browser that has started nothing has no children" 0 (Get-ChildProcesses $running 20).Count
+Check "a browser that has started nothing has no children" 0 @(Get-ChildProcesses $running 20).Count
+Check "the crash handler, which starts before the engine, isn't a browser child" "12" ((Get-BrowserChildren $running 10 | ForEach-Object ProcessId) -join ",")
+Check "a waiting launch with only its crash handler has no browser children" 0 @(Get-BrowserChildren @((Process 40 1 'x'), (Process 41 40 'Ardia.exe --type=crashpad-handler --monitor-self')) 40).Count
 
 $waited = Read-LaunchGuard @(
   "launch 270 process started inside the engine",
