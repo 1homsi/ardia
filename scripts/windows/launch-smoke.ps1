@@ -836,6 +836,134 @@ if ($Part -ne "gate" -and $withEngineForEdge -and -not $NoInput -and $httpPagesU
 }
 $env:ARDIA_CONFIG_DIR = ""
 
+if ($Part -ne "gate" -and $withEngineForEdge -and -not $NoInput -and $httpPagesUp) {
+  if (-not ([System.Management.Automation.PSTypeName]"ArdiaSnapKeys").Type) {
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class ArdiaSnapKeys {
+  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
+  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out Rect rect, int size);
+}
+"@
+  }
+
+  function Get-SnapDescription([IntPtr]$Window) {
+    if ($Window -eq [IntPtr]::Zero) { return "none" }
+    $class = New-Object System.Text.StringBuilder 256
+    [ArdiaInput]::GetClassName($Window, $class, 256) | Out-Null
+    $style = [ArdiaSnapKeys]::GetWindowLongPtr($Window, -16).ToInt64()
+    $extended = [ArdiaSnapKeys]::GetWindowLongPtr($Window, -20).ToInt64()
+    return "$($class.ToString()) (style 0x$($style.ToString('X8')), extended 0x$($extended.ToString('X8')))"
+  }
+
+  function Get-SnapBounds([IntPtr]$Window) {
+    $rect = New-Object ArdiaSnapKeys+Rect
+    if ([ArdiaSnapKeys]::DwmGetWindowAttribute($Window, 9, [ref]$rect, 16) -ne 0) { return $null }
+    return $rect
+  }
+
+  function Send-WindowsArrow([byte]$Arrow) {
+    [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 80
+    [ArdiaInput]::keybd_event($Arrow, 0, 1, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+    [ArdiaInput]::keybd_event($Arrow, 0, 3, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 80
+    [ArdiaInput]::keybd_event(0x5B, 0, 3, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 1500
+  }
+
+  function Set-SnapHome([IntPtr]$Handle, $Work) {
+    [ArdiaInput]::ShowWindow($Handle, 9) | Out-Null
+    Start-Sleep -Milliseconds 600
+    [ArdiaInput]::SetWindowPos($Handle, [IntPtr]::Zero, $Work.X + 60, $Work.Y + 40, [Math]::Min(960, $Work.Width - 120), [Math]::Min(620, $Work.Height - 80), 0x0014) | Out-Null
+    Start-Sleep -Milliseconds 900
+  }
+
+  function Set-SnapFocus([System.Diagnostics.Process]$Process, [string]$Where) {
+    $handle = $Process.MainWindowHandle
+    [ArdiaInput]::SetForegroundWindow($handle) | Out-Null
+    Start-Sleep -Milliseconds 300
+    $client = Get-ClientArea $Process
+    if (-not $client) { return $null }
+    if ($Where -eq "page") { Send-Click ($client.X + [int]($client.Width * 0.7)) ($client.Y + [int]($client.Height * 0.65)) }
+    else { Send-Click ($client.X + [int](24 * $client.Scale)) ($client.Y + [int]($client.Height * 0.62)) }
+    Start-Sleep -Milliseconds 500
+    return Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
+  }
+
+  function Test-SnapKeys([System.Diagnostics.Process]$Process, [string]$Where) {
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) { return @("snap keys ($Where): the window never showed") }
+    $work = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $failures = @()
+    $steps = @(
+      @{ Name = "Win+Up"; Arrow = 0x26; Home = $true; Want = "maximized" },
+      @{ Name = "Win+Down"; Arrow = 0x28; Home = $false; Want = "restored" },
+      @{ Name = "Win+Down again"; Arrow = 0x28; Home = $false; Want = "minimized" },
+      @{ Name = "Win+Left"; Arrow = 0x25; Home = $true; Want = "left half" },
+      @{ Name = "Win+Right"; Arrow = 0x27; Home = $true; Want = "right half" }
+    )
+    foreach ($step in $steps) {
+      if ($step.Home) { Set-SnapHome $handle $work }
+      $foreground = Set-SnapFocus $Process $Where
+      $before = Get-SnapBounds $handle
+      Send-WindowsArrow ([byte]$step.Arrow)
+      $zoomed = [ArdiaInput]::IsZoomed($handle)
+      $iconic = [ArdiaInput]::IsIconic($handle)
+      $after = Get-SnapBounds $handle
+      Save-Screenshot (Join-Path $Out "snap-keys-$Where-$($step.Name -replace '[ +]', '-').png")
+      $place = if ($after) { "$($after.Left),$($after.Top),$($after.Right),$($after.Bottom)" } else { "unknown" }
+      $was = if ($before) { "$($before.Left),$($before.Top),$($before.Right),$($before.Bottom)" } else { "unknown" }
+      $half = [int]($work.Width / 2)
+      $near = { param($a, $b) [Math]::Abs($a - $b) -le 16 }
+      $got = switch ($step.Want) {
+        "maximized" { $zoomed }
+        "restored" { -not $zoomed -and -not $iconic }
+        "minimized" { $iconic }
+        "left half" { $after -and -not $iconic -and (& $near $after.Left $work.Left) -and (& $near $after.Right ($work.Left + $half)) -and (& $near $after.Top $work.Top) -and (& $near $after.Bottom $work.Bottom) }
+        "right half" { $after -and -not $iconic -and (& $near $after.Left ($work.Left + $half)) -and (& $near $after.Right $work.Right) -and (& $near $after.Top $work.Top) -and (& $near $after.Bottom $work.Bottom) }
+      }
+      Write-Host "Snap keys ($Where): $($step.Name) with the foreground window $foreground; the window was at $was and is at $place (maximized $zoomed, minimized $iconic; the work area is $($work.Left),$($work.Top),$($work.Right),$($work.Bottom)); wanted $($step.Want): $got."
+      if (-not $got) { $failures += "snap keys ($Where): $($step.Name) did not leave the window $($step.Want) (maximized $zoomed, minimized $iconic, at $place; the foreground window was $foreground)" }
+      [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+      [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 400
+    }
+    Set-SnapHome $handle $work
+    return $failures
+  }
+
+  Enable-WindowSnapping
+  $snapLog = Join-Path $Out "snap-keys.log"
+  $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-data"
+  $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
+  Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+  Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
+  $snapApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$snapLog`"", "http://127.0.0.1:$httpPagesPort/a" -PassThru
+  $env:ARDIA_CONFIG_DIR = ""
+  try {
+    Start-Sleep -Seconds 12
+    if ($snapApp.HasExited) { $failures += "snap keys: the app exited on its own (exit code $($snapApp.ExitCode))" }
+    else {
+      $snapApp.Refresh()
+      Test-SnapKeys $snapApp "sidebar" | ForEach-Object { $failures += $_ }
+      Test-SnapKeys $snapApp "page" | ForEach-Object { $failures += $_ }
+      if (Test-Path $snapLog) { Select-String -Path $snapLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log: $($_.Line)" } }
+    }
+  } finally {
+    if (-not $snapApp.HasExited) {
+      Stop-Process -Id $snapApp.Id -Force
+      $snapApp.WaitForExit(10000) | Out-Null
+    }
+  }
+  $env:ARDIA_CONFIG_DIR = ""
+}
+
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
 $importFixtures = Join-Path $env:ARDIA_DATA_DIR "import-fixtures"
 $fixtureProfiles = Join-Path $PSScriptRoot "..\..\packages\import\fixtures\home\Library\Application Support"
