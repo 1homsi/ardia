@@ -115,7 +115,7 @@ object PhonePages {
         if (host?.get() === activity) host = null
         if (drawWatched?.get() === activity.window.decorView) watchDraws(null)
         shared?.detach(activity)
-        if (fullscreen.isShowing) fullscreen.hide()
+        if (fullscreen.isShowing) fullscreen.hide("the activity detached")
     }
 
     fun hostActivity(): Activity? = host?.get()
@@ -266,7 +266,7 @@ object PhonePages {
         views.remove(pageId)
         visuals.forget(pageId)
         val page = shared?.existing(pageId)
-        if (page != null && fullscreen.owns(page.fullscreen.value)) fullscreen.hide()
+        if (page != null && fullscreen.owns(page.fullscreen.value)) fullscreen.hide("its page closed")
         popups.entries.removeAll { it.value.openerId == pageId }
         if (::snapshots.isInitialized && page != null) snapshots.close(pageId, page)
         shared?.close(pageId)
@@ -374,7 +374,7 @@ object PhonePages {
                         fullscreen.show(host?.get(), video)
                         shown = video
                     } else if (fullscreen.owns(shown)) {
-                        fullscreen.hide()
+                        fullscreen.hide("the page left fullscreen")
                     }
                     send(id, "page.fullscreen", "isFullscreen" to (video != null))
                 }

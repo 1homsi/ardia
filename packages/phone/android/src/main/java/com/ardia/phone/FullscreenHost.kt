@@ -34,15 +34,20 @@ class FullscreenHost {
         shown = video
         frame = holder
         this.activity = activity
+        if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB fullscreen starts, in ${if (activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"}")
     }
 
-    fun hide() {
+    fun hide(reason: String = "replaced") {
         val holder = frame
         val activity = activity
         shown = null
         frame = null
         this.activity = null
         holder ?: return
+        if (PhoneLab.isOn) {
+            val turned = activity?.resources?.configuration?.orientation?.let { if (it == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait" } ?: "unknown"
+            android.util.Log.i("PAGELAB", "PAGELAB fullscreen ends: $reason, in $turned")
+        }
         holder.removeAllViews()
         (holder.parent as? ViewGroup)?.removeView(holder)
         activity?.let { bars(it, it.window.decorView).show(WindowInsetsCompat.Type.systemBars()) }

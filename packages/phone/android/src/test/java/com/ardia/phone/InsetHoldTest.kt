@@ -179,6 +179,39 @@ class InsetHoldTest {
         assertEquals("then whatever the system says wins", gone, hold.navigationBars(gone))
     }
 
+    private val sideBar = Insets.of(0, 0, 130, 0)
+
+    @Test
+    fun fullscreenFollowsTheBarAsItWouldBeShownWhenThePhoneTurns() {
+        settled()
+        hold.fullscreenStarts()
+        assertEquals(threeButton, hold.navigationBars(gone, threeButton))
+        hold.configurationChanged(config(landscape = true, width = 844, height = 392))
+        assertEquals("turned, the covered page is laid out for the side bar, not the portrait one", sideBar, hold.navigationBars(gone, sideBar))
+        hold.fullscreenEnds()
+        assertEquals("leaving in landscape shows the page with its side bar at once", sideBar, hold.navigationBars(gone, sideBar))
+    }
+
+    @Test
+    fun leavingFullscreenAfterTurningBackHoldsThePortraitBarNotTheLandscapeOne() {
+        settled()
+        hold.configurationChanged(config(landscape = true, width = 844, height = 392))
+        hold.navigationBars(sideBar, sideBar)
+        hold.fullscreenStarts()
+        hold.configurationChanged(config())
+        hold.navigationBars(gone, threeButton)
+        hold.fullscreenEnds()
+        assertEquals("the F4 laid the bar out twice for 10 frames: the landscape inset first, then the portrait one", threeButton, hold.navigationBars(gone, threeButton))
+        assertEquals(threeButton, hold.navigationBars(threeButton, threeButton))
+    }
+
+    @Test
+    fun aLightDarkHoldKeepsTheValueItHadNotTheBarAsItWouldBeShown() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        assertEquals("MIUI's rebuild may report anything for a bar that's gone", threeButton, hold.navigationBars(gone, gone))
+    }
+
     @Test
     fun fullscreenStartedInsideALightDarkHoldStillHoldsUntilItEnds() {
         settled()
