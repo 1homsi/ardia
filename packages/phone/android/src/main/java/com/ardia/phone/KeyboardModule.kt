@@ -57,7 +57,7 @@ class KeyboardModule : Module() {
             },
         )
         fun ime(): Int = ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
-        fun navigation(): Int = ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        fun navigation(): Int = InsetHold.navigationBottom(view)
         ViewCompat.setWindowInsetsAnimationCallback(
             view,
             object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {

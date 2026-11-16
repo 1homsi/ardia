@@ -1,9 +1,11 @@
 package com.ardia.browser.android
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import com.ardia.phone.FirstScreenDrawn
+import com.ardia.phone.InsetHold
 import com.ardia.phone.InsetsLab
 import com.ardia.phone.PhoneSystemLinks
 import com.ardia.phone.ReactBack
@@ -25,8 +27,14 @@ class MainActivity : ReactActivity() {
         onBackPressedDispatcher.addCallback(this, reactBack)
         FirstScreenDrawn.watch(this)
         InsetsLab.watch(this)
+        InsetHold.install(this)
         SystemBars.apply(window)
         PhoneSystemLinks.activityStarted(intent, restored = savedInstanceState != null)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        InsetHold.window.configurationChanged(newConfig)
+        super.onConfigurationChanged(newConfig)
     }
 
     override fun onResume() {
