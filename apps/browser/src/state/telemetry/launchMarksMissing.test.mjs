@@ -42,6 +42,6 @@ test("perf_launch leaves out a mark, a load average, a hidden flag or a launch s
   const { main_ms, startup_ms, chromium_ms, engine_ms, load_1m, launched_hidden } = launches[0].properties;
   assert.deepEqual([main_ms, startup_ms, chromium_ms, load_1m, launched_hidden], [null, null, null, null, null]);
   assert.equal(engine_ms, 150);
-  const { appkit_will_finish_ms, appkit_did_finish_ms, chromium_took_ms, launch_source } = launches[0].properties;
-  assert.deepEqual([appkit_will_finish_ms, appkit_did_finish_ms, chromium_took_ms, launch_source], [null, null, null, null]);
+  const { appkit_will_finish_ms, appkit_did_finish_ms, launch_source } = launches[0].properties;
+  assert.deepEqual([appkit_will_finish_ms, appkit_did_finish_ms, launch_source], [null, null, null]);
 });

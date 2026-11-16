@@ -241,13 +241,15 @@ function sendLaunch(l: Launch, content: number | null, paints: number[]) {
   const tab = paint === null ? l.keys[0] : l.keys.find((k) => mark(k, "fcp", l.t0) === paint);
   const s = useBrowser.getState();
   let history = 0;
-  for (const view of Object.values(s.history)) history += view.list.length;
+  let oldestVisit = Infinity;
+  for (const view of Object.values(s.history)) {
+    history += view.list.length;
+    oldestVisit = Math.min(oldestVisit, view.list.at(-1)?.lastVisit ?? Infinity);
+  }
   const { bootTime, appBuild, updatePrewarm, launchMarks, launchedHidden, launchSource, loadAverage1m } = appInfo();
   const { lastLaunchAt, lastQuitAt, firstOfVersion } = previousLaunch;
   const prewarm = firstOfVersion && updatePrewarm?.build === appBuild ? updatePrewarm : null;
   const ms = (at: number | null | undefined) => (at == null || !(at - l.t0 >= 0 && at - l.t0 < 10 * MINUTE) ? null : Math.round(at - l.t0));
-  const took = (from: number | null | undefined, to: number | null | undefined) =>
-    from == null || to == null || ms(from) === null || ms(to) === null || to < from ? null : Math.round(to - from);
   capture("perf_launch", {
     launch_ms: ms(l.firstWindow),
     main_ms: ms(launchMarks?.mainStarted),
@@ -256,7 +258,6 @@ function sendLaunch(l: Launch, content: number | null, paints: number[]) {
     appkit_will_finish_ms: ms(launchMarks?.appKitWillFinish),
     appkit_did_finish_ms: ms(launchMarks?.appKitDidFinish),
     engine_ms: ms(launchMarks?.engineStarted),
-    chromium_took_ms: took(launchMarks?.chromiumEntered, launchMarks?.engineStarted),
     early_window_ms: ms(launchMarks?.earlyWindowShown),
     rn_ms: ms(launchMarks?.reactNativeStarted),
     js_ms: ms(jsStartedAt),
@@ -268,7 +269,8 @@ function sendLaunch(l: Launch, content: number | null, paints: number[]) {
     tab_paint_ms: ms(paint),
     tabs: l.tabs,
     windows: Math.min(l.windows, 10),
-    history: bucket(history, [[0, "0"], [99, "<100"], [999, "<1k"], [4999, "<5k"], [19_999, "<20k"]], "20k+"),
+    history: bucket(history, [[0, "0"], [99, "<100"], [999, "<1k"], [4999, "<5k"], [19_999, "<20k"], [99_999, "<100k"]], "100k+"),
+    history_oldest: oldestVisit > 0 && oldestVisit <= l.t0 ? bucket(l.t0 - oldestVisit, [[30 * DAY, "<30d"], [91 * DAY, "<91d"], [365 * DAY, "<1y"], [3 * 365 * DAY, "<3y"]], "3y+") : null,
     cold: bootTime && lastLaunchAt ? lastLaunchAt < bootTime : null,
     first_of_version: firstOfVersion,
     update_prewarm: firstOfVersion ? (prewarm ? (prewarm.status === 0 ? "done" : "failed") : "none") : null,
