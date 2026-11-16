@@ -684,7 +684,7 @@ function StagedTray() {
                 <View style={{ height: trayHeight, borderRadius: floatingPanelLayout.radius, overflow: "hidden" }}>
                   <StagedFieldContext.Provider value={field}>
                     <GestureDetector gesture={dismissDrag}>
-                      <View testID="trayFieldReveal" nativeID={SEARCH_REVEAL_ID} collapsable={false}>
+                      <View collapsable={false}>
                         <TrayField key={mounted} closing={closing} />
                       </View>
                     </GestureDetector>
@@ -799,7 +799,8 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
 
   return (
     <View style={useDesign() === "redesigned" ? styles.panelFieldArea : styles.fieldArea}>
-      <View onLayout={staged ? (event) => staged.onFieldHeight(event.nativeEvent.layout.height) : undefined} style={[styles.field, panelField ? [styles.panelField, theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight] : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
+      <View testID="trayFieldCapsule" onLayout={staged ? (event) => staged.onFieldHeight(event.nativeEvent.layout.height) : undefined} style={[styles.field, panelField ? [styles.panelField, theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight] : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
+        <View testID="trayFieldReveal" nativeID={staged ? SEARCH_REVEAL_ID : undefined} collapsable={false} style={[styles.fieldContents, panelField ? styles.panelField : null]}>
         {fieldGone ? (
           <Text testID="trayFieldLeaving" numberOfLines={1} style={[font.title3, styles.input, styles.leavingText, { color: lastText.current ? theme.foregroundPrimary : theme.foregroundTertiary }]}>
             {lastText.current || "Search…"}
@@ -838,6 +839,7 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
           <VoiceButton />
         )}
         <IncognitoToggle />
+        </View>
       </View>
     </View>
   );
@@ -1128,6 +1130,7 @@ const styles = StyleSheet.create({
     paddingLeft: browseLayout.fieldLeading,
     paddingRight: browseLayout.fieldTrailing,
   },
+  fieldContents: { flex: 1, alignSelf: "stretch", flexDirection: "row", alignItems: "center" },
   input: { flex: 1, paddingVertical: 0, minHeight: browseLayout.searchFieldHeight },
   leavingText: { textAlignVertical: "center", lineHeight: browseLayout.searchFieldHeight },
   accessory: { width: browseLayout.accessory.width, height: browseLayout.accessory.height, alignItems: "center", justifyContent: "center" },

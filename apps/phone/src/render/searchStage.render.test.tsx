@@ -126,7 +126,7 @@ const drag = (events: Parameters<typeof fireGestureHandler>[1]) => {
   act(() => jest.advanceTimersByTime(0));
 };
 
-onIPhone("opening search shows the stage, hides the bar's centre pill once the stage has taken its face, and leaves the field and rows to the stage, which holds them hidden from present() and fades them on its own clock as main's face and field do", () => {
+onIPhone("opening search shows the stage, hides the bar's centre pill once the stage has taken its face, and leaves the field and rows to the stage, which holds them hidden from present() and fades them on its own clock as main's face and field do, the field's capsule staying in view behind the face", () => {
   const root = page();
   expect(stage().shown).toBe(false);
   expect(centreSeen(root)).toBe(1);
@@ -140,6 +140,9 @@ onIPhone("opening search shows the stage, hides the bar's centre pill once the s
   expect(stage().revealNativeId).toBe("searchStageReveal");
   expect(stage().rowsRevealNativeId).toBe("searchStageRowsReveal");
   expect(host(root, "trayFieldReveal")!.props.nativeID).toBe("searchStageReveal");
+  expect(StyleSheet.flatten(host(root, "trayFieldReveal")!.props.style)?.backgroundColor).toBeUndefined();
+  expect(StyleSheet.flatten(host(root, "trayFieldCapsule")!.props.style)?.backgroundColor).toBeDefined();
+  expect(host(root, "trayFieldCapsule")!.findAll((node) => node.props.testID === "trayFieldReveal").length).toBeGreaterThan(0);
   expect(host(root, "trayRowsReveal")!.props.nativeID).toBe("searchStageRowsReveal");
   for (const id of ["trayFieldReveal", "trayRowsReveal"]) {
     expect(StyleSheet.flatten(host(root, id)!.props.style)?.opacity).toBeUndefined();
