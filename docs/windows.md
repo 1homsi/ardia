@@ -458,10 +458,14 @@ is plain Chromium.
   into a site being torn down, and `Microsoft.UI.Input` fails fast (`0xc0000602`, seen in a VM dump). Keys typed in it no longer reach the app's shortcut hook. One dialog per window at a time; a dialog whose window goes away, or every
   dialog when the app stops, is cancelled within 250 ms, except the open-file picker: quitting with it open waits the
   stop's full 2 s and leaves its thread running (exit code 0, no crash; #1747). The launch log notes how many dialogs
-  were open at stop, how long they took and how many were left. Pop-up menus (`TrackPopupMenuEx`) still run on the UI thread
-  and stall pages while a menu is open (#1687). The self-check holds a real confirm on both threads and checks that a
-  page loads only in the first case; `dialog_pages_asked` and `dialog_pages_stalled` count pages asked while a dialog
-  was open and how many hadn't loaded 10 s later.
+  were open at stop, how long they took and how many were left. Pop-up menus run the same way (#1687): the UI thread
+  builds the menu and takes the cursor point, and `TrackPopupMenuEx` runs on a `RunModal` thread, owned by that
+  thread's hidden `ModalParent` at the app window, which takes the foreground so keys and outside clicks reach the
+  menu. The app window stays enabled, the `resignActive` its deactivation would send is held back
+  (`ActivatesMenuThread`) and sent after the menu only if another app took the foreground, and a menu is closed
+  (`EndMenu`) when its window goes or the app stops. The self-check holds a real confirm and a real menu on both
+  threads and checks that a page loads only in the first case; `dialog_pages_asked` and `dialog_pages_stalled` count
+  pages asked while a dialog or a menu was open and how many hadn't loaded 10 s later.
 - A second launch reaches the running app: Chromium's process singleton hands it the command line, and
   `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
   file addresses on it. The app treats them as links from another app (`onOpenURLs`: a Little Ardia window or a tab,

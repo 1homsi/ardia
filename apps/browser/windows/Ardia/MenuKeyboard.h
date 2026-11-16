@@ -43,7 +43,6 @@ struct MenuKeyboard {
   winrt::Microsoft::ReactNative::ReactContext context{nullptr};
   HHOOK keyboardHook = nullptr;
   HHOOK mouseHook = nullptr;
-  bool trackingMenu = false;
   unsigned switcherHeld = 0;
   bool consumedWithAlt = false;
   bool escapeCaptured = false;
@@ -304,7 +303,6 @@ struct MenuKeyboard {
       if (flags & (1u << 30)) return true;
       capturedWHeld = false;
     }
-    if (trackingMenu) return false;
     KeyPress press = ReadKeyPress(virtualKey, flags);
     if (press.windowsKey || press.altGraph) return false;
     bool handled = false;

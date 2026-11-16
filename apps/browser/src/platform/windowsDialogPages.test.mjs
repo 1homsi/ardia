@@ -138,6 +138,26 @@ test("a dialog counts as settled only once its window shows and its thread's las
   assert.match(thread, /ModalWatch::NoteShown\(\);\n\s+if \(ModalWatch::SettledNow\(\)\) NoteModalSettled\(m_owner\);/);
   assert.match(thread, /if \(!dialog\) dialogs\.settled\.erase\(owner\);/, "a closed dialog leaves the settled count");
   assert.match(native("DialogsModule.h"), /REACT_SYNC_METHOD\(settledCount\)\n\s+int settledCount\(\) noexcept \{ return DialogParts::SettledDialogCount\(\); \}/);
-  assert.match(native("AppModule.h"), /const int windowsApiVersion = 23;/);
-  assert.match(readFileSync(new URL("./nativeApi.ts", import.meta.url), "utf8"), /export const WINDOWS_NATIVE_API_VERSION = 23;/);
+  assert.match(native("AppModule.h"), /const int windowsApiVersion = 24;/);
+  assert.match(readFileSync(new URL("./nativeApi.ts", import.meta.url), "utf8"), /export const WINDOWS_NATIVE_API_VERSION = 24;/);
+});
+
+test("a pop-up menu tracks on a RunModal thread, owned by that thread's own window, so pages keep loading while it is open (#1687)", () => {
+  const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
+  const module = native("MenusModule.h");
+  const shown = module.slice(module.indexOf("REACT_METHOD(showMenu)"), module.indexOf("REACT_SYNC_METHOD(openCount)"));
+  assert.match(shown, /DialogParts::RunModal\(popup->owner, \[context, popup, promise\]\(bool usable\) noexcept \{\n\s+if \(usable\) Menus::TrackOnThisThread\(\*popup, true\);/);
+  assert.doesNotMatch(shown, /TrackPopup\(/, "showMenu tracks the menu on the UI thread");
+  const popup = native("MenuPopup.h");
+  assert.equal(popup.split("TrackPopupMenuEx(").length - 1, 1);
+  assert.match(popup, /DialogParts::ModalParent parent\(popup\.owner, takesForeground, false\);\n\s+HWND window = parent\.Handle\(\);/);
+  assert.match(popup, /TrackPopupMenuEx\(popup\.menu, popup\.flags, popup\.point\.x, popup\.point\.y, window, nullptr\)/, "the menu's owner is the menu thread's own window");
+  assert.match(popup, /DialogParts::ModalWatch::OnAbandon\(\[\] \{ EndMenu\(\); \}\);/, "a menu closes when its window goes or the app stops");
+  assert.match(native("ModalThread.h"), /if \(m_disablesOwner\) EnableWindow\(m_owner, TRUE\);/, "a menu's parent never enables a window it didn't disable");
+  assert.match(native("WindowManager.h"), /if \(message == WM_ACTIVATEAPP && wParam == FALSE && !DialogParts::ActivatesMenuThread\(static_cast<DWORD>\(lParam\)\)\) manager->EmitApp\("resignActive"\);/);
+  const held = readFileSync(new URL("../../../../packages/expo-windows/src/selfCheck/heldMenus.ts", import.meta.url), "utf8");
+  assert.match(held, /loadWhileMenuHeld\(false, "held-menu-own-thread", LOAD_MS\)/);
+  assert.match(held, /held = menus\(\)\.devHoldMenu\(MENU_OWNER, onUiThread\);/, "the menu is held in a window of its own, so the page loads in another window");
+  assert.match(held, /!\(await loadWhileMenuHeld\(true, "held-menu-ui-thread", STALLED_MS\)\)/);
+  assert.match(readFileSync(new URL("../../../../packages/expo-windows/src/modules.ts", import.meta.url), "utf8"), /Pick<MenusModule, "openCount">>\("ArdiaMenus"\)\?\.openCount\(\)/, "pages asked while a menu is open count in dialog_pages_asked");
 });
