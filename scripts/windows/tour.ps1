@@ -1472,8 +1472,8 @@ param([int]$Port)
 $pages = @{
   "/links" = "<!doctype html><meta charset=utf-8><title>tour links</title><style>body{margin:0;background:#fff}a{position:absolute;left:20px;top:20px;width:320px;height:60px;display:block;background:#cde;font:20px sans-serif}</style><a href='/peeked'>peek this</a>"
   "/peeked" = "<!doctype html><meta charset=utf-8><title>tour peeked</title><style>html,body{margin:0;height:100%;background:#2a7}</style>"
-  "/tab-a" = "<!doctype html><meta charset=utf-8><title>tour tab a</title><style>html,body{margin:0;height:100%;background:#3366cc}a{position:absolute;left:20px;top:20px;width:320px;height:60px;display:block;background:#cde;font:20px sans-serif}</style><a href='/typed'>peek this</a><script>let keys='';addEventListener('keydown',e=>{if(e.key.length===1){keys+=e.key;document.title='a got '+keys}});</script>"
-  "/tab-b" = "<!doctype html><meta charset=utf-8><title>tour tab b</title><style>html,body{margin:0;height:100%;background:#c0392b}</style>"
+  "/taba" = "<!doctype html><meta charset=utf-8><title>tour tab a</title><style>html,body{margin:0;height:100%;background:#3366cc}a{position:absolute;left:20px;top:20px;width:320px;height:60px;display:block;background:#cde;font:20px sans-serif}</style><a href='/typed'>peek this</a><script>let keys='';addEventListener('keydown',e=>{if(e.key.length===1){keys+=e.key;document.title='a got '+keys}});</script>"
+  "/tabb" = "<!doctype html><meta charset=utf-8><title>tour tab b</title><style>html,body{margin:0;height:100%;background:#c0392b}</style>"
   "/typed" = "<!doctype html><meta charset=utf-8><title>tour typed</title><style>html,body{margin:0;height:100%;background:#2a7}</style><script>let keys='';addEventListener('keydown',e=>{if(e.key.length===1){keys+=e.key;document.title='peek got '+keys}});</script>"
 }
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
@@ -1651,8 +1651,8 @@ function Invoke-PeekTabsTour {
     $stop.Did = "Opened a solid red page as tab B and a blue page with a link as tab A, Shift-clicked the link, then typed 'abc'."
     $stop.Expected = "a Peek over tab A, and the letters reach the Peek's page, whose title then reads 'peek got abc'."
     if (-not (Test-Usable $session)) { $stop.Seen = "no"; return }
-    $b = Open-TourPage $session $stop "/tab-b" "tour tab b"
-    $a = Open-TourPage $session $stop "/tab-a" "tour tab a"
+    $b = Open-TourPage $session $stop "/tabb" "tour tab b"
+    $a = Open-TourPage $session $stop "/taba" "tour tab a"
     $page = Get-PageWindow $session "tour tab a"
     $client = Get-Client $session.Main
     if (-not ($a -and $b -and $page -and $client)) {
