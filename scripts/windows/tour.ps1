@@ -1177,14 +1177,13 @@ function Start-SuggestServer([string]$Log) {
   Remove-Item -Force -ErrorAction SilentlyContinue $Log
   $script:SuggestRelease = "$Log.release"
   Remove-Item -Force -ErrorAction SilentlyContinue $script:SuggestRelease
-  $free = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-  $free.Start()
-  $script:SuggestPort = $free.LocalEndpoint.Port
-  $free.Stop()
-  $job = Start-Job -ArgumentList $script:SuggestPort, $script:LateQuery, $script:LateRows, $script:LateMs, $Log, $script:SuggestRelease {
-    param($port, $lateQuery, $lateRows, $lateMs, $log, $release)
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
+  $portFile = "$Log.port"
+  Remove-Item -Force -ErrorAction SilentlyContinue $portFile
+  $job = Start-Job -ArgumentList $portFile, $script:LateQuery, $script:LateRows, $script:LateMs, $Log, $script:SuggestRelease {
+    param($portFile, $lateQuery, $lateRows, $lateMs, $log, $release)
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
     $listener.Start()
+    Set-Content -LiteralPath $portFile -Value $listener.LocalEndpoint.Port
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
     while ($true) {
       $client = $listener.AcceptTcpClient()
@@ -1219,7 +1218,11 @@ function Start-SuggestServer([string]$Log) {
   }
   $ready = $false
   $deadline = (Get-Date).AddSeconds(15)
-  while (-not $ready -and (Get-Date) -lt $deadline) {
+  $script:SuggestPort = 0
+  while (-not $script:SuggestPort -and (Get-Date) -lt $deadline) {
+    if (Test-Path -LiteralPath $portFile) { $script:SuggestPort = [int](Get-Content -Raw -LiteralPath $portFile) } else { Start-Sleep -Milliseconds 100 }
+  }
+  while ($script:SuggestPort -and -not $ready -and (Get-Date) -lt $deadline) {
     try {
       $ready = (Invoke-WebRequest -Uri "http://127.0.0.1:$($script:SuggestPort)/suggest?q=ready" -TimeoutSec 2 -UseBasicParsing).Content -eq '["ready",[]]'
     } catch {
