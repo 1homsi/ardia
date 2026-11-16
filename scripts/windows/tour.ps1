@@ -42,6 +42,9 @@ public static class ArdiaTour {
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr window, StringBuilder text, int max);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr window, StringBuilder text, int max);
   [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
+  [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumWindowsCallback callback, IntPtr data);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, StringBuilder lParam, uint flags, uint timeout, out IntPtr result);
+  [DllImport("user32.dll")] private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
@@ -96,6 +99,23 @@ public static class ArdiaTour {
     uint processId;
     GetWindowThreadProcessId(window, out processId);
     return processId;
+  }
+
+  public static string[] EditTextsOf(IntPtr parent) {
+    List<string> found = new List<string>();
+    EnumWindowsCallback callback = delegate (IntPtr window, IntPtr data) {
+      if (ClassOf(window).IndexOf("Edit", StringComparison.OrdinalIgnoreCase) < 0) return true;
+      IntPtr length;
+      if (SendMessageTimeoutW(window, 0x000E, IntPtr.Zero, IntPtr.Zero, 0x0002, 1000, out length) == IntPtr.Zero) return true;
+      StringBuilder text = new StringBuilder(length.ToInt32() + 1);
+      IntPtr copied;
+      if (SendMessageTimeoutW(window, 0x000D, (IntPtr)text.Capacity, text, 0x0002, 1000, out copied) == IntPtr.Zero) return true;
+      found.Add(text.ToString());
+      return true;
+    };
+    EnumChildWindows(parent, callback, IntPtr.Zero);
+    GC.KeepAlive(callback);
+    return found.ToArray();
   }
 
   public static TopWindow[] VisibleWindowsOf(uint processId) {
@@ -1164,23 +1184,28 @@ function Invoke-HoldTour {
       param($stop)
       Send-Typed "ab" 10
       if ($secondBox) { Send-Click $secondBox.X $secondBox.Y }
+      Start-Sleep -Milliseconds 500
       $texts = @(Read-EditTexts $second.Handle)
+      $script:HoldReadCount = $texts.Count
       $stop.Facts.Add("the second window's fields: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
       Focus-Window $session $session.Main $null | Out-Null
       return $texts
-    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and $script:HoldReadCount -ge 1 -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
   } else {
     $script:Required.Add("Key hold: Ctrl+N opened no second window")
   }
 
+  $padsBefore = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "^notepad$" } | ForEach-Object { $_.Id })
   $notepad = $null
   try { $notepad = Start-Process -FilePath "notepad.exe" -PassThru -ErrorAction Stop } catch { $notepad = $null }
   $pad = [IntPtr]::Zero
+  $ours = @()
   if ($notepad) {
     $deadline = (Get-Date).AddSeconds(10)
     while ($pad -eq [IntPtr]::Zero -and (Get-Date) -lt $deadline) {
       Start-Sleep -Milliseconds 250
-      $found = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "notepad" -and $_.MainWindowHandle -ne [IntPtr]::Zero }) | Select-Object -First 1
+      $ours = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "^notepad$" -and $padsBefore -notcontains $_.Id })
+      $found = @($ours | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) | Select-Object -First 1
       if ($found) { $pad = $found.MainWindowHandle }
     }
   }
@@ -1193,15 +1218,17 @@ function Invoke-HoldTour {
       Send-Typed "ab" 10
       if ($client) { Send-Click ([int]($client.X + $client.Width / 2)) ([int]($client.Y + $client.Height / 2)) }
       Start-Sleep -Milliseconds 500
-      $texts = @(Read-EditTexts $pad)
-      $stop.Facts.Add("Notepad's text: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
+      $texts = @([ArdiaTour]::EditTextsOf($pad)) + @(Read-EditTexts $pad)
+      $script:HoldReadCount = $texts.Count
+      $stop.Facts.Add("Notepad's text, from $($texts.Count) field(s) read: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
       Focus-Window $session $session.Main $null | Out-Null
       return $texts
-    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and $script:HoldReadCount -ge 1 -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
   } else {
     Invoke-Stop $session "hold-click-other" "Key hold: typing, then a click into another program" { param($stop) $stop.Did = "Tried to open Notepad."; $stop.Expected = "a Notepad window to click into."; $stop.Seen = "unverified"; $stop.Facts.Add("Notepad didn't open on this runner") } | Out-Null
   }
-  Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "^notepad$" } | Stop-Process -Force -ErrorAction SilentlyContinue
+  $ours = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "^notepad$" -and $padsBefore -notcontains $_.Id })
+  $ours | Stop-Process -Force -ErrorAction SilentlyContinue
 
   try { Set-Clipboard -Value "pasted" } catch { }
   Invoke-HoldStop $session "hold-ctrl-v" "Key hold: Ctrl+V right after Ctrl+T passes through as today" "Put 'pasted' on the clipboard, pressed Ctrl+T, and 15 ms after it pressed Ctrl+V." "the hold ends on the modified key and the paste goes where it does today (a documented limit) (#2099)." {

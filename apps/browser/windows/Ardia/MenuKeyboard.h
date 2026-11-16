@@ -296,7 +296,7 @@ struct MenuKeyboard {
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));
-      FocusHold::Shared().Released(virtualKey);
+      if (FocusHold::Shared().Up(virtualKey)) return true;
       if (swallowedKeyUps.erase(virtualKey)) return true;
       if ((virtualKey == VK_MENU || virtualKey == VK_LMENU || virtualKey == VK_RMENU) && consumedWithAlt) {
         consumedWithAlt = false;
@@ -304,10 +304,7 @@ struct MenuKeyboard {
       }
       return false;
     }
-    if (FocusHold::Shared().Key(virtualKey, flags) == FocusHold::Taken::Held) {
-      swallowedKeyUps.insert(virtualKey);
-      return true;
-    }
+    if (FocusHold::Shared().Key(virtualKey, flags) == FocusHold::Taken::Held) return true;
     if (IsModifierKey(virtualKey)) return false;
     if (capturedWHeld && virtualKey == 'W') {
       if (flags & (1u << 30)) return true;

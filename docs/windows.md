@@ -374,12 +374,16 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     so the dead-key state is left alone). Modifiers pass. At most 64.
   - **Replay:** one `WM_CHAR` at a time (a surrogate pair together) posted to the focused `InputSiteWindowClass`
     window, then a sentinel to the hold's own message window, re-checking the window in front and the focus before the
-    next. No `SendInput`.
-  - **Ends a hold, dropping what it holds and passing the key on:** a key with Ctrl, Alt or Win (so AltGr characters
-    and Ctrl+V right after Ctrl+T aren't held); Backspace and Enter, since a posted key event can't be ordered by the
+    next. No `SendInput`. A failed post, or a sentinel not back within 1 s, ends the hold. A posted character can't be
+    recalled, so a native focus move already queued ahead of it can still take that one character; only one is in
+    flight at a time.
+  - **Ends a hold, dropping what it holds and passing the key on:** Ctrl, Alt or Win going down, or a key with them
+    (so AltGr characters and Ctrl+V right after Ctrl+T aren't held; the Ctrl still down from Ctrl+T doesn't count); Backspace and Enter, since a posted key event can't be ordered by the
     sentinel; a key without a character (Escape, Tab, arrows, function keys); a dead key, `VK_PROCESSKEY` or
     `VK_PACKET`; a mouse button; another window in front or the window closing; the move cancelled; another field
-    taking focus; a reload; 64 keys; 3 s. Repeats of a held key stay swallowed until it's released. A dead key already
+    taking focus; a reload; 64 keys; 3 s. The foreground hook watches every process, so leaving for another program
+    ends the hold even while the UI thread is busy. A key whose press was held owes its release to the hold; after a
+    drop its repeats stay swallowed until it's released, even across a new hold. A dead key already
     pending before Ctrl+T isn't protected.
   - **Launch log:** `keys hold <g> begun for <command>`, `keys hold <g> ready after <ms> ms, replayed <n>` and
     `keys hold <g> dropped: <why> with <n> held, <m> replayed`.

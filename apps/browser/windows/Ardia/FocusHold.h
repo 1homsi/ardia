@@ -19,6 +19,7 @@ namespace Ardia::Menus {
 struct FocusHold {
   static constexpr size_t kCapacity = 64;
   static constexpr ULONGLONG kReadyMs = 3000;
+  static constexpr ULONGLONG kDeliveryMs = 1000;
   static constexpr UINT_PTR kTimer = 2099;
   static constexpr UINT kTickMs = 15;
   static constexpr UINT kSentinel = WM_APP + 0x99;
@@ -43,7 +44,9 @@ struct FocusHold {
   bool sentinelOut = false;
   std::vector<wchar_t> held;
   unsigned replayed = 0;
+  ULONGLONG postedAt = 0;
   std::set<UINT> heldKeys;
+  std::set<UINT> droppedKeys;
   HWND messages = nullptr;
   HHOOK mouseHook = nullptr;
   HWINEVENTHOOK foregroundHook = nullptr;
@@ -151,7 +154,7 @@ struct FocusHold {
     SetTimer(messages, kTimer, kTickMs, nullptr);
     if (!mouseHook) mouseHook = SetWindowsHookExW(WH_MOUSE, &FocusHold::MouseProc, nullptr, GetCurrentThreadId());
     if (!foregroundHook) {
-      foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, &FocusHold::ForegroundChanged, GetCurrentProcessId(), 0, WINEVENT_OUTOFCONTEXT);
+      foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, &FocusHold::ForegroundChanged, 0, 0, WINEVENT_OUTOFCONTEXT);
     }
     LaunchLog::Write(L"keys", L"hold " + std::to_wstring(generation) + L" begun for " + Paths::Wide(name));
     return generation;
@@ -161,27 +164,26 @@ struct FocusHold {
     if (active) Drop("command", L"another command");
   }
 
-  bool Repeating(UINT virtualKey, LPARAM flags) noexcept {
-    if (!heldKeys.count(virtualKey)) return false;
-    if (flags & (1u << 30)) return true;
-    heldKeys.erase(virtualKey);
-    return false;
-  }
-
-  void Released(UINT virtualKey) noexcept {
-    heldKeys.erase(virtualKey);
+  bool Up(UINT virtualKey) noexcept {
+    bool owed = heldKeys.erase(virtualKey) > 0;
+    return droppedKeys.erase(virtualKey) > 0 || owed;
   }
 
   Taken Key(UINT virtualKey, LPARAM flags) noexcept {
-    if (!active) return Repeating(virtualKey, flags) ? Taken::Held : Taken::Pass;
+    bool repeat = (flags & (1u << 30)) != 0;
+    if (droppedKeys.count(virtualKey)) {
+      if (repeat) return Taken::Held;
+      droppedKeys.erase(virtualKey);
+    }
+    if (!active) {
+      heldKeys.erase(virtualKey);
+      return Taken::Pass;
+    }
     if (virtualKey == VK_PROCESSKEY || virtualKey == VK_PACKET) {
       Drop("ime", L"IME or packet input");
       return Taken::Pass;
     }
     switch (virtualKey) {
-      case VK_SHIFT:
-      case VK_LSHIFT:
-      case VK_RSHIFT:
       case VK_CONTROL:
       case VK_LCONTROL:
       case VK_RCONTROL:
@@ -190,6 +192,15 @@ struct FocusHold {
       case VK_RMENU:
       case VK_LWIN:
       case VK_RWIN:
+        if (!repeat) Drop("modified", L"a key with Ctrl, Alt or Win");
+        return Taken::Pass;
+      default:
+        break;
+    }
+    switch (virtualKey) {
+      case VK_SHIFT:
+      case VK_LSHIFT:
+      case VK_RSHIFT:
       case VK_CAPITAL:
       case VK_NUMLOCK:
       case VK_SCROLL:
@@ -278,11 +289,14 @@ struct FocusHold {
     HWND site = nullptr;
     if (!Deliverable(site)) return Drop("site", L"the field's window doesn't have the keyboard");
     size_t units = held.size() > 1 && IS_HIGH_SURROGATE(held[0]) && IS_LOW_SURROGATE(held[1]) ? 2 : 1;
-    for (size_t i = 0; i < units; i++) PostMessageW(site, WM_CHAR, held[i], 1);
+    for (size_t i = 0; i < units; i++) {
+      if (!PostMessageW(site, WM_CHAR, held[i], 1)) return Drop("site", L"a held character could not be posted");
+    }
     held.erase(held.begin(), held.begin() + static_cast<std::ptrdiff_t>(units));
     replayed++;
+    if (!PostMessageW(messages, kSentinel, static_cast<WPARAM>(generation), 0)) return Drop("site", L"the replay's sentinel could not be posted");
     sentinelOut = true;
-    PostMessageW(messages, kSentinel, static_cast<WPARAM>(generation), 0);
+    postedAt = GetTickCount64();
   }
 
   void Delivered(int delivered) noexcept {
@@ -299,6 +313,7 @@ struct FocusHold {
     if (!IsWindow(window)) return Drop("window", L"the window closed");
     if (OwnerRoot(GetForegroundWindow()) != window) return Drop("window", L"the window lost the keyboard");
     if (!ready && GetTickCount64() - startedAt > kReadyMs) return Drop("timeout", L"no field took the keyboard in 3 s");
+    if (sentinelOut && GetTickCount64() - postedAt > kDeliveryMs) return Drop("timeout", L"a replayed character wasn't delivered in 1 s");
     Ready();
   }
 
@@ -322,7 +337,6 @@ struct FocusHold {
       std::scoped_lock guard{countsLock};
       counts.replayed += replayed;
     }
-    heldKeys.clear();
     LaunchLog::Write(L"keys", L"hold " + std::to_wstring(generation) + L" ready after " + std::to_wstring(GetTickCount64() - startedAt) + L" ms, replayed " + std::to_wstring(replayed));
     Stop();
   }
@@ -334,6 +348,8 @@ struct FocusHold {
       counts.replayed += replayed;
       counts.drops[reason]++;
     }
+    droppedKeys.insert(heldKeys.begin(), heldKeys.end());
+    heldKeys.clear();
     LaunchLog::Write(L"keys", L"hold " + std::to_wstring(generation) + L" dropped: " + why + L" with " + std::to_wstring(held.size()) + L" held, " + std::to_wstring(replayed) + L" replayed");
     Stop();
   }
