@@ -194,19 +194,21 @@ export type OnboardingStep = "welcome" | "blocking" | "defaultBrowser" | "sync" 
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = ["welcome", "blocking", "defaultBrowser", "sync", "allSet"];
 
-export const restoredOnboardingStep = (raw: string | null): OnboardingStep =>
-  (ONBOARDING_STEPS as readonly string[]).includes(raw ?? "") ? (raw as OnboardingStep) : "welcome";
+export const restoredOnboardingStep = (raw: string | null, offersSync = true): OnboardingStep => {
+  const step = (ONBOARDING_STEPS as readonly string[]).includes(raw ?? "") ? (raw as OnboardingStep) : "welcome";
+  return step === "sync" && !offersSync ? "allSet" : step;
+};
 
-const shownSteps = (offersDefaultBrowser: boolean) => ONBOARDING_STEPS.filter((step) => step !== "defaultBrowser" || offersDefaultBrowser);
+const shownSteps = (offersDefaultBrowser: boolean, offersSync = true) => ONBOARDING_STEPS.filter((step) => (step !== "defaultBrowser" || offersDefaultBrowser) && (step !== "sync" || offersSync));
 
-export const nextStep = (step: OnboardingStep, offersDefaultBrowser = false): OnboardingStep | null => {
-  const steps = shownSteps(offersDefaultBrowser);
+export const nextStep = (step: OnboardingStep, offersDefaultBrowser = false, offersSync = true): OnboardingStep | null => {
+  const steps = shownSteps(offersDefaultBrowser, offersSync);
   const at = steps.indexOf(step);
   return at < 0 ? (shownSteps(true).slice(shownSteps(true).indexOf(step) + 1).find((s) => steps.includes(s)) ?? null) : (steps[at + 1] ?? null);
 };
 
-export const previousStep = (step: OnboardingStep, offersDefaultBrowser = false): OnboardingStep | null => {
-  const steps = shownSteps(offersDefaultBrowser);
+export const previousStep = (step: OnboardingStep, offersDefaultBrowser = false, offersSync = true): OnboardingStep | null => {
+  const steps = shownSteps(offersDefaultBrowser, offersSync);
   const at = steps.indexOf(step);
   return at <= 0 ? null : (steps[at - 1] ?? null);
 };

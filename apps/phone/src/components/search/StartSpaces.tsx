@@ -33,6 +33,7 @@ import {
   type SymbolName,
 } from "../ui";
 import { MenuTrigger, spaceSystemImage, type MenuHandlers } from "../ui/MenuTrigger";
+import { syncOffered } from "../../state/sync/offer";
 
 export type StartGeometry = { width: number; height: number; safeSide: number; barCenterY: number; dotsOnBar?: boolean };
 
@@ -114,7 +115,7 @@ export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeom
       ) : spaces.length === 1 ? (
         page(spaces[0]!)
       ) : status.phase === "off" ? (
-        <SyncInvitation y={geometry.height * startLayout.switcherRatio} dark={dark} incognito={incognito} />
+        syncOffered() ? <SyncInvitation y={geometry.height * startLayout.switcherRatio} dark={dark} incognito={incognito} /> : null
       ) : null}
     </View>
   );

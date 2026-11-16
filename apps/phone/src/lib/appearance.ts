@@ -32,7 +32,13 @@ export function preferredScheme(design: Design, choice: SchemeChoice, mac: MacLo
 
 export const appliedDark = (preferred: PreferredScheme, systemDark: boolean) => (preferred === null ? systemDark : preferred === "dark");
 
-export function appearanceSummary(colorName: string | null, style: InterfaceStyleChoice, scheme: SchemeChoice): string {
+export const offeredInterfaceStyle = (choice: InterfaceStyleChoice, offersSync: boolean): InterfaceStyleChoice => (offersSync || choice !== "matchMac" ? choice : "glass");
+
+export const offeredScheme = (choice: SchemeChoice, offersSync: boolean): SchemeChoice => (offersSync || choice !== "matchMac" ? choice : "system");
+
+export function appearanceSummary(colorName: string | null, shownStyle: InterfaceStyleChoice, shownScheme: SchemeChoice, offersSync = true): string {
+  const style = offeredInterfaceStyle(shownStyle, offersSync);
+  const scheme = offeredScheme(shownScheme, offersSync);
   const parts = [colorName, style === "matchMac" ? null : INTERFACE_STYLE_NAMES[style], scheme === "matchMac" ? null : SCHEME_NAMES[scheme]].filter((part): part is string => part !== null);
   return parts.length ? parts.join(", ") : "Match My Mac";
 }

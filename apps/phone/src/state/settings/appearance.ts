@@ -6,6 +6,7 @@ import { overrideColorScheme } from "../../platform/look";
 import { useReduceTransparency } from "../app/systemLook";
 import { syncData, useSync } from "../sync/store";
 import { currentPreferences, usePreferences } from "./store";
+import { syncOffered } from "../../platform/system";
 
 export const useAppearanceDesign = create<{ design: Design }>()(() => ({ design: "original" }));
 
@@ -33,7 +34,7 @@ export function useAppearanceSummary(colorName: (choice: string) => string): str
   const color = usePreferences((p) => p.colorChoice);
   const style = usePreferences((p) => p.interfaceStyle);
   const scheme = usePreferences((p) => p.schemeChoice);
-  return appearanceSummary(color === null ? null : colorName(color), style, scheme);
+  return appearanceSummary(color === null ? null : colorName(color), style, scheme, syncOffered());
 }
 
 let overridden: PreferredScheme = null;

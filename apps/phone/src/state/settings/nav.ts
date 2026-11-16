@@ -29,13 +29,26 @@ export const rememberSettingsScroll = (page: string, y: number) => void scrolls.
 
 export const settingsScroll = (page: string) => scrolls.get(page) ?? 0;
 
+const SYNC_PAGES = new Set<SettingsRoute["page"]>(["sync", "syncConnect", "syncWords", "syncScan"]);
+
+let syncPagesOffered: () => boolean = () => true;
+
+export const offerSyncPages = (offered: () => boolean) => {
+  syncPagesOffered = offered;
+};
+
+export const settingsRouteOffered = (route: SettingsRoute) => !SYNC_PAGES.has(route.page) || syncPagesOffered();
+
 export function openSettings(route: SettingsRoute = { page: "root" }) {
+  if (!settingsRouteOffered(route)) return;
   scrolls.clear();
   const stack: SettingsRoute[] = route.page === "root" ? [route] : [{ page: "root" }, route];
   useSettingsNav.setState({ open: true, stack, popping: false });
 }
 
-export const pushSettings = (route: SettingsRoute) => useSettingsNav.setState((s) => ({ stack: [...s.stack, route], popping: false }));
+export const pushSettings = (route: SettingsRoute) => {
+  if (settingsRouteOffered(route)) useSettingsNav.setState((s) => ({ stack: [...s.stack, route], popping: false }));
+};
 
 export function popSettings(): boolean {
   const { open, stack } = useSettingsNav.getState();

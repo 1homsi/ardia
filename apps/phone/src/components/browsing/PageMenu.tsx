@@ -35,6 +35,7 @@ import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
 import { capsule, ConfirmDialog, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, tabsMotion, Toggle, useDesign, useTheme, type SymbolName } from "../ui";
 import { PageMenuWords, usePageMenuInk } from "./PageMenuWords";
+import { syncOffered } from "../../state/sync/offer";
 
 export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boolean; onHidden: () => void }) {
   const model = useMenuModel(tabId);
@@ -167,7 +168,7 @@ function NavigationCapsule({ tabId }: { tabId: string }) {
         <CapsuleButton icon="chevronLeft" label="Back" enabled={model.back} onPress={menuBack} />
         <CapsuleButton icon="chevronRight" label="Forward" enabled={model.forward} onPress={menuForward} />
         {below ? <View style={styles.fill} /> : titleButton}
-        <PinButton tabId={tabId} enabled={model.isWebPage} />
+        {syncOffered() ? <PinButton tabId={tabId} enabled={model.isWebPage} /> : null}
         {model.reload === "stop" ? (
           <CapsuleButton icon="xmark" label="Stop" enabled onPress={menuStop} />
         ) : (

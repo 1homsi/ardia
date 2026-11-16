@@ -16,6 +16,7 @@ import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { AppearanceRow, ColorRow, MatchMyMac } from "./AppearancePage";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
+import { syncOffered } from "../../state/sync/offer";
 
 const APP_LINKS = [
   { id: "ardia" as const, title: "Ardia" },
@@ -44,9 +45,11 @@ export function SettingsRoot() {
   const redesigned = useDesign() === "redesigned";
   return (
     <SettingsPage title="Settings" trailing={<BarButton title="Done" emphasized onPress={closeSettings} />}>
-      <Group>
-        <SyncCard stacks={stacks} />
-      </Group>
+      {syncOffered() ? (
+        <Group>
+          <SyncCard stacks={stacks} />
+        </Group>
+      ) : null}
       <View testID="settingsShortcuts" style={[styles.shortcuts, { flexDirection: stacks ? "column" : "row" }]}>
         <Pressable
           accessibilityRole="button"
@@ -59,17 +62,19 @@ export function SettingsRoot() {
           <Symbol name="archivebox" size={20} color={theme.label} />
           <Text style={[font.body, styles.medium, { color: theme.label }]}>Archive</Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            closeSettings();
-            openSpaces();
-          }}
-          style={[styles.shortcut, stacks ? null : styles.fill, { backgroundColor: theme.groupFill }]}
-        >
-          <Symbol name="squareStack" size={20} color={theme.label} />
-          <Text style={[font.body, styles.medium, { color: theme.label }]}>Spaces</Text>
-        </Pressable>
+        {syncOffered() ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              closeSettings();
+              openSpaces();
+            }}
+            style={[styles.shortcut, stacks ? null : styles.fill, { backgroundColor: theme.groupFill }]}
+          >
+            <Symbol name="squareStack" size={20} color={theme.label} />
+            <Text style={[font.body, styles.medium, { color: theme.label }]}>Spaces</Text>
+          </Pressable>
+        ) : null}
       </View>
       {redesigned ? (
         <Group>

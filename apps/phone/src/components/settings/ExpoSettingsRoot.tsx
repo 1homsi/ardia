@@ -17,6 +17,7 @@ import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { contentMargins, modifierList, PROFILE_COLORS, settingsChrome, settingsLayout, SettingsIconTile, SettingsShortcuts, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
 import { ExpoRowLabel } from "./ExpoRowLabel";
+import { syncOffered } from "../../state/sync/offer";
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
 const APP_LINKS = [
@@ -24,6 +25,7 @@ const APP_LINKS = [
   { id: "app", title: "App" },
 ] as const;
 const SHORTCUTS = [{ id: "archive", title: "Archive" }, { id: "spaces", title: "Spaces" }];
+const ARCHIVE_ONLY = SHORTCUTS.filter((shortcut) => shortcut.id === "archive");
 const SYNC_TILE = 56;
 const TOP_SECTION_SPACING = 12;
 
@@ -49,13 +51,15 @@ export function ExpoSettingsRoot() {
   return (
     <Toolbar>
       <Form modifiers={modifierList(navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome(), contentMargins({ edges: "top", length: settingsLayout.expoListTop }))}>
-        <Section modifiers={[listSectionSpacing(TOP_SECTION_SPACING)]}>
-          <NavigationLink value={link({ page: "sync" })}>
-            <SyncRow />
-          </NavigationLink>
-        </Section>
+        {syncOffered() ? (
+          <Section modifiers={[listSectionSpacing(TOP_SECTION_SPACING)]}>
+            <NavigationLink value={link({ page: "sync" })}>
+              <SyncRow />
+            </NavigationLink>
+          </Section>
+        ) : null}
         <Section modifiers={[listRowBackground("clear"), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }), listSectionSpacing(TOP_SECTION_SPACING)]}>
-          <SettingsShortcuts shortcuts={SHORTCUTS} onPress={(id) => leaveFor(id === "archive" ? openArchive : openSpaces)} />
+          <SettingsShortcuts shortcuts={syncOffered() ? SHORTCUTS : ARCHIVE_ONLY} onPress={(id) => leaveFor(id === "archive" ? openArchive : openSpaces)} />
         </Section>
         <Section>
           <NavigationLink value={link({ page: "appearance" })}>

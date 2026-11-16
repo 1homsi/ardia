@@ -33,6 +33,7 @@ import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
 import { capsule, ChromeSurface, font, menuLayout, pageMenuInk, pageMenuLayout, pageMenuMotion, PressScale, space, Symbol, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 import { MenuTrigger } from "../ui/MenuTrigger";
+import { syncOffered } from "../../state/sync/offer";
 
 export const usePageMenuInk = () => pageMenuInk[useTheme().dark ? "dark" : "light"];
 
@@ -123,7 +124,7 @@ function NavigationCapsule({ tabId, model, large }: { tabId: string; model: Menu
         <CapsuleButton icon="chevronLeft" label="Back" enabled={model.back} onPress={menuBack} />
         <CapsuleButton icon="chevronRight" label="Forward" enabled={model.forward} onPress={menuForward} />
         {large ? <View style={styles.fill} /> : titleButton}
-        <PinButton tabId={tabId} enabled={model.isWebPage} />
+        {syncOffered() ? <PinButton tabId={tabId} enabled={model.isWebPage} /> : null}
         {model.reload === "stop" ? (
           <CapsuleButton icon="xmark" label="Stop" enabled onPress={menuStop} />
         ) : (

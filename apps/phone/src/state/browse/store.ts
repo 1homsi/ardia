@@ -56,6 +56,7 @@ import { countUsage } from "../telemetry/telemetry";
 import { rememberPageTones, restorePageTones } from "../pages/toneMemory";
 import { followColorInWidgets } from "../settings/widgetColor";
 import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
+import { syncOffered } from "../../platform/system";
 
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
@@ -377,7 +378,9 @@ export const openArchive = () => useBrowse.setState({ sheet: "archive" });
 
 export const closeArchive = () => useBrowse.setState({ sheet: null });
 
-export const openSpaces = () => useBrowse.setState({ sheet: "spaces" });
+export const openSpaces = () => {
+  if (syncOffered()) useBrowse.setState({ sheet: "spaces" });
+};
 
 export function reopenArchived(tab: BrowserTab) {
   restoreArchivedTab(tab);

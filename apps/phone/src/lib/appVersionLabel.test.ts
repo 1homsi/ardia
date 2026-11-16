@@ -24,3 +24,8 @@ test("the App Store is Stable", () => {
   assert.equal(label("0.2.47-nightly.2", "40", false, "receipt"), "Ardia 0.2.47 (40)");
   assert.equal(label("0.2.47", "41", false, null), "Ardia 0.2.47 (41)");
 });
+
+test("a build with no store receipt, as Android's, reads Nightly from its own nightly version, beside iPhone's TestFlight label", () => {
+  assert.equal(label("0.2.47-nightly.2", "204702", false, null), "Ardia 0.2.47 Nightly 2 (204702)");
+  assert.equal(label("0.2.47", "204700", false, null), "Ardia 0.2.47 (204700)");
+});

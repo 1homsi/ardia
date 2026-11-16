@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
-import { INTERFACE_STYLE_NAMES, INTERFACE_STYLES, SCHEME_CHOICES, SCHEME_NAMES } from "../../lib/appearance";
+import { INTERFACE_STYLE_NAMES, INTERFACE_STYLES, offeredInterfaceStyle, offeredScheme, SCHEME_CHOICES, SCHEME_NAMES } from "../../lib/appearance";
+import { syncOffered } from "../../state/sync/offer";
 import { setColorChoice, setInterfaceStyle, setSchemeChoice } from "../../state/settings/actions";
 import { useAppearanceSummary } from "../../state/settings/appearance";
 import { usePreferences } from "../../state/settings/hooks";
@@ -23,22 +24,25 @@ export function AppearanceRow() {
 
 export function AppearancePage() {
   const syncEnabled = useSyncEnabled();
-  const style = usePreferences((p) => p.interfaceStyle);
-  const scheme = usePreferences((p) => p.schemeChoice);
+  const offersSync = syncOffered();
+  const style = offeredInterfaceStyle(usePreferences((p) => p.interfaceStyle), offersSync);
+  const scheme = offeredScheme(usePreferences((p) => p.schemeChoice), offersSync);
+  const styleChoices = offersSync ? INTERFACE_STYLES : INTERFACE_STYLES.filter((choice) => choice !== "matchMac");
+  const schemeChoices = offersSync ? SCHEME_CHOICES : SCHEME_CHOICES.filter((choice) => choice !== "matchMac");
   return (
     <SettingsPage title="Appearance" onBack={popSettings}>
       <Group>
         <ColorRow labelled={false} />
         {syncEnabled ? <MatchMyMac labelled={false} /> : null}
       </Group>
-      <Group header="Interface Style" footer="Match My Mac follows your Mac. Reduce Transparency in iOS Settings always uses Classic.">
-        {INTERFACE_STYLES.map((choice, index) => (
-          <CheckRow key={choice} title={INTERFACE_STYLE_NAMES[choice]} checked={style === choice} divider={index < INTERFACE_STYLES.length - 1} onPress={() => setInterfaceStyle(choice)} />
+      <Group header="Interface Style" footer={offersSync ? "Match My Mac follows your Mac. Reduce Transparency in iOS Settings always uses Classic." : undefined}>
+        {styleChoices.map((choice, index) => (
+          <CheckRow key={choice} title={INTERFACE_STYLE_NAMES[choice]} checked={style === choice} divider={index < styleChoices.length - 1} onPress={() => setInterfaceStyle(choice)} />
         ))}
       </Group>
-      <Group header="Light or Dark" footer="Match My Mac follows your Mac. System follows this device.">
-        {SCHEME_CHOICES.map((choice, index) => (
-          <CheckRow key={choice} title={SCHEME_NAMES[choice]} checked={scheme === choice} divider={index < SCHEME_CHOICES.length - 1} onPress={() => setSchemeChoice(choice)} />
+      <Group header="Light or Dark" footer={offersSync ? "Match My Mac follows your Mac. System follows this device." : "System follows this device."}>
+        {schemeChoices.map((choice, index) => (
+          <CheckRow key={choice} title={SCHEME_NAMES[choice]} checked={scheme === choice} divider={index < schemeChoices.length - 1} onPress={() => setSchemeChoice(choice)} />
         ))}
       </Group>
     </SettingsPage>

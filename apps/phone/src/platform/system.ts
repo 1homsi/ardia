@@ -60,4 +60,8 @@ export const prefetchImage = (uri: string): Promise<boolean> => Image.prefetch(u
 
 export const displayCornerRadius = (): number | null => nativeSystem.displayCornerRadius();
 
+let syncOffer: boolean | null = null;
+
+export const syncOffered = (): boolean => (syncOffer ??= nativeSystem.syncOffered() !== false);
+
 export const setWidgetColorChoice = (choice: string | null) => nativeSystem.setWidgetColorChoice(choice);

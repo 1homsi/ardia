@@ -30,6 +30,7 @@ import { launchValues } from "../../platform/launch";
 import { COPIED_LINK } from "../browse/tabMenus";
 import { syncData } from "../sync/store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
+import { syncOffered } from "../../platform/system";
 
 const TITLE_FEEDBACK_MS = 1000;
 const FIND_AFTER_MENU_MS = 350;
@@ -100,6 +101,7 @@ export function openInDefaultBrowser() {
 }
 
 export function pinCurrentToMac() {
+  if (!syncOffered()) return;
   const tab = selectedTab();
   if (!tab) return;
   const inTitle = copy().pinFeedbackInMenu && syncData().status.isEnabled;

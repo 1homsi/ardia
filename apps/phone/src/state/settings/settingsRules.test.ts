@@ -209,3 +209,14 @@ test("where website data can't be cleared by time, the title and footer say cook
   assert.doesNotMatch(clearFooter(all, "today", true), /entirely/);
   assert.doesNotMatch(clearFooter(all, "allTime", false), /entirely/);
 });
+
+test("where sync isn't offered (Android's store builds), onboarding never shows the sync step, and a saved sync step resumes at All Set", () => {
+  assert.equal(nextStep("blocking", false, false), "allSet");
+  assert.equal(nextStep("blocking", true, false), "defaultBrowser");
+  assert.equal(nextStep("defaultBrowser", true, false), "allSet");
+  assert.equal(previousStep("allSet", false, false), "blocking");
+  assert.equal(nextStep("sync", false, false), "allSet");
+  assert.equal(restoredOnboardingStep("sync", false), "allSet");
+  assert.equal(restoredOnboardingStep("sync"), "sync");
+  assert.equal(nextStep("defaultBrowser", true), "sync");
+});

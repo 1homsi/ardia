@@ -9,6 +9,7 @@ import { currentPreferences, setPreference } from "../settings/store";
 import { useTabs } from "../tabs/store";
 import { heldLinks } from "../links/heldLinks";
 import { opensLaunchTray } from "../links/linkRules";
+import { syncOffered } from "../../platform/system";
 
 export const useOnboarding = create<{ showing: boolean; step: OnboardingStep; forward: boolean }>()(() => ({ showing: false, step: "welcome", forward: true }));
 
@@ -23,14 +24,14 @@ useOnboarding.subscribe((state, previous) => {
 
 export function showOnboarding() {
   closeSettings();
-  useOnboarding.setState({ showing: true, step: restoredOnboardingStep(restoredValue(STEP_KEY)), forward: true });
+  useOnboarding.setState({ showing: true, step: restoredOnboardingStep(restoredValue(STEP_KEY), syncOffered()), forward: true });
   void refreshDefaultBrowser();
 }
 
 const offers = () => offersDefaultBrowser(defaultBrowserStatus());
 
 export function advanceOnboarding() {
-  const next = nextStep(useOnboarding.getState().step, offers());
+  const next = nextStep(useOnboarding.getState().step, offers(), syncOffered());
   if (!next) {
     finishOnboarding();
     return;
@@ -42,7 +43,7 @@ export function advanceOnboarding() {
 export function onboardingBack(): boolean {
   const { showing, step } = useOnboarding.getState();
   if (!showing) return false;
-  const previous = previousStep(step, offers());
+  const previous = previousStep(step, offers(), syncOffered());
   if (previous) useOnboarding.setState({ step: previous, forward: false });
   else finishOnboarding();
   return true;
