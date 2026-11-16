@@ -40,6 +40,8 @@ function judge(rounds: Round[], what: string) {
   const missed = rounds.filter((round) => round.received && !(round.opened && round.fromClick === true)).length;
   const lostAfterPaint = rounds.filter((round) => !round.received && !round.sentBeforePaint).length;
   const reached = rounds.filter((round) => round.received).length;
+  const lostBeforePaint = rounds.length - reached - lostAfterPaint;
+  console.info(`[ardia windows] link script rounds, ${what}: ${rounds.length} clicks, ${reached} reached the page, ${missed} of those missed by the link script, ${lostBeforePaint} lost before first contentful paint, ${lostAfterPaint} lost after it`);
   expectEqual(
     { missed, lostAfterPaint, mostReached: reached * 2 >= rounds.length },
     { missed: 0, lostAfterPaint: 0, mostReached: true },
