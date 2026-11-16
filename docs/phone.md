@@ -2705,35 +2705,37 @@ run is the proof. The same run's source pass found four other things the upgrade
 | Open tabs | 8, in order (`ZBROWSERTAB`) | the same 8 URLs in the same order (`tabs`, diffed) | pass |
 | Archive | 1 | 1 | pass |
 | History | 11 visits | the same 11 URLs (`visits`, diffed) | pass |
-| A History entry hidden in the Library | Page 1 hidden (`library.hiddenHistory`, seconds) | the same entry in `preferences`, in milliseconds | pass (stored; the Library not reopened after, see below) |
+| A History entry hidden in the Library | Page 1 hidden (`library.hiddenHistory`, seconds) | the same entry in `preferences`, in milliseconds | pass: stored, and missing from History after the upgrade while main's other visits show (run3) |
 | Back history | main's saved state for each tab (`interactionState`) | the same bytes in `tab_state`; a tab restores what main saved | pass: main had saved the Wikipedia tab before its link was followed, so both apps restore one page; our own back history survives a relaunch |
 | Page thumbnails | 9 in Caches/TabSnapshots | 9 `-legacy` pictures | pass |
 | Website data | a page's cookie and localStorage `main1` | the page reads `cookie-main1` and `local-main1` | pass |
-| Downloads | proof-note.txt in Documents/Downloads | the same file | pass (file; the Library list not reopened after) |
-| Bookmarks (from the Mac) | Ardia; Proof Folder with 2; Hacker News in Other Bookmarks | the same sync files | partial: carried with sync, Library not reopened after |
+| Downloads | proof-note.txt in Documents/Downloads | the same file | pass: the file, and the Library's Downloads lists it (run3) |
+| Bookmarks (from the Mac) | Ardia; Proof Folder with 2; Hacker News in Other Bookmarks | the same in the Library's Bookmarks (run3) | pass |
 | Spaces, pins, the Mac's tabs | 4 spaces; Personal's 4 pins; the Mac's tabs | the same in the Spaces sheet and on the start page | pass |
 | Sync With Mac | connected: Mac "shiv", "iPhone", folder Ardia Sync | the connected page, the same; no Connect step | pass |
 | The Mac's view | one phone, kty6evegx…, 48 tab lines | the same one phone and id, 48 tab lines | pass |
-| Site permissions | localhost: camera, microphone, location | the same grant (`browsing.sitePermissions`, identical) and Site Settings row | pass (revoke not tried after) |
+| Site permissions | localhost: camera, microphone, location | the same grant (`browsing.sitePermissions`, identical) and Site Settings row | pass; Revoke Camera after the upgrade left Microphone and Location in the row and the stored grant, and the page asked for the camera again (run3) |
 | Per-site settings | Wikipedia 125% and Night Shade on | identical `browsing.sites`; the page menu shows Night Shade on, 125% | pass |
 | Block Ads, Trackers, Cookie Banners | on, on, off | the same | pass |
 | Filter lists | Badware risks off; NoCoin added (303 rules) | the same selection and custom list | pass |
 | My Filters | two lines, 2 rules | the same text, 2 rules | pass |
 | Trusted Sites | example.com | example.com | pass |
 | Night Shade, Swipe to Navigate, Collapse Bottom Bar | Automatic, From Screen Edges, on | the same | pass |
-| Reader | size step 3, San Francisco, Sepia | the same in `preferences` | pass (the Reader not reopened after) |
+| Reader | size step 3, San Francisco, Sepia | the same; the Reader's menu shows San Francisco and Sepia at size 3 (run3) | pass |
 | Appearance | Orange, Classic, Light | Orange, Classic, Light | pass |
 | Search engine, suggestions | DuckDuckGo (set on the Mac), off | DuckDuckGo from the Mac, off | pass |
 | Auto-Open Keyboard, Open App Links In | off, App | off, App | pass |
 | Archive Inactive Tabs | After 7 days | After 7 days | pass |
 | Deck as a grid | grid | grid | pass |
 | Onboarding | finished | not shown again | pass |
-| Relaunches | | about 15 during the checks, the same state each time | pass |
+| Relaunches | | about 15 during the checks, the same state each time; after two kill-and-relaunch cycles the receipt and the import marker are unchanged, nothing imported twice (run3) | pass |
+| A tab sent each way | | the Mac's tab arrived once on the phone; a tab opened on the phone listed under it on the Mac (run3) | pass |
 | Private tabs | 1 open before the screenshots | none | not carried, by design: main keeps them in memory only (`isPrivate` is transient) and drops them on its own relaunch, and the install ends main's process |
 
-Not exercised in this run: revoking a grant, reopening the Library and the Reader after the upgrade, a tab sent
-each way, and kill-and-relaunch receipt reads. The lease was lost a third time, 13 minutes after the upgrade, and
-Simlock wiped the simulator. The stand-in rehearsal (above) covered sync both ways and kill and relaunch.
+The four after-upgrade checks marked run3 ran on a second, shorter setup of main (the same scratch Mac, the grants, a
+download, a hidden History entry and the Reader's values), upgraded to the Expo build at **dabc56f45**, on one lease
+held for 30 minutes by an `agent-device` call every 20 seconds (`upgrade-proof/run3/`, its import receipt
+`{"tabs":8,"archive":0,"visits":7,"preferences":6}`). The lease never dropped.
 Not carried by design: Spotlight's fingerprints (rebuilt under a new key) and the bang list cache (the JavaScript
 core has its own). Not applicable: the default-browser status (no entitlement in either build).
 
