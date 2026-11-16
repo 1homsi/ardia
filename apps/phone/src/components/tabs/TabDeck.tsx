@@ -60,7 +60,7 @@ import {
 } from "../../state/browse/store";
 import { menuOpenedHaptic } from "../../state/browse/tabMenus";
 import { useCanReopen, useHasArchivedTabs, useIncognito, usePrivateCount, useShownSpace } from "../../state/tabs/hooks";
-import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, moveTo, poofMs, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion, usesGlass } from "../ui";
+import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, iPhoneOr, DeckLookBackdropBase, FrostSource, Menu, moveTo, poofMs, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion, usesGlass } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { confirmInSheet, nativeMenus } from "../ui/MenuTrigger";
 import { useSyncEnabled } from "../../state/sync/hooks";
@@ -76,6 +76,9 @@ import { ArchiveCapsule, ArchiveIntervalCard } from "./ArchiveIntervalCard";
 import { DeckBottomBar } from "./DeckBottomBar";
 import { deckArchiveBottom, DeckHeader, deckHeaderBottom } from "./DeckHeader";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
+import { TabGrid } from "./TabGrid";
+import { tabGridMotion } from "./tabGridLayout";
+import { setDeckGrid, useDeckGrid } from "../../state/browse/deckGrid";
 
 type Phase = { kind: "opening" | "settled" | "closing"; id: string | null };
 
@@ -103,6 +106,9 @@ export const TabDeck = memo(function TabDeck() {
   const design = useDesign();
   const redesigned = design === "redesigned";
   const glassChrome = redesigned && usesGlass();
+  const gridAvailable = redesigned && DECK_GRID_ON_PLATFORM;
+  const gridChosen = useDeckGrid();
+  const grid = gridAvailable && gridChosen;
   const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS, design, deckHeaderBottom()), [width, height, insets.top, insets.bottom, design]);
   useEffect(() => labTrace(`PAGELAB deck frame ${Math.round(width)}x${Math.round(height)} window ${Math.round(window.width)}x${Math.round(window.height)} insets ${insets.top}/${insets.bottom}`), [width, height, window.width, window.height, insets.top, insets.bottom]);
   const archiveShift = useMemo(
@@ -121,7 +127,7 @@ export const TabDeck = memo(function TabDeck() {
   const syncEnabled = useSyncEnabled();
   const [first] = useState(() => {
     const ids = live.map((t) => t.id);
-    const target = shown ? peekDeckEntrance() : heldSelected;
+    const target = shown ? (grid ? null : peekDeckEntrance()) : heldSelected;
     const index = target ? ids.indexOf(target) : -1;
     const phase = entrancePhase(ids, target);
     return {
@@ -142,11 +148,13 @@ export const TabDeck = memo(function TabDeck() {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [poofs, setPoofs] = useState<PoofSpec[]>(NO_POOFS);
   const [anchor, setAnchor] = useState(() => focusedIndex(first.scroll, first.ids.length));
+  const [gridLayer, setGridLayer] = useState(grid);
+  const [stackLayer, setStackLayer] = useState(!grid);
   const syncedShown = useRef(shown);
   const syncedTabs = useRef(allTabs);
   if (syncedShown.current !== shown || (!shown && syncedTabs.current !== allTabs)) {
     const ids = allTabs.map((t) => t.id);
-    const target = shown ? peekDeckEntrance() : heldSelected;
+    const target = shown ? (grid ? null : peekDeckEntrance()) : heldSelected;
     const nextAnchor = focusedIndex(deckScrollFor(ids, target), ids.length);
     const nextPhase = entrancePhase(ids, target);
     if (!sameOrder(order, ids)) setOrder(ids);
@@ -159,6 +167,8 @@ export const TabDeck = memo(function TabDeck() {
       if (cardMenu) setCardMenu(null);
       if (confirmation) setConfirmation(null);
       if (poofs.length) setPoofs(NO_POOFS);
+      if (gridLayer !== grid) setGridLayer(grid);
+      if (stackLayer === grid) setStackLayer(!grid);
     }
   }
   useLayoutEffect(() => {
@@ -273,12 +283,13 @@ export const TabDeck = memo(function TabDeck() {
     const entrance = peekDeckEntrance();
     const index = entrance ? order.indexOf(entrance) : -1;
     placeCards(order, index >= 0 ? openingDeckScroll(index, order.length) : initialDeckScroll(order.length));
-    if (!entrance || index < 0) {
+    if (!entrance || index < 0 || grid) {
       deckPhase.value = DECK_PHASE.settled;
       expandedIndex.value = -1;
       scaleProgress.value = 1;
       positionProgress.value = 1;
       cardsOpacity.value = withTiming(1, { duration: tabsMotion.fade });
+      if (entrance && grid) deckEntered(entrance);
       return;
     }
     beginInteraction("deck open", INTERACTION_WINDOW_MS.deckOpen);
@@ -426,6 +437,7 @@ export const TabDeck = memo(function TabDeck() {
       open(at >= 0 ? at : focused);
     }
     else if (command.kind === "lift") {
+      if (grid) return;
       dragIndex.value = focused;
       dragLift.value = command.offset;
     } else showArchiveCardNow();
@@ -437,7 +449,7 @@ export const TabDeck = memo(function TabDeck() {
     const id = order[index];
     if (!id || phase.kind !== "settled" || dragIndex.value === index || flyIndex.value === index) return;
     if (redesigned) Keyboard.dismiss();
-    if (reduceMotion) {
+    if (reduceMotion || grid) {
       settledOpen(id);
       return;
     }
@@ -569,7 +581,7 @@ export const TabDeck = memo(function TabDeck() {
     const id = order[index];
     if (!id) return;
     hideArchiveCard();
-    if (reduceMotion) {
+    if (reduceMotion || grid) {
       remove(id);
       return;
     }
@@ -727,16 +739,34 @@ export const TabDeck = memo(function TabDeck() {
     const closing = order[at];
     if (closing) remove(closing);
   };
-  const latestActions = useRef({ open, close, closeNow });
-  latestActions.current = { open, close, closeNow };
+  const latestActions = useRef({ open, close, closeNow, order });
+  latestActions.current = { open, close, closeNow, order };
   const cardActions = useMemo(
     () => ({
       open: (at: number) => latestActions.current.open(at),
       close: (at: number) => latestActions.current.close(at, 0),
       closeNow: (at: number) => latestActions.current.closeNow(at),
+      openTab: (id: string) => {
+        const at = latestActions.current.order.indexOf(id);
+        if (at >= 0) latestActions.current.open(at);
+      },
+      closeTab: (id: string) => {
+        const at = latestActions.current.order.indexOf(id);
+        if (at >= 0) latestActions.current.closeNow(at);
+      },
     }),
     [],
   );
+  const toggleGrid = () => {
+    dismissKeyboard();
+    if (!gridAvailable) return;
+    setDeckGrid(!grid, !incognito);
+  };
+  const crossfade = reduceMotion ? tabGridMotion.crossfadeReduced : tabGridMotion.crossfade;
+  const gridTabs = gridAvailable && (grid || gridLayer) ? order.flatMap((id) => {
+    const tab = tabs.get(id);
+    return tab && !hidden.current.has(id) ? [tab] : [];
+  }) : [];
   const plusItems: MenuItem[] = incognito
     ? [
         { label: "New Tab", icon: "plus", onPress: newRegularTab },
@@ -773,6 +803,7 @@ export const TabDeck = memo(function TabDeck() {
         </FrostSource>
       </Animated.View>
       <Shade shaded={menu !== null || (chromeMenu && !nativeMenus()) || cardMenu !== null || confirmation !== null}>
+        <StackLayer available={gridAvailable} grid={grid} motion={crossfade} onFaded={() => setStackLayer(!grid)}>
         <ScrollActions
           style={StyleSheet.absoluteFill}
           pointerEvents="box-none"
@@ -789,7 +820,7 @@ export const TabDeck = memo(function TabDeck() {
             <Animated.View testID="deckCards" style={[styles.touch, { height: g.height }, cardsStyle]} collapsable={false}>
               {order.map((id, index) => {
                 const tab = tabs.get(id);
-                if (!tab || hidden.current.has(id) || !deckCardMounted(index, anchor)) return null;
+                if (!tab || hidden.current.has(id) || !deckCardMounted(index, anchor) || (grid && !stackLayer)) return null;
                 return (
                   <DeckCard
                     key={id}
@@ -806,8 +837,27 @@ export const TabDeck = memo(function TabDeck() {
             </Animated.View>
           </GestureDetector>
         </ScrollActions>
+        </StackLayer>
+        {gridAvailable && shown && (grid || gridLayer) ? (
+          <MotionView
+            testID="tabGridLayer"
+            style={StyleSheet.absoluteFill}
+            pointerEvents={grid ? "box-none" : "none"}
+            collapsable={false}
+            accessibilityElementsHidden={!grid}
+            importantForAccessibility={grid ? "auto" : "no-hide-descendants"}
+            from={gridLayer ? undefined : HIDDEN}
+            to={grid ? SHOWN : HIDDEN}
+            motion={crossfade}
+            onMotionEnd={(finished) => {
+              if (finished) setGridLayer(grid);
+            }}
+          >
+            <TabGrid tabs={gridTabs} selectedId={heldSelected} geometry={g} reduceMotion={reduceMotion} onOpen={cardActions.openTab} onClose={cardActions.closeTab} />
+          </MotionView>
+        ) : null}
         {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} searching={needle !== ""} /> : null}
-        {archiveCard && phase.kind === "settled" ? (
+        {archiveCard && phase.kind === "settled" && !grid ? (
           redesigned ? (
             <ArchiveCapsule centerY={g.safeTop + deckChromeLayout.archiveCenter} safeSide={0} />
           ) : (
@@ -840,7 +890,8 @@ export const TabDeck = memo(function TabDeck() {
                     deckHeight={deckHeight}
                     safeSide={0}
                     incognito={incognito}
-                    onGrid={dismissKeyboard}
+                    grid={grid}
+                    onGrid={toggleGrid}
                     onQuery={setNeedle}
                     menusShown={shown && phase.kind === "settled"}
                     onMenu={setChromeMenu}
@@ -914,6 +965,27 @@ export const TabDeck = memo(function TabDeck() {
   );
 });
 
+function StackLayer({ available, grid, motion, onFaded, children }: { available: boolean; grid: boolean; motion: MotionCurve; onFaded: () => void; children: ReactNode }) {
+  if (!available) return children;
+  return (
+    <MotionView
+      testID="deckStackLayer"
+      style={StyleSheet.absoluteFill}
+      pointerEvents={grid ? "none" : "box-none"}
+      collapsable={false}
+      accessibilityElementsHidden={grid}
+      importantForAccessibility={grid ? "no-hide-descendants" : "auto"}
+      to={grid ? HIDDEN : SHOWN}
+      motion={motion}
+      onMotionEnd={(finished) => {
+        if (finished) onFaded();
+      }}
+    >
+      {children}
+    </MotionView>
+  );
+}
+
 function ChromeGlassShown({ progress, initiallyIn, away, children }: { progress: SharedValue<number>; initiallyIn: boolean; away: boolean; children: (glassShown: boolean) => ReactNode }) {
   const [entered, setEntered] = useState(initiallyIn);
   useAnimatedReaction(
@@ -934,6 +1006,9 @@ const dismissKeyboard = () => Keyboard.dismiss();
 const flickTick = () => haptics.tap();
 
 const DECK_FROST = "deck";
+const DECK_GRID_ON_PLATFORM = iPhoneOr(true, false);
+const SHOWN = { opacity: 1 };
+const HIDDEN = { opacity: 0 };
 const HANDOVER_CAP_MS = 250;
 const DRAWN_CAP_MS = 200;
 const CARD_LANDED = 0.02;

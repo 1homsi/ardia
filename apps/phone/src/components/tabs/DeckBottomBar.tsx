@@ -17,6 +17,7 @@ type Props = {
   deckHeight: number;
   safeSide: number;
   incognito: boolean;
+  grid?: boolean;
   onGrid: () => void;
   onQuery: (needle: string) => void;
   menusShown?: boolean;
@@ -44,7 +45,7 @@ const noop = () => undefined;
 
 export const deckBarAboveKeyboard = (deckHeight: number, keyboard: number) => deckHeight - keyboard - deckChromeLayout.barGap - deckChromeLayout.barCircle / 2;
 
-export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, onGrid, onQuery, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
+export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, grid = false, onGrid, onQuery, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
   const fade = { glassShown, glassShownMs, glyphFade };
   const roles = useTheme();
   const dark = roles.dark;
@@ -90,8 +91,8 @@ export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incogni
     <Animated.View pointerEvents="box-none" style={[styles.place, { top: barCenterY - deckChromeLayout.barCircle / 2 }, riseStyle]}>
       <View ref={row} testID="deckBottomBar" onLayout={measure} pointerEvents="box-none" style={[styles.bar, { paddingHorizontal: safeSide + deckChromeLayout.barSideInset }]}>
         <GlassCircleButton
-          icon="squareGrid2x2"
-          label="Show as Grid"
+          icon={grid ? "squareStack" : "squareGrid2x2"}
+          label={grid ? "Show as Stack" : "Show as Grid"}
           testID="deckBarGrid"
           diameter={deckChromeLayout.barCircle}
           dark={dark}

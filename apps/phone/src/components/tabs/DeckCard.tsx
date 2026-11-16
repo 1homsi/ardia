@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { countRender } from "../../state/app/interactionPerf";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
 import { DECK, DECK_HEADER, deckBarBand, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckSlot, deckVisibleWidth, lerp, titleReveal, type DeckGeometry, type DeckSlots } from "../../lib/deckGeometry";
@@ -10,7 +10,7 @@ import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
 import { barHeight, FadeView, Favicon, font, iPhoneOr, MotionView, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor, type MenuItem, type MotionCurve } from "../ui";
-import { MenuTrigger, nativeMenus, spaceSystemImage } from "../ui/MenuTrigger";
+import { MenuTrigger, nativeMenus, spaceSystemImage, type MenuHandlers } from "../ui/MenuTrigger";
 import { hideArchiveCard } from "../../state/browse/archiveCard";
 import { canShareTab, copyTabLink, shareTab } from "../../state/browse/tabMenus";
 import { openSettings } from "../../state/settings/nav";
@@ -236,13 +236,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
       <Animated.View style={[styles.header, { width: g.cardWidth }, headerStyle]} pointerEvents="none">
         <FadeView testID="deckHeaderFade" trailing={{ length: DECK_HEADER.trailingFade }} style={StyleSheet.absoluteFill}>
           <Animated.View style={[styles.headerRow, rowStyle]}>
-            {tab.isPrivate ? (
-              <View style={[styles.privateIcon, { backgroundColor: tabsInk.incognitoCardRaised }]}>
-                <Symbol name="eyes" size={tabsLayout.faviconSize - 4} color={tabsInk.onDark} />
-              </View>
-            ) : (
-              <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
-            )}
+            <CardIcon tab={tab} />
             <Animated.Text
               testID="deckHeaderTitle"
               maxFontSizeMultiplier={DECK_HEADER.maxFontScale}
@@ -283,7 +277,9 @@ export function cardMenuItems(tab: BrowserTab, { devices, pinned, syncEnabled, s
   return [{ label: "Copy Link", onPress: () => copyTabLink(tab) }, { label: "Share", onPress: () => shareTab(tab) }, ...sends, ...pin, ...move, "divider", closing];
 }
 
-function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: BrowserTab; index: number; onClose: (index: number) => void; fill: string; children: ReactNode }) {
+type CardMenuProps = { tab: BrowserTab; close: () => void; testID: string; haptic?: () => void; style?: StyleProp<ViewStyle>; children: (handlers: MenuHandlers) => ReactNode };
+
+export function CardMenu({ tab, close, testID, haptic, style, children }: CardMenuProps) {
   const devices = useSendTargets(tab.id);
   const pinned = useIsPinned(tab.id);
   const syncEnabled = useSyncEnabled();
@@ -291,9 +287,27 @@ function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: BrowserTab
   const profiles = useSyncView().profiles;
   const spaces = moveTargets(tabSpaces, profiles, tab);
   return (
-    <MenuTrigger testID="deckCardMenu" items={cardMenuItems(tab, { devices, pinned, syncEnabled, spaces }, () => onClose(index))} trigger="longPress" onOpen={hideArchiveCard} style={[styles.cardMenu, { backgroundColor: fill }]}>
-      {() => children}
+    <MenuTrigger testID={testID} items={cardMenuItems(tab, { devices, pinned, syncEnabled, spaces }, close)} trigger="longPress" haptic={haptic} onOpen={hideArchiveCard} style={style}>
+      {children}
     </MenuTrigger>
+  );
+}
+
+function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: BrowserTab; index: number; onClose: (index: number) => void; fill: string; children: ReactNode }) {
+  return (
+    <CardMenu testID="deckCardMenu" tab={tab} close={() => onClose(index)} style={[styles.cardMenu, { backgroundColor: fill }]}>
+      {() => children}
+    </CardMenu>
+  );
+}
+
+export function CardIcon({ tab }: { tab: BrowserTab }) {
+  return tab.isPrivate ? (
+    <View style={[styles.privateIcon, { backgroundColor: tabsInk.incognitoCardRaised }]}>
+      <Symbol name="eyes" size={tabsLayout.faviconSize - 4} color={tabsInk.onDark} />
+    </View>
+  ) : (
+    <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
   );
 }
 
@@ -359,7 +373,7 @@ const HEADER_ROW_ROOM = 2000;
 const CARD_SHADOW_BLUR = 36;
 const RECEIVED_INSET = 10;
 
-function ReceivedBadge() {
+export function ReceivedBadge() {
   const theme = useTheme();
   return (
     <View style={[styles.badge, { backgroundColor: theme.formAccent, boxShadow: `0px 2px 12px ${theme.formAccent}59` }]}>
