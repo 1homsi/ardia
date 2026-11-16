@@ -16,6 +16,7 @@ import { isSilenced } from "../tabs/mute";
 import { noteNotificationShown } from "../automation/notificationEvents";
 import { noteWebNotificationFromShim } from "../telemetry/webNotificationCounts";
 import { recordWebNotificationPost } from "../telemetry/webNotificationFailures";
+import { noteWebNotificationClicked } from "../telemetry/notificationRequestCounts";
 
 const shown = new Map<string, string>();
 
@@ -99,6 +100,7 @@ export function handleWebNotificationResponse({ id, action, tabId, data }: Notif
   const tab = tabId ? useBrowser.getState().tabs[tabId] : undefined;
   if (!tab) return true;
   if (action === "click") {
+    noteWebNotificationClicked();
     switchToTab(tab.id);
     focus(tab.windowId);
   }

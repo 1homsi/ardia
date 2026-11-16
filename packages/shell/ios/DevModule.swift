@@ -3,6 +3,7 @@ import ArdiaCore
 import ExpoModulesCore
 import ImageIO
 import UniformTypeIdentifiers
+import UserNotifications
 
 public class DevModule: Module {
   #if DEBUG
@@ -11,6 +12,23 @@ public class DevModule: Module {
 
     AsyncFunction("devCrash") { (kind: String?) in
       DispatchQueue.main.async { CrashReports.crashForTesting(kind) }
+    }
+
+    AsyncFunction("devNotificationCenter") { (actAsEngine: Bool, promise: Promise) in
+      let center = UNUserNotificationCenter.current()
+      if actAsEngine {
+        let engine = DevEngineNotificationDelegate()
+        DevEngineNotificationDelegate.kept = engine
+        center.delegate = engine
+        center.setNotificationCategories([UNNotificationCategory(identifier: "engine", actions: [], intentIdentifiers: [], options: [])])
+      }
+      center.getNotificationCategories { categories in
+        promise.resolve([
+          "delegate": center.delegate.map { String(describing: type(of: $0)) } ?? "",
+          "engineDelegate": NotificationHub.shared.engineDelegate.map { String(describing: type(of: $0)) } ?? "",
+          "categories": categories.map(\.identifier).sorted(),
+        ])
+      }
     }
 
     AsyncFunction("devRenderIntroMusic") { (cues: [String: Double], path: String) -> Double? in
@@ -451,3 +469,10 @@ final class DevSnapshotBurst: NSObject {
   }
 }
 #endif
+
+#if DEBUG
+final class DevEngineNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+  static var kept: DevEngineNotificationDelegate?
+}
+#endif
+

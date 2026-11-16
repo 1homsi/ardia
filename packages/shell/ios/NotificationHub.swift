@@ -29,14 +29,63 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
 
   private var pending: [(String, String, [String: Any])] = []
   private static let dismissibleCategory = "ardia.dismissible"
+  private static let engineNotificationIdKey = "notificationId"
+  private static let ownCategories: Set<UNNotificationCategory> = [
+    UNNotificationCategory(identifier: dismissibleCategory, actions: [], intentIdentifiers: [], options: [.customDismissAction]),
+  ]
+
+  private let engineDelegateLock = NSLock()
+  private weak var engineDelegateStore: UNUserNotificationCenterDelegate?
 
   private var center: UNUserNotificationCenter { .current() }
 
   func install() {
+    Self.holdCenter
+    if let current = center.delegate, current !== self { adoptEngineDelegate(current) }
     center.delegate = self
-    center.setNotificationCategories([
-      UNNotificationCategory(identifier: Self.dismissibleCategory, actions: [], intentIdentifiers: [], options: [.customDismissAction]),
-    ])
+    center.getNotificationCategories { [center] categories in center.setNotificationCategories(categories) }
+  }
+
+  var engineDelegate: UNUserNotificationCenterDelegate? {
+    engineDelegateLock.lock()
+    defer { engineDelegateLock.unlock() }
+    return engineDelegateStore
+  }
+
+  private func adoptEngineDelegate(_ delegate: UNUserNotificationCenterDelegate) {
+    engineDelegateLock.lock()
+    engineDelegateStore = delegate
+    engineDelegateLock.unlock()
+  }
+
+  private static let holdCenter: Void = {
+    let delegateSetter = #selector(setter: UNUserNotificationCenter.delegate)
+    if let method = class_getInstanceMethod(UNUserNotificationCenter.self, delegateSetter) {
+      typealias Setter = @convention(c) (UNUserNotificationCenter, Selector, UNUserNotificationCenterDelegate?) -> Void
+      let original = unsafeBitCast(method_getImplementation(method), to: Setter.self)
+      let block: @convention(block) (UNUserNotificationCenter, UNUserNotificationCenterDelegate?) -> Void = { center, delegate in
+        guard let delegate, delegate !== NotificationHub.shared else { return original(center, delegateSetter, delegate) }
+        NotificationHub.shared.adoptEngineDelegate(delegate)
+        original(center, delegateSetter, NotificationHub.shared)
+      }
+      method_setImplementation(method, imp_implementationWithBlock(block))
+    }
+    let categoriesSetter = #selector(UNUserNotificationCenter.setNotificationCategories(_:))
+    if let method = class_getInstanceMethod(UNUserNotificationCenter.self, categoriesSetter) {
+      typealias Setter = @convention(c) (UNUserNotificationCenter, Selector, NSSet) -> Void
+      let original = unsafeBitCast(method_getImplementation(method), to: Setter.self)
+      let block: @convention(block) (UNUserNotificationCenter, NSSet) -> Void = { center, categories in
+        let given = categories.compactMap { $0 as? UNNotificationCategory }
+        let taken = Set(given.map(\.identifier))
+        let kept = given + ownCategories.filter { !taken.contains($0.identifier) }
+        original(center, categoriesSetter, NSSet(array: kept))
+      }
+      method_setImplementation(method, imp_implementationWithBlock(block))
+    }
+  }()
+
+  private static func postedByEngine(_ notification: UNNotification) -> Bool {
+    notification.request.content.userInfo[engineNotificationIdKey] != nil
   }
 
   func flushPending() {
@@ -130,10 +179,21 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
   }
 
   func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    if Self.postedByEngine(notification), let engine = engineDelegate,
+       engine.responds(to: #selector(UNUserNotificationCenterDelegate.userNotificationCenter(_:willPresent:withCompletionHandler:))) {
+      return engine.userNotificationCenter?(center, willPresent: notification, withCompletionHandler: completionHandler) ?? completionHandler([.banner, .list, .sound])
+    }
     completionHandler([.banner, .list, .sound])
   }
 
   func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+    if Self.postedByEngine(response.notification) {
+      let action = response.actionIdentifier == UNNotificationDefaultActionIdentifier ? "click" : "close"
+      DispatchQueue.main.async { [self] in _ = deliver("engine:", action, [:]) }
+      guard let engine = engineDelegate,
+            engine.responds(to: #selector(UNUserNotificationCenterDelegate.userNotificationCenter(_:didReceive:withCompletionHandler:))) else { return completionHandler() }
+      return engine.userNotificationCenter?(center, didReceive: response, withCompletionHandler: completionHandler) ?? completionHandler()
+    }
     let id = response.notification.request.identifier
     let info = response.notification.request.content.userInfo as? [String: Any] ?? [:]
     let action: String? = switch response.actionIdentifier {
