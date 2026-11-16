@@ -1330,7 +1330,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Start page | Pinned tiles | match | Tiles draw main's SF Symbols (Calendar, folders) at main's sizes, d09343dba | |
 | Start page | No spaces, sync off (invitation) | match | The Sync With Your Mac capsule alone, same place and size (`r-e-light`/`r-m-light`/invitation) | |
 | Search panel | Empty, recent searches | match | Main's source lists recent searches and the Mac's tabs, no open tab (the audit's SwiftUI row is a Mac tab); rows now refresh live with sync, 2fd28bbe5 | |
-| Search panel | Typing | match | Typed for real: app completes to apple.com as main's; main's row and field measures, no glyph before Switch to Tab, 2fd28bbe5. Left: main's eyeglasses glyph shape | screens |
+| Search panel | Typing | match | Typed for real: app completes to apple.com as main's; main's row and field measures, no glyph before Switch to Tab, 2fd28bbe5. The Incognito toggle draws SF `eyeglasses` at 17 semibold on iPhone, as main does: the same ink box and pixel count on the simulator | |
 | Search panel | Incognito | different | Same panel; main's keyboard turns dark. The field now takes `keyboardAppearance` (6f1653513); the panel has to pass dark | screens |
 | Search panel | Voice | seen in Expo only | Expo's dictation page ("Speech dictation is unavailable" on the simulator, Try Again capsule); main's voice button wasn't reached by the script | |
 | Page | Page with bar, secure | match | | |

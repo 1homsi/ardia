@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
-import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Host, Image as SystemImage } from "@expo/ui/swift-ui";
+import { font as systemFont } from "@expo/ui/swift-ui/modifiers";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import type { GestureType } from "react-native-gesture-handler";
@@ -21,7 +23,7 @@ import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, settingsUIAvailable } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -526,6 +528,8 @@ function VoiceButton() {
   );
 }
 
+const INCOGNITO_GLYPH = { size: 17, frame: 22 } as const;
+
 function IncognitoToggle() {
   const theme = useTrayTheme();
   const on = useIncognito();
@@ -542,7 +546,15 @@ function IncognitoToggle() {
           Incognito
         </Animated.Text>
       ) : null}
-      <Symbol name="eyeglasses" size={22} color={on ? tabsInk.onDark : theme.foregroundTertiary} />
+      {Platform.OS === "ios" && settingsUIAvailable() ? (
+        <View testID="trayIncognitoGlyph" style={styles.incognitoGlyph}>
+          <Host matchContents>
+            <SystemImage systemName="eyeglasses" size={INCOGNITO_GLYPH.size} color={on ? tabsInk.onDark : theme.foregroundTertiary} modifiers={[systemFont({ weight: "semibold" })]} />
+          </Host>
+        </View>
+      ) : (
+        <Symbol name="eyeglasses" size={INCOGNITO_GLYPH.frame} color={on ? tabsInk.onDark : theme.foregroundTertiary} />
+      )}
     </Pressable>
   );
 }
@@ -775,6 +787,7 @@ const styles = StyleSheet.create({
   panelField: { gap: space.s },
   panelInput: { minHeight: browseLayout.searchFieldHeight - floatingPanelLayout.fieldEdge * 2 },
   panelIncognito: { paddingRight: space.xs + 2 },
+  incognitoGlyph: { width: INCOGNITO_GLYPH.frame, alignItems: "center", justifyContent: "center" },
   field: {
     minHeight: browseLayout.searchFieldHeight,
     borderRadius: capsule(browseLayout.searchFieldHeight),
