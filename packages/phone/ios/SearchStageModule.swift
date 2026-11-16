@@ -568,6 +568,7 @@ final class SearchStageView: ExpoView {
     panel.takesTouches = isShown && !isClosing && !isUnrevealed
     panel.accessibilityElementsHidden = isUnrevealed
     accessibilityViewIsModal = isShown
+    panel.accessibilityViewIsModal = isShown
     let up = isShown && isUp
     if reportedLift?.lift != lift || reportedLift?.up != up {
       reportedLift = (lift, up)
