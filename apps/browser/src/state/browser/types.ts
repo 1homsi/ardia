@@ -1,3 +1,4 @@
+import type { BarPlacement } from "../omnibox/barPlacement";
 import type { TabGroupColor } from "@ardia/core";
 import type { PageEngine } from "../../platform/tabs";
 import type { ProfileColor, ProfileTheme } from "../../lib/profileLook";
@@ -17,6 +18,7 @@ export type Profile = {
   theme?: ProfileTheme | null;
   pinnedCollapsed?: boolean;
   shareTopApps?: true;
+  syncTabs?: true;
 };
 
 type WindowBase = {
@@ -24,8 +26,8 @@ type WindowBase = {
   profileId: string;
   tabIds: string[];
   activeTabIds: Record<string, string>;
-  sidebarOpen: boolean;
   tabLayout?: "sidebar" | "top";
+  autoHideTabs?: boolean;
   frame: Frame | null;
   fullScreen?: number;
   display?: string;
@@ -33,9 +35,9 @@ type WindowBase = {
 };
 
 export type BrowserWindow =
-  | (WindowBase & { kind: "main"; chromeWindow?: string })
+  | (WindowBase & { kind: "main"; chromeWindow?: string; opensBehind?: string })
   | (WindowBase & { kind: "private"; chromeWindow?: string })
-  | (WindowBase & { kind: "small"; linkPointer?: [number, number] });
+  | (WindowBase & { kind: "small"; linkPointer?: [number, number]; linkApp?: string });
 
 export type WindowKind = BrowserWindow["kind"];
 export type MainWindow = Extract<BrowserWindow, { kind: "main" }>;
@@ -55,11 +57,14 @@ export type Tab = {
   pinnedUrl: string | null;
   page: TabPage;
   openerId: string | null;
-  liveItem?: { folderId: string; itemId: string };
+  linkOpenerId?: string;
+  liveItem?: { folderId: string; itemId: string; completed?: true };
   pinKey?: string;
   engine?: PageEngine;
   createdAt: number;
   lastActiveAt: number;
+  restoredAt?: number;
+  unseen?: true;
 };
 
 export type AdoptKind = "restore" | "clone" | "tab" | "ardiacore" | "webkit" | "link";
@@ -105,6 +110,7 @@ export type TabGroup = {
   pinnedOpenerId?: string;
   pinKey?: string;
   parentId?: string;
+  shownTabIds?: string[];
 };
 
 export type SplitSlot = { size: number; tabId: string } | { size: number; stack: [string, string]; stackSizes: [number, number] };
@@ -139,7 +145,7 @@ export type TabSnapshot = Pick<
   Tab,
   "url" | "title" | "favicon" | "pin" | "muted" | "zoom" | "customTitle" | "customIcon" | "profileId"
 > &
-  Partial<Pick<Tab, "pinnedUrl" | "engine">>;
+  Partial<Pick<Tab, "pinnedUrl" | "engine" | "lastActiveAt">>;
 
 export type ClosedTab = {
   kind: "tab";
@@ -159,9 +165,9 @@ export type ClosedTab = {
 export type ClosedWindow = {
   kind: "window";
   id: string;
-  window: Pick<BrowserWindow, "profileId" | "sidebarOpen" | "frame" | "tabLayout">;
+  window: Pick<BrowserWindow, "profileId" | "frame" | "tabLayout" | "autoHideTabs">;
   tabs: (TabSnapshot & { active: boolean; tabId?: string })[];
-  groups: (Omit<TabGroup, "tabIds" | "windowId"> & { tabIndexes: number[] })[];
+  groups: (Omit<TabGroup, "tabIds" | "windowId" | "shownTabIds"> & { tabIndexes: number[] })[];
   splits?: Pick<SplitView, "orientation" | "slots">[];
   closedAt: number;
   lastWindow?: true;
@@ -199,6 +205,6 @@ export type FindState = {
 
 export type NewTabTarget = { kind: "list" } | { kind: "group"; groupId: string } | { kind: "into"; tabId: string };
 
-export type PanelState = { open: boolean; initialText: string; newTab?: NewTabTarget };
+export type PanelState = { open: boolean; initialText: string; newTab?: NewTabTarget; placement?: BarPlacement };
 
 export type WindowUi = { panel: PanelState; downloadsOpen: boolean };
