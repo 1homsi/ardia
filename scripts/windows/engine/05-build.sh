@@ -10,7 +10,9 @@ source "$AC_MAC_BUILD_DIR/step-guard.sh" "$@"
 CHROMIUM_SRC="$CB/chromium_git/chromium/src" "$AC_MAC_BUILD_DIR/game-resource.sh" --apply
 cd "$CB/chromium_git/chromium/src"
 if [[ "$(uname -s)" == Linux ]]; then
-  for mount in $(pgrep -x ciopfs); do prlimit --pid "$mount" --nofile="$(ulimit -Hn)"; done
+  for mount in $(pgrep -u "$(id -u)" -f "ciopfs .*$CB/chromium_git/chromium/src/third_party/depot_tools/win_toolchain/" || true); do
+    prlimit --pid "$mount" --nofile="$(ulimit -Hn)" || echo "05-build.sh: could not raise the open-file limit of ciopfs $mount" >&2
+  done
 fi
 TARGETS="${TARGETS:-base_unittests}"
 if [[ " $TARGETS " == *" chrome "* ]]; then

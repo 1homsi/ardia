@@ -416,6 +416,14 @@ void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir,
     }
     return;
   }
+  if (!state.owns_alive) {
+    const std::string line =
+        "launch guard: this launch doesn't own the profile's guard; this "
+        "start is not counted and nothing is recovered";
+    LOG(WARNING) << "Ardia " << line;
+    AppendLog(line);
+    return;
+  }
   if (ProfileHeldByAnotherBrowser(chromium_user_data_dir)) {
     state.facts.profile_held_by_another = true;
     const std::string line =
