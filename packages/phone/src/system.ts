@@ -21,6 +21,7 @@ type SystemNative = {
   initialLink(): Promise<NativeLink | null>;
   setHidesFromRecents?(hidden: boolean): Promise<boolean>;
   processStartedAt?(): number;
+  launchBackdropShownAt?(): number | null;
   restoredValue?(key: string): string | null;
   setRestorableValue?(key: string, value: string | null): void;
   labMemory?(): string | null;
@@ -45,6 +46,7 @@ export const system = {
     return link ? normalize(link) : null;
   },
   processStartedAt: (): number | null => (native?.processStartedAt ? native.processStartedAt() : null),
+  launchBackdropShownAt: (): number | null => native?.launchBackdropShownAt?.() ?? null,
   displayCornerRadius: (): number | null => native?.displayCornerRadius?.() ?? null,
   setWidgetColorChoice: (choice: string | null): void => native?.setWidgetColorChoice?.(choice),
   takePendingCounts: (): Record<string, number> => native?.takePendingCounts?.() ?? {},

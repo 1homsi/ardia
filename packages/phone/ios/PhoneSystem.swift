@@ -142,6 +142,10 @@ public final class SystemModule: Module {
       ProcessStart.epochMilliseconds()
     }
 
+    Function("launchBackdropShownAt") { () -> Double? in
+      LaunchBackdrop.shownAtEpochMilliseconds()
+    }
+
     AsyncFunction("initialLink") { () -> [String: Any]? in
       MainActor.assumeIsolated { PhoneSystemLinks.shared.takeInitial() }
     }.runOnQueue(.main)

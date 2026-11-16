@@ -8,6 +8,7 @@ let package = Package(
     .library(name: "PhoneMotion", targets: ["PhoneMotion"]),
     .library(name: "PhonePageVisuals", targets: ["PhonePageVisuals"]),
     .library(name: "PhoneBlocking", targets: ["PhoneBlocking"]),
+    .library(name: "PhoneLaunchLook", targets: ["PhoneLaunchLook"]),
   ],
   dependencies: [
     .package(name: "ArdiaKit", path: "../../../../apps/ios/Packages/ArdiaKit"),
@@ -18,6 +19,8 @@ let package = Package(
     .target(name: "PhonePageVisuals", swiftSettings: [.swiftLanguageMode(.v5)]),
     .testTarget(name: "PhonePageVisualsTests", dependencies: ["PhonePageVisuals"], swiftSettings: [.swiftLanguageMode(.v5)]),
     .target(name: "PhoneBlocking", dependencies: [.product(name: "ArdiaBrowser", package: "ArdiaKit")], swiftSettings: [.swiftLanguageMode(.v5)]),
+    .target(name: "PhoneLaunchLook", dependencies: [.product(name: "ArdiaDesign", package: "ArdiaKit")], swiftSettings: [.swiftLanguageMode(.v5)]),
+    .testTarget(name: "PhoneLaunchLookTests", dependencies: ["PhoneLaunchLook", .product(name: "ArdiaDesign", package: "ArdiaKit")], swiftSettings: [.swiftLanguageMode(.v5)]),
     .testTarget(name: "PhoneBlockingTests", dependencies: ["PhoneBlocking", .product(name: "ArdiaBrowser", package: "ArdiaKit")], swiftSettings: [.swiftLanguageMode(.v5)]),
   ]
 )

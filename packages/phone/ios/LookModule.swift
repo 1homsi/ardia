@@ -98,20 +98,6 @@ struct LookLabOnly: Error, CustomStringConvertible {
   var description: String { "the look lab switches exist only in test builds" }
 }
 
-struct LookColors: Equatable {
-  static let incognito = "incognito"
-
-  var color: String?
-  var themeColors: [String]?
-  var darkThemeColors: [String]?
-
-  var isIncognito: Bool { color == Self.incognito }
-
-  var look: ProfileLook {
-    isIncognito ? .incognito : ProfileLook(colorName: color, themeColors: themeColors ?? [], darkThemeColors: darkThemeColors)
-  }
-}
-
 @MainActor
 enum LookHost {
   static var pageFrostSolid = false
@@ -195,6 +181,7 @@ final class ProfileBackdropView: LookHostView {
   var fadesOut = false
 
   func render() {
+    if themed { LaunchLook.remember(colors) }
     show(ProfileBackdrop(look: colors.look, themed: themed, softened: softened, fadesOut: fadesOut), dark: colors.isIncognito ? true : dark)
   }
 }

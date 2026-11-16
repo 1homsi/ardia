@@ -50,6 +50,11 @@ enum BuildStamp {
 }
 
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
+  override func customize(_ rootView: UIView) {
+    super.customize(rootView)
+    LaunchBackdrop.install(in: rootView)
+  }
+
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     bridge.bundleURL ?? bundleURL()
   }
