@@ -306,9 +306,9 @@ export const cardOpen: () => CardOpen = iPhoneOr(() => "openingCard", androidCar
 export const OPENING_CARD_RESPONSE = iPhoneOr(0.18, 0.3);
 export const OPENING_CARD_MOTION: MotionCurve = { type: "spring", response: OPENING_CARD_RESPONSE, dampingFraction: 1 };
 
-type OpeningCardProps = { tab: BrowserTab; geometry: DeckGeometry; centerX: number; centerY: number; growsAtMount?: boolean; onGrowing: () => void };
+type OpeningCardProps = { tab: BrowserTab; geometry: DeckGeometry; centerX: number; centerY: number; growsAtMount?: boolean; endsSquare?: boolean; onGrowing: () => void; onLanded?: () => void };
 
-export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount = false, onGrowing }: OpeningCardProps) {
+export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount = false, endsSquare = false, onGrowing, onLanded }: OpeningCardProps) {
   const theme = useTheme();
   const design = useDesign();
   const toneNow = shownTone(useHeldPageTone(tab.id), tab.themeColorHex);
@@ -329,7 +329,7 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount =
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
   const start = { translateX: centerX - g.width / 2, translateY: centerY - g.height / 2, scale: 1, cornerRadius: DECK.cardRadius };
-  const to = grown ? { translateX: 0, translateY: 0, scale: full, cornerRadius: DECK.displayCornerRadius / full } : start;
+  const to = grown ? { translateX: 0, translateY: 0, scale: full, cornerRadius: endsSquare ? 0 : DECK.displayCornerRadius / full } : start;
   return (
     <MotionView
       testID="openingCard"
@@ -339,6 +339,7 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount =
       from={growsAtMount ? start : undefined}
       to={to}
       motion={OPENING_CARD_MOTION}
+      onMotionEnd={onLanded ? (finished) => finished && onLanded() : undefined}
       style={[styles.opening, { left: (g.width - g.cardWidth) / 2, top: (g.height - g.cardHeight) / 2, width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface }]}
     >
       <MotionView testID="openingCardFace" style={StyleSheet.absoluteFill} from={growsAtMount ? { translateY: 0 } : undefined} to={{ translateY: grown ? deckStatusStrip(g, 0, pageTop) : 0 }} motion={OPENING_CARD_MOTION}>

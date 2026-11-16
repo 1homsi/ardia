@@ -226,6 +226,8 @@ export const TabDeck = memo(function TabDeck() {
   const handedOver = useRef<string | null>(null);
   const openPath = useRef<CardOpen>("deckCard");
   const stopDrawnWait = useRef<() => void>(() => undefined);
+  const coverPending = useRef<string | null>(null);
+  const landingCap = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const landing = useSharedValue(false);
   const touching = useSharedValue(false);
 
@@ -251,6 +253,8 @@ export const TabDeck = memo(function TabDeck() {
     landing.value = false;
     covering.value = "";
     prepared.current = null;
+    coverPending.current = null;
+    clearTimeout(landingCap.current);
     stopDrawnWait.current();
     setOpeningCard(null);
     placeCards(order, deckScrollFor(order, heldSelected));
@@ -374,7 +378,7 @@ export const TabDeck = memo(function TabDeck() {
       scroll.value = to;
       gap.value = 0;
       gap.value = reduced ? withTiming(1, { duration: tabsMotion.fade }) : withSpring(1, tabsMotion.gapClose);
-    })(next, after, after - before, expanded, phase.id !== null, reduceMotion);
+    })(next, after, after - before, expanded, phase.id !== null && coverPending.current !== phase.id, reduceMotion);
     setAnchor(Math.round(after));
     setOrder(next);
   }, [live]);
@@ -438,12 +442,16 @@ export const TabDeck = memo(function TabDeck() {
       return;
     }
     setMenu(null);
-    enterPhase({ kind: "closing", id });
+    const path = cardOpen();
+    openPath.current = path;
+    if (path === "coveringCard") {
+      coverPending.current = id;
+      deckPhase.value = DECK_PHASE.closing;
+      setPhase({ kind: "closing", id });
+    } else enterPhase({ kind: "closing", id });
     openingId.current = id;
     handedOver.current = null;
     prepared.current = null;
-    const path = cardOpen();
-    openPath.current = path;
     if (path !== "deckCard") setOpeningCard({ id, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + (redesigned ? cardsShift.value : 0), path });
     if (path === "coveringCard") return;
     requestAnimationFrame(() => {
@@ -497,21 +505,29 @@ export const TabDeck = memo(function TabDeck() {
   };
   const coverDeck = (id: string) => {
     if (openingId.current !== id) return;
-    prepareHandOver(id, true);
+    coverPending.current = null;
+    runOnUI((covered: string, expanded: number) => {
+      "worklet";
+      covering.value = covered;
+      expandedIndex.value = expanded;
+    })(id, order.indexOf(id));
     requestAnimationFrame(() => {
       if (openingId.current !== id) return;
-      runOnUI((covered: string) => {
+      runOnUI(() => {
         "worklet";
-        covering.value = covered;
         scaleProgress.value = 0;
         positionProgress.value = withSpring(0, tabsMotion.expand);
-      })(id);
+      })();
+      prepareHandOver(id, true);
     });
-    setTimeout(() => landCoveringCard(id), criticalSpringLandsMs(OPENING_CARD_RESPONSE, CARD_LANDED));
+    clearTimeout(landingCap.current);
+    landingCap.current = setTimeout(() => landCoveringCard(id), COVERING_LANDING_CAP_MS);
   };
   const landCoveringCard = (id: string) => {
     if (openingId.current !== id || handedOver.current === id) return;
+    clearTimeout(landingCap.current);
     positionProgress.value = 0;
+    prepareHandOver(id);
     unveilOpeningPage(id);
     if (!pageReportsDrawn()) {
       handOver(id);
@@ -798,7 +814,7 @@ export const TabDeck = memo(function TabDeck() {
             <ArchiveIntervalCard edgeY={archiveCardEdgeY(g, archiveCardLayout.aboveBarCenter)} />
           )
         ) : null}
-        {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} growsAtMount={openingCard.path === "coveringCard"} onGrowing={() => openingCardGrowing(openingCard.id)} /> : null}
+        {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} growsAtMount={openingCard.path === "coveringCard"} endsSquare={openingCard.path === "coveringCard"} onGrowing={() => openingCardGrowing(openingCard.id)} onLanded={openingCard.path === "coveringCard" ? () => landCoveringCard(openingCard.id) : undefined} /> : null}
         <MotionView testID="deckChromeFade" style={StyleSheet.absoluteFill} pointerEvents="box-none" to={{ opacity: openingCard ? 0 : 1 }} motion={openingCard ? OPENING_CARD_MOTION : CHROME_BACK}>
         {redesigned ? (
           <Animated.View testID="deckRedesignedChrome" style={glassChrome ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
@@ -930,6 +946,7 @@ const criticalSpringLandsMs = (response: number, within: number) => {
   for (let step = 0; step < 24; step++) x -= ((1 + x) * Math.exp(-x) - within) / (-x * Math.exp(-x));
   return (x * response * 1000) / (2 * Math.PI);
 };
+const COVERING_LANDING_CAP_MS = 2 * criticalSpringLandsMs(OPENING_CARD_RESPONSE, CARD_LANDED);
 const ENTRANCE_PAINT_CAP_MS = 250;
 const ENTRANCE_CAPTURE_CAP_MS = 180;
 
