@@ -5,7 +5,7 @@ import { setStripOnto, storeChangedSince, storeMark } from "../../state/tabs/top
 import { curve } from "../ui/motion";
 import { dropOnto, ontoKey, releaseDrop, reorder, type DropTarget, type Landing, type StripDrag } from "./model";
 import { raiseView } from "../../state/windows/nativeWindow";
-import { aimDrop, dragRange, dropIndex } from "./stripGroups";
+import { aimDrop, dragRange, dropIndex, reorderIndex } from "./stripGroups";
 import { makeRoom, registerSlot, reorderOffsets, settleRoom } from "./stripReorder";
 import { SLIDE } from "./tokens";
 import { AUTO_SCROLL_MAX, AUTO_SCROLL_ZONE, LIFT_MS, LIFT_SLOP, ONTO_EDGE, TOP_STRIP_HEIGHT } from "./tokens";
@@ -35,8 +35,8 @@ export function useStripDrag(item: StripDrag) {
     return aimDrop(geometry, from, geometry.lefts[from]! + drag.current.grab + dx, (i) => !!targets[i], ONTO_EDGE);
   };
   const reorderAt = (dx: number) => {
-    const { geometry, from } = latest.current;
-    return from < 0 ? null : aimDrop(geometry, from, geometry.lefts[from]! + drag.current.grab + dx, () => false, ONTO_EDGE).to;
+    const { geometry, from, targets } = latest.current;
+    return from < 0 ? null : reorderIndex(geometry, from, drag.current.grab, dx, !!targets);
   };
   const indexAt = (dx: number) => reorderAt(dx) ?? dropIndex(latest.current.geometry, latest.current.from, dx);
   const hold = useRef({ key: null as string | null, ready: false, timer: undefined as ReturnType<typeof setTimeout> | undefined });
