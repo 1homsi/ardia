@@ -1458,6 +1458,125 @@ function Invoke-PagesTour {
   Stop-Ardia $session
 }
 
+$script:TourPagesPort = 9363
+$script:TourPages = $null
+
+function Start-TourPages {
+  if ($script:TourPages -and -not $script:TourPages.HasExited) { return $true }
+  $folder = Join-Path $Out "pages"
+  New-Item -ItemType Directory -Force -Path $folder | Out-Null
+  $serve = Join-Path $folder "serve.ps1"
+  Set-Content -LiteralPath $serve -Encoding utf8NoBOM -Value @'
+param([int]$Port)
+$pages = @{
+  "/links" = "<!doctype html><meta charset=utf-8><title>tour links</title><style>body{margin:0;background:#fff}a{position:absolute;left:20px;top:20px;width:320px;height:60px;display:block;background:#cde;font:20px sans-serif}</style><a href='/peeked'>peek this</a>"
+  "/peeked" = "<!doctype html><meta charset=utf-8><title>tour peeked</title><style>html,body{margin:0;height:100%;background:#2a7}</style>"
+}
+$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+$listener.Start()
+while ($true) {
+  $client = $listener.AcceptTcpClient()
+  try {
+    $client.ReceiveTimeout = 2000
+    $stream = $client.GetStream()
+    $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 1024, $true)
+    $request = $reader.ReadLine()
+    while ($line = $reader.ReadLine()) { }
+    $path = if ($request) { ($request.Split(" ")[1]) -replace '\?.*$', '' } else { "" }
+    $text = $pages[$path]
+    $status = if ($text) { "200 OK" } else { "404 Not Found" }
+    $body = [System.Text.Encoding]::UTF8.GetBytes([string]$text)
+    $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
+    $stream.Write($head, 0, $head.Length)
+    $stream.Write($body, 0, $body.Length)
+    $stream.Flush()
+  } catch { } finally { $client.Close() }
+}
+'@
+  $script:TourPages = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList "-NoProfile", "-NonInteractive", "-File", "`"$serve`"", "-Port", $script:TourPagesPort -WindowStyle Hidden -PassThru
+  $by = (Get-Date).AddSeconds(15)
+  while ((Get-Date) -lt $by -and -not $script:TourPages.HasExited) {
+    $probe = New-Object System.Net.Sockets.TcpClient
+    try { if ($probe.ConnectAsync("127.0.0.1", $script:TourPagesPort).Wait(1000) -and $probe.Connected) { return $true } } catch { } finally { $probe.Dispose() }
+    Start-Sleep -Milliseconds 300
+  }
+  return $false
+}
+
+function Stop-TourPages {
+  if ($script:TourPages -and -not $script:TourPages.HasExited) { Stop-Process -Id $script:TourPages.Id -Force -ErrorAction SilentlyContinue }
+  $script:TourPages = $null
+}
+
+function Send-Address([string]$Address) {
+  foreach ($character in $Address.ToUpperInvariant().ToCharArray()) {
+    $shifted = $false
+    $key = [byte][char]$character
+    if ($character -eq '.') { $key = 0xBE }
+    elseif ($character -eq '/') { $key = 0xBF }
+    elseif ($character -eq ':') { $key = 0xBA; $shifted = $true }
+    if ($shifted) { Send-Key 0x10 0 }
+    Send-Key $key 0
+    Send-Key $key 2
+    if ($shifted) { Send-Key 0x10 2 }
+    Start-Sleep -Milliseconds 60
+  }
+  Start-Sleep -Milliseconds 300
+}
+
+function Get-PageWindow($Session, [string]$TitlePattern) {
+  return @(Get-TopWindows $Session | Where-Object { $_.ClassName -match "^Chrome_" -and $_.Title -match $TitlePattern -and $_.Width -ge 100 -and $_.Height -ge 100 }) | Select-Object -First 1
+}
+
+function Invoke-PeekTour([string]$Name, [hashtable]$Settings, [string]$Look) {
+  if (-not (Start-TourPages)) {
+    $script:Lines.Add("- The $Name part found no loopback page server on port $($script:TourPagesPort).")
+    return
+  }
+  $session = Start-Ardia $Name -Onboarded -Settings $Settings
+  Invoke-Stop $session $Name "A Peek over a page, $Look" {
+    param($stop)
+    $stop.Did = "Opened a loopback page with one link, then Shift-clicked the link."
+    $stop.Expected = "a Peek card over the page with all four corners rounded alike, its page green, the page behind dimmed."
+    if (-not (Test-Usable $session)) { $stop.Seen = "no"; return }
+    Focus-Window $session $session.Main $stop | Out-Null
+    $mark = Get-LogCount $session
+    Send-Chord @(0x11) 0x54
+    $opened = Wait-Command $session $mark "newTab"
+    Start-Sleep -Milliseconds 700
+    Send-Address "127.0.0.1:$($script:TourPagesPort)/links"
+    Send-Key 0x0D 0
+    Send-Key 0x0D 2
+    $loaded = Wait-Title $session "tour links"
+    Start-Sleep -Milliseconds 2500
+    $stop.Facts.Add("newTab command logged: $opened; the links page loaded: $loaded")
+    $page = Get-PageWindow $session "tour links"
+    $client = Get-Client $session.Main
+    if (-not $page -or -not $client) {
+      $stop.Facts.Add("no page window for the links page: $(Format-Windows (Get-TopWindows $session))")
+      Set-Seen $stop $false
+      return
+    }
+    $x = $page.Left + [int](180 * $client.Scale)
+    $y = $page.Top + [int](50 * $client.Scale)
+    $stop.Facts.Add("the links page window is $($page.Width) by $($page.Height) at $($page.Left), $($page.Top); Shift-clicking at $x, $y")
+    Send-Key 0x10 0
+    Start-Sleep -Milliseconds 80
+    Send-Click $x $y
+    Send-Key 0x10 2
+    $peeked = Wait-Until $session { $null -ne (Get-PageWindow $session "tour peeked") } 15000
+    Start-Sleep -Milliseconds 2500
+    Save-Shot $stop $session.Main | Out-Null
+    $card = Get-PageWindow $session "tour peeked"
+    if ($card) { $stop.Facts.Add("the Peek's page window is $($card.Width) by $($card.Height) at $($card.Left), $($card.Top)") }
+    $stop.Facts.Add("main window client $($client.Width) by $($client.Height) at $($client.X), $($client.Y), scale $($client.Scale)")
+    Set-Seen $stop $peeked
+    Send-Escape
+    Start-Sleep -Milliseconds 800
+  } | Out-Null
+  Stop-Ardia $session
+}
+
 function Invoke-LayoutTour([string]$Name, [hashtable]$Settings, [string]$Title, [string]$Expected) {
   $session = Start-Ardia $Name -Onboarded -Settings $Settings
   Invoke-Stop $session $Name $Title {
@@ -1578,6 +1697,8 @@ $tours = @(
 
 if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $App) "chrome.dll")) {
   $tours += @{ Name = "pages"; Run = { Invoke-PagesTour } }
+  $tours += @{ Name = "peek"; Run = { Invoke-PeekTour "peek-light" @{ appearance = "light" } "light" } }
+  $tours += @{ Name = "peek-dark"; Run = { Invoke-PeekTour "peek-dark" @{ appearance = "dark" } "dark" } }
 }
 
 if ($Only.Count) {
@@ -1597,6 +1718,7 @@ foreach ($tour in $tours) {
   }
 }
 
+Stop-TourPages
 $env:ARDIA_DATA_DIR = ""
 Write-Tour
 $elapsed = [Math]::Round(((Get-Date) - $script:Started).TotalSeconds)
