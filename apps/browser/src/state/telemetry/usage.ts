@@ -231,7 +231,7 @@ function watchStore() {
         const w = s.windows[id]!;
         const before = prev.windows[id];
         if (before && !before.fullScreen && w.fullScreen) counts.fullScreens++;
-        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(id, size(s.profiles), switcherSwitchProperties(id, w.profileId));
+        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(id, w.profileId, size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
     if (s.groups !== prev.groups) counts.groupTabsKept += keptTabsAdded(s.groups, prev.groups);

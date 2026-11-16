@@ -2,12 +2,12 @@ import { requireNativeViewManager } from "expo-modules-core";
 import type { ViewProps } from "react-native";
 import { nativeModule } from "./nativeModules";
 
-type ProfileSwapped = { profileLoaded?: boolean; activeMs?: number; swapMs?: number; heldTimedOut?: boolean };
+export type WindowProfileSwapped = { selection?: string; profileLoaded?: boolean; activeMs?: number; swapMs?: number; heldTimedOut?: boolean };
 export type WindowProfileProps = ViewProps & {
   profile: string;
   selection?: string;
   neighbours: string[];
-  onSwapped?: (event: { nativeEvent: ProfileSwapped }) => void;
+  onSwapped?: (event: { nativeEvent: WindowProfileSwapped }) => void;
 };
 export const WindowProfile = requireNativeViewManager<WindowProfileProps>("ArdiaWindowProfile");
 

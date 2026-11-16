@@ -30,8 +30,9 @@ final class WindowProfileView: ExpoView {
   private func apply() {
     guard let window else { return }
     if applied?.profile != profile {
+      let shownSelection = selection
       ArdiaChromeWindowHost.showProfile(profile, in: window, report: { [weak self] profileLoaded, activeMs, swapMs, heldTimedOut in
-        self?.onSwapped(["profileLoaded": profileLoaded, "activeMs": activeMs, "swapMs": swapMs, "heldTimedOut": heldTimedOut])
+        self?.onSwapped(["selection": shownSelection, "profileLoaded": profileLoaded, "activeMs": activeMs, "swapMs": swapMs, "heldTimedOut": heldTimedOut])
       })
     }
     if let applied, applied.profile != profile || applied.selection != selection {
