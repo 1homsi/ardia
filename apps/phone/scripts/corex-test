@@ -1,24 +1,29 @@
 #!/bin/bash
-# corex-test <commit> [--patch FILE] [Gradle --tests filters…]
+# corex-test <commit> [--patch FILE] [--device SERIAL | --device-build] [Gradle --tests filters…]
 # Runs the phone's Kotlin unit tests (:ardia-phone-native, :app and :ardia-design testDebugUnitTest) on corex, in the bots container, in
 # corex-build's build-only clone at a pushed commit, so no Gradle runs on the Mac. --patch FILE (or - for stdin)
 # applies a diff from the main checkout on top of the commit for this run only; the clone is reset when the run
 # ends, as every build resets it. Waits like corex-build for another Gradle run or memory, and holds the clone's lock
 # so a build and a test never share it. Gradle runs without a daemon and Kotlin in-process. Prints each test class's
-# count and every failure; exits 1 when one fails.
+# count and every failure; exits 1 when one fails. --device SERIAL runs :ardia-phone-native's device tests
+# (src/androidTest) on that phone instead, on demand and never in CI: hold the phone's Simlock lease first, as any
+# phone run does. Gradle installs and removes their test app. --device-build only compiles them.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && [ "$1" != "--help" ] && [ "$1" != "-h" ] && exit 64
   exit 0
 fi
 wanted="$1"
 shift
 patch=""
+device=""
 filters=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --patch) patch="$2"; shift ;;
+    --device) device="$2"; shift ;;
+    --device-build) device="build" ;;
     *) filters+=(--tests "$1") ;;
   esac
   shift
@@ -77,14 +82,30 @@ export TMPDIR="$base/tmp"
 export GRADLE_OPTS="${GRADLE_OPTS:-} -Djava.net.preferIPv4Stack=true"
 (cd "$src/apps/phone" && pnpm install --frozen-lockfile --reporter=silent)
 results=("$src/packages/phone/android/build/test-results/testDebugUnitTest" "$src/apps/phone/android/app/build/test-results/testDebugUnitTest" "$src/apps/phone/android/ardia-design/build/test-results/testDebugUnitTest")
-rm -rf "${results[@]}"
+tasks=(:ardia-phone-native:testDebugUnitTest :app:testDebugUnitTest :ardia-design:testDebugUnitTest)
+deviceArgs=()
+case "$device" in
+  "") ;;
+  build) results=(); tasks=(:ardia-phone-native:assembleDebugAndroidTest) ;;
+  *)
+    adb -s "$device" get-state > /dev/null 2>&1 || { echo "no phone $device on adb" >&2; exit 64; }
+    export ANDROID_SERIAL="$device"
+    results=("$src/packages/phone/android/build/outputs/androidTest-results/connected")
+    tasks=(:ardia-phone-native:connectedDebugAndroidTest)
+    for filter in ${filters[@]+"${filters[@]}"}; do
+      [ "$filter" = "--tests" ] || deviceArgs+=("-Pandroid.testInstrumentationRunnerArguments.class=$filter")
+    done
+    filters=()
+    ;;
+esac
+rm -rf ${results[@]+"${results[@]}"}
 started=$(date +%s)
 status=0
-(cd "$src/apps/phone/android" && ARDIA_LAB=1 EXPO_PUBLIC_ARDIA_LAB=true flock -w 540 /tmp/ardia-android-gradle.lock ./gradlew -PardiaLab=true --no-daemon -Pkotlin.compiler.execution.strategy=in-process :ardia-phone-native:testDebugUnitTest :app:testDebugUnitTest :ardia-design:testDebugUnitTest ${filters[@]+"${filters[@]}"} --max-workers=4 --console=plain -q > "$base/test.log" 2>&1) || status=$?
-python3 - "${results[@]}" <<'SUMMARY'
+(cd "$src/apps/phone/android" && ARDIA_LAB=1 EXPO_PUBLIC_ARDIA_LAB=true flock -w 540 /tmp/ardia-android-gradle.lock ./gradlew -PardiaLab=true --no-daemon -Pkotlin.compiler.execution.strategy=in-process "${tasks[@]}" ${filters[@]+"${filters[@]}"} ${deviceArgs[@]+"${deviceArgs[@]}"} --max-workers=4 --console=plain -q > "$base/test.log" 2>&1) || status=$?
+python3 - ${results[@]+"${results[@]}"} <<'SUMMARY'
 import glob, re, sys
 total = failed = 0
-for path in sorted(p for folder in sys.argv[1:] for p in glob.glob(folder + "/TEST-*.xml")):
+for path in sorted(p for folder in sys.argv[1:] for p in glob.glob(folder + "/**/TEST-*.xml", recursive=True)):
     text = open(path, encoding="utf-8", errors="replace").read()
     tests, failures, errors = map(int, re.search(r'tests="(\d+)".*?failures="(\d+)".*?errors="(\d+)"', text).groups())
     total += tests
