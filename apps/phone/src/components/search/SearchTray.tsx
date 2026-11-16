@@ -45,7 +45,7 @@ const PANEL_GLYPHS = { mic: 22, clear: 21 } as const;
 function useTrayTheme() {
   const base = useTheme();
   const incognito = useIncognito();
-  return incognito ? { ...base, ...rolesFor(true), surface: tabsInk.incognitoSheet } : base;
+  return useMemo(() => (incognito ? { ...base, ...rolesFor(true), surface: tabsInk.incognitoSheet } : base), [base, incognito]);
 }
 
 export function SearchTray() {
@@ -712,21 +712,23 @@ const PANEL_DEPART: MotionCurve = { type: "timing", durationMs: floatingPanelLay
 
 function useLeavingActions() {
   const depart = useContext(DepartContext);
-  const departIfLeft = () => {
-    const now = searchState();
-    if (!now.open && now.ending === "submitted") depart();
-  };
-  return {
-    submit: (text: string) => {
-      const opened = submitSearch(text);
-      if (opened) departIfLeft();
-      return opened;
-    },
-    activate: (row: TrayRow) => {
-      activateRow(row);
-      departIfLeft();
-    },
-  };
+  return useMemo(() => {
+    const departIfLeft = () => {
+      const now = searchState();
+      if (!now.open && now.ending === "submitted") depart();
+    };
+    return {
+      submit: (text: string) => {
+        const opened = submitSearch(text);
+        if (opened) departIfLeft();
+        return opened;
+      },
+      activate: (row: TrayRow) => {
+        activateRow(row);
+        departIfLeft();
+      },
+    };
+  }, [depart]);
 }
 
 const putKeyboardAway = () => {
@@ -941,7 +943,7 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   if (window.fontScale <= LARGE_FONT_SCALE) {
     return (
       <Animated.View key="rows" testID="trayRows" entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
-        <ScrubbedRows rows={rows} typed={typed} budget={room} onMeasure={measure} onRefine={refine} onMenu={showMenu} />
+        <ScrubbedRows rows={rows} typed={typed} budget={room} onRefine={refine} onMenu={showMenu} />
         {menuView}
       </Animated.View>
     );
@@ -969,12 +971,11 @@ type ScrubbedProps = {
   rows: readonly TrayRow[];
   typed: string;
   budget: number;
-  onMeasure: (index: number, layout: { y: number; height: number }) => void;
   onRefine: (row: TrayRow) => void;
   onMenu: (row: TrayRow, y: number) => void;
 };
 
-function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: ScrubbedProps) {
+function ScrubbedRows({ rows, typed, budget, onRefine, onMenu }: ScrubbedProps) {
   const leaving = useLeavingActions();
   const theme = useTrayTheme();
   const latest = useRef({ rows, budget });
@@ -1000,11 +1001,16 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
     leaving.activate(row);
   };
   const tick = () => haptics.selection();
-  const openMenu = (row: TrayRow, y: number) => {
-    menuTaken.value = true;
-    scrub.value = idleScrub;
-    onMenu(row, y);
-  };
+  const openMenu = useCallback(
+    (row: TrayRow, y: number) => {
+      menuTaken.value = true;
+      scrub.value = idleScrub;
+      onMenu(row, y);
+    },
+    [onMenu],
+  );
+  const incognito = useIncognito();
+  const menus = useMemo(() => rows.map(trayRowActions), [rows, incognito]);
 
   const gesture = useMemo(
     () =>
@@ -1077,10 +1083,9 @@ function ScrubbedRows({ rows, typed, budget, onMeasure, onRefine, onMenu }: Scru
               measured.current[index] = { left: x, top: y, right: x + width, bottom: y + height };
               frames.value = [...measured.current];
               if (!was || was.top !== y || was.bottom !== y + height) remeasured((count) => count + 1);
-              onMeasure(index, event.nativeEvent.layout);
             }}
           >
-            <SuggestionRow row={row} typed={typed} roles={theme} highlightsPress={false} menu={trayRowActions(row)} onActivate={leaving.activate} onRefine={onRefine} onMenu={openMenu} />
+            <SuggestionRow row={row} typed={typed} roles={theme} highlightsPress={false} menu={menus[index]} onActivate={leaving.activate} onRefine={onRefine} onMenu={openMenu} />
           </View>
         ))}
       </FadeView>

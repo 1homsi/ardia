@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from "react-native";
 import { queryPrefixLength, type TrayRow } from "../../state/search/omnibox";
+import { countRender } from "../../state/app/interactionPerf";
 import type { Design } from "../../lib/design";
 import { browseLayout, Favicon, font, radius, screenReaderActions, space, Symbol, tabsMotion, useDesign, type ColorRoles, type SymbolName } from "../ui";
 
@@ -31,6 +32,7 @@ type Props = {
 };
 
 export const SuggestionRow = memo(function SuggestionRow({ row, typed, roles, interactive = true, highlightsPress = true, menu = [], onActivate, onRefine, onMenu }: Props) {
+  countRender("SuggestionRow");
   const content = <RowContent row={row} typed={typed} roles={roles} interactive={interactive} onRefine={onRefine} />;
   const menuActions = menu.map((item, index) => ({ name: `${MENU_ACTION}${index}`, label: item.label, run: item.run }));
   if (!interactive) {
