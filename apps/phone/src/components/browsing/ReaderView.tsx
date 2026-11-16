@@ -17,7 +17,7 @@ import {
   type ReaderTheme,
 } from "../../state/page/pagePrompts";
 import { copy } from "../../lib/platformCopy";
-import { font, readerInk, readerLayout, space, Symbol, tabsMotion, useTheme, type MenuItem } from "../ui";
+import { ChromeSurface, font, readerInk, readerLayout, space, Symbol, tabsMotion, type MenuItem } from "../ui";
 import { MenuTrigger } from "../ui/MenuTrigger";
 
 
@@ -27,7 +27,6 @@ const fall = SlideOutDown.springify().stiffness(tabsMotion.sheetOut.stiffness).d
 type Load = { kind: "loading" } | { kind: "failed" } | { kind: "loaded"; content: ReadableContent };
 
 export function ReaderView({ tabId }: { tabId: string }) {
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const dark = useDarkScheme();
   const settings = useReaderSettings();
@@ -67,17 +66,23 @@ export function ReaderView({ tabId }: { tabId: string }) {
     <Animated.View entering={rise} exiting={fall} style={[StyleSheet.absoluteFill, { backgroundColor: ink.background, paddingTop: insets.top }]}>
       <View style={styles.top}>
         {load.kind === "loaded" ? (
-          <MenuTrigger items={items} trigger="tap" fixedOrder dark={shown === "dark"} place={{ top: insets.top + readerLayout.topBar, left: space.s }}>
+          <MenuTrigger items={items} trigger="tap" fixedOrder dark={shown === "dark"} place={{ top: insets.top + readerLayout.chromeBand, left: readerLayout.chromeSide }}>
             {({ onPress }) => (
-              <Pressable accessibilityRole="button" accessibilityLabel="Text Appearance" onPress={onPress} style={styles.topButton}>
-                <Symbol name="textformatSize" size={22} color={theme.formAccent} />
+              <Pressable accessibilityRole="button" accessibilityLabel="Text Appearance" onPress={onPress}>
+                <ChromeSurface shape="circle" cornerRadius={readerLayout.chromeButton / 2} dark={shown === "dark"} style={styles.circle}>
+                  <View style={styles.mirrored}>
+                    <Symbol name="textformatSize" size={30} color={ink.ink} />
+                  </View>
+                </ChromeSurface>
               </Pressable>
             )}
           </MenuTrigger>
         ) : null}
         <View style={styles.fill} />
-        <Pressable accessibilityRole="button" onPress={closeReader} style={styles.topButton}>
-          <Text style={[font.body, styles.bold, { color: theme.formAccent }]}>Done</Text>
+        <Pressable accessibilityRole="button" onPress={closeReader}>
+          <ChromeSurface shape="capsule" cornerRadius={readerLayout.chromeButton / 2} dark={shown === "dark"} style={styles.capsule}>
+            <Text style={[font.body, styles.bold, { color: ink.ink }]}>Done</Text>
+          </ChromeSurface>
         </Pressable>
       </View>
       {load.kind === "loading" ? (
@@ -154,8 +159,10 @@ function LeadImage({ uri }: { uri: string }) {
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: "row", alignItems: "center", minHeight: readerLayout.topBar, paddingHorizontal: space.s },
-  topButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: space.s },
+  top: { flexDirection: "row", alignItems: "center", minHeight: readerLayout.chromeBand, paddingHorizontal: readerLayout.chromeSide },
+  mirrored: { transform: [{ scaleX: -1 }] },
+  circle: { width: readerLayout.chromeButton, height: readerLayout.chromeButton, alignItems: "center", justifyContent: "center" },
+  capsule: { height: readerLayout.chromeButton, paddingHorizontal: readerLayout.chromeCapsulePadding, alignItems: "center", justifyContent: "center" },
   fill: { flex: 1 },
   bold: { fontWeight: "600" },
   medium: { fontWeight: "500" },
@@ -163,6 +170,6 @@ const styles = StyleSheet.create({
   gap: { gap: space.m },
   header: { gap: space.s, paddingHorizontal: space.xl, paddingTop: space.s, maxWidth: readerLayout.maxWidth, alignSelf: "center", width: "100%" },
   paragraph: { paddingHorizontal: space.xl, maxWidth: readerLayout.maxWidth, alignSelf: "center", width: "100%" },
-  lead: { width: "100%", marginTop: space.s },
+  lead: { width: "100%", marginTop: space.s, borderRadius: readerLayout.leadRadius },
   navigationBand: { position: "absolute", left: 0, right: 0, bottom: 0 },
 });

@@ -1336,7 +1336,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Page menu | Rows and groups | different | Same rows and groups except Library; Expo's sheet opens lower (a smaller detent) where main's fills to the top | screens |
 | Page menu | History, Bookmarks, Downloads rows | match | Main's group after Find, Send and Print, opening the Library sheet | |
 | Reader | Article | match | | |
-| Reader | Top buttons | different | Expo's AA and Done are plain text; main's are a glass circle and a glass capsule | screens |
+| Reader | Top buttons | match | Main's glass circle (textformat.size, label colour) and glass Done capsule, 16 pt from each side; the lead image's 12 pt corners | |
 | Deck | Cards, Archive capsule, tab strip | match | | |
 | Deck | `···` and bottom bar (grid, Search Tabs, plus) | different | Main's are glass circles and a glass capsule; Expo's are plain | screens |
 | Deck | `···` menu | different | No Reopen Closed Tab; a solid panel below the button where main's is glass over the header | screens |
