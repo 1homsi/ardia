@@ -13,10 +13,14 @@ internal class FieldKeyboard(
     private val hide: (View) -> Unit = ::requestHide,
 ) {
     private var waiting: ViewTreeObserver.OnWindowFocusChangeListener? = null
+    private var leaving: LeavingWatch? = null
 
     val isWaitingForWindowFocus: Boolean get() = waiting != null
 
+    val isWatchingFocus: Boolean get() = leaving != null
+
     fun open() {
+        watchFocusLeaving()
         if (field.hasWindowFocus()) {
             forget()
             show(field)
@@ -36,7 +40,33 @@ internal class FieldKeyboard(
 
     fun close() {
         forget()
+        stopWatchingFocus()
         hide(field)
+    }
+
+    private fun watchFocusLeaving() {
+        if (leaving != null) return
+        val watch = LeavingWatch()
+        leaving = watch
+        field.viewTreeObserver.addOnGlobalFocusChangeListener(watch)
+        field.addOnAttachStateChangeListener(watch)
+    }
+
+    private fun stopWatchingFocus() {
+        val watch = leaving ?: return
+        leaving = null
+        field.viewTreeObserver.takeIf { it.isAlive }?.removeOnGlobalFocusChangeListener(watch)
+        field.removeOnAttachStateChangeListener(watch)
+    }
+
+    private inner class LeavingWatch : ViewTreeObserver.OnGlobalFocusChangeListener, View.OnAttachStateChangeListener {
+        override fun onGlobalFocusChanged(before: View?, after: View?) {
+            if (before === field && after !== field) close()
+        }
+
+        override fun onViewAttachedToWindow(view: View) = Unit
+
+        override fun onViewDetachedFromWindow(view: View) = close()
     }
 
     private fun forget() {

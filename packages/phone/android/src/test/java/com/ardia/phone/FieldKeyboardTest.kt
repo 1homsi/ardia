@@ -83,4 +83,34 @@ class FieldKeyboardTest {
         windowFocus(true)
         assertTrue(shown.isEmpty())
     }
+
+    @Test
+    fun theKeyboardIsHiddenWhenFocusMovesOnWithoutABlur() {
+        field.windowFocused = true
+        keyboard.open()
+        other.requestFocus()
+        assertEquals("Close Search hands focus to the page with no blur, and the launch's show request stayed on", listOf<View>(field), hidden)
+        assertFalse(keyboard.isWatchingFocus)
+        other.clearFocus()
+        field.requestFocus()
+        other.requestFocus()
+        assertEquals("a closed field stops watching", 1, hidden.size)
+    }
+
+    @Test
+    fun theKeyboardIsHiddenWhenTheFocusedFieldLeavesTheScreen() {
+        field.windowFocused = true
+        keyboard.open()
+        (field.parent as FrameLayout).removeView(field)
+        assertEquals(listOf<View>(field), hidden)
+    }
+
+    @Test
+    fun focusMovingWithinTheFieldKeepsTheKeyboard() {
+        field.windowFocused = true
+        keyboard.open()
+        field.requestFocus()
+        assertTrue(hidden.isEmpty())
+        assertTrue(keyboard.isWatchingFocus)
+    }
 }
