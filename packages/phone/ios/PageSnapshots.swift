@@ -49,3 +49,49 @@ enum PageSnapshots {
     return SHA256.hash(data: Data(pageID.utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
   }
 }
+
+@MainActor
+enum OffscreenCapture {
+  static let loadTimeout: Duration = .seconds(10)
+  static let settleDelay: Duration = .milliseconds(700)
+
+  static func capture(url: String, pageID: String, blocker: ContentBlocker) async -> [String: Any?]? {
+    guard let target = URL(string: url), BrowserURL.isSyncable(url) else { return nil }
+    await blocker.prepare()
+    guard let window = keyWindow() else { return nil }
+    let configuration = WKWebViewConfiguration()
+    configuration.websiteDataStore = .nonPersistent()
+    blocker.install(on: configuration.userContentController, counter: BlockedResourceCounter())
+    let size = window.bounds.size
+    let webView = WKWebView(frame: CGRect(x: -size.width * 2, y: 0, width: size.width, height: size.height), configuration: configuration)
+    webView.isUserInteractionEnabled = false
+    window.insertSubview(webView, at: 0)
+    defer { webView.removeFromSuperview() }
+    webView.load(URLRequest(url: target))
+    let start = ContinuousClock.now
+    try? await Task.sleep(for: .milliseconds(500))
+    while webView.isLoading, ContinuousClock.now - start < loadTimeout {
+      try? await Task.sleep(for: .milliseconds(200))
+    }
+    try? await Task.sleep(for: settleDelay)
+    let snapshot = WKSnapshotConfiguration()
+    snapshot.snapshotWidth = NSNumber(value: Double(min(size.width, TabSnapshotStore.pointWidth)))
+    guard let image = try? await webView.takeSnapshot(configuration: snapshot) else { return nil }
+    let theme = webView.themeColor.flatMap(hex)
+    let title = webView.title
+    guard let written = await PageSnapshots.write(pageID, image: image, isPrivate: false, quality: 82) else { return nil }
+    return ["fileName": written["uri"] ?? nil, "path": written["path"] ?? nil, "title": (title?.isEmpty == false) ? title : nil, "themeColorHex": theme]
+  }
+
+  private static func keyWindow() -> UIWindow? {
+    let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+    return windows.first { $0.isKeyWindow } ?? windows.first
+  }
+
+  private static func hex(_ color: UIColor) -> String? {
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha), alpha > 0.5 else { return nil }
+    func byte(_ value: CGFloat) -> Int { Int((min(max(value, 0), 1) * 255).rounded()) }
+    return String(format: "#%02X%02X%02X", byte(red), byte(green), byte(blue))
+  }
+}

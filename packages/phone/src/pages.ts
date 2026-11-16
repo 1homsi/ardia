@@ -32,6 +32,8 @@ export type LaunchOptions = { pageLab: boolean; syncDemo: boolean; lab: boolean;
 
 export type AppRelease = { releaseVersion: string; build: string; receiptName: string | null };
 
+export type OffscreenCapture = { fileName: string; path: string; title: string | null; themeColorHex: string | null };
+
 
 export type SitePermissionKind = "camera" | "microphone" | "location";
 
@@ -45,6 +47,7 @@ type PagesNative = {
   capabilities(): PageEngineCapabilities;
   launchOptions(): { pageLab: boolean; syncDemo?: boolean; lab?: boolean; arguments?: Record<string, LaunchArgumentValue> } | null;
   appRelease?(): AppRelease | null;
+  captureOffscreen?(url: string, pageId: string): Promise<OffscreenCapture | null>;
   openPage(pageId: string, setup: PageSetup): Promise<void>;
   closePage(pageId: string): Promise<void>;
   pageIds(): Promise<string[]>;
@@ -102,6 +105,13 @@ export const pages = {
       return { ...capabilities, ready: capabilities.ready ?? true };
     } catch (error) {
       return { ...NOT_READY, engineName: `not ready: ${error instanceof Error ? error.message : "refused"}` };
+    }
+  },
+  captureOffscreen: async (url: string, pageId: string): Promise<OffscreenCapture | null> => {
+    try {
+      return (await native().captureOffscreen?.(url, pageId)) ?? null;
+    } catch {
+      return null;
     }
   },
   appRelease: (): AppRelease | null => {

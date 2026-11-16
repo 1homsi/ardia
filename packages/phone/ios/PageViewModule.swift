@@ -215,6 +215,10 @@ public final class PageViewModule: Module {
       MainActor.assumeIsolated { PhonePages.shared.livePageIDs }
     }.runOnQueue(.main)
 
+    AsyncFunction("captureOffscreen") { (url: String, pageID: String, promise: Promise) in
+      Self.main(promise) { await OffscreenCapture.capture(url: url, pageID: pageID, blocker: PhonePages.shared.engine.blocker) }
+    }.runOnQueue(.main)
+
     AsyncFunction("deleteSnapshots") { (pageID: String) in
       PageVisuals.shared.forget(pageID)
       PageSnapshots.delete(pageID)
