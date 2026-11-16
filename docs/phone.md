@@ -1910,6 +1910,89 @@ as `<name>-release.apk` with its stamp. The key never leaves that Mac. The phone
 3. **After #1556 merges, the owner the first time:** the workflow's dry run, then `mode=draft` for the release version.
 4. **The owner only:** publishing the draft on GitHub. Keep it a prerelease, and never set it as latest.
 
+### The old Android app, cleaned out
+
+The owner's order (2026-11-16): clean the Compose app out of this branch now, keeping only what the Expo app builds from
+and what comparisons need. `main` keeps it until this branch merges. The iPhone agent does the same for `apps/ios`.
+
+**What the Expo app built from `apps/android`** (443 tracked files; 163 compiled by the Expo build). Each was compiled
+in place through source sets with file lists, in `packages/phone/android/build.gradle`,
+`apps/phone/android/app/build.gradle` and `apps/phone/android/ardia-design/build.gradle`.
+
+| In `apps/android` | What used it | Decision | Now |
+|---|---|---|---|
+| `browser/src/main/kotlin`, all but `Omnibox.kt` and `PageSurface.kt` | `@ardia/phone-native`: the page engine (WebView pages, downloads, page requests, captures) | keep | `packages/phone/android/src/main/java/com/ardia/{browser,browsing}` |
+| `browser/src/main/assets` (night shade, page look, readable content) | the page engine | keep | `packages/phone/android/src/main/assets/ardia-browser` |
+| `browser/src/main/res` (strings, capture paths) | the page engine; the phone manifest's capture provider | keep | `packages/phone/android/src/main/res/values/page_engine_strings.xml`, `res/xml` |
+| `Omnibox.kt`, `PageSurface.kt`, `browser`'s manifest | the Compose app only; the manifest's provider is already in the phone manifest | delete | |
+| `blocking/src/main` (Kotlin and `resources`: filter list catalog, consent script, public suffix list) | `@ardia/phone-native`: content blocking | keep | `packages/phone/android/src/main/java/com/ardia/blocking`, `src/main/resources` |
+| `shared/src/main/kotlin` and `cpp/ardia_hermes.cpp` | `@ardia/phone-native`: the script runtime that runs the sync bundle (`-DARDIA_SCRIPT_SHIM`) | keep | `packages/phone/android/src/main/java/com/ardia/shared`, `src/main/cpp` |
+| `shared/src/main/cpp/CMakeLists.txt` | nothing: the phone's own `CMakeLists.txt` builds the shim | delete | |
+| `sync/src/main` and `sync/src/test` | `@ardia/phone-native`: the sync engine and its unit tests, compiled into `CompileSyncBundle`'s module | keep | `packages/phone/android/src/{main,test}/java/com/ardia/sync` |
+| `appmodel`: `SystemLink.kt`, `SystemActions.kt`, `LaunchArguments.kt` | `@ardia/phone-native`: system links, launch arguments | keep | `packages/phone/android/src/main/java/com/ardia/appmodel` |
+| `settings`: `SyncCodeReading.kt`, `SyncCodeCamera.kt` | the sync code scanner | keep | `packages/phone/android/src/main/java/com/ardia/settings` |
+| `search`: `SpeechRecorder.kt`, `DictationTypes.kt`, `ClipboardOffer.kt`, `CompletingFieldState.kt` and `CompletingFieldStateTest.kt` | voice search, the paste offer, the completing field | keep | `packages/phone/android/src/{main,test}/java/com/ardia/search` |
+| `store`: `InlineCompletionEditor.kt` | the completing field | keep | `packages/phone/android/src/main/java/com/ardia/store` |
+| `design`: `FaviconPixels.kt` | favicons | keep | `packages/phone/android/src/main/java/com/ardia/design` |
+| `design`: the 20 files `ardia-design` listed (`ProfileLook`, `Colors`, `MeshGradient`, `FrostedStyle`, `Motion`…) and its `res` | the `:ardia-design` module: the look, the settings tokens | keep | `apps/phone/android/ardia-design/src/main/{java/com/ardia/design,res}` |
+| `app`: `ArdiaWidgets`, `WidgetColors`, `SearchTileService`, `ShortcutActivity`, `SystemSnapshot(s)`, `ShareSheetModel`, `ShareSheetView`, and `res-system` | the Expo app: the widgets, the tile, the shortcuts, the share sheet | keep | `apps/phone/android/app/src/main/{java/com/ardia/browser/android,res-system}` |
+| unit tests of kept code: `browser` (13), `blocking` (12, with 5 sample lists), `browsing`'s `PickedFileRuleTest` | nothing ran them in the Expo build | keep, now run by `corex-test` | `packages/phone/android/src/test/{java,resources}` |
+| `app`'s `ShareSheetTest`, `SystemSnapshotTest`, `WidgetColorsTest`; `design`'s `ColorsTest`, `DrawingTest`, `ProfileLookTest` | nothing ran them | keep, now run by `corex-test` | the app's and `ardia-design`'s `src/test` |
+| device tests of kept code: `browser` (12, with its test activity), `blocking` (1), `shared` (2), `sync` (6, with its documents provider) | `android.yml`'s emulator job | keep, not run anywhere yet | `packages/phone/android/src/androidTest` |
+| `scripts/swift-crosscheck.sh` and `scripts/crosscheck` | the Kotlin and Swift sync vaults read each other's writes (`SwiftCrossCheckTest`) | keep, unsure: it needs Swift and Gradle on one machine | `packages/phone/android/scripts` |
+| everything else: the Compose screens, app shell and model (`app`, `appmodel`, `browsing`, `search`, `settings`, `store`, `tabs`, the rest of `design`), their tests, the Gradle project, wrapper and catalog, `gradle-locked` | the Compose app only | delete | |
+
+**What else named `apps/android`:**
+- `bundle-guard.ts`'s native paths: the old app folder goes; its files are now under `apps/phone/android`.
+- `LegacyNamesTest`: it read four constants from the Compose sources. It now reads them frozen in
+  `packages/phone/android/src/test/resources/com/ardia/phone/compose-store-names-01a149d87.tsv`, copied verbatim from the
+  release reference's commit, where `HEAD` still had the same four.
+- `android.yml`: it built and tested the Compose app. It now runs the Expo Android app's unit tests on pull requests
+  that touch the phone's Android side or sync, behind the same `gate` job, so its `GATED_WORKFLOWS` entry stays.
+- `docs/android.md`: it documented the Compose app and goes. This file is the Android documentation.
+- `check-upgrade.py`, the upgrade gate and the legacy reader: they read only APKs and the phone's own sources.
+- `.github/vouch/vouch.cjs`: unchanged.
+- The site, dashboard, CLI and the Mac app name nothing in `apps/android`.
+
+**The pinned references.** Both are kept outside the repo, on this Mac in `~/Developer/ardia-phone-references/`
+(linked from the old `/tmp` paths) and on corex in `~/Developer/ardia-phone-apks/reference/`.
+
+| File | Built from | How | sha256 |
+|---|---|---|---|
+| `ardia-compose-release.apk` | `01a149d87` | `:app:assembleRelease`: R8, resources shrunk, not debuggable, signed with this Mac's `~/.android/debug.keystore` (`eeb05c92…`) | `7fb9decc…de190` |
+| `ardia-compose-upgrade17.apk` | `1e343bb81` | `:app:assembleDebug`: debuggable, the upgrade pair's Compose half, the same key | `4e7e4010…3f148` |
+
+To rebuild either once `apps/android` is gone, run on corex, in the bots container:
+
+```
+ssh corex docker exec -i bots bash -lc "'bash -s -- release'" < apps/phone/scripts/rebuild-compose-reference
+ssh corex docker exec -i bots bash -lc "'bash -s -- upgrade17'" < apps/phone/scripts/rebuild-compose-reference
+```
+
+The script does the following:
+- exports the commit's `apps/android`, the sync bundle it compiled and the sync fixtures with `git archive` into
+  `~/Developer/compose-rebuild/<name>`;
+- runs the Compose app's own wrapper there without a daemon, under the Android Gradle lock;
+- writes `<file>-rebuilt.apk` and `.txt` beside the pinned one;
+- reports whether the package, versions, ABIs, manifest components and dex classes match.
+
+Proven on 2026-11-16, with `apps/android` still present:
+- **`release`** rebuilt in 582 s. Same package, versions, debuggable flag and ABIs, the same manifest components, and
+  the same 6,158 dex classes as the pinned APK. It isn't byte-identical: 16,751,618 bytes against 16,847,017, another
+  signer, and R8's own output.
+
+A rebuild carries corex's debug key. For an install over the pinned one, re-sign it on this Mac:
+
+```
+apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android <apk>
+```
+
+**The upgrade tests' Compose store.** Two sources:
+- `PhoneLegacyTest` writes its own Compose-shaped store from the schema it pins (`COMPOSE_SCHEMA`), so it needs no
+  app.
+- A store written by the Compose app itself, captured with `run-as` from `ardia-compose-upgrade17.apk` (debuggable),
+  is the fixture the upgrade import is proven against (below).
+
 ### The old iPhone app, cleaned out
 
 The owner's order (2026-11-16), as for Android above: clean the SwiftUI app out of this branch, keeping only what the
