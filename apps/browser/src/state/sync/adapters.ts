@@ -40,7 +40,7 @@ export function sharedDataAdapter(links: () => Record<string, ShareLink>, remove
         if (!synced(id) || !ownerId || ownerId === id || !all[ownerId] || !store().profiles[ownerId]) continue;
         const key = `${SHARE}${link.syncId}`;
         const removedElsewhere = known(key) && remote(key) === null;
-        if (removedElsewhere || (!known(key) && synced(ownerId))) values.set(key, { o: all[ownerId]!.syncId } satisfies ShareRecord);
+        if (removedElsewhere || !known(key)) values.set(key, { o: all[ownerId]!.syncId } satisfies ShareRecord);
       }
       const gone = removed();
       return { values, ignore: (key) => !values.has(key) && !gone.has(key) };
