@@ -39,7 +39,7 @@ export function ExtensionSidePanel() {
     const tab = shownReadyTab(windowId);
     const before = lastSeen.current;
     instant = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
-    leaving = !panel && !instant ? (lastShown.current ?? null) : null;
+    leaving = !panel && !instant && before.state === "shown" ? (lastShown.current ?? null) : null;
     setExit({ state, card: leaving, instant });
   }
 

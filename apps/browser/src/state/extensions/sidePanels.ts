@@ -239,6 +239,25 @@ export function closePanelCard(windowId: string, card: SidePanel) {
   closeSidePanelOnTab(windowId, card.tabId);
 }
 
+export async function recheckKeptSidePanels(windowId: string): Promise<void> {
+  const extensionId = wanted.get(windowId);
+  const entry = useExtensions.getState().sidePanels[windowId];
+  const kept = sidePanelCards(windowId).filter((card) => card.tabId && card.extensionId === extensionId && !(entry && !entry.hidden && sameTabCard(entry, card)));
+  await Promise.all(
+    kept.map(async (card) => {
+      const url = await extensionSidePanelUrl(card.tabId!, card.extensionId).catch(() => card.url);
+      if (wanted.get(windowId) !== card.extensionId || !sidePanelCards(windowId).some((c) => sameTabCard(c, card))) return;
+      if (url === card.url) return;
+      if (!url) {
+        shownTabs.get(windowId)?.delete(card.tabId!);
+        tabsOf(removedTabs, windowId).add(card.tabId!);
+      }
+      dropSidePanelCard(windowId, card);
+    }),
+  );
+  refreshSidePanelCards(windowId);
+}
+
 export function dropSidePanelCard(windowId: string, card: SidePanel) {
   const before = sidePanelCards(windowId);
   const after = before.filter((c) => !sameTabCard(c, card));

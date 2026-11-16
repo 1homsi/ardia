@@ -60,3 +60,50 @@ test("closing the panel with the X fades out the page that was showing instead o
   void mounted.value;
   assert.deepEqual(renders.at(-1), [], "and goes once the fade ends");
 });
+
+test("a panel already hidden that then closes for the window doesn't bring back a page closed earlier with the X", async (t) => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  const a = S().windows[w].tabIds[0];
+  const b = S().newTab(w, { url: "b.com", background: true });
+  usePages.setState({ ready: { [a]: 1, [b]: 2 } });
+  useExtensions.setState({ lists: { "": [EXT] }, actions: {}, popup: null, sidePanels: {}, sidePanelCards: {} });
+  native.extensionAnswers.actionStates = async () => ({});
+  native.extensionAnswers.sidePanelUrl = async (tabId) => `chrome-extension://ext/panel.html?tabId=${tabId === a ? "a" : "b"}`;
+  await panels.openSidePanel(w, "ext");
+  const renders = [];
+  const mounted = mount(
+    () => {
+      const tree = ExtensionSidePanel();
+      renders.push(cardsIn(tree));
+      return tree;
+    },
+    { contexts: [[WindowContext, w]] },
+  );
+  t.after(() => {
+    mounted.unmount();
+    animations.held = false;
+  });
+  const show = async (tab) => {
+    S().activate(tab);
+    await panels.syncSidePanel(w);
+    void mounted.value;
+  };
+  void mounted.value;
+  const keyA = renders.at(-1)[0];
+  await show(b);
+  await show(a);
+  animations.held = true;
+  panels.closeSidePanelOnTab(w);
+  void mounted.value;
+  animations.finish();
+  void mounted.value;
+  assert.ok(!renders.at(-1).includes(keyA), "A's page is gone once its fade ends");
+  const before = renders.length;
+  panels.closeSidePanel(w);
+  void mounted.value;
+  animations.finish();
+  void mounted.value;
+  const since = renders.slice(before);
+  assert.ok(since.every((keys) => !keys.includes(keyA)), `A's closed page never comes back: ${JSON.stringify(since)}`);
+});

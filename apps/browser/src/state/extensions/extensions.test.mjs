@@ -621,7 +621,7 @@ async function panelWorld(state) {
   const name = { [a]: "a", [b]: "b", [c]: "c" };
   const label = (p) => `${p.extensionId}@${p.tabId === undefined ? "-" : (name[p.tabId] ?? "?")}`;
   return {
-    w, a, b, c, cardA, off,
+    w, a, b, c, cardA, off, state,
     show,
     hold: () => (hold = true),
     release: async () => {
@@ -645,12 +645,19 @@ const ACTIONS = {
     x.hold();
     const opening = panels.openSidePanel(x.w, "ext2");
     panels.closePanelCard(x.w, x.cardA);
+    x.check("while the replacement is pending");
+    assert.equal(x.wanted(), "ext2", "the pending replacement isn't cancelled");
     await x.release();
     await opening;
   },
   disable: async (x) => {
     x.off.add(`ext@${x.a}`);
     await x.show(x.a);
+  },
+  disableOther: async (x) => {
+    const other = x.state === "hidden" ? x.a : x.b;
+    x.off.add(`ext@${other}`);
+    await Promise.all([panels.syncSidePanel(x.w), panels.recheckKeptSidePanels(x.w)]);
   },
   crash: async (x) => panels.dropSidePanelCard(x.w, x.cardA),
   tabClose: async (x) => S().closeTab(x.a),
@@ -664,6 +671,7 @@ const EXPECT = {
     replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
     replacePendingThenPageClose: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
     disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    disableOther: { cards: ["ext@a"], entry: "shown ext@a", wanted: "ext" },
     tabClose: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
@@ -672,6 +680,7 @@ const EXPECT = {
     replace: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
     replacePendingThenPageClose: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
     disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    disableOther: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
     crash: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
     tabClose: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
     move: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
@@ -681,6 +690,7 @@ const EXPECT = {
     replace: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
     replacePendingThenPageClose: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
     disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    disableOther: { cards: ["ext@a"], entry: "shown ext@a", wanted: "ext" },
     tabClose: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
@@ -689,6 +699,7 @@ const EXPECT = {
     replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
     replacePendingThenPageClose: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
     disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    disableOther: { cards: [], entry: "hidden", wanted: "ext" },
     crash: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     tabClose: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
@@ -728,10 +739,10 @@ test("kept panels, every action in every state: the right pages stay, the rest g
         cells++;
         try {
           const x = await panelWorld(state);
+          x.check = (when) => checkInvariants(x, `${where} ${when}`);
           await ACTIONS[action](x);
           await settle();
-          await panels.syncSidePanel(x.w);
-          await settle();
+          x.check("right after the action");
           assert.deepEqual(x.cards(), want.cards, `${where}: cards`);
           if (want.entry instanceof RegExp) assert.match(x.entry(), want.entry, `${where}: entry`);
           else assert.equal(x.entry(), want.entry, `${where}: entry`);
@@ -745,6 +756,6 @@ test("kept panels, every action in every state: the right pages stay, the rest g
   } finally {
     stop();
   }
-  assert.equal(cells, 26);
+  assert.equal(cells, 30);
   assert.deepEqual(failed, []);
 });
