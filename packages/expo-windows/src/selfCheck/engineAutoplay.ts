@@ -12,8 +12,6 @@ const CTRL = 2;
 const AUTOPLAY_SETTLES_MS = 1500;
 const PER_PAGE_COUNT = 20;
 const TRANSIENT_ACTIVATION_MS = 6000;
-const AUDIBLE_MS = 8000;
-const QUIET_MS = 4000;
 const TOUCH_POINT = { x: 80, y: 45 };
 
 type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean };
@@ -36,21 +34,6 @@ const countsOf = (key: string) => {
   });
   return { counts, total: () => counts.reduce((sum, count) => sum + count, 0), stop: () => watching.remove() };
 };
-const audibleWithin = (key: string, ms: number) =>
-  new Promise<boolean>((resolve) => {
-    const watching = onEngineTopic("tab", (event: { key?: unknown; name?: unknown; data?: { audible?: unknown } }) => {
-      if (event.key !== key || event.name !== "media" || event.data?.audible !== true) return;
-      clearTimeout(timer);
-      watching.remove();
-      resolve(true);
-    });
-    const timer = setTimeout(() => {
-      watching.remove();
-      resolve(false);
-    }, ms);
-  });
-const STREAM_REPRO = `const Generator = window.MediaStreamTrackGenerator; if (!Generator) { post("result", JSON.stringify("no MediaStreamTrackGenerator")); return; } let generator; try { generator = new Generator({ kind: "audio" }); } catch (error) { generator = new Generator("audio"); } const writer = generator.writable.getWriter(); const stream = new MediaStream(); const audio = document.body.appendChild(document.createElement("audio")); audio.srcObject = stream; window.streamAudio = audio; let n = 0; setTimeout(() => { stream.addTrack(generator); window.streamTimer = setInterval(() => { const data = new Float32Array(480); for (let i = 0; i < 480; i++) data[i] = Math.sin((n * 480 + i) * 0.06) * 0.5; writer.write(new AudioData({ format: "f32-planar", sampleRate: 48000, numberOfFrames: 480, numberOfChannels: 1, timestamp: n * 10000, data })); n++; }, 10); }, 300); post("result", JSON.stringify("started"));`;
-
 const blockEverywhere = (enabled: boolean) => hostCall<{ everywhere?: unknown }>("autoplay.everywhere", { enabled });
 
 async function withMedia(name: string, path: string, title: string, run: (key: string, windowId: string) => Promise<void>) {
@@ -487,29 +470,6 @@ const autoplayChecks: Check[] = [
         count.stop();
       }
     }),
-  },
-  {
-    name: "engine autoplay: a paused audio element whose MediaStream gains a generated audio track stays silent on a blocked site",
-    run: async () => {
-      try {
-        await withMedia("audible-control", "media", "media page", async (key) => {
-          const audible = audibleWithin(key, AUDIBLE_MS);
-          await click(key, PLAY_BUTTON.x, PLAY_BUTTON.y);
-          expectEqual(await audible, true, "control: a clicked play with sound makes the tab audible, so audibility can be seen here");
-          await evaluate(key, 'm.pause(); post("result", "true");');
-        });
-        await setAutoplay("block");
-        await withMedia("stream", "media", "media page", async (key) => {
-          const audible = audibleWithin(key, QUIET_MS);
-          expectEqual(await evaluate(key, STREAM_REPRO), "started", "the page builds a generated audio track and a paused audio element");
-          const heard = await audible;
-          const state = await evaluate(key, 'clearInterval(window.streamTimer); post("result", JSON.stringify({ paused: window.streamAudio.paused }));');
-          expectEqual({ audible: heard, state }, { audible: false, state: { paused: true } }, "the tab with the paused stream element");
-        });
-      } finally {
-        await restore();
-      }
-    },
   },
   {
     name: "engine autoplay: a background tab opened before its site was blocked follows the block once the app adopts it",

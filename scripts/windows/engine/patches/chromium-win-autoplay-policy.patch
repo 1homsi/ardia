@@ -379,19 +379,19 @@
  #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
  #include "third_party/blink/renderer/platform/network/network_state_notifier.h"
  #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-@@ -41,7 +44,115 @@
-     "https://goo.gl.qjz9zk/xX8pDD";
+@@ -42,6 +45,132 @@
  const char kErrorAutoplayFuncMobile[] =
      "play() can only be initiated by a user gesture.";
-+
+ 
 +// Ardia: Windows' autoplay blocking. A frame keeps the browser's word on
 +// whether its tab blocks autoplay; a frame never told follows its local
-+// parent, or a main frame its local opener. A document is asked once
-+// trusted input reached it (the Mac's usedHere), or, in a subframe, while
-+// the frame has transient activation.
++// parent, or a main frame its local opener, and with nothing to follow it
++// counts as blocked. A document is asked once trusted input reached it
++// (the Mac's usedHere), or, in a subframe, while the frame has transient
++// activation.
 +int g_ardia_media_commands = 0;
 +constexpr int kArdiaMostReportedRefusals = 20;
-+constexpr int kArdiaMostFrameHops = 64;
++constexpr int kArdiaMostOpenerHops = 64;
 +
 +class ArdiaFrameAutoplay final : public GarbageCollected<ArdiaFrameAutoplay>,
 +                                 public Supplement<LocalFrame> {
@@ -460,15 +460,32 @@
 +const char ArdiaDocumentAutoplay::kSupplementName[] = "ArdiaDocumentAutoplay";
 +
 +bool ArdiaFrameBlocked(LocalFrame* frame) {
-+  for (int hops = 0; frame && hops < kArdiaMostFrameHops; ++hops) {
++  if (!frame) {
++    return false;
++  }
++  int opener_hops = 0;
++  while (frame) {
 +    if (ArdiaFrameAutoplay* state = ArdiaFrameAutoplay::Find(*frame);
 +        state && state->blocked.has_value()) {
 +      return *state->blocked;
 +    }
-+    Frame* next = frame->Tree().Parent();
-+    frame = DynamicTo<LocalFrame>(next ? next : frame->Opener());
++    if (Frame* parent = frame->Tree().Parent()) {
++      frame = DynamicTo<LocalFrame>(parent);
++    } else if (++opener_hops > kArdiaMostOpenerHops) {
++      return true;
++    } else {
++      frame = DynamicTo<LocalFrame>(frame->Opener());
++    }
 +  }
-+  return false;
++  return true;
++}
++
++void ArdiaNoteMediaCommand(Document& document) {
++  ArdiaDocumentAutoplay::From(document).used_here = true;
++  if (LocalFrame* frame = document.GetFrame()) {
++    LocalFrame::NotifyUserActivation(
++        frame, mojom::blink::UserActivationNotificationType::kInteraction);
++  }
 +}
 +
 +bool ArdiaDocumentAsked(const Document& document) {
@@ -480,7 +497,7 @@
 +  return frame && !frame->IsMainFrame() &&
 +         LocalFrame::HasTransientUserActivation(frame);
 +}
- 
++
 +void ArdiaReportRefusal(Document& document) {
 +  ArdiaDocumentAutoplay& state = ArdiaDocumentAutoplay::From(document);
 +  if (state.reported_refusals >= kArdiaMostReportedRefusals) {
@@ -495,13 +512,13 @@
  // Return true if and only if the document settings specifies media playback
  // requires user gesture on the element.
  bool ComputeLockPendingUserGestureRequired(const Document& document) {
-@@ -162,8 +273,64 @@
+@@ -162,6 +291,62 @@
        autoplay_uma_helper_(MakeGarbageCollected<AutoplayUmaHelper>(element)) {
    locked_pending_user_gesture_ =
        ComputeLockPendingUserGestureRequired(element->GetDocument());
 +  ArdiaDocumentAutoplay::From(element->GetDocument()).media.insert(element);
- }
- 
++}
++
 +void AutoplayPolicy::ArdiaSetFrameBlocked(LocalFrame& frame,
 +                                          bool blocked,
 +                                          bool pause_unasked) {
@@ -543,11 +560,11 @@
 +
 +bool AutoplayPolicy::ArdiaRefusesPlay() {
 +  Document& document = element_->GetDocument();
-+  if (!ArdiaFrameBlocked(document.GetFrame())) {
-+    return false;
-+  }
 +  if (g_ardia_media_commands > 0) {
 +    ArdiaDocumentAutoplay::From(document).used_here = true;
++    return false;
++  }
++  if (!document.GetFrame() || !ArdiaFrameBlocked(document.GetFrame())) {
 +    return false;
 +  }
 +  if (ArdiaDocumentAsked(document)) {
@@ -555,12 +572,10 @@
 +  }
 +  ArdiaReportRefusal(document);
 +  return true;
-+}
-+
- void AutoplayPolicy::VideoWillBeDrawnToCanvas() const {
-   autoplay_uma_helper_->VideoWillBeDrawnToCanvas();
  }
-@@ -179,6 +346,7 @@
+ 
+ void AutoplayPolicy::VideoWillBeDrawnToCanvas() const {
+@@ -179,6 +364,7 @@
      locked_pending_user_gesture_ = true;
  
    autoplay_uma_helper_->DidMoveToNewDocument(old_document);
@@ -568,41 +583,38 @@
  }
  
  bool AutoplayPolicy::IsEligibleForAutoplayMuted() const {
-@@ -246,7 +414,13 @@
- 
- bool AutoplayPolicy::RequestAutoplayByAttribute() {
+@@ -248,6 +434,12 @@
    if (!ShouldAutoplay())
-+    return false;
-+
+     return false;
+ 
 +  // Ardia: a blocked tab's autoplay attribute waits for the user's ask,
 +  // ahead of every exemption and of muted autoplay.
 +  if (ArdiaRefusesPlay()) {
-     return false;
++    return false;
 +  }
- 
++
    autoplay_uma_helper_->OnAutoplayInitiated(AutoplaySource::kAttribute);
  
-@@ -287,12 +461,18 @@
+   if (IsGestureNeededForPlayback())
+@@ -287,6 +479,17 @@
  }
  
  std::optional<DOMExceptionCode> AutoplayPolicy::RequestPlay() {
-+  // Ardia: a blocked tab refuses play() the user did not ask for, ahead of
-+  // every exemption and of muted autoplay, as the Mac's page script does.
-+  if (ArdiaRefusesPlay()) {
++  // Ardia: a play from Ardia's own media control is the user's ask in that
++  // media's document and gives that frame user activation, as the Mac's
++  // control does. Otherwise a blocked tab refuses a play() the user did not
++  // ask for, ahead of every exemption and of muted autoplay, as the Mac's
++  // page script does; an element already playing keeps Chrome's answer.
++  if (g_ardia_media_commands > 0) {
++    ArdiaNoteMediaCommand(element_->GetDocument());
++  } else if (element_->paused() && ArdiaRefusesPlay()) {
 +    return DOMExceptionCode::kNotAllowedError;
 +  }
 +
    // Block autoplay only if the media element's visibility state is known.
    if (!element_->CanPlayWhileHidden() && element_->IsFrameHidden()) {
      return DOMExceptionCode::kNotAllowedError;
-   }
- 
--  if (!HasTransientUserActivation()) {
-+  if (!HasTransientUserActivation() && !g_ardia_media_commands) {
-     autoplay_uma_helper_->OnAutoplayInitiated(AutoplaySource::kMethod);
-     if (IsGestureNeededForPlayback())
-       return DOMExceptionCode::kNotAllowedError;
-@@ -397,7 +577,7 @@
+@@ -397,7 +600,7 @@
      if (!self)
        return;
  
@@ -687,39 +699,47 @@
  #include "third_party/blink/renderer/core/frame/local_frame_view.h"
  #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
  #include "third_party/blink/renderer/core/html/html_dialog_element.h"
-@@ -846,6 +847,7 @@
-     LocalFrame::NotifyUserActivation(
-         pointer_event_target.target_frame,
-         mojom::blink::UserActivationNotificationType::kInteraction);
+@@ -826,6 +827,9 @@
+   if (is_pointer_down) {
+     discarded_event_.target = kInvalidDOMNodeId;
+     discarded_event_.time = base::TimeTicks();
++    // Ardia: the Mac's page script counts a trusted pointerdown, touch and
++    // pen too, before the page's own handlers run.
 +    AutoplayPolicy::ArdiaNoteUsedHere(pointer_event_target.target_frame);
    }
  
-   if (!event.hovering && !IsAnyTouchActive()) {
---- a/third_party/blink/renderer/core/input/gesture_manager.cc
-+++ b/third_party/blink/renderer/core/input/gesture_manager.cc
-@@ -17,6 +17,7 @@
- #include "third_party/blink/renderer/core/events/pointer_event_factory.h"
+   if (HandleScrollbarTouchDrag(event, pointer_event_target.scrollbar))
+--- a/third_party/blink/renderer/modules/mediasession/media_session.cc
++++ b/third_party/blink/renderer/modules/mediasession/media_session.cc
+@@ -19,6 +19,7 @@
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_media_session_seek_to_action_details.h"
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
  #include "third_party/blink/renderer/core/frame/local_frame.h"
 +#include "third_party/blink/renderer/core/html/media/autoplay_policy.h"
- #include "third_party/blink/renderer/core/frame/local_frame_view.h"
- #include "third_party/blink/renderer/core/frame/settings.h"
- #include "third_party/blink/renderer/core/frame/visual_viewport.h"
-@@ -294,6 +295,8 @@
-   LocalFrame::NotifyUserActivation(
-       tapped_node ? tapped_node->GetDocument().GetFrame() : nullptr,
-       mojom::blink::UserActivationNotificationType::kInteraction);
-+  AutoplayPolicy::ArdiaNoteUsedHere(
-+      tapped_node ? tapped_node->GetDocument().GetFrame() : nullptr);
+ #include "third_party/blink/renderer/core/frame/navigator.h"
+ #include "third_party/blink/renderer/core/frame/picture_in_picture_controller.h"
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+@@ -456,6 +457,9 @@
+     LocalFrame::NotifyUserActivation(
+         window->GetFrame(),
+         mojom::blink::UserActivationNotificationType::kInteraction);
++    // Ardia: a Media Session action from the user is the user's ask in the
++    // session's document, for every action Chrome grants activation for.
++    AutoplayPolicy::ArdiaNoteUsedHere(window->GetFrame());
+   }
  
-   mouse_event_manager_->SetMouseDownElement(tapped_element);
+   auto v8_action = MojomActionToActionEnum(action);
+--- a/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc
++++ b/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc
+@@ -802,7 +802,10 @@
  
-@@ -559,6 +562,8 @@
-   LocalFrame::NotifyUserActivation(
-       inner_node ? inner_node->GetDocument().GetFrame() : nullptr,
-       mojom::blink::UserActivationNotificationType::kInteraction);
-+  AutoplayPolicy::ArdiaNoteUsedHere(
-+      inner_node ? inner_node->GetDocument().GetFrame() : nullptr);
-   return SendContextMenuEventForGesture(targeted_event);
- }
+       audio_renderer_->SetVolume(volume_);
+       audio_renderer_->Start();
+-      audio_renderer_->Play();
++      // Ardia: a new audio track starts playing only if the element is.
++      if (!paused_) {
++        audio_renderer_->Play();
++      }
+       break;
  
+     case RendererReloadAction::REMOVE_RENDERER:

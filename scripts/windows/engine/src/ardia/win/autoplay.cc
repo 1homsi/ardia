@@ -1,7 +1,9 @@
 #include "ardia/win/autoplay.h"
 
+#include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "ardia/win/tab_state.h"
 #include "base/functional/bind.h"
@@ -19,8 +21,10 @@
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "content/public/browser/disallow_activation_reason.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/page.h"
+#include "content/public/browser/page_user_data.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -74,14 +78,52 @@ mojo::AssociatedRemote<blink::mojom::AutoplayConfigurationClient> ClientOf(
   return client;
 }
 
+class AutoplayPage : public content::PageUserData<AutoplayPage> {
+ public:
+  int counted = 0;
+  std::optional<bool> blocked;
+
+ private:
+  friend class content::PageUserData<AutoplayPage>;
+  explicit AutoplayPage(content::Page& page)
+      : content::PageUserData<AutoplayPage>(page) {}
+  PAGE_USER_DATA_KEY_DECL();
+};
+
+PAGE_USER_DATA_KEY_IMPL(AutoplayPage);
+
+bool InBackForwardCache(content::RenderFrameHost* frame) {
+  return frame->IsInLifecycleState(
+      content::RenderFrameHost::LifecycleState::kInBackForwardCache);
+}
+
+void Send(content::RenderFrameHost* frame, bool blocked) {
+  if (frame && frame->IsRenderFrameLive()) {
+    ClientOf(frame)->SetArdiaAutoplayBlocked(blocked);
+  }
+}
+
 void Tell(content::WebContents* contents, content::RenderFrameHost* frame) {
-  if (!frame || !frame->IsRenderFrameLive() ||
-      frame->IsInLifecycleState(
-          content::RenderFrameHost::LifecycleState::kInBackForwardCache)) {
+  if (!frame || InBackForwardCache(frame)) {
     return;
   }
-  ClientOf(frame)->SetArdiaAutoplayBlocked(BlockedAt(
-      contents, frame->GetOutermostMainFrame()->GetLastCommittedOrigin()));
+  const bool blocked = BlockedAt(
+      contents, frame->GetOutermostMainFrame()->GetLastCommittedOrigin());
+  AutoplayPage::GetOrCreateForPage(frame->GetPage())->blocked = blocked;
+  Send(frame, blocked);
+}
+
+void EvictIfChanged(content::WebContents* contents,
+                    content::RenderFrameHost* frame) {
+  if (frame->GetParentOrOuterDocument()) {
+    return;
+  }
+  const bool blocked = BlockedAt(contents, frame->GetLastCommittedOrigin());
+  AutoplayPage* page = AutoplayPage::GetForPage(frame->GetPage());
+  if (!page || page->blocked != blocked) {
+    frame->IsInactiveAndDisallowActivation(
+        content::kMinEmbedderDisallowActivationReason);
+  }
 }
 
 class AutoplayFollower : public content::WebContentsObserver,
@@ -101,20 +143,40 @@ class AutoplayFollower : public content::WebContentsObserver,
   }
 
   void TellEveryFrame() {
-    if (content::WebContents* contents = web_contents()) {
-      contents->ForEachRenderFrameHost(
-          [contents](content::RenderFrameHost* frame) {
+    content::WebContents* contents = web_contents();
+    if (!contents) {
+      return;
+    }
+    std::vector<content::RenderFrameHost*> cached;
+    contents->ForEachRenderFrameHost(
+        [contents, &cached](content::RenderFrameHost* frame) {
+          if (InBackForwardCache(frame)) {
+            cached.push_back(frame);
+          } else {
             Tell(contents, frame);
-          });
+          }
+        });
+    for (content::RenderFrameHost* frame : cached) {
+      EvictIfChanged(contents, frame);
+    }
+    for (content::NavigationHandle* handle : committing_) {
+      content::RenderFrameHost* outer = handle->GetParentFrameOrOuterDocument();
+      Send(handle->GetRenderFrameHost(),
+           BlockedAt(contents,
+                     outer ? outer->GetOutermostMainFrame()->GetLastCommittedOrigin()
+                           : handle->GetOriginToCommit().value_or(url::Origin())));
     }
   }
 
   void Refused(content::RenderFrameHost* frame) {
-    if (!frame->GetPage().IsPrimary() ||
-        counted_on_page_ >= kMostCountedPerPage) {
+    if (!frame->GetPage().IsPrimary()) {
       return;
     }
-    ++counted_on_page_;
+    AutoplayPage* page = AutoplayPage::GetOrCreateForPage(frame->GetPage());
+    if (page->counted >= kMostCountedPerPage) {
+      return;
+    }
+    ++page->counted;
     if (unsent_++ == 0) {
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
           FROM_HERE,
@@ -138,7 +200,14 @@ class AutoplayFollower : public content::WebContentsObserver,
     TellEveryFrame();
   }
 
+  void ReadyToCommitNavigation(content::NavigationHandle* handle) override {
+    if (!handle->IsSameDocument()) {
+      committing_.insert(handle);
+    }
+  }
+
   void DidFinishNavigation(content::NavigationHandle* handle) override {
+    committing_.erase(handle);
     if (!handle->HasCommitted() || handle->IsSameDocument()) {
       return;
     }
@@ -153,10 +222,7 @@ class AutoplayFollower : public content::WebContentsObserver,
     Tell(contents, frame);
   }
 
-  void PrimaryPageChanged(content::Page& page) override {
-    SendCount();
-    counted_on_page_ = 0;
-  }
+  void PrimaryPageChanged(content::Page& page) override { SendCount(); }
 
   void SendCount() {
     if (!unsent_) {
@@ -189,7 +255,7 @@ class AutoplayFollower : public content::WebContentsObserver,
   }
 
   raw_ptr<HostContentSettingsMap> settings_;
-  int counted_on_page_ = 0;
+  std::set<raw_ptr<content::NavigationHandle>> committing_;
   int unsent_ = 0;
   base::WeakPtrFactory<AutoplayFollower> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();
