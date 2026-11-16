@@ -474,7 +474,7 @@ while ($true) {
       $keep = $true
       continue
     }
-    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/sleep" = "sleep"; "/links" = "links"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event"; "/event/fullscreen" = "event"; "/event/windowed" = "event" }[$($path -replace '\?.*$', '')]
+    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/sleep" = "sleep"; "/links" = "links"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event"; "/event/fullscreen" = "event"; "/event/windowed" = "event"; "/event/local-state-start" = "event"; "/event/local-state-stop" = "event" }[$($path -replace '\?.*$', '')]
     $status = if ($name -eq "event") { "204 No Content" } elseif ($name) { "200 OK" } else { "404 Not Found" }
     $text = if ($name -eq "event") { "" } elseif ($name -eq "links") { "<!doctype html><meta charset=utf-8><title>links page</title><style>body{margin:0}a{position:absolute;left:10px;width:200px;height:40px;display:block;background:#ddd}</style><a id=peek style='top:10px' href='/a'>peek</a><a id=blank style='top:70px' target=_blank href='/b'>blank</a><a id=app style='top:130px' href='ardia-sleep-check-link:woke'>app</a>" } elseif ($name -eq "sleep") { "<!doctype html><meta charset=utf-8><title>sleep page</title><body style='margin:0;height:6000px'><input id=field></body>" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}#full{position:absolute;left:40px;top:320px;width:160px;height:40px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><button id=full>full screen</button><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart')); document.getElementById('full').addEventListener('click', (event) => { event.stopPropagation(); document.documentElement.requestFullscreen(); }); addEventListener('fullscreenchange', () => report(document.fullscreenElement ? 'fullscreen' : 'windowed'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($text)
@@ -845,9 +845,68 @@ $env:ARDIA_TEST = "pipHover=first,pipHover=last,httpPages=$httpPagesPort"
 $leftover = Join-Path $env:ARDIA_DATA_DIR "Chromium\Ardia self-check-stuck (removing)"
 $held = $null
 $check = $null
+Add-Type @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+public static class LocalStateRace {
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool ReplaceFileW(string replaced, string replacement, string backup, uint flags, IntPtr exclude, IntPtr reserved);
+  static Thread runner;
+  static volatile bool done;
+  public static int Replaces;
+  static bool Logged(string path, string text) {
+    try {
+      using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+      using (var reader = new StreamReader(stream)) return reader.ReadToEnd().Contains(text);
+    } catch { return false; }
+  }
+  static byte[] ReadShared(string path) {
+    try {
+      using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) {
+        var bytes = new byte[stream.Length];
+        int read = 0;
+        while (read < bytes.Length) { int got = stream.Read(bytes, read, bytes.Length - read); if (got <= 0) break; read += got; }
+        return read == bytes.Length ? bytes : null;
+      }
+    } catch { return null; }
+  }
+  public static void Start(string localState, string requests) {
+    done = false;
+    Replaces = 0;
+    runner = new Thread(() => {
+      DateTime giveUp = DateTime.UtcNow.AddMinutes(10);
+      while (!done && DateTime.UtcNow < giveUp && !Logged(requests, "/event/local-state-start")) Thread.Sleep(25);
+      DateTime stopAt = DateTime.UtcNow.AddSeconds(60);
+      DateTime nextLook = DateTime.UtcNow;
+      string temp = localState + "~race.TMP";
+      while (!done && DateTime.UtcNow < stopAt) {
+        if (DateTime.UtcNow >= nextLook) {
+          if (Logged(requests, "/event/local-state-stop")) break;
+          nextLook = DateTime.UtcNow.AddMilliseconds(100);
+        }
+        byte[] bytes = ReadShared(localState);
+        if (bytes == null) continue;
+        try {
+          File.WriteAllBytes(temp, bytes);
+          if (ReplaceFileW(localState, temp, null, 2, IntPtr.Zero, IntPtr.Zero)) Replaces++;
+        } catch { }
+      }
+    });
+    runner.IsBackground = true;
+    runner.Start();
+  }
+  public static int Stop() {
+    done = true;
+    if (runner != null) runner.Join(5000);
+    return Replaces;
+  }
+}
+"@
 try {
   New-Item -ItemType Directory -Force -Path $leftover | Out-Null
   $held = [System.IO.File]::Open((Join-Path $leftover "held.txt"), [System.IO.FileMode]::Create, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+  [LocalStateRace]::Start((Join-Path $env:ARDIA_DATA_DIR "Chromium\Local State"), $httpPagesLog)
   $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
   $env:ARDIA_TEST = ""
   if (-not $check.WaitForExit($SelfCheckSeconds * 1000)) { $failures += "the self-check did not finish within $SelfCheckSeconds s" }
@@ -862,6 +921,7 @@ try {
     }
   }
 } finally {
+  Write-Host "Local State was saved $([LocalStateRace]::Stop()) times the way Chromium saves it while the self-check removed a profile whose earlier removal is held"
   try {
     if ($check -and -not $check.HasExited) {
       Save-Screenshot (Join-Path $Out "self-check-stuck.png")
