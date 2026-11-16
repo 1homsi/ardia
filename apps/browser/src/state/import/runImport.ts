@@ -229,13 +229,14 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     const note = "note" in appTabsResult ? appTabsResult.note : null;
     if (note) left.push(note);
     if ("result" in appTabsResult) {
-      const extra = diaProfilesWithoutFolder(appTabsResult.result, source.profiles);
+      const kinds = { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") };
+      const extra = diaProfilesWithoutFolder(appTabsResult.result, source.profiles, kinds);
       for (const dia of extra) {
         const dest = await nextDestination(dia.name);
         if (signal.aborted) return;
-        total.tabs += importDiaProfile(dest, dia, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") }, appTabsResult.result.favicons);
+        total.tabs += importDiaProfile(dest, dia, kinds, appTabsResult.result.favicons);
       }
-      noteDiaTabProfiles({ matched: appTabsResult.result.profiles.length - extra.length, withoutFolder: extra.length });
+      noteDiaTabProfiles({ matched: diaProfilesFor(appTabsResult.result, source.profiles).size, withoutFolder: extra.length });
     }
     updateStatus(signal, (st) => ({ ...st, ...Object.fromEntries(fromApp.map((k) => [k, note ? "failed" : "done"])) }));
   }

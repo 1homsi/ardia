@@ -31,3 +31,14 @@ test("a Dia profile with tabs and no folder on disk is left for a new profile, a
   result.profiles[2].pinned = [{ url: "https://a.example/", title: "A", pinned: true }];
   assert.deepEqual(diaProfilesWithoutFolder(result, onDisk).map((d) => d.id), ["3:Side project"]);
 });
+
+test("a folderless Dia profile is only taken for the tab kinds being imported, so none gets an empty profile", () => {
+  const result = dia([["Personal", 1], ["Work", 2], ["Pins only", 3], ["Open only", 4]]);
+  result.profiles[2].pinned = [{ url: "https://a.example/", title: "A", pinned: true }];
+  result.profiles[3].tabs = [{ url: "https://b.example/", title: "B", pinned: false }];
+  const ids = (kinds) => diaProfilesWithoutFolder(result, onDisk, kinds).map((d) => d.id);
+  assert.deepEqual(ids({ pinned: true, open: true }), ["3:Pins only", "4:Open only"]);
+  assert.deepEqual(ids({ pinned: false, open: true }), ["4:Open only"]);
+  assert.deepEqual(ids({ pinned: true, open: false }), ["3:Pins only"]);
+  assert.deepEqual(ids({ pinned: false, open: false }), []);
+});
