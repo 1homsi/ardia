@@ -600,10 +600,14 @@ async function panelWorld(state) {
   useExtensions.setState({ lists: { "": [EXT, EXT2] }, actions: {}, popup: null, sidePanels: {}, sidePanelCards: {} });
   const off = new Set();
   const held = [];
-  let hold = false;
+  let holding = null;
   const urlFor = (tabId, ext) => (off.has(`${ext}@${tabId}`) ? null : `chrome-extension://${ext}/panel.html?tabId=${tabId}`);
   native.extensionAnswers.actionStates = async () => ({});
-  native.extensionAnswers.sidePanelUrl = (tabId, ext) => (hold ? new Promise((r) => held.push(() => r(urlFor(tabId, ext)))) : Promise.resolve(urlFor(tabId, ext)));
+  native.extensionAnswers.sidePanelUrl = (tabId, ext) => {
+    const value = urlFor(tabId, ext);
+    if (!holding?.(tabId, ext)) return Promise.resolve(value);
+    return new Promise((r) => held.push({ tabId, ext, go: () => r(value) }));
+  };
   const show = async (tab) => {
     S().activate(tab);
     await panels.syncSidePanel(w);
@@ -623,11 +627,20 @@ async function panelWorld(state) {
   return {
     w, a, b, c, cardA, off, state,
     show,
-    hold: () => (hold = true),
+    hold: (which = () => true) => (holding = which),
     release: async () => {
-      hold = false;
-      for (const go of held.splice(0)) go();
+      holding = null;
+      for (const h of held.splice(0)) h.go();
       await settle();
+    },
+    heldCount: () => held.length,
+    releaseAt: async (positions) => {
+      const snapshot = [...held];
+      for (const i of positions) {
+        held.splice(held.indexOf(snapshot[i]), 1);
+        snapshot[i].go();
+        await settle();
+      }
     },
     cards: () => panels.sidePanelCards(w).map(label).sort(),
     entry: () => {
@@ -722,6 +735,7 @@ function checkInvariants(x, where) {
     assert.ok(card.tabId && s.tabs[card.tabId]?.windowId === x.w, `${where}: a kept card's tab is in the window`);
     assert.ok(!panels.panelDroppedOnTab(x.w, card.tabId), `${where}: a kept card's tab hasn't dropped its panel`);
   }
+  if (visible) assert.ok(panels.sidePanelCards(x.w).some((card) => panels.panelKey(card) === panels.panelKey(visible) && card.tabId === visible.tabId), `${where}: the panel shown has its page listed`);
   if (visible?.tabId) {
     assert.equal(s.tabs[visible.tabId]?.windowId, x.w, `${where}: the panel shown belongs to a tab in the window`);
     assert.ok(!panels.panelDroppedOnTab(x.w, visible.tabId), `${where}: the panel shown wasn't closed or taken away`);
@@ -758,4 +772,66 @@ test("kept panels, every action in every state: the right pages stay, the rest g
   }
   assert.equal(cells, 30);
   assert.deepEqual(failed, []);
+});
+
+test("re-checking kept panels: a panel turned off while a tab switch is still being looked up is dropped, without cancelling the switch", async () => {
+  const x = await panelWorld("shown");
+  x.hold((tabId) => tabId === x.b);
+  S().activate(x.b);
+  const switching = panels.syncSidePanel(x.w);
+  await settle();
+  x.off.add(`ext@${x.a}`);
+  const rechecking = panels.recheckKeptSidePanels(x.w);
+  await settle();
+  checkInvariants(x, "after A's answer");
+  assert.deepEqual(x.cards(), ["ext@b"], "A's page goes though it was still on screen");
+  await x.release();
+  await Promise.all([switching, rechecking]);
+  assert.equal(x.entry(), "shown ext@b", "the switch to B still lands");
+  assert.deepEqual(x.cards(), ["ext@b"]);
+  assert.equal(panels.panelDroppedOnTab(x.w, x.a), true);
+  checkInvariants(x, "after B's answer");
+});
+
+test("re-checking kept panels: an older re-check answering after a newer one changes nothing", async () => {
+  const x = await panelWorld("shown");
+  x.hold();
+  x.off.add(`ext@${x.b}`);
+  const older = panels.recheckKeptSidePanels(x.w);
+  const olderAsks = x.heldCount();
+  x.off.delete(`ext@${x.b}`);
+  const newer = panels.recheckKeptSidePanels(x.w);
+  const range = (from, to) => Array.from({ length: to - from }, (_, i) => from + i);
+  await x.releaseAt(range(olderAsks, x.heldCount()));
+  checkInvariants(x, "after the newer re-check");
+  await x.releaseAt(range(0, olderAsks));
+  await Promise.all([older, newer]);
+  assert.deepEqual(x.cards(), ["ext@a", "ext@b"], "B's page stays: its newer answer said it still has a panel");
+  assert.equal(panels.panelDroppedOnTab(x.w, x.b), false);
+  checkInvariants(x, "after the older re-check");
+});
+
+test("re-checking kept panels: an answer about a page that has since been shown again, or closed and reopened, is ignored", async () => {
+  for (const how of ["shown again", "closed and reopened"]) {
+    const x = await panelWorld("hidden");
+    let first = true;
+    x.hold((tabId) => tabId === x.a && first && !(first = false));
+    x.off.add(`ext@${x.a}`);
+    const rechecking = panels.recheckKeptSidePanels(x.w);
+    await settle();
+    x.off.delete(`ext@${x.a}`);
+    if (how === "closed and reopened") {
+      panels.closePanelCard(x.w, x.cardA);
+      S().activate(x.a);
+      await panels.openSidePanel(x.w, "ext");
+    } else await x.show(x.a);
+    assert.equal(x.entry(), "shown ext@a", how);
+    checkInvariants(x, `${how}, before the old answer`);
+    await x.releaseAt([0]);
+    await rechecking;
+    assert.equal(x.entry(), "shown ext@a", `${how}: A stays on screen`);
+    assert.deepEqual(x.cards(), ["ext@a", "ext@b"], `${how}: A's page stays`);
+    assert.equal(panels.panelDroppedOnTab(x.w, x.a), false, how);
+    checkInvariants(x, `${how}, after the old answer`);
+  }
 });

@@ -6,6 +6,7 @@ import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfi
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
+const rechecks = new Map<string, number>();
 const openings = new Map<string, number>();
 const focusOwed = new Map<string, { opened: number; page: string | undefined }>();
 let lastOpening = 0;
@@ -240,22 +241,24 @@ export function closePanelCard(windowId: string, card: SidePanel) {
 }
 
 export async function recheckKeptSidePanels(windowId: string): Promise<void> {
+  const generation = (rechecks.get(windowId) ?? 0) + 1;
+  rechecks.set(windowId, generation);
   const extensionId = wanted.get(windowId);
-  const entry = useExtensions.getState().sidePanels[windowId];
-  const kept = sidePanelCards(windowId).filter((card) => card.tabId && card.extensionId === extensionId && !(entry && !entry.hidden && sameTabCard(entry, card)));
+  const listed = sidePanelCards(windowId).filter((card) => card.tabId && card.extensionId === extensionId);
   await Promise.all(
-    kept.map(async (card) => {
+    listed.map(async (card) => {
       const url = await extensionSidePanelUrl(card.tabId!, card.extensionId).catch(() => card.url);
-      if (wanted.get(windowId) !== card.extensionId || !sidePanelCards(windowId).some((c) => sameTabCard(c, card))) return;
+      if (rechecks.get(windowId) !== generation || wanted.get(windowId) !== card.extensionId || !sidePanelCards(windowId).includes(card)) return;
       if (url === card.url) return;
-      if (!url) {
-        shownTabs.get(windowId)?.delete(card.tabId!);
-        tabsOf(removedTabs, windowId).add(card.tabId!);
-      }
-      dropSidePanelCard(windowId, card);
+      const entry = useExtensions.getState().sidePanels[windowId];
+      const onScreen = !!entry && !entry.hidden && sameTabCard(entry, card);
+      if (url) return onScreen ? undefined : dropSidePanelCard(windowId, card);
+      shownTabs.get(windowId)?.delete(card.tabId!);
+      tabsOf(removedTabs, windowId).add(card.tabId!);
+      if (onScreen) hideSidePanel(windowId);
+      else refreshSidePanelCards(windowId);
     }),
   );
-  refreshSidePanelCards(windowId);
 }
 
 export function dropSidePanelCard(windowId: string, card: SidePanel) {
