@@ -14,7 +14,7 @@ test("tapping the top row does what Enter does, for addresses and for words", ()
   }
 });
 
-test("an address typed in full opens, and no row searches the engine for the address itself", () => {
+test("an address typed in full opens, from Enter and from every row that names it, and no row searches the engine for the address itself", () => {
   setSources({ tabs: [], history: [], bookmarks: [] });
   for (const text of ["https://www.google.com/search?q=otters", "example.com", "example.com/a/b"]) {
     const rows = suggest(text, [text], context).rows;
@@ -24,7 +24,10 @@ test("an address typed in full opens, and no row searches the engine for the add
       const opens = rowTarget(row);
       if (opens?.origin === "search") assert.ok(!decodeURIComponent(opens.url).includes(text), `${text}: ${opens.url}`);
     }
-    assert.equal(rows.filter((row) => rowTarget(row)?.url === target.url).length, 1, text);
+    assert.ok(rows.some((row) => row.kind === "page" && rowTarget(row)?.url === target.url), text);
+    const typedRow = rows.find((row) => row.kind === "query" && row.title === text);
+    assert.ok(typedRow, text);
+    assert.deepEqual(rowTarget(typedRow!), target, text);
   }
 });
 
@@ -36,14 +39,16 @@ test("words search the engine from the row and from Enter alike", () => {
   assert.deepEqual(rowTarget(suggest("otter facts", [], context).rows[0]!), target);
 });
 
-test("the exact words typed always keep a search row, second after the top result, within nine rows, and an address never gets one", () => {
+test("the exact text typed always keeps a row of its own, second after the top result, within nine rows, an address included as main's SearchSuggestionsModel does", () => {
   setSources({ tabs: [], history: [], bookmarks: [] });
   const page = (n: number): TrayRow => ({ key: `p:${n}`, kind: "page", title: `Otter ${n}`, detail: "example.com", url: `https://example.com/${n}`, favicon: null, tabId: null, switchesTab: false });
   const kept = withTypedQuery([page(1), page(2)], "otter");
   assert.deepEqual(kept.map((row) => row.kind), ["page", "query", "page"]);
   assert.equal(kept[1]!.title, "otter");
   assert.equal(withTypedQuery(Array.from({ length: 12 }, (_, n) => page(n)), "otter").length, ROW_LIMIT);
-  assert.deepEqual(withTypedQuery([page(1)], "example.com").map((row) => row.kind), ["page"]);
+  const address = withTypedQuery([page(1)], "example.com");
+  assert.deepEqual(address.map((row) => row.kind), ["page", "query"]);
+  assert.deepEqual(rowTarget(address[1]!), enterTarget("example.com"));
   const already: TrayRow = { key: "q:Otter", kind: "query", title: "Otter", url: "https://www.google.com/search?q=Otter", query: "Otter" };
   assert.equal(withTypedQuery([already, page(1)], "otter").filter((row) => row.kind === "query").length, 1);
 });

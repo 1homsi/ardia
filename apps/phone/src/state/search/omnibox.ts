@@ -66,7 +66,7 @@ export function withTypedQuery(rows: TrayRow[], text: string): TrayRow[] {
   const lower = typed.toLowerCase();
   if (rows.some((row) => row.kind === "query" && row.title.toLowerCase() === lower)) return rows.slice(0, ROW_LIMIT);
   const resolution = mobileResolve(typed);
-  if (!resolution || resolution.kind === "url") return rows.slice(0, ROW_LIMIT);
+  if (!resolution) return rows.slice(0, ROW_LIMIT);
   const row: TrayRow = { key: `q:${typed}`, kind: "query", title: typed, url: resolution.url, query: typed, detail: resolution.kind === "bang" ? `Search ${resolution.engine}` : null };
   const kept = rows.filter((existing) => existing.key !== row.key);
   return [...kept.slice(0, Math.min(1, kept.length)), row, ...kept.slice(Math.min(1, kept.length))].slice(0, ROW_LIMIT);
