@@ -1524,14 +1524,44 @@ function Send-Address([string]$Address) {
   Start-Sleep -Milliseconds 300
 }
 
+if (-not ([System.Management.Automation.PSTypeName]"ArdiaTourScale").Type) {
+  Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class ArdiaTourScale {
+  [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool Get(uint action, uint parameter, ref int value, uint change);
+  [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool Set(uint action, int parameter, IntPtr value, uint change);
+}
+"@
+}
+
+function Get-ScaleStep {
+  $value = 0
+  [ArdiaTourScale]::Get(0x9E, 0, [ref]$value, 0) | Out-Null
+  return $value
+}
+
+function Set-ScaleStep([int]$Step) {
+  $set = [ArdiaTourScale]::Set(0x9F, $Step, [IntPtr]::Zero, 3)
+  Start-Sleep -Milliseconds 2500
+  return $set
+}
+
 function Get-PageWindow($Session, [string]$TitlePattern) {
   return @(Get-TopWindows $Session | Where-Object { $_.ClassName -match "^Chrome_" -and $_.Title -match $TitlePattern -and $_.Width -ge 100 -and $_.Height -ge 100 }) | Select-Object -First 1
 }
 
-function Invoke-PeekTour([string]$Name, [hashtable]$Settings, [string]$Look, [int]$Height = 0) {
+function Invoke-PeekTour([string]$Name, [hashtable]$Settings, [string]$Look, [int]$Height = 0, [int]$ScaleSteps = 0) {
   if (-not (Start-TourPages)) {
     $script:Lines.Add("- The $Name part found no loopback page server on port $($script:TourPagesPort).")
     return
+  }
+  $savedStep = $null
+  if ($ScaleSteps) {
+    $savedStep = Get-ScaleStep
+    $set = Set-ScaleStep ($savedStep + $ScaleSteps)
+    $script:Lines.Add("- The $Name part moved the display scale override from step $savedStep to $(Get-ScaleStep) (set: $set).")
   }
   $session = Start-Ardia $Name -Onboarded -Settings $Settings
   Invoke-Stop $session $Name "A Peek over a page, $Look" {
@@ -1581,6 +1611,7 @@ function Invoke-PeekTour([string]$Name, [hashtable]$Settings, [string]$Look, [in
     Start-Sleep -Milliseconds 800
   } | Out-Null
   Stop-Ardia $session
+  if ($null -ne $savedStep) { Set-ScaleStep $savedStep | Out-Null }
 }
 
 function Invoke-LayoutTour([string]$Name, [hashtable]$Settings, [string]$Title, [string]$Expected) {
@@ -1710,6 +1741,8 @@ if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $App) "chrome.dll")) {
       Invoke-PeekTour "peek-borderless" @{ appearance = "light"; borderlessMode = $true } "light, Borderless"
       Invoke-PeekTour "peek-top-tabs" @{ appearance = "light"; tabLayout = "top" } "light, tabs on top"
       Invoke-PeekTour "peek-short" @{ appearance = "light" } "light, a 460 pixel tall window" 460
+      Invoke-PeekTour "peek-scale-up" @{ appearance = "light" } "light, the display scale one step up" 0 1
+      Invoke-PeekTour "peek-scale-up-dark" @{ appearance = "dark" } "dark, the display scale one step up" 0 1
     } }
 }
 
