@@ -24,6 +24,8 @@ export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" |
     receivesTabs: offersTabs(r, lastSeen.get(id), now),
     lastSeen: lastSeen.get(id) ?? null,
     current: id === doc.deviceId,
+    ...(typeof r.v === "string" && r.v ? { version: r.v } : {}),
+    ...(typeof r.os === "string" && r.os ? { os: r.os } : {}),
   }));
   devices.sort((a, b) => Number(b.current) - Number(a.current) || (b.lastSeen ?? 0) - (a.lastSeen ?? 0));
   const remoteTabs: Record<string, RemoteTabs[]> = {};

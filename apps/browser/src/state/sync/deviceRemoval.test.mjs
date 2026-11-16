@@ -148,3 +148,31 @@ test("a removed device that still syncs comes back, and the Mac that removed it 
   });
   assert.equal(liveDevice(bId), true);
 });
+
+test("two Macs with the same name are told apart: only the other one can be removed, and its row says when it last synced and which Ardia and system it ran", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const old = new Mac("Old");
+  const engineA = await import("./engine.ts?nameA");
+  const engineOld = await import("./engine.ts?nameOld");
+  const { deviceDetail } = await import("./devices.ts");
+  const { appInfo } = await import("../../test-native/shell.ts");
+  appInfo.osVersion = "27.0";
+  await turnOn(a, engineA);
+  await join(old, engineOld);
+  await a.with(async () => {
+    await engineA.syncNow();
+    const devices = engineA.useSync.getState().devices;
+    assert.equal(devices.length, 2);
+    assert.equal(new Set(devices.map((d) => d.name)).size, 1, "both are named alike");
+    const [mine, other] = devices;
+    assert.equal(mine.current, true, "this Mac comes first and is marked");
+    assert.equal(engineA.removeSyncedDevice(mine.id), false, "this Mac can't remove itself");
+    assert.ok(other.version && other.os, JSON.stringify(other));
+    const at = other.lastSeen;
+    assert.equal(typeof at, "number");
+    assert.equal(deviceDetail(other, (t) => (t === at ? "3 weeks ago" : "?")), `last synced 3 weeks ago · Ardia ${other.version} · ${other.os}`);
+    assert.equal(other.os, "macOS 27.0");
+    assert.equal(deviceDetail({ lastSeen: null }, () => "?"), "hasn’t synced yet");
+  });
+});
