@@ -284,12 +284,14 @@ function Send-Click([int]$X, [int]$Y, [switch]$Right) {
 }
 
 function Send-MouseMove([int]$X, [int]$Y, [int]$Steps = 8) {
-  $size = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
+  $desk = [System.Windows.Forms.SystemInformation]::VirtualScreen
   $from = [System.Windows.Forms.Cursor]::Position
   for ($step = 1; $step -le $Steps; $step++) {
     $atX = $from.X + ($X - $from.X) * $step / $Steps
     $atY = $from.Y + ($Y - $from.Y) * $step / $Steps
-    [ArdiaTour]::mouse_event([uint32]0x8001, [uint32]([Math]::Round($atX * 65535 / ($size.Width - 1))), [uint32]([Math]::Round($atY * 65535 / ($size.Height - 1))), 0, [UIntPtr]::Zero)
+    $normalX = [Math]::Max(0, [Math]::Min(65535, [Math]::Round(($atX - $desk.Left) * 65535 / ($desk.Width - 1))))
+    $normalY = [Math]::Max(0, [Math]::Min(65535, [Math]::Round(($atY - $desk.Top) * 65535 / ($desk.Height - 1))))
+    [ArdiaTour]::mouse_event([uint32]0xC001, [uint32]$normalX, [uint32]$normalY, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 15
   }
 }
@@ -1069,11 +1071,14 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       }
     }
     $rested = $null
+    $holdMark = $null
+    $goStayed = $false
     if ($Submit -eq "Go") {
       Send-HumanText "e" $keyReads $KeyMs
       $rested = @(Find-Named $Session.Main "Go") | Select-Object -First 1
       if ($rested) { Send-MouseMove $rested.X $rested.Y }
       $stop.Facts.Add("after the first letter, moved the mouse onto Go: $([bool]$rested)")
+      $holdMark = Get-LogCount $Session
       Send-HumanText "xample.com" $keyReads $KeyMs
     } else {
       Send-HumanText "example.com" $keyReads $KeyMs
@@ -1098,6 +1103,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
         $after = @(Find-Named $Session.Main "Go")
         $where = if ($after.Count) { "$($after[0].X),$($after[0].Y)" } else { "not found by that name" }
         $stop.Facts.Add("Go was at $($aimedAt.X),$($aimedAt.Y) when the field settled, with the mouse resting over the bar; 2 s later, as the late suggestions came in, it was at $where; clicked $($aimedAt.X),$($aimedAt.Y)")
+        $goStayed = [bool]($after.Count -and $after[0].X -eq $aimedAt.X -and $after[0].Y -eq $aimedAt.Y)
         Send-Click $aimedAt.X $aimedAt.Y
       }
       $stop.Facts.Add("Go button found and clicked: $([bool]$aimedAt)")
@@ -1126,8 +1132,12 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $stop.Facts.Add("required: the first key in the box: $firstKeyOk")
     }
     $stop.Facts.Add("report only ($Issues): every key landed and $Submit opened Example Domain: $whole")
-    if ($RequireLoaded) { $stop.Facts.Add("required (#2102): $Submit opened Example Domain: $([bool]$loaded)") }
-    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } elseif ($RequireLoaded) { $firstKeyOk -and [bool]$loaded } else { $firstKeyOk }))
+    $heldUnderPointer = $false
+    if ($RequireLoaded) {
+      $heldUnderPointer = [bool]($rested -and $null -ne $holdMark -and @(Get-LinesSince $Session $holdMark "\[ardia windows\] bar rows pointer over, holding").Count -and $goStayed)
+      $stop.Facts.Add("required (#2102): the mouse rested on Go, the bar held the late rows under it and Go stayed put: $heldUnderPointer; $Submit opened Example Domain: $([bool]$loaded)")
+    }
+    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } elseif ($RequireLoaded) { $firstKeyOk -and [bool]$loaded -and $heldUnderPointer } else { $firstKeyOk }))
   }
   if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
   return $stop
