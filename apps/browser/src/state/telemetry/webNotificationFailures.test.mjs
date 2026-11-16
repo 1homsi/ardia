@@ -72,6 +72,13 @@ test("a post macOS accepted records nothing", async () => {
   assert.equal((await failures()).length, 0);
 });
 
+test("a post a Windows or Linux host accepted answers with the id as text and records nothing", async () => {
+  const before = (await failures()).length;
+  await recordWebNotificationPost(Promise.resolve("web:2"), SENT);
+  await recordWebNotificationPost(Promise.resolve(null), SENT);
+  assert.equal((await failures()).length, before);
+});
+
 test("a post with no id records one event with the error code", async () => {
   await recordWebNotificationPost(Promise.resolve({ icon: "download_failed", iconErrorCode: -1009, errorDomain: "UNErrorDomain", errorCode: 3 }), SENT);
   const events = await failures();
