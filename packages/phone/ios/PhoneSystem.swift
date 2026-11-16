@@ -86,9 +86,13 @@ public final class PhoneSystemLinks {
   private func drainInbox() {
     guard let store = SystemStore.shared else { return }
     for item in store.pendingInbox() {
-      guard case .open = item.action else { continue }
-      store.removeFromInbox(item.id)
-      if let url = item.url { deliver(["kind": "open", "url": url, "source": "share"]) }
+      switch item.action {
+      case .open:
+        store.removeFromInbox(item.id)
+        if let url = item.url { deliver(["kind": "open", "url": url, "source": "share"]) }
+      case .send(let target):
+        PhoneSyncHost.shared.sendFromShareSheet(item, to: target, store: store)
+      }
     }
   }
 
@@ -136,6 +140,10 @@ public final class SystemModule: Module {
 
     OnStopObserving {
       onMain { PhoneSystemLinks.shared.sink = nil }
+    }
+
+    Function("setWidgetColorChoice") { (choice: String?) in
+      DispatchQueue.main.async { MainActor.assumeIsolated { PhoneSyncHost.shared.widgetColorChoice = choice } }
     }
 
     Function("processStartedAt") { () -> Double? in

@@ -31,6 +31,12 @@ public final class PhoneSyncHost {
   private var announced = Set<String>()
   private(set) var incoming: [ReceivedTab] = []
   private let exporter = WidgetExporter()
+  private var sharesInFlight = Set<UUID>()
+  static let shareSyncWait: Duration = .seconds(20)
+
+  var widgetColorChoice: String? {
+    didSet { if widgetColorChoice != oldValue { exportWidget() } }
+  }
 
   private(set) var listener: ((Change) -> Void)?
   private weak var listenerOwner: AnyObject?
@@ -162,7 +168,7 @@ public final class PhoneSyncHost {
     let service = service
     let widget = withObservationTracking {
       _ = (service.snapshot, service.selectedProfileId, service.isEnabled)
-      return WidgetExporter.snapshot(sync: service, colorChoice: nil)
+      return WidgetExporter.snapshot(sync: service, colorChoice: widgetColorChoice)
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in
         guard let self, self.generation == current else { return }
@@ -172,4 +178,32 @@ public final class PhoneSyncHost {
     }
     if !isDemo, let store = SystemStore.shared { exporter.export(widget, into: store) }
   }
+
+  private func exportWidget() {
+    guard !isDemo, let store = SystemStore.shared else { return }
+    exporter.export(WidgetExporter.snapshot(sync: service, colorChoice: widgetColorChoice), into: store)
+  }
+
+  func sendFromShareSheet(_ item: SystemInboxItem, to target: SystemDevice, store: SystemStore) {
+    guard !isDemo, !sharesInFlight.contains(item.id) else { return }
+    guard let url = item.url.flatMap(URL.init(string:)) else { return store.removeFromInbox(item.id) }
+    sharesInFlight.insert(item.id)
+    Task { @MainActor in
+      defer { sharesInFlight.remove(item.id) }
+      let deadline = ContinuousClock.now + Self.shareSyncWait
+      while !canAnswerShare(for: target), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(250))
+      }
+      guard canAnswerShare(for: target) else { return }
+      guard service.isEnabled, let device = service.snapshot.devices.first(where: { $0.id == target.id }) else {
+        return store.removeFromInbox(item.id)
+      }
+      if await service.send(url: url, title: item.title, to: device, key: item.id) { store.removeFromInbox(item.id) }
+    }
+  }
+
+  private func canAnswerShare(for target: SystemDevice) -> Bool {
+    !service.isEnabled || service.phase == .updated || service.snapshot.devices.contains { $0.id == target.id }
+  }
 }
+

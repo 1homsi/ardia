@@ -247,6 +247,8 @@ enum LegacyReader {
     return ["visits": kept, "next": page.count > size ? start + size : NSNull()]
   }
 
+  static let jsonPreferenceKeys: Set<String> = ["library.hiddenHistory"]
+
   static func preferenceStrings() -> [String: String] {
     var strings: [String: String] = [:]
     for (key, value) in LegacyPaths.legacyPreferences() {
@@ -254,6 +256,10 @@ enum LegacyReader {
       case let text as String: strings[key] = text
       case let number as NSNumber:
         strings[key] = CFGetTypeID(number) == CFBooleanGetTypeID() ? (number.boolValue ? "true" : "false") : number.stringValue
+      case let dictionary as [String: Any] where jsonPreferenceKeys.contains(key):
+        if JSONSerialization.isValidJSONObject(dictionary), let data = try? JSONSerialization.data(withJSONObject: dictionary, options: [.sortedKeys]) {
+          strings[key] = String(decoding: data, as: UTF8.self)
+        }
       default: continue
       }
     }

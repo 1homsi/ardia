@@ -170,13 +170,44 @@ export function planVisit(raw: unknown): ImportVisit | "malformed" | "notWeb" {
 
 const PREFERENCE_NAMES = new Map<string, keyof Preferences>(Object.entries(PREFERENCE_KEYS).map(([name, key]) => [key, name as keyof Preferences]));
 
+export function hiddenHistoryFromSeconds(raw: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(parsed)) return undefined;
+  const spaces: Record<string, Record<string, number>> = {};
+  for (const [space, hidden] of Object.entries(parsed)) {
+    if (!space || !isRecord(hidden)) return undefined;
+    const urls: Record<string, number> = {};
+    for (const [url, seconds] of Object.entries(hidden)) {
+      if (!url || typeof seconds !== "number" || !Number.isFinite(seconds)) return undefined;
+      urls[url] = Math.round(seconds * 1000);
+    }
+    if (Object.keys(urls).length) spaces[space] = urls;
+  }
+  return Object.keys(spaces).length ? JSON.stringify(spaces) : undefined;
+}
+
+const OTHER_STORED_KEYS: Record<string, (raw: string) => string | undefined> = {
+  "tabs.deckGrid": (raw) => (raw === "true" || raw === "false" ? raw : undefined),
+  "library.hiddenHistory": hiddenHistoryFromSeconds,
+};
+
 export function importPreferences(stored: Record<string, unknown>): { values: Record<string, string>; excluded: Tally } {
   const values: Record<string, string> = {};
   const excluded: Tally = {};
   for (const key of Object.keys(stored).sort()) {
     const value = stored[key];
     const name = PREFERENCE_NAMES.get(key);
-    if (!name) countReason(excluded, "unknownKey");
+    const other = OTHER_STORED_KEYS[key];
+    if (other) {
+      const converted = typeof value === "string" || typeof value === "boolean" ? other(String(value)) : undefined;
+      if (converted === undefined) countReason(excluded, "badValue");
+      else values[key] = converted;
+    } else if (!name) countReason(excluded, "unknownKey");
     else if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") countReason(excluded, "badValue");
     else if (String(value) === "") countReason(excluded, "empty");
     else if (!acceptsPreference(name, String(value))) countReason(excluded, "badValue");
@@ -186,6 +217,7 @@ export function importPreferences(stored: Record<string, unknown>): { values: Re
 }
 
 export function samePreference(key: string, written: string | undefined, wanted: string): boolean {
+  if (OTHER_STORED_KEYS[key]) return written === wanted;
   const name = PREFERENCE_NAMES.get(key);
   if (written !== wanted || !name) return false;
   return parsePreferences({ [key]: written })[name] === parsePreferences({ [key]: wanted })[name];

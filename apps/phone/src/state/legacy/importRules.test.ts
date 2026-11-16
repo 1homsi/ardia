@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { EXAMPLE, legacyRead, NEWS, OTTER, T } from "../../../test/legacyFixture.ts";
-import { exclusionCounts, importPreferences, planTabs, planVisit, readReceipt, samePreference } from "./importRules.ts";
+import { exclusionCounts, hiddenHistoryFromSeconds, importPreferences, planTabs, planVisit, readReceipt, samePreference } from "./importRules.ts";
 
 test("open tabs keep their order, state, profile, received keys and look; bad addresses are counted, not lost silently", () => {
   const plan = planTabs(legacyRead(), "android");
@@ -63,6 +63,19 @@ test("preferences arrive as strings and land only when their value is one the ap
   ]);
   assert.deepEqual(excluded, { unknownKey: 1, empty: 1, badValue: 1 });
   assert.deepEqual(importPreferences({ "reader.sizeStep": { deep: true }, "settings.finishedOnboarding": "yes" }).excluded, { badValue: 2 });
+});
+
+test("the deck's grid choice and History's hidden entries come across from main's own keys", () => {
+  const hidden = { personal: { "https://news.example/": 1763270000.5 }, work: {} };
+  const { values, excluded } = importPreferences({ "tabs.deckGrid": true, "library.hiddenHistory": JSON.stringify(hidden) });
+  assert.equal(values["tabs.deckGrid"], "true");
+  assert.deepEqual(JSON.parse(values["library.hiddenHistory"]!), { personal: { "https://news.example/": 1763270000500 } });
+  assert.deepEqual(excluded, {});
+  assert.deepEqual(importPreferences({ "tabs.deckGrid": "maybe", "library.hiddenHistory": "{}" }).excluded, { badValue: 2 });
+  assert.equal(hiddenHistoryFromSeconds(JSON.stringify({ personal: { "https://a.example/": "soon" } })), undefined);
+  assert.equal(hiddenHistoryFromSeconds("not json"), undefined);
+  assert.equal(samePreference("tabs.deckGrid", "true", "true"), true);
+  assert.equal(samePreference("library.hiddenHistory", "{}", "{\"a\":{}}"), false);
 });
 
 test("a preference is checked by its value and its typed meaning, not just by being there", () => {
