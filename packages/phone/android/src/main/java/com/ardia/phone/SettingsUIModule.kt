@@ -5,6 +5,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -51,6 +65,8 @@ import com.ardia.design.SetupStepRow
 import com.ardia.design.SystemPalette
 import com.ardia.design.profileBackdrop
 import expo.modules.kotlin.modules.Module
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.views.ComposeProps
 import expo.modules.kotlin.views.FunctionalComposableScope
@@ -128,6 +144,90 @@ data class CheckmarkLabelProps(val title: String = "", val isChecked: Boolean = 
 @OptimizedComposeProps
 data class AppIconPreviewProps(val side: Double = 29.0, val modifiers: ModifierList = emptyList()) : ComposeProps
 
+class SettingsShortcutRecord : Record {
+    @Field val id: String = ""
+
+    @Field val title: String = ""
+}
+
+class PinnedTabRecord : Record {
+    @Field val key: String = ""
+
+    @Field val title: String = ""
+
+    @Field val url: String = ""
+}
+
+class PinnedTileRecord : Record {
+    @Field val key: String = ""
+
+    @Field val title: String = ""
+
+    @Field val url: String = ""
+
+    @Field val icon: String? = null
+
+    @Field val folder: List<PinnedTabRecord>? = null
+
+    val item: PinnedTileItem
+        get() = PinnedTileItem(key, title, url, icon, folder?.map { PinnedTabItem(it.key.ifEmpty { it.url }, it.title, it.url) })
+}
+
+class ShortcutPressEvent(@Field val id: String = "") : Record
+
+class TileOpenEvent(@Field val url: String = "", @Field val title: String = "") : Record
+
+class PresentedChangeEvent(@Field val isPresented: Boolean = false) : Record
+
+class TextChangeEvent(@Field val text: String = "") : Record
+
+@OptimizedComposeProps
+data class SettingsShortcutsProps(val shortcuts: List<SettingsShortcutRecord> = emptyList(), val modifiers: ModifierList = emptyList()) : ComposeProps
+
+@OptimizedComposeProps
+data class SpaceTitleProps(
+    val name: String = "",
+    val icon: String? = null,
+    val color: String? = null,
+    val themeColors: List<String> = emptyList(),
+    val themeDarkColors: List<String>? = null,
+    val showsChevron: Boolean = false,
+    val modifiers: ModifierList = emptyList(),
+) : ComposeProps
+
+@OptimizedComposeProps
+data class GlassCircleButtonProps(val symbol: String = "xmark", val label: String = "", val diameter: Double = 44.0, val modifiers: ModifierList = emptyList()) : ComposeProps
+
+@OptimizedComposeProps
+data class SpacePageDotsProps(val count: Int = 1, val index: Int = 0, val modifiers: ModifierList = emptyList()) : ComposeProps
+
+@OptimizedComposeProps
+data class PinnedTilesProps(val tiles: List<PinnedTileRecord> = emptyList(), val modifiers: ModifierList = emptyList()) : ComposeProps
+
+@OptimizedComposeProps
+data class FullScreenCoverProps(val isPresented: Boolean = false, val modifiers: ModifierList = emptyList()) : ComposeProps
+
+@OptimizedComposeProps
+data class FilterTextEditorProps(val text: String = "", val modifiers: ModifierList = emptyList()) : ComposeProps
+
+@Composable
+private fun FilterTextEditorFace(text: String, modifier: Modifier, onChange: (String) -> Unit) {
+    val dark = isSystemInDarkTheme()
+    var shown by remember { mutableStateOf(text) }
+    LaunchedEffect(text) { if (text != shown) shown = text }
+    BasicTextField(
+        value = shown,
+        onValueChange = { value ->
+            shown = value
+            if (value != text) onChange(value)
+        },
+        textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, lineHeight = 21.sp, color = SystemPalette.label.resolve(dark)),
+        cursorBrush = SolidColor(Palette.formAccent.resolve(dark)),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
+        modifier = modifier.background(if (dark) Color.Black else Color.White).padding(horizontal = 12.dp),
+    )
+}
+
 @Composable
 private fun Themed(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalArdiaDarkTheme provides isSystemInDarkTheme(), content = content)
@@ -164,7 +264,7 @@ internal object SettingsSurfaces {
 }
 
 internal object SettingsUIModifiers {
-    val names = listOf("ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins")
+    val names = listOf("ardia.navigationBarBackButtonHidden", "ardia.minListRowHeight", "ardia.spaceBackdrop", "ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins")
 
     private fun ModifierType.text(key: String): String? = runCatching { get(key)?.takeUnless { it.isNull }?.asString() }.getOrNull()
 
@@ -177,6 +277,12 @@ internal object SettingsUIModifiers {
     }.getOrNull()
 
     fun register() {
+        ModifierRegistry.register("ardia.navigationBarBackButtonHidden") { _, _, _, _ -> Modifier }
+        ModifierRegistry.register("ardia.minListRowHeight") { _, _, _, _ -> Modifier }
+        ModifierRegistry.register("ardia.spaceBackdrop") { params, _, _, _ ->
+            val dark = isSystemInDarkTheme()
+            Modifier.spaceBackdrop(SpaceRules.tones(params.text("color"), params.texts("themeColors").orEmpty(), params.texts("themeDarkColors"), dark, increasedContrast = false), dark)
+        }
         ModifierRegistry.register("ardia.settingsChrome") { _, _, _, _ ->
             val dark = isSystemInDarkTheme()
             Modifier.profileBackdrop(SettingsLook.look, dark)
@@ -286,5 +392,64 @@ class SettingsUIModule : Module() {
                 Themed { AppIcon(props.side, applied(props.modifiers)) }
             }
         }
+
+        ExpoUIView<SettingsShortcutsProps>("SettingsShortcutsView") {
+            val onShortcutPress by Event<ShortcutPressEvent>()
+            Content { props ->
+                Themed { SettingsShortcutsFace(props.shortcuts.map { it.id to it.title }, applied(props.modifiers)) { onShortcutPress(ShortcutPressEvent(it)) } }
+            }
+        }
+
+        ExpoUIView<SpaceTitleProps>("SpaceTitleView") {
+            Content { props ->
+                Themed { SpaceTitleFace(props.name, props.icon, props.showsChevron, applied(props.modifiers)) }
+            }
+        }
+
+        ExpoUIView<GlassCircleButtonProps>("GlassCircleButtonView") {
+            val onButtonPress by Event<Unit>()
+            Content { props ->
+                Themed { GlassCircleFace(props.symbol, props.label, props.diameter.dp, applied(props.modifiers)) { onButtonPress(Unit) } }
+            }
+        }
+
+        ExpoUIView<SpacePageDotsProps>("SpacePageDotsView") {
+            Content { props ->
+                Themed { SpacePageDotsFace(props.count, props.index, applied(props.modifiers)) }
+            }
+        }
+
+        ExpoUIView<PinnedTilesProps>("PinnedTilesView") {
+            val onTileOpen by Event<TileOpenEvent>()
+            Content { props ->
+                Themed { PinnedTilesFace(props.tiles.map { it.item }, applied(props.modifiers)) { url, title -> onTileOpen(TileOpenEvent(url, title)) } }
+            }
+        }
+
+        ExpoUIView<FullScreenCoverProps>("FullScreenCoverView") {
+            val onIsPresentedChange by Event<PresentedChangeEvent>()
+            Content { props ->
+                if (props.isPresented) {
+                    Dialog(onDismissRequest = { onIsPresentedChange(PresentedChangeEvent(false)) }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+                        Themed {
+                            Box(applied(props.modifiers).fillMaxSize().background(if (isSystemInDarkTheme()) Color.Black else Color.White)) { Children(composableScope) }
+                        }
+                    }
+                }
+            }
+        }
+
+        ExpoUIView<FilterTextEditorProps>("FilterTextEditorView") {
+            val onTextChange by Event<TextChangeEvent>()
+            Content { props ->
+                Themed { FilterTextEditorFace(props.text, applied(props.modifiers)) { onTextChange(TextChangeEvent(it)) } }
+            }
+        }
+
+        Function("spaceMenuSymbol") { name: String, icon: String? -> SpaceRules.menuSymbol(name, icon) }
+
+        Function("spaceSymbol") { icon: String? -> SpaceRules.symbol(icon) }
+
+        Function("spaceColor") { name: String? -> SpaceRules.colour(name) }
     }
 }
