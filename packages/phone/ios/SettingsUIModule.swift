@@ -318,9 +318,13 @@ struct FilterTextEditorView: ExpoSwiftUI.View {
 
   var body: some View {
     TextEditor(text: $text)
-      .font(.footnote.monospaced())
+      .font(.callout.monospaced())
       .autocorrectionDisabled()
       .textInputAutocapitalization(.never)
+      .keyboardType(.asciiCapable)
+      .scrollContentBackground(.hidden)
+      .padding(.horizontal, Spacing.small)
+      .background(Color(.systemBackground))
       .onAppear { text = props.text }
       .onChange(of: props.text) { _, value in
         if value != text { text = value }
@@ -398,6 +402,14 @@ struct MinListRowHeightModifier: ViewModifier, Record {
   }
 }
 
+struct BackButtonHiddenModifier: ViewModifier, Record {
+  @Field var hidden: Bool = false
+
+  func body(content: Content) -> some View {
+    content.navigationBarBackButtonHidden(hidden)
+  }
+}
+
 struct ContentMarginsModifier: ViewModifier, Record {
   @Field var edges: String = "top"
   @Field var length: Double = 0
@@ -429,9 +441,10 @@ struct ProfileLookModifier: ViewModifier, Record {
 }
 
 enum SettingsUIModifiers {
-  static let names = ["ardia.minListRowHeight", "ardia.spaceBackdrop", "ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"]
+  static let names = ["ardia.navigationBarBackButtonHidden", "ardia.minListRowHeight", "ardia.spaceBackdrop", "ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"]
 
   static func register() {
+    ViewModifierRegistry.register("ardia.navigationBarBackButtonHidden") { params, context, _ in try BackButtonHiddenModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.minListRowHeight") { params, context, _ in try MinListRowHeightModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.spaceBackdrop") { params, context, _ in try SpaceBackdropModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.settingsChrome") { params, context, _ in try SettingsChromeModifier(from: params, appContext: context) }
