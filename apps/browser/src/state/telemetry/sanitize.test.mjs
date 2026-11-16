@@ -344,3 +344,20 @@ test("hermesFatalReason keeps the engine's first line, scrubbed and capped, and 
   assert.ok(long.endsWith("…"));
   for (const empty of ["", "   ", "\n", undefined, null, 7, {}, ["x"]]) assert.equal(hermesFatalReason(empty), null, String(empty));
 });
+
+test("the snapshot reports the interface size in whole percent with its default, and counts narrow windows in root points", async () => {
+  const { useInterfaceScale } = await import("../settings/interfaceScale.ts");
+  useInterfaceScale.setState({ scale: 1.25 });
+  try {
+    const snap = settingsSnapshot(DEFAULT_SETTINGS);
+    assert.equal(snap.setting_interfaceScale, "125");
+    assert.equal(snap.default_interfaceScale, "100");
+    assert.deepEqual(cleanProperties(snap), snap);
+    const wide = { kind: "main", frame: [0, 0, 800, 700] };
+    assert.deepEqual(narrowWindows({ a: wide }, 190), { narrow_windows: "1", sidebar_narrowed_windows: "0" }, "800 window points are 640 root points at 125%");
+    assert.deepEqual(narrowWindows({ a: wide }, 400), { narrow_windows: "1", sidebar_narrowed_windows: "1" });
+  } finally {
+    useInterfaceScale.setState({ scale: 1 });
+  }
+  assert.equal(settingsSnapshot(DEFAULT_SETTINGS).setting_interfaceScale, "100");
+});
