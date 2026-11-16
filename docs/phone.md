@@ -1880,13 +1880,17 @@ gh run watch --exit-status                                     the run's summary
 **The version.** One source, no hand edits: the `version` input, or else the Mac app's `MARKETING_VERSION` at that
 commit, as `release-ios` takes it.
 - `apps/phone/scripts/android-version.ts` turns it into the versionName (the release version itself, e.g.
-  `0.2.47-nightly.2`) and the versionCode: major·10^7 + minor·10^5 + patch·10^2 + the nightly's number, or 99 for a
-  stable. So `0.2.47-nightly.2` is 204702 and `0.2.47` is 204799.
+  `0.2.47-nightly.2`) and the versionCode, by `main`'s release-channel formula (14a4f71f7, `docs/releasing.md` ›
+  Every platform): major·10^8 + minor·10^6 + patch·10^3 + the nightly's number, or 999 for a stable. So
+  `0.2.47-nightly.2` is 2047002 and `0.2.47` is 2047999. It stops on a major over 20, a minor over 99, a patch over 999,
+  or a nightly outside 1–998.
 - Every nightly sorts below its stable, each release is above the last, and every release is above the lab builds'
-  versionCode 2.
-- `build-apk --version` passes both to Gradle. The app's `appRelease()` gives the Settings footer "Ardia 0.2.47
-  (204799)". The JS label shows "Nightly" only for a TestFlight receipt, so an Android nightly reads without it, a
-  screens-agent change if wanted.
+  versionCode 2. A build without a release version is a Dev build: versionName `dev`.
+- The candidates before the formula changed (rc1 204702, rc2 204703) are below every release under it, so a release
+  updates over them.
+- `build-apk --version` passes both to Gradle. `appRelease()` gives the release version, empty for a Dev build. The
+  Settings footer should read as `main`'s does: "Ardia 0.2.47 Nightly 2 (2047002)", "Ardia 0.2.47 (2047999)", or
+  "Ardia Dev". The JS label shows "Nightly" only for a TestFlight receipt, so this is the screens agent's change.
 - The iPhone build of the same release reads "Ardia 0.2.47 Nightly 4 (n)". Its build number counts uploads; Android's
   versionCode comes from the version alone.
 

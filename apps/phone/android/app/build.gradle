@@ -89,7 +89,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode ardiaVersionCode
-        versionName ardiaReleaseVersion ?: "0.1.0"
+        versionName ardiaReleaseVersion ?: "dev"
         resValue "string", "ardia_release_version", ardiaReleaseVersion
         resValue "string", "ardia_build_commit", ardiaCommit
         resValue "string", "ardia_build_dirty", ardiaDirty
