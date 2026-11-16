@@ -16,6 +16,12 @@ final class PageView: ExpoView {
   var obscuredInsets: UIEdgeInsets = .zero {
     didSet { if obscuredInsets != oldValue { applyObscuredInsets() } }
   }
+  var topClearance: CGFloat = 0 {
+    didSet { if topClearance != oldValue { applyObscuredInsets() } }
+  }
+  var obscuresSafeTop = false {
+    didSet { if obscuresSafeTop != oldValue { applyObscuredInsets() } }
+  }
   var swipeNavigation: PageGestures.Swipe = .anywhere
   var pullToRefresh = true
   private(set) var page: WebTab?
@@ -205,9 +211,25 @@ final class PageView: ExpoView {
     if let hostedWebView, hostedWebView.superview === self { hostedWebView.frame = bounds }
   }
 
+  override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    if obscuresSafeTop { applyObscuredInsets() }
+  }
+
+  var effectiveObscuredInsets: UIEdgeInsets {
+    let top = (obscuresSafeTop ? safeAreaInsets.top : obscuredInsets.top) + topClearance
+    return UIEdgeInsets(top: top, left: 0, bottom: obscuredInsets.bottom, right: 0)
+  }
+
   private func applyObscuredInsets() {
-    guard let hostedWebView, hostedWebView.superview === self, hostedWebView.obscuredContentInsets != obscuredInsets else { return }
-    hostedWebView.obscuredContentInsets = obscuredInsets
+    guard let hostedWebView, hostedWebView.superview === self else { return }
+    let insets = effectiveObscuredInsets
+    if hostedWebView.obscuredContentInsets != insets { hostedWebView.obscuredContentInsets = insets }
+    let scrollView = hostedWebView.scrollView
+    if scrollView.contentInset.top != topClearance {
+      scrollView.contentInset.top = topClearance
+      scrollView.verticalScrollIndicatorInsets.top = topClearance
+    }
   }
 
   @MainActor

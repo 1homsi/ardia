@@ -25,6 +25,7 @@ export { FadeView, fadeIsNative, type FadeEdge, type FadeViewProps } from "./fad
 export { PasteButton, pasteButtonIsNative, type PasteButtonProps } from "./pasteButton";
 export { actionSheet, ContextMenuView, nativeMenusAvailable, type ActionSheetAction, type ActionSheetOptions, type ContextMenuProps, type MenuAppearance, type MenuItem } from "./menus";
 export { MotionView, motionRunsInRenderServer, type MotionCurve, type MotionTarget, type MotionViewProps } from "./motion";
+export { forcedDuoCanvas, ScreenLayoutProbe, screenLayoutIsNative, type DuoCanvasMode, type ScreenLayoutEdge, type ScreenLayoutName, type ScreenLayoutReport, type ScreenSpaceReport } from "./screenLayout";
 export * as settingsUI from "./settingsUI";
 export { sync } from "./sync";
 export { syncLab, type SyncRuntimeCheck } from "./syncLab";

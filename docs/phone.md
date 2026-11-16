@@ -1430,9 +1430,11 @@ keyboard never changes it. Checked in this order:
 4. Otherwise `phone`.
 
 A closed Duo (466×678, 84 trailing) is `column`; an open Duo (669×951, or 951×669 on its side) is `wide`; half open
-is `split`. An ordinary iPhone in landscape has equal side insets and stays `phone`. Open question, to settle on a
-simulator: whether iOS 27.1 reports the vertical bar edge on a plain iPhone in landscape; if it does, a Pro (62
-side insets) would get `column` with 72, and a non-Pro (59) would stay `phone`.
+is `split`. An ordinary iPhone in landscape has equal side insets and stays `phone`. Checked 2026-11-16 on an
+iPhone 17 Pro simulator, iOS 27.0: main rotated both ways keeps the phone layout (bottom row bar), and the probe
+reports 750×382 with 62 on each side and no vertical bar edge. Still open for iOS 27.1, where the trait exists: if it
+reports an edge on a plain iPhone in landscape, a Pro (62 side insets) would get `column` with 72, and a non-Pro (59)
+would stay `phone`. No simulator pool offers a 27.1 iPhone other than the Duo.
 
 A layout change is not animated: views swap at once. Pages are not reloaded (the web views are re-parented), the
 open search tray stays, and app state (tabs, surface, grid, sheets) survives. Going between `phone` and `wide`
@@ -1545,11 +1547,11 @@ the Compose app has no orientation lock.
 
 | Piece | Change | Owner |
 | --- | --- | --- |
-| `apps/phone/ios/Ardia/Info.plist` | The three orientations | iPhone |
+| `apps/phone/ios/Ardia/Info.plist` | The three orientations (done, 76f5df8c8) | iPhone |
 | `apps/phone/android/app/src/main/AndroidManifest.xml` | Drop `screenOrientation="portrait"` from `MainActivity` | Android |
 | `FullscreenHost` (`packages/phone/android`) | Ask for no orientation once the lock is gone; never end fullscreen on rotation | Android |
-| `PageView` (`packages/phone/ios`) | Re-apply obscured insets on a safe-area change; a top content inset (63 in `wide`) beside the obscured insets | iPhone |
-| Simulation | A test-build switch forcing `wide`, `split` and `column` on a phone, as main's `-ArdiaDuoCanvas` does, plus the layout probe (vertical bar edge, hinge, fold) as a native module function | iPhone |
+| `PageView` (`packages/phone/ios`) | Done: `obscuresSafeTop` takes the obscured top from the view's own safe top, re-applied on every safe-area change, as main's `applyInsets`; `topClearance` (63 in `wide`) sets the scroll view's top content and indicator insets and adds to the obscured top | iPhone |
+| Simulation | Done: `<ScreenLayoutProbe onLayoutChange>` (mounted full screen) reports `layout`, `column {edge, inset}` (rounded to 12), `fold {top, bottom}` (screen points, safe top added), `canvas`, `forced` and the raw space, once per settled change; resolve is main's, tested in `ScreenLayoutTests`. In test builds `-ArdiaDuoCanvas wide\|split\|column` (main's `open` and `half` too) forces a layout: wide and split on a 669×951 canvas with the fold at 465.5 to 485.5, column trailing at 84; reports log as `ARDIA_SCREEN` | iPhone |
 | `App.tsx` | Resolve the layout from window size, insets and the probe; swap in the Duo view | screens |
 | `FloatingBar`, `BottomBar`, `barGeometry` | Pad by `max(left, right)`; the column arrangement | screens |
 | `PageSurface`, `TabPager` | Insets and pager width on rotation; the `wide` clearance | screens |

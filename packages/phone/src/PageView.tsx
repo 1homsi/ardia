@@ -17,6 +17,8 @@ type NativeProps = ViewProps & {
   savedState?: string;
   toneInsets?: [number, number];
   obscuredInsets?: [number, number];
+  topClearance?: number;
+  obscuresSafeTop?: boolean;
   surfaceColor?: NativeColor;
   onPageEvent?: (event: NativeSyntheticEvent<PageEventPayload>) => void;
 };

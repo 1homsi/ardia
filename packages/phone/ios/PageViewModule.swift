@@ -390,6 +390,14 @@ public final class PageViewModule: Module {
         }
       }
 
+      Prop("topClearance") { (view: PageView, clearance: Double?) in
+        view.topClearance = max(CGFloat(clearance ?? 0), 0)
+      }
+
+      Prop("obscuresSafeTop") { (view: PageView, follows: Bool?) in
+        view.obscuresSafeTop = follows == true
+      }
+
       Prop("swipeNavigation") { (view: PageView, mode: String?) in
         view.swipeNavigation = mode.flatMap(PageGestures.Swipe.init(rawValue:)) ?? .anywhere
       }
