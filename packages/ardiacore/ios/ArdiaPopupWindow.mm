@@ -43,8 +43,6 @@ NSString *HostOf(NSString *url) {
   return [NSURL URLWithString:url ?: @""].host ?: @"";
 }
 
-// The key-system family of a protected-media request, from the same prefixes page_script.js sends `drm` for. Anything else
-// is "other". Only this fixed word is ever logged or counted, never the key-system string itself.
 NSString *KeySystemFamily(NSString *keySystem) {
   if ([keySystem hasPrefix:@"com.widevine.alpha"]) return @"widevine";
   if ([keySystem hasPrefix:@"com.microsoft.playready"]) return @"playready";
@@ -52,8 +50,6 @@ NSString *KeySystemFamily(NSString *keySystem) {
   return @"other";
 }
 
-// Whether the popup's page is on the streaming-site list that opens in WebKit (PROTECTED_VIDEO_SITES in engines.ts; a test
-// keeps the two lists equal): https, and the host or a subdomain of one of these.
 BOOL OnProtectedVideoSite(NSString *url) {
   static NSArray<NSString *> *domains = @[
     @"netflix.com", @"disneyplus.com", @"max.com", @"hbomax.com", @"primevideo.com", @"hulu.com", @"tv.apple.com", @"music.apple.com",
@@ -357,10 +353,6 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
   if (!ardia_host::Background()) [_coreWindow.window makeKeyAndOrderFront:nil];
 }
 
-// A popup (Audible's cloud player, issue #958) has no prompt to offer WebKit, so its page's `drm` message used to go
-// nowhere. This only records it, as one count by key-system family and by whether the popup's host is on the streaming-site
-// list, and one log line with the family. It never forwards the message, so the popup behaves as before, and it never
-// records the URL, the host, the title or anything the page sent beyond the family.
 - (void)tab:(ArdiaCoreTab *)tab
     didReceivePageMessage:(NSString *)kind
                      json:(NSString *)json

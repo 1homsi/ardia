@@ -1,8 +1,5 @@
 import type { PopupProtectedMedia } from "../../platform/performance";
 
-// A page in a popup window (Audible's cloud player, issue #958) asked for protected media and was refused or stalled.
-// The popup has no prompt to offer WebKit, so this only counts how often it happens, by key-system family and by whether
-// the popup's host is on the streaming-site list. Never which page, host or title.
 const FAMILIES = ["widevine", "playready", "fairplay", "other"] as const;
 type Family = (typeof FAMILIES)[number];
 

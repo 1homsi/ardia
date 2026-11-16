@@ -39,8 +39,6 @@ test("every kind the page script sends has a native receiver, and every receiver
   assert.deepEqual(sorted(received), sorted(sent));
 });
 
-// A popup window (Audible's cloud player, #958) has no prompt to offer WebKit. Its host used not to implement the page
-// message callback, so a popup page's `drm` message went nowhere. It now only counts it.
 const popupWindow = native("ArdiaPopupWindow.mm");
 const popupReceiver = popupWindow.slice(popupWindow.indexOf("- (void)tab:(ArdiaCoreTab *)tab\n    didReceivePageMessage:"));
 const popupReceiverBody = popupReceiver.slice(0, popupReceiver.indexOf("\n}\n"));

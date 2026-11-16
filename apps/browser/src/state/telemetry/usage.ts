@@ -345,10 +345,7 @@ function hourly() {
   void reportLocalStore();
 }
 
-const rebootedSince = (lastLaunchAt: number | null) => {
-  const boot = appInfo().bootTime;
-  return lastLaunchAt != null && boot != null ? boot > lastLaunchAt : null;
-};
+const rebootedSince = (lastLaunchAt: number | null, boot = appInfo().bootTime) => (lastLaunchAt != null && boot != null ? boot > lastLaunchAt : null);
 
 async function launchEvents(session: ReturnType<typeof startClient>) {
   const hardware = await hardwareProperties();
