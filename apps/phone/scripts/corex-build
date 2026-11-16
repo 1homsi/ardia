@@ -6,10 +6,11 @@
 # in the main checkout. The scripts come from the branch head, so an older commit builds with today's build-apk.
 # Waits (up to ARDIA_BUILD_WAIT seconds, default 1800) while another Gradle build runs in the container or less than
 # 8 GB of its memory is free. Gradle runs without a daemon and Kotlin in-process, so nothing of ours stays resident.
+# pnpm is the version apps/phone/package.json pins, first on the path, since bundle-export runs it too.
 # Keeps the newest 8 APKs. --compose-key is refused: the upgrade pair is built on the Mac.
 set -euo pipefail
 if [ $# -lt 2 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && [ "$1" != "--help" ] && [ "$1" != "-h" ] && exit 64
   exit 0
 fi
@@ -77,8 +78,13 @@ rm -rf "$tools"
 mkdir -p "$tools"
 git -C "$src" archive "$head" apps/phone/scripts | tar -x -C "$tools"
 
+pinned="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$src/apps/phone/package.json")"
+pnpmHome="$base/pnpm-$pinned"
+[ -x "$pnpmHome/node_modules/.bin/pnpm" ] || npm install --silent --prefix "$pnpmHome" "pnpm@$pinned"
+export PATH="$pnpmHome/node_modules/.bin:$PATH"
+[ "$(pnpm --version)" = "$pinned" ] || { echo "pnpm on the path is $(pnpm --version), not $pinned" >&2; exit 1; }
 started=$(date +%s)
-(cd "$src/apps/phone" && npx --yes pnpm@11.1.3 install --frozen-lockfile --reporter=append-only > "$base/install.log" 2>&1) || { tail -20 "$base/install.log" >&2; exit 1; }
+(cd "$src/apps/phone" && pnpm install --frozen-lockfile --reporter=append-only > "$base/install.log" 2>&1) || { tail -20 "$base/install.log" >&2; exit 1; }
 installed=$(date +%s)
 ARDIA_BUILD_ROOT="$src" ARDIA_APK_DIR="$out" ARDIA_GRADLE_EPHEMERAL=1 bash "$tools/apps/phone/scripts/build-apk" "$name" --commit "$commit" "$@"
 finished=$(date +%s)
