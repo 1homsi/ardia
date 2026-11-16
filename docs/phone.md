@@ -2024,7 +2024,7 @@ apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android <apk>
 The owner's order (2026-11-16), as for Android above: clean the SwiftUI app out of this branch, keeping only what the
 Expo app builds from and what comparisons need. `main` keeps it until this branch merges.
 
-**What the Expo app and the rest of the repo used from `apps/ios`** (249 tracked files, about 56,800 lines).
+**What the Expo app and the rest of the repo used from `apps/ios`** (250 tracked files, about 56,800 lines).
 
 | In `apps/ios` | What used it | Decision | Now |
 |---|---|---|---|
@@ -2072,6 +2072,23 @@ The script does the following:
 
 A comparison against main's newer SwiftUI app takes main's commit: `apps/phone/scripts/rebuild-swiftui-reference
 origin/main`.
+
+**The clean-up's commits**, reverted together to bring `apps/ios` back: d895a9e02 (this inventory and the pin),
+73429dc8c (133 moves, no content), 58d5c392d (paths), 0ab20bbb3 (workflows and docs), aa1329b2e (119 files and
+16,581 lines deleted: the rest of `apps/ios`, `scripts/release-ios.sh`, `docs/ios.md`) and 030844cdb (the
+conventions check now covers ArdiaKit).
+
+**Proved after it** (2026-11-16, at 030844cdb):
+- `swift test` passes in ArdiaKit (219 tests), PhoneMotion (22) and PhoneSync (24) from their new homes.
+- `release-ios 10 --version 0.2.47 --unsigned` passes every check, at 57.3 MB installed, as before the clean-up.
+- `build-sim-app` builds the simulator app with its JavaScript from a clean export of the commit.
+- `ios-update-launch-check` passes on a lease with the pinned SwiftUI build, and the Expo app imports the store that
+  build wrote (receipt written, marker `imported`).
+- `rebuild-swiftui-reference a6ab64311` rebuilds the pinned app: 1.0 (1), the same three extensions, entitlements
+  present.
+- The phone's typecheck and suites, `packages/core` and `packages/sync` pass, and so do the Mac app's typecheck and
+  tests, except one dated test (`watch.test.mjs`, its fixed clock's 14-day watch ended on 15 Nov).
+- Not proved: a native build from a fresh clone (`pnpm install` and `pod install` from nothing), for disk.
 
 ### The lab switch
 
