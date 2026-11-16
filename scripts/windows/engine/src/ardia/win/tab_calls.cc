@@ -11,6 +11,7 @@
 
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/ac_calls.h"
+#include "ardia/win/autoplay.h"
 #include "ardia/win/external_apps.h"
 #include "ardia/win/kept_pages.h"
 #include "ardia/win/tab_events.h"
@@ -599,11 +600,8 @@ void MediaCommand(content::WebContents* contents,
                   Reply reply) {
   ThawHiddenPage(contents);
   const std::string action = Text(args, "action");
-  content::RenderFrameHost* frame = contents->GetPrimaryMainFrame();
-  if ((action == "play" || action == "toggle") && frame &&
-      frame->IsRenderFrameLive()) {
-    frame->NotifyUserActivation(
-        blink::mojom::UserActivationNotificationType::kInteraction);
+  if (action == "play" || action == "toggle") {
+    NoteMediaAskedFor(contents);
   }
   base::DictValue command;
   command.Set("action", action);
