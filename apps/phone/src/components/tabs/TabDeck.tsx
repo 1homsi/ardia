@@ -12,6 +12,7 @@ import { countUsage } from "../../state/telemetry/telemetry";
 import { PoofBurst, type PoofSpec } from "./PoofBurst";
 import { haptics } from "../../state/app/haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { labTrace } from "../../platform/lab";
 import { measuredOr } from "../../state/app/rootSize";
 import {
   deckCardAt,
@@ -100,6 +101,7 @@ export const TabDeck = memo(function TabDeck() {
   const design = useDesign();
   const redesigned = design === "redesigned";
   const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS, design, deckHeaderBottom()), [width, height, insets.top, insets.bottom, design]);
+  useEffect(() => labTrace(`PAGELAB deck frame ${Math.round(width)}x${Math.round(height)} window ${Math.round(window.width)}x${Math.round(window.height)} insets ${insets.top}/${insets.bottom}`), [width, height, window.width, window.height, insets.top, insets.bottom]);
   const archiveShift = useMemo(
     () => (redesigned ? deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS, design, deckArchiveBottom()).cardCenterY - g.cardCenterY : 0),
     [g, redesigned],
