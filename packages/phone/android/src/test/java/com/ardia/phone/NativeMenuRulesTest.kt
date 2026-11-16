@@ -59,6 +59,25 @@ class NativeMenuRulesTest {
     }
 
     @Test
+    fun aMenusHeightCountsItsRowsGroupDividersAndPadding() {
+        val rows = NativeMenuRules.rows(
+            listOf(
+                MenuItemShape("0", "Copy Link"),
+                MenuItemShape("g1", "Spaces", inline = true, children = listOf(MenuItemShape("1", "Work"), MenuItemShape("2", "Home"))),
+                MenuItemShape("3", "Close Tab", destructive = true),
+            ),
+        )
+        assertEquals("5 rows (a header and four actions), 2 dividers between 3 groups, padding top and bottom", 5 * 132 + 2 * 25 + 2 * 22, NativeMenuRules.estimatedHeight(rows, 132, 25, 22))
+    }
+
+    @Test
+    fun aMenuThatWouldRunUnderTheNavigationBarOpensHigherAndNeverAboveTheStatusBar() {
+        assertEquals("room below: the menu opens at the press", 1200, NativeMenuRules.anchorTop(1200, 700, 80, 2248))
+        assertEquals("the F4's deck card: Close Tab ended under the 3-button bar at 2270", 2248 - 700, NativeMenuRules.anchorTop(1700, 700, 80, 2248))
+        assertEquals("taller than the room: it starts under the status bar", 80, NativeMenuRules.anchorTop(1700, 2400, 80, 2248))
+    }
+
+    @Test
     fun androidsOwnMenusAreOnlyAskedForByTheLabArgument() {
         assertTrue(NativeMenuRules.asked(mapOf("ArdiaNativeMenus" to true)))
         assertFalse(NativeMenuRules.asked(emptyMap()))

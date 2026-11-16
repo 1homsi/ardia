@@ -14,8 +14,14 @@ import android.view.GestureDetector
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.Menu
+import android.util.TypedValue
 import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.PopupMenu
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.uimanager.events.NativeGestureUtil
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.Promise
@@ -119,6 +125,14 @@ internal object NativeMenuRules {
 
     fun asked(arguments: Map<String, Any>): Boolean = arguments[ARGUMENT] == true
 
+    fun estimatedHeight(rows: List<Row>, rowPx: Int, dividerPx: Int, paddingPx: Int): Int {
+        val groups = rows.map { it.group }.distinct().size
+        return rows.size * rowPx + (groups - 1).coerceAtLeast(0) * dividerPx + paddingPx * 2
+    }
+
+    fun anchorTop(preferredTop: Int, menuHeight: Int, roomTop: Int, roomBottom: Int): Int =
+        preferredTop.coerceAtMost(roomBottom - menuHeight).coerceAtLeast(roomTop)
+
     fun destructiveColour(dark: Boolean): Int = if (dark) 0xFFFF453A.toInt() else 0xFFFF3B30.toInt()
 }
 
@@ -194,10 +208,13 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
             parent?.requestDisallowInterceptTouchEvent(true)
         }
         val darkMenu = NativeMenuStyle.isDark(context, dark)
-        val popup = PopupMenu(NativeMenuStyle.themed(context, dark), this, Gravity.NO_GRAVITY)
+        val themed = NativeMenuStyle.themed(context, dark)
+        val rows = NativeMenuRules.rows(items)
+        val anchor = placedAnchor(themed, rows, event)
+        val popup = PopupMenu(themed, anchor ?: this, Gravity.NO_GRAVITY)
         val ids = HashMap<Int, String>()
         order = 0
-        fill(popup.menu, NativeMenuRules.rows(items), ids, darkMenu)
+        fill(popup.menu, rows, ids, darkMenu)
         popup.menu.setGroupDividerEnabled(true)
         popup.setOnMenuItemClickListener { item ->
             val id = ids[item.itemId] ?: return@setOnMenuItemClickListener false
@@ -206,11 +223,34 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
         }
         popup.setOnDismissListener {
             showing = null
+            anchor?.let { (it.parent as? ViewGroup)?.removeView(it) }
             onClose(emptyMap())
         }
         showing = popup
         popup.show()
         onOpen(emptyMap())
+    }
+
+    private fun placedAnchor(themed: Context, rows: List<NativeMenuRules.Row>, event: MotionEvent?): View? {
+        val content = rootView.findViewById<ViewGroup>(android.R.id.content) as? FrameLayout ?: return null
+        val bars = ViewCompat.getRootWindowInsets(this)?.getInsets(WindowInsetsCompat.Type.systemBars()) ?: return null
+        val here = IntArray(2).also(::getLocationInWindow)
+        val origin = IntArray(2).also(content::getLocationInWindow)
+        val density = resources.displayMetrics.density
+        val rowPx = TypedValue().let { value ->
+            if (themed.theme.resolveAttribute(android.R.attr.listPreferredItemHeightSmall, value, true)) value.getDimension(resources.displayMetrics).toInt() else (48 * density).toInt()
+        }
+        val menuHeight = NativeMenuRules.estimatedHeight(rows, rowPx, (9 * density).toInt(), (8 * density).toInt())
+        val preferredTop = if (event != null) here[1] + event.y.toInt() else here[1] + height
+        val top = NativeMenuRules.anchorTop(preferredTop, menuHeight, bars.top, rootView.height - bars.bottom - (8 * density).toInt())
+        val left = if (event != null) here[0] + event.x.toInt() else here[0]
+        val anchor = View(context)
+        content.addView(anchor, FrameLayout.LayoutParams(1, 1).apply {
+            leftMargin = left - origin[0]
+            topMargin = top - origin[1] - 1
+        })
+        anchor.layout(left - origin[0], top - origin[1] - 1, left - origin[0] + 1, top - origin[1])
+        return anchor
     }
 
     private fun fill(menu: Menu, rows: List<NativeMenuRules.Row>, ids: HashMap<Int, String>, dark: Boolean) {
