@@ -1,4 +1,4 @@
-import { useLayoutEffect, useReducer, useRef } from "react";
+import { useLayoutEffect, useReducer, useRef, useState } from "react";
 import { noteRowsHeldUnderPointer } from "../../state/telemetry/inlineCompletionCounts";
 
 export type SteadyList<V> = { key: string; value: V };
@@ -14,23 +14,25 @@ export function useSteadyRows<T, V extends { items: T[] }>(value: V, key: string
   const shown = useRef<SteadyList<V> | null>(null);
   const freed = useRef<string | null>(null);
   const counted = useRef<string | null>(null);
+  const drawn = useRef({ key, held: false });
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const free = pointerOver && freed.current === key;
   const next = steadyRows(shown.current, value, key, pointerOver && !free, rowKey);
   const held = next.value !== value;
   useLayoutEffect(() => {
     shown.current = next;
+    drawn.current = { key, held };
     if (!free) freed.current = null;
     if (held && counted.current !== key) {
       counted.current = key;
       noteRowsHeldUnderPointer();
     }
   });
-  const release = () => {
-    freed.current = key;
-    if (!held) return;
+  const [release] = useState(() => () => {
+    freed.current = drawn.current.key;
+    if (!drawn.current.held) return;
     shown.current = null;
     redraw();
-  };
+  });
   return { value: next.value, held, release };
 }
