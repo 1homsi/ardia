@@ -96,6 +96,24 @@ onIos("on iPhone Appearance is main's page on Expo UI: Color with nine swatches,
   unmount(root);
 });
 
+onIos("where sync isn't offered, the Expo UI Appearance page has no Match My Mac choices and no Mac footers, and a Match My Mac preference reads as Glass and System", () => {
+  jest.spyOn(require("../platform/system"), "syncOffered").mockReturnValue(false);
+  usePreferences.setState({ interfaceStyle: "matchMac", schemeChoice: "matchMac" });
+  openSettings({ page: "appearance" });
+  const root = renderSurface(<SettingsView />);
+  const texts = hosts(root, (props) => typeof props.text === "string").map((node) => node.props.text as string);
+  expect(texts.filter((text) => text.includes("Mac"))).toEqual([]);
+  expect(texts).toContain("System follows this device.");
+  const traitsOf = (node: ReactTestInstance) => ((node.props.modifiers as { $type: string; traits?: string[] }[]).find((modifier) => modifier.$type === "accessibilityAddTraits")?.traits ?? []);
+  const buttons = hosts(root, (props) => Array.isArray(props.modifiers) && (props.modifiers as { $type: string }[]).some((modifier) => modifier.$type === "accessibilityAddTraits"));
+  expect(buttons.length).toBe(9 + 2 + 3);
+  const selected = buttons.filter((node) => traitsOf(node).includes("isSelected")).flatMap((node) => node.findAll((inner) => typeof inner.props.text === "string").map((inner) => inner.props.text as string));
+  expect(selected.some((text) => text.startsWith("Glass"))).toBe(true);
+  expect(selected.some((text) => text.startsWith("System"))).toBe(true);
+  unmount(root);
+  jest.restoreAllMocks();
+});
+
 onIos("Archive and Spaces are main's own SwiftUI buttons, the settings piece SettingsShortcuts, so a screen reader finds both; each opens its surface; the Sync row has main's 6-point vertical padding and 14-point gap", () => {
   openSettings();
   const root = renderSurface(<SettingsView />);

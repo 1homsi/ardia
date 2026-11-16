@@ -1,11 +1,12 @@
 import { PlatformColor } from "react-native";
 import { Button, Form, HStack, Section, Text, Toggle, VStack } from "@expo/ui/swift-ui";
 import { accessibilityAddTraits, accessibilityLabel, buttonStyle, frame, navigationBarTitleDisplayMode, navigationTitle, padding, tint } from "@expo/ui/swift-ui/modifiers";
-import { INTERFACE_STYLE_NAMES, INTERFACE_STYLES, SCHEME_CHOICES, SCHEME_NAMES } from "../../lib/appearance";
+import { INTERFACE_STYLE_NAMES, INTERFACE_STYLES, offeredInterfaceStyle, offeredScheme, SCHEME_CHOICES, SCHEME_NAMES } from "../../lib/appearance";
 import { setColorChoice, setInterfaceStyle, setSchemeChoice } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { matchMyMac } from "../../state/sync/actions";
 import { useSyncEnabled } from "../../state/sync/hooks";
+import { syncOffered } from "../../state/sync/offer";
 import { CheckmarkLabel, ColorSwatch, contentMargins, modifierList, PROFILE_COLORS, settingsChrome, settingsLayout, settingsSwitchStyle, settingsUIAvailable, useProfileLook, type ProfileColor } from "../ui";
 
 const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
@@ -14,8 +15,11 @@ const SWATCH_HIT = 44;
 
 export function ExpoAppearancePage() {
   const syncEnabled = useSyncEnabled();
-  const style = usePreferences((p) => p.interfaceStyle);
-  const scheme = usePreferences((p) => p.schemeChoice);
+  const offersSync = syncOffered();
+  const style = offeredInterfaceStyle(usePreferences((p) => p.interfaceStyle), offersSync);
+  const scheme = offeredScheme(usePreferences((p) => p.schemeChoice), offersSync);
+  const styleChoices = offersSync ? INTERFACE_STYLES : INTERFACE_STYLES.filter((choice) => choice !== "matchMac");
+  const schemeChoices = offersSync ? SCHEME_CHOICES : SCHEME_CHOICES.filter((choice) => choice !== "matchMac");
   const chosen = usePreferences((p) => p.colorChoice);
   const look = useProfileLook();
   return (
@@ -35,13 +39,13 @@ export function ExpoAppearancePage() {
           </Toggle>
         ) : null}
       </Section>
-      <Section title="Interface Style" footer={<Text>Match My Mac follows your Mac. Reduce Transparency in iOS Settings always uses Classic.</Text>}>
-        {INTERFACE_STYLES.map((choice) => (
+      <Section title="Interface Style" footer={offersSync ? <Text>Match My Mac follows your Mac. Reduce Transparency in iOS Settings always uses Classic.</Text> : undefined}>
+        {styleChoices.map((choice) => (
           <Choice key={choice} title={INTERFACE_STYLE_NAMES[choice]} checked={style === choice} onPress={() => setInterfaceStyle(choice)} />
         ))}
       </Section>
-      <Section title="Light or Dark" footer={<Text>Match My Mac follows your Mac. System follows this device.</Text>}>
-        {SCHEME_CHOICES.map((choice) => (
+      <Section title="Light or Dark" footer={<Text>{offersSync ? "Match My Mac follows your Mac. System follows this device." : "System follows this device."}</Text>}>
+        {schemeChoices.map((choice) => (
           <Choice key={choice} title={SCHEME_NAMES[choice]} checked={scheme === choice} onPress={() => setSchemeChoice(choice)} />
         ))}
       </Section>
