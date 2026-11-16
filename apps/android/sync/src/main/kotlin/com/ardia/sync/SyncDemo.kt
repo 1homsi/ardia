@@ -125,6 +125,7 @@ object SyncDemo {
             devices = listOf(phone, mac, studio),
             profiles = listOf(personal, work),
             search = SyncedSearch("google"),
+            look = SyncedLook(interfaceStyle = "glass", appearance = "auto"),
             syncedAt = now,
         )
     }

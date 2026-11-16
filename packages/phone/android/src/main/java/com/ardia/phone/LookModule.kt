@@ -20,6 +20,8 @@ class LookModule : Module() {
 
         Function("systemLook") { systemLook.check() }
 
+        Function("hasGlass") { GlassRules.nativeGlassAsked(LaunchExtras.arguments(LaunchExtras.of(appContext.currentActivity?.intent))) }
+
         OnCreate {
             val context = appContext.reactContext ?: return@OnCreate
             SystemMotion.note(systemLook.seed())
@@ -217,6 +219,27 @@ class LookModule : Module() {
             Prop("darkThemeColors") { view: FrostView, value: List<String>? -> view.darkThemeColors = value }
             Prop("dark") { view: FrostView, value: Boolean? -> view.dark = value }
             Prop("reduceTransparency") { view: FrostView, value: Boolean? -> view.reduceTransparency = value == true }
+            OnViewDidUpdateProps { view -> view.update() }
+        }
+
+        View(GlassView::class) {
+            Name("Glass")
+            Prop("source") { view: GlassView, value: String? -> view.source = value }
+            Prop("name") { view: GlassView, value: String? -> view.name = value }
+            Prop("cornerRadius") { view: GlassView, value: Float? -> view.glassCornerRadius = value ?: 0f }
+            Prop("color") { view: GlassView, value: String? -> view.color = value }
+            Prop("themeColors") { view: GlassView, value: List<String>? -> view.themeColors = value }
+            Prop("darkThemeColors") { view: GlassView, value: List<String>? -> view.darkThemeColors = value }
+            Prop("dark") { view: GlassView, value: Boolean? -> view.dark = value }
+            Prop("reduceTransparency") { view: GlassView, value: Boolean? -> view.reduceTransparency = value == true }
+            Prop("shape") { view: GlassView, value: String? -> view.shape = value }
+            Prop("tint") { view: GlassView, value: android.graphics.Color? -> view.tint = value?.toArgb() }
+            Prop("interactive") { view: GlassView, value: Boolean? -> view.interactive = value ?: true }
+            Prop("surface") { view: GlassView, value: String? -> view.surface = value }
+            Prop("tinted") { view: GlassView, value: Boolean? -> view.tinted = value == true }
+            Prop("barShadow") { view: GlassView, value: Boolean? -> view.barShadow = value == true }
+            Prop("shown") { view: GlassView, value: Boolean? -> view.shown = value ?: true }
+            Prop("shownMs") { view: GlassView, value: Float? -> view.shownMs = (value ?: GlassRules.DEFAULT_SHOWN_MS).coerceAtLeast(0f) }
             OnViewDidUpdateProps { view -> view.update() }
         }
     }

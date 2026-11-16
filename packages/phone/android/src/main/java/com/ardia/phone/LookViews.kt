@@ -1497,7 +1497,7 @@ internal object FrostRefresh {
     fun nextNumber(): Int = synchronized(this) { ++made }
 }
 
-class FrostView(context: Context, appContext: AppContext) : LookView(context, appContext) {
+open class FrostView(context: Context, appContext: AppContext) : LookView(context, appContext) {
     var source: String? = null
     var name: String? = null
     var variant: String? = null
@@ -1574,7 +1574,7 @@ class FrostView(context: Context, appContext: AppContext) : LookView(context, ap
         super.onDetachedFromWindow()
     }
 
-    internal fun canBlur(): Boolean =
+    internal open fun canBlur(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Frosting.isBlurSupported && !reduceTransparency && !lookIsOff && !budgetDegraded
 
     internal val holdsLayer: Boolean get() = blurNode != null

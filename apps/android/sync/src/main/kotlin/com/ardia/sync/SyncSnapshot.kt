@@ -7,6 +7,7 @@ data class SyncSnapshot(
     val devices: List<SyncedDevice> = emptyList(),
     val profiles: List<SyncedProfile> = emptyList(),
     val search: SyncedSearch? = null,
+    val look: SyncedLook? = null,
     val syncedAt: Long? = null,
 ) {
     val defaultProfile: SyncedProfile? get() = profiles.firstOrNull { it.isDefault } ?: profiles.firstOrNull()
@@ -107,6 +108,18 @@ data class BookmarkItem(
 
 @Serializable
 data class HistoryItem(val url: String, val title: String, val visits: Int, val lastVisit: Double)
+
+@Serializable
+data class SyncedLook(val interfaceStyle: String? = null, val appearance: String? = null) {
+    val shownInterfaceStyle: String? get() = interfaceStyle?.takeIf { it in INTERFACE_STYLES }
+
+    val shownAppearance: String? get() = appearance?.takeIf { it in APPEARANCES }
+
+    companion object {
+        val INTERFACE_STYLES = setOf("glass", "classic")
+        val APPEARANCES = setOf("auto", "light", "dark")
+    }
+}
 
 @Serializable
 data class SyncedSearch(val engineId: String, val customURL: String? = null, val customEngines: List<CustomEngine> = emptyList()) {

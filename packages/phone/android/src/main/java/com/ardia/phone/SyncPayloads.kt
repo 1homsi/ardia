@@ -82,6 +82,12 @@ object SyncPayloads {
         "canReceiveTabs" to device.canReceiveTabs,
     )
 
+    fun look(look: com.ardia.sync.SyncedLook?): Map<String, Any?>? {
+        val style = look?.shownInterfaceStyle
+        val appearance = look?.shownAppearance
+        return if (style == null && appearance == null) null else mapOf("interfaceStyle" to style, "appearance" to appearance)
+    }
+
     fun view(snapshot: SyncSnapshot, selectedProfileId: String?, receivers: List<SyncedDevice>, pendingPins: Set<Pair<String, String>> = emptySet()): Map<String, Any?> = mapOf(
         "devices" to snapshot.devicesInOrder.map(::device),
         "profiles" to snapshot.profiles.map(::profile),
@@ -92,6 +98,7 @@ object SyncPayloads {
                 "customEngines" to search.customEngines.map { mapOf("id" to it.id, "name" to it.name, "keyword" to it.keyword, "url" to it.url) },
             )
         },
+        "look" to look(snapshot.look),
         "syncedAt" to snapshot.syncedAt?.toDouble(),
         "selectedProfileId" to selectedProfileId,
         "shownProfileId" to snapshot.profiles.takeIf { it.isNotEmpty() }?.let { snapshot.profile(selectedProfileId)?.syncId },
