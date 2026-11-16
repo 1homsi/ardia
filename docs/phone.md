@@ -1302,7 +1302,8 @@ Release build of `apps/ios`, which matches `main`) beside a build of head (6cbc6
 data. Screens were reached through each app's own UI and the `-ArdiaDemo` / `Browse*` switches. Main reads
 `-ArdiaOpenSheet` and `-ArdiaOpenSettings` only in Debug builds, so its sheets were opened by hand. Inventory of
 main's screens: an Explore pass over `apps/ios/App`. Pairs (Expo left, main right):
-`/tmp/ardia-phone-shots/iphone-audit/pairs/`.
+`/tmp/ardia-phone-shots/iphone-audit/pairs/`. Second pass at a1973a86e, light, with typing for real: `iphone-audit/r-e-light/` (Expo),
+`r-m-light/` (main), pairs in `pairs2/`, the deck-glass experiments in `glassexp/`.
 
 Status:
 - **match**: seen side by side today, light and dark, no difference worth a line.
@@ -1323,13 +1324,17 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Onboarding | Default browser step | not seen | Hidden in both without the entitlement | |
 | Start page | Header, switcher, dots, bar | match | | |
 | Start page | Pinned tiles | match | Tiles draw main's SF Symbols (Calendar, folders) at main's sizes, d09343dba | |
-| Start page | No spaces, sync off (invitation) | not seen | | |
+| Start page | No spaces, sync off (invitation) | match | The Sync With Your Mac capsule alone, same place and size (`r-e-light`/`r-m-light`/invitation) | |
 | Search panel | Empty, recent searches | different | Main also lists the open tab (SwiftUI…, Switch to Tab); Expo doesn't | screens |
-| Search panel | Typing | different | Main completes inline (app to apple.com) and its rows are taller; Expo shows no completion when the text is set by `-BrowseQuery`, though the native field completes. Check by typing. Expo prefixes Switch to Tab with a glyph main doesn't have | screens |
+| Search panel | Typing | different | Typed for real, both complete inline (app to apple.com, the rest selected) with the same rows; only `-BrowseQuery` skips completion. Left: Expo prefixes Switch to Tab with a glyph main doesn't have | screens |
 | Search panel | Incognito | different | Same panel; main's keyboard turns dark. The field now takes `keyboardAppearance` (6f1653513); the panel has to pass dark | screens |
-| Search panel | Voice | not seen | | |
+| Search panel | Voice | seen in Expo only | Expo's dictation page ("Speech dictation is unavailable" on the simulator, Try Again capsule); main's voice button wasn't reached by the script | |
 | Page | Page with bar, secure | match | | |
-| Page | Not secure, private, loading, failure, page dialogs | not seen | | |
+| Page | Not secure | different | Expo's bar reads "Not Secure localhost:8766" in orange; main's shows the site's favicon and "localhost", no label, no port | screens |
+| Page | Private | match | Same page and bar with the Incognito glasses | |
+| Page | Loading | different | Main centres the placeholder (icon, title, host) on the page; Expo puts it at the top left. Both run the loading line | screens |
+| Page | Failure | different | Same page; main's Try Again is a filled capsule, Expo's an outlined one; the bar as in Not secure | screens |
+| Page | Page dialogs | not seen | | |
 | Page | Collapsed bar (host pill) | missing | Expo's bar slides away instead | screens |
 | Page | Tabs button menu | match | Main's BarControls: up to eight recent tabs, a divider, Close Tab; Previous and Next Tab are its VoiceOver actions, not menu items. Ours is the system menu with the same items | |
 | Page | Find on Page | match by decision | The system find navigator by default since ec6f9bc52 | |
@@ -1338,16 +1343,19 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Reader | Article | match | | |
 | Reader | Top buttons | match | Main's glass circle (textformat.size, label colour) and glass Done capsule, 16 pt from each side; the lead image's 12 pt corners | |
 | Deck | Cards, Archive capsule, tab strip | match | | |
-| Deck | `···` and bottom bar (grid, Search Tabs, plus) | different | Main's are glass circles and a glass capsule; Expo's are plain | screens |
-| Deck | `···` menu | different | No Reopen Closed Tab; a solid panel below the button where main's is glass over the header | screens |
+| Deck | `···` and bottom bar (grid, Search Tabs, plus) | different | Still drawn without glass at a1973a86e. Cause: the chrome's Reanimated opacity parent is at 0 when the glass enters the window, and UIKit then never draws it (removing that opacity brings it back; snapping it to 1 doesn't; a native re-apply fixed only the first open). Fix: no Glass under a fading parent; ChromeSurface passes Glass's `shown` and only glyphs fade (`glassexp/`) | screens |
+| Deck | `···` menu | different | Both are the system menu now (22045b612), same items, place and glass. Main lists Reopen Closed Tab on a fresh demo install where Expo doesn't; the button under it lacks glass (row above) | screens |
 | Deck | Grid view | missing | The button only dismisses the keyboard | screens |
-| Deck | Card menus, close and poof, Search Tabs, Incognito pill | not seen | | |
+| Deck | Card menu | match | System menu over the lifted card: Copy Link, Share, Send to MacBook Pro, Pin to Mac, Move to Space, Close Tab | |
+| Deck | Close and poof, Search Tabs, Incognito pill | not seen | A scripted upward swipe closed no card in either app | |
 | Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet | |
 | Archive | Sheet | match | Light and dark | |
 | Library | History, Bookmarks, Downloads sheet | match | History seen beside main's; Bookmarks and Downloads seen, main's not yet captured. Ours uses the system toolbar and search field where main hides the bar and draws its own capsules | screens |
 | Settings | Root, Sync With Mac, Appearance, Search Engine, Clear Browsing Data | match | | |
 | Settings | Site Settings | match | Permissions persist (942dc45df); the permission rows carry main's 22 pt favicons, d09343dba | |
-| Settings | Filter lists, My Filters, Trusted Sites, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
+| Settings | Trusted Sites | match | Empty state the same | |
+| Settings | Filter Lists | different | Same page; on a fresh install Expo downloads and recompiles every list (0 rules and Compiling… for over two minutes under load, then 296,065 rules, "Updated 1 minute ago"), where main keeps the bundled lists' counts and dates (271,481). Blocking works in Expo from about 10 s after launch | iPhone |
+| Settings | My Filters, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
 | Toasts | All kinds | not seen | | |
 | Extensions, widgets, intents | | match by construction | The Expo project compiles main's own sources for these | |
 | iPhone in landscape, Duo layouts | | missing | Decided 2026-11-16: build it after Library, the grid and the pill, to the specification below; Expo is portrait only today | iPhone, screens |
@@ -1361,15 +1369,16 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Search panel rise (360 ms) | timed | 418 against 578 ms, faster |
 | Panel departure on Go (`depart`, 120 pt, 200 ms) | timed | The screens agent's strips (`lift-sim-58`) |
 | Tab swipe settle (`smooth`) | timed | 800 against 848 ms, level |
+| Pager swipe, release to rest | level | 13 frames (433 ms) in both, re-recorded 2026-11-16 (pager.mp4) |
 | Onboarding step | seen today | Neither app slides visibly; both cross-fade in about 0.3 s. Main shows the new step at once and fades the old out more slowly; Expo fades both together. Expo's code still carries the pre-d199b885c spring and 60 pt (main: `Motion.step`, 72 pt) |
-| Welcome appear (`rise`, 50 ms delay) | not seen | Expo's code: 0.7/0.7 spring after 100 ms |
+| Welcome appear (`rise`, 50 ms delay) | seen today | Expo's content arrives about 0.8 s later after launch and moves for about 830 ms, main's for about 570 (frames in `r-e-light`/`r-m-light`/welcome.mp4); Expo's code: 0.7/0.7 spring after 100 ms |
 | Pager background in the space's colour | match | iPhone paints the space's surface, as main's look.surface; Android keeps black, d09343dba |
 | Loading line (0.15/0.3/0.15/0.2 s, 100 ms delay) | not seen on iPhone | Seen on Android |
-| Close poof (0.3 s), fly away (0.16 s), settle (0.28 s) | not seen | |
+| Close poof (0.3 s), fly away (0.16 s), settle (0.28 s) | not seen | Re-recorded in both apps; the scripted swipe closed no card in either |
 | Placeholder fade-out (0.12 s) | not seen | |
 | Archive capsule yielding, grid cross-fade | not seen | No grid in Expo |
-| Search panel dim, dismiss, settle, results-in, surface swap and fade | not seen | |
-| Press scale (`press`, 0.16) | not seen | |
+| Search panel dim, dismiss, settle, results-in, surface swap and fade | dismiss level | Over a page: rise 430 against 600 ms, dismiss 270 against 300 ms (panel.mp4); dim, settle and results-in not separated |
+| Press scale (`press`, 0.16) | level | A start tile held: the press runs about 20 frames in both, and the system menu arrives in 10 frames against main's 13 (tilepress.mp4) |
 | Spaces backdrop (`smooth`) | not seen | Native `spaceBackdrop` uses `Motion.smooth` |
 
 Telemetry the redesign adds: space switches, Search Tabs, the grid, the appearance choice.
