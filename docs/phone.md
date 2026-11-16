@@ -1355,7 +1355,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Deck | Close and poof | match | Closed from the card menu in both: the card goes in about 83 to 166 ms, the gap closes by 250, rest by about 450 ms against main's 470 (`s-e-light`/`s-m-light`/close.mp4) | |
 | Deck | Search Tabs | match | Typing "wiki": the bar rises above the keyboard and the deck narrows to the same Wikipedia tabs (`pairs3/search-tabs.png`) | |
 | Deck | Incognito pill | not seen | | |
-| Deck | Dark | match | Deck, `···` menu and card menu as in light; once a card showed its placeholder (title and host) where main showed the snapshot, on the first deck open after a fresh install in dark | screens |
+| Deck | Dark | match | Deck, `···` menu and card menu as in light; once a card showed its placeholder (title and host) where main showed the snapshot, on the first deck open after a fresh install in dark. Not reproduced in two more fresh dark installs (browsing, then Tabs): every card showed its picture (`dark-deck/`) | |
 | Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet | |
 | Archive | Sheet | match | Light and dark | |
 | Library | History, Bookmarks, Downloads sheet | match | History, Bookmarks and Downloads seen beside main's, light and dark (`pairs3`, `pairs4`). Ours uses the system toolbar and search field where main hides the bar and draws its own capsules | screens |
@@ -1441,7 +1441,10 @@ is `split`. An ordinary iPhone in landscape has equal side insets and stays `pho
 iPhone 17 Pro simulator, iOS 27.0: main rotated both ways keeps the phone layout (bottom row bar), and the probe
 reports 750×382 with 62 on each side and no vertical bar edge. Still open for iOS 27.1, where the trait exists: if it
 reports an edge on a plain iPhone in landscape, a Pro (62 side insets) would get `column` with 72, and a non-Pro (59)
-would stay `phone`. No simulator pool offers a 27.1 iPhone other than the Duo.
+would stay `phone`. No simulator pool offers a 27.1 iPhone other than the Duo. On the Duo (27.1, simlock), closed: the probe
+reports `column`, trailing 84, with `verticalBarEdge` trailing, so the trait follows the real bar there; a closed Duo
+doesn't turn, and simlock's scoped simulator set can't fold, so the deciding reading (an open Duo on its side) still
+needs a Duo in the default set.
 
 A layout change is not animated: views swap at once. Pages are not reloaded (the web views are re-parented), the
 open search tray stays, and app state (tabs, surface, grid, sheets) survives. Going between `phone` and `wide`
