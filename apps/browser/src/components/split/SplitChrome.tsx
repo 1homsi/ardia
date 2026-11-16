@@ -4,7 +4,8 @@ import { useTheme } from "../ui/theme";
 import { updateSplit } from "../../state/splits/actions";
 import { useDragFallbackPane } from "../../state/splits/hooks";
 import type { SplitView } from "../../state/browser/types";
-import { resize, type Divider, type Rect } from "../window/geometry";
+import { evenPair, resize, type Divider, type Rect } from "../window/geometry";
+import { noteSplit } from "../../state/telemetry/usage";
 import { capsule, OverPage, space, Symbol, Text, Toast, withAlpha } from "../ui";
 import { hideToast, useToasts } from "../../state/app/toasts";
 import { useWindowId } from "../../state/browser/hooks";
@@ -113,12 +114,20 @@ function DividerHandle({ split, divider, width, height }: { split: SplitView; di
     [],
   );
 
+  const evenOut = () => {
+    const { split: v, divider: d } = latest.current;
+    const now = sizesOf(v);
+    if (d.kind === "root") updateSplit(v.id, { sizes: evenPair(now.sizes, d.index) });
+    else if (now.stack) updateSplit(v.id, { stackSizes: [0.5, 0.5] });
+    noteSplit("splitDividerEvens");
+  };
   const { rect, vertical } = divider;
   const active = hovered || dragging;
   const cursor = vertical ? "col-resize" : "row-resize";
   return (
     <View
       {...responder.panHandlers}
+      onDoubleClick={evenOut}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
