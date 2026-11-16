@@ -10,8 +10,9 @@ import { sentTabsAdapter } from "./sentTabsAdapter";
 import { deliverSentTabs, sendLedger } from "./sentTabs";
 import { PROFILE_OPEN_TABS, profileScope } from "./records";
 import { openTabsAdapters, type OpenTabCloses, type OpenTabsMode } from "./openTabs";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
-export const deviceName = () => SyncNative?.deviceName() ?? "This Mac";
+export const deviceName = () => SyncNative?.deviceName() ?? `This ${PLATFORM_TERMS.computerTitle}`;
 
 const passwordAdapters = new Map<string, (forced: boolean) => Adapter>();
 const extensionAdapters = new Map<string, ExtensionsAdapter>();

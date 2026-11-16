@@ -27,6 +27,7 @@ import { errorText } from "../../lib/errors";
 import { isQuitting, saveBeforeQuit } from "../app/quit";
 import { onProfilesOpened, profileOpened } from "../profiles/profileLoading";
 import { markOpenTabsSynced, openTabsClosed, recordOpenTabCloses } from "./openTabCloses";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export { onTabsReceived } from "./sentTabs";
 export { takeOpenTabSyncCounts } from "../telemetry/openTabSyncCounts";
@@ -110,7 +111,7 @@ export async function syncNow() {
 type CycleOptions = { retiring?: boolean; forcePasswords?: boolean };
 
 async function runCycle({ retiring = false, forcePasswords = false }: CycleOptions = {}) {
-  if (!SyncNative || !doc.enabled || !doc.folder || !doc.deviceId) return;
+  if (!SyncNative || !doc.enabled || !doc.folder || !doc.deviceId || useSync.getState().status === "locked") return;
   if (cycle) {
     again = true;
     forcePasswordsNext ||= forcePasswords;
@@ -193,7 +194,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
   } catch (error) {
     if ((error as { code?: unknown } | null)?.code === "ERR_SYNC_FOLDER_UNREADABLE") {
       publishUi({ status: "offline", error: "The sync folder can’t be read. Check that it’s still there and that Ardia can open it." });
-    } else {
+    } else if (useSync.getState().status !== "locked") {
       console.warn("[sync] cycle failed", error);
       publishUi({ status: "stalled", error: errorText(error) });
     }
@@ -261,7 +262,7 @@ export async function turnOnSync(folder: string): Promise<{ ok: true } | { error
   if (!native) return { error: "Sync isn’t available in this build." };
   const deviceId = native.newDeviceId();
   try {
-    if (!(await native.createPhrase(deviceId))) return { error: "Couldn’t save the sync key in your Keychain." };
+    if (!(await native.createPhrase(deviceId))) return { error: `Couldn’t save the sync key in ${PLATFORM_TERMS.secretStore}.` };
     await native.createChain(folder);
   } catch (error) {
     await native.forget(deviceId);
@@ -363,7 +364,7 @@ export function startSync() {
   if (doc.enabled && doc.deviceId) {
     void SyncNative.unlock(doc.deviceId)
       .then(async (ok) => {
-        if (!ok) return publishUi({ status: "locked", error: "Enter your recovery phrase to keep syncing on this Mac." });
+        if (!ok) return publishUi({ status: "locked", error: `Enter your recovery phrase to keep syncing on this ${PLATFORM_TERMS.computer}.` });
         await loadSavedState();
         publishUi();
         scheduleSync(500);
