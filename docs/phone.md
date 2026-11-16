@@ -2382,7 +2382,7 @@ Watch your own frames before you hand a change on. The loop, for any agent:
      with its Podfile.lock, `packages/phone/ios`, ArdiaKit, `app.json`, the module config, the lockfile, `patches`).
    - When those didn't change, only the bundle is rebuilt into a copy of the cached app, which is then re-signed ad
      hoc: about 25 seconds, against about 2 to 2.5 minutes for a full native build (504a9db41).
-   - It refuses below 4 GB free, or below 10 GB when the native app has to be built; it runs one at a time and cleans its own scratch.
+   - It refuses below 4 GB free, below 6 GB when the native app is rebuilt over its cached build products, and below 10 GB when it is built from nothing; it runs one at a time and cleans its own scratch.
    - The `.txt` carries the commit, dirty, the bundle source, the native state, whether the native app was built or
      reused, and the bundle's sha256. The app logs the same at launch as `ARDIA build <commit> dirty: … from the …;
      native …`.
