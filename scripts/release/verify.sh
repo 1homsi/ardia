@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage="usage: scripts/release/verify.sh <exported Ardia.app> <archive> <version> <build number> <engine symbols dir>"
+usage="usage: scripts/release/verify.sh <exported Ardia.app> <archive> <version> <build number>"
 app="${1:?$usage}"
 archive="${2:?$usage}"
 version="${3:?$usage}"
 release_build="${4:?$usage}"
-symbols="${5:?$usage}"
 . "$(dirname "$0")/lib.sh"
 channel="$(channel_of "$version")"
 fwv="$(cd "$app/Contents/Frameworks/Chromium Framework.framework/Versions/Current" && pwd -P)"
@@ -14,16 +13,6 @@ fwv="$(cd "$app/Contents/Frameworks/Chromium Framework.framework/Versions/Curren
 echo "==> Verify"
 codesign --verify --deep --strict "$app"
 [ -d "$archive/dSYMs/Ardia.app.dSYM" ] || die "the archive has no Ardia.app.dSYM"
-uuid_of() { dwarfdump --uuid "$1" 2>/dev/null | awk '{ print tolower($2) }'; }
-[ -f "$symbols/uuids.txt" ] || die "no $symbols/uuids.txt: export-sign.sh keeps the engine's unstripped binaries there"
-framework_uuid="$(sed -n 's/^\([0-9a-f-]\{36\}\) Chromium Framework$/\1/p' "$symbols/uuids.txt")"
-[ -n "$framework_uuid" ] || die "$symbols/uuids.txt doesn't list the Chromium Framework"
-[ "$(uuid_of "$fwv/Chromium Framework")" = "$framework_uuid" ] \
-  || die "the exported Chromium Framework isn't the one whose symbols are in $symbols ($framework_uuid)"
-while read -r id rel; do
-  [ "$(uuid_of "$symbols/$rel")" = "$id" ] || die "$symbols/$rel doesn't have the UUID $id"
-  [ ! -e "$fwv/$rel" ] || [ "$(uuid_of "$fwv/$rel")" = "$id" ] || die "the exported $rel doesn't have the UUID $id of the symbols in $symbols"
-done < "$symbols/uuids.txt"
 entitlements() { codesign -d --entitlements - --xml "$1" 2>/dev/null; }
 info() { plutil -extract "$1" raw "$app/Contents/Info.plist" 2>/dev/null; }
 [ "$(info CFBundleIdentifier)" = com.ardia.browser ] || die "bundle id is $(info CFBundleIdentifier)"

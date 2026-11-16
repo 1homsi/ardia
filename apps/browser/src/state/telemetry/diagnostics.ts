@@ -34,6 +34,8 @@ let pageProcessEvents = 0;
 let hoverLostEvents = 0;
 let samples: SavedContext[] = [];
 let recentPages: RecentPage[] = [];
+let shownPage: string | null = null;
+let contextEpoch = 0;
 let firstSample: ReturnType<typeof setTimeout> | undefined;
 let everySample: ReturnType<typeof setInterval> | undefined;
 let unwatchWebuiPage: (() => void) | undefined;
@@ -79,7 +81,9 @@ export async function recordContext(): Promise<SavedContext | null> {
     noteDragsEnded(status.dragsEnded);
     noteWindowlessPages(status.windowlessPages);
   }, () => {});
+  const epoch = contextEpoch;
   const [sample, pressure] = await Promise.all([diagnosticsSample().catch(() => ({ footprintMB: undefined, freeDiskGB: undefined })), memoryPressure()]);
+  if (!isSharing() || epoch !== contextEpoch) return null;
   const now = Date.now();
   const page = activeWebuiPage();
   if (page) noteWebuiPage(page, now);
@@ -117,13 +121,15 @@ export async function takeContentDriftCounts(): Promise<Record<string, number>> 
 export const contextSamples = () => samples;
 
 function forgetContext() {
+  contextEpoch++;
   samples = [];
   recentPages = [];
+  shownPage = null;
   appMemoryMb = null;
   pageProcessesGone = 0;
 }
 
-useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetContext());
+useTelemetry.subscribe((s, prev) => prev.sharing !== s.sharing && forgetContext());
 
 useBrowser.subscribe((s, prev) => {
   if (s.profiles === prev.profiles || size(s.profiles) >= size(prev.profiles)) return;
@@ -142,13 +148,13 @@ function recordForWebuiPage() {
 }
 
 function watchWebuiPage() {
-  let shown = activeWebuiPage();
+  shownPage = activeWebuiPage();
   unwatchWebuiPage = useBrowser.subscribe((s, prev) => {
     if (s.tabs === prev.tabs && s.windows === prev.windows && s.ui === prev.ui) return;
     const page = activeWebuiPage(s);
-    if (page === shown) return;
-    if (shown && isSharing()) noteWebuiPage(shown, Date.now());
-    shown = page;
+    if (page === shownPage) return;
+    if (shownPage && isSharing()) noteWebuiPage(shownPage, Date.now());
+    shownPage = page;
     recordForWebuiPage();
   });
 }

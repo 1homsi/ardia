@@ -232,9 +232,13 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     `ardia://settings/cookies` still shows it. A page seen again moves to the front; going to a web page keeps them.
     Reading it back drops any entry that isn't a `host` or `host/segment` page and a time, and keeps at most 3.
     `ctx_webui_pages` is worked out at the crash from the same saved context. The crash property cleaner lets it
-    through only as 1 to 3 `page:minutes` entries. Added with #1244, data only.
-  - The release build keeps the Chromium Framework's symbols (see `docs/releasing.md`), listed by the same UUIDs as
-    the `crash_images` sent with a native crash, so its frames can be named. Nothing is sent from the app for this.
+    through only as 1 to 3 `page:minutes` entries. Added with #1244, data only. Turning sharing on or off and
+    deleting a profile clear the pages (and the page the watcher last saw); a sample whose native reads were still
+    pending then is dropped before it notes a page, so no page from while sharing was off, or from a deleted
+    profile, comes back.
+  - Chromium Framework frames are named from the engine's own symbols, which the engine release publishes with
+    their UUIDs (#1054: `publish-engine.sh` uploads the build's dSYMs, `scripts/symbolicate-crash.sh` resolves a
+    crash event's frames by the `crash_images` UUID). Nothing is sent from the app for this.
   - The dashboard's health table credits app crashes to `crashed_version` and lists a version that has crashes but no
     usage in the window, with no rate.
 - **Checks of the pipeline:** send with service `ardia-selftest` (or version `0.0.0-selftest`); the views

@@ -196,16 +196,6 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      helpers under the hardened runtime with library validation, except the renderer and GPU ones (Aperitif's too),
      which get `allow-jit` (`packages/ardiacore/scripts/signing`) instead; then the framework, then the app again with
      the entitlements the export gave it,
-   - keeps the engine's symbols: `strip-engine.sh` copies the unstripped Chromium Framework, its libraries and crash
-     handler into `dist/<version>/symbols` before stripping them, and writes `symbols/uuids.txt`, one lowercase
-     `<UUID> <path inside the framework>` line each. A native crash event's `crash_images` list carries the same UUIDs
-     (the `Chromium Framework` one for these frames), so a frame such as `Chromium Framework + 0xee9858` resolves with
-     `atos -arch arm64 -o "symbols/Chromium Framework" -l <load address> <address>`, taking the copy whose UUID the event
-     names. `verify.sh` fails the release when `uuids.txt` has no Chromium Framework, or when a listed binary's UUID differs
-     from the copy in `symbols` or from the one left in the exported app (SwiftShader and its loader are pruned from the
-     app but kept in `symbols`). Nothing uploads the directory yet: a release built locally keeps it in `dist`, and the
-     Release workflow's runner drops it with the rest of `dist` after the sign job, until a `symbols` artifact step is
-     added to the workflow,
    - checks what an in-place update depends on: bundle id `com.ardia.browser`, executable `Ardia`, the
      designated requirement (our team), the keychain groups, Sparkle's feed and key and the usage strings in
      `Info.plist`; that every piece of code is Developer ID with a timestamp and no `get-task-allow`; and that the app

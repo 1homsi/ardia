@@ -272,6 +272,48 @@ test("the saved context keeps the last 3 built-in pages, and a native crash send
   }
 });
 
+test("a sample that finishes after sharing was turned off keeps no built-in page, so turning sharing back on can't send it", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://private.example/" });
+  const tab = S().windows[w].tabIds[0];
+  assert.equal((await diagnostics.recordContext()).webui_pages, null);
+  S().updateTab(tab, { url: "chrome://history" });
+  const pending = diagnostics.recordContext();
+  client.setSharing(false, "settings");
+  assert.equal(await pending, null);
+  S().updateTab(tab, { url: "https://private.example/" });
+  client.setSharing(true, "settings");
+  const next = await diagnostics.recordContext();
+  assert.equal(next.webui_page, null);
+  assert.equal(next.webui_pages, null, "history was shown only while sharing was off");
+});
+
+test("deleting a profile erases its built-in pages, including the one its window was showing", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  S().hydrate({});
+  S().createWindow({ url: "https://private.example/" });
+  const work = S().createProfile({ name: "Work" });
+  const w = S().createWindow({ profileId: work, url: "chrome://settings/cookies" });
+  S().setFocusedWindow(w);
+  assert.equal((await diagnostics.recordContext()).webui_page, "settings/cookies");
+  diagnostics.startContextSamples();
+  try {
+    S().deleteProfile(work);
+    const after = await diagnostics.recordContext();
+    assert.equal(after.webui_page, null);
+    assert.equal(after.webui_pages, null, "the deleted profile's settings page came back");
+  } finally {
+    diagnostics.stopContextSamples();
+  }
+});
+
 test("a page process that goes away sends its reason, exit code, visibility and counts, capped per session", async () => {
   diagnostics.trackPageProcessGone({ reason: "oom", code: 9 }, true, { translate: "translating", translate_stage: "model", translating_tabs: 2, translated_tabs: 1 });
   diagnostics.trackPageProcessGone({ reason: "https://private.example", code: 1.5 }, false);

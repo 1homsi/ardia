@@ -7,7 +7,6 @@ fwv="$(cd "$app/Contents/Frameworks/Chromium Framework.framework/Versions/Curren
   || { echo "error: no Chromium Framework.framework in $app" >&2; exit 1; }
 mkdir -p "$symbols"
 symbols="$(cd "$symbols" && pwd -P)"
-: >"$symbols/uuids.txt"
 
 uuid() { dwarfdump --uuid "$1" | awk '{ print $2 }'; }
 total_before=0 total_after=0
@@ -24,7 +23,6 @@ for bin in "${binaries[@]}"; do
   [ "$(uuid "$bin")" = "$before_uuid" ] || { echo "error: strip changed the UUID of $rel" >&2; exit 1; }
   [ "$(dyld_info -exports "$bin" | tail -n +2 | sort)" = "$before_exports" ] \
     || { echo "error: strip changed what $rel exports" >&2; exit 1; }
-  printf '%s %s\n' "$(tr 'A-F' 'a-f' <<<"$before_uuid")" "$rel" >>"$symbols/uuids.txt"
   total_before=$((total_before + before)) total_after=$((total_after + after))
 done
 echo "    stripped ${#binaries[@]} files: $((total_before / 1048576)) MB -> $((total_after / 1048576)) MB (unstripped copies in $symbols)"
