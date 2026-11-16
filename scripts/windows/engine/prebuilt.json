@@ -1,6 +1,6 @@
 {
-  "release": "windows-engine-20261116-8",
+  "release": "windows-engine-20261116-9",
   "chromium": "157.0.8103.38",
-  "x64": { "asset": "ardia-engine-win-x64.zip", "sha256": "68f07428b86cfde063e6fcf6076fd55cc4f356f34b867196c1daab07dc5ce64c" },
-  "arm64": { "asset": "ardia-engine-win-arm64.zip", "sha256": "c151136756dd2498da803dd2db28bc665cc3cf4a2b98a2c698dc478bdfb4a270" }
+  "x64": { "asset": "ardia-engine-win-x64.zip", "sha256": "c614ea4053f6d09e8c0087b3bc95ea3d2a618b78048976cfe64c1b29de12f952" },
+  "arm64": { "asset": "ardia-engine-win-arm64.zip", "sha256": "d781d67197364336975b120126c08c34311bfdedd5f4b0d8402927e61c343224" }
 }
