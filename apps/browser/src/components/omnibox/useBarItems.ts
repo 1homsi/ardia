@@ -6,6 +6,8 @@ import { offeredScope } from "../../state/omnibox/scopes";
 import { useDropdownStart, useOpenTabsStart } from "./dropdownStart";
 import { useInlineCompletion } from "./useInlineCompletion";
 import { useSuggestions } from "./useSuggestions";
+import { useSteadyRows } from "./steadyRows";
+import { useHover } from "../ui";
 import type { Selection } from "./inline";
 
 export function useBarItems({
@@ -37,6 +39,7 @@ export function useBarItems({
   tabId: string;
   currentUrl: string;
 }) {
+  const { hovered: overRows, hoverProps: rowsHover } = useHover();
   const { items: suggested, completion } = useSuggestions({
     text: typed,
     active: edited || !!scope,
@@ -50,7 +53,7 @@ export function useBarItems({
   const start = useDropdownStart(dropdown && !edited && !scope, tabId, profileId);
   const idle = opensTab && !scope && !typed.trim();
   const openTabs = useOpenTabsStart(idle, windowId, profileId);
-  const items = dropdown && !edited && !scope ? start : idle ? openTabs : suggested;
+  const items = useSteadyRows(dropdown && !edited && !scope ? start : idle ? openTabs : suggested, `${scope?.kind ?? ""}:${scope?.name ?? ""}:${typed}`, overRows);
   const selectedIndex = Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
   const preview = !idle && selectedIndex > 0 ? (previewText(current) ?? typed) : null;
@@ -62,5 +65,5 @@ export function useBarItems({
     () => (!scope && edited && !previewing ? offeredScope(typed, shownCompletion, windowId) : null),
     [scope, edited, previewing, typed, shownCompletion, windowId],
   );
-  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing };
+  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, rowsHover };
 }

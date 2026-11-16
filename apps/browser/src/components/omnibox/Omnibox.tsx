@@ -77,7 +77,7 @@ export function Omnibox({
   useEffect(() => () => bangEnter.cancel(), [bangEnter]);
   useEffect(() => bangEnter.cancel(), [bangEnter, typed, selected, scope]);
   const root = useRef<View>(null);
-  const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing } = useBarItems({
+  const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, rowsHover } = useBarItems({
     input,
     caret: () => selection.current,
     typed,
@@ -331,10 +331,7 @@ export function Omnibox({
       setPopover(latest.current.tabId, "siteControls");
     },
   }));
-  const [rowActions] = useState<RowActions>(() => ({
-    choose: (s) => latest.current.choose(s),
-    remove: (url) => removeHistory(latest.current.profileId, [url]),
-  }));
+  const [rowActions] = useState<RowActions>(() => ({ choose: (s) => latest.current.choose(s), remove: (url) => removeHistory(latest.current.profileId, [url]) }));
   const suggestionList = (
     <SuggestionList
       items={items}
@@ -356,6 +353,7 @@ export function Omnibox({
         scope={scope}
         field={field}
         list={suggestionList}
+        rowsHover={rowsHover}
         pulse={pulse}
         onSiteControls={currentUrl ? barActions.siteControls : null}
       />
@@ -368,6 +366,7 @@ export function Omnibox({
       scope={scope}
       field={field}
       list={listAway ? null : suggestionList}
+      rowsHover={rowsHover}
       pulse={pulse}
       hero={hero}
       rowHeight={fieldRowHeight}
