@@ -52,7 +52,7 @@ final class EdgeFadeMask: ExpoView {
   private let fade = CAGradientLayer()
   private weak var watched: NSScrollView?
   private weak var watchedDocument: NSView?
-  private var shown: (left: CGFloat, right: CGFloat, width: CGFloat)?
+  private var shown: (left: CGFloat, right: CGFloat, bounds: CGRect)?
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -134,8 +134,8 @@ final class EdgeFadeMask: ExpoView {
     }
     let width = bounds.width
     let fading = (left > 0 || right > 0) && width > 0
-    if !force, let shown, shown.left == left, shown.right == right, shown.width == width, (layer.mask === fade) == fading { return }
-    shown = (left, right, width)
+    if !force, let shown, shown.left == left, shown.right == right, shown.bounds == bounds, (layer.mask === fade) == fading { return }
+    shown = (left, right, bounds)
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     if fading {
