@@ -8,6 +8,7 @@ import { checks as passwordLoginChecks, stageChecks } from "./passwordLogins";
 import { checks as engineBackForwardChecks } from "./engineBackForward";
 import { checks as engineTopEdgeChecks } from "./engineTopEdge";
 import { checks as engineSleepChecks } from "./engineSleep";
+import { checks as engineLinkScriptChecks } from "./engineLinkScript";
 import { checks as engineSleepKeptChecks } from "./engineSleepKept";
 import { checks as engineSleepNavigationChecks } from "./engineSleepNavigation";
 import { checks as engineSleepPlaceChecks } from "./engineSleepPlace";
@@ -40,7 +41,7 @@ import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, pagePictureChecks, materialChecks, windowDragChecks, popupWindowChecks, fileDropChecks, focusChecks, idleTimeChecks, textFocusChecks, launchLinkChecks, engineHostChecks, engineBackForwardChecks, engineTopEdgeChecks, engineSleepChecks, engineSleepKeptChecks, engineSleepNavigationChecks, engineSleepPlaceChecks, engineBlankChecks, engineHistoryChecks, engineCallChecks, importChecks, importFirefoxChecks, introMusicChecks, desktopCallChecks, externalAppChecks, syncChecks, heldDialogChecks, meadowChecks, passwordLoginChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, motionChecks, pagerChecks, pagePictureChecks, materialChecks, windowDragChecks, popupWindowChecks, fileDropChecks, focusChecks, idleTimeChecks, textFocusChecks, launchLinkChecks, engineHostChecks, engineBackForwardChecks, engineTopEdgeChecks, engineSleepChecks, engineLinkScriptChecks, engineSleepKeptChecks, engineSleepNavigationChecks, engineSleepPlaceChecks, engineBlankChecks, engineHistoryChecks, engineCallChecks, importChecks, importFirefoxChecks, introMusicChecks, desktopCallChecks, externalAppChecks, syncChecks, heldDialogChecks, meadowChecks, passwordLoginChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

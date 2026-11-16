@@ -43,6 +43,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   static std::optional<gfx::PointF> RecentClickPoint(const std::string& page);
 
   void FrameCommitted(content::RenderFrameHost* frame);
+  void RendererReady();
   bool TakeNewTabLink(const std::vector<GURL>& urls);
   int ScriptFrames() const { return static_cast<int>(contexts_.size()); }
 
@@ -68,14 +69,13 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   explicit PageLinks(content::WebContents* contents);
 
   bool Attach();
-  void Install(content::RenderFrameHost* frame);
-  void WorldMade(content::GlobalRenderFrameHostId frame,
-                 bool main,
-                 std::optional<base::DictValue> world);
-  void BindingAdded(content::GlobalRenderFrameHostId frame,
-                    bool main,
-                    int context,
-                    std::optional<base::DictValue> added);
+  void Register();
+  void RuntimeEnabled(std::optional<base::DictValue> answer);
+  void AddScript(bool run_now);
+  void ScriptAdded(std::optional<base::DictValue> added);
+  std::string SourceForNewDocuments();
+  void ContextCreated(const base::DictValue& params);
+  content::RenderFrameHost* FrameWithToken(const std::string& token);
   void Call(const std::string& method, base::DictValue params, Answer answer);
   void Evaluate(int context, const std::string& expression);
   void PushConfig();
@@ -98,6 +98,10 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   int next_id_ = 1;
   std::map<int, Answer> pending_;
   std::map<int, Context> contexts_;
+  std::vector<int> stale_;
+  std::optional<std::string> script_id_;
+  bool enabling_ = false;
+  bool registering_ = false;
   std::vector<NewTabLink> new_tab_links_;
   base::WeakPtrFactory<PageLinks> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();

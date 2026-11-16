@@ -293,6 +293,11 @@ void TabState::RenderFrameCreated(content::RenderFrameHost* frame) {
   if (!key_.empty()) {
     WatchKeysOf(frame);
   }
+  if (!frame->GetParentOrOuterDocument()) {
+    if (PageLinks* links = PageLinks::FromWebContents(web_contents())) {
+      links->RendererReady();
+    }
+  }
 }
 
 void TabState::RenderFrameHostChanged(content::RenderFrameHost* old_host,

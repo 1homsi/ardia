@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <string_view>
 #include <utility>
 
 #include "ardia/win/host.h"
@@ -147,8 +148,9 @@ bool Web(const GURL& url) {
   return url.is_valid() && url.SchemeIsHTTPOrHTTPS();
 }
 
-bool Scriptable(const GURL& url) {
-  return Web(url) || url.SchemeIsFile();
+bool ScriptableOrigin(const std::string& origin) {
+  return origin.starts_with("http://") || origin.starts_with("https://") ||
+         origin.starts_with("file://");
 }
 
 base::DictValue PointValue(gfx::PointF point) {
@@ -177,11 +179,13 @@ void PageLinks::Watch(content::WebContents* contents) {
     return;
   }
   PageLinks::CreateForWebContents(contents);
-  PageLinks* links = PageLinks::FromWebContents(contents);
-  contents->GetPrimaryMainFrame()->ForEachRenderFrameHost(
-      [links](content::RenderFrameHost* frame) {
-        links->FrameCommitted(frame);
-      });
+  if (contents->GetPrimaryMainFrame()->IsRenderFrameLive()) {
+    PageLinks::FromWebContents(contents)->Attach();
+  }
+}
+
+void PageLinks::RendererReady() {
+  Attach();
 }
 
 void PageLinks::Configure(const base::DictValue& args) {
@@ -248,18 +252,12 @@ std::optional<gfx::PointF> PageLinks::RecentClickPoint(
 }
 
 void PageLinks::FrameCommitted(content::RenderFrameHost* frame) {
-  if (!frame) {
-    return;
+  if (!host_) {
+    Attach();
+  } else if (!script_id_ && !registering_ && !enabling_) {
+    registering_ = true;
+    AddScript(true);
   }
-  const content::GlobalRenderFrameHostId id = frame->GetGlobalId();
-  std::erase_if(contexts_, [&id](const auto& entry) {
-    return entry.second.frame == id;
-  });
-  if (!Scriptable(frame->GetLastCommittedURL()) ||
-      !frame->IsRenderFrameLive()) {
-    return;
-  }
-  Install(frame);
 }
 
 bool PageLinks::Attach() {
@@ -272,48 +270,92 @@ bool PageLinks::Attach() {
     return false;
   }
   UnmarkEngineDevTools(&GetWebContents());
+  Register();
   return true;
 }
 
-void PageLinks::Install(content::RenderFrameHost* frame) {
-  if (!Attach()) {
-    return;
+void PageLinks::Register() {
+  contexts_.clear();
+  stale_.clear();
+  script_id_.reset();
+  enabling_ = true;
+  registering_ = true;
+  Call("Page.enable", base::DictValue(), base::DoNothing());
+  Call("Runtime.enable", base::DictValue(),
+       base::BindOnce(&PageLinks::RuntimeEnabled, weak_factory_.GetWeakPtr()));
+}
+
+void PageLinks::RuntimeEnabled(std::optional<base::DictValue> answer) {
+  enabling_ = false;
+  for (int context : stale_) {
+    Evaluate(context,
+             "globalThis.ardiaPeek && globalThis.ardiaPeek.stop && "
+             "globalThis.ardiaPeek.stop();");
   }
+  stale_.clear();
+  base::DictValue binding;
+  binding.Set("name", kBinding);
+  binding.Set("executionContextName", kWorld);
+  Call("Runtime.addBinding", std::move(binding), base::DoNothing());
+  AddScript(true);
+}
+
+void PageLinks::AddScript(bool run_now) {
   base::DictValue params;
-  params.Set("frameId", frame->GetDevToolsFrameToken().ToString());
+  params.Set("source", SourceForNewDocuments());
   params.Set("worldName", kWorld);
-  params.Set("grantUniveralAccess", false);
-  Call("Page.createIsolatedWorld", std::move(params),
-       base::BindOnce(&PageLinks::WorldMade, weak_factory_.GetWeakPtr(),
-                      frame->GetGlobalId(), frame->IsInPrimaryMainFrame()));
+  params.Set("runImmediately", run_now);
+  Call("Page.addScriptToEvaluateOnNewDocument", std::move(params),
+       base::BindOnce(&PageLinks::ScriptAdded, weak_factory_.GetWeakPtr()));
 }
 
-void PageLinks::WorldMade(content::GlobalRenderFrameHostId frame,
-                          bool main,
-                          std::optional<base::DictValue> world) {
-  std::optional<int> context =
-      world ? world->FindInt("executionContextId") : std::nullopt;
-  if (!context) {
-    return;
+void PageLinks::ScriptAdded(std::optional<base::DictValue> added) {
+  registering_ = false;
+  const std::string* id = added ? added->FindString("identifier") : nullptr;
+  if (id) {
+    script_id_ = *id;
+  } else {
+    script_id_.reset();
   }
-  base::DictValue params;
-  params.Set("name", kBinding);
-  params.Set("executionContextId", *context);
-  Call("Runtime.addBinding", std::move(params),
-       base::BindOnce(&PageLinks::BindingAdded, weak_factory_.GetWeakPtr(),
-                      frame, main, *context));
 }
 
-void PageLinks::BindingAdded(content::GlobalRenderFrameHostId frame,
-                             bool main,
-                             int context,
-                             std::optional<base::DictValue> added) {
-  if (!added || !content::RenderFrameHost::FromID(frame)) {
+std::string PageLinks::SourceForNewDocuments() {
+  return std::string(kLinkScript) +
+         "\nglobalThis.ardiaPeek && globalThis.ardiaPeek.config(" +
+         ConfigJson() + ");";
+}
+
+content::RenderFrameHost* PageLinks::FrameWithToken(const std::string& token) {
+  content::RenderFrameHost* found = nullptr;
+  GetWebContents().ForEachRenderFrameHost(
+      [&token, &found](content::RenderFrameHost* frame) {
+        if (!found && frame->GetDevToolsFrameToken().ToString() == token) {
+          found = frame;
+        }
+      });
+  return found;
+}
+
+void PageLinks::ContextCreated(const base::DictValue& params) {
+  const base::DictValue* context = params.FindDict("context");
+  std::optional<int> id = context ? context->FindInt("id") : std::nullopt;
+  const std::string* name = context ? context->FindString("name") : nullptr;
+  if (!id || !name || *name != kWorld) {
     return;
   }
-  contexts_[context] = Context{frame, main};
-  Evaluate(context, std::string(kLinkScript) + "\nardiaPeek.config(" +
-                        ConfigJson() + ");");
+  if (enabling_) {
+    stale_.push_back(*id);
+    return;
+  }
+  const std::string* origin = context->FindString("origin");
+  const base::DictValue* aux = context->FindDict("auxData");
+  const std::string* frame_id = aux ? aux->FindString("frameId") : nullptr;
+  if (!origin || !ScriptableOrigin(*origin) || !frame_id) {
+    return;
+  }
+  if (content::RenderFrameHost* frame = FrameWithToken(*frame_id)) {
+    contexts_[*id] = Context{frame->GetGlobalId(), frame->IsInPrimaryMainFrame()};
+  }
 }
 
 void PageLinks::Call(const std::string& method,
@@ -348,6 +390,12 @@ void PageLinks::Evaluate(int context, const std::string& expression) {
 
 void PageLinks::DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
                                         base::span<const uint8_t> message) {
+  const std::string_view text = base::as_string_view(message);
+  if (text.starts_with("{\"method\":\"Runtime.console") ||
+      text.starts_with("{\"method\":\"Runtime.exception") ||
+      text.starts_with("{\"method\":\"Page.")) {
+    return;
+  }
   std::optional<base::DictValue> parsed = base::JSONReader::ReadDict(
       base::as_string_view(message), base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!parsed) {
@@ -370,7 +418,24 @@ void PageLinks::DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
   }
   const std::string* method = parsed->FindString("method");
   const base::DictValue* params = parsed->FindDict("params");
-  if (!method || !params || *method != "Runtime.bindingCalled") {
+  if (!method || !params) {
+    return;
+  }
+  if (*method == "Runtime.executionContextCreated") {
+    ContextCreated(*params);
+    return;
+  }
+  if (*method == "Runtime.executionContextDestroyed") {
+    if (std::optional<int> id = params->FindInt("executionContextId")) {
+      contexts_.erase(*id);
+    }
+    return;
+  }
+  if (*method == "Runtime.executionContextsCleared") {
+    contexts_.clear();
+    return;
+  }
+  if (*method != "Runtime.bindingCalled") {
     return;
   }
   const std::string* name = params->FindString("name");
@@ -385,6 +450,10 @@ void PageLinks::DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
 void PageLinks::AgentHostClosed(content::DevToolsAgentHost* agent_host) {
   host_ = nullptr;
   contexts_.clear();
+  stale_.clear();
+  script_id_.reset();
+  enabling_ = false;
+  registering_ = false;
   std::map<int, Answer> pending = std::move(pending_);
   pending_.clear();
   for (auto& entry : pending) {
@@ -427,6 +496,16 @@ void PageLinks::PushConfig() {
   for (const auto& entry : contexts_) {
     Evaluate(entry.first, call);
   }
+  if (!script_id_ || registering_) {
+    return;
+  }
+  base::DictValue old;
+  old.Set("identifier", *script_id_);
+  Call("Page.removeScriptToEvaluateOnNewDocument", std::move(old),
+       base::DoNothing());
+  script_id_.reset();
+  registering_ = true;
+  AddScript(false);
 }
 
 void PageLinks::Heard(int context, const std::string& payload) {
