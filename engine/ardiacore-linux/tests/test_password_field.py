@@ -173,12 +173,15 @@ class PasswordFieldTests(unittest.TestCase):
         field = (LINUX / 'ac_linux_password_field.cc').read_text()
         header = (LINUX / 'ac_linux_password_field.h').read_text()
         for source in (field, header):
-            for needle in ['views::Textfield', 'textfield/textfield.h', 'TextfieldModel', 'RenderText::Create', 'SetValue(',
+            for needle in ['views::Textfield', 'textfield/textfield.h', 'TextfieldModel', 'RenderText::Create',
                            'Clipboard', 'std::u16string text_', 'LOG(']:
                 self.assertFalse(needle in source, needle)
+        self.assertEqual(field.count('SetValue('), 1)
         for needle in ['SecretText text_;', 'SecretText composition_;']:
             self.assertTrue(needle in header, needle)
-        for needle in ['ui::TEXT_INPUT_TYPE_PASSWORD', 'SetIsProtected(true)', 'Bullets(total)',
+        for needle in ['ui::TEXT_INPUT_TYPE_PASSWORD', 'SetIsProtected(true)', 'Bullets(total)', 'accessibility.SetValue(Bullets(total));',
+                       'SetTextSelStart(static_cast<int32_t>(selected ? 0 : caret));',
+                       'SetTextSelEnd(static_cast<int32_t>(selected ? total : caret));',
                        'bool PasswordField::GetTextFromRange(const gfx::Range& range, std::u16string* text) const {\n  return false;\n}',
                        'bool PasswordField::GetTextRange(gfx::Range* range) const {\n  return false;\n}',
                        'case ui::VKEY_V:']:

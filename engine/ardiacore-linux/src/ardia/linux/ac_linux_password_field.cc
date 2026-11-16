@@ -1,6 +1,7 @@
 #include "ardia/linux/ac_linux_password_field.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string_view>
 #include <utility>
 
@@ -98,6 +99,13 @@ void PasswordField::Clear() {
 
 void PasswordField::Changed() {
   SchedulePaint();
+  const size_t caret = text_.CodePointsBeforeCursor() + composition_.CodePoints();
+  const size_t total = text_.CodePoints() + composition_.CodePoints();
+  const bool selected = text_.all_selected();
+  views::ViewAccessibility& accessibility = GetViewAccessibility();
+  accessibility.SetValue(Bullets(total));
+  accessibility.SetTextSelStart(static_cast<int32_t>(selected ? 0 : caret));
+  accessibility.SetTextSelEnd(static_cast<int32_t>(selected ? total : caret));
   if (ui::InputMethod* input = GetInputMethod(); input && input->GetTextInputClient() == this) {
     input->OnCaretBoundsChanged(this);
   }
