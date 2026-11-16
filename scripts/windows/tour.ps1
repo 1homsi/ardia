@@ -1136,6 +1136,36 @@ function Invoke-HoldStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
   if ($stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
 }
 
+function Invoke-WholeTextTries($Session, [string]$Slug, [string]$Title, [string]$How) {
+  $stop = Invoke-Stop $Session $Slug $Title {
+    param($stop)
+    $stop.Did = "Ten times: pressed Ctrl+T, and from 15 ms after it typed example.com, 30 ms a key, $How; read the bar 1.5 s after the last key, then pressed Escape and Ctrl+W. Example Domain is in this profile's history, so the bar's inline completion offers example.com from the first letter."
+    $stop.Expected = "the bar reads 'example.com' in all ten tries (#2099, #2124)."
+    if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
+    $kept = 0
+    for ($try = 1; $try -le 10; $try++) {
+      Focus-Window $Session $Session.Main $null | Out-Null
+      $mark = Get-LogCount $Session
+      $chord = Send-QuickChord @(0x11) 0x54
+      $left = 15 - $chord.ElapsedMilliseconds
+      if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+      Send-Typed "example.com"
+      Start-Sleep -Milliseconds 1500
+      $field = Read-FocusedText
+      $holds = (Get-HoldLines $Session $mark) -join ' / '
+      if ($field -ceq "example.com") { $kept++; $stop.Facts.Add("try $try`: kept; $holds") }
+      else { $stop.Facts.Add("try $try`: '$field'; $holds; bar marks: $(Format-BarMarks $Session $mark)") }
+      Send-Escape
+      Start-Sleep -Milliseconds 150
+      Send-Chord @(0x11) 0x57
+      Start-Sleep -Milliseconds 600
+    }
+    $stop.Facts.Add("the bar read 'example.com' in $kept of 10")
+    Set-Seen $stop ($kept -eq 10)
+  }
+  if ($stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
+}
+
 function Invoke-HoldTour {
   $env:ARDIA_TEST = "keyHoldReadyMs=$($script:HoldReadyMs)"
   $session = Start-Ardia "hold" -Onboarded
@@ -1156,10 +1186,7 @@ function Invoke-HoldTour {
     Send-Key 0x14 0; Send-Key 0x14 2; Send-Char 'c'; Start-Sleep -Milliseconds 30; Send-Char 'd'; Send-Key 0x14 0; Send-Key 0x14 2
   } { param($stop, $field, $mark) $field -ceq "AbCD" -and @(Get-HoldLines $session $mark | Where-Object { $_ -match " ready after \d+ ms, replayed 4" }).Count -eq 1 }
 
-  Invoke-HoldStop $session "hold-slow" "Key hold: example.com typed from 15 ms after Ctrl+T, all of it before the bar is ready" "Pressed Ctrl+T, and from 15 ms after it typed example.com, 30 ms a key." "the hold replays all 11 characters and the new tab's bar reads 'example.com' (#2099, #2059)." {
-    param($stop)
-    Send-Typed "example.com"
-  } { param($stop, $field, $mark) $field -ceq "example.com" -and @(Get-HoldLines $session $mark | Where-Object { $_ -match " ready after \d+ ms, replayed 11" }).Count -eq 1 }
+  Invoke-WholeTextTries $session "hold-whole" "Key hold: example.com typed from 15 ms after Ctrl+T, all of it before the bar is ready, ten tries" "with readiness held to $($script:HoldReadyMs) ms, so all 11 letters are held and replayed"
 
   Invoke-Stop $session "hold-pairs" "Key hold: ab typed from 15 ms after Ctrl+T, six tries (report only)" {
     param($stop)
@@ -1269,6 +1296,18 @@ function Invoke-HoldTour {
   } { param($stop, $field, $mark) @(Get-LinesSince $session $mark "^keys \d+ hold \d+ dropped: a key with Ctrl, Alt or Win").Count -ge 1 }
 
   Stop-Ardia $session
+
+  $live = Start-Ardia "hold-live" -Onboarded
+  if (-not (Test-Usable $live)) { $script:Required.Add("Hold (hold-live): no usable window"); Stop-Ardia $live; return }
+  $page = Invoke-Stop $live "hold-live-page" "Key hold, runner's own timing: open Example Domain in the first tab" {
+    param($stop)
+    $stop.Did = "Launched onboarded without a readiness floor, opened example.com in a tab."
+    $stop.Expected = "the window's title names example.com."
+    Set-Seen $stop (Open-Page $live $stop "example.com" "example\.com")
+  }
+  if ($page.Seen -ne "yes") { $script:Required.Add("$($page.Number) Key hold, runner's own timing: open Example Domain") }
+  Invoke-WholeTextTries $live "hold-whole-live" "Key hold, runner's own timing: example.com typed from 15 ms after Ctrl+T, ten tries" "at the runner's own timing, so the first letters are held and the rest arrive live"
+  Stop-Ardia $live
 }
 
 function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$RequireGoHold, [switch]$JudgeLaterLetters) {

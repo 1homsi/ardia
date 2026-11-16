@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -44,6 +45,8 @@ struct FocusHold {
   int focusedTag = 0;
   bool ready = false;
   bool sentinelOut = false;
+  bool announced = false;
+  std::function<void(int, int)> announce;
   std::vector<wchar_t> held;
   unsigned replayed = 0;
   ULONGLONG postedAt = 0;
@@ -294,6 +297,10 @@ struct FocusHold {
     if (!active || ready || !claimedTag || focusedTag != claimedTag || GetTickCount64() - startedAt < ReadyFloorMs()) return;
     if (GetTickCount64() - startedAt > kReadyMs) return Drop("timeout", L"no field took the keyboard in 3 s");
     ready = true;
+    if (!held.empty() && announce) {
+      announced = true;
+      announce(claimedTag, static_cast<int>(held.size()));
+    }
     Pump();
   }
 
@@ -341,6 +348,8 @@ struct FocusHold {
   }
 
   void Stop() noexcept {
+    if (announced && announce) announce(claimedTag, 0);
+    announced = false;
     active = false;
     held.clear();
     sentinelOut = false;

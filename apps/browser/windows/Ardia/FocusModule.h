@@ -76,7 +76,16 @@ struct FocusModule {
   REACT_INIT(Initialize)
   void Initialize(winrt::Microsoft::ReactNative::ReactContext const &context) noexcept {
     m_context = context;
-    RunOnUI(context, []() noexcept { Menus::FocusHold::Shared().Reloaded(); });
+    RunOnUI(context, [context]() noexcept {
+      Menus::FocusHold &hold = Menus::FocusHold::Shared();
+      hold.announce = nullptr;
+      hold.Reloaded();
+      hold.announce = [context](int tag, int count) noexcept {
+        using winrt::Microsoft::ReactNative::JSValueObject;
+        EmitEvent(context, L"ArdiaShell", L"onAppEvent", JSValueObject{{"type", "keyHoldReplay"}, {"tag", static_cast<int64_t>(tag)}, {"count", static_cast<int64_t>(count)}});
+        LaunchLog::Write(L"keys", L"hold replay into tag " + std::to_wstring(tag) + (count ? L" announced, " + std::to_wstring(count) + L" held" : std::wstring{L" over"}));
+      };
+    });
   }
 
   REACT_METHOD(claimFocus)

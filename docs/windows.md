@@ -383,6 +383,16 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     from JS can take characters until the new field's focus report arrives, and a click inside the bar's own field
     while the replay runs can put a held letter where the click left the caret (Composition clicks reach none of the
     hold's hooks).
+  - **No second writer during a replay:** when a hold is ready with keys held, `ArdiaFocus` sends the app event
+    `keyHoldReplay` with the field's tag and the count, and again with 0 when the replay ends or the hold drops.
+    Until then that field's bar shows no inline completion and writes none (`state/omnibox/keyHoldReplay.ts`, with a
+    2 s guard so a lost end can't leave completion off); then it computes completion once for the text it has.
+  - **A typed text is never read as a completion's echo on Windows:** a value write from JS fires no change event
+    there, so `PLATFORM_FEATURES.inlineWritesEcho` is off and `useInlineCompletion` doesn't match changes against its
+    pending completion writes. Before, the whole completion arriving as typed text ("example.com" after a completion
+    computed for "e" that hadn't settled) was read as that old write's echo; the bar kept "example.co" and its next
+    render wrote that over the field. Replayed letters made it likely; a person typing the rest of a completion before
+    it settles could hit it too.
   - **Ends a hold, dropping what it holds and passing the key on:** Ctrl, Alt or Win going down, or a key with them
     (so AltGr characters and Ctrl+V right after Ctrl+T aren't held; the Ctrl still down from Ctrl+T doesn't count); Backspace and Enter, since a posted key event can't be ordered by the
     sentinel; a key without a character (Escape, Tab, arrows, function keys); a dead key, `VK_PROCESSKEY` or
@@ -396,7 +406,8 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   - **Tour:** the first-letter stop (ten tries each at 80 and 120 ms a key) and the 15 ms stop are required, at the
     runner's own timing. The `hold-*` stops in the typing part launch with `ARDIA_TEST=keyHoldReadyMs=400`, which keeps
     a hold from being ready for 400 ms (a slow launch; a warm runner is ready in about 50 ms), so each path runs: all of
-    example.com replayed, capitals from Shift and Caps Lock, and drops on Backspace, Escape, a click into another
+    example.com replayed in ten of ten tries (and ten more at the runner's own timing, no floor), capitals from Shift
+    and Caps Lock, and drops on Backspace, Escape, a click into another
     window of ours and Notepad taking the keyboard, each logged with keys held. Ctrl+V passes through.
   - **Telemetry:** `command_bar_key_holds`, `command_bar_keys_replayed` and `command_bar_key_hold_drops_<reason>` in
     `usage_counts`.
