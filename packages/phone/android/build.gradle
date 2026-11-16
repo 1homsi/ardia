@@ -107,6 +107,15 @@ androidComponents {
       lab.set(findProperty('ardiaLab') == 'true')
     }
     variant.sources.assets?.addGeneratedSourceDirectory(task, { CompileSyncBundle compile -> compile.outputDir })
+    variant.packaging.jniLibs.excludes.addAll([
+      "**/libc++_shared.so",
+      "**/libfbjni.so",
+      "**/libjsi.so",
+      "**/libhermes.so",
+      "**/libhermesvm.so",
+      "**/libhermestooling.so",
+      "**/libreactnative.so",
+    ])
   }
 }
 
@@ -144,17 +153,6 @@ android {
         }
       }
     }
-  }
-  packagingOptions {
-    excludes += [
-      "**/libc++_shared.so",
-      "**/libfbjni.so",
-      "**/libjsi.so",
-      "**/libhermes.so",
-      "**/libhermesvm.so",
-      "**/libhermestooling.so",
-      "**/libreactnative.so",
-    ]
   }
   testOptions {
     unitTests.returnDefaultValues = true
