@@ -425,7 +425,8 @@ void ShowStartFailureAndQuit(const std::wstring& reason) {
       text += L" The details are in " + log + L".";
     }
     ::MessageBoxW(nullptr, text.c_str(), L"Ardia",
-                  MB_OK | MB_ICONERROR | MB_SETFOREGROUND | MB_TASKMODAL);
+                  MB_OK | MB_ICONERROR | MB_SETFOREGROUND | MB_TASKMODAL |
+                      MB_TOPMOST);
   }
   QuitApp();
 }
@@ -457,7 +458,7 @@ void ShowRecoveryNotice(const std::wstring& folder) {
       L"passwords are untouched. The session it set aside is in " +
       folder + L".";
   ::MessageBoxW(nullptr, text.c_str(), L"Ardia",
-                MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+                MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST);
 }
 
 void ClaimGuardUntilOwned(int attempts_left) {
