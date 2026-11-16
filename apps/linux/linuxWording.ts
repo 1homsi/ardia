@@ -141,6 +141,10 @@ export const LINUX_WORDING: readonly Wording[] = [
       ["Bringing your last window back from the Dock or at launch", "Bringing your last window back from the taskbar or at launch"],
       ["How many times ⌘Y asked for the History", "How many times Ctrl+Y asked for the History"],
       ["how many times the macOS Now Playing controls played,", "how many times the desktop's media controls played,"],
+      [
+        "summed up once an hour, and when macOS refuses one: how long its title and message were, whether it had an icon, and the error code macOS gave. Never the notification's text",
+        "summed up once an hour. Never the notification's text",
+      ],
     ],
   },
   {
