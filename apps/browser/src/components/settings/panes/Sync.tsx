@@ -22,7 +22,7 @@ import { DATA_TYPES, SYNCED_KINDS, type SyncStatus } from "../../../state/sync/s
 import { deviceSymbol } from "../../../state/sync/devices";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
-import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
+import { addAllRemoteProfiles, confirmRemoveDevice, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { ago } from "../../../lib/time";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { perLook } from "../../ui/tokens";
@@ -289,7 +289,9 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
               icon={<Symbol name={deviceSymbol(d.kind, d.name)} size={15} color={theme.icon} style={{ width: 24, height: 20 }} />}
               title={d.current ? `${d.name} (This ${PLATFORM_TERMS.computerTitle})` : d.name}
               description={d.current ? statusLine(status, lastSyncedAt, 0) : d.lastSeen ? `last synced ${ago(d.lastSeen)}` : "hasn’t synced yet"}
-            />
+            >
+              {d.current ? null : <Button title="Remove…" onPress={() => void confirmRemoveDevice(d)} />}
+            </Row>
           ))
         ) : (
           <Row title={`Just this ${PLATFORM_TERMS.computer} so far`} description="Other devices show here once they sync." />

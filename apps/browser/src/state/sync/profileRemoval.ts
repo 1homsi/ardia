@@ -4,6 +4,9 @@ import { PROFILE, PROFILE_OPEN_TABS, PROFILE_THEME, PROFILE_TOP_APPS, SHARE, rec
 import { themeAngleKey } from "./profileAdapters";
 import { linkedProfileId, remoteProfileRecord } from "./profileLinks";
 import { APP_SCOPE, type SyncDoc } from "./syncDoc";
+import { settleDeviceRemovals } from "./deviceRemoval";
+
+export { markDeviceRemoved, takeSyncedDeviceRemovals } from "./deviceRemoval";
 
 let removals = 0;
 
@@ -33,6 +36,7 @@ export function markRemoved(doc: SyncDoc, syncId: string): boolean {
 
 export function settleRemovals(doc: SyncDoc, app: ScopeState) {
   if (!app.joined) return;
+  settleDeviceRemovals(doc, app);
   const unapplied = new Set(app.unapplied);
   const left = removingIds(doc).filter((syncId) => recordKeys(syncId).some((key) => key in app.base || unapplied.has(key)));
   if (left.length) doc.removing = left;
