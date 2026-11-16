@@ -15,6 +15,7 @@ export type AppEvent =
   | { type: "switcherMouseUp" }
   | { type: "dragEscape" }
   | { type: "unclaimedEscape"; windowId: string }
+  | { type: "snapKeyHandedBack"; windowId: string }
   | { type: "centeredResize" }
   | { type: "appLinkOpened"; windowId: string | null }
   | { type: "littleArdiaReturnedToApp" };

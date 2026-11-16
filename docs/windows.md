@@ -535,6 +535,22 @@ is plain Chromium.
   app text field is focused while the keyboard is in a page of the field's own window (the command bar, the find bar,
   an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates that window. A page that hides or
   closes leaves full screen, as the Mac's does.
+- Win+Up, Win+Down, Win+Left, Win+Right and Win+Z (with or without Shift) work while a page has the keyboard (#2148).
+  The shell takes the arrow's key-down for itself and acts on the foreground window, which is then the page's own
+  window, so nothing moved. `MenuKeyboard`'s thread hook still sees the arrow's key-up; when that key-up comes with
+  the Windows key down (or just released), its key-down never reached the hook and a page window owned by an app window
+  is in front, the hook activates that app window (same thread, so nothing is taken from another app) and, only if it
+  is then the foreground window, sends the same arrow or Z again with `SendInput`, inside a Windows key press when the
+  user has already let go of it (the Windows key's down and up always go in one batch). It sends nothing else, never a
+  character. A mark for the sent key lasts 500 ms and drops on any other key or when the app window is no longer in
+  front. When the sent key's up arrives, 150 ms later the app asks the window's Peek page, or else its shown tab, to
+  follow (`snapKeyHandedBack` to `followHandedBack`, the rule above), unless the window is minimized, lost the
+  foreground or another key came first. Win+Z leaves the keyboard in the app window, for the snap layouts. A
+  background instance only logs it. Unlike a native press, it acts on the arrow's key-up, a held arrow doesn't
+  repeat, and the page sees one blur and focus. Every other Windows key chord (Win+V, Win+., Win+H) is left alone and
+  the page keeps the keyboard. The launch log counts the keys sent and handed back ("snap keys: … so far"); the
+  launch check's snap pass presses each key with the sidebar and then a page focused, and a page field keeps the
+  keyboard through Win+V and Win+. and Escape.
 - Find in page is the app's bar, as on the Mac. Ctrl+F in a page reaches the app's `findInPage` through `MenuKeyboard`'s
   thread keyboard hook, which sees keys meant for the page windows (the hosted windows have no Chromium shortcuts), so
   Chromium's own find bar never shows. React Native for Windows fires both `onKeyDown` and `onSubmitEditing` for one

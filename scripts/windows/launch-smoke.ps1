@@ -482,9 +482,9 @@ while ($true) {
       $stream.Flush()
       continue
     }
-    $name = @{ "/a" = "a"; "/b" = "b"; "/hover" = "hover"; "/sleep" = "sleep"; "/links" = "links"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event"; "/event/fullscreen" = "event"; "/event/windowed" = "event"; "/event/local-state-start" = "event"; "/event/local-state-stop" = "event" }[$($path -replace '\?.*$', '')]
+    $name = @{ "/a" = "a"; "/b" = "b"; "/field" = "field"; "/hover" = "hover"; "/sleep" = "sleep"; "/links" = "links"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event"; "/event/fullscreen" = "event"; "/event/windowed" = "event"; "/event/local-state-start" = "event"; "/event/local-state-stop" = "event" }[$($path -replace '\?.*$', '')]
     $status = if ($name -eq "event") { "204 No Content" } elseif ($name) { "200 OK" } else { "404 Not Found" }
-    $text = if ($name -eq "event") { "" } elseif ($name -eq "links") { "<!doctype html><meta charset=utf-8><title>links page</title><style>body{margin:0}a{position:absolute;left:10px;width:200px;height:40px;display:block;background:#ddd}</style><a id=peek style='top:10px' href='/a'>peek</a><a id=blank style='top:70px' target=_blank href='/b'>blank</a><a id=app style='top:130px' href='ardia-sleep-check-link:woke'>app</a>" } elseif ($name -eq "sleep") { "<!doctype html><meta charset=utf-8><title>sleep page</title><body style='margin:0;height:6000px'><input id=field></body>" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}#full{position:absolute;left:40px;top:320px;width:160px;height:40px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><button id=full>full screen</button><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart')); document.getElementById('full').addEventListener('click', (event) => { event.stopPropagation(); document.documentElement.requestFullscreen(); }); addEventListener('fullscreenchange', () => report(document.fullscreenElement ? 'fullscreen' : 'windowed'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
+    $text = if ($name -eq "event") { "" } elseif ($name -eq "links") { "<!doctype html><meta charset=utf-8><title>links page</title><style>body{margin:0}a{position:absolute;left:10px;width:200px;height:40px;display:block;background:#ddd}</style><a id=peek style='top:10px' href='/a'>peek</a><a id=blank style='top:70px' target=_blank href='/b'>blank</a><a id=app style='top:130px' href='ardia-sleep-check-link:woke'>app</a>" } elseif ($name -eq "field") { "<!doctype html><meta charset=utf-8><title>field page</title><style>body{margin:0}#field{position:absolute;left:0;top:0;width:100%;height:100%;border:0;font:24px sans-serif}</style><input id=field><script>const field = document.getElementById('field'); field.addEventListener('input', () => fetch('/event/typed?' + encodeURIComponent(field.value)));</script>" } elseif ($name -eq "sleep") { "<!doctype html><meta charset=utf-8><title>sleep page</title><body style='margin:0;height:6000px'><input id=field></body>" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}#full{position:absolute;left:40px;top:320px;width:160px;height:40px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><button id=full>full screen</button><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart')); document.getElementById('full').addEventListener('click', (event) => { event.stopPropagation(); document.documentElement.requestFullscreen(); }); addEventListener('fullscreenchange', () => report(document.fullscreenElement ? 'fullscreen' : 'windowed'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($text)
     $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
     $stream.Write($head, 0, $head.Length)
@@ -959,6 +959,43 @@ public static class ArdiaSnapKeys {
     return $failures
   }
 
+  function Send-WindowsChord([byte]$Key) {
+    [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 80
+    [ArdiaInput]::keybd_event($Key, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+    [ArdiaInput]::keybd_event($Key, 0, 2, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 80
+    [ArdiaInput]::keybd_event(0x5B, 0, 3, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 1500
+  }
+
+  function Test-FieldKeepsKeyboard([System.Diagnostics.Process]$Process) {
+    $handle = $Process.MainWindowHandle
+    if ($handle -eq [IntPtr]::Zero) { return @("page field keys: the window never showed") }
+    $failures = @()
+    Set-SnapHome $handle ([System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea)
+    Set-SnapFocus $Process "page"
+    $typed = ""
+    foreach ($chord in @(@{ Name = "Win+V"; Key = 0x56; Letter = "k" }, @{ Name = "Win+."; Key = 0xBE; Letter = "j" })) {
+      $before = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
+      Send-WindowsChord ([byte]$chord.Key)
+      $shown = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
+      [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+      [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 800
+      $back = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
+      $held = Test-SnapFocusHeld $handle "page"
+      $typed += $chord.Letter
+      Send-Text $chord.Letter
+      Start-Sleep -Milliseconds 800
+      $reached = (Test-Path $httpPagesLog) -and @(Select-String -Path $httpPagesLog -SimpleMatch "/event/typed?$typed").Count -gt 0
+      Write-Host "Page field keys: before $($chord.Name) the foreground window was $before; with it open, $shown; after Escape, $back (the page: $held); typing reached the field: $reached."
+      if (-not ($held -and $reached)) { $failures += "page field keys: after $($chord.Name) and Escape the page field lost the keyboard (the foreground window was $back; typing reached the field: $reached)" }
+    }
+    return $failures
+  }
+
   Enable-WindowSnapping
   $snapLog = Join-Path $Out "snap-keys.log"
   $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-data"
@@ -980,6 +1017,27 @@ public static class ArdiaSnapKeys {
     if (-not $snapApp.HasExited) {
       Stop-Process -Id $snapApp.Id -Force
       $snapApp.WaitForExit(10000) | Out-Null
+    }
+  }
+  $fieldLog = Join-Path $Out "field-keys.log"
+  $env:ARDIA_DATA_DIR = New-DataDirectory "field-keys-data"
+  $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
+  Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+  Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
+  $fieldApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$fieldLog`"", "http://127.0.0.1:$httpPagesPort/field" -PassThru
+  $env:ARDIA_CONFIG_DIR = ""
+  try {
+    Start-Sleep -Seconds 12
+    if ($fieldApp.HasExited) { $failures += "page field keys: the app exited on its own (exit code $($fieldApp.ExitCode))" }
+    else {
+      $fieldApp.Refresh()
+      Test-FieldKeepsKeyboard $fieldApp | ForEach-Object { $failures += $_ }
+      if (Test-Path $fieldLog) { Select-String -Path $fieldLog -Pattern "snap keys" | ForEach-Object { Write-Host "Page field keys log: $($_.Line)" } }
+    }
+  } finally {
+    if (-not $fieldApp.HasExited) {
+      Stop-Process -Id $fieldApp.Id -Force
+      $fieldApp.WaitForExit(10000) | Out-Null
     }
   }
   $env:ARDIA_CONFIG_DIR = ""
