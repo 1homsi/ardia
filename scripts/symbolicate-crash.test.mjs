@@ -227,7 +227,7 @@ test("publish-engine.sh packs the symbols after stripping and uploads them with 
   assert.ok(strip > 0 && pack > strip, "pack-symbols.sh runs on the folder strip-engine.sh filled");
   assert.match(source, /^symbols_archive="\$out\/\$\(engine_symbols_name "\$tag"\)"$/m);
   assert.match(source, /^uuids_file="\$out\/\$\(engine_uuids_name "\$tag"\)"$/m);
-  assert.match(source, /^assets=\("\$archive" "\$archive\.sha256" "\$symbols_archive" "\$uuids_file"\)$/m);
+  assert.match(source, /^assets=\("\$archive" "\$archive\.sha256" "\$symbols_archive" "\$uuids_file" "\$source_archive"\)$/m);
   assert.match(source, /^run gh release upload "\$tag" -R "\$REPO" --clobber "\$\{assets\[@\]\}"$/m);
 });
 
