@@ -374,13 +374,15 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     so the dead-key state is left alone). Modifiers pass. At most 64.
   - **Replay:** one `WM_CHAR` at a time (a surrogate pair together) posted to the focused `InputSiteWindowClass`
     window, then a sentinel to the hold's own message window, re-checking the window in front and the focus before the
-    next, waiting 50 ms after the first so the field's first change settles before a second letter can meet #2101's
+    next, waiting 50 ms after the first one's sentinel returns so the field's first change settles before a second letter can meet #2101's
     revert. No `SendInput`. A failed post, or a sentinel not back within 1 s, ends the hold. A posted character can't be
     recalled, and the check sees the input window, not which React field inside it has focus. So `src/textFocus.ts`
     also tells the hold when JS asks another field to take focus (`fieldAsked`, sent before the request; a request
     before the claim is kept and checked against it), which should end the hold before that move reaches the UI
     thread: the report is sent first, but that it arrives before Fabric's focus command is expected, not proven. What's left: a focus move inside the window that doesn't come
-    from JS can take characters until the new field's focus report arrives.
+    from JS can take characters until the new field's focus report arrives, and a click inside the bar's own field
+    while the replay runs can put a held letter where the click left the caret (Composition clicks reach none of the
+    hold's hooks).
   - **Ends a hold, dropping what it holds and passing the key on:** Ctrl, Alt or Win going down, or a key with them
     (so AltGr characters and Ctrl+V right after Ctrl+T aren't held; the Ctrl still down from Ctrl+T doesn't count); Backspace and Enter, since a posted key event can't be ordered by the
     sentinel; a key without a character (Escape, Tab, arrows, function keys); a dead key, `VK_PROCESSKEY` or

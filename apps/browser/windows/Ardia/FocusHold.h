@@ -323,7 +323,7 @@ struct FocusHold {
     if (!active || delivered != generation) return;
     if (GetTickCount64() - postedAt > kDeliveryMs) return Drop("timeout", L"a replayed character wasn't delivered in 1 s");
     sentinelOut = false;
-    if (replayed == 1) nextAt = postedAt + kAfterFirstMs;
+    if (replayed == 1) nextAt = GetTickCount64() + kAfterFirstMs;
     Pump();
   }
 
