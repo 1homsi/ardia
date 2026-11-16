@@ -43,7 +43,9 @@ export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, fiel
           ) : null}
         </View>
       </ContextMenuArea>
-      <View {...rowsHover}>{list}</View>
+      <View collapsable={false} {...rowsHover}>
+        {list}
+      </View>
     </View>
   );
 }
@@ -68,7 +70,7 @@ export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, 
           {field}
         </View>
       </ContextMenuArea>
-      <View {...rowsHover}>
+      <View collapsable={false} {...rowsHover}>
         {list}
         {bottom}
       </View>

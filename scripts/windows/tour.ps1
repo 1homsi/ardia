@@ -1083,24 +1083,15 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     $stop.Facts.Add("the field after the last key, as it settled: $($reads -join ', ')")
     $stop.Facts.Add("the field before $($Submit): '$typed' in $(Read-FocusedId)")
     if ($Submit -eq "Go") {
-      $go = @(Find-Named $Session.Main "Go")
-      $aims = 0
-      while ($go.Count -and $aims -lt 3) {
-        $aims++
-        Send-MouseMove $go[0].X $go[0].Y
-        Start-Sleep -Milliseconds 100
-        $still = @(Find-Named $Session.Main "Go")
-        if (-not $still.Count -or ($still[0].X -eq $go[0].X -and $still[0].Y -eq $go[0].Y)) { break }
-        $go = $still
-      }
-      if ($go.Count) {
+      $aimedAt = @(Find-Named $Session.Main "Go") | Select-Object -First 1
+      if ($aimedAt) {
         Start-Sleep -Milliseconds 2000
         $after = @(Find-Named $Session.Main "Go")
         $where = if ($after.Count) { "$($after[0].X),$($after[0].Y)" } else { "not found by that name" }
-        $stop.Facts.Add("moved the mouse onto Go at $($go[0].X),$($go[0].Y) in 8 steps ($aims aim(s)), rested 2 s while suggestions came in; Go was then at $where; clicked where the pointer rested")
-        Send-Click $go[0].X $go[0].Y
+        $stop.Facts.Add("Go was at $($aimedAt.X),$($aimedAt.Y) when the field settled, with the mouse resting over the bar; 2 s later, as the late suggestions came in, it was at $where; clicked $($aimedAt.X),$($aimedAt.Y)")
+        Send-Click $aimedAt.X $aimedAt.Y
       }
-      $stop.Facts.Add("Go button found and clicked: $($go.Count -gt 0)")
+      $stop.Facts.Add("Go button found and clicked: $([bool]$aimedAt)")
     } else {
       Send-Key 0x0D 0
       Send-Key 0x0D 2
@@ -1217,7 +1208,7 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-go" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session
-    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, 30 ms a key, then rested the pointer on Go for 2 s while suggestions came in and clicked where it rested. Go has to stay under the pointer and open what the field says (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireLoaded | Out-Null
+    Invoke-TypeStop $session "human-go" "First run: the mouse resting on the bar, Ctrl+T after Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, moved the mouse onto the first tab's Go (the new tab's bar sits in the same place), pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, noted where Go was when the field settled, waited 2 s while the late suggestions came in and clicked there. Go has to stay put and open what the field says (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); $rest = @(Find-Named $session.Main "Go") | Select-Object -First 1; if ($rest) { Send-MouseMove $rest.X $rest.Y }; $stop.Facts.Add("mouse moved onto the first tab's Go: $([bool]$rest)") } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireLoaded | Out-Null
   }
 
   Invoke-FirstRunLaunch "faster-than-a-person" "" {
