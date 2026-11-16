@@ -95,10 +95,10 @@ public struct LookFrost: View {
         switch variant {
         case .bar:
           shape.fill(.bar)
-          shape.fill(look.surface.opacity(BrowseLayout.sheetTintShare))
+          shape.fill(look.surface.opacity(profileSheetTintShare))
         case .sheet:
           shape.fill(.regularMaterial)
-          shape.fill(look.surface.opacity(BrowseLayout.sheetTintShare))
+          shape.fill(look.surface.opacity(profileSheetTintShare))
         case .glass:
           Color.clear.glassEffect(.regular, in: shape)
         case .thin:
@@ -184,3 +184,5 @@ public extension Color {
 #Preview("Softened") {
   ProfileBackdrop(softened: true).ignoresSafeArea()
 }
+
+private let profileSheetTintShare: Double = 0.8
