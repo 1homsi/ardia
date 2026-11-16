@@ -35,6 +35,7 @@ export type ProfileLink = {
   enabled: boolean;
   retire?: boolean;
   themeAdopting?: true;
+  tabsRetire?: true;
 };
 
 export type SyncDoc = {
@@ -51,6 +52,7 @@ export type SyncDoc = {
   joining: boolean;
   seqs?: Record<string, number>;
   sends?: Record<string, SendLedger>;
+  tabCloses?: Record<string, string[]>;
 };
 
 export const DOC = "sync.json";
