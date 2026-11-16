@@ -9,6 +9,7 @@ import { refreshExtensionsAfterChange } from "./actions";
 import { refreshActionStates } from "./actionStates";
 import { focusedWindowOf } from "../windows/ui";
 import { onProfilesUnloaded } from "../profiles/profileLoading";
+import { noteExtensionActionTabChangeSkipped } from "../telemetry/workCounts";
 
 const ACTION_EVENT_COALESCE_MS = 150;
 
@@ -75,6 +76,7 @@ export function startActionStates() {
       return !!now && (active !== activeTabId(prev, id) || now.url !== before?.url || now.page !== before?.page);
     });
     if (navigated.length) void refreshActionStates(navigated.map((id) => extensionProfile(s, id)));
+    else noteExtensionActionTabChangeSkipped();
   });
   useExtensions.subscribe((e, prev) => {
     if (e.lists !== prev.lists || e.popup !== prev.popup) void refreshActionStates();

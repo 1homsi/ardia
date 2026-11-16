@@ -11,6 +11,7 @@ import { SOURCES } from "./sources";
 import { beginLiveRefresh, applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolder, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
+import { noteLiveSourceFetch } from "../telemetry/workCounts";
 import { isPlaying, useMedia } from "../media/media";
 import { usePages } from "../tabs/pageState";
 import type { MediaAccess } from "../../platform/tabs";
@@ -26,6 +27,7 @@ const sharedFetches = new Map<string, Promise<LiveItem[]>>();
 function fetchSource(source: LiveSourceId, folder: LiveFolder): Promise<LiveItem[]> {
   const key = JSON.stringify([source, live().accounts[source]?.connectedAt ?? null, folder.filters]);
   const running = sharedFetches.get(key);
+  noteLiveSourceFetch(!!running);
   if (running) return running;
   const task = SOURCES[source].fetch(folder).finally(() => sharedFetches.delete(key));
   sharedFetches.set(key, task);
