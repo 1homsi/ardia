@@ -38,7 +38,6 @@ export type NotificationsNative = {
   addListener(name: "onNotificationResponse", listener: (e: NotificationResponse) => void): EventSubscription;
   notificationPermission(): Promise<NotificationPermission>;
   requestNotificationPermission(): Promise<boolean>;
-  /** The Mac answers with a result. The Windows and Linux hosts answer with the notification's id, or null when none was posted. */
   postNotification(options: NotificationOptions): Promise<NotificationPostResult | string | null>;
   removeNotifications(ids: string[]): Promise<void>;
   openNotificationSettings(): Promise<void>;

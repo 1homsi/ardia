@@ -27,8 +27,6 @@ export function webNotificationFailureProperties(sent: SentWebNotification, resu
   };
 }
 
-// The Mac answers with a NotificationPostResult. The Windows and Linux hosts still answer with the id as text, or null, and
-// carry no error to record, so only a result object that has no id is a refused post.
 export function recordWebNotificationPost(posted: Promise<NotificationPostResult | string | null | undefined>, sent: SentWebNotification): Promise<void> {
   return posted.then(
     (result) => {
