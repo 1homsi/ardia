@@ -54,10 +54,10 @@ class SystemDownloadsTest {
         harness.close()
     }
 
-    private fun download(url: String, fileName: String, isPrivate: Boolean = false) = PageDownload(
+    private fun download(url: String, fileName: String, isPrivate: Boolean = false, mimeType: String? = null) = PageDownload(
         url = url,
         fileName = fileName,
-        mimeType = null,
+        mimeType = mimeType,
         contentLength = -1,
         userAgent = "ArdiaTest",
         contentDisposition = null,
@@ -91,22 +91,44 @@ class SystemDownloadsTest {
         assertEquals("ArdiaTest", second.headers["user-agent"])
     }
 
+    private fun relativePath(outcome: DownloadOutcome): String? {
+        val uri = (outcome as DownloadOutcome.Finished).uri!!
+        return harness.context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.RELATIVE_PATH), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }
+
     @Test
     fun theFileLandsInDownloadsWithASafeUniqueName() {
         server.route("/file") { TestServer.Response(body = "one", contentType = "text/plain") }
         val downloads = SystemDownloads(harness.context, harness.engine)
-        val first = DownloadHarness.run(downloads, download(server.url("/file"), "../../secret/notes.txt"))
+        val first = DownloadHarness.run(downloads, download(server.url("/file"), "../../secret/notes.txt", mimeType = "text/plain"))
         created += first
-        val second = DownloadHarness.run(downloads, download(server.url("/file"), "notes.txt"))
+        val second = DownloadHarness.run(downloads, download(server.url("/file"), "notes.txt", mimeType = "text/plain"))
         created += second
         assertTrue(first is DownloadOutcome.Finished && second is DownloadOutcome.Finished)
-        assertTrue(first.fileName.startsWith("notes") && !first.fileName.contains('/'))
+        assertTrue(first.fileName, first.fileName.startsWith("notes") && !first.fileName.contains('/'))
+        assertFalse(second.fileName.contains('/'))
         assertNotEquals(first.fileName, second.fileName)
-        val uri = (first as DownloadOutcome.Finished).uri!!
-        val path = harness.context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.RELATIVE_PATH), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        }
-        assertEquals("Download/", path)
+        assertEquals("Download/", relativePath(first))
+        assertEquals("Download/", relativePath(second))
+        assertTrue(downloads.active.value.isEmpty())
+    }
+
+    @Test
+    fun aLinkedFileTakesItsNameFromTheResponseSafeAndUnique() {
+        server.route("/file") { TestServer.Response(body = "one", contentType = "text/plain") }
+        val downloads = SystemDownloads(harness.context, harness.engine)
+        val first = DownloadHarness.run(downloads, download(server.url("/file"), "../../secret/notes.txt"))
+        created += first
+        val second = DownloadHarness.run(downloads, download(server.url("/file"), "../../secret/notes.txt"))
+        created += second
+        assertTrue(first is DownloadOutcome.Finished && second is DownloadOutcome.Finished)
+        assertEquals("a link with no type or disposition is named from the response, as Download Linked File is", "file.txt", first.fileName)
+        assertFalse(second.fileName.contains('/'))
+        assertNotEquals(first.fileName, second.fileName)
+        assertEquals("Download/", relativePath(first))
+        assertEquals("Download/", relativePath(second))
         assertTrue(downloads.active.value.isEmpty())
     }
 

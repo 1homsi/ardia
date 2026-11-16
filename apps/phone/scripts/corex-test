@@ -11,9 +11,13 @@
 # at ~/Developer/ardia-android-build/device-tests.apk. On a phone whose installer stops adb installs (MIUI), install
 # that file with agentos's install tool, then --device-run SERIAL runs the installed tests with am instrument (the
 # filters are class names) and prints the same counts; it builds nothing, and the commit names what was installed.
+# One device test needs UiAutomation, which agentos holds while it leases a phone, so on a leased phone --device-run
+# counts it failed ("UiAutomationService … already registered") while every other one passes: run it through agentos's
+# test tool, package com.ardia.browser.test, runner androidx.test.runner.AndroidJUnitRunner, with the argument
+# class=com.ardia.browser.PageSnapshotTest#aSnapshotRightAfterANightModeChangeShowsThePage.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && [ "$1" != "--help" ] && [ "$1" != "-h" ] && exit 64
   exit 0
 fi

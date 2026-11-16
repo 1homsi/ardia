@@ -1741,6 +1741,7 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
     drop the bands.
 - Long press on links and images in a page: iPhone shows WebKit's system menu with Open in New Tab, Open in Background, Copy Link, Share… and Download Linked File, as the SwiftUI app does; Android shows the app's drawn menu from `page.longPress` (c317c5b8f).
 - Voice screen status-bar icons: always light; Compose takes them from the light-mode tint although the screen is always dark (3a9ca2f10, `lib/statusInk.ts`).
+- A link's `download="name"`: iPhone saves under WebKit's `suggestedFilename` as given (`DownloadManager.destination`), which WebKit fills from the response's Content-Disposition or the link's `download` attribute; Android names a download from its URL (`DownloadRules.linkName`, `URLUtil.guessFileName`) and, for a link with no type or disposition, from the response, as Download Linked File does, and reads no `download` attribute. A known gap, not to be added on Android without a decision (`SystemDownloadsTest`).
 - Pin to Mac from the page menu: Android keeps Compose's toast, iPhone answers in the menu's title as SwiftUI does (5023ecabd).
 - Paste and Go: Android only; SwiftUI has no such row (`lib/platformCopy.ts` `offersPasteAndGo`).
 - Wording: each phone keeps its native app's words through one copy table per platform (`lib/platformCopy.ts`, 5db9a2263).
