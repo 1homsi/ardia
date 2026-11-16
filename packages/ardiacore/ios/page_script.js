@@ -1895,7 +1895,7 @@
       if (message.resync && s) snapshot();
     };
     const ensure = (video) => {
-      if (s || !video) return;
+      if (s || !video || !video.isConnected) return;
       if (video !== retryVideo) {
         retryVideo = video;
         retries = 0;
