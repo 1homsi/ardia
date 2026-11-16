@@ -347,7 +347,7 @@ struct MenuKeyboard {
     if (!owner) return {};
     WindowManager &manager = WindowManager::Shared();
     for (std::string const &id : manager.Ids()) {
-      if (manager.Hwnd(id) == owner) return {owner, id};
+      if (manager.Hwnd(id) == owner) return manager.IsBrowserWindow(id) ? ActiveWindow{owner, id} : ActiveWindow{};
     }
     return {};
   }
@@ -466,7 +466,8 @@ struct MenuKeyboard {
   void WindowsKeyHoldLapsed() noexcept {
     if (!windowsKeyHold) return;
     HWND foreground = GetForegroundWindow();
-    if (windowsKeyHold->windowsUp && IsWindow(windowsKeyHold->page) && foreground && !OurWindow(foreground)) GivePageBack(L"for when its window comes back, as another program is still in front");
+    bool released = windowsKeyHold->windowsUp || !WindowsKeyPhysicallyHeld();
+    if (released && IsWindow(windowsKeyHold->page) && foreground && !OurWindow(foreground)) GivePageBack(L"for when its window comes back, as another program is still in front");
     else LetPageGo(L"its deadline passed");
   }
 

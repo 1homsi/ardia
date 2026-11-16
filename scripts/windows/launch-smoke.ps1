@@ -482,9 +482,9 @@ while ($true) {
       $stream.Flush()
       continue
     }
-    $name = @{ "/a" = "a"; "/b" = "b"; "/field" = "field"; "/hover" = "hover"; "/sleep" = "sleep"; "/links" = "links"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event"; "/event/fullscreen" = "event"; "/event/windowed" = "event"; "/event/local-state-start" = "event"; "/event/local-state-stop" = "event" }[$($path -replace '\?.*$', '')]
+    $name = @{ "/a" = "a"; "/b" = "b"; "/field" = "field"; "/opener" = "opener"; "/hover" = "hover"; "/sleep" = "sleep"; "/links" = "links"; "/drag" = "drag"; "/event/hovered" = "event"; "/event/left" = "event"; "/event/pressed" = "event"; "/event/selected" = "event"; "/event/released" = "event"; "/event/dragstart" = "event"; "/event/fullscreen" = "event"; "/event/windowed" = "event"; "/event/local-state-start" = "event"; "/event/local-state-stop" = "event" }[$($path -replace '\?.*$', '')]
     $status = if ($name -eq "event") { "204 No Content" } elseif ($name) { "200 OK" } else { "404 Not Found" }
-    $text = if ($name -eq "event") { "" } elseif ($name -eq "links") { "<!doctype html><meta charset=utf-8><title>links page</title><style>body{margin:0}a{position:absolute;left:10px;width:200px;height:40px;display:block;background:#ddd}</style><a id=peek style='top:10px' href='/a'>peek</a><a id=blank style='top:70px' target=_blank href='/b'>blank</a><a id=app style='top:130px' href='ardia-sleep-check-link:woke'>app</a>" } elseif ($name -eq "field") { "<!doctype html><meta charset=utf-8><title>field page</title><style>body{margin:0}#field{position:absolute;left:0;top:0;width:100%;height:100%;border:0;font:24px sans-serif}</style><input id=field><script>const field = document.getElementById('field'); field.addEventListener('input', () => fetch('/event/typed?' + encodeURIComponent(field.value)));</script>" } elseif ($name -eq "sleep") { "<!doctype html><meta charset=utf-8><title>sleep page</title><body style='margin:0;height:6000px'><input id=field></body>" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}#full{position:absolute;left:40px;top:320px;width:160px;height:40px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><button id=full>full screen</button><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart')); document.getElementById('full').addEventListener('click', (event) => { event.stopPropagation(); document.documentElement.requestFullscreen(); }); addEventListener('fullscreenchange', () => report(document.fullscreenElement ? 'fullscreen' : 'windowed'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
+    $text = if ($name -eq "event") { "" } elseif ($name -eq "links") { "<!doctype html><meta charset=utf-8><title>links page</title><style>body{margin:0}a{position:absolute;left:10px;width:200px;height:40px;display:block;background:#ddd}</style><a id=peek style='top:10px' href='/a'>peek</a><a id=blank style='top:70px' target=_blank href='/b'>blank</a><a id=app style='top:130px' href='ardia-sleep-check-link:woke'>app</a>" } elseif ($name -eq "opener") { "<!doctype html><meta charset=utf-8><title>opener page</title><style>body{margin:0}#open{position:absolute;left:0;top:0;width:100%;height:100%;font:24px sans-serif}</style><button id=open>open a pop-up</button><script>document.getElementById('open').addEventListener('click', () => window.open('/field', 'snapcheck', 'popup,width=560,height=420'));</script>" } elseif ($name -eq "field") { "<!doctype html><meta charset=utf-8><title>field page</title><style>body{margin:0}#field{position:absolute;left:0;top:0;width:100%;height:100%;border:0;font:24px sans-serif}</style><input id=field><script>const field = document.getElementById('field'); field.addEventListener('input', () => fetch('/event/typed?' + encodeURIComponent(field.value)));</script>" } elseif ($name -eq "sleep") { "<!doctype html><meta charset=utf-8><title>sleep page</title><body style='margin:0;height:6000px'><input id=field></body>" } elseif ($name -eq "drag") { "<!doctype html><meta charset=utf-8><title>drag page</title><style>body{margin:0;font:18px sans-serif}#words{position:absolute;left:40px;top:120px;width:560px;margin:0}#link{position:absolute;left:40px;top:240px}#full{position:absolute;left:40px;top:320px;width:160px;height:40px}</style><p id=words>Plain words to select by dragging across them, plain words to select by dragging across them.</p><a id=link href='/a'>a link to drag</a><button id=full>full screen</button><script>const report = (name) => fetch('/event/' + name); addEventListener('mousedown', () => report('pressed')); addEventListener('mouseup', () => report(getSelection().toString().length > 0 ? 'selected' : 'released')); addEventListener('dragstart', () => report('dragstart')); document.getElementById('full').addEventListener('click', (event) => { event.stopPropagation(); document.documentElement.requestFullscreen(); }); addEventListener('fullscreenchange', () => report(document.fullscreenElement ? 'fullscreen' : 'windowed'));</script>" } elseif ($name -eq "hover") { "<!doctype html><meta charset=utf-8><title>ready</title><style>body{margin:0}#strip{height:160px;background:#ddd}</style><div id=strip>hover strip</div><script>const strip = document.getElementById('strip'); strip.addEventListener('mouseenter', () => { document.title = 'hovered'; fetch('/event/hovered'); }); strip.addEventListener('mouseleave', () => { document.title = 'left'; fetch('/event/left'); });</script>" } elseif ($name) { "<!doctype html><meta charset=utf-8><p>cached page $name</p><script>addEventListener('pageshow', (event) => { document.title = (event.persisted ? 'restored ' : 'loaded ') + '$name'; });</script>" } else { "" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($text)
     $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 $status`r`nContent-Type: text/html; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
     $stream.Write($head, 0, $head.Length)
@@ -1049,6 +1049,42 @@ public static class ArdiaSnapKeys {
     return $failures
   }
 
+  function Test-PopupSnapKeys([System.Diagnostics.Process]$Process) {
+    $handle = $Process.MainWindowHandle
+    Set-SnapHome $handle ([System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea)
+    Set-SnapFocus $Process "page"
+    Start-Sleep -Seconds 3
+    $popupPage = [ArdiaSnapKeys]::GetForegroundWindow()
+    $popup = [ArdiaSnapKeys]::GetWindow($popupPage, 4)
+    $class = New-Object System.Text.StringBuilder 256
+    [ArdiaInput]::GetClassName($popupPage, $class, 256) | Out-Null
+    if (-not $class.ToString().StartsWith("Chrome_") -or $popup -eq [IntPtr]::Zero -or $popup -eq $handle) {
+      Write-Host "Snap keys (pop-up page): no pop-up window's page came to the front (the foreground window is $(Get-SnapDescription $popupPage)), so the pop-up step is not checked."
+      return @()
+    }
+    $box = Get-SnapBounds $popupPage
+    if ($box) { Send-Click ([int](($box.Left + $box.Right) / 2)) ([int](($box.Top + $box.Bottom) / 2)) }
+    Start-Sleep -Milliseconds 500
+    $ready = [ArdiaSnapKeys]::GetForegroundWindow() -eq $popupPage
+    $before = Get-SnapBounds $popup
+    Send-HeldWindowsKeys @([byte]0x26)
+    $after = Get-SnapBounds $popup
+    $front = [ArdiaSnapKeys]::GetForegroundWindow()
+    Send-Text "w"
+    Start-Sleep -Milliseconds 800
+    $reached = (Test-Path $httpPagesLog) -and @(Select-String -Path $httpPagesLog -SimpleMatch "/event/typed?w").Count -gt 0
+    $was = if ($before) { "$($before.Left),$($before.Top),$($before.Right),$($before.Bottom)" } else { "unknown" }
+    $now = if ($after) { "$($after.Left),$($after.Top),$($after.Right),$($after.Bottom)" } else { "unknown" }
+    $kept = $front -eq $popupPage
+    Write-Host "Snap keys (pop-up page): the keyboard in the pop-up's page first ($ready); after Win+Up with the Windows key held the pop-up was at $was and is at $now, the foreground window is $(Get-SnapDescription $front) (the pop-up's page: $kept), typing reached its text box: $reached."
+    Send-Chord @([byte]0x11) ([byte]0x57)
+    if (-not $ready) { return @("snap keys (pop-up page): the keyboard was not in the pop-up's page after a click there") }
+    $failures = @()
+    if ($was -ne $now) { $failures += "snap keys (pop-up page): Win+Up moved the pop-up window from $was to $now" }
+    if (-not ($kept -and $reached)) { $failures += "snap keys (pop-up page): after Win+Up the pop-up's page lost the keyboard (the foreground window is $(Get-SnapDescription $front); typing reached it: $reached)" }
+    return $failures
+  }
+
   Enable-WindowSnapping
   $snapLog = Join-Path $Out "snap-keys.log"
   $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-data"
@@ -1097,6 +1133,27 @@ public static class ArdiaSnapKeys {
     if (-not $heldApp.HasExited) {
       Stop-Process -Id $heldApp.Id -Force
       $heldApp.WaitForExit(10000) | Out-Null
+    }
+  }
+  $popupLog = Join-Path $Out "snap-keys-popup.log"
+  $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-popup-data"
+  $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
+  Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+  Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
+  $popupApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$popupLog`"", "http://127.0.0.1:$httpPagesPort/opener" -PassThru
+  $env:ARDIA_CONFIG_DIR = ""
+  try {
+    Start-Sleep -Seconds 12
+    if ($popupApp.HasExited) { $failures += "snap keys (pop-up page): the app exited on its own (exit code $($popupApp.ExitCode))" }
+    else {
+      $popupApp.Refresh()
+      Test-PopupSnapKeys $popupApp | ForEach-Object { $failures += $_ }
+      if (Test-Path $popupLog) { Select-String -Path $popupLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log (pop-up page): $($_.Line)" } }
+    }
+  } finally {
+    if (-not $popupApp.HasExited) {
+      Stop-Process -Id $popupApp.Id -Force
+      $popupApp.WaitForExit(10000) | Out-Null
     }
   }
   $env:ARDIA_CONFIG_DIR = ""
