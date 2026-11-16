@@ -1726,6 +1726,60 @@ Needs JDK 17 and the Android SDK (`local.properties` or `ANDROID_HOME`). The fir
 Expo's Gradle plugins and the C++ of every native module, about 15 minutes on a busy Mac; JS-only changes rebuild the
 release APK in about 2.
 
+### Building Android on corex
+
+Android APKs for phone runs are built on corex, not on the Mac. The Mac's disk and load are for the iPhone builds,
+and the phones are on corex.
+
+```
+apps/phone/scripts/corex-build <name> <commit> [build-apk options]   in corex's bots container
+```
+
+- **Where it runs.** In the `bots` container (14 GB); it refuses `dev`, which holds the owner's T3. It waits while
+  another Gradle build runs there or less than 8 GB is free, and never moves to `dev`. One Android build at a time:
+  the Gradle lock, as on the Mac.
+- **What it builds.** A pushed commit on `t3/unify-expo-architecture`. `~/Developer/ardia-android-build/src` is a
+  build-only clone: every build fetches, detaches it at the commit, resets and cleans it (only the build outputs Git
+  ignores stay).
+  - **Never edit, commit or push there.** All work happens in the main checkout; the folder's README says so.
+  - The scripts come from the branch head (`tools/`), so an older commit builds with today's `build-apk`.
+- **The same `build-apk`.** It runs with `ARDIA_BUILD_ROOT` at the clone, so the stamp, the dirty check and
+  `check-names.py` are unchanged. Gradle runs without a daemon and Kotlin in-process, so nothing stays resident on
+  the shared machine.
+  - The signer is the committed `apps/phone/android/app/debug.keystore`, the same as on the Mac, so a corex APK
+    installs over a Mac one.
+  - `--compose-key` (the upgrade pair, signed with the Compose app's key) is built on the Mac only.
+- **Output.** `~/Developer/ardia-phone-apks/<name>.apk`, with `<name>.txt` (the stamp, plus a `built on:` line
+  with the install and build times) and `<name>-r8/`. The newest 8 builds are kept.
+  - Phone runs on corex read them there: no `scp` from the Mac for Android.
+  - The Compose app's release build, the reference in every run, is `reference/ardia-compose-release.{apk,txt}`
+    (signer `eeb05c92…`); pruning never touches `reference/`.
+- **The tools it adds, beside the clone, not in the shared SDK:** `pnpm-<version>/` (the version `packageManager`
+  pins, first on the path, since `bundle-export` runs pnpm too) and `sdk-view/`. `sdk-view/` is cmdline-tools 23.0,
+  pinned by checksum, which `check-names.py` needs for `apkanalyzer`; it must sit in an SDK layout, so the view links
+  the shared SDK's other parts. Bundle exports go to `tmp/` there, so their offline install finds pnpm's store on the
+  same filesystem.
+- **Starting it.** From the Mac, or from a corex thread through `ssh corex`:
+
+  ```
+  ssh corex bash -s <<'EOF'
+  docker exec -i bots bash -lc 'b=$HOME/Developer/ardia-android-build; mkdir -p $b; [ -d $b/src/.git ] || git clone -q --no-checkout https://github.com/ardia-browser/ardia.git $b/src; git -C $b/src fetch -q origin t3/unify-expo-architecture; git -C $b/src show FETCH_HEAD:apps/phone/scripts/corex-build > $b/corex-build.run; bash $b/corex-build.run <name> <commit>'
+  EOF
+  ```
+
+- **Checked against the Mac (2026-11-16, 25c45496a).** The corex build and the Mac's expo58m have the same commit
+  stamp, the same signer and the same JS bundle bytes; 2,175 of 2,192 files are identical.
+  - **Native libraries:** each differs by the length of the checkout path compiled in (184 bytes); so do the two
+    Hermes sync files (21 bytes).
+  - **The dex:** differs in R8's map id. `classes.dex` also differs in 18 Compose functions from the Compose app's
+    widget and settings sources, where the Mac checks one parameter's stability at runtime. Corex's clean and
+    incremental builds are identical in every file, which points to the Mac's incremental history (unproven).
+  - **On the F4,** the corex APK installed over the Mac one as an update, kept the app's data and ran.
+  - **Build times:** the first full build took about 11 min 20 s, an incremental one 107 s.
+- **Toolchain on corex.** JDK 17.0.21, NDK 27.1.12297006, build-tools 37.0.0 and android-37.0 are in the containers'
+  `~/Android/Sdk`. The Linux `hermesc` is pinned by hash in `packages/phone/android/build.gradle`. pnpm 11.1.3 comes
+  from `packageManager` (corex's own is 12).
+
 ### The lab switch
 
 The page lab (`com.ardia.phone.PAGE_LAB`) and sync's demo mode (`com.ardia.phone.SYNC_DEMO`) exist only in lab
