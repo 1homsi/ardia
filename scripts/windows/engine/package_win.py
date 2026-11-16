@@ -8,6 +8,7 @@ Usage: package_win.py --src SRC --out OUT --config JSON --runtime-deps TXT --wor
 import argparse
 import datetime
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -15,7 +16,7 @@ import zipfile
 
 RUN_TXT = """Ardia's engine for Windows ({cpu})
 
-Chromium {chromium} with Helium {helium} and Ardia's patches, cross-built on macOS on {date}.
+Chromium {chromium} with Helium {helium} and Ardia's patches, cross-built on {host} on {date}.
 Not an official build (no ThinLTO, no PGO). Nothing in it is signed: Windows SmartScreen and Smart App Control may
 warn or block it, and there is no Authenticode signature to check.{emulated}
 
@@ -101,6 +102,7 @@ def main():
     with zipfile.ZipFile(tmp, 'a', compression=zipfile.ZIP_DEFLATED) as z:
         z.writestr('chrome-win/RUN.txt', RUN_TXT.format(
             cpu=args.cpu, chromium=args.chromium, helium=args.helium, zip_name=zip_name, emulated=emulated,
+            host={'Darwin': 'macOS'}.get(platform.system(), platform.system()),
             date=datetime.date.today().isoformat()).replace('\n', '\r\n'))
     os.replace(tmp, final)
     with zipfile.ZipFile(final) as z:
