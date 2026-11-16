@@ -6,6 +6,7 @@ import android.os.Bundle
 import com.ardia.phone.FirstScreenDrawn
 import com.ardia.phone.InsetHold
 import com.ardia.phone.InsetsLab
+import com.ardia.phone.JsProfiler
 import com.ardia.phone.LookBudget
 import com.ardia.phone.PhoneSystemLinks
 import com.ardia.phone.ReactBack
@@ -22,6 +23,7 @@ class MainActivity : ReactActivity() {
     private val reactBack = ReactBack { onBackPressed() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        JsProfiler.profileStart(this)
         RestorableState.restore(savedInstanceState)
         super.onCreate(null)
         onBackPressedDispatcher.addCallback(this, reactBack)
