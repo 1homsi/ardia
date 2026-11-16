@@ -8,8 +8,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
-#include "base/strings/strcat.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
@@ -27,46 +25,22 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
-#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
+#include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+#include "third_party/blink/public/mojom/autoplay/autoplay.mojom.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 extern bool (*g_ardia_win_autoplay_blocked)(content::WebContents* contents,
-                                            const GURL& url);
+                                            const url::Origin& top_level);
+extern void (*g_ardia_win_autoplay_refused)(content::RenderFrameHost* frame);
 
 namespace ardia_win {
 
 namespace {
 
-constexpr char kHeldMessage[] =
-    "Media waits for a user gesture before it plays.";
 constexpr int kMostCountedPerPage = 20;
 constexpr base::TimeDelta kCountDelay = base::Seconds(1);
-
-constexpr char kGuardStart[] =
-    "(() => {"
-    "if (!window.ardiaAutoplayGuard) {"
-    "let block = false;"
-    "const asked = () => !!(navigator.userActivation &&"
-    " navigator.userActivation.hasBeenActive);"
-    "const stop = (media) => {"
-    "media.pause();"
-    "console.debug(\"";
-constexpr char kGuardMiddle[] =
-    "\");"
-    "};"
-    "document.addEventListener(\"play\", (event) => {"
-    "const media = event.target;"
-    "if (block && media instanceof HTMLMediaElement && !asked()) stop(media);"
-    "}, true);"
-    "window.ardiaAutoplayGuard = (next) => {"
-    "block = next;"
-    "if (!block || asked()) return;"
-    "for (const media of document.querySelectorAll(\"video, audio\"))"
-    " if (!media.paused) stop(media);"
-    "};"
-    "}"
-    "window.ardiaAutoplayGuard(";
-constexpr char kGuardEnd[] = ");})();";
 
 bool g_block_everywhere = false;
 
@@ -77,7 +51,8 @@ HostContentSettingsMap* SettingsFor(content::WebContents* contents) {
                   : nullptr;
 }
 
-bool BlockedAt(content::WebContents* contents, const GURL& url) {
+bool BlockedAt(content::WebContents* contents, const url::Origin& top_level) {
+  const GURL url = top_level.GetTupleOrPrecursorTupleIfOpaque().GetURL();
   if (!url.SchemeIsHTTPOrHTTPS()) {
     return false;
   }
@@ -92,125 +67,115 @@ bool BlockedAt(content::WebContents* contents, const GURL& url) {
          (g_block_everywhere && info.primary_pattern.MatchesAllHosts());
 }
 
-std::u16string GuardScript(bool block) {
-  return base::UTF8ToUTF16(base::StrCat({kGuardStart, kHeldMessage,
-                                         kGuardMiddle,
-                                         block ? "true" : "false",
-                                         kGuardEnd}));
+mojo::AssociatedRemote<blink::mojom::AutoplayConfigurationClient> ClientOf(
+    content::RenderFrameHost* frame) {
+  mojo::AssociatedRemote<blink::mojom::AutoplayConfigurationClient> client;
+  frame->GetRemoteAssociatedInterfaces()->GetInterface(&client);
+  return client;
 }
 
-class AutoplayGuard : public content::WebContentsObserver,
-                      public content::WebContentsUserData<AutoplayGuard>,
-                      public content_settings::Observer {
+void Tell(content::WebContents* contents, content::RenderFrameHost* frame) {
+  if (!frame || !frame->IsRenderFrameLive() ||
+      frame->IsInLifecycleState(
+          content::RenderFrameHost::LifecycleState::kInBackForwardCache)) {
+    return;
+  }
+  ClientOf(frame)->SetArdiaAutoplayBlocked(BlockedAt(
+      contents, frame->GetOutermostMainFrame()->GetLastCommittedOrigin()));
+}
+
+class AutoplayFollower : public content::WebContentsObserver,
+                         public content::WebContentsUserData<AutoplayFollower>,
+                         public content_settings::Observer {
  public:
-  AutoplayGuard(const AutoplayGuard&) = delete;
-  AutoplayGuard& operator=(const AutoplayGuard&) = delete;
-  ~AutoplayGuard() override {
+  AutoplayFollower(const AutoplayFollower&) = delete;
+  AutoplayFollower& operator=(const AutoplayFollower&) = delete;
+  ~AutoplayFollower() override {
     Live().erase(this);
     StopObserving();
   }
 
-  static std::set<AutoplayGuard*>& Live() {
-    static base::NoDestructor<std::set<AutoplayGuard*>> live;
+  static std::set<AutoplayFollower*>& Live() {
+    static base::NoDestructor<std::set<AutoplayFollower*>> live;
     return *live;
   }
 
-  void Refresh() {
-    if (!web_contents()) {
-      return;
+  void TellEveryFrame() {
+    if (content::WebContents* contents = web_contents()) {
+      contents->ForEachRenderFrameHost(
+          [contents](content::RenderFrameHost* frame) {
+            Tell(contents, frame);
+          });
     }
-    const bool blocked = AutoplayBlocked(web_contents());
-    if (blocked == blocked_) {
-      return;
-    }
-    blocked_ = blocked;
-    web_contents()->OnWebPreferencesChanged();
-    InstallEverywhere();
   }
 
- private:
-  friend class content::WebContentsUserData<AutoplayGuard>;
-
-  explicit AutoplayGuard(content::WebContents* contents)
-      : content::WebContentsObserver(contents),
-        content::WebContentsUserData<AutoplayGuard>(*contents),
-        settings_(SettingsFor(contents)),
-        blocked_(AutoplayBlocked(contents)) {
-    if (settings_) {
-      settings_->AddObserver(this);
-    }
-    Live().insert(this);
-    InstallEverywhere();
-  }
-
-  void InstallEverywhere() {
-    web_contents()->GetPrimaryMainFrame()->ForEachRenderFrameHost(
-        [this](content::RenderFrameHost* frame) { Install(frame); });
-  }
-
-  void Install(content::RenderFrameHost* frame) {
-    if (!frame || !frame->IsRenderFrameLive() ||
-        frame->GetLastCommittedURL().is_empty()) {
-      return;
-    }
-    frame->ExecuteJavaScriptInIsolatedWorld(GuardScript(blocked_),
-                                            base::NullCallback(),
-                                            ISOLATED_WORLD_ID_CHROME_INTERNAL);
-  }
-
-  void DidFinishNavigation(content::NavigationHandle* handle) override {
-    if (!handle->HasCommitted() || handle->IsSameDocument()) {
-      return;
-    }
-    if (handle->IsInPrimaryMainFrame()) {
-      blocked_ = AutoplayBlocked(web_contents());
-    }
-    Install(handle->GetRenderFrameHost());
-  }
-
-  void PrimaryPageChanged(content::Page& page) override {
-    counted_on_page_ = 0;
-  }
-
-  void OnDidAddMessageToConsole(
-      content::RenderFrameHost* source_frame,
-      blink::mojom::ConsoleMessageLevel log_level,
-      const std::u16string& message,
-      int32_t line_no,
-      const std::u16string& source_id,
-      const std::optional<std::u16string>& untrusted_stack_trace) override {
-    if (log_level != blink::mojom::ConsoleMessageLevel::kVerbose ||
-        base::UTF16ToUTF8(message) != kHeldMessage ||
-        !blocked_ || counted_on_page_ >= kMostCountedPerPage) {
+  void Refused(content::RenderFrameHost* frame) {
+    if (!frame->GetPage().IsPrimary() ||
+        counted_on_page_ >= kMostCountedPerPage) {
       return;
     }
     ++counted_on_page_;
     if (unsent_++ == 0) {
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
           FROM_HERE,
-          base::BindOnce(&AutoplayGuard::SendCount,
+          base::BindOnce(&AutoplayFollower::SendCount,
                          weak_factory_.GetWeakPtr()),
           kCountDelay);
     }
   }
 
-  void SendCount() {
-    if (!unsent_ || !web_contents()) {
+ private:
+  friend class content::WebContentsUserData<AutoplayFollower>;
+
+  explicit AutoplayFollower(content::WebContents* contents)
+      : content::WebContentsObserver(contents),
+        content::WebContentsUserData<AutoplayFollower>(*contents),
+        settings_(SettingsFor(contents)) {
+    if (settings_) {
+      settings_->AddObserver(this);
+    }
+    Live().insert(this);
+    TellEveryFrame();
+  }
+
+  void DidFinishNavigation(content::NavigationHandle* handle) override {
+    if (!handle->HasCommitted() || handle->IsSameDocument()) {
       return;
     }
+    content::WebContents* contents = web_contents();
+    content::RenderFrameHost* frame = handle->GetRenderFrameHost();
+    if (handle->IsServedFromBackForwardCache() ||
+        handle->IsPrerenderedPageActivation()) {
+      frame->ForEachRenderFrameHost(
+          [contents](content::RenderFrameHost* each) { Tell(contents, each); });
+      return;
+    }
+    Tell(contents, frame);
+  }
+
+  void PrimaryPageChanged(content::Page& page) override {
+    SendCount();
+    counted_on_page_ = 0;
+  }
+
+  void SendCount() {
+    if (!unsent_) {
+      return;
+    }
+    const int count = unsent_;
+    unsent_ = 0;
     if (TabState* state = TabState::FromWebContents(web_contents())) {
       base::DictValue data;
-      data.Set("count", unsent_);
+      data.Set("count", count);
       state->Send("autoplayBlocked", std::move(data));
     }
-    unsent_ = 0;
   }
 
   void OnContentSettingChanged(const ContentSettingsPattern& primary_pattern,
                                const ContentSettingsPattern& secondary_pattern,
                                ContentSettingsTypeSet types) override {
     if (types.Contains(ContentSettingsType::AUTOPLAY)) {
-      Refresh();
+      TellEveryFrame();
     }
   }
 
@@ -224,31 +189,36 @@ class AutoplayGuard : public content::WebContentsObserver,
   }
 
   raw_ptr<HostContentSettingsMap> settings_;
-  bool blocked_;
   int counted_on_page_ = 0;
   int unsent_ = 0;
-  base::WeakPtrFactory<AutoplayGuard> weak_factory_{this};
+  base::WeakPtrFactory<AutoplayFollower> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(AutoplayGuard);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(AutoplayFollower);
 
+void NoteRefused(content::RenderFrameHost* frame) {
+  content::WebContents* contents =
+      content::WebContents::FromRenderFrameHost(frame);
+  if (AutoplayFollower* follower =
+          contents ? AutoplayFollower::FromWebContents(contents) : nullptr) {
+    follower->Refused(frame);
+  }
 }
 
-bool AutoplayBlocked(content::WebContents* contents) {
-  return contents && BlockedAt(contents, contents->GetLastCommittedURL());
 }
 
 void InstallAutoplayPolicy() {
   g_ardia_win_autoplay_blocked = [](content::WebContents* contents,
-                                    const GURL& url) {
-    return contents && BlockedAt(contents, url);
+                                    const url::Origin& top_level) {
+    return contents && BlockedAt(contents, top_level);
   };
+  g_ardia_win_autoplay_refused = &NoteRefused;
 }
 
 void WatchAutoplay(content::WebContents* contents) {
-  if (contents && !AutoplayGuard::FromWebContents(contents)) {
-    AutoplayGuard::CreateForWebContents(contents);
+  if (contents && !AutoplayFollower::FromWebContents(contents)) {
+    AutoplayFollower::CreateForWebContents(contents);
   }
 }
 
@@ -256,10 +226,10 @@ base::DictValue SetBlockAutoplayEverywhere(const base::DictValue& args) {
   const bool enabled = args.FindBool("enabled").value_or(false);
   if (enabled != g_block_everywhere) {
     g_block_everywhere = enabled;
-    for (AutoplayGuard* guard :
-         std::set<AutoplayGuard*>(AutoplayGuard::Live())) {
-      if (AutoplayGuard::Live().contains(guard)) {
-        guard->Refresh();
+    for (AutoplayFollower* follower :
+         std::set<AutoplayFollower*>(AutoplayFollower::Live())) {
+      if (AutoplayFollower::Live().contains(follower)) {
+        follower->TellEveryFrame();
       }
     }
   }
@@ -269,17 +239,13 @@ base::DictValue SetBlockAutoplayEverywhere(const base::DictValue& args) {
   return result;
 }
 
-void NoteMediaAskedFor(content::WebContents* contents) {
-  if (!contents) {
-    return;
+void RunMediaCommand(content::WebContents* contents, const std::string& script) {
+  content::RenderFrameHost* frame =
+      contents ? contents->GetPrimaryMainFrame() : nullptr;
+  if (frame && frame->IsRenderFrameLive()) {
+    ClientOf(frame)->RunArdiaMediaCommand(ISOLATED_WORLD_ID_CHROME_INTERNAL,
+                                          script);
   }
-  contents->GetPrimaryMainFrame()->ForEachRenderFrameHost(
-      [](content::RenderFrameHost* frame) {
-        if (frame->IsRenderFrameLive()) {
-          frame->NotifyUserActivation(
-              blink::mojom::UserActivationNotificationType::kInteraction);
-        }
-      });
 }
 
 }

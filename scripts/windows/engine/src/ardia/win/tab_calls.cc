@@ -67,7 +67,6 @@
 #include "content/public/common/url_utils.h"
 #include "pdf/buildflags.h"
 #include "printing/buildflags/buildflags.h"
-#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -600,14 +599,11 @@ void MediaCommand(content::WebContents* contents,
                   Reply reply) {
   ThawHiddenPage(contents);
   const std::string action = Text(args, "action");
-  if (action == "play" || action == "toggle") {
-    NoteMediaAskedFor(contents);
-  }
   base::DictValue command;
   command.Set("action", action);
   command.Set("seconds", args.FindDouble("seconds").value_or(0));
   if (std::optional<std::string> json = base::WriteJson(command)) {
-    RunInPage(contents, kMediaCommandStart + *json + kMediaCommandEnd);
+    RunMediaCommand(contents, kMediaCommandStart + *json + kMediaCommandEnd);
   }
   std::move(reply).Run(Ok());
 }
