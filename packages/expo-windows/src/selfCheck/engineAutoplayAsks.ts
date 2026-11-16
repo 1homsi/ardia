@@ -6,7 +6,31 @@ import { CTRL, DETACHED_MUTED_VIDEO, LOAD_MS, NEXT_LINK, PER_PAGE_COUNT, PLAY_BU
 
 const raced = (media: string) =>
   `Promise.race([${media}.play().then(() => "played", (error) => error.name), new Promise((resolve) => setTimeout(() => resolve("pending"), 1500))]).then((result) => post("result", JSON.stringify(result)));`;
-const CUT_POPUP_VIDEO = `const popup = window.open(""); window.cutPopup = popup; popup.opener = null; const video = Object.assign(popup.document.createElement("video"), { muted: true, loop: true, src: location.origin + "/tone.wav" }); ${raced("video")}`;
+const playsOn = (media: string) =>
+  `Promise.race([${media}.play().then(() => new Promise((resolve) => { const start = ${media}.currentTime; setTimeout(() => resolve(!${media}.paused && ${media}.currentTime > start ? "played" : "stalled at " + ${media}.currentTime), 800); }), (error) => error.name), new Promise((resolve) => setTimeout(() => resolve("pending"), 3000))]).then((result) => post("result", JSON.stringify(result)));`;
+const POPUP_VIDEO = (popup: string) => `Object.assign(${popup}.document.createElement("video"), { muted: true, loop: true, src: location.origin + "/tone.wav" })`;
+const CUT_POPUP_VIDEO = `const popup = window.open(""); window.cutPopup = popup; popup.opener = null; const video = ${POPUP_VIDEO("popup")}; ${playsOn("video")}`;
+const WAITING_POPUP_VIDEO = `const video = ${POPUP_VIDEO("window.waitPopup")}; ${playsOn("video")}`;
+
+async function advances(key: string, what: string) {
+  const first = await played(key);
+  await pause(800);
+  const later = await played(key);
+  expectEqual({ paused: later.paused, advanced: (later.time ?? 0) > (first.time ?? 0) }, { paused: false, advanced: true }, `${what} (currentTime ${first.time} then ${later.time})`);
+}
+
+async function waitingPopupPlays(key: string, meanwhile: () => Promise<void>) {
+  leaveOffersFromUnheard(key);
+  try {
+    expectEqual(await evaluate(key, 'window.waitPopup = window.open(""); post("result", JSON.stringify(!!window.waitPopup));', true), true, "the page opens a blank pop-up");
+    await meanwhile();
+    await pause(300);
+    return await evaluate(key, WAITING_POPUP_VIDEO);
+  } finally {
+    leaveOffersFromUnheard(null);
+    await evaluate(key, 'if (window.waitPopup) window.waitPopup.close(); post("result", "true");').catch(() => null);
+  }
+}
 const NESTED_BLANK_VIDEO = `let doc = document; for (let i = 0; i < 64; i++) { const frame = doc.createElement("iframe"); (doc.body || doc.documentElement).append(frame); doc = frame.contentDocument; } const video = Object.assign(doc.createElement("video"), { muted: true, loop: true, src: location.origin + "/tone.wav" }); ${raced("video")}`;
 const SCROLLER = 'window.downs = 0; addEventListener("pointerdown", () => { downs++; }, true); const scroller = document.body.appendChild(document.createElement("div")); scroller.style.cssText = "position:fixed;left:0;top:0;width:200px;height:150px;overflow-y:scroll;z-index:9;background:#eee"; scroller.appendChild(document.createElement("div")).style.height = "2000px"; post("result", "true");';
 const SCROLLBAR_POINT = { x: 196, y: 60 };
@@ -30,7 +54,7 @@ const askChecks: Check[] = [
         await until("Ardia's play control plays the muted video", SETTLE_MS, () => played(key), playing);
         await evaluate(key, 'm.muted = false; post("result", "true");');
         await pause(1000);
-        expectEqual((await played(key)).paused, false, "the video keeps playing once the page unmutes it");
+        await advances(key, "the video keeps playing once the page unmutes it");
       }),
   },
   {
@@ -52,7 +76,7 @@ const askChecks: Check[] = [
           await until("Ardia's play control plays the muted video", SETTLE_MS, () => played(key), playing);
           await setAutoplay("block");
           await pause(1000);
-          expectEqual((await played(key)).paused, false, "the video the user asked for through Ardia keeps playing after blocking turns on");
+          await advances(key, "the video the user asked for through Ardia keeps playing after blocking turns on");
         });
       } finally {
         await restore();
@@ -68,7 +92,7 @@ const askChecks: Check[] = [
           await until("the click plays the muted video", SETTLE_MS, () => played(key), playing);
           await setAutoplay("block");
           await pause(1000);
-          expectEqual((await played(key)).paused, false, "the video the user clicked keeps playing after blocking turns on");
+          await advances(key, "the video the user clicked keeps playing after blocking turns on");
         });
       } finally {
         await restore();
@@ -89,6 +113,7 @@ const askChecks: Check[] = [
           await hostCall("tab.call", { key, method: "mediaSessionActionForTest", action: "play" });
           const state = await until("the page's play handler answers", SETTLE_MS, () => played(key), (now) => (now.tries?.length ?? 0) > 0);
           expectEqual(state.tries, ["played"], "the play handler's play() after the user's Media Session play");
+          await advances(key, "the handler's video plays");
         });
       } finally {
         await restore();
@@ -102,6 +127,7 @@ const askChecks: Check[] = [
         await hostCall("tab.call", { key, method: "touchForTest", x: TOUCH_POINT.x, y: TOUCH_POINT.y });
         const state = await until("the touch's play answers", SETTLE_MS, () => played(key), (now) => (now.tries?.length ?? 0) > 0);
         expectEqual(state.tries, ["played"], "play() inside the page's touch pointerdown handler");
+        await advances(key, "the touched video plays");
       }),
     ),
   },
@@ -180,7 +206,7 @@ const askChecks: Check[] = [
     run: () =>
       withMedia("cut-popup", "media", "media page", async (key) => {
         const result = await cutPopupPlays(key);
-        expectTrue(result !== "NotAllowedError", `the cut pop-up's muted play() is not refused (got ${JSON.stringify(result)})`);
+        expectEqual(result, "played", "the cut pop-up's muted video plays and its currentTime advances");
       }),
   },
   {
@@ -212,5 +238,24 @@ const askChecks: Check[] = [
       }),
     ),
   },
-];
-export const checks: Check[] = port ? askChecks : [];
+  {
+    name: "engine autoplay: a blank pop-up waiting for the app refuses muted media once its site is blocked",
+    run: async () => {
+      try {
+        await withMedia("waiting-on", "media", "media page", async (key) => {
+          expectEqual(await waitingPopupPlays(key, () => setAutoplay("block")), "NotAllowedError", "the waiting pop-up's muted play() after the site was blocked");
+        });
+      } finally {
+        await restore();
+      }
+    },
+  },
+  {
+    name: "engine autoplay: a blank pop-up waiting for the app plays muted media once its site is unblocked",
+    run: blocked(() =>
+      withMedia("waiting-off", "media", "media page", async (key) => {
+        expectEqual(await waitingPopupPlays(key, () => setAutoplay("default")), "played", "the waiting pop-up's muted video plays after the site was unblocked, and its currentTime advances");
+      }),
+    ),
+  },
+];export const checks: Check[] = port ? askChecks : [];

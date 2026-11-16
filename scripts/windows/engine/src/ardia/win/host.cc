@@ -1609,6 +1609,9 @@ void Host::OnTabStripModelChanged(TabStripModel* tab_strip_model,
     return;
   }
   if (change.type() == TabStripModelChange::kInserted) {
+    for (const auto& inserted : change.GetInsert()->contents) {
+      WatchAutoplay(inserted.contents);
+    }
     if (creating_tab_ || moving_tab_) {
       return;
     }
