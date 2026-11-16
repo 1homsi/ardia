@@ -801,10 +801,15 @@ test("re-checking kept panels: an older re-check answering after a newer one cha
   const olderAsks = x.heldCount();
   x.off.delete(`ext@${x.b}`);
   const newer = panels.recheckKeptSidePanels(x.w);
-  const range = (from, to) => Array.from({ length: to - from }, (_, i) => from + i);
-  await x.releaseAt(range(olderAsks, x.heldCount()));
-  checkInvariants(x, "after the newer re-check");
-  await x.releaseAt(range(0, olderAsks));
+  const newerAsks = x.heldCount() - olderAsks;
+  for (let i = 0; i < newerAsks; i++) {
+    await x.releaseAt([olderAsks]);
+    checkInvariants(x, `after the newer re-check's answer ${i + 1}`);
+  }
+  for (let i = 0; i < olderAsks; i++) {
+    await x.releaseAt([0]);
+    checkInvariants(x, `after the older re-check's answer ${i + 1}`);
+  }
   await Promise.all([older, newer]);
   assert.deepEqual(x.cards(), ["ext@a", "ext@b"], "B's page stays: its newer answer said it still has a panel");
   assert.equal(panels.panelDroppedOnTab(x.w, x.b), false);
@@ -814,8 +819,8 @@ test("re-checking kept panels: an older re-check answering after a newer one cha
 test("re-checking kept panels: an answer about a page that has since been shown again, or closed and reopened, is ignored", async () => {
   for (const how of ["shown again", "closed and reopened"]) {
     const x = await panelWorld("hidden");
-    let first = true;
-    x.hold((tabId) => tabId === x.a && first && !(first = false));
+    const firstAsk = new Set([x.a, x.b]);
+    x.hold((tabId) => firstAsk.delete(tabId));
     x.off.add(`ext@${x.a}`);
     const rechecking = panels.recheckKeptSidePanels(x.w);
     await settle();
@@ -828,10 +833,32 @@ test("re-checking kept panels: an answer about a page that has since been shown 
     assert.equal(x.entry(), "shown ext@a", how);
     checkInvariants(x, `${how}, before the old answer`);
     await x.releaseAt([0]);
+    assert.equal(x.heldCount(), 1, `${how}: B's answer is still out`);
+    checkInvariants(x, `${how}, with B's answer still out`);
+    assert.equal(x.entry(), "shown ext@a", `${how}: A stays on screen while B's answer is out`);
+    await x.releaseAt([0]);
     await rechecking;
     assert.equal(x.entry(), "shown ext@a", `${how}: A stays on screen`);
     assert.deepEqual(x.cards(), ["ext@a", "ext@b"], `${how}: A's page stays`);
     assert.equal(panels.panelDroppedOnTab(x.w, x.a), false, how);
     checkInvariants(x, `${how}, after the old answer`);
   }
+});
+
+test("re-checking kept panels: a re-check's \"no panel\" for a tab is ignored once a later lookup of that tab said it has one", async () => {
+  const x = await panelWorld("shown");
+  let first = true;
+  x.hold((tabId) => tabId === x.a && first && !(first = false));
+  x.off.add(`ext@${x.a}`);
+  const rechecking = panels.recheckKeptSidePanels(x.w);
+  await settle();
+  x.off.delete(`ext@${x.a}`);
+  await panels.syncSidePanel(x.w);
+  assert.equal(x.entry(), "shown ext@a");
+  await x.releaseAt([0]);
+  await rechecking;
+  assert.equal(x.entry(), "shown ext@a", "A stays on screen");
+  assert.deepEqual(x.cards(), ["ext@a", "ext@b"]);
+  assert.equal(panels.panelDroppedOnTab(x.w, x.a), false, "A isn't marked as having no panel");
+  checkInvariants(x, "after the older answer");
 });

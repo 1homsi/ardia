@@ -7,6 +7,19 @@ import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfi
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
 const rechecks = new Map<string, number>();
+const answered = new Map<string, Map<string, number>>();
+let lookups = 0;
+
+async function askPanel(windowId: string, tabId: string, extensionId: string): Promise<{ url: string | null; stale: boolean }> {
+  const asked = ++lookups;
+  const url = await extensionSidePanelUrl(tabId, extensionId);
+  const key = `${extensionId}|${tabId}`;
+  let seen = answered.get(windowId);
+  if (!seen) answered.set(windowId, (seen = new Map()));
+  const stale = (seen.get(key) ?? 0) > asked;
+  if (!stale) seen.set(key, asked);
+  return { url, stale };
+}
 const openings = new Map<string, number>();
 const focusOwed = new Map<string, { opened: number; page: string | undefined }>();
 let lastOpening = 0;
@@ -84,6 +97,7 @@ export function closeSidePanel(windowId: string, extensionId?: string) {
   removedTabs.delete(windowId);
   openings.delete(windowId);
   focusOwed.delete(windowId);
+  answered.delete(windowId);
   nextFetch(windowId);
   if (useExtensions.getState().sidePanels[windowId])
     useExtensions.setState((e) => {
@@ -160,7 +174,7 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
   const url = !ext
     ? null
     : readyTab
-      ? await extensionSidePanelUrl(readyTab, extensionId)
+      ? (await askPanel(windowId, readyTab, extensionId)).url
       : !isPrivate(useBrowser.getState(), windowId) && ext.sidePanel
         ? extensionPageUrl(extensionId, ext.sidePanel)
         : null;
@@ -247,8 +261,8 @@ export async function recheckKeptSidePanels(windowId: string): Promise<void> {
   const listed = sidePanelCards(windowId).filter((card) => card.tabId && card.extensionId === extensionId);
   await Promise.all(
     listed.map(async (card) => {
-      const url = await extensionSidePanelUrl(card.tabId!, card.extensionId).catch(() => card.url);
-      if (rechecks.get(windowId) !== generation || wanted.get(windowId) !== card.extensionId || !sidePanelCards(windowId).includes(card)) return;
+      const { url, stale } = await askPanel(windowId, card.tabId!, card.extensionId).catch(() => ({ url: card.url, stale: true }));
+      if (stale || rechecks.get(windowId) !== generation || wanted.get(windowId) !== card.extensionId || !sidePanelCards(windowId).includes(card)) return;
       if (url === card.url) return;
       const entry = useExtensions.getState().sidePanels[windowId];
       const onScreen = !!entry && !entry.hidden && sameTabCard(entry, card);
