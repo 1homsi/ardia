@@ -62,7 +62,7 @@ class PageViewModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhonePageView")
 
-        Constants("reportsDrawn" to true)
+        Constants("reportsDrawn" to true, "remembersSitePermissions" to true)
 
         Function("appRelease") { AppReleaseInfo.of(context) }
 
@@ -255,6 +255,23 @@ class PageViewModule : Module() {
                     }
                 }
             }
+        }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("sitePermissions") { ->
+            PhonePages.engine(context)
+            PhonePages.sitePermissions.grants.map { grant ->
+                mapOf(
+                    "origin" to grant.origin,
+                    "host" to grant.host,
+                    "permissions" to grant.permissions.sortedBy { it.ordinal }.map { it.raw },
+                    "grantedAt" to grant.grantedAt.toDouble(),
+                )
+            }
+        }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("revokeSitePermission") { origin: String, permission: String? ->
+            PhonePages.engine(context)
+            PhonePages.revokeSitePermission(origin, permission)
         }.runOnQueue(Queues.MAIN)
 
         AsyncFunction("openPopup") { pageId: String, popupId: String -> PhonePages.openPopup(context, pageId, popupId) != null }.runOnQueue(Queues.MAIN)

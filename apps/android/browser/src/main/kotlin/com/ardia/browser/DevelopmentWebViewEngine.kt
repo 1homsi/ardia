@@ -65,6 +65,8 @@ class DevelopmentWebViewEngine(
 
     override var onPrivateBrowsingEnded: (() -> Unit)? = null
 
+    var rememberedPermissions: RememberedSitePermissions? = null
+
     var desktopTrace: ((pageId: String, line: String) -> Unit)? = null
 
     override var isInspectable: Boolean = false
@@ -260,16 +262,45 @@ class DevelopmentWebViewEngine(
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    internal fun isGranted(key: String, isPrivate: Boolean): Boolean =
-        if (isPrivate) key in privateGrantedPermissions else key in grantedPermissions
+    internal fun isGranted(origin: String, permission: SitePermission, isPrivate: Boolean): Boolean {
+        val key = grantKey(origin, permission)
+        if (isPrivate) return key in privateGrantedPermissions
+        return key in grantedPermissions || rememberedPermissions?.allows(origin, permission) == true
+    }
 
-    internal fun grant(key: String, isPrivate: Boolean, session: Int) {
+    internal fun grant(origin: String, host: String, permission: SitePermission, isPrivate: Boolean, session: Int) {
+        val key = grantKey(origin, permission)
         if (isPrivate) {
             if (session == privateSession) privateGrantedPermissions += key
-        } else {
-            grantedPermissions += key
+            return
         }
+        grantedPermissions += key
+        rememberedPermissions?.remember(origin, host, permission)
     }
+
+    fun forgetGrants(origin: String, revoked: Set<SitePermission>): Int {
+        val site = SiteOrigin.of(origin) ?: origin
+        grantedPermissions.removeAll { key ->
+            val permission = SitePermission.entries.firstOrNull { it.name == key.substringAfterLast('#') }
+            key.substringBeforeLast('#') == site && permission != null && SiteOrigin.overlaps(permission, revoked)
+        }
+        if (SitePermission.Location in revoked) {
+            GeolocationPermissions.getInstance().clear(site)
+            GeolocationPermissions.getInstance().clear("$site/")
+        }
+        var reloaded = 0
+        for (id in roster.liveIds) {
+            val page = roster.page(id) ?: continue
+            if (page.isPrivate) continue
+            val url = page.state.value.url ?: continue
+            if (SiteOrigin.of(url) != site) continue
+            page.reload()
+            reloaded++
+        }
+        return reloaded
+    }
+
+    private fun grantKey(origin: String, permission: SitePermission): String = "${SiteOrigin.of(origin) ?: origin}#${permission.name}"
 
     internal fun hostActivity(): Activity? = hostActivity as? Activity
 

@@ -58,6 +58,8 @@ object PhonePages {
         private set
     lateinit var blocking: PhoneBlocking
         private set
+    lateinit var sitePermissions: SitePermissionStore
+        private set
     lateinit var downloads: SystemDownloads
         private set
     lateinit var snapshots: PageSnapshots
@@ -82,7 +84,11 @@ object PhonePages {
         blocking = PhoneBlocking(context)
         snapshots = PageSnapshots(context, ImageMemory::forget)
         ImageMemory.watch(context)
+        sitePermissions = SitePermissionStore(context.getSharedPreferences(SITE_PREFERENCES, Context.MODE_PRIVATE), held = { permission ->
+            SitePermissionGate.granted(permission, SitePermissionGate.held(context, permission))
+        })
         val made = DevelopmentWebViewEngine(context, sitePreferences)
+        made.rememberedPermissions = sitePermissions
         made.filter = blocking.pageFilter(isPrivate = false)
         made.privateFilter = blocking.pageFilter(isPrivate = true)
         made.onPrivateBrowsingEnded = ::privateBrowsingEnded
@@ -153,6 +159,14 @@ object PhonePages {
     }
 
     fun page(pageId: String): Page? = shared?.existing(pageId)
+
+    fun revokeSitePermission(origin: String, permission: String?): Boolean {
+        val one = permission?.let { SiteCapability.of(it) ?: return false }
+        val revoked = sitePermissions.revoke(origin, one)
+        if (revoked.isEmpty()) return false
+        shared?.forgetGrants(origin, revoked.map(SiteCapability::permission).toSet())
+        return true
+    }
 
     fun require(pageId: String): Page = page(pageId) ?: throw CodedException("ERR_NO_PAGE", "No page is open with id $pageId", null)
 

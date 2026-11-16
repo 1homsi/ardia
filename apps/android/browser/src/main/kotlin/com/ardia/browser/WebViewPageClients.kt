@@ -166,9 +166,8 @@ internal class WebViewPageChromeClient(private val page: WebViewPage) : WebChrom
             PermissionRequest.RESOURCE_AUDIO_CAPTURE.takeIf { audio },
         ).toTypedArray()
         val origin = request.origin.toString()
-        val key = "$origin#${permission.name}"
         val engine = page.engine
-        if (engine.isGranted(key, page.isPrivate)) {
+        if (engine.isGranted(origin, permission, page.isPrivate)) {
             request.grant(asked)
             return
         }
@@ -179,7 +178,7 @@ internal class WebViewPageChromeClient(private val page: WebViewPage) : WebChrom
             if (permissionRequest?.second === asking) permissionRequest = null
             runCatching {
                 if (answer == PageRequest.Answer.Accepted && web != null && page.webViewOrNull === web) {
-                    engine.grant(key, page.isPrivate, session)
+                    engine.grant(origin, originHost(origin), permission, page.isPrivate, session)
                     request.grant(asked)
                 } else {
                     request.deny()
@@ -195,9 +194,8 @@ internal class WebViewPageChromeClient(private val page: WebViewPage) : WebChrom
     }
 
     override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
-        val key = "$origin#${SitePermission.Location.name}"
         val engine = page.engine
-        if (engine.isGranted(key, page.isPrivate)) {
+        if (engine.isGranted(origin, SitePermission.Location, page.isPrivate)) {
             callback.invoke(origin, true, false)
             return
         }
@@ -206,7 +204,7 @@ internal class WebViewPageChromeClient(private val page: WebViewPage) : WebChrom
         locationRequest = page.ask(PageRequest.Kind.Permission(SitePermission.Location), originHost(origin)) { answer ->
             locationRequest = null
             val allowed = answer == PageRequest.Answer.Accepted && web != null && page.webViewOrNull === web
-            if (allowed) engine.grant(key, page.isPrivate, session)
+            if (allowed) engine.grant(origin, originHost(origin), SitePermission.Location, page.isPrivate, session)
             callback.invoke(origin, allowed, false)
         }
     }
