@@ -329,8 +329,8 @@ tab titles' (10 pt beside our 13 pt titles) and ends where the titles do; the li
 row's centre. Ours: `components/sidebar/ClearDivider.tsx`, a 21 pt row with Dia's `divider` colour and secondary text.
 Dia's divider under its Pinned section (owner's 2× capture, 2026-11-09): a 1 pt line 6.5 pt under the last pinned row and
 6.5 pt above what follows (a group's box or a row), 14 pt edge to edge. Dia shows no labels there; ours carries the
-Pinned fold and Tidy/Clear (10 pt tiny text on a 13 pt line), so its band is 21 pt: the label plus 4 pt each side, keeping a hovered row's
-background off the text.
+Pinned fold and Tidy/Clear (10 pt tiny text on a 13 pt line), so its band is the label plus 4 pt each side, keeping a hovered row's
+background off the text: 21 pt at the default Sidebar Text size, 23 pt at Large and 25 pt at Larger.
 What it closes (issue #149): the unselected unpinned tabs (`clearOthers`), keeping the selected tab and, per Arc's 2022
 release notes, tabs playing media. Dia's Close All in the sidebar does the same with the selected tab (the issue's
 recording: of three unpinned tabs, the two unselected close and the selected one stays selected).
