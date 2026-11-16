@@ -65,10 +65,10 @@ export function errorType(error: unknown): string {
   return typeof error === "undefined" ? "Undefined" : error === null ? "Null" : "NonError";
 }
 
-export const HERMES_FATAL_MAX = 160;
+export const JS_FATAL_MAX = 160;
 
-export function hermesFatalReason(value: unknown): string | null {
-  return scrubText(value, HERMES_FATAL_MAX) || null;
+export function jsFatalReason(value: unknown): string | null {
+  return scrubText(value, JS_FATAL_MAX) || null;
 }
 
 const NATIVE_CALL = /^Calling the '([A-Za-z_$][\w$]{0,60})' function has failed$/;

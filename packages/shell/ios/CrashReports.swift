@@ -178,8 +178,8 @@ enum CrashReports {
       report["uptimeSeconds"] = Int(captured.timeIntervalSince(launched).rounded())
     }
     if let writable = writableMegabytes(body["vmSummary"] as? String) { report["vmWritableMB"] = writable }
-    if process == "browser", exception["signal"] as? String == "SIGABRT", let reason = HermesFatal.take(crashedAt: crashed) {
-      report["hermesFatal"] = reason
+    if process == "browser", let reason = jsFatal(body, signal: exception["signal"] as? String, crashedAt: crashed) {
+      report["jsFatal"] = reason
     }
     return report
   }
@@ -209,7 +209,7 @@ enum CrashReports {
       return valid.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) == nil ? nil : name
     }
     if let details = body["exceptionReason"] as? [String: Any], let name = details["name"] as? String { return checked(name) }
-    let named = try! NSRegularExpression(pattern: "uncaught exception '([^']{1,64})'")
+    let named = try! NSRegularExpression(pattern: "uncaught exception '([A-Za-z0-9_]{1,64})[':]")
     for case let lines as [String] in (body["asi"] as? [String: Any] ?? [:]).values {
       for line in lines {
         if let match = named.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
@@ -219,6 +219,28 @@ enum CrashReports {
       }
     }
     return nil
+  }
+
+  private static let reactNativeFatal = "RCTFatalException: "
+
+  private static func jsFatal(_ body: [String: Any], signal: String?, crashedAt crashed: Date) -> String? {
+    if signal == "SIGABRT", let reason = HermesFatal.take(crashedAt: crashed) { return reason }
+    guard thrownExceptionName(body) == "RCTFatalException" else { return nil }
+    var full = (body["exceptionReason"] as? [String: Any])?["name"] as? String
+    if full == nil {
+      let named = try! NSRegularExpression(pattern: "uncaught exception '(RCTFatalException: .*?)'(?:, reason: |$)")
+      for case let lines as [String] in (body["asi"] as? [String: Any] ?? [:]).values {
+        for line in lines {
+          if let match = named.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)), let range = Range(match.range(at: 1), in: line) {
+            full = String(line[range])
+          }
+        }
+      }
+    }
+    guard let full, full.hasPrefix(reactNativeFatal) else { return nil }
+    let line = full.dropFirst(reactNativeFatal.count).split(whereSeparator: \.isNewline).first.map { String($0.prefix(200)) } ?? ""
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    return trimmed.isEmpty ? nil : trimmed
   }
 
   #if DEBUG

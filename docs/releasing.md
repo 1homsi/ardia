@@ -184,9 +184,7 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      loader (WebGL and WebGPU run on Metal; Chrome dropped SwiftShader's WebGL fallback), Chrome's first-run sounds
      and pictures inside `resources.pak` (blanked by hash, `first-run-resources.sha256`; Ardia always passes
      `--no-first-run`), uBlock Origin's locales that no declared locale or its language falls back to, React Native's `@3x` images (Macs draw at 1x or 2x) and hermes's
-     local symbols (`export-sign.sh` passes it the same `symbols` folder as `strip-engine.sh`, and it copies hermes there as
-     `hermes.framework/hermes` before stripping it, so a Hermes frame in a crash report can be resolved with `atos`).
-     Each step has a kill switch: `ARDIA_PRUNE_LOCALES`, `ARDIA_PRUNE_SWIFTSHADER`,
+     local symbols. Each step has a kill switch: `ARDIA_PRUNE_LOCALES`, `ARDIA_PRUNE_SWIFTSHADER`,
      `ARDIA_PRUNE_FIRST_RUN`, `ARDIA_PRUNE_UBO_LOCALES`, `ARDIA_PRUNE_RN_3X`, `ARDIA_STRIP_HERMES` (or `ARDIA_PRUNE` for
      all) set to `off`. Chrome's opt-in software GPU modes are unsupported in a release build: with
      `--use-angle=swiftshader`, `--enable-unsafe-swiftshader --disable-gpu` or WebGPU's

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cleanProperties, errorCode, errorMessage, errorType, HERMES_FATAL_MAX, hermesFatalReason, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
+import { cleanProperties, errorCode, errorMessage, errorType, JS_FATAL_MAX, jsFatalReason, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
 import { customColorProfiles, narrowWindows, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
 const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
@@ -334,15 +334,15 @@ test("the theme file snapshot is flags and counts only, and survives sanitizing"
   assert.deepEqual(cleanProperties(snap), snap);
 });
 
-test("hermesFatalReason keeps the engine's first line, scrubbed and capped, and is null when there is nothing to send", () => {
-  assert.equal(hermesFatalReason("Out of memory allocating the young generation"), "Out of memory allocating the young generation");
-  assert.equal(hermesFatalReason("Hades OOM\nsecond line"), "Hades OOM");
-  assert.equal(hermesFatalReason("failed at https://example.com/a?token=abc and ~/Library/x/y.json"), "failed at <url> and <path>");
-  assert.equal(hermesFatalReason('bad value "hunter2 on a page" here'), "bad value <text>");
-  const long = hermesFatalReason("fatal ".repeat(100));
-  assert.ok(long.length <= HERMES_FATAL_MAX, String(long.length));
+test("jsFatalReason keeps the engine's first line, scrubbed and capped, and is null when there is nothing to send", () => {
+  assert.equal(jsFatalReason("Out of memory allocating the young generation"), "Out of memory allocating the young generation");
+  assert.equal(jsFatalReason("Hades OOM\nsecond line"), "Hades OOM");
+  assert.equal(jsFatalReason("failed at https://example.com/a?token=abc and ~/Library/x/y.json"), "failed at <url> and <path>");
+  assert.equal(jsFatalReason('bad value "hunter2 on a page" here'), "bad value <text>");
+  const long = jsFatalReason("fatal ".repeat(100));
+  assert.ok(long.length <= JS_FATAL_MAX, String(long.length));
   assert.ok(long.endsWith("…"));
-  for (const empty of ["", "   ", "\n", undefined, null, 7, {}, ["x"]]) assert.equal(hermesFatalReason(empty), null, String(empty));
+  for (const empty of ["", "   ", "\n", undefined, null, 7, {}, ["x"]]) assert.equal(jsFatalReason(empty), null, String(empty));
 });
 
 test("the snapshot reports the interface size in whole percent with its default, and counts narrow windows in root points", async () => {
