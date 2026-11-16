@@ -55,7 +55,7 @@ class ReactBackTest {
         }
     }
 
-    class FixedReactActivity : BareReactActivity() {
+    open class FixedReactActivity : BareReactActivity() {
         @Suppress("DEPRECATION")
         val reactBack = ReactBack { onBackPressed() }
 
@@ -65,6 +65,25 @@ class ReactBackTest {
         }
 
         override fun invokeDefaultOnBackPressed() = reactBack.bypassed { super.invokeDefaultOnBackPressed() }
+    }
+
+    class LeavingReactActivity : FixedReactActivity() {
+        override fun invokeDefaultOnBackPressed() {
+            if (ReactBack.leaveToTheBackground(this)) return
+            super.invokeDefaultOnBackPressed()
+        }
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun backAtTheRootSendsTheTaskBackInsteadOfFinishingSoAReopenKeepsTheSameSurface() {
+        val activity = Robolectric.buildActivity(LeavingReactActivity::class.java).setup().get()
+        activity.onBackPressedDispatcher.onBackPressed()
+        assertEquals(1, activity.backgrounded)
+        assertFalse("MIUI's Android 13 finished the activity on the platform's own Back and the reopened surface laid out wrong", activity.isFinishing)
+        activity.js.handlers = 1
+        activity.onBackPressedDispatcher.onBackPressed()
+        assertEquals("Back still reaches JS after the task went to the background", 2, activity.js.heard)
     }
 
     @Test

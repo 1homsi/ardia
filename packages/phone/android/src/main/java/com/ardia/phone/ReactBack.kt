@@ -1,5 +1,6 @@
 package com.ardia.phone
 
+import android.app.Activity
 import androidx.activity.OnBackPressedCallback
 
 class ReactBack(private val deliver: () -> Unit) : OnBackPressedCallback(true) {
@@ -24,5 +25,9 @@ class ReactBack(private val deliver: () -> Unit) : OnBackPressedCallback(true) {
         } finally {
             isEnabled = was
         }
+    }
+
+    companion object {
+        fun leaveToTheBackground(activity: Activity): Boolean = activity.isTaskRoot && activity.moveTaskToBack(false)
     }
 }

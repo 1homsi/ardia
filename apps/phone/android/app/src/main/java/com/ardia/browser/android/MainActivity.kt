@@ -2,7 +2,6 @@ package com.ardia.browser.android
 
 import android.content.Intent
 import android.content.res.Configuration
-import android.os.Build
 import android.os.Bundle
 import com.ardia.phone.FirstScreenDrawn
 import com.ardia.phone.InsetHold
@@ -64,7 +63,7 @@ class MainActivity : ReactActivity() {
     )
 
     override fun invokeDefaultOnBackPressed() {
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R && moveTaskToBack(false)) return
+        if (ReactBack.leaveToTheBackground(this)) return
         reactBack.bypassed { super.invokeDefaultOnBackPressed() }
     }
 }
