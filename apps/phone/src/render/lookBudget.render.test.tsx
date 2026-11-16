@@ -59,6 +59,7 @@ test("the deck tells the budget's probe it is idle only while settled and untouc
   expect(useArchiveCard.getState().showing).toBe(true);
   expect(calls.at(-1)?.idle).toBe(false);
   unmount(first);
+  setPreference("archiveCardShown", true);
   useArchiveCard.setState({ showing: false });
   const root = renderSurface(<TabDeck />);
   expect(calls.at(-1)?.idle).toBe(true);
