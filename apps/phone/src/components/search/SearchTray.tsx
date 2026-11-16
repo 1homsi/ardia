@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Host, Image as SystemImage } from "@expo/ui/swift-ui";
@@ -432,7 +432,7 @@ function StagedTray() {
   const [presented, setPresented] = useState(false);
   const [lift, setLift] = useState<SearchStageLift>({ lift: knownLift, up: false });
   const [fieldHeight, setFieldHeight] = useState(knownFieldHeight || browseLayout.searchFieldHeight * window.fontScale);
-  const live = useRef<{ mounted: number | null; closing: boolean; revealed: boolean; finishes: boolean; velocity: number; morphs: boolean; presentation: number }>({ mounted: null, closing: false, revealed: false, finishes: false, velocity: 0, morphs: false, presentation: 0 });
+  const live = useRef<{ mounted: number | null; closing: boolean; revealed: boolean; velocity: number; morphs: boolean; presentation: number }>({ mounted: null, closing: false, revealed: false, velocity: 0, morphs: false, presentation: 0 });
   const heldRelease = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drag = useSharedValue(0);
   const grabbed = useSharedValue(0);
@@ -506,27 +506,30 @@ function StagedTray() {
     });
   }, [presentation]);
 
+  const [handOver, setHandOver] = useState(0);
   useEffect(() => {
-    if (mounted !== null || !live.current.finishes) return;
-    live.current.finishes = false;
+    if (handOver === 0 || live.current.mounted !== null) return;
     drag.value = 0;
     stage.current?.finish();
-  }, [mounted]);
+    startTransition(() => {
+      if (live.current.mounted !== null) return;
+      setMounted(null);
+      setClosing(false);
+      setStageShown(false);
+    });
+  }, [handOver]);
 
   const settled = ({ landed }: { landed: boolean }) => {
     const now = live.current;
     if (!now.closing) return;
     now.closing = false;
     now.mounted = null;
-    now.finishes = true;
     clearHeldRelease();
     revealField.value = 0;
     revealRows.value = 0;
     stageSettled(landed);
-    setMounted(null);
-    setClosing(false);
-    setStageShown(false);
     setHoldsScroll(false);
+    setHandOver((count) => count + 1);
   };
 
   const revealed = ({ late }: { late: boolean }) => {

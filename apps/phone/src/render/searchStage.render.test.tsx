@@ -257,14 +257,17 @@ onIPhone("cancel lands the panel in the bar's pill, Go departs, and without a pi
   expect(mockStage.close).toHaveBeenLastCalledWith("drop", 0);
 });
 
-onIPhone("settling unmounts the panel's content, shows the pill at once with no fade and then tells the stage to finish", () => {
+onIPhone("settling shows the pill at once with no fade, tells the stage to finish in that same hand-over, and only then unmounts the panel's content at low priority", () => {
   const root = page();
   open();
   reveal();
   act(() => browse.cancelSearch());
   expect(host(root, "trayFieldReveal")).toBeDefined();
   expect(mockStage.finish).not.toHaveBeenCalled();
+  let barAtFinish = -1;
+  mockStage.finish.mockImplementationOnce(() => void (barAtFinish = centreSeen(root)));
   act(() => stage().onSettled?.({ landed: true }));
+  expect(barAtFinish).toBe(1);
   expect(host(root, "trayFieldReveal")).toBeUndefined();
   expect(stage().shown).toBe(false);
   expect(centreSeen(root)).toBe(1);
