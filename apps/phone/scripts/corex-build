@@ -8,11 +8,12 @@
 # 8 GB of its memory is free. Gradle runs without a daemon and Kotlin in-process, so nothing of ours stays resident.
 # pnpm is the version apps/phone/package.json pins, first on the path, since bundle-export runs it too, and TMPDIR
 # sits beside the clone, so the export's offline install finds pnpm's store on the same filesystem.
-# apkanalyzer for check-names.py is cmdline-tools 23.0 (the Mac's), pinned by checksum beside the clone, not in the
-# shared SDK. Keeps the newest 8 APKs. --compose-key is refused: the upgrade pair is built on the Mac.
+# apkanalyzer for check-names.py is cmdline-tools 23.0 (the Mac's), pinned by checksum, in sdk-view/ beside the clone:
+# it must sit in an SDK layout, so the view links the shared SDK's build-tools, platform-tools and platforms and
+# nothing is added to the shared SDK. Keeps the newest 8 APKs. --compose-key is refused: the upgrade pair is built on the Mac.
 set -euo pipefail
 if [ $# -lt 2 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && [ "$1" != "--help" ] && [ "$1" != "-h" ] && exit 64
   exit 0
 fi
@@ -62,7 +63,8 @@ cat > "$base/README.md" <<'README'
 Every build fetches, detaches it at the requested commit and resets it there; untracked files are removed, and only
 the build outputs Git ignores stay. Never edit, commit or push from here: all work happens in the main checkout on
 the Mac. `tools/` holds the branch head's `apps/phone/scripts` and `apps/phone/test/r8`, rewritten every build.
-`pnpm-<version>/` and `cmdline-tools-23.0/` are the pinned pnpm and apkanalyzer; `tmp/` holds the bundle exports.
+`pnpm-<version>/` is the pinned pnpm, `sdk-view/` the pinned apkanalyzer in an SDK layout that links the shared
+SDK's parts, and `tmp/` holds the bundle exports.
 APKs go to `~/Developer/ardia-phone-apks/`.
 README
 if [ ! -d "$src/.git" ]; then
@@ -80,15 +82,20 @@ git -C "$src" clean -ffdq
 rm -rf "$tools"
 mkdir -p "$tools"
 git -C "$src" archive "$head" apps/phone/scripts apps/phone/test/r8 | tar -x -C "$tools"
-analyzerHome="$base/cmdline-tools-23.0"
-if [ ! -x "$analyzerHome/cmdline-tools/bin/apkanalyzer" ]; then
-  mkdir -p "$analyzerHome"
-  curl -fsSL -o "$analyzerHome/tools.zip" https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
-  echo "e025545c62a8e64c7559119566a569fb1dec5f60  $analyzerHome/tools.zip" | sha1sum -c --quiet
-  unzip -q -o "$analyzerHome/tools.zip" -d "$analyzerHome"
-  rm -f "$analyzerHome/tools.zip"
+sdkView="$base/sdk-view"
+mkdir -p "$sdkView/cmdline-tools"
+for part in build-tools platform-tools platforms; do
+  ln -sfn "$ANDROID_HOME/$part" "$sdkView/$part"
+done
+if [ ! -x "$sdkView/cmdline-tools/latest/bin/apkanalyzer" ]; then
+  curl -fsSL -o "$sdkView/cmdline-tools.zip" https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
+  echo "e025545c62a8e64c7559119566a569fb1dec5f60  $sdkView/cmdline-tools.zip" | sha1sum -c --quiet
+  unzip -q -o "$sdkView/cmdline-tools.zip" -d "$sdkView/cmdline-tools/unpacked"
+  mv "$sdkView/cmdline-tools/unpacked/cmdline-tools" "$sdkView/cmdline-tools/latest"
+  rmdir "$sdkView/cmdline-tools/unpacked"
+  rm -f "$sdkView/cmdline-tools.zip"
 fi
-export ARDIA_APKANALYZER="$analyzerHome/cmdline-tools/bin/apkanalyzer"
+export ARDIA_APKANALYZER="$sdkView/cmdline-tools/latest/bin/apkanalyzer"
 
 pinned="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$src/apps/phone/package.json")"
 pnpmHome="$base/pnpm-$pinned"

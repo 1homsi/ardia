@@ -33,7 +33,8 @@ sdk = pathlib.Path(os.environ.get('ANDROID_HOME') or pathlib.Path.home() / 'Libr
 analyzer = os.environ.get('ARDIA_APKANALYZER') or str(sdk / 'cmdline-tools/latest/bin/apkanalyzer')
 if not os.access(analyzer, os.X_OK):
     sys.exit(f'no apkanalyzer at {analyzer}: install the SDK cmdline-tools or set ARDIA_APKANALYZER')
-aapt2 = sorted((sdk / 'build-tools').iterdir(), key=lambda path: [int(part) if part.isdigit() else part for part in re.split(r'(\d+)', path.name)])[-1] / 'aapt2'
+build_tools = sorted((sdk / 'build-tools').iterdir(), key=lambda path: [int(part) if part.isdigit() else part for part in re.split(r'(\d+)', path.name)])[-1]
+aapt2 = build_tools / 'aapt2'
 
 listing = subprocess.run([analyzer, 'dex', 'packages', '--defined-only', apk], capture_output=True, text=True).stdout
 classes = {line.split('\t')[3] for line in listing.splitlines() if line.startswith('C') and len(line.split('\t')) >= 4}
@@ -125,7 +126,7 @@ lost = [n for n in initializers if n not in classes]
 print(f'startup initializers named in the manifest: {len(initializers)}, {len(lost)} missing')
 for n in lost:
     print(f'  MISSING initializer {n}')
-dump = pathlib.Path(sorted((pathlib.Path.home() / 'Library/Android/sdk/build-tools').iterdir())[-1]) / 'dexdump'
+dump = build_tools / 'dexdump'
 room = 'androidx.work.impl.WorkDatabase_Impl'
 constructor = False
 if room in classes:
