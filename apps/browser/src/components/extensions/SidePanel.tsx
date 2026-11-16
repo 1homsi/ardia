@@ -4,14 +4,13 @@ import { Animated, Image, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
-import { useBrowser } from "../../state/browser/store";
 import { currentSettings } from "../../state/browser/current";
 import { updateSettings } from "../../state/settings/actions";
 import { DEFAULT_SETTINGS } from "../../state/settings/settings";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeKeptPanel, closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelKept, panelKey, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeKeptPanel, closeSidePanelOnTab, dropSidePanelCard, findExtension, panelKey, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 import { useResizeDrag } from "../sidebar/useResizeDrag";
@@ -20,66 +19,35 @@ const MIN_WIDTH = 320;
 const MAX_WIDTH = 600;
 const HEADER = 40;
 
+const NO_CARDS: SidePanel[] = [];
+
 export function ExtensionSidePanel() {
   const windowId = useWindowId();
   const entry = useExtensions((e) => e.sidePanels[windowId]);
+  const cards = useExtensions((e) => e.sidePanelCards[windowId] ?? NO_CARDS);
   const panel = entry && !entry.hidden ? entry : undefined;
   const state = !entry ? "closed" : entry.hidden ? "hidden" : "shown";
   const savedWidth = useSettings((st) => st.extensionSidePanelWidth);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
-  const [shown, setShown] = useState(panel);
-  const [leaving, setLeaving] = useState(false);
   const gap = useCardFrame().splitGap;
-  const [kept, setKept] = useState<SidePanel[]>(panel ? [panel] : []);
-  const shownKey = useRef("");
-  const entryNow = useRef(entry);
-  useEffect(() => {
-    shownKey.current = panel && shown ? panelKey(shown) : "";
-    entryNow.current = entry;
-  });
-
+  const [leaving, setLeaving] = useState<SidePanel | null>(null);
+  const lastShown = useRef<SidePanel | undefined>(panel);
   const lastSeen = useRef<{ state: string; tab?: string }>({ state: "closed" });
 
   useEffect(() => {
-    if (panel) setShown(panel);
     const tab = shownReadyTab(windowId);
     const before = lastSeen.current;
     const tabSwitch = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
-    setLeaving(!panel && !tabSwitch && !!shown);
+    setLeaving(!panel && !tabSwitch ? (lastShown.current ?? null) : null);
     Animated.timing(appear, { toValue: panel ? 1 : 0, duration: tabSwitch ? 0 : duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
-      if (!finished) return;
-      setLeaving(false);
-      const now = entryNow.current;
-      if (!now) {
-        setShown(undefined);
-        setKept([]);
-      } else if (now.hidden) setKept((k) => k.filter((p) => panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId)));
+      if (finished) setLeaving(null);
     });
   }, [state]);
   useEffect(() => {
     lastSeen.current = { state, tab: shownReadyTab(windowId) };
+    if (panel) lastShown.current = panel;
   });
-  useEffect(() => {
-    if (!panel) return;
-    setShown(panel);
-    setKept((k) => {
-      const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && panelKept(windowId, p, panelKey(panel)));
-      const next = k.filter(keep);
-      return next.some((p) => panelKey(p) === panelKey(panel)) ? next.map((p) => (panelKey(p) === panelKey(panel) ? panel : p)) : [...next, panel];
-    });
-  }, [panel && panelKey(panel), panel?.tabId, panel?.opened]);
-  useEffect(
-    () =>
-      useBrowser.subscribe((s, prev) => {
-        if (s.tabs === prev.tabs) return;
-        setKept((k) => {
-          const open = k.filter((p) => panelKept(windowId, p, shownKey.current));
-          return open.length === k.length ? k : open;
-        });
-      }),
-    [],
-  );
 
   const width = dragWidth ?? savedWidth;
   const resizeHandlers = useResizeDrag({
@@ -91,18 +59,25 @@ export function ExtensionSidePanel() {
     onCommit: (w) => updateSettings({ extensionSidePanelWidth: w }),
   });
 
-  if (!shown) return null;
+  const fading = leaving && !cards.some((card) => panelKey(card) === panelKey(leaving)) ? leaving : null;
+  const rendered = fading ? [...cards, fading] : cards;
+  if (!rendered.length) return null;
   const room = width + gap;
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
-        {kept.map((p) => {
-          const current = (!!panel || leaving) && panelKey(p) === panelKey(shown);
-          const close = () => {
-            if (closeKeptPanel(windowId, p, current)) return;
-            setKept((k) => k.filter((x) => x !== p));
-          };
-          return <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={current} onWindowClose={close} />;
+        {rendered.map((p) => {
+          const current = panel ? panelKey(p) === panelKey(panel) : p === fading;
+          return (
+            <PanelCard
+              key={panelKey(p)}
+              windowId={windowId}
+              panel={p}
+              current={current}
+              onWindowClose={() => p !== fading && closeKeptPanel(windowId, p, current)}
+              onHiddenCrash={() => dropSidePanelCard(windowId, p)}
+            />
+          );
         })}
         <View
           {...resizeHandlers}
@@ -114,7 +89,7 @@ export function ExtensionSidePanel() {
   );
 }
 
-function PanelCard({ windowId, panel, current, onWindowClose }: { windowId: string; panel: SidePanel; current: boolean; onWindowClose: () => void }) {
+function PanelCard({ windowId, panel, current, onWindowClose, onHiddenCrash }: { windowId: string; panel: SidePanel; current: boolean; onWindowClose: () => void; onHiddenCrash: () => void }) {
   const { extensionId, profile, pageProfile, url, opened } = panel;
   const theme = useTheme();
   const cardRadius = useCardFrame().radius;
@@ -164,7 +139,7 @@ function PanelCard({ windowId, panel, current, onWindowClose }: { windowId: stri
             if (!isLoading) setLoaded(true);
           }}
           onWindowClose={onWindowClose}
-          onCrashed={current ? undefined : onWindowClose}
+          onCrashed={current ? undefined : onHiddenCrash}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />
       </View>

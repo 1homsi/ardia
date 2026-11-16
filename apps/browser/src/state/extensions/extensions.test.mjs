@@ -487,69 +487,101 @@ test("a private window's Extensions menu opens the store in that private window,
   assert.deepEqual(S().windows[priv].tabIds.map((id) => S().tabs[id].url).slice(1), ["https://chromewebstore.google.com/category/extensions"]);
 });
 
-test("a panel closed with the X isn't kept running when a tab switch cuts its closing short", async () => {
-  const { w, a, b, answer } = setup();
-  const opened = panels.openSidePanel(w, "ext");
-  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+const cardTabs = (w) => panels.sidePanelCards(w).map((c) => `${c.extensionId}@${c.tabId === undefined ? "-" : c.tabId}`);
+
+async function twoTabsWithPanels() {
+  const t = setup();
+  useExtensions.setState({ sidePanelCards: {} });
+  const opened = panels.openSidePanel(t.w, "ext");
+  await t.answer(0, "chrome-extension://ext/panel.html?tabId=a");
   await opened;
-  const panelA = E().sidePanels[w];
-  S().activate(b);
-  void panels.syncSidePanel(w);
-  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
-  const panelB = E().sidePanels[w];
+  S().activate(t.b);
+  void panels.syncSidePanel(t.w);
+  await t.answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  return t;
+}
+
+test("kept panels: every tab that showed its own panel keeps its page mounted until something drops it", async () => {
+  const { w, a, b } = await twoTabsWithPanels();
+  assert.deepEqual(cardTabs(w), [`ext@${a}`, `ext@${b}`]);
+});
+
+test("kept panels: the X drops that tab's page at once, even when a tab switch cuts its closing short", async () => {
+  const { w, a, b, answer } = await twoTabsWithPanels();
   S().activate(a);
   void panels.syncSidePanel(w);
   await answer(2, "chrome-extension://ext/panel.html?tabId=a");
-  assert.equal(panels.panelKept(w, panelB, panels.panelKey(panelA)), true, "B's panel keeps running while A shows");
   panels.closeSidePanelOnTab(w);
+  assert.deepEqual(cardTabs(w), [`ext@${b}`], "A's page goes with the X, before any animation");
   S().activate(b);
   void panels.syncSidePanel(w);
   await answer(3, "chrome-extension://ext/panel.html?tabId=b");
-  const shown = panels.panelKey(E().sidePanels[w]);
-  assert.equal(panels.panelKept(w, panelA, shown), false, "A's closed panel is dropped though its tab is still open");
-  assert.equal(panels.panelKept(w, panelB, shown), true);
+  assert.deepEqual(cardTabs(w), [`ext@${b}`]);
   S().activate(a);
-  await panels.syncSidePanel(w);
-  assert.equal(E().sidePanels[w].hidden, true, "A stays closed");
   const reopened = panels.openSidePanel(w, "ext");
   await answer(4, "chrome-extension://ext/panel.html?tabId=a");
   await reopened;
-  assert.equal(panels.panelKept(w, panelA, panels.panelKey(E().sidePanels[w])), true, "opening it again on A brings it back");
+  assert.deepEqual(cardTabs(w).sort(), [`ext@${a}`, `ext@${b}`].sort(), "opening it again on A brings A back");
 });
 
-test("opening another extension's side panel drops the first extension's kept panels, so none keeps running unseen", async () => {
-  const { w, a, b, answer } = setup();
-  useExtensions.setState({ lists: { "": [EXT, { ...EXT, id: "ext2", name: "Ext 2" }] } });
-  const opened = panels.openSidePanel(w, "ext");
-  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
-  await opened;
-  const panelA = E().sidePanels[w];
-  assert.equal(panelA.tabId, a);
-  S().activate(b);
-  const other = panels.openSidePanel(w, "ext2");
-  await answer(1, "chrome-extension://ext2/panel.html?tabId=b");
-  await other;
-  const shown = E().sidePanels[w];
-  assert.equal(shown.extensionId, "ext2");
-  assert.equal(panels.panelKept(w, shown, panels.panelKey(shown)), true);
-  assert.equal(panels.panelKept(w, panelA, panels.panelKey(shown)), false, "the first extension's panel on tab a is dropped though tab a is open");
-});
-
-test("a kept panel that closes itself while another tab's panel shows stays closed when you go back to its tab", async () => {
-  const { w, a, b, asked, answer } = setup();
-  const opened = panels.openSidePanel(w, "ext");
-  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
-  await opened;
-  const panelA = E().sidePanels[w];
-  S().activate(b);
-  void panels.syncSidePanel(w);
-  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
-  assert.equal(E().sidePanels[w].tabId, b);
-  assert.equal(panels.closeKeptPanel(w, panelA, false), false, "the hidden card goes away where it is kept, B's panel stays");
+test("kept panels: a hidden page that closes itself is dropped and stays closed when you go back to its tab", async () => {
+  const { w, a, b, asked } = await twoTabsWithPanels();
+  const cardA = panels.sidePanelCards(w).find((c) => c.tabId === a);
+  panels.closeKeptPanel(w, cardA, false);
+  assert.deepEqual(cardTabs(w), [`ext@${b}`]);
   assert.equal(E().sidePanels[w].hidden, undefined, "B's panel still shows");
-  assert.equal(panels.panelClosedOnTab(w, a), true);
   S().activate(a);
   await panels.syncSidePanel(w);
-  assert.equal(E().sidePanels[w].hidden, true, "going back to A doesn't bring back the panel that closed itself");
+  assert.equal(E().sidePanels[w].hidden, true);
   assert.equal(asked.length, 2, "A's panel isn't asked for again");
+  assert.deepEqual(cardTabs(w), [`ext@${b}`]);
+});
+
+test("kept panels: a hidden page that crashes is dropped, and going back to its tab loads it again", async () => {
+  const { w, a, b, answer } = await twoTabsWithPanels();
+  panels.dropSidePanelCard(w, panels.sidePanelCards(w).find((c) => c.tabId === a));
+  assert.deepEqual(cardTabs(w), [`ext@${b}`]);
+  S().activate(a);
+  void panels.syncSidePanel(w);
+  await answer(2, "chrome-extension://ext/panel.html?tabId=a");
+  assert.deepEqual(cardTabs(w), [`ext@${b}`, `ext@${a}`]);
+});
+
+test("kept panels: opening another extension's panel drops the first extension's pages", async () => {
+  const { w, a, b, answer } = await twoTabsWithPanels();
+  useExtensions.setState({ lists: { "": [EXT, { ...EXT, id: "ext2", name: "Ext 2" }] } });
+  S().activate(a);
+  const other = panels.openSidePanel(w, "ext2");
+  await answer(2, "chrome-extension://ext2/panel.html?tabId=a");
+  await other;
+  assert.deepEqual(cardTabs(w), [`ext2@${a}`]);
+  void b;
+});
+
+test("kept panels: a panel the extension takes away while it's hidden is dropped when its tab comes back, with no other change needed", async () => {
+  const { w, a, answer } = setup();
+  useExtensions.setState({ sidePanelCards: {} });
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  S().activate(S().windows[w].tabIds[1]);
+  void panels.syncSidePanel(w);
+  await answer(1, null);
+  assert.equal(E().sidePanels[w].hidden, true, "B has no panel: the window's panel hides");
+  assert.deepEqual(cardTabs(w), [`ext@${a}`], "A's page is kept while you're on B");
+  S().activate(a);
+  void panels.syncSidePanel(w);
+  await answer(2, null);
+  assert.equal(E().sidePanels[w].hidden, true, "still hidden: nothing changes shown or hidden");
+  assert.deepEqual(cardTabs(w), [], "A's page is dropped as soon as the extension takes its panel away");
+});
+
+test("kept panels: closing a tab drops its page, and closing the window's panel drops them all", async () => {
+  const { w, a, b } = await twoTabsWithPanels();
+  const stop = panels.watchSidePanelCards();
+  S().closeTab(a);
+  assert.deepEqual(cardTabs(w), [`ext@${b}`]);
+  panels.closeSidePanel(w);
+  assert.deepEqual(cardTabs(w), []);
+  stop();
 });

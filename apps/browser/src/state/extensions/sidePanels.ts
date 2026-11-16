@@ -70,6 +70,7 @@ export function openSidePanel(windowId: string, extensionId: string): Promise<vo
   wanted.set(windowId, extensionId);
   const tab = shownPageId(useBrowser.getState(), windowId);
   if (tab) closedTabs.get(windowId)?.delete(tab);
+  refreshSidePanelCards(windowId);
   return syncSidePanel(windowId);
 }
 
@@ -83,19 +84,20 @@ export function closeSidePanel(windowId: string, extensionId?: string) {
   openings.delete(windowId);
   focusOwed.delete(windowId);
   nextFetch(windowId);
-  if (!useExtensions.getState().sidePanels[windowId]) return;
-  useExtensions.setState((e) => {
-    const sidePanels = { ...e.sidePanels };
-    delete sidePanels[windowId];
-    return { sidePanels };
-  });
+  if (useExtensions.getState().sidePanels[windowId])
+    useExtensions.setState((e) => {
+      const sidePanels = { ...e.sidePanels };
+      delete sidePanels[windowId];
+      return { sidePanels };
+    });
+  refreshSidePanelCards(windowId);
 }
 
 function hideSidePanel(windowId: string) {
   const now = useExtensions.getState().sidePanels[windowId];
   if (!now) return closeSidePanel(windowId);
-  if (now.hidden) return;
-  useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: { ...now, hidden: true } } }));
+  if (!now.hidden) useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: { ...now, hidden: true } } }));
+  refreshSidePanelCards(windowId);
 }
 
 export function closeSidePanelOnTab(windowId: string, ownerTabId?: string): boolean {
@@ -107,7 +109,10 @@ export function closeSidePanelOnTab(windowId: string, ownerTabId?: string): bool
   }
   shownTabs.get(windowId)?.delete(tabId);
   tabsOf(closedTabs, windowId).add(tabId);
-  if (tabId !== shownTab) return false;
+  if (tabId !== shownTab) {
+    refreshSidePanelCards(windowId);
+    return false;
+  }
   const others = [...(shownTabs.get(windowId) ?? [])].some((id) => panelTabOpen(windowId, id));
   if (!others) closeSidePanel(windowId);
   else {
@@ -167,16 +172,53 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
   const now = useExtensions.getState().sidePanels[windowId];
   if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile && now.opened === panel.opened && now.tabId === panel.tabId && !now.hidden) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
+  refreshSidePanelCards(windowId);
 }
 
 export const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
 
-export const panelKept = (windowId: string, p: SidePanel, shownKey: string) =>
-  panelKey(p) === shownKey ||
-  (wanted.get(windowId) === p.extensionId && panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId));
+const NO_CARDS: SidePanel[] = [];
 
-export function closeKeptPanel(windowId: string, panel: SidePanel, current: boolean): boolean {
-  if (current) return closeSidePanelOnTab(windowId, panel.tabId);
-  if (panel.tabId) closeSidePanelOnTab(windowId, panel.tabId);
-  return false;
+function cardKept(windowId: string, card: SidePanel, shown: SidePanel | undefined): boolean {
+  if (shown && !shown.hidden && card.tabId === shown.tabId) return panelKey(card) === panelKey(shown);
+  return !!card.tabId && wanted.get(windowId) === card.extensionId && panelTabOpen(windowId, card.tabId) && !panelDroppedOnTab(windowId, card.tabId);
+}
+
+function setCards(windowId: string, cards: SidePanel[]) {
+  useExtensions.setState((e) => {
+    const sidePanelCards = { ...e.sidePanelCards };
+    if (cards.length) sidePanelCards[windowId] = cards;
+    else delete sidePanelCards[windowId];
+    return { sidePanelCards };
+  });
+}
+
+export const sidePanelCards = (windowId: string) => useExtensions.getState().sidePanelCards[windowId] ?? NO_CARDS;
+
+export function refreshSidePanelCards(windowId: string) {
+  const shown = useExtensions.getState().sidePanels[windowId];
+  const before = sidePanelCards(windowId);
+  let next = before.filter((card) => cardKept(windowId, card, shown));
+  if (shown && !shown.hidden) {
+    const at = next.findIndex((card) => panelKey(card) === panelKey(shown));
+    next = at < 0 ? [...next, shown] : next.map((card, i) => (i === at ? shown : card));
+  }
+  if (next.length !== before.length || next.some((card, i) => card !== before[i])) setCards(windowId, next);
+}
+
+export function watchSidePanelCards(): () => void {
+  return useBrowser.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs && s.windows === prev.windows) return;
+    for (const windowId of Object.keys(useExtensions.getState().sidePanelCards)) refreshSidePanelCards(windowId);
+  });
+}
+
+export function closeKeptPanel(windowId: string, card: SidePanel, current: boolean) {
+  if (current || card.tabId) closeSidePanelOnTab(windowId, card.tabId);
+  else dropSidePanelCard(windowId, card);
+}
+
+export function dropSidePanelCard(windowId: string, card: SidePanel) {
+  const before = sidePanelCards(windowId);
+  if (before.includes(card)) setCards(windowId, before.filter((c) => c !== card));
 }
