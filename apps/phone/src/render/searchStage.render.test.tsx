@@ -20,6 +20,8 @@ type StageProps = {
   anchorNativeId?: string | null;
   faceNativeId?: string | null;
   focusNativeId?: string | null;
+  revealNativeId?: string | null;
+  rowsRevealNativeId?: string | null;
   fieldCenter?: number;
   commandTop?: number | null;
   morphLook?: { usesGlass: boolean; panelTint: string; panelDark: boolean; classicPanel: string };
@@ -122,7 +124,7 @@ const drag = (events: Parameters<typeof fireGestureHandler>[1]) => {
   act(() => jest.advanceTimersByTime(0));
 };
 
-onIPhone("opening search shows the stage, hides the bar's centre pill once the stage has taken its face, and holds the field and rows until the stage reveals them", () => {
+onIPhone("opening search shows the stage, hides the bar's centre pill once the stage has taken its face, and leaves the field and rows to the stage, which holds them hidden from present() and fades them on its own clock as main's face and field do", () => {
   const root = page();
   expect(stage().shown).toBe(false);
   expect(centreSeen(root)).toBe(1);
@@ -133,16 +135,16 @@ onIPhone("opening search shows the stage, hides the bar's centre pill once the s
   expect(stage().faceNativeId).toBe("searchStageFace");
   expect(stage().commandTop).toBeNull();
   expect(centreSeen(root)).toBe(0);
-  expect(opacity(host(root, "trayFieldReveal"))).toBe(0);
-  expect(opacity(host(root, "trayRowsReveal"))).toBe(0);
-  advance(400);
-  expect(opacity(host(root, "trayFieldReveal"))).toBe(0);
-  reveal();
-  advance(64);
-  expect(opacity(host(root, "trayRowsReveal"))).toBe(0);
-  advance(300);
-  expect(opacity(host(root, "trayFieldReveal"))).toBe(1);
-  expect(opacity(host(root, "trayRowsReveal"))).toBe(1);
+  expect(stage().revealNativeId).toBe("searchStageReveal");
+  expect(stage().rowsRevealNativeId).toBe("searchStageRowsReveal");
+  expect(host(root, "trayFieldReveal")!.props.nativeID).toBe("searchStageReveal");
+  expect(host(root, "trayRowsReveal")!.props.nativeID).toBe("searchStageRowsReveal");
+  for (const id of ["trayFieldReveal", "trayRowsReveal"]) {
+    expect(StyleSheet.flatten(host(root, id)!.props.style)?.opacity).toBeUndefined();
+    reveal();
+    advance(300);
+    expect(StyleSheet.flatten(host(root, id)!.props.style)?.opacity).toBeUndefined();
+  }
 });
 
 onIPhone("each open asks the stage to present once its content is mounted, and the centre pill stays under the face until the stage has taken it", () => {

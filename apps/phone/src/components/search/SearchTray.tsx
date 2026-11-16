@@ -4,13 +4,13 @@ import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, 
 import { Host, Image as SystemImage } from "@expo/ui/swift-ui";
 import { font as systemFont } from "@expo/ui/swift-ui/modifiers";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import type { GestureType } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
 import { useSearchFieldVersion, useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
-import { SEARCH_ANCHOR_ID, SEARCH_FACE_ID, SEARCH_FIELD_ID, setStageMorphs, stageExit, stageOpened, stagePresented, stageSettled, useStageBar } from "../../state/search/stageBar";
+import { SEARCH_ANCHOR_ID, SEARCH_FACE_ID, SEARCH_FIELD_ID, SEARCH_REVEAL_ID, SEARCH_ROWS_REVEAL_ID, setStageMorphs, stageExit, stageOpened, stagePresented, stageSettled, useStageBar } from "../../state/search/stageBar";
 import { SearchStage, SearchStagePanel, searchStageIsNative, type SearchStageHandle, type SearchStageLift } from "../../platform/searchStage";
 import { useScreenLayout } from "../../state/app/screenLayout";
 import { useChromeStyle } from "../../state/settings/appearance";
@@ -407,7 +407,6 @@ const StagedFieldContext = createContext<StagedField | null>(null);
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const revealIn = (delayMs: number) => withDelay(delayMs, withTiming(1, { duration: stageMotion.revealMs, easing: tabsCurve.easeOut }));
 
 function StagedTray() {
   countRender("TrayLayer");
@@ -438,8 +437,6 @@ function StagedTray() {
   const grabbed = useSharedValue(0);
   const released = useSharedValue(false);
   const dim = useSharedValue(0);
-  const revealField = useSharedValue(0);
-  const revealRows = useSharedValue(0);
   const safeBottom = insets.bottom;
   const resting = Math.max(lift.lift, safeBottom);
   const command = useCommandBar(resting);
@@ -476,8 +473,6 @@ function StagedTray() {
       setMounted(session);
       setClosing(false);
       setHoldsScroll(true);
-      revealField.value = 0;
-      revealRows.value = 0;
       drag.value = 0;
       stageOpened();
       setStageMorphs(now.morphs);
@@ -525,8 +520,6 @@ function StagedTray() {
     now.closing = false;
     now.mounted = null;
     clearHeldRelease();
-    revealField.value = 0;
-    revealRows.value = 0;
     stageSettled(landed);
     setHoldsScroll(false);
     setHandOver((count) => count + 1);
@@ -535,8 +528,6 @@ function StagedTray() {
   const revealed = ({ late }: { late: boolean }) => {
     live.current.revealed = true;
     if (!live.current.closing) setHoldsScroll(false);
-    revealField.value = revealIn(stageMotion.fieldDelayMs);
-    revealRows.value = revealIn(stageMotion.rowsDelayMs);
     if (late && !useTabs.getState().incognito) countUsage("search_reveals_late");
   };
 
@@ -642,8 +633,6 @@ function StagedTray() {
 
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * (1 - clampedProgress(drag.value, travel.value)) }));
   const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.value }] }));
-  const fieldStyle = useAnimatedStyle(() => ({ opacity: revealField.value }));
-  const rowsStyle = useAnimatedStyle(() => ({ opacity: revealRows.value }));
   const panelTint = withAlpha(incognito ? floatingPanelLayout.incognitoFill : theme.surface, reduceTransparency ? 1 : incognito ? floatingPanelLayout.incognitoShare : floatingPanelLayout.tintShare);
   const morphLook = useMemo(() => ({ usesGlass: chrome === "glass", panelTint, panelDark: incognito, classicPanel: theme.surface }), [chrome, panelTint, incognito, theme.surface]);
   const dimTakesTouches = lift.up && !closing;
@@ -658,6 +647,8 @@ function StagedTray() {
       anchorNativeId={morphs ? SEARCH_ANCHOR_ID : null}
       faceNativeId={morphs ? SEARCH_FACE_ID : null}
       focusNativeId={SEARCH_FIELD_ID}
+      revealNativeId={SEARCH_REVEAL_ID}
+      rowsRevealNativeId={SEARCH_ROWS_REVEAL_ID}
       fieldCenter={floatingPanelLayout.fieldInset + fieldHeight / 2}
       commandTop={command ? command.top : null}
       morphLook={morphLook}
@@ -693,14 +684,14 @@ function StagedTray() {
                 <View style={{ height: trayHeight, borderRadius: floatingPanelLayout.radius, overflow: "hidden" }}>
                   <StagedFieldContext.Provider value={field}>
                     <GestureDetector gesture={dismissDrag}>
-                      <Animated.View testID="trayFieldReveal" collapsable={false} style={fieldStyle}>
+                      <View testID="trayFieldReveal" nativeID={SEARCH_REVEAL_ID} collapsable={false}>
                         <TrayField key={mounted} closing={closing} />
-                      </Animated.View>
+                      </View>
                     </GestureDetector>
                   </StagedFieldContext.Provider>
-                  <Animated.View testID="trayRowsReveal" style={[styles.rows, rowsStyle]}>
+                  <View testID="trayRowsReveal" nativeID={SEARCH_ROWS_REVEAL_ID} collapsable={false} style={styles.rows}>
                     <TrayRows dismissDrag={dismissDrag} />
-                  </Animated.View>
+                  </View>
                 </View>
               </View>
             </View>

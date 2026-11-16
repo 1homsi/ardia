@@ -4,6 +4,8 @@ import type { SearchEnding } from "./store";
 export const SEARCH_ANCHOR_ID = "searchStageAnchor";
 export const SEARCH_FACE_ID = "searchStageFace";
 export const SEARCH_FIELD_ID = "searchStageField";
+export const SEARCH_REVEAL_ID = "searchStageReveal";
+export const SEARCH_ROWS_REVEAL_ID = "searchStageRowsReveal";
 
 export type StageExit = "morph" | "depart" | "drop";
 

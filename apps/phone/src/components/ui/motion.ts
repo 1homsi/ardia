@@ -73,7 +73,7 @@ export const trayMotion = {
 
 export const barReturnMotion = { leaveMs: 100, delayMs: 120, fadeMs: 150, scale: 0.8, shift: 12, back: spring(0.26, 1) } as const;
 
-export const stageMotion = { dimMs: 200, revealMs: 120, fieldDelayMs: 60, rowsDelayMs: 90, heldLiftGraceMs: 650, settle: spring(0.26, 1) } as const;
+export const stageMotion = { dimMs: 200, heldLiftGraceMs: 650, settle: spring(0.26, 1) } as const;
 
 export const poofMs = iPhoneOr(POOF.iPhoneDurationMs, POOF.durationMs);
 
