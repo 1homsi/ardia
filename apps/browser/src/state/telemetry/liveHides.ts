@@ -24,9 +24,16 @@ export function noteLiveFolderColorPick() {
   folderColorPicks++;
 }
 
+let folderToggles = 0;
+
+export function noteLiveFolderToggle() {
+  folderToggles++;
+}
+
 export function takeLiveHideCounts() {
   const taken = {
     live_folder_color_picks: folderColorPicks,
+    live_folder_toggles: folderToggles,
     live_row_hides: rowHides,
     live_stack_hides: stackHides,
     live_repo_menu_picks: repoMenuPicks,
@@ -39,5 +46,6 @@ export function takeLiveHideCounts() {
   repoHideAlls = 0;
   newReposHiddenTurnedOn = 0;
   folderColorPicks = 0;
+  folderToggles = 0;
   return taken;
 }
