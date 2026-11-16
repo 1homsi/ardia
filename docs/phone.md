@@ -1686,7 +1686,7 @@ simulator, the list under "The iPhone redesign".
 - [ ] Add a Lock Screen widget and a Control Center control, and the search widget. Expect: each opens the right link; the search widget follows the profile colour and Match My Mac.
 
 **11. Lab builds only**
-- [ ] Launch with `ArdiaDemo`, then each `Browse…` and `Ardia…` argument in `docs/android.md` and `docs/ios.md` (Android: step 41). Expect: eight demo tabs with Sintra selected, nothing written to the real store, the demo Macs in Spaces; each argument does what it does in the native apps at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
+- [ ] Launch with `ArdiaDemo`, then each `Browse…` and `Ardia…` argument in `docs/android.md` and "Launch arguments on iPhone" below (Android: step 41). Expect: eight demo tabs with Sintra selected, nothing written to the real store, the demo Macs in Spaces; each argument does what it does in the native apps at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
 
 Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 
@@ -2302,7 +2302,8 @@ Watch your own frames before you hand a change on. The loop, for any agent:
    - The pinned Release build is `~/Developer/ardia-phone-references/swiftui-main.app` (linked from
      `/tmp/ardia-phone/swiftui-main.app`), with `swiftui-main.txt` saying from which commit. To make a fresh one from
      any commit of main (about 50 s), run `apps/phone/scripts/rebuild-swiftui-reference <commit>`: it builds that
-     commit's `apps/ios` from a `git archive` export and signs it ad hoc, never with `CODE_SIGNING_ALLOWED=NO`. The ad hoc build carries simulated entitlements
+     commit's `apps/ios` from a `git archive` export and signs it ad hoc, never with `CODE_SIGNING_ALLOWED=NO`.
+     The ad hoc build carries simulated entitlements
      (`application-identifier` `FAKETEAMID.com.ardia.browser.ios` and the app group), the same as `build-sim-app`'s
      Expo builds. Without them the app has no Keychain: Sync With Mac stops at "Couldn't save the sync key in your
      Keychain", and an upgrade can't carry the key over. Check with
@@ -2726,15 +2727,14 @@ source:
   `SettingsSwitchStyle`, `PressableStyle`, the `LegibleInk` text style.
 - Tokens as values: `SettingsTint`, `Palette.formAccent`, `Spacing` (4, 8, 12, 16, 20, 24, 32), `Motion.press` and
   `Motion.snappy`.
-- The app-only pieces are copied, not moved. `apps/ios/Packages/ArdiaKit/Sources/ArdiaDesign/SettingsPieces.swift`
-  holds public copies of `SettingsRowLabel`, `SettingsHero` (built on a new `SettingsHeroContent`), `SetupStepRow`,
-  `CheckmarkRow` (built on a new `CheckmarkLabel`), `ColorSwatch`, `AppIconPreview`, `PressableStyle`, `LegibleInk`
-  and `SettingsSwitchStyle`, for the Expo screens; `SettingsTint.named(_:)` in `SettingsTokens.swift` maps the token
-  names. The SwiftUI app keeps its own copies untouched (`apps/ios/App/Settings/SettingsComponents.swift`,
-  `AppearancePage.swift`'s `CheckmarkRow`, `ColorChoiceRows.swift`'s `ColorSwatch`, `App/Browsing/BottomBar.swift`'s
-  `PressableStyle`); its own types shadow the package's. Extension members don't shadow, so the package's are named
-  `ardiaSettingsChrome()`, `ardiaSettingsPage(_:)` and `.ardiaInk(_:)`. The two are copies until `apps/ios` goes: a
-  change to main's Settings pieces in those files has to be carried over to `SettingsPieces.swift` by hand.
+- The app-only pieces live in ArdiaDesign. `packages/phone/ios/ArdiaKit/Sources/ArdiaDesign/SettingsPieces.swift`
+  holds public `SettingsRowLabel`, `SettingsHero` (built on `SettingsHeroContent`), `SetupStepRow`, `CheckmarkRow`
+  (built on `CheckmarkLabel`), `ColorSwatch`, `AppIconPreview`, `PressableStyle`, `LegibleInk` and
+  `SettingsSwitchStyle`, for the Expo screens; `SettingsTint.named(_:)` in `SettingsTokens.swift` maps the token
+  names. With the SwiftUI app gone from this branch they are the only source: change them there. Main's SwiftUI app
+  has its own copies (`App/Settings/SettingsComponents.swift` and others), which shadowed the package's types while
+  both lived here, so the extension members are named `ardiaSettingsChrome()`, `ardiaSettingsPage(_:)` and
+  `.ardiaInk(_:)`.
 - The Expo side: `packages/phone/ios/SettingsUIModule.swift` (`ArdiaPhoneSettingsUI`: the `ExpoUIView` views and the
   `ardia.*` modifiers registered in `OnCreate`) and `packages/phone/src/settingsUI.tsx` (one API for both phones;
   without the native module the views draw nothing and the modifiers are null).
@@ -2750,8 +2750,7 @@ and scroll speed on the root list.
 Nothing here is run by an agent on its own: the coordinator picks the moment, and no agent uploads or touches the
 Apple developer account. This is what the build needs and how the switch is proved.
 
-**A commit is uploadable only after a CI dry run at that exact commit** (`ios-release.yml`, `mode=dry-run`,
-`app=expo`). A local `release-ios` run proves the build, not the tree CI sees: CI runs `pnpm install` and `pod install`
+**A commit is uploadable only after a CI dry run at that exact commit** (`ios-release.yml`, `mode=dry-run`). A local `release-ios` run proves the build, not the tree CI sees: CI runs `pnpm install` and `pod install`
 fresh, and its dependencies step now fails, showing the diff, when `pod install` rewrites anything under
 `apps/phone/ios`. Run 43861288422 stopped on exactly that: 042a23ace had added a build file to the project by hand
 out of the id order CocoaPods writes in (fixed in 8304ed5c6, and on `expo-ios-internal-0.2.47-nightly.4` as
@@ -2763,15 +2762,15 @@ d5fbaabc1). After a hand edit to the project, run `pod install` and commit what 
   ids and the same entitlement files, now in `apps/phone/ios/Config`: the app group `group.com.ardia.browser.ios`, and the default
   browser off (`ARDIA_DEFAULT_BROWSER = NO`).
 - **Version and build number:**
-  - The Apple version is the Mac's release version, as `docs/ios.md` › Releasing to TestFlight has it.
+  - The Apple version is the Mac's release version, as `apps/phone/scripts/release-ios --help` has it.
   - The build number goes above the highest one App Store Connect holds. On 15 Nov that is 0.2.47 (9), uploaded that
     day, internal "in testing", external "waiting for review" (`gh workflow run ios-release.yml -f mode=status`).
   - So the Expo build is 0.2.47 (10) or later, or the next release version's first build.
-  - The project's committed 0.1.0 (1) is set at archive time on all four targets, as `scripts/release-ios.sh` does. It
+  - The project's committed 0.1.0 (1) is set at archive time on all four targets, as main's `scripts/release-ios.sh` does. It
     is never committed.
 - **The release path** (9ac589838, 6dfe58539):
   - `apps/phone/scripts/release-ios <build> --version <release> [--unsigned | --no-upload]` is the Expo counterpart
-    of `scripts/release-ios.sh`. It archives `apps/phone/ios/Ardia.xcworkspace` for a device in Release, with the
+    of main's `scripts/release-ios.sh`. It archives `apps/phone/ios/Ardia.xcworkspace` for a device in Release, with the
     release version on every target and `ArdiaReleaseVersion` in the app.
   - The commit's JavaScript is compiled with Hermes with the lab off, handed to the bundle phase through
     `ARDIA_PREBUILT_BUNDLE`, and stamped.
@@ -2780,9 +2779,9 @@ d5fbaabc1). After a hand edit to the project, run `pod install` and commit what 
     hooks off, the stripped frameworks, the app's dSYM matching its binary, default browser off and, when signed, the
     app group and web-browser entitlements.
   - The Settings footer follows main's `AppVersionLabel`: "Ardia 0.2.47 Nightly 2 (10)" from TestFlight.
-  - `.github/workflows/ios-release.yml` gains `app: expo`. It installs the app's packages and Pods on the `xcode-27`
-    runner and runs that script. An Expo upload with `public_testers` on is refused, so it can only reach the
-    Internal group.
+  - `.github/workflows/ios-release.yml` builds it, the only iPhone app since the clean-up. It installs the app's
+    packages and Pods on the `xcode-27` runner and runs that script. An upload with `public_testers` on is refused,
+    so it can only reach the Internal group.
 - **Proved without the Apple account** (2026-11-16): `release-ios 10 --version 0.2.47 --unsigned` on this Mac.
   - Every check passed, at 56.5 MB installed.
   - Every target reads 0.2.47 (10). The stamp gives JS 9ac589838, dirty no, native clean.
@@ -2791,17 +2790,17 @@ d5fbaabc1). After a hand edit to the project, run `pod install` and commit what 
   1. **Push this branch** (`git push origin t3/unify-expo-architecture`). GitHub holds e508d5cc5, without the release
      path. Or merge the branch into `main`.
   2. **A CI dry run**, which signs with the team's stored certificate but uploads nothing: `gh workflow run
-     ios-release.yml --ref t3/unify-expo-architecture -f mode=dry-run -f app=expo -f version=<release version>`.
+     ios-release.yml --ref t3/unify-expo-architecture -f mode=dry-run -f version=<release version>`.
      - It runs from the branch: `ios-release.yml` exists on `main`, so it can be dispatched, and the run uses the
        branch's copy.
-     - It needs the repository secrets the SwiftUI path uses: `NOTARY_KEY_P8`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`
+     - It needs the repository secrets main's SwiftUI path used: `NOTARY_KEY_P8`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`
        (the App Store Connect key), and `IOS_DEVELOPMENT_P12` with `IOS_DEVELOPMENT_P12_PASSWORD` (the development
        certificate).
      - It runs on GitHub's `xcode-27` runner, with Xcode 27.1 and CocoaPods.
      - It is the first time this project signs with the team's identity. Automatic signing for the same four bundle
        ids as main's app should reuse their profiles. The run's logs show it.
   3. **The upload, the owner's moment:** `gh workflow run ios-release.yml --ref t3/unify-expo-architecture -f
-     mode=upload -f app=expo -f public_testers=false -f version=<release version>`.
+     mode=upload -f public_testers=false -f version=<release version>`.
      - The build number is taken above App Store Connect's highest, from 10 on, unless `-f build=` sets it.
      - The release version must be the train the owner wants. 0.2.47 still has builds in review, so the next Mac
        release version is cleaner.
@@ -2811,11 +2810,11 @@ d5fbaabc1). After a hand edit to the project, run `pod install` and commit what 
   - The SwiftUI build was sent from `main` by the iOS Release workflow on 15 Nov (`gh workflow run ios-release.yml -f
     mode=upload`). The workflow archives, signs with the stored development certificate, and uploads with the App
     Store Connect API key the Mac release notarizes with (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`). Then,
-    because `public_testers` defaults to true, it submits the build to Public Testers for Beta App Review.
+    because `public_testers` defaulted to true then, it submits the build to Public Testers for Beta App Review.
   - The Expo build goes the same way with `-f public_testers=false`, so it reaches only the Internal group. That
     means the owner and the team's App Store Connect users.
   - The workflow runs from the branch that holds the Expo release path (`--ref`), or from `main` once it is merged.
-  - On a Mac, `scripts/release-ios.sh` does the same with the account Xcode is signed in to, or with `ASC_KEY`,
+  - On a Mac, `apps/phone/scripts/release-ios` does the same with the account Xcode is signed in to, or with `ASC_KEY`,
     `ASC_KEY_ID` and `ASC_ISSUER`.
 - **On the owner's phone:**
   - TestFlight installs the Expo build over the SwiftUI app, the same bundle id with a higher build, so the app's
@@ -2993,6 +2992,54 @@ held for 30 minutes by an `agent-device` call every 20 seconds (`upgrade-proof/r
 Not carried by design: Spotlight's fingerprints (rebuilt under a new key) and the bang list cache (the JavaScript
 core has its own). Not applicable: the default-browser status (no entitlement in either build).
 
+#### TestFlight: the workflow, its certificate and its testers
+
+This was `docs/ios.md`'s, for main's SwiftUI app; since the clean-up the workflow builds only the Expo app.
+- **The app record.** "Ardia", bundle id `com.ardia.browser.ios`, team `U5L5T3NGVV`; the extensions are `.widgets`,
+  `.share` and `.open`, sharing the app group `group.com.ardia.browser.ios`.
+- **The workflow** (`.github/workflows/ios-release.yml`). `mode=status` lists what App Store Connect holds and builds
+  nothing; `mode=dry-run` stops at the signed .ipa; `mode=upload` uploads through the App Store Connect key the Mac
+  release notarizes with (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`) and waits for processing. The build number
+  is the one after the highest uploaded, refused uploads included, unless `build` is set. An upload goes to the
+  Internal group only: `public_testers` is off by default, and an upload with it on is refused until the owner moves
+  the Expo app to public testers. On a Mac, `apps/phone/scripts/release-ios` does the same with the account Xcode is
+  signed in to, or with `ASC_KEY`, `ASC_KEY_ID` and `ASC_ISSUER`; `node apps/phone/scripts/asc.mjs --help` lists the
+  App Store Connect client's commands.
+- **CI's certificate.** The archive signs with one development certificate kept in `IOS_DEVELOPMENT_P12` and
+  `IOS_DEVELOPMENT_P12_PASSWORD` ("Apple Development: Created via API", expires 12 Nov 2027), so a run makes and
+  revokes nothing on the team; a revoked certificate mails the account holder. To renew it: make a key and a request
+  (`openssl req -new -newkey rsa:2048 -nodes -keyout key.pem -out request.csr -subj "/CN=Ardia CI"`), run
+  `mode=certificate` with `signing_request` set to the request's base64, download the `ios-development-certificate`
+  artifact, pack it with the key into a .p12 with macOS's `/usr/bin/openssl`, and set both secrets. Distribution
+  signing is Apple's cloud-managed certificate.
+- **Public testers, once the owner says so.** `mode=public-link -f build=<number>` puts a build in the Public Testers
+  group, sets its What to Test text from `apps/phone/ios/Config/TestFlight-WhatToTest.txt`, submits it for Beta App
+  Review and prints the link, which stays the same for every build. Only one build of a version can wait in review.
+  `mode=expire -f build=<number>` ends testing of an older build for good (never the newest), and `mode=add-tester -f
+  email=<address>` invites someone to Public Testers.
+- **The default browser grant.** iOS lists an app as a browser only when it is signed with
+  `com.apple.developer.web-browser`, which Apple grants per App ID on request
+  (https://developer.apple.com/contact/request/default-browser-entitlement/). Until then signing with it fails;
+  once granted, pass `default_browser=true` (`--default-browser`), then make `ARDIA_DEFAULT_BROWSER = YES` the
+  default ("Default browser on iPhone" above). iOS answers `UIApplication.isDefault(.webBrowser)` four times a year,
+  so `DefaultBrowserStatus` keeps the last answer and asks only on returning from the Settings button or after 100
+  days; a web link from another app also proves it.
+- **Export compliance.** The only encryption is Apple's own (CryptoKit's AES-GCM, HKDF and HMAC for sync, and HTTPS),
+  which Apple counts as exempt, so `ITSAppUsesNonExemptEncryption` is false and a build needs no compliance code.
+  Adding a cryptography library, or an algorithm of our own, changes that answer.
+
+#### Launch arguments on iPhone
+
+Main's SwiftUI app reads these, and the Expo app is checked against them in test builds (step 11 of the tester
+checklist). `-ArdiaDemo YES` runs on an in-memory store with the demo Macs and never touches real data; `-ArdiaSpace <name>`
+starts in that space. Captures without touch: `-BrowseQuery <text>`, `-BrowseSurface browsing`, `-BrowseTab <n>`,
+`-BrowseToolbar`, `-BrowseReader`, `-BrowseIncognito`, `-BrowseDelay <s>`, `-ArdiaDeck <script>`,
+`-ArdiaOnboarding YES`, `-ArdiaOpenSheet archive|spaces|history|bookmarks|downloads`, `-BrowsePlus`,
+`-BrowseOverlay <text>`, `-BrowseCollapsed`, `-BrowseOpen <url>`, `-ArdiaRestingStart`, `-ArdiaColor <name>`,
+`-ArdiaInterfaceStyle glass|classic`, `-ArdiaColorScheme light|dark`, `-ArdiaSettingsPage <route>`,
+`-ArdiaNoSitePermissions`, `-ArdiaDeckQuery <text>` and `-ArdiaDuoCanvas open|half`. Motion captures:
+`-BrowsePagerFreeze <fraction>`, `-BrowsePagerScript` and `-BrowseLoadFreeze <progress>`.
+
 #### Sync on iPhone
 
 `ArdiaPhoneSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
@@ -3028,6 +3075,61 @@ active and resigns. Keys, the phrase's entropy and sealed bytes stay in Swift; o
   the handler. To check it on a device: run from Xcode, send the app to the background, pause, run
   `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.ardia.browser.ios.sync"]`,
   continue, and look for the Mac's latest send in `Application Support/PhoneSync/inbox.json`.
+
+**What ArdiaSync does** (it was `docs/ios.md`'s, and holds for the Expo app, which runs the same service). The iPhone
+is a device in the Mac's chain: its own device id, its own logs, the same file format. A Mac that has never heard of
+the iPhone reads its files.
+- **Folder.** iCloud Drive › Ardia Sync, the Mac's default. iOS gives an app no path into iCloud Drive without a
+  container entitlement, and the Mac writes there without one, so the iPhone asks for the folder once with the system
+  folder picker and keeps a security-scoped bookmark. Picking iCloud Drive itself works too: the app looks for Ardia
+  Sync (or Netnyahoo Sync) inside it. Reads and writes go through `NSFileCoordinator`, which makes iCloud bring files
+  down; dataless files are reported as pending, as on the Mac.
+- **Joining.** The Mac's Settings › Sync › Connect Another Device shows a QR code of the phrase. The iPhone scans it
+  (or takes the 24 words typed or pasted), checks the checksum, and checks that the folder holds that phrase's chain
+  before saving anything. Its errors are the Mac's. A different phrase entered after a failure clears the old error
+  and, with a folder already chosen, tries again at once (`SyncConnectFlow`); the same words retyped don't.
+- **Keys.** The phrase's entropy is kept in the Keychain (`Ardia Sync Key`, this device only,
+  `AfterFirstUnlockThisDeviceOnly`, so background refresh can read it). The sync state (replica, base, version
+  vectors, journal) is sealed with the file key in the app's container, like the Mac's `sync-state.nns`.
+- **What the iPhone writes.** `dev:<id>` (its name), `tabs:<id>` (its 30 most recent open tabs), history visits as
+  `h:<url>` (the Mac's union rule), `send:` records, and a new `bm:` bookmark in Other Bookmarks when you Pin to Mac
+  (never from an Incognito tab, never an edit or delete of an existing bookmark). A page is pinned once: when the
+  profile's bookmarks already hold its URL, Pin to Mac writes nothing, and `companionAddBookmark` refuses the
+  duplicate too. It never writes settings, profiles, pins or passwords, keeps every record it doesn't use untouched in
+  its replica, and doesn't compact; Macs do. `companion.test.ts` holds it to that against a fake Mac writing every
+  kind of record today's Macs write and a kind no build knows yet.
+- **What it reads.** Device names, profiles (`prof:`, `pth:`), the search engine settings (`set:searchEngine`,
+  `set:customSearchUrl`, `set:customSearchEngines`), the look (`set:interfaceStyle`, `set:appearance`), and per
+  profile the other devices' tabs, pinned tabs and groups, bookmarks and history.
+- **Devices.** Settings › Sync lists the other devices by name, with no time: a device writes only when its own data
+  changes, so the newest file from an idle Mac can be hours old. The list is ordered by each device's newest change.
+- **Cycle.** On launch, on returning to the foreground, every 15 s in the foreground, 3 s after a local change, on
+  pull to refresh, and in background app refresh.
+
+**Code shared with the Mac.**
+- Swift: `packages/sync/ios/Core` (recovery phrase, keys, file format, the vault) is the code the Mac runs, built for
+  iOS through `packages/sync/Package.swift`; its macOS-only parts are behind `#if os(macOS)`.
+- TypeScript: the merge (`packages/sync/src/scope.ts`, `hlc.ts`, `canon.ts`, `order.ts`) and the omnibox
+  (`packages/core/src`) run in JavaScriptCore. `node apps/phone/scripts/bundle-shared.mjs` strips the types and writes
+  `ardia-sync.js` and `ardia-core.js` into `packages/phone/ios/ArdiaKit/Sources/ArdiaShared/Scripts` from
+  `packages/sync/src/companion/index.ts` and `packages/core/src/mobile.ts`. The bundles are checked in, Android
+  compiles the same `ardia-sync.js`, and `--check` (run by the sync and core test scripts and `ios.yml`) fails when
+  one is out of date. So a merge rule changed on the Mac is the phones' rule after the next bundle.
+
+**Tests.**
+- `swift test --package-path packages/phone/ios/ArdiaKit --scratch-path <scratch>`: sync end to end over a real vault
+  with a fake Mac, the browser layer (tabs, archive, blocking, omnibox, reader extraction in a real WKWebView), the
+  JavaScriptCore bridge and the design pieces. `SyncThroughICloudTests` carries files the way iCloud Drive does: late,
+  out of order, as `.icloud` placeholders, with conflict copies; its soak runs hours of random edits on a test clock.
+- `swift test --package-path packages/phone/ios/PhoneMotion` and `packages/phone/ios/PhoneSync`: the phone's own Swift.
+- `ios.yml` runs all three, the sync core's Swift tests and the bundle check on pull requests and pushes to `main`
+  that touch `packages/phone/ios`, `packages/sync`, `packages/core` or the bundler.
+- Left for a person: a real iPhone and a real Mac on one iCloud account (scan, pick the folder, watch tabs, history,
+  bookmarks and sends go both ways, a reboot keeps the folder). The simulator can't sign in to iCloud Drive.
+
+A `WKWebView` is made only once the app has a window (`WebEngine.canMakeWebViews`). UIKit gives a gesture recognizer
+its delayed-touch dispatcher when it is created, so a web view built before the scene's window aborts on its first
+scroll touch (`-[UIGestureRecognizer _delayTouchesForEvent:inPhase:]` inserting nil).
 
 Edge swipes for back and forward are WebKit's own gesture. Simulator automation (agent-device swipes and pans from
 the edge) has never triggered it; check it with a finger on a device or with the mouse in the Simulator window.

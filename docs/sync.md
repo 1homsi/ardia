@@ -24,7 +24,7 @@ Code:
   - `scope.ts`: replica, logs, snapshots, compaction.
   - `hlc.ts`: hybrid logical clocks.
   - `order.ts`: fractional positions.
-  - `companion/`: the iPhone's adapters and cycle, bundled for JavaScriptCore (`docs/ios.md`).
+  - `companion/`: the iPhone's adapters and cycle, bundled for JavaScriptCore (`docs/phone.md` › Sync on iPhone).
 - `apps/browser/src/state/sync`:
   - `adapters.ts`: store ↔ records.
   - `pinned.ts`: the pinned area (`pin:`, `pinn:`, `pinrow:`, `pord:g:`, `tilefold:`, `pgc:`, `pgh:`). `pinnedAreaAdapters` gives
@@ -568,7 +568,7 @@ bookmark, settings, profile or group edit, and on Sync Now. A cycle:
 
 Ardia for iPhone is one more device in the same chain, with the same file format: it writes `dev:` (`k: "phone"`),
 `tabs:`, history visits by the union rule, bookmarks it adds to Other Bookmarks and `send:` records, and keeps every
-other record untouched. It never compacts. Its side is in `docs/ios.md`.
+other record untouched. It never compacts. Its side is in `docs/phone.md` › Sync on iPhone.
 
 ## Left for a person
 

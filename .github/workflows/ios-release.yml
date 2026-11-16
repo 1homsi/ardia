@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight and to public testers; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; expire ends testing of an older build for good; certificate makes the development certificate CI signs with
+        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight's Internal group; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; expire ends testing of an older build for good; certificate makes the development certificate CI signs with
         type: choice
         options: [status, dry-run, upload, public-link, add-tester, expire, certificate]
         default: status
@@ -17,9 +17,9 @@ on:
         type: boolean
         default: false
       public_testers:
-        description: upload mode only, also put the build in the Public Testers group and submit it for Beta App Review
+        description: upload mode only, also put the build in the Public Testers group and submit it for Beta App Review (refused until the owner moves the Expo app to public testers)
         type: boolean
-        default: true
+        default: false
       signing_request:
         description: certificate mode only, the base64 of a certificate signing request
         type: string
@@ -32,11 +32,6 @@ on:
         description: dry-run and upload modes, the release version (0.2.47 or 0.2.47-nightly.2; empty takes the Mac app's MARKETING_VERSION)
         type: string
         default: ""
-      app:
-        description: dry-run and upload modes, which iPhone app to build (swiftui is apps/ios, expo is apps/phone; an expo upload goes to the Internal group only, so it needs public_testers off)
-        type: choice
-        options: [swiftui, expo]
-        default: swiftui
   workflow_call:
     inputs:
       mode:
@@ -53,16 +48,13 @@ on:
         default: false
       public_testers:
         type: boolean
-        default: true
+        default: false
       signing_request:
         type: string
         default: ""
       email:
         type: string
         default: ""
-      app:
-        type: string
-        default: swiftui
 
 permissions:
   contents: read
@@ -218,12 +210,11 @@ jobs:
       BUILD_INPUT: ${{ inputs.build }}
       DEFAULT_BROWSER: ${{ inputs.default_browser }}
       RELEASE_VERSION: ${{ inputs.version }}
-      APP: ${{ inputs.app || 'swiftui' }}
     steps:
-      - name: Expo builds go to the Internal group first
-        if: inputs.app == 'expo' && inputs.mode == 'upload' && inputs.public_testers
+      - name: Uploads go to the Internal group first
+        if: inputs.mode == 'upload' && inputs.public_testers
         run: |
-          echo "::error::an expo upload goes to the Internal group only until the owner moves it to public testers: run it with public_testers=false"
+          echo "::error::an upload goes to the Internal group only until the owner moves the Expo app to public testers: run it with public_testers=false"
           exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -233,10 +224,8 @@ jobs:
           node-version: 24
       - name: Toolchain
         run: xcodebuild -version
-      - if: inputs.app == 'expo'
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
-      - if: inputs.app == 'expo'
-        name: The Expo app's dependencies and Pods
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - name: The Expo app's dependencies and Pods
         run: |
           set -euo pipefail
           (cd apps/phone && pnpm install --frozen-lockfile)
@@ -258,7 +247,7 @@ jobs:
           IOS_DEVELOPMENT_P12_PASSWORD: ${{ secrets.IOS_DEVELOPMENT_P12_PASSWORD }}
         run: |
           set -euo pipefail
-          [ -n "$IOS_DEVELOPMENT_P12" ] && [ -n "$IOS_DEVELOPMENT_P12_PASSWORD" ] || { echo "::error::missing secrets IOS_DEVELOPMENT_P12 and IOS_DEVELOPMENT_P12_PASSWORD (docs/ios.md)"; exit 1; }
+          [ -n "$IOS_DEVELOPMENT_P12" ] && [ -n "$IOS_DEVELOPMENT_P12_PASSWORD" ] || { echo "::error::missing secrets IOS_DEVELOPMENT_P12 and IOS_DEVELOPMENT_P12_PASSWORD (docs/phone.md)"; exit 1; }
           secrets="$(dirname "$ASC_KEY")"
           keychain="$secrets/signing.keychain-db"
           password="$(openssl rand -hex 24)"
@@ -292,17 +281,13 @@ jobs:
           [ -z "$RELEASE_VERSION" ] || args+=(--version "$RELEASE_VERSION")
           [ "$MODE" = upload ] || args+=(--no-upload)
           [ "$DEFAULT_BROWSER" != true ] || args+=(--default-browser)
-          if [ "$APP" = expo ]; then
-            apps/phone/scripts/release-ios "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
-          else
-            scripts/release-ios.sh "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
+          apps/phone/scripts/release-ios "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
       - if: inputs.mode == 'upload'
         name: Wait for App Store Connect to process the build
         env:
           BUILD: ${{ steps.plan.outputs.build }}
         run: node apps/phone/scripts/asc.mjs wait --build "$BUILD" --timeout 2400 | tee -a "$GITHUB_STEP_SUMMARY"
-      - if: inputs.mode == 'upload' && inputs.public_testers && inputs.app != 'expo'
+      - if: inputs.mode == 'upload' && inputs.public_testers
         name: Send the build to public testers
         env:
           BUILD: ${{ steps.plan.outputs.build }}

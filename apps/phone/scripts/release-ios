@@ -5,7 +5,7 @@
 #                                  [--unsigned] [--default-browser] [--out <dir>]
 #   apps/phone/scripts/release-ios -h | --help
 #
-# The Expo counterpart of scripts/release-ios.sh, which archives main's SwiftUI app. Same app record, same
+# The Expo counterpart of main's scripts/release-ios.sh, which archives the SwiftUI app. Same app record, same
 # bundle ids and extensions, same version scheme: the release version is --version (a stable 0.2.47 or a
 # nightly 0.2.47-nightly.2), without it the Mac app's MARKETING_VERSION. Every target's
 # CFBundleShortVersionString is its Apple form and the app's ArdiaReleaseVersion key carries the release

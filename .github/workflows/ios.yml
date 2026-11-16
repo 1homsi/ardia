@@ -50,25 +50,6 @@ jobs:
             const vouch = require(`${process.env.GITHUB_WORKSPACE}/.github/vouch/vouch.cjs`);
             await vouch.gate({ github, context, core });
 
-  app:
-    needs: gate
-    if: needs.gate.outputs.run == 'true'
-    runs-on: xcode-27
-    timeout-minutes: 45
-    env:
-      SCRATCH: ${{ github.workspace }}/.ci
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Toolchain
-        run: |
-          xcodebuild -version
-          xcrun --sdk iphonesimulator --show-sdk-version
-      - name: Build the app for the simulator
-        run: >-
-          xcodebuild -project apps/ios/Ardia.xcodeproj -scheme Ardia -configuration Debug
-          -destination 'generic/platform=iOS Simulator' -derivedDataPath "$SCRATCH/dd"
-          CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO -quiet build
-
   packages:
     needs: gate
     if: needs.gate.outputs.run == 'true'
@@ -89,6 +70,8 @@ jobs:
         with:
           path: |
             .ci/ardiakit
+            .ci/phonemotion
+            .ci/phonesync
             .ci/sync
           key: swiftpm-xcode-27.1-${{ github.sha }}
           restore-keys: swiftpm-xcode-27.1-
@@ -96,6 +79,10 @@ jobs:
         run: node apps/phone/scripts/bundle-shared.mjs --check
       - name: ArdiaKit tests
         run: swift test --package-path packages/phone/ios/ArdiaKit --scratch-path "$SCRATCH/ardiakit"
+      - name: The phone's Swift tests
+        run: |
+          swift test --package-path packages/phone/ios/PhoneMotion --scratch-path "$SCRATCH/phonemotion"
+          swift test --package-path packages/phone/ios/PhoneSync --scratch-path "$SCRATCH/phonesync"
       - name: Sync core tests
         run: swift test --package-path packages/sync --scratch-path "$SCRATCH/sync"
       - if: github.event_name == 'push'
@@ -103,5 +90,7 @@ jobs:
         with:
           path: |
             .ci/ardiakit
+            .ci/phonemotion
+            .ci/phonesync
             .ci/sync
           key: swiftpm-xcode-27.1-${{ github.sha }}
