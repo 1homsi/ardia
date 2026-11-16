@@ -1,22 +1,24 @@
 #import "ArdiaInternal.h"
-#import "ArdiaHoverPage.h"
 #import "ArdiaContentBlockerInternal.h"
 #import "ArdiaWindowController.h"
 #import "ArdiaInterfaceScale.h"
 #import "ArdiaEvents.h"
 
+#import <objc/message.h>
 #import <objc/runtime.h>
 
 namespace ardia_host {
 
 namespace {
 
-enum class HoverReason { fine, halfActive, staleMenu, notKeyOrMain, coveredByView, responderLost };
+enum class HoverReason { fine, halfActive, staleMenu, notKeyOrMain, coveredByView, responderLost, coveredByWindow };
 enum class FocusWindowKind { none, hidden, blockerPage, internal, ardiaPanel, popup, browser, other };
+enum class PageCover { none, reactNative, chromium, other };
 enum class HoverTrigger { move, click, recheck };
+enum class FocusHolder { none, window, otherWindow, page, control };
 
 NSString *ReasonName(HoverReason reason) {
-  return @[ @"fine", @"halfActive", @"staleMenu", @"notKeyOrMain", @"coveredByView", @"responderLost" ][(NSUInteger)reason];
+  return @[ @"fine", @"halfActive", @"staleMenu", @"notKeyOrMain", @"coveredByView", @"responderLost", @"coveredByWindow" ][(NSUInteger)reason];
 }
 
 NSString *KindName(FocusWindowKind kind) {
@@ -25,6 +27,10 @@ NSString *KindName(FocusWindowKind kind) {
 
 NSString *CoverName(PageCover cover) {
   return @[ @"none", @"reactNative", @"chromium", @"other" ][(NSUInteger)cover];
+}
+
+NSString *HolderName(FocusHolder holder) {
+  return @[ @"none", @"window", @"otherWindow", @"page", @"control" ][(NSUInteger)holder];
 }
 
 NSString *TriggerName(HoverTrigger trigger) {
@@ -84,10 +90,14 @@ bool IsBrowserWindow(NSWindow *window) {
   return controller.root && !controller.standalone && !controller.stray && !controller.coreWindow.internal;
 }
 
-FocusWindowKind KindOf(NSWindow *window) {
+bool Invisible(NSWindow *window) {
+  return !window.isVisible || window.alphaValue < 0.01 || window.isMiniaturized || !window.isOnActiveSpace;
+}
+
+FocusWindowKind KindOf(NSWindow *window, bool evenInvisible = false) {
   if (!window) return FocusWindowKind::none;
   if (ardia_content_blocker::IsHiddenPageWindow(window)) return FocusWindowKind::blockerPage;
-  if (!window.isVisible || window.alphaValue < 0.01 || window.isMiniaturized || !window.isOnActiveSpace) return FocusWindowKind::hidden;
+  if (!evenInvisible && Invisible(window)) return FocusWindowKind::hidden;
   if (ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window]) {
     if (controller.standalone || controller.stray || controller.coreWindow.internal) return FocusWindowKind::internal;
     return controller.root ? FocusWindowKind::browser : FocusWindowKind::ardiaPanel;
@@ -102,12 +112,89 @@ bool Unseen(FocusWindowKind kind) {
   return kind == FocusWindowKind::none || kind == FocusWindowKind::hidden || kind == FocusWindowKind::blockerPage;
 }
 
+Class PageClass() {
+  static Class page = NSClassFromString(@"RenderWidgetHostViewCocoa");
+  return page;
+}
+
+NSView *PageAt(NSWindow *window, NSPoint point) {
+  Class pageClass = PageClass();
+  if (!pageClass) return nil;
+  NSView *found = nil;
+  NSMutableArray<NSView *> *stack = [NSMutableArray arrayWithObject:window.contentView.superview ?: [NSView new]];
+  while (stack.count) {
+    NSView *v = stack.lastObject;
+    [stack removeLastObject];
+    if (v.isHidden) continue;
+    if ([v isKindOfClass:pageClass]) {
+      if (NSPointInRect(point, [v convertRect:v.bounds toView:nil])) found = v;
+      continue;
+    }
+    for (NSView *child in v.subviews.reverseObjectEnumerator) [stack addObject:child];
+  }
+  return found;
+}
+
+NSView *EnclosingPage(NSView *view) {
+  for (NSView *v = view; v; v = v.superview)
+    if ([v isKindOfClass:PageClass()]) return v;
+  return nil;
+}
+
+bool PageIgnoresMove(NSView *page, NSWindow *window, NSPoint point) {
+  SEL ignores = NSSelectorFromString(@"shouldIgnoreMouseEvent:");
+  if (![page respondsToSelector:ignores]) return false;
+  NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point modifierFlags:0
+                                     timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+                                       context:nil eventNumber:0 clickCount:0 pressure:0];
+  return ((BOOL(*)(id, SEL, NSEvent *))objc_msgSend)(page, ignores, event);
+}
+
+NSView *HitAt(NSWindow *window, NSPoint point) {
+  NSView *content = window.contentView;
+  return [content hitTest:[content.superview convertPoint:point fromView:nil]];
+}
+
+PageCover CoverOf(NSView *hit) {
+  if (!hit) return PageCover::none;
+  NSBundle *chromium = PageClass() ? [NSBundle bundleForClass:PageClass()] : nil;
+  for (NSView *v = hit; v; v = v.superview) {
+    NSBundle *bundle = [NSBundle bundleForClass:v.class];
+    if (bundle == chromium) return PageCover::chromium;
+    if (bundle == NSBundle.mainBundle) return PageCover::reactNative;
+  }
+  return PageCover::other;
+}
+
+bool SeeThrough(NSView *hit) {
+  for (NSView *v = hit; v; v = v.superview)
+    if (v.alphaValue < 0.01 || (v.layer && v.layer.opacity < 0.01)) return true;
+  return false;
+}
+
+FocusHolder HolderOf(NSWindow *window) {
+  NSResponder *responder = window.firstResponder;
+  if (!responder) return FocusHolder::none;
+  if (responder == window) return FocusHolder::window;
+  if (![responder isKindOfClass:NSView.class]) return FocusHolder::control;
+  NSView *view = (NSView *)responder;
+  if (view.window != window) return FocusHolder::otherWindow;
+  return EnclosingPage(view) ? FocusHolder::page : FocusHolder::control;
+}
+
+bool ResponderLost(FocusHolder holder, bool clickedPage) {
+  if (holder == FocusHolder::none || holder == FocusHolder::otherWindow) return true;
+  return clickedPage && holder == FocusHolder::window;
+}
+
 struct HoverCheck {
   HoverReason reason = HoverReason::fine;
   Activation activation;
   FocusWindowKind key = FocusWindowKind::none;
   FocusWindowKind main = FocusWindowKind::none;
   PageCover cover = PageCover::none;
+  FocusWindowKind coverWindow = FocusWindowKind::none;
+  FocusHolder holder = FocusHolder::none;
   bool coverClear = false;
   bool preventKey = false;
   bool canKey = false;
@@ -129,7 +216,7 @@ HoverReason PageReason(HoverCheck &check, NSWindow *window, NSPoint point, NSVie
     check.coverClear = SeeThrough(hit);
     return HoverReason::coveredByView;
   }
-  if (check.windowKey && ResponderLost(window, click && page)) return HoverReason::responderLost;
+  if (check.windowKey && ResponderLost(check.holder, click && page)) return HoverReason::responderLost;
   return HoverReason::fine;
 }
 
@@ -145,6 +232,7 @@ HoverCheck Probe(NSWindow *window, NSPoint point, bool click) {
   check.windowMain = window.isMainWindow;
   NSView *page = PageAt(window, point);
   check.overPage = page != nil;
+  check.holder = HolderOf(window);
   check.reason = PageReason(check, window, point, page, click);
   return check;
 }
@@ -160,7 +248,8 @@ bool IsProblem(const HoverCheck &check, HoverTrigger trigger) {
     case HoverReason::coveredByView: return check.cover != PageCover::reactNative || check.coverClear;
     case HoverReason::halfActive:
     case HoverReason::staleMenu:
-    case HoverReason::responderLost: return true;
+    case HoverReason::responderLost:
+    case HoverReason::coveredByWindow: return true;
   }
 }
 
@@ -249,7 +338,9 @@ NSString *DescribeCheck(const HoverCheck &check, HoverTrigger trigger) {
   if (check.canKey) [facts addObject:@"canKey"];
   if (check.menuActive) [facts addObject:@"menuActive"];
   if (check.overPage) [facts addObject:@"overPage"];
+  [facts addObject:[@"responder=" stringByAppendingString:HolderName(check.holder)]];
   if (check.cover != PageCover::none) [facts addObject:[@"cover=" stringByAppendingString:CoverName(check.cover)]];
+  if (check.coverWindow != FocusWindowKind::none) [facts addObject:[@"coverWindow=" stringByAppendingString:KindName(check.coverWindow)]];
   if (check.coverClear) [facts addObject:@"coverClear"];
   return [NSString stringWithFormat:@"%@ at %@", [facts componentsJoinedByString:@" "], [clock stringFromDate:NSDate.date]];
 }
@@ -273,6 +364,8 @@ void CloseEpisode(NSString *endedBy) {
     @"overPage" : @(first.overPage),
     @"cover" : CoverName(first.cover),
     @"coverClear" : @(first.coverClear),
+    @"responder" : HolderName(first.holder),
+    @"coverWindow" : KindName(first.coverWindow),
     @"healed" : @(gEpisode.healed),
     @"healWorked" : gEpisode.healWorked < 0 ? NSNull.null : @(gEpisode.healWorked == 1),
     @"endedBy" : endedBy,
@@ -288,21 +381,39 @@ void CloseEpisode(NSString *endedBy) {
   [ArdiaEvents emit:@"engine.hoverLost" data:payload];
 }
 
-bool Recovered(const HoverCheck &check) {
+bool Recovered(const HoverCheck &check, HoverReason healed) {
+  if (healed == HoverReason::responderLost && check.holder != FocusHolder::page) return false;
   return check.reason == HoverReason::fine && !check.activation.half() && check.windowKey;
+}
+
+NSView *PageUnder(NSWindow *window, NSPoint point) {
+  NSView *page = EnclosingPage(HitAt(window, point));
+  return page && page.window == window && !page.isHiddenOrHasHiddenAncestor ? page : nil;
+}
+
+bool SystemSeesUsFrontmost() {
+  NSRunningApplication *me = NSRunningApplication.currentApplication;
+  return !Background() && me.isActive && [NSWorkspace.sharedWorkspace.frontmostApplication isEqual:me];
+}
+
+void ReplayMissedActivation() {
+  if (NSApp.isActive || !SystemSeesUsFrontmost()) return;
+  NSEvent *activated = [NSEvent otherEventWithType:NSEventTypeAppKitDefined location:NSZeroPoint modifierFlags:0 timestamp:Uptime()
+                                      windowNumber:0 context:nil subtype:NSEventSubtypeApplicationActivated data1:0 data2:0];
+  [NSApp sendEvent:activated];
 }
 
 void Heal(NSWindow *window, NSPoint point, HoverReason reason) {
   gEpisode.healed = true;
   NoteFocusChange([@"hover heal " stringByAppendingString:ReasonName(reason)], window);
   if (reason == HoverReason::responderLost) {
-    NSView *page = PageAt(window, point);
-    if (page) [window makeFirstResponder:page];
+    if (NSView *page = PageUnder(window, point)) [window makeFirstResponder:page];
   } else {
     if (PreventsKey(window)) [window setValue:@NO forKey:@"preventKeyWindow"];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    if (reason == HoverReason::halfActive) [NSApp activateIgnoringOtherApps:YES];
+    if (reason == HoverReason::halfActive) ReplayMissedActivation();
+    if (reason == HoverReason::halfActive && !NSApp.isActive) [NSApp activateIgnoringOtherApps:YES];
 #pragma clang diagnostic pop
     [window makeKeyAndOrderFront:nil];
   }
@@ -314,9 +425,16 @@ void Heal(NSWindow *window, NSPoint point, HoverReason reason) {
     if (!healedWindow) return CloseEpisode(@"windowClosed");
     const HoverCheck after = Probe(healedWindow, point, false);
     gLastHoverVerdict = DescribeCheck(after, HoverTrigger::recheck);
-    gEpisode.healWorked = Recovered(after) ? 1 : 0;
+    gEpisode.healWorked = Recovered(after, reason) ? 1 : 0;
     if (gEpisode.healWorked == 1) CloseEpisode(@"heal");
   });
+}
+
+__weak NSWindow *gInvisibleCover;
+
+bool CoverStillCatchesClicks() {
+  NSWindow *cover = gInvisibleCover;
+  return cover && cover.isVisible && !cover.ignoresMouseEvents && cover.alphaValue < 0.01;
 }
 
 bool EndsEpisode(const HoverCheck &check) {
@@ -325,8 +443,20 @@ bool EndsEpisode(const HoverCheck &check) {
     case HoverReason::coveredByView: return check.overPage;
     case HoverReason::halfActive: return !check.activation.half() && (check.windowKey || check.windowMain);
     case HoverReason::notKeyOrMain: return check.windowKey || (check.windowMain && gEpisode.trigger == HoverTrigger::move);
+    case HoverReason::coveredByWindow: return !CoverStillCatchesClicks();
     default: return true;
   }
+}
+
+void OpenEpisode(NSWindow *window, const HoverCheck &check, HoverTrigger trigger) {
+  gEpisode = HoverEpisode{};
+  gEpisode.open = true;
+  gEpisode.owner = window;
+  gEpisode.serial = ++gEpisodeCount;
+  gEpisode.first = check;
+  gEpisode.trigger = trigger;
+  gEpisode.startedAt = Uptime();
+  NoteFocusChange([@"hover lost: " stringByAppendingString:ReasonName(check.reason)], window);
 }
 
 void HandleHoverCheck(NSWindow *window, NSPoint point, HoverTrigger trigger) {
@@ -346,16 +476,51 @@ void HandleHoverCheck(NSWindow *window, NSPoint point, HoverTrigger trigger) {
       gPendingWindow = window;
       return;
     }
-    gEpisode = HoverEpisode{};
-    gEpisode.open = true;
-    gEpisode.owner = window;
-    gEpisode.serial = ++gEpisodeCount;
-    gEpisode.first = check;
-    gEpisode.trigger = trigger;
-    gEpisode.startedAt = Uptime();
-    NoteFocusChange([@"hover lost: " stringByAppendingString:ReasonName(check.reason)], window);
+    OpenEpisode(window, check, trigger);
   }
   if (!gEpisode.healed && SafeToHeal(window, check, trigger)) Heal(window, point, check.reason);
+}
+
+void HandleCoveredClick(NSWindow *browser, NSWindow *cover, NSPoint point) {
+  if (gEpisode.open && !gEpisode.owner) CloseEpisode(@"windowClosed");
+  if (!browser || !cover || !Invisible(cover) || !cover.isVisible) return;
+  if (gEpisode.open) {
+    if (gEpisode.owner != browser || gEpisode.first.reason != HoverReason::coveredByWindow || gInvisibleCover != cover) return;
+    gEpisode.healed = true;
+    NoteFocusChange(@"hover heal coveredByWindow: the invisible window stops taking clicks", browser);
+    cover.ignoresMouseEvents = YES;
+    gEpisode.healWorked = 1;
+    return CloseEpisode(@"heal");
+  }
+  HoverCheck check = Probe(browser, point, true);
+  check.reason = HoverReason::coveredByWindow;
+  check.coverWindow = KindOf(cover, true);
+  gLastHoverVerdict = DescribeCheck(check, HoverTrigger::click);
+  gInvisibleCover = cover;
+  OpenEpisode(browser, check, HoverTrigger::click);
+}
+
+NSWindow *BrowserWindowBelow(NSWindow *cover, NSPoint screenPoint) {
+  bool below = false;
+  for (NSWindow *window in NSApp.orderedWindows) {
+    if (window == cover) {
+      below = true;
+      continue;
+    }
+    if (below && window.isVisible && NSPointInRect(screenPoint, window.frame) && IsBrowserWindow(window) && !Invisible(window)) return window;
+  }
+  return nil;
+}
+
+NSPoint ScreenPoint(NSEvent *event) {
+  return event.window ? [event.window convertPointToScreen:event.locationInWindow] : NSEvent.mouseLocation;
+}
+
+NSWindow *InvisibleCoverFor(NSEvent *event) {
+  NSWindow *under = [NSApp windowWithWindowNumber:[NSWindow windowNumberAtPoint:ScreenPoint(event) belowWindowWithWindowNumber:0]];
+  if (!under && gHoverWatchInBackground) under = event.window;
+  if (!under || IsBrowserWindow(under) || !under.isVisible || under.alphaValue >= 0.01 || under.ignoresMouseEvents) return nil;
+  return under;
 }
 
 NSWindow *BrowserWindowFor(NSEvent *event) {
@@ -385,6 +550,15 @@ void StartHoverWatch() {
     if (!move && (event.modifierFlags & NSEventModifierFlagCommand)) return event;
     if (!CurrentActivation().inFront()) return event;
     NSWindow *window = BrowserWindowFor(event);
+    if (!window && !move) {
+      NSWindow *cover = InvisibleCoverFor(event);
+      NSWindow *browser = cover ? BrowserWindowBelow(cover, ScreenPoint(event)) : nil;
+      if (!browser) return event;
+      const NSPoint point = [browser convertPointFromScreen:ScreenPoint(event)];
+      __weak NSWindow *weakBrowser = browser, *weakCover = cover;
+      dispatch_async(dispatch_get_main_queue(), ^{ HandleCoveredClick(weakBrowser, weakCover, point); });
+      return event;
+    }
     if (!window) return event;
     const NSPoint point = PointIn(window, event);
     __weak NSWindow *weakWindow = window;
@@ -470,6 +644,51 @@ NSString *DevNotMain(NSWindow *window, bool on) {
   return DescribeFocusWindow(window);
 }
 
+NSString *DevInvisibleCover(NSWindow *browser, NSString *how) {
+  static NSWindow *cover;
+  if (!cover) {
+    cover = [[NSWindow alloc] initWithContentRect:browser.frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+    cover.releasedWhenClosed = NO;
+    cover.alphaValue = 0;
+  }
+  if ([how isEqualToString:@"off"]) {
+    [cover orderOut:nil];
+    return @"removed";
+  }
+  if ([how isEqualToString:@"click"]) {
+    const NSRect frame = cover.frame;
+    const NSPoint inside = NSMakePoint(NSWidth(frame) / 2, NSHeight(frame) / 2);
+    const NSEventType presses[] = {NSEventTypeLeftMouseDown, NSEventTypeLeftMouseUp};
+    for (NSEventType type : presses)
+      [NSApp sendEvent:[NSEvent mouseEventWithType:type location:inside modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+                                      windowNumber:cover.windowNumber context:nil eventNumber:0 clickCount:1 pressure:1]];
+    return DevHoverState();
+  }
+  cover.ignoresMouseEvents = NO;
+  [cover setFrame:browser.frame display:NO];
+  [cover orderWindow:NSWindowAbove relativeTo:browser.windowNumber];
+  return [NSString stringWithFormat:@"cover #%ld visible %d", (long)cover.windowNumber, cover.isVisible];
+}
+
+NSString *DevSeeThroughCovers(NSWindow *window) {
+  NSMutableArray<NSString *> *found = [NSMutableArray array];
+  NSView *frame = window.contentView.superview;
+  const NSRect bounds = frame.bounds;
+  for (CGFloat y = 8; y < NSHeight(bounds); y += 16)
+    for (CGFloat x = 8; x < NSWidth(bounds); x += 16) {
+      const NSPoint point = NSMakePoint(x, y);
+      if (!PageAt(window, point)) continue;
+      NSView *hit = HitAt(window, point);
+      if (!hit || EnclosingPage(hit) || !SeeThrough(hit)) continue;
+      NSMutableArray<NSString *> *chain = [NSMutableArray array];
+      for (NSView *v = hit; v && chain.count < 6; v = v.superview)
+        [chain addObject:[NSString stringWithFormat:@"%@(%.2f)%@", v.className, v.alphaValue, NSStringFromRect([v convertRect:v.bounds toView:nil])]];
+      NSString *line = [chain componentsJoinedByString:@" < "];
+      if (![found containsObject:line]) [found addObject:line];
+    }
+  return [found componentsJoinedByString:@"\n"];
+}
+
 NSString *DevBlockerKey() {
   for (NSWindow *w in NSApp.windows)
     if (ardia_content_blocker::IsHiddenPageWindow(w)) {
@@ -517,11 +736,6 @@ NSString *HoverProbeDev(NSWindow *window, NSString *argument) {
     else if (Background()) StopHoverWatch();
   } else if ([command isEqualToString:@"check"]) {
     HandleHoverCheck(window, TopLeftPoint(window, rest), [rest hasSuffix:@",click"] ? HoverTrigger::click : HoverTrigger::move);
-  } else if ([command isEqualToString:@"responderNil"]) {
-    if ([rest isEqualToString:@"1"]) [window makeFirstResponder:nil];
-    NSResponder *responder = window.firstResponder;
-    return [NSString stringWithFormat:@"responder %@, lost %d", !responder ? @"nil" : responder == window ? @"window" : NSStringFromClass(responder.class),
-                                      ResponderLost(window, true)];
   } else if ([command isEqualToString:@"preventKey"]) {
     [window setValue:@([rest isEqualToString:@"1"]) forKey:@"preventKeyWindow"];
     return DescribeFocusWindow(window);
@@ -536,6 +750,14 @@ NSString *HoverProbeDev(NSWindow *window, NSString *argument) {
     return DevMakeKey(window, command, rest);
   } else if ([command isEqualToString:@"notMain"]) {
     return DevNotMain(window, [rest isEqualToString:@"1"]);
+  } else if ([command isEqualToString:@"invisibleCover"]) {
+    return DevInvisibleCover(window, rest);
+  } else if ([command isEqualToString:@"responderNil"]) {
+    if ([rest isEqualToString:@"1"]) [window makeFirstResponder:nil];
+    const FocusHolder holder = HolderOf(window);
+    return [NSString stringWithFormat:@"responder %@, lost %d", HolderName(holder), ResponderLost(holder, true)];
+  } else if ([command isEqualToString:@"seeThrough"]) {
+    return DevSeeThroughCovers(window);
   } else if ([command isEqualToString:@"blockerKey"]) {
     return DevBlockerKey();
   } else if ([command isEqualToString:@"cover"]) {

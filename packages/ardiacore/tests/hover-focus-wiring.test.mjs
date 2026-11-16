@@ -60,5 +60,5 @@ test("the hover probe repairs a key window with no first responder on a click ov
   const safe = body(probe, "bool SafeToHeal(");
   assert.match(safe, /HoverReason::responderLost\) return trigger == HoverTrigger::click && check\.overPage && check\.windowKey;/);
   const heal = body(probe, "void Heal(");
-  assert.match(heal, /reason == HoverReason::responderLost\) \{\s*NSView \*page = PageAt\(window, point\);\s*if \(page\) \[window makeFirstResponder:page\];/);
+  assert.match(heal, /reason == HoverReason::responderLost\) \{\s*if \(NSView \*page = PageUnder\(window, point\)\) \[window makeFirstResponder:page\];/);
 });
