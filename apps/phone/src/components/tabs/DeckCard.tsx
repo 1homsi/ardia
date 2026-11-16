@@ -33,7 +33,7 @@ function sameCardTab(a: BrowserTab, b: BrowserTab): boolean {
   return Object.keys(a).length === Object.keys(b).length;
 }
 
-function sameCard(a: Props, b: Props): boolean {
+export function sameCard(a: Props, b: Props): boolean {
   for (const key of Object.keys(a) as (keyof Props)[]) {
     if (key === "tab" ? !sameCardTab(a.tab, b.tab) : a[key] !== b[key]) return false;
   }
@@ -50,7 +50,7 @@ export function deckRole(phase: number, expanded: number, index: number): DeckRo
   return index < expanded ? "slideLeft" : "slideRight";
 }
 
-const EXPANDED_Z = 100_000;
+export const EXPANDED_Z = 100_000;
 
 export type DeckMotion = {
   orderIds: SharedValue<readonly string[]>;
@@ -82,7 +82,7 @@ type Props = {
 
 type Pose = { x: number; y: number; scale: number; corner: number; opacity: number; header: number; visible: number; lift: number; vanish: number };
 
-function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number, pp: number, lift: number, vanish: number, isLast: boolean): Pose {
+export function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number, pp: number, lift: number, vanish: number, isLast: boolean): Pose {
   "worklet";
   const cx = deckLeading(g, relative) + g.cardWidth / 2;
   const cy = g.cardCenterY;
@@ -293,7 +293,7 @@ export function CardMenu({ tab, close, testID, haptic, style, children }: CardMe
   );
 }
 
-function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: BrowserTab; index: number; onClose: (index: number) => void; fill: string; children: ReactNode }) {
+export function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: BrowserTab; index: number; onClose: (index: number) => void; fill: string; children: ReactNode }) {
   return (
     <CardMenu testID="deckCardMenu" tab={tab} close={() => onClose(index)} style={[styles.cardMenu, { backgroundColor: fill }]}>
       {() => children}
@@ -427,3 +427,5 @@ const styles = StyleSheet.create({
   title: { fontWeight: "500" },
   privateIcon: { width: tabsLayout.faviconSize, height: tabsLayout.faviconSize, borderRadius: tabsLayout.faviconRadius, alignItems: "center", justifyContent: "center" },
 });
+
+export { styles as deckCardStyles };

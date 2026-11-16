@@ -72,6 +72,7 @@ import { currentTabs } from "../../state/tabs/store";
 import { tabMatchesQuery } from "../../state/tabs/tabModels";
 import { DeckBar } from "./DeckBar";
 import { cardMenuItems as deckCardMenu, cardOpen, DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, type CardOpen, type DeckMotion } from "./DeckCard";
+import { ContainedDeckCard, containedCards, containedDeckScroll } from "./ContainedDeck";
 import { MotionView, pageReportsDrawn, type MotionCurve } from "../ui";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
 import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
@@ -223,6 +224,8 @@ export const TabDeck = memo(function TabDeck() {
     [orderIds, shiftBy, fromSlots, gap, deckPhase, expandedIndex, scroll, scaleProgress, positionProgress, dragIndex, dragLift, flyIndex, flyLift, flyVanish, covering],
   );
   const tabs = useMemo(() => new Map(live.map((t) => [t.id, t])), [live]);
+  const contained = containedDeckScroll();
+  const DeckCardView = contained ? ContainedDeckCard : DeckCard;
   const backdropStyle = useAnimatedStyle(() => ({ opacity: deckPhase.value === DECK_PHASE.closing ? 1 : Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
   const cardsOpacity = useSharedValue(first.cardsOpacity);
   const cardsShift = useSharedValue(0);
@@ -858,11 +861,11 @@ export const TabDeck = memo(function TabDeck() {
         >
           <GestureDetector gesture={shown ? Gesture.Race(pan, longPress, tap) : Gesture.Race(Gesture.Manual().enabled(false).onTouchesDown(ignoreTouch))}>
             <Animated.View testID="deckCards" style={[styles.touch, { height: g.height }, cardsStyle]} collapsable={false}>
-              {order.map((id, index) => {
+              {containedCards(contained, { ids: order, geometry: g, motion }, order.map((id, index) => {
                 const tab = tabs.get(id);
                 if (!tab || hidden.current.has(id) || !deckCardMounted(index, anchor) || (grid && !stackLayer)) return null;
                 return (
-                  <DeckCard
+                  <DeckCardView
                     key={id}
                     tab={tab}
                     index={index}
@@ -873,7 +876,7 @@ export const TabDeck = memo(function TabDeck() {
                     onCloseNow={cardActions.closeNow}
                   />
                 );
-              })}
+              }))}
             </Animated.View>
           </GestureDetector>
         </ScrollActions>

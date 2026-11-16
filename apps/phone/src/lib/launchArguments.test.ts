@@ -52,3 +52,10 @@ test("a deck script splits into steps with their arguments", () => {
     { kind: "scroll", argument: "-2" },
   ]);
 });
+
+test("the lab's one-container deck scroll is off unless ArdiaOneContainerScroll asks for it", () => {
+  assert.equal(NO_LAUNCH_ARGUMENTS.oneContainerScroll, false);
+  assert.equal(parseLaunchArguments({ ArdiaOneContainerScroll: "1" }).oneContainerScroll, true);
+  assert.equal(parseLaunchArguments({ ArdiaOneContainerScroll: "NO" }).oneContainerScroll, false);
+  assert.equal(parseLaunchArguments({ ArdiaOpeningCard: "1" }).oneContainerScroll, false);
+});
