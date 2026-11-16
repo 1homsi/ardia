@@ -43,3 +43,13 @@ test("new text always shows its own rows, pointer or not", () => {
 test("an empty list is never held, so the first rows show under a resting pointer", () => {
   assert.deepEqual(step(step(null, [], "e", true), [page], "e", true).value.items, [page]);
 });
+
+test("late rows keep waiting while the pointer moves from the list onto Go, so Go never moves under it", () => {
+  const typed = step(null, [page, search], "example.com", false);
+  const overList = step(typed, [page, search, late], "example.com", true);
+  const later = { url: "search:example.com login" };
+  const overGo = step(overList, [page, search, late, later], "example.com", true);
+  assert.deepEqual(overList.value.items, [page, search]);
+  assert.deepEqual(overGo.value.items, [page, search]);
+  assert.deepEqual(step(overGo, [page, search, late, later], "example.com", false).value.items, [page, search, late, later]);
+});
