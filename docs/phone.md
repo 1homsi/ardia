@@ -2614,6 +2614,13 @@ and scroll speed on the root list.
 Nothing here is run by an agent on its own: the coordinator picks the moment, and no agent uploads or touches the
 Apple developer account. This is what the build needs and how the switch is proved.
 
+**A commit is uploadable only after a CI dry run at that exact commit** (`ios-release.yml`, `mode=dry-run`,
+`app=expo`). A local `release-ios` run proves the build, not the tree CI sees: CI runs `pnpm install` and `pod install`
+fresh, and its dependencies step now fails, showing the diff, when `pod install` rewrites anything under
+`apps/phone/ios`. Run 43861288422 stopped on exactly that: 042a23ace had added a build file to the project by hand
+out of the id order CocoaPods writes in (fixed in 8304ed5c6, and on `expo-ios-internal-0.2.47-nightly.4` as
+d5fbaabc1). After a hand edit to the project, run `pod install` and commit what it writes.
+
 **What the build is.**
 - **App record:** the same as the SwiftUI app: "Ardia", bundle id `com.ardia.browser.ios`, team `U5L5T3NGVV`, and the
   extensions `.share`, `.widgets` and `.open`. The Expo project (`apps/phone/ios/Ardia.xcodeproj`) already uses these

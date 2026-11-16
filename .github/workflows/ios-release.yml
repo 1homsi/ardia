@@ -242,6 +242,7 @@ jobs:
           (cd apps/phone && pnpm install --frozen-lockfile)
           (cd apps/phone/ios && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install)
           git diff --exit-code -- apps/phone/ios/Podfile.lock || { echo "::error::pod install changed apps/phone/ios/Podfile.lock: commit the lockfile pod install writes"; exit 1; }
+          git diff --exit-code -- apps/phone/ios ':!apps/phone/ios/Pods' || { echo "::error::pod install rewrote the iPhone project (diff above): run pod install locally and commit what it writes"; exit 1; }
       - name: App Store Connect key
         env:
           ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}

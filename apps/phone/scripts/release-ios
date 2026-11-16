@@ -68,7 +68,7 @@ version="$(apple_version_of "$release_version")"
 
 nativePaths=(apps/phone/ios packages/phone/ios apps/ios/Packages/ArdiaKit apps/ios/Config apps/phone/app.json apps/phone/package.json apps/phone/pnpm-lock.yaml packages/phone/expo-module.config.json patches)
 dirtyNative="$(cd "$root" && git status --porcelain=v1 --untracked-files=no -- "${nativePaths[@]}" | cut -c4- | tr '\n' ' ')"
-[ -z "$dirtyNative" ] || die "the native tree has uncommitted changes, commit them first: $dirtyNative"
+[ -z "$dirtyNative" ] || { (cd "$root" && git --no-pager diff --stat -- "${nativePaths[@]}" >&2); die "the native tree has uncommitted changes, commit them first: $dirtyNative"; }
 nativeCommit="$(git -C "$root" rev-parse HEAD)"
 cmp -s "$phoneIos/Podfile.lock" "$phoneIos/Pods/Manifest.lock" || die "the Pods don't match Podfile.lock: run scripts/agent/locked pod -- sh -c 'cd apps/phone/ios && LANG=en_US.UTF-8 pod install'"
 hermesc="$phoneIos/Pods/hermes-engine/destroot/bin/hermesc"
