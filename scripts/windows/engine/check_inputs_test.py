@@ -64,6 +64,24 @@ class AcceptTest(unittest.TestCase):
         self.assertIn('nothing accepted', result.stdout)
         self.assertEqual(self.accepted(), before)
 
+    def test_a_target_whose_sources_replace_the_shared_list_is_refused(self):
+        before = self.accepted()
+        self.edit('engine/chromium/src/chrome/browser/ardia/BUILD.gn', '  sources = ardia_sources\n',
+                  '  sources = [\n    "ac_engine.cc",\n  ]\n')
+        result = self.accept()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('only follows', result.stdout)
+        self.assertEqual(self.accepted(), before)
+
+    def test_a_target_that_takes_sources_out_is_refused(self):
+        before = self.accepted()
+        self.edit('engine/chromium/src/chrome/browser/ardia/BUILD.gn', '  sources = ardia_sources\n',
+                  '  sources = ardia_sources\n  sources -= [ "ac_zoom.cc" ]\n')
+        result = self.accept()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('only follows', result.stdout)
+        self.assertEqual(self.accepted(), before)
+
 
 if __name__ == '__main__':
     unittest.main()

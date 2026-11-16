@@ -7,6 +7,10 @@ namespace performance_manager {
 class PageNode;
 }
 
+namespace performance_manager::policies {
+extern bool (*g_ardia_keeps_page)(const PageNode* page_node);
+}
+
 namespace ardia_win {
 
 inline constexpr int kOpensLivePage = 100;

@@ -26,6 +26,8 @@ import { PLATFORM_TERMS } from "../../lib/platformTerms";
 import { splitOf } from "../splits/splits";
 import { closeKind } from "../tabs/tabs";
 import { noteSplit } from "../telemetry/usage";
+import { isPeekTab } from "../peek/peek";
+import { noteTabClosedByUser } from "../sync/openTabCloses";
 
 const store = () => useBrowser.getState();
 
@@ -57,8 +59,11 @@ export async function closeTab(tabId: string) {
     applyHeldReports();
   }
   const now = store();
-  const closesItsWindow = now.tabs[tabId]?.windowId === w.id && now.peeks[w.id]?.tabId !== tabId && closesWindow(now, tabId) && !leavesEmptyWindow(now, tabId);
-  if (last && closesItsWindow) return closeWindowAnimated(w.id);
+  const closesItsWindow = now.tabs[tabId]?.windowId === w.id && !isPeekTab(now, tabId) && closesWindow(now, tabId) && !leavesEmptyWindow(now, tabId);
+  if (last && closesItsWindow) {
+    noteTabClosedByUser(tabId);
+    return closeWindowAnimated(w.id);
+  }
   if (splitOf(now, tabId) && closeKind(now, tabId) === "close") noteSplit("splitPaneCloses");
   store().closeTab(tabId);
 }

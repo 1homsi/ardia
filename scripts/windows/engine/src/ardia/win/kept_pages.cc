@@ -14,10 +14,6 @@
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/mojom/frame/sudden_termination_disabler_type.mojom.h"
 
-namespace performance_manager::policies {
-extern bool (*g_ardia_keeps_page)(const PageNode* page_node);
-}
-
 namespace ardia_win {
 
 namespace {
