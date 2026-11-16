@@ -27,6 +27,7 @@ import { isLastRegularWindow, isOpenRegularWindow, isRegularWindow, isSmall, isS
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
+import { withFullScreen } from "./fullScreenDisplay";
 import { newTabHome } from "../tabs/newTabHome";
 import { noteAutoHideTabsChosen, noteTornOffWindowKeptAutoHide } from "../telemetry/autoHideTabsChoices";
 import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow, withoutRecentlyClosed } from "./reopenClosed";
@@ -252,12 +253,8 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
   setWindowFullScreen(id, on, display) {
     set((s) => {
       const w = s.windows[id];
-      if (!w) return {};
-      if (!!w.fullScreen === on) {
-        return on && display && w.display !== display ? { windows: { ...s.windows, [id]: { ...w, display } } } : {};
-      }
-      const { fullScreen: _, display: __, ...rest } = w;
-      return { windows: { ...s.windows, [id]: on ? { ...rest, fullScreen: Date.now(), ...(display ? { display } : {}) } : rest } };
+      const next = w && withFullScreen(w, on, display);
+      return next ? { windows: { ...s.windows, [id]: next } } : {};
     });
   },
 
