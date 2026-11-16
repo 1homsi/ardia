@@ -835,7 +835,7 @@ export const TabDeck = memo(function TabDeck() {
         </FrostSource>
       </Animated.View>
       <Shade shaded={menu !== null || (chromeMenu && !nativeMenus()) || cardMenu !== null || confirmation !== null}>
-        <ColumnContent column={column} width={width}>
+        <ColumnContent column={column} width={width} clips>
         <StackLayer available={gridAvailable} grid={grid} motion={crossfade} onFaded={() => setStackLayer(!grid)}>
         <ScrollActions
           style={StyleSheet.absoluteFill}

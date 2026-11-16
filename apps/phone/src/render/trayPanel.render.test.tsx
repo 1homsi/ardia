@@ -4,6 +4,7 @@ import { SearchTray } from "../components/search/SearchTray";
 import { DesignProvider, MotionView } from "../components/ui";
 import * as browse from "../state/browse/store";
 import { dismissSearch, presentSearch } from "../state/search/store";
+import { useTabs } from "../state/tabs/store";
 import { renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 beforeEach(() => {
@@ -89,4 +90,17 @@ test("pressing Go starts the panel's departure from the submit itself", () => {
   expect(departure(root).props.to).toEqual({ opacity: 0, translateY: -120 });
   unmount(root);
   jest.restoreAllMocks();
+});
+
+test("in Incognito the search field asks for the dark keyboard, as main's does; otherwise it leaves the keyboard to the system", () => {
+  const appearance = (root: ReturnType<typeof renderSurface>) => root.root.findAll((node) => typeof node.props.keyboardAppearance === "string")[0]!.props.keyboardAppearance;
+  const plain = open("redesigned");
+  expect(appearance(plain)).toBe("default");
+  unmount(plain);
+  act(() => dismissSearch());
+  act(() => useTabs.setState({ incognito: true }));
+  const privately = open("redesigned");
+  expect(appearance(privately)).toBe("dark");
+  unmount(privately);
+  act(() => useTabs.setState({ incognito: false }));
 });

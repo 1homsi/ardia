@@ -495,6 +495,7 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
           color={theme.foregroundPrimary}
           placeholderColor={theme.foregroundTertiary}
           accent={theme.formAccent}
+          keyboardAppearance={incognitoField ? "dark" : "default"}
           onTyped={(text) => {
             lastText.current = text;
             if (text.length > 0 !== hasText) setHasText(text.length > 0);

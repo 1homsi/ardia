@@ -14,6 +14,7 @@ type Props = {
   color: string;
   placeholderColor: string;
   accent: string;
+  keyboardAppearance: "default" | "dark";
   onTyped: (text: string) => void;
   onSubmit: (text: string) => void;
   style: StyleProp<TextStyle>;
@@ -32,7 +33,7 @@ export const TrayInput = forwardRef<TrayInputHandle, Props>(function TrayInput(p
   return completingFieldIsNative() ? <CompletingInput {...props} ref={ref} /> : <PlainInput {...props} ref={ref} />;
 });
 
-const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingInput({ start, selectsStart, color, placeholderColor, accent, onTyped, onSubmit, style }, ref) {
+const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingInput({ start, selectsStart, color, placeholderColor, accent, keyboardAppearance, onTyped, onSubmit, style }, ref) {
   const field = useRef<CompletingFieldHandle>(null);
   const [typed, setTyped] = useState(start);
   const completion = useSearchCompletion();
@@ -49,6 +50,7 @@ const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingIn
       text={typed}
       offer={inlineOffer(completion, completedFor)}
       highlightColor={withAlpha(accent, 0.3)}
+      keyboardAppearance={keyboardAppearance}
       cursorColor={accent}
       selectionColor={withAlpha(accent, 0.3)}
       color={color}
@@ -64,7 +66,7 @@ const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingIn
   );
 });
 
-const PlainInput = forwardRef<TrayInputHandle, Props>(function PlainInput({ start, selectsStart, color, placeholderColor, accent, onTyped, onSubmit, style }, ref) {
+const PlainInput = forwardRef<TrayInputHandle, Props>(function PlainInput({ start, selectsStart, color, placeholderColor, accent, keyboardAppearance, onTyped, onSubmit, style }, ref) {
   const input = useRef<TextInputInstance>(null);
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(
     selectsStart && start ? { start: 0, end: start.length } : { start: start.length, end: start.length },
@@ -84,6 +86,7 @@ const PlainInput = forwardRef<TrayInputHandle, Props>(function PlainInput({ star
       onSubmitEditing={(event) => onSubmit(event.nativeEvent.text)}
       placeholderTextColor={placeholderColor}
       selectionColor={accent}
+      keyboardAppearance={keyboardAppearance}
       submitBehavior="submit"
       disableFullscreenUI
     />

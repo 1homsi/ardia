@@ -28,10 +28,10 @@ export function SideColumn({ column, width, testID, children }: { column: Screen
   );
 }
 
-export function ColumnContent({ column, width, children }: { column: ScreenColumn | null; width: number; children: ReactNode }) {
+export function ColumnContent({ column, width, clips = false, children }: { column: ScreenColumn | null; width: number; clips?: boolean; children: ReactNode }) {
   if (!column) return children;
   return (
-    <View testID="columnContent" pointerEvents="box-none" style={[styles.content, columnContentFrame(column, width)]}>
+    <View testID="columnContent" pointerEvents="box-none" style={[styles.content, columnContentFrame(column, width), clips ? styles.clipped : null]}>
       {children}
     </View>
   );
@@ -40,4 +40,5 @@ export function ColumnContent({ column, width, children }: { column: ScreenColum
 const styles = StyleSheet.create({
   stack: { position: "absolute", top: SCREEN_COLUMN.top, width: SCREEN_COLUMN.button, gap: SCREEN_COLUMN.spacing, alignItems: "center" },
   content: { position: "absolute", top: 0, bottom: 0 },
+  clipped: { overflow: "hidden" },
 });

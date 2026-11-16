@@ -142,6 +142,8 @@ test("the deck in a trailing column lays out in the 382-wide content with no sid
   const content = hosts(root, "columnContent").map(flat);
   expect(content.length).toBeGreaterThan(0);
   for (const frame of content) expect(frame).toMatchObject({ left: 0, right: 84, width: 382 });
+  expect(content.filter((frame) => frame.overflow === "hidden")).toHaveLength(1);
+  expect(hosts(root, "columnContent").find((node) => flat(node).overflow === "hidden")!.findAll((node) => node.props.testID === "deckCard").length).toBeGreaterThan(0);
   expect(flat(host(root, "deckHeader")).paddingHorizontal).toBe(12);
   expect(hosts(root, "deckHeaderMore")).toHaveLength(0);
   expect(hosts(root, "deckBottomBar")).toHaveLength(0);
