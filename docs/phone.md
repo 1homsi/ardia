@@ -1348,7 +1348,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Deck | Cards, Archive capsule, tab strip | match | | |
 | Deck | `···` and bottom bar (grid, Search Tabs, plus) | match | Glass on all four on every open: no fading parent, Glass's shown, glyphs fade, 34c24a317 | |
 | Deck | `···` menu | match | The system menu with main's items, place and glass (22045b612); the button's glass since 34c24a317. Reopen Closed Tab follows the same undo rule as main's (archiving and closing are undoable); a fresh demo lacks it only because main's demo seed archives through `archive()`, which fills the undo stack, and ours writes the archived pages straight to the database | |
-| Deck | Grid view | different | Main's grid (adaptive columns, title row with close, selected edge, card menu, cross-fade, remembered); it starts about 75 pt lower than main's on the simulator, where the selected row should sit fully above the bar | screens |
+| Deck | Grid view | match | Main's grid (adaptive columns, title row with close, selected edge, card menu, cross-fade, remembered). It opens centred on the selected tab as laid out (measured cell, viewport and content, one scroll), so its rows sit where main's do on the simulator; the bar's Show as Stack glyph is main's `square.stack`, within 1 pt | screens |
 | Deck | Card menu | match | System menu over the lifted card: Copy Link, Share, Send to MacBook Pro, Pin to Mac, Move to Space, Close Tab | |
 | Deck | Close and poof, Search Tabs, Incognito pill | not seen | A scripted upward swipe closed no card in either app | |
 | Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet | |

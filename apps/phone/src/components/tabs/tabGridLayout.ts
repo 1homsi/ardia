@@ -51,3 +51,5 @@ export function tabGridStartOffset(index: number, count: number, columns: number
   const center = tabGridLayout.topFade + row * (rowHeight + tabGridLayout.rowSpacing) + rowHeight / 2;
   return Math.min(Math.max(center - viewport / 2, 0), Math.max(content - viewport, 0));
 }
+
+export const centredGridOffset = (cellY: number, cellHeight: number, viewport: number, content: number) => Math.min(Math.max(cellY + cellHeight / 2 - viewport / 2, 0), Math.max(content - viewport, 0));

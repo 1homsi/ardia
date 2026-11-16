@@ -220,7 +220,7 @@ export const SYMBOLS = {
   lockFill: [{ d: roundRect(5, 10.5, 14, 10, 2.2), fill: true }, { d: "M8 10.5V7.8a4 4 0 0 1 8 0v2.7", stroke: STROKE }],
   wifiSlash: [{ d: "M2.8 9.2a13.5 13.5 0 0 1 18.4 0M5.8 12.4a9 9 0 0 1 12.4 0M8.9 15.6a4.6 4.6 0 0 1 6.2 0" + line(4, 4, 20, 20) + circle(12, 19, 0.6), stroke: STROKE }],
   squareGrid2x2: [{ d: roundRect(3.5, 3.5, 7.2, 7.2, 1.8) + roundRect(13.3, 3.5, 7.2, 7.2, 1.8) + roundRect(3.5, 13.3, 7.2, 7.2, 1.8) + roundRect(13.3, 13.3, 7.2, 7.2, 1.8), stroke: STROKE }],
-  squareStack: [{ d: roundRect(7, 7.5, 13, 13, 2.4) + "M4 15V6.5A2.5 2.5 0 0 1 6.5 4H15", stroke: STROKE }],
+  squareStack: [{ d: roundRect(3.85, 6.9, 16.3, 16, 3) + "M6.45 4.1h11.1M9.05 1.2h5.9", stroke: STROKE }],
   pinFill: [{ d: "M9 3.5h6l-1 5.5 3 3.2V14H7v-1.8l3-3.2z", fill: true }, { d: line(12, 14, 12, 21), stroke: STROKE }],
   clockArrow: [{ d: circle(12, 12, 8.5) + polyline(12, 7.5, 12, 12, 15, 14), stroke: STROKE }],
   textCursor: [{ d: line(12, 4.5, 12, 19.5) + line(9, 4.5, 15, 4.5) + line(9, 19.5, 15, 19.5), stroke: STROKE }],

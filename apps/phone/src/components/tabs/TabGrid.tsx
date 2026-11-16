@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { memo, useRef, useState } from "react";
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeOut, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import type { DeckGeometry } from "../../lib/deckGeometry";
 import { shownTone } from "../../lib/pageTone";
@@ -11,7 +11,7 @@ import { isUnseenReceived } from "../../lib/tabFace";
 import { capsule, ChromeSurface, deckChromeLayout, FadeView, font, screenReaderActions, Symbol, TabFace, tabsLayout, tabsMotion, useTheme } from "../ui";
 import { CardIcon, CardMenu, ReceivedBadge } from "./DeckCard";
 import { deckHeaderBottom } from "./DeckHeader";
-import { tabGridColumns, tabGridInk, tabGridInsets, tabGridLayout, tabGridMotion, tabGridRowHeight, tabGridStartOffset } from "./tabGridLayout";
+import { centredGridOffset, tabGridColumns, tabGridInk, tabGridInsets, tabGridLayout, tabGridMotion, tabGridRowHeight, tabGridStartOffset } from "./tabGridLayout";
 
 type Props = {
   tabs: readonly BrowserTab[];
@@ -27,24 +27,55 @@ export function TabGrid({ tabs, selectedId, geometry: g, reduceMotion, onOpen, o
   const columns = tabGridColumns(g.width - insets.side * 2);
   const aspect = g.width / Math.max(g.height, 1);
   const viewportTop = insets.top - tabGridLayout.topFade;
+  const [focusId] = useState(() => (selectedId && tabs.some((tab) => tab.id === selectedId) ? selectedId : (tabs[tabs.length - 1]?.id ?? null)));
   const [startOffset] = useState(() => {
-    const selected = selectedId ? tabs.findIndex((tab) => tab.id === selectedId) : -1;
-    const focus = selected >= 0 ? selected : tabs.length - 1;
+    const focus = tabs.findIndex((tab) => tab.id === focusId);
     return tabGridStartOffset(focus, tabs.length, columns.count, tabGridRowHeight(columns.width, aspect), g.height - viewportTop, insets.bottom);
   });
+  const scroll = useRef<ScrollViewInstance>(null);
+  const measured = useRef<{ viewport?: number; content?: number; cell?: { y: number; height: number }; centred?: boolean }>({});
+  const centre = () => {
+    const m = measured.current;
+    if (m.centred || m.viewport === undefined || m.content === undefined || !m.cell) return;
+    m.centred = true;
+    scroll.current?.scrollTo({ x: 0, y: centredGridOffset(m.cell.y, m.cell.height, m.viewport, m.content), animated: false });
+  };
   const reflow = reduceMotion ? LinearTransition.duration(tabsMotion.fade) : LinearTransition.springify().stiffness(tabGridMotion.reflow.stiffness).damping(tabGridMotion.reflow.damping).mass(tabGridMotion.reflow.mass);
   const leave = FadeOut.duration(tabsMotion.fade);
   return (
     <FadeView testID="tabGrid" top={{ length: tabGridLayout.topFade }} style={[styles.viewport, { top: viewportTop }]}>
       <ScrollView
         testID="tabGridScroll"
+        ref={scroll}
         contentOffset={{ x: 0, y: startOffset }}
+        onLayout={(event) => {
+          measured.current.viewport = event.nativeEvent.layout.height;
+          centre();
+        }}
+        onContentSizeChange={(_width, height) => {
+          measured.current.content = height;
+          centre();
+        }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.content, { paddingTop: tabGridLayout.topFade, paddingBottom: insets.bottom, paddingHorizontal: insets.side }]}
       >
         {tabs.map((tab) => (
-          <Animated.View key={tab.id} testID="tabGridCell" layout={reflow} exiting={leave} style={{ width: columns.width }}>
+          <Animated.View
+            key={tab.id}
+            testID="tabGridCell"
+            layout={reflow}
+            exiting={leave}
+            style={{ width: columns.width }}
+            onLayout={
+              tab.id === focusId
+                ? (event) => {
+                    measured.current.cell = { y: event.nativeEvent.layout.y, height: event.nativeEvent.layout.height };
+                    centre();
+                  }
+                : undefined
+            }
+          >
             <TabGridCell tab={tab} selected={tab.id === selectedId} width={columns.width} aspect={aspect} onOpen={onOpen} onClose={onClose} />
           </Animated.View>
         ))}

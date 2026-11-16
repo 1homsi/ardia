@@ -7,7 +7,7 @@ jest.mock("@ardia/phone-native", () => require("./nativeMenusMock").nativeMenusM
 
 const { TabDeck } = require("../components/tabs/TabDeck") as typeof import("../components/tabs/TabDeck");
 const { DesignProvider, deckChromeLayout, rolesFor } = require("../components/ui") as typeof import("../components/ui");
-const { tabGridColumns, tabGridInsets, tabGridLayout, tabGridStartOffset, tabGridRowHeight } = require("../components/tabs/tabGridLayout") as typeof import("../components/tabs/tabGridLayout");
+const { centredGridOffset, tabGridColumns, tabGridInsets, tabGridLayout, tabGridStartOffset, tabGridRowHeight } = require("../components/tabs/tabGridLayout") as typeof import("../components/tabs/tabGridLayout");
 const { deckHeaderBottom } = require("../components/tabs/DeckHeader") as typeof import("../components/tabs/DeckHeader");
 const { haptics } = require("../state/app/haptics") as typeof import("../state/app/haptics");
 const { useArchiveCard } = require("../state/browse/archiveCard") as typeof import("../state/browse/archiveCard");
@@ -212,6 +212,31 @@ onIPhone("the grid starts scrolled so the selected tab's row sits in the middle,
   expect(tabGridStartOffset(10, 40, 2, 100, 500, 50)).toBe(14 + 5 * 118 + 50 - 250);
   expect(tabGridStartOffset(39, 40, 2, 100, 500, 50)).toBe(14 + 20 * 100 + 19 * 18 + 50 - 500);
   expect(tabGridStartOffset(0, 40, 2, 100, 500, 50)).toBe(0);
+  unmount(root);
+});
+
+onIPhone("once the selected cell, the viewport and the content are measured, the grid scrolls once to centre the cell as laid out, not as estimated", () => {
+  act(() => tabStore.useTabs.setState({ ...launchTabs(someTabs(20), 3), incognito: false, listing: 0 }));
+  const root = deck();
+  toggle(root);
+  const scroll = hosts(root, "tabGridScroll")[0]!;
+  const scrollTo = jest.fn();
+  const instance = root.root.findAll((node) => node.props.testID === "tabGridScroll" && node.instance && typeof node.instance === "object")[0]?.instance as { scrollTo?: unknown } | undefined;
+  expect(instance).toBeDefined();
+  instance!.scrollTo = scrollTo;
+  const selectedId = tabStore.currentTabs().selectedId;
+  const at = cardLabels(root).indexOf(tabStore.currentTabs().open.find((tab) => tab.id === selectedId)!.title);
+  const cell = hosts(root, "tabGridCell")[at]!;
+  act(() => cell.props.onLayout({ nativeEvent: { layout: { x: 0, y: 1400, width: 180, height: 420 } } }));
+  act(() => scroll.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 393, height: 700 } } }));
+  expect(scrollTo).not.toHaveBeenCalled();
+  act(() => scroll.props.onContentSizeChange(393, 4000));
+  act(() => scroll.props.onContentSizeChange(393, 4100));
+  expect(hosts(root, "tabGridCell").filter((other) => typeof other.props.onLayout === "function")).toHaveLength(1);
+  expect(scrollTo.mock.calls).toEqual([[{ x: 0, y: 1400 + 210 - 350, animated: false }]]);
+  expect(centredGridOffset(1400, 420, 700, 4000)).toBe(1260);
+  expect(centredGridOffset(100, 420, 700, 4000)).toBe(0);
+  expect(centredGridOffset(3800, 200, 700, 4000)).toBe(3300);
   unmount(root);
 });
 
