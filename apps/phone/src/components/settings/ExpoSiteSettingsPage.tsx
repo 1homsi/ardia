@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { PlatformColor } from "react-native";
-import { Button, ConfirmationDialog, Form, HStack, LabeledContent, NavigationLink, Picker, Section, SwipeActions, Text, Toggle, VStack } from "@expo/ui/swift-ui";
-import { font, foregroundStyle, frame, navigationBarTitleDisplayMode, navigationTitle, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
+import { PlatformColor, View } from "react-native";
+import { Button, ConfirmationDialog, Form, HStack, LabeledContent, NavigationLink, Picker, RNHostView, Section, SwipeActions, Text, Toggle, VStack } from "@expo/ui/swift-ui";
+import { accessibilityElement, accessibilityHint, font, foregroundStyle, frame, navigationBarTitleDisplayMode, navigationTitle, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
 import { permissionSummary, PERMISSION_NAMES, sortedPermissions } from "../../lib/sitePermissionNames";
 import { setBlockingCategory, setCollapsesBottomBar, setDefaultNightShade, setSwipeNavigation, useBlocking, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
@@ -9,7 +9,7 @@ import { settingsRouteKey } from "../../state/settings/nav";
 import { formatNumber } from "../../state/settings/settingsRules";
 import { refreshSitePermissions, revokeSiteAccess, useSitePermissions } from "../../state/settings/sitePermissions";
 import type { SitePermissionGrant } from "../../platform/pages";
-import { modifierList, settingsChrome, settingsSwitchStyle } from "../ui";
+import { Favicon, modifierList, settingsChrome, settingsSwitchStyle } from "../ui";
 import { ExpoRowLabel } from "./ExpoRowLabel";
 import { NIGHT_SHADE, SWIPE_NAVIGATION } from "./SitePages";
 
@@ -93,7 +93,12 @@ function AllowedSite({ grant }: { grant: SitePermissionGrant }) {
       <ConfirmationDialog.Trigger>
         <SwipeActions>
           <Button onPress={() => setAsking(true)} modifiers={[tint("primary")]}>
-            <HStack spacing={8}>
+            <HStack spacing={SITE_ROW_GAP} modifiers={[accessibilityElement("combine"), accessibilityHint("Revoke access")]}>
+              <RNHostView matchContents>
+                <View style={{ width: SITE_FAVICON, height: SITE_FAVICON }}>
+                  <Favicon iconUrl={null} pageUrl={grant.origin} size={SITE_FAVICON} />
+                </View>
+              </RNHostView>
               <VStack alignment="leading" spacing={2} modifiers={[frame({ maxWidth: FILL, alignment: "leading" })]}>
                 <Text>{grant.host}</Text>
                 <Text modifiers={[font({ textStyle: "footnote" }), foregroundStyle(SECONDARY)]}>{summary}</Text>
@@ -115,3 +120,6 @@ function AllowedSite({ grant }: { grant: SitePermissionGrant }) {
     </ConfirmationDialog>
   );
 }
+
+const SITE_FAVICON = 22;
+const SITE_ROW_GAP = 12;

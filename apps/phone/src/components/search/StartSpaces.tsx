@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from "react-native";
+import { FlatList, Platform, PlatformColor, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from "react-native";
+import { Host, Image as SystemImage } from "@expo/ui/swift-ui";
+import { font as systemFont } from "@expo/ui/swift-ui/modifiers";
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { sfSymbol } from "../../lib/sfSymbols";
 import { haptics } from "../../state/app/haptics";
@@ -18,6 +20,8 @@ import {
   font,
   isSymbolName,
   rolesFor,
+  settingsUIAvailable,
+  spaceSymbol,
   startInk,
   startLayout,
   startMotion,
@@ -217,6 +221,13 @@ function PinnedTileButton({ tile, width, profileId, dark, incognito, menuPlace }
 
 function TileIcon({ tile, isFolder, dark }: { tile: PinnedTile; isFolder: boolean; dark: boolean }) {
   const roles = rolesFor(dark);
+  const systemSymbol = Platform.OS === "ios" && settingsUIAvailable() ? (isFolder ? "folder.fill" : spaceSymbol(tile.icon)) : null;
+  if (systemSymbol)
+    return (
+      <Host matchContents style={isFolder ? { opacity: startLayout.folderInkOpacity } : undefined}>
+        <SystemImage systemName={systemSymbol as never} size={startLayout.tileIcon * (isFolder ? startLayout.folderIconShare : startLayout.symbolIconShare)} color={isFolder ? roles.formAccent : PlatformColor("secondaryLabel")} modifiers={isFolder ? undefined : [systemFont({ weight: "medium" })]} />
+      </Host>
+    );
   if (isFolder)
     return (
       <View style={{ opacity: startLayout.folderInkOpacity }}>

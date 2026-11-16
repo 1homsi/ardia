@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { incomingPose, outgoingPose, PAGER, resolvedOffset, snapTarget } from "../../lib/pagerPhysics";
@@ -136,8 +136,9 @@ const EDGE_SHADOW_STOPS = ["rgba(0,0,0,0)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0.26
 const EDGE_SHADOW_LEADING = `linear-gradient(to right, ${EDGE_SHADOW_STOPS.join(", ")})`;
 const EDGE_SHADOW_TRAILING = `linear-gradient(to left, ${EDGE_SHADOW_STOPS.join(", ")})`;
 
-export function PagerBlack() {
-  return <View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }]} />;
+export function PagerBackdrop() {
+  const theme = useTheme();
+  return <View testID="pagerBackdrop" style={[StyleSheet.absoluteFill, { backgroundColor: Platform.OS === "ios" ? theme.surface : tabsInk.pagerBlack }]} />;
 }
 
 const cornerRadius = screenCornerRadius(tabsLayout.displayCornerRadius);

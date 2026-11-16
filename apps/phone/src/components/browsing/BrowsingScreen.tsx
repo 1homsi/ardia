@@ -48,7 +48,7 @@ import { PageFailureView } from "./PageFailureView";
 import { PageCover } from "./PageCover";
 import { PageSurface } from "./PageSurface";
 import { useDemoMotion } from "./DemoMotion";
-import { PagerBlack, PagerNeighbour, useTabPager } from "./TabPager";
+import { PagerBackdrop, PagerNeighbour, useTabPager } from "./TabPager";
 import { launchArguments } from "../../state/app/launchFlags";
 import { shownTone } from "../../lib/pageTone";
 
@@ -108,7 +108,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]} onLayout={() => pageLaidOut(tab.id)}>
       <Shade shaded={menuOpen || readerId === tab.id || pressing || tabsMenu}>
-        <PagerBlack />
+        <PagerBackdrop />
         <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
           {underBar ? null : <Animated.View testID="pageStatusStrip" style={[{ height: insets.top }, statusStyle]} />}
           <View testID="pageArea" style={[styles.page, { marginBottom: layout.pageBottom }]}>
