@@ -470,9 +470,3 @@ final class DevSnapshotBurst: NSObject {
 }
 #endif
 
-#if DEBUG
-final class DevEngineNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-  static var kept: DevEngineNotificationDelegate?
-}
-#endif
-
