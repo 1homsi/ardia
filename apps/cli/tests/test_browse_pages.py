@@ -66,6 +66,11 @@ class SameDocumentRead(unittest.TestCase):
                 self.url = "http://s/#/people/1"
                 self.main_frame = "F"
                 self.lifecycle = {}
+                self.network_on = False
+                self.fetches_started = {}
+                self.fetches_busy_until = 0.0
+                self.fetch_loaders = {}
+                self.frames = {}
 
             async def send(self, method, params=None, timeout=30, mutation=False):
                 self.url = params["url"]
@@ -180,6 +185,17 @@ class FakeReader:
         self.browser = browser
         self.fail = fail
         self.url = "about:blank"
+        self.network_on = False
+        self.fetches_started = {}
+        self.fetches_busy_until = 0.0
+        self.fetch_loaders = {}
+        self.frames = {}
+
+    async def enable_network(self):
+        self.network_on = True
+
+    async def keep_awake(self):
+        pass
 
     async def attach(self, browser):
         if self.target_id in self.state.refuse_attach:
@@ -944,6 +960,18 @@ class ScriptRuns(unittest.TestCase):
                                                  "so its outcome is unknown."), error.message)
         self.assertIn("logged before that:\nbefore the hang", error.message)
         self.assertEqual(closed, ["C1"])
+
+    def test_a_timeout_after_opening_pages_in_a_row_points_at_read(self):
+        async def dispatch(ctx, name, argv):
+            if argv[-1] == "u3":
+                await asyncio.sleep(30)
+            return commands.Result({}, "ok")
+
+        controller = FakeController([{"kind": "request", "type": "call", "id": n, "argv": ["open", f"u{n}"], "line": 2} for n in (1, 2, 3)])
+        error, _ = self.run_script(controller, "x\n" * 3, seconds=0.3, dispatch=dispatch)
+        self.assertIn("It opened 3 pages one after another", error.message)
+        self.assertIn("read <url> <url>", error.message)
+        self.assertIn("Nothing it gathered was kept", error.message)
 
     def test_a_script_stuck_in_its_own_code_times_out_too(self):
         error, closed = self.run_script(FakeController([], hang=True), seconds=0.2)

@@ -44,6 +44,7 @@ struct SettingsView: View {
 
 enum SettingsRoute: String, Hashable {
   case sync
+  case appearance
   case siteSettings
   case connect
   case searchEngine
@@ -61,6 +62,7 @@ enum SettingsRoute: String, Hashable {
   var destination: some View {
     switch self {
     case .sync: SyncSettingsPage()
+    case .appearance: AppearancePage()
     case .siteSettings: SiteSettingsPage()
     case .connect: SyncConnectPage()
     case .searchEngine: SearchEnginePage()
@@ -95,6 +97,7 @@ enum SettingsRoute: String, Hashable {
 
 private struct SettingsRootList: View {
   @Environment(AppModel.self) private var app
+  @Environment(\.profileLook) private var look
 
   var body: some View {
     @Bindable var preferences = app.preferences
@@ -116,7 +119,13 @@ private struct SettingsRootList: View {
         .listSectionSpacing(Spacing.small)
 
         Section {
-          ColorChoiceRows()
+          NavigationLink(value: SettingsRoute.appearance) {
+            LabeledContent {
+              Text(AppearanceSummary.text(app))
+            } label: {
+              SettingsRowLabel("Appearance", systemImage: "paintpalette.fill", tint: look.swatchColor)
+            }
+          }
         }
 
         Section {
@@ -216,14 +225,14 @@ private struct SettingsShortcuts: View {
       ? AnyLayout(VStackLayout(spacing: Spacing.small))
       : AnyLayout(HStackLayout(spacing: Spacing.small))
     layout {
-      shortcut("Archive", systemImage: "archivebox") { app.openArchive() }
-      shortcut("Spaces", systemImage: "square.stack") { app.openSyncedSpaces() }
+      shortcut("Archive") { app.openArchive() }
+      shortcut("Spaces") { app.openSyncedSpaces() }
     }
   }
 
-  private func shortcut(_ title: LocalizedStringKey, systemImage: String, action: @escaping () -> Void) -> some View {
+  private func shortcut(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
     Button(action: action) {
-      Label(title, systemImage: systemImage)
+      Text(title)
         .font(.body.weight(.medium))
         .frame(maxWidth: .infinity, minHeight: 48)
         .background(Color(.secondarySystemGroupedBackground), in: .capsule)
@@ -247,7 +256,7 @@ private struct SyncAccountRow: View {
       SettingsIconTile(systemImage: "macbook.and.iphone", color: SettingsTint.sync, baseSide: dynamicTypeSize.isAccessibilitySize ? 44 : 56)
       VStack(alignment: .leading, spacing: 2) {
         Text(status.rowTitle)
-          .font(.title3.weight(.semibold))
+          .font(.headline)
           .foregroundStyle(.primary)
         status.rowSubtitle
           .font(.subheadline)
@@ -292,9 +301,17 @@ extension AutoArchiveInterval {
 enum AppVersion {
   static var footer: String {
     let info = Bundle.main.infoDictionary
-    let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
-    let build = info?["CFBundleVersion"] as? String ?? "1"
-    return String(localized: "Ardia \(version) (\(build))")
+    #if DEBUG
+      let isDebug = true
+    #else
+      let isDebug = false
+    #endif
+    return AppVersionLabel.text(
+      releaseVersion: info?["ArdiaReleaseVersion"] as? String ?? "",
+      build: info?["CFBundleVersion"] as? String ?? "1",
+      isDebug: isDebug,
+      receiptName: Bundle.main.appStoreReceiptURL?.lastPathComponent
+    )
   }
 }
 

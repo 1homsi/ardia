@@ -1,11 +1,12 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { ContextMenuArea, space, WindowDragRegion } from "../ui";
+import { ClipView, ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
 import { useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
-import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
+import { collapsedSidebarHeader, useAddressBarInSidebar, useDownloadsInSidebarFooter, usePageFrameInset, useSidebarCaptionRoom, useSidebarHeaderCollapsed, useToolbarLightsCenter } from "../../state/windows/layout";
+import { closeAnchoredWhenControlsRowChanges } from "../../state/sidebar/controlsRowChange";
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
@@ -19,13 +20,13 @@ import { SidebarDropArea } from "./SidebarDropArea";
 import { FolderPanel } from "./FolderPanel";
 import { dismissHover, dismissHoverIn } from "../../state/sidebar/hover";
 import { PinFieldZone, PinSlotZone } from "./PinnedGrid";
-import { ResizeHandle } from "./ResizeHandle";
-import { bottomFieldBand, SIDEBAR_FIELD, SIDEBAR_FIELD_BOTTOM, SIDEBAR_FOOTER_DOWNLOADS, sidebarHeaderWithField } from "./geometry";
+import { bottomFieldBand, SIDEBAR_FIELD, SIDEBAR_FIELD_BOTTOM, SIDEBAR_FOOTER_DOWNLOADS, sidebarHeaderOf } from "./geometry";
 import { useNewTabAtTop, useSidebarField, useSidebarPart } from "../../state/sidebar/chrome";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { openSidebarMenu } from "../../state/sidebar/menus";
 import { GLOW_ROOM, rowPitch, type SidebarGeometry } from "./pageLayout";
 import { SidebarPage } from "./SidebarPage";
+import { SidebarTextScope } from "./SidebarTextScope";
 import { SidebarRowLookContext, useSidebarRowLookSource } from "./rowLook";
 import { useRevealTabs } from "./useRevealTabs";
 
@@ -45,13 +46,16 @@ export function Sidebar({ width }: { width: number }) {
   const addressBar = useAddressBarInSidebar();
   const lightsY = useToolbarLightsCenter()[1];
   const field = useSidebarField();
-  const header = field === "top" ? sidebarHeaderWithField() : layout.sidebarHeader;
+  const captionRoom = useSidebarCaptionRoom();
+  const collapsed = useSidebarHeaderCollapsed();
+  const frame = usePageFrameInset();
+  const header = collapsed && field !== "top" ? collapsedSidebarHeader(frame) : sidebarHeaderOf(addressBar, lightsY, field === "top");
   const downloadsShown = useSidebarPart("downloads");
   const hasDownloads = useHasDownloads(windowId) && downloadsShown;
   const profileShown = useSidebarPart("profile");
   const dotsWanted = useProfileDotsShown();
   const dots = dotsWanted && profileShown;
-  const footerDownloads = addressBar && hasDownloads;
+  const footerDownloads = useDownloadsInSidebarFooter() && hasDownloads;
   const band = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const fieldBand = field === "bottom" ? bottomFieldBand() : 0;
   const footer = band + fieldBand;
@@ -73,19 +77,21 @@ export function Sidebar({ width }: { width: number }) {
 
   useRevealTabs(windowId, scroll, scrollY, geometry);
   useLayoutEffect(() => dismissHoverIn(windowId), [windowId, current, paging]);
+  useEffect(() => closeAnchoredWhenControlsRowChanges(windowId), [windowId]);
 
   return (
     <DragProvider>
       {(ghost: Ghost | null, controller) => {
         drag.current = controller;
         return (
+          <SidebarRowLookContext.Provider value={rowLook}>
           <SidebarDropArea
             ref={(v) => {
               controller.root = v;
             }}
             style={{ width, height: "100%" }}
           >
-            <View
+            <ClipView
               style={{
                 position: "absolute",
                 left: 0,
@@ -96,8 +102,7 @@ export function Sidebar({ width }: { width: number }) {
               }}
               onLayout={(e) => setAvailable(e.nativeEvent.layout.height)}
             >
-              <SidebarRowLookContext.Provider value={rowLook}>
-                {pages.map((page) => (
+              {pages.map((page) => (
                   <SidebarPage
                     key={page.id}
                     profileId={page.id}
@@ -114,8 +119,7 @@ export function Sidebar({ width }: { width: number }) {
                     onScrollY={onScrollY}
                   />
                 ))}
-              </SidebarRowLookContext.Provider>
-            </View>
+            </ClipView>
 
             <TintInk>
               {footer ? (
@@ -140,9 +144,9 @@ export function Sidebar({ width }: { width: number }) {
                     <SidebarHeaderTools width={width} />
                     {field === "top" ? <SidebarAddressRow width={width} top={SIDEBAR_FIELD.top} /> : null}
                   </>
-                ) : (
-                  <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
-                    {profileShown ? <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} /> : null}
+                ) : collapsed ? null : (
+                  <View pointerEvents="box-none" style={{ height: header, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT + captionRoom, paddingTop: lightsY - 17 }}>
+                    {profileShown ? <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - captionRoom - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} /> : null}
                     <View pointerEvents="none" style={{ flex: 1 }} />
                     {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
                   </View>
@@ -150,17 +154,19 @@ export function Sidebar({ width }: { width: number }) {
               </View>
             </TintInk>
 
-            <ResizeHandle windowId={windowId} />
             {ghost && !ghost.landing && nothingPinned ? (
               field === "top" ? (
                 <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
               ) : (
-                <PinSlotZone />
+                <PinSlotZone top={header - sidebarHeaderOf(addressBar, lightsY, false)} />
               )
             ) : null}
-            <FolderPanel windowId={windowId} />
-            {ghost ? <DragGhost ghost={ghost} /> : null}
+            <SidebarTextScope>
+              <FolderPanel windowId={windowId} />
+              {ghost ? <DragGhost ghost={ghost} /> : null}
+            </SidebarTextScope>
           </SidebarDropArea>
+          </SidebarRowLookContext.Provider>
         );
       }}
     </DragProvider>
