@@ -133,6 +133,11 @@ internal object NativeMenuRules {
     fun anchorTop(preferredTop: Int, menuHeight: Int, roomTop: Int, roomBottom: Int): Int =
         preferredTop.coerceAtMost(roomBottom - menuHeight).coerceAtLeast(roomTop)
 
+    data class Across(val x: Int, val endAligned: Boolean)
+
+    fun across(startX: Int, endX: Int, roomLeft: Int, roomRight: Int): Across =
+        if (startX + endX > roomLeft + roomRight) Across(endX.coerceIn(roomLeft, roomRight), true) else Across(startX.coerceIn(roomLeft, roomRight), false)
+
     fun destructiveColour(dark: Boolean): Int = if (dark) 0xFFFF453A.toInt() else 0xFFFF3B30.toInt()
 }
 
@@ -160,6 +165,10 @@ internal object NativeMenuStyle {
 }
 
 class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+    private companion object {
+        const val SIDE_INSET_DP = 12
+    }
+
     private val onSelect by EventDispatcher()
     private val onOpen by EventDispatcher()
     private val onClose by EventDispatcher()
@@ -210,8 +219,9 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
         val darkMenu = NativeMenuStyle.isDark(context, dark)
         val themed = NativeMenuStyle.themed(context, dark)
         val rows = NativeMenuRules.rows(items)
-        val anchor = placedAnchor(themed, rows, event)
-        val popup = PopupMenu(themed, anchor ?: this, Gravity.NO_GRAVITY)
+        val placed = placedAnchor(themed, rows, event)
+        val anchor = placed?.first
+        val popup = PopupMenu(themed, anchor ?: this, if (placed?.second == true) Gravity.END else Gravity.START)
         val ids = HashMap<Int, String>()
         order = 0
         fill(popup.menu, rows, ids, darkMenu)
@@ -231,7 +241,7 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
         onOpen(emptyMap())
     }
 
-    private fun placedAnchor(themed: Context, rows: List<NativeMenuRules.Row>, event: MotionEvent?): View? {
+    private fun placedAnchor(themed: Context, rows: List<NativeMenuRules.Row>, event: MotionEvent?): Pair<View, Boolean>? {
         val content = rootView.findViewById<ViewGroup>(android.R.id.content) as? FrameLayout ?: return null
         val bars = ViewCompat.getRootWindowInsets(this)?.getInsets(WindowInsetsCompat.Type.systemBars()) ?: return null
         val here = IntArray(2).also(::getLocationInWindow)
@@ -243,14 +253,21 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
         val menuHeight = NativeMenuRules.estimatedHeight(rows, rowPx, (9 * density).toInt(), (8 * density).toInt())
         val preferredTop = if (event != null) here[1] + event.y.toInt() else here[1] + height
         val top = NativeMenuRules.anchorTop(preferredTop, menuHeight, bars.top, rootView.height - bars.bottom - (8 * density).toInt())
-        val left = if (event != null) here[0] + event.x.toInt() else here[0]
+        val sideInset = (SIDE_INSET_DP * density).toInt()
+        val across = if (event != null) {
+            val x = here[0] + event.x.toInt()
+            NativeMenuRules.across(x, x, bars.left + sideInset, rootView.width - bars.right - sideInset)
+        } else {
+            NativeMenuRules.across(here[0], here[0] + width, bars.left + sideInset, rootView.width - bars.right - sideInset)
+        }
+        val left = (if (across.endAligned) across.x - 1 else across.x) - origin[0]
         val anchor = View(context)
         content.addView(anchor, FrameLayout.LayoutParams(1, 1).apply {
-            leftMargin = left - origin[0]
+            leftMargin = left
             topMargin = top - origin[1] - 1
         })
-        anchor.layout(left - origin[0], top - origin[1] - 1, left - origin[0] + 1, top - origin[1])
-        return anchor
+        anchor.layout(left, top - origin[1] - 1, left + 1, top - origin[1])
+        return anchor to across.endAligned
     }
 
     private fun fill(menu: Menu, rows: List<NativeMenuRules.Row>, ids: HashMap<Int, String>, dark: Boolean) {

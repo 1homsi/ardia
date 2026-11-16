@@ -78,6 +78,16 @@ class NativeMenuRulesTest {
     }
 
     @Test
+    fun aMenuKeepsTheBarsSideInsetFromTheScreenEdgeAndOpensTowardTheMiddle() {
+        val left = 33
+        val right = 1080 - 33
+        assertEquals("the deck's More, at the right edge: the menu's right edge sits on the inset", NativeMenuRules.Across(right, true), NativeMenuRules.across(986, 1080, left, right))
+        assertEquals("a long press in the left half opens rightward from the press", NativeMenuRules.Across(430, false), NativeMenuRules.across(430, 430, left, right))
+        assertEquals("a long press near the right edge opens leftward from the inset", NativeMenuRules.Across(right, true), NativeMenuRules.across(1070, 1070, left, right))
+        assertEquals("a trigger at the left edge keeps the inset too", NativeMenuRules.Across(left, false), NativeMenuRules.across(0, 120, left, right))
+    }
+
+    @Test
     fun androidsOwnMenusAreOnlyAskedForByTheLabArgument() {
         assertTrue(NativeMenuRules.asked(mapOf("ArdiaNativeMenus" to true)))
         assertFalse(NativeMenuRules.asked(emptyMap()))
