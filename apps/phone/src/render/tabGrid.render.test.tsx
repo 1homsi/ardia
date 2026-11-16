@@ -322,11 +322,11 @@ onIPhone("the Archive capsule yields to the grid, as main hides its archive card
   unmount(root);
 });
 
-onAndroid("Android keeps the stack: its grid button only puts the keyboard away, as Compose has no grid", () => {
+onAndroid("Android keeps the stack and shows no grid button until its grid exists: the bottom bar is the Search Tabs field and +, as Compose has no grid", () => {
   const root = deck();
-  expect(gridButton(root).props.accessibilityLabel).toBe("Show as Grid");
-  toggle(root);
-  expect(gridButton(root).props.accessibilityLabel).toBe("Show as Grid");
+  expect(gridButton(root)).toBeUndefined();
+  expect(byTestId(root, "deckBarGrid")).toHaveLength(0);
+  expect(hosts(root, "deckSearchTabs").length + byTestId(root, "deckSearchTabs").length).toBeGreaterThan(0);
   expect(hosts(root, "tabGridLayer")).toHaveLength(0);
   expect(hosts(root, "deckStackLayer")).toHaveLength(0);
   expect(deckCards(root).length).toBeGreaterThan(0);

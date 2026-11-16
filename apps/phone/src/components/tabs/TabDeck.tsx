@@ -957,6 +957,7 @@ export const TabDeck = memo(function TabDeck() {
                     safeSide={g.safeSide}
                     incognito={incognito}
                     grid={grid}
+                    gridAvailable={gridAvailable}
                     onGrid={toggleGrid}
                     onQuery={setNeedle}
                     menusShown={shown && phase.kind === "settled"}

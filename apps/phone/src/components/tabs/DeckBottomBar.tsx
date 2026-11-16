@@ -18,6 +18,7 @@ type Props = {
   safeSide: number;
   incognito: boolean;
   grid?: boolean;
+  gridAvailable: boolean;
   onGrid: () => void;
   onQuery: (needle: string) => void;
   menusShown?: boolean;
@@ -112,7 +113,7 @@ export function SearchTabsField({ search, testID = "deckSearchTabs", style, glas
   );
 }
 
-export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, grid = false, onGrid, onQuery, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
+export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, grid = false, gridAvailable, onGrid, onQuery, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
   const fade = { glassShown, glassShownMs, glyphFade };
   const roles = useTheme();
   const dark = roles.dark;
@@ -137,18 +138,20 @@ export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incogni
   return (
     <Animated.View pointerEvents="box-none" style={[styles.place, { top: barCenterY - deckChromeLayout.barCircle / 2 }, riseStyle]}>
       <View ref={row} testID="deckBottomBar" onLayout={measure} pointerEvents="box-none" style={[styles.bar, { paddingHorizontal: safeSide + deckChromeLayout.barSideInset }]}>
-        <GlassCircleButton
-          icon={grid ? "squareStack" : "squareGrid2x2"}
-          label={grid ? "Show as Stack" : "Show as Grid"}
-          testID="deckBarGrid"
-          diameter={deckChromeLayout.barCircle}
-          dark={dark}
-          {...fade}
-          onPress={() => {
-            input.current?.blur();
-            onGrid();
-          }}
-        />
+        {gridAvailable ? (
+          <GlassCircleButton
+            icon={grid ? "squareStack" : "squareGrid2x2"}
+            label={grid ? "Show as Stack" : "Show as Grid"}
+            testID="deckBarGrid"
+            diameter={deckChromeLayout.barCircle}
+            dark={dark}
+            {...fade}
+            onPress={() => {
+              input.current?.blur();
+              onGrid();
+            }}
+          />
+        ) : null}
         <SearchTabsField search={search} style={styles.searchHit} {...fade} />
         <PlusMenuButton width={deckChromeLayout.barCircle} label={incognito ? "New Incognito Tab" : "New Tab"} testID="deckBarPlus" dark={dark} place={{ bottom: deckHeight - barCenterY + deckChromeLayout.barCircle / 2 + deckChromeLayout.menuGap, right: deckChromeLayout.barSideInset, width: tabsLayout.menuWidth }} menusShown={menusShown} onMenu={onMenu} {...fade} />
       </View>
