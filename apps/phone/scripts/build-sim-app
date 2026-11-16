@@ -11,10 +11,11 @@
 # bundle is compiled into it with Hermes and the copy is re-signed ad hoc; otherwise xcodebuild runs first, through
 # scripts/agent/locked. Writes $ARDIA_APK_DIR/<name>.app (default /tmp/ardia-phone) and <name>.txt beside it; the app
 # logs "ARDIA build <commit> dirty: … from the …; native …" at launch.
-# Refuses under 4 GB free on the data volume, and under 10 GB when the native app has to be built.
+# Refuses under 4 GB free on the data volume, under 6 GB when the native app is rebuilt over its cached build products,
+# and under 10 GB when it is built from nothing.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && exit 0 || exit 64
 fi
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -85,7 +86,11 @@ cachedApp="$cache/Ardia.app"
 native=reused
 if [ ! -d "$cachedApp" ] || [ "$(cat "$cache/native.hash" 2>/dev/null)" != "$hashBefore" ]; then
   native=built
-  needsFree 10 "a native build"
+  if [ -d "$cache/dd/Build/Intermediates.noindex" ]; then
+    needsFree 6 "an incremental native build"
+  else
+    needsFree 10 "a native build from nothing"
+  fi
   echo "native inputs $hashBefore differ from the cached build: running xcodebuild"
   rm -rf "$cachedApp" "$cache/native.hash"
   export LANG=en_US.UTF-8
