@@ -5,7 +5,7 @@ import { BrowsingScreen } from "../components/browsing/BrowsingScreen";
 import { barAddress, siteHost, withoutPort } from "../components/browsing/FloatingBar";
 import { distinctTitle, pageTheme } from "../components/browsing/PageLoadingPlaceholder";
 import { DesignProvider } from "../components/ui";
-import { useBrowse } from "../state/browse/store";
+import { openPage, useBrowse } from "../state/browse/store";
 import { usePageUi } from "../state/page/store";
 import { storeNavigation, usePages, type PageState } from "../state/pages/store";
 import { setPreference } from "../state/settings/store";
@@ -159,5 +159,21 @@ test("on iPhone's design an http page on a port reads Not Secure and the bare ho
   for (let frame = 0; frame < 90; frame++) act(() => jest.advanceTimersByTime(16));
   expect(text(node(root, "hostPillHost"))).toBe("localhost");
   expect(text(node(root, "hostPillNotSecure"))).toBe("Not Secure");
+  unmount(root);
+});
+
+test("a tab opened directly on an http address reads Not Secure from its first frame, before the page reports anything: the state main's app gets wrong, which ours keeps right", () => {
+  act(() => useTabs.setState({ ...launchTabs(someTabs(1), 0), incognito: false, listing: 0 }));
+  act(() => openPage("http://neverssl.com/", "typed"));
+  const tab = currentTabs().open.find((open) => open.id === currentTabs().selectedId)!;
+  expect(tab.url).toBe("http://neverssl.com/");
+  expect(usePages.getState().navigation[tab.id]).toBeUndefined();
+  const root = renderSurface(
+    <DesignProvider design="redesigned">
+      <BrowsingScreen tab={tab} />
+    </DesignProvider>,
+  );
+  expect(text(node(root, "floatingBarNotSecure"))).toBe("Not Secure");
+  expect(text(node(root, "floatingBarHost"))).toBe("neverssl.com");
   unmount(root);
 });

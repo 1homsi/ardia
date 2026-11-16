@@ -1335,7 +1335,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Search panel | Incognito | match | Same panel; the field asks for the dark keyboard in Incognito as main's does (6f1653513 native, the panel passes it since this change) | |
 | Search panel | Voice | seen in Expo only | Expo's dictation page ("Speech dictation is unavailable" on the simulator, Try Again capsule); main's voice button wasn't reached by the script | |
 | Page | Page with bar, secure | match | | |
-| Page | Not secure | match | Port dropped as main's; "Not Secure" stays for http as main's source shows it (BarControls.swift:119-124). Main's frame lacks it because of a bug in main: a tab opened on an http URL skips the security check (WebTab.swift:103/113, 359-363) | screens |
+| Page | Not secure | match | Port dropped as main's; "Not Secure" stays for http as main's source shows it (BarControls.swift:119-124). Main's frame lacks it because of a bug in main: a tab opened on an http URL skips the security check (WebTab.swift:103/113, 359-363). Ours shows it on a tab opened directly on an http address too, the state main gets wrong; pageStates.render.test.tsx pins it | |
 | Page | Private | match | Same page and bar with the Incognito glasses | |
 | Page | Loading | match | Main's centred placeholder (44 pt icon, 17 pt semibold title, host), its theme-colour and title rules, 250 ms wait then 150 ms fade | |
 | Page | Failure | match | Main's filled Try Again capsule, 50 pt, and the icon at main's size | |
@@ -1348,7 +1348,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Reader | Article | match | | |
 | Reader | Top buttons | match | Main's glass circle (textformat.size, label colour) and glass Done capsule, 16 pt from each side; the lead image's 12 pt corners | |
 | Deck | Cards, Archive capsule, tab strip | match | | |
-| Deck | `···` and bottom bar (grid, Search Tabs, plus) | match | Glass on all four on every open: no fading parent, Glass's shown, glyphs fade, 34c24a317 | |
+| Deck | `···` and bottom bar (grid, Search Tabs, plus) | match | Glass on all four on every open: no fading parent, Glass's shown, glyphs fade, 34c24a317. Seen at 40fb184e1 over five deck opens in a row, in light and in dark, beside main's: all four surfaces drawn on every open (`glass-five/grid.png`) | |
 | Deck | `···` menu | match | The system menu with main's items, place and glass (22045b612); the button's glass since 34c24a317. Reopen Closed Tab follows the same undo rule as main's (archiving and closing are undoable); a fresh demo lacks it only because main's demo seed archives through `archive()`, which fills the undo stack, and ours writes the archived pages straight to the database | |
 | Deck | Grid view | match | Main's grid (adaptive columns, title row with close, selected edge, card menu, cross-fade, remembered). It opens centred on the selected tab as laid out (measured cell, viewport and content, one scroll), so its rows sit where main's do on the simulator; the bar's Show as Stack glyph is main's `square.stack`, within 1 pt | screens |
 | Deck | Card menu | match | System menu over the lifted card: Copy Link, Share, Send to MacBook Pro, Pin to Mac, Move to Space, Close Tab | |
