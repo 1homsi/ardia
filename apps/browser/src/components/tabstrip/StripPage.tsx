@@ -1,5 +1,5 @@
-import { memo, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Animated, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView, View } from "react-native";
+import { memo, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Animated, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView, StyleSheet, View } from "react-native";
 import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries, useStripTitleNeeds } from "../../state/tabs/topStrip";
@@ -20,10 +20,11 @@ import { SplitChip } from "./SplitChip";
 import { heldWideTab, layoutDock, layoutStrip, newTabPinned, revealOffset, tabsOf, type DragGeometry, type TabWidths } from "./stripGroups";
 import { StripGroup } from "./StripGroup";
 import { DraggableChip } from "./TabChip";
-import { createEdgeFade, edgeOpacityAt, EdgeFadeContext, fadeEntries, refreshEdgeFade } from "./edgeFade";
+import { edgeMaskAt, edgeStrength } from "./edgeFade";
+import { EdgeFadeMask } from "../ui/EdgeFadeMask";
 import { devRegister } from "../dev/devRegister";
 import { StripScrollContext, type StripScroll } from "./stripScroll";
-import { COMPACT_CHIP, EDGE_FADE, FLARE, GAP, NEW_TAB_ROOM, STRIP_SCROLL_ID } from "./tokens";
+import { COMPACT_CHIP, EDGE_FADE, EDGE_FADE_FLOOR, EDGE_FADE_ONSET, FLARE, GAP, NEW_TAB_ROOM, STRIP_SCROLL_ID } from "./tokens";
 
 type Wide = { tabId: string; slot: number };
 type Hold = { widths: TabWidths; end: number; wide: Wide; lead: boolean; needsTitle: (tabId: string) => boolean };
@@ -114,25 +115,32 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     scrollTo: (x) => scrollStrip(x, false),
     measure: (done) => scroll.current?.getNativeScrollRef()?.measureInWindow((x, _y, width) => done(x + clipShown.current, width - clipShown.current)),
   }));
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const [edgeFade] = useState(() => createEdgeFade(scrollX));
-  const fadeOrigin = flare + (dock ? -dock.left : 0);
-  useLayoutEffect(() => refreshEdgeFade(edgeFade, fadeOrigin, flare));
+  const stripTabIds = () => parsed.flatMap((e) => (e.kind === "dock" ? e.ids : e.kind === "group" ? e.members.flatMap(tabsOf) : tabsOf(e)));
+  const latestTabIds = useRef(stripTabIds);
+  latestTabIds.current = stripTabIds;
+  const chipsUnderMask = () => {
+    const box = viewport.current - clipShown.current;
+    const strength = edgeStrength(scrolled.current, viewport.current, content.current);
+    return latestTabIds.current().map((id) => {
+      const span = latestSpan.current(id);
+      if (!span) return { id, start: -1e6, end: -1e6, centre: -1e6, opacity: 1 };
+      const start = span[0];
+      const end = span[0] + span[1];
+      const centre = (start + end) / 2;
+      return { id, start, end, centre, opacity: edgeMaskAt(centre - scrolled.current - clipShown.current, box, strength) };
+    });
+  };
   useEffect(
     () =>
       devRegister("topStripPages", `${windowId}|${profileId}`, {
         current: () => current,
         fadeWidth: EDGE_FADE,
         scroll: () => ({ x: scrolled.current, viewport: viewport.current, content: content.current }),
-        chips: () => fadeEntries(edgeFade).map((e) => ({ ...e, opacity: edgeOpacityAt(scrolled.current, e.start - flare, e.end, viewport.current, content.current) })),
+        chips: chipsUnderMask,
         scrollTo: (x: number) => scroller.scrollTo(x),
       }),
     [windowId, profileId, current],
   );
-  const fadeRange = () => {
-    edgeFade.viewport.setValue(viewport.current);
-    edgeFade.maxScroll.setValue(Math.max(0, content.current - viewport.current));
-  };
   const latestScroll = useRef((_: NativeSyntheticEvent<NativeScrollEvent>) => {});
   latestScroll.current = (e) => {
     const now = performance.now();
@@ -150,7 +158,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
       clipLeft.setValue(clip);
     }
   };
-  const [onScroll] = useState(() => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true, listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => latestScroll.current(e) }));
+  const [onScroll] = useState(() => (e: NativeSyntheticEvent<NativeScrollEvent>) => latestScroll.current(e));
   const spanOf = (tabId: string): [number, number] | null => {
     const span = spanInStrip(tabId);
     return span && [flare + span[0], span[1]];
@@ -225,10 +233,10 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
         <ThemeScope>
           <TintInk>
             <DockContext.Provider value={strip}>
-              <EdgeFadeContext.Provider value={edgeFade}>
               <StripScrollContext.Provider value={scroller}>
               <Offstage.Provider value={!current}>
                 <Animated.View pointerEvents="box-none" style={{ flex: 1, marginLeft: clipLeft, marginRight: pinned ? flare + NEW_TAB_ROOM : 0, overflow: "hidden" }}>
+                  <EdgeFadeMask pointerEvents="box-none" fadeWidth={EDGE_FADE} floor={EDGE_FADE_FLOOR} onset={EDGE_FADE_ONSET} style={StyleSheet.absoluteFill}>
                   <Animated.View pointerEvents="box-none" style={{ position: "absolute", top: 0, bottom: 0, left: clipBack, right: 0 }}>
                     <Animated.ScrollView
                       ref={scroll}
@@ -240,13 +248,11 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                       onLayout={(e) => {
                         const narrower = e.nativeEvent.layout.width < viewport.current - 0.5;
                         viewport.current = e.nativeEvent.layout.width;
-                        fadeRange();
                         keepInRange();
                         if (narrower) latestReveal.current();
                       }}
                       onContentSizeChange={(width) => {
                         content.current = width;
-                        fadeRange();
                         keepInRange();
                       }}
                       onScroll={onScroll}
@@ -284,11 +290,11 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
                       {spare && !leadSpare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
                     </Animated.ScrollView>
                   </Animated.View>
+                  </EdgeFadeMask>
                 </Animated.View>
                 {pinned ? <View pointerEvents="box-none" style={{ position: "absolute", top: 0, right: flare }}>{newTab}</View> : null}
               </Offstage.Provider>
               </StripScrollContext.Provider>
-              </EdgeFadeContext.Provider>
             </DockContext.Provider>
           </TintInk>
         </ThemeScope>
