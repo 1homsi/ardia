@@ -228,6 +228,16 @@ async function status() {
 
   await section("Builds", async () => printBuilds(await listBuilds(app.id)));
 
+  await section("Build uploads", async () => {
+    const { rows } = await get(`/v1/apps/${app.id}/buildUploads`, { limit: "200" });
+    if (rows.length === 0) console.log("none");
+    const byBuild = rows.toSorted((a, b) => Number(b.attributes?.cfBundleVersion) - Number(a.attributes?.cfBundleVersion));
+    for (const row of byBuild.slice(0, 15)) {
+      const a = row.attributes ?? {};
+      console.log(`${a.cfBundleShortVersionString ?? "?"} (${a.cfBundleVersion ?? "?"}) state=${a.state?.state ?? "?"} created=${a.createdDate ?? "?"} uploaded=${a.uploadedDate ?? "none"}`);
+    }
+  });
+
   await section("Encryption declarations", async () => {
     const { rows } = await get("/v1/appEncryptionDeclarations", { "filter[app]": app.id, limit: "50" });
     if (rows.length === 0) console.log("none");
