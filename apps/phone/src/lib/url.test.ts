@@ -20,3 +20,10 @@ test("pages that land on the same address are one suggestion, the open tab's row
   ];
   assert.deepEqual(dedupeByLanding(rows).map((row) => row.id), [2, 3]);
 });
+
+test("a row's host drops the port, as main's BrowserURL.host does, an IPv6 address kept whole", () => {
+  assert.equal(displayHost("127.0.0.1:8777", "http://127.0.0.1:8777/still.html"), "127.0.0.1");
+  assert.equal(displayHost("www.example.com:8443", "https://www.example.com:8443/"), "example.com");
+  assert.equal(displayHost("[::1]", "http://[::1]/"), "[::1]");
+  assert.equal(displayHost("[::1]:8080", "http://[::1]:8080/"), "[::1]");
+});
