@@ -39,6 +39,7 @@ class MotionPlanTest {
 
     private class Surface : MotionSurface {
         override var animates = true
+        override var motionEnabled = true
         var values = MotionValues()
         var radiusTouched = false
         val renderThread = ArrayList<Pair<Map<MotionChannel, Float>, MotionCurve>>()
@@ -192,6 +193,45 @@ class MotionPlanTest {
         runner.show(departed, depart)
         assertEquals(move, runner.move)
         assertTrue(ends.isEmpty())
+    }
+
+    private val cardPose = MotionValues(translateY = 140f, scale = 0.69f, cornerRadius = 28f)
+    private val fullPose = MotionValues(scale = 1f, cornerRadius = 55f)
+
+    @Test
+    fun aStartPoseMovesToTheTargetInTheSameMountBeforeTheViewIsInAWindow() {
+        surface.animates = false
+        runner.show(fullPose, expand, start = cardPose)
+        val (targets, curve) = surface.renderThread.single()
+        assertEquals(mapOf(MotionChannel.TranslateY to 0f, MotionChannel.Scale to 1f), targets)
+        assertEquals(expand, curve)
+        assertEquals("the start pose is shown first", 0.69f, surface.values.scale)
+        assertEquals(140f, surface.values.translateY)
+        assertEquals(28f, surface.values.cornerRadius)
+        surface.clocks.single().finish()
+        assertEquals(fullPose.copy(), surface.values)
+        assertEquals("its end is reported like any other move's", listOf(true), ends)
+    }
+
+    @Test
+    fun aStartPoseCountsOnlyAtTheFirstMountAndOneEqualToTheTargetDoesntMove() {
+        runner.show(fullPose, expand, start = fullPose)
+        assertTrue(surface.renderThread.isEmpty())
+        assertTrue(ends.isEmpty())
+        runner.show(cardPose, expand, start = MotionValues(scale = 0.2f))
+        val (targets, _) = surface.renderThread.single()
+        assertEquals("a later move starts from where the view is, not from a start pose", 1f, surface.values.scale)
+        assertEquals(0.69f, targets[MotionChannel.Scale])
+    }
+
+    @Test
+    fun withMotionOffAStartPoseJumpsToTheTargetAndReportsTheEnd() {
+        surface.motionEnabled = false
+        runner.show(fullPose, expand, start = cardPose)
+        assertTrue(surface.renderThread.isEmpty())
+        assertEquals(1f, surface.values.scale)
+        assertEquals(55f, surface.values.cornerRadius)
+        assertEquals(listOf(true), ends)
     }
 
     @Test

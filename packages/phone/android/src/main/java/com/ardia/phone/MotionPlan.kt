@@ -98,6 +98,8 @@ internal class SpringSolution(response: Double, dampingFraction: Double) : TimeI
 interface MotionSurface {
     val animates: Boolean
 
+    val motionEnabled: Boolean get() = animates
+
     fun set(values: MotionValues, channels: Set<MotionChannel>)
 
     fun startRenderThread(targets: Map<MotionChannel, Float>, curve: MotionCurve)
@@ -140,14 +142,16 @@ class MotionRunner(private val surface: MotionSurface) {
         return values
     }
 
-    fun show(next: MotionValues, nextCurve: MotionCurve) {
+    fun show(next: MotionValues, nextCurve: MotionCurve, start: MotionValues? = null) {
         if (next == shown) return
-        val before = presentation()
+        val mounting = shown == null && start != null && start != next
+        val before = if (mounting) start else presentation()
         move += 1
         val mine = move
         stopRunning()
         shown = next
-        val changed = if (before == null || !surface.animates) emptySet() else MotionChannel.entries.filter { channel ->
+        val allowed = if (mounting) surface.motionEnabled else surface.animates
+        val changed = if (before == null || !allowed) emptySet() else MotionChannel.entries.filter { channel ->
             val start = before.value(channel)
             val end = next.value(channel)
             start != null && end != null && abs(start - end) > 0.0001f

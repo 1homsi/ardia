@@ -42,6 +42,7 @@ class MotionView(context: Context, appContext: AppContext) : ExpoView(context, a
     private val density = resources.displayMetrics.density
     private var radius: Float? = null
     private var pendingTarget: MotionValues? = null
+    private var pendingStart: MotionValues? = null
     private var pendingCurve: MotionCurve = MotionCurve.Timing(0, null)
 
     private val corners = object : ViewOutlineProvider() {
@@ -54,16 +55,22 @@ class MotionView(context: Context, appContext: AppContext) : ExpoView(context, a
         pendingTarget = values
     }
 
+    fun start(values: MotionValues?) {
+        pendingStart = values
+    }
+
     fun curve(curve: MotionCurve) {
         pendingCurve = curve
     }
 
     fun applyProps() {
         val next = pendingTarget ?: return
-        runner.show(next, pendingCurve)
+        runner.show(next, pendingCurve, pendingStart)
     }
 
-    override val animates: Boolean get() = isAttachedToWindow && ValueAnimator.areAnimatorsEnabled()
+    override val animates: Boolean get() = isAttachedToWindow && motionEnabled
+
+    override val motionEnabled: Boolean get() = ValueAnimator.areAnimatorsEnabled()
 
     override fun set(values: MotionValues, channels: Set<MotionChannel>) {
         if (MotionChannel.Opacity in channels) alpha = values.opacity
@@ -132,6 +139,8 @@ class MotionModule : Module() {
             Events("onMotionEnd")
 
             Prop("to") { view: MotionView, target: MotionTargetRecord -> view.target(target.values()) }
+
+            Prop("from") { view: MotionView, start: MotionTargetRecord? -> view.start(start?.values()) }
 
             Prop("motion") { view: MotionView, curve: MotionCurveRecord -> view.curve(curve.curve()) }
 
