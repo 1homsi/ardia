@@ -175,6 +175,11 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
         },
     )
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
+
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (items.isNotEmpty()) gestures.onTouchEvent(event)
         return super.dispatchTouchEvent(event)
