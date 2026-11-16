@@ -2617,6 +2617,9 @@ Ranked by how much a person feels it, worst first:
 | – | Closing a tab by flick, 30 / 100 tabs | 643 / 648 ms to still | 556 / 553 ms | | level |
 | – | Cold launch, first frame to settled, 30 / 100 tabs | 409 / 411 ms | 409 / 409 ms | | level (iOS's zoom; see the first table) |
 | – | Typing in search, one letter: the letter and the new suggestion rows | same frame | same frame | | level |
+| – | Search panel open from a page, to settled, against main at e945077b6 (#2010's growing pill), 2026-11-16 19:18–19:33 | 393 ms (383–557) | 410 ms (382–417) | | level; Expo is the old search motion (JS at 82888f79f on native from 3e5ae048c), not the uncommitted native stage |
+| – | Search submitted (Go) to the page's first paint, same session | 143 ms (58–287) | 98 ms (65–367) | | faster; WebKit's own time on the Mac's CPU |
+| – | Search submitted to settled, same session | 332 ms (282–530) | 328 ms (263–997) | | level |
 | – | Memory after the round (app process only) | 73 MB | 81–93 MB | | Expo +8 to +20 MB |
 
 What was found, and what the fix does (this commit):
@@ -2658,6 +2661,17 @@ Scrolling, what was found and what the stepped window and the pages do:
   19.5 to 12 long frames a flick; with the pages, 3.5. A 100-row page was worse (8.5): each extension is itself a
   rebuild.
 - Archive gained less (10.5 to 7.5); its rows sit in native `Section`s, and what is left there is not yet found.
+
+The deck as one piece (`ContainedDeck`, the Android agent's container that moves by one transform) was tried on iPhone
+and left off: at 100 tabs, four drags spent 81–117 ms of the main thread in Reanimated worklets with the current deck
+and 74–123 ms with the container, and neither dropped a frame on the simulator. The per-card cost that shows on
+Android's F4 doesn't show on the Mac's CPU; it needs a real iPhone to decide.
+
+The search rows above are against the SwiftUI reference at e945077b6 (`/Users/shivam-mini/Developer/ardia-phone-references/swiftui-main.app`),
+30 open tabs, two rounds each with the apps alternating, five opens and five submits a round to
+`http://localhost:8777/p2.html` … `p6.html`. The rest of this table was against the reference at a6ab64311
+(`swiftui-main-a6ab64311.app`). `sample` attached to the app stops `simctl io recordVideo` from starting ("Host
+recording is already in progress"), so recordings and samples are separate runs.
 
 To watch on the dashboard: `list_sheets_late` in `usage_counts` counts Archive or History sheets whose rows were drawn
 more than 400 ms after they were asked for; it should be near zero, and a rise means the open is again doing its
