@@ -1026,7 +1026,7 @@ function Invoke-TypingTour {
   Stop-Ardia $session
 }
 
-function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText) {
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$RequireLoaded) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = $Did
@@ -1072,8 +1072,16 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     $stop.Facts.Add("the field after the last key, as it settled: $($reads -join ', ')")
     $stop.Facts.Add("the field before $($Submit): '$typed' in $(Read-FocusedId)")
     if ($Submit -eq "Go") {
-      $clicked = Click-Named $Session "Go"
-      $stop.Facts.Add("Go button found and clicked: $clicked")
+      $go = @(Find-Named $Session.Main "Go")
+      if ($go.Count) {
+        [ArdiaTour]::SetCursorPos($go[0].X, $go[0].Y) | Out-Null
+        Start-Sleep -Milliseconds 2000
+        $after = @(Find-Named $Session.Main "Go")
+        $where = if ($after.Count) { "$($after[0].X),$($after[0].Y)" } else { "not found by that name" }
+        $stop.Facts.Add("the pointer rested on Go at $($go[0].X),$($go[0].Y) for 2 s while suggestions came in; Go was then at $where; clicked where the pointer rested")
+        Send-Click $go[0].X $go[0].Y
+      }
+      $stop.Facts.Add("Go button found and clicked: $($go.Count -gt 0)")
     } else {
       Send-Key 0x0D 0
       Send-Key 0x0D 2
@@ -1099,7 +1107,8 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $stop.Facts.Add("required: the first key in the box: $firstKeyOk")
     }
     $stop.Facts.Add("report only ($Issues): every key landed and $Submit opened Example Domain: $whole")
-    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } else { $firstKeyOk }))
+    if ($RequireLoaded) { $stop.Facts.Add("required (#2102): $Submit opened Example Domain: $([bool]$loaded)") }
+    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } elseif ($RequireLoaded) { $firstKeyOk -and [bool]$loaded } else { $firstKeyOk }))
   }
   if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
   return $stop
@@ -1189,7 +1198,7 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-go" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session
-    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, 30 ms a key, then clicked Go." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101; where Go goes: #2102" -Required | Out-Null
+    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, 30 ms a key, then rested the pointer on Go for 2 s while suggestions came in and clicked where it rested. Go has to stay under the pointer and open what the field says (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireLoaded | Out-Null
   }
 
   Invoke-FirstRunLaunch "faster-than-a-person" "" {
