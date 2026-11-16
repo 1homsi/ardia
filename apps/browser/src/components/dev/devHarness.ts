@@ -95,6 +95,9 @@ export function startDevHarness() {
     get switcher(): typeof import("../../state/sidebar/switcher") {
       return require("../../state/sidebar/switcher");
     },
+    get tileFolders(): typeof import("../../state/pins/tileFolders") & typeof import("../../state/sidebar/tileFolderUi") {
+      return { ...require("../../state/pins/tileFolders"), ...require("../../state/sidebar/tileFolderUi") };
+    },
     get sidebarRows(): typeof import("../../state/sidebar/sidebarUi") {
       return require("../../state/sidebar/sidebarUi");
     },
