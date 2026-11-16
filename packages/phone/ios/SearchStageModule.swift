@@ -262,6 +262,7 @@ final class SearchStageView: ExpoView {
   private func startIfLaidOut() {
     guard isShown, !isStarted, !isClosing, contentIsLaidOut || contentGaveUp, let panel else { return }
     isStarted = true
+    holdReveals()
     if let anchor = pendingAnchor, !keyboardUp, !isCommandBar, !reduceMotion {
       revealsContents = false
       emergence = StageEmergence(pill: convert(anchor.frame, from: nil), fieldCenter: fieldCenter, face: face?.makeView(), on: panel)
