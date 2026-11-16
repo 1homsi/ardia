@@ -59,6 +59,7 @@ export type SyncDoc = {
   seqs?: Record<string, number>;
   sends?: Record<string, SendLedger>;
   tabCloses?: Record<string, string[]>;
+  removing?: string[];
 };
 
 export const DOC = "sync.json";
@@ -90,7 +91,7 @@ export type SyncedDevice = { id: string; name: string; kind: DeviceKind; receive
 export type RemoteTabs = { deviceId: string; name: string; kind: DeviceKind; tabs: { url: string; title: string }[] };
 export type SendTarget = { id: string; name: string; kind: DeviceKind };
 export type ReceivedTab = { windowId: string; tabId: string; send: SendRecord; from: { name: string; kind: DeviceKind } };
-export type RemoteProfile = { syncId: string; name: string; color: Profile["color"]; icon: string | null; sharesWith?: { name: string; added: boolean }; waiting?: true };
+export type RemoteProfile = { syncId: string; name: string; color: Profile["color"]; icon: string | null; sharesWith?: { name: string; added: boolean }; waiting?: true; sharedByOthers?: true };
 
 export type SyncUi = {
   status: SyncStatus;
