@@ -41,6 +41,8 @@ export type PageToneInsets = { top: number; bottom: number };
 
 export type PageObscuredInsets = { top: number; bottom: number };
 
+export type PageObscuredColors = { top: ColorValue | null; bottom: ColorValue | null };
+
 export type PageError = { code: string; message: string };
 
 export type SwipeNavigation = "anywhere" | "edges" | "off";
@@ -53,6 +55,7 @@ export type PageViewProps = ViewProps & {
   savedState?: string;
   toneInsets?: PageToneInsets;
   obscuredInsets?: PageObscuredInsets;
+  obscuredColors?: PageObscuredColors;
   topClearance?: number;
   obscuresSafeTop?: boolean;
   swipeNavigation?: SwipeNavigation;

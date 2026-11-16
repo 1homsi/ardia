@@ -62,7 +62,7 @@ class PageViewModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhonePageView")
 
-        Constants("reportsDrawn" to true, "remembersSitePermissions" to true)
+        Constants("reportsDrawn" to true, "remembersSitePermissions" to true, "obscuresInsets" to true)
 
         Function("appRelease") { AppReleaseInfo.of(context) }
 
@@ -367,6 +367,15 @@ class PageViewModule : Module() {
 
             Prop("toneInsets") { view: PageView, insets: List<Double>? ->
                 view.toneInsets = insets?.takeIf { it.size == 2 }?.let { it[0] to it[1] } ?: (0.0 to 0.0)
+            }
+
+            Prop("obscuredInsets") { view: PageView, insets: List<Double>? ->
+                view.obscuredInsets = insets?.takeIf { it.size == 2 }?.let { it[0].coerceAtLeast(0.0) to it[1].coerceAtLeast(0.0) } ?: (0.0 to 0.0)
+            }
+
+            Prop("obscuredColors") { view: PageView, colours: List<Double?>? ->
+                val pair = colours?.takeIf { it.size == 2 }
+                view.obscuredColours = (pair?.get(0)?.toLong()?.toInt()) to (pair?.get(1)?.toLong()?.toInt())
             }
 
             OnViewDidUpdateProps { view -> view.bind() }

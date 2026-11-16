@@ -1,6 +1,8 @@
 package com.ardia.phone
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -42,6 +44,20 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     var isPrivate: Boolean = false
     var savedState: String? = null
     var toneInsets: Pair<Double, Double> = 0.0 to 0.0
+    var obscuredInsets: Pair<Double, Double> = 0.0 to 0.0
+        set(value) {
+            if (field == value) return
+            field = value
+            layOutChildren()
+            invalidate()
+        }
+    var obscuredColours: Pair<Int?, Int?> = null to null
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+    private val bandPaint = Paint()
     var page: Page? = null
         private set
 
@@ -113,7 +129,38 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         get() = cover.nativeId
         set(value) = cover.cover(value)
 
+    internal fun bands(): PageBands.Frame {
+        val density = resources.displayMetrics.density
+        return PageBands.frame(height, (obscuredInsets.first * density).roundToInt(), (obscuredInsets.second * density).roundToInt())
+    }
+
+    internal fun bandColours(): Pair<Int?, Int?> = PageBands.colour(obscuredColours.first, surfaceColor) to PageBands.colour(obscuredColours.second, surfaceColor)
+
+    internal fun croppedToneInsets(): Pair<Double, Double> {
+        val density = resources.displayMetrics.density
+        val bands = bands()
+        val (top, bottom) = PageBands.toneOffsets((toneInsets.first * density).roundToInt() to (toneInsets.second * density).roundToInt(), bands)
+        return top / density.toDouble() to bottom / density.toDouble()
+    }
+
+    override fun dispatchDraw(canvas: Canvas) {
+        val bands = bands()
+        if (!bands.isEmpty) {
+            val (top, bottom) = bandColours()
+            if (bands.top > 0 && top != null) {
+                bandPaint.color = top
+                canvas.drawRect(0f, 0f, width.toFloat(), bands.top.toFloat(), bandPaint)
+            }
+            if (bands.bottom > 0 && bottom != null) {
+                bandPaint.color = bottom
+                canvas.drawRect(0f, (height - bands.bottom).toFloat(), width.toFloat(), height.toFloat(), bandPaint)
+            }
+        }
+        super.dispatchDraw(canvas)
+    }
+
     init {
+        setWillNotDraw(false)
         drawn.onVisible = { cover.pageVisible() }
         addView(host, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         gestures.install()
@@ -217,9 +264,15 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     private fun layOutChildren() {
         if (width == 0 || height == 0) return
-        host.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
-        host.layout(0, 0, width, height)
-        gestures.layout(width, height)
+        placeHost(width, height)
+    }
+
+    private fun placeHost(width: Int, height: Int) {
+        val bands = PageBands.frame(height, (obscuredInsets.first * resources.displayMetrics.density).roundToInt(), (obscuredInsets.second * resources.displayMetrics.density).roundToInt())
+        val pageHeight = height - bands.top - bands.bottom
+        host.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(pageHeight, MeasureSpec.EXACTLY))
+        host.layout(0, bands.top, width, bands.top + pageHeight)
+        gestures.layout(width, height, bands.top)
     }
 
     override fun requestLayout() {
@@ -255,8 +308,8 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
             if (loading) return@collectLatest
             delay(TONE_SETTLE_MILLIS)
             val density = resources.displayMetrics.density
-            val (top, bottom) = toneInsets
-            val taken = page.sampleTone((top * density).roundToInt(), (bottom * density).roundToInt())
+            val (top, bottom) = PageBands.toneOffsets((toneInsets.first * density).roundToInt() to (toneInsets.second * density).roundToInt(), bands())
+            val taken = page.sampleTone(top, bottom)
             toneSampledSinceBind = true
             if (taken != null) sampled = taken
             sendTone(page.state.value)
@@ -264,15 +317,15 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        host.layout(0, 0, r - l, b - t)
-        gestures.layout(r - l, b - t)
+        placeHost(r - l, b - t)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val bands = PageBands.frame(measuredHeight, (obscuredInsets.first * resources.displayMetrics.density).roundToInt(), (obscuredInsets.second * resources.displayMetrics.density).roundToInt())
         host.measure(
             MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY),
-            MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(measuredHeight - bands.top - bands.bottom, MeasureSpec.EXACTLY),
         )
     }
 

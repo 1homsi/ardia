@@ -17,6 +17,7 @@ type NativeProps = ViewProps & {
   savedState?: string;
   toneInsets?: [number, number];
   obscuredInsets?: [number, number];
+  obscuredColors?: [NativeColor | null, NativeColor | null];
   topClearance?: number;
   obscuresSafeTop?: boolean;
   surfaceColor?: NativeColor;
@@ -39,7 +40,7 @@ export const pageObscuresInsets = () => obscuresInsets;
 export const pageReportsDrawn = () => reportsDrawn;
 
 export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageView(props, ref) {
-  const { onPageState, onPageTone, onPageError, onPageDrawn, onPageCoverHidden, coverNativeId, toneInsets, obscuredInsets, surfaceColor, ...rest } = props;
+  const { onPageState, onPageTone, onPageError, onPageDrawn, onPageCoverHidden, coverNativeId, toneInsets, obscuredInsets, obscuredColors, surfaceColor, ...rest } = props;
   const native = useRef<NativeHandle>(null);
   useImperativeHandle(
     ref,
@@ -72,6 +73,9 @@ export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageV
       ref={native}
       toneInsets={toneInsets ? [toneInsets.top, toneInsets.bottom] : undefined}
       obscuredInsets={obscuresInsets && obscuredInsets ? [obscuredInsets.top, obscuredInsets.bottom] : undefined}
+      obscuredColors={
+        obscuresInsets && obscuredColors && Platform.OS === "android" ? [nativeFieldColor(obscuredColors.top ?? undefined) ?? null, nativeFieldColor(obscuredColors.bottom ?? undefined) ?? null] : undefined
+      }
       surfaceColor={Platform.OS === "android" ? nativeFieldColor(surfaceColor) : undefined}
       coverNativeId={reportsDrawn ? coverNativeId : undefined}
       onPageEvent={onPageEvent}

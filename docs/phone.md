@@ -1709,6 +1709,24 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 
 ### Deliberately different
 
+- The page under the bar (the owner's decision, 2026-11-16).
+  - **iPhone:** the page runs full screen under the glass bar, and WebKit gets the covered edges as
+    `obscuredContentInsets`, so fixed footers and the page's last lines stay above the bar.
+  - **Android:** the page stops at the top band and at the bar, and the bands it doesn't cover are filled with the
+    page's own top and bottom tones, the colour iPhone shows under its glass. Android's WebView has no
+    obscured-insets equivalent. Only pages that opt in with `viewport-fit=cover` on WebView 140 and later get the
+    insets, as `env(safe-area-inset-*)`. A full-screen page would hide most sites' fixed footers and the last lines of
+    every page under the bar, and a browser mustn't.
+  - **One shape in JavaScript:** `pageObscuresInsets()` is true on both, and the bar code passes the same
+    `obscuredInsets` and `toneInsets` on both. It also passes `obscuredColors`, the colours its own bars use: the
+    page's remembered tone, or the theme's surface before it has one.
+  - **What Android's page view does with them** (`PageView`, `PageBands`):
+    - it lays the WebView out between the bands and paints the bands in those colours, in the same commit as the bars;
+    - it samples the tone at the WebView's own edge;
+    - it composes deck snapshots with the bands, so a card is the page as shown.
+  - **Revisit** if Android's WebView gains an equivalent of `obscuredContentInsets`, or a way to keep fixed and
+    bottom-anchored content clear of an overlay for every page. Then run the page under the bar as iPhone does and
+    drop the bands.
 - Long press on links and images in a page: iPhone shows WebKit's system menu with Open in New Tab, Open in Background, Copy Link, Share… and Download Linked File, as the SwiftUI app does; Android shows the app's drawn menu from `page.longPress` (c317c5b8f).
 - Voice screen status-bar icons: always light; Compose takes them from the light-mode tint although the screen is always dark (3a9ca2f10, `lib/statusInk.ts`).
 - Pin to Mac from the page menu: Android keeps Compose's toast, iPhone answers in the menu's title as SwiftUI does (5023ecabd).

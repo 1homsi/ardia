@@ -132,7 +132,7 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         reset()
     }
 
-    fun layout(width: Int, height: Int) {
+    fun layout(width: Int, height: Int, pageTop: Int = 0) {
         for (view in listOf(backTarget, pageShade, forwardTarget)) {
             view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
             view.layout(0, 0, width, height)
@@ -140,7 +140,7 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         val side = (INDICATOR_DP * density).toInt()
         indicator.measure(View.MeasureSpec.makeMeasureSpec(side, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(side, View.MeasureSpec.EXACTLY))
         val left = (width - side) / 2
-        indicator.layout(left, 0, left + side, side)
+        indicator.layout(left, pageTop, left + side, pageTop + side)
     }
 
     fun intercepts(event: MotionEvent): Boolean {

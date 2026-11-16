@@ -238,8 +238,12 @@ object PhonePages {
         val captured = android.os.SystemClock.uptimeMillis()
         val route = (page as? WebViewPage)?.lastCaptureRoute
         val web = page.view.value
-        val insets = covered ?: views[pageId]?.get()?.toneInsets
-        val picture = if (route == CaptureRoute.WindowCopy && web != null && web.width > 0 && insets != null) withoutCovered(drawn, web.width, web.resources.displayMetrics.density, insets) else drawn
+        val shown = views[pageId]?.get()
+        val insets = covered ?: shown?.croppedToneInsets()
+        val bare = if (route == CaptureRoute.WindowCopy && web != null && web.width > 0 && insets != null) withoutCovered(drawn, web.width, web.resources.displayMetrics.density, insets) else drawn
+        val banded = kotlinx.coroutines.withContext(Dispatchers.Main.immediate) { shown?.let { view -> view.bands().takeUnless { it.isEmpty }?.let { view to it } } }
+        val picture = banded?.let { (view, bands) -> PageBands.compose(bare, view.width, view.height, bands, view.bandColours().first, view.bandColours().second) } ?: bare
+        if (picture !== bare && picture !== drawn) bare.takeIf { it !== drawn }?.recycle()
         val frame = kotlinx.coroutines.withContext(Dispatchers.Main.immediate) { views[pageId]?.get()?.let(::frameInWindow) }
         val decoded = picture.copy(Bitmap.Config.ARGB_8888, false)
         val writeStarted = android.os.SystemClock.uptimeMillis()
