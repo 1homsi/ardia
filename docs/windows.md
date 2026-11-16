@@ -311,11 +311,10 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     in fresh launches after Get Started, during and after the tool tour, under CPU and disk load, and with the Go
     button. A stop fails only when the new tab's bar takes focus more than 90 ms after the `newTab` command (the
     worst seen was 69 ms under load), or the first key does not land in the new tab's bar (its first `typed` mark
-    after the command, and the settled text starting with that key). The rest is report only: the whole text at
-    30 ms a key (#2101), where Go goes (#2102), a stop typing from 15 ms after Ctrl+T (#2099), and three launches
-    each typing at 80 and at 120 ms a key that read the field after every key.
-  - **Not covered:** a JS thread that stalls for hundreds of ms, as on a slow first launch (#2059). That needs the
-    native key hold the Mac has (#2099).
+    after the command, and the settled text starting with that key). A stop typing from 15 ms after Ctrl+T
+    must keep every key (#2099). The rest is report only: the whole text at 30 ms a key (#2101), where Go goes
+    (#2102), and three launches each typing at 80 and at 120 ms a key that read the field after every key.
+  - **A stalled JS thread** (a slow first launch, #2059) is covered by the key hold below (#2099).
 - The command bar puts back a letter its text field drops (#2101). React Native Windows 0.81's text field applies
   the state of its first change (event count 0) whenever that state mounts. When JS is busy, as right after Ctrl+T,
   the state lands after the next letter and wipes it: "example.com" became "eample.com" in 2 of 10 tries at 80 ms a
@@ -359,6 +358,36 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   mounts a window that comes before `ReloadInstance()` completes once it has completed, and logs
   `window <id> waited <ms> ms for the instance to finish loading`. `window_roots_doubled` in `usage_counts` counts a
   window whose root mounts while another root for it is still up.
+- The keys typed right after Ctrl+T or Ctrl+L wait for the bar's field (#2099, #2124). The keyboard hook runs on the UI
+  thread and handles a typed key before the queued mount that focuses the new bar, so a key typed then went into the
+  old, dying field or nowhere: 1 of 20 first letters with #2060's mount order and 3 of 20 with main's, at 80 and
+  120 ms a key. `FocusHold.h` holds them, through the Mac's focus-handoff contract:
+  - **Start:** `MenuKeyboard::Emit` gives `newTab` and `focusCommandBar` a `focusGeneration` when the window is
+    visible and in front. Another command ends the hold.
+  - **Ready:** `ArdiaFocus.claimFocus(generation, tag)` names the field, and that field reports native focus
+    (`src/textFocus.ts` calls `fieldFocused`/`fieldBlurred` from `TextInputState.focusInput`, `blurInput` and
+    `unregisterInput`). Windows can't focus a view by tag natively, so it needs both. With
+    `PLATFORM_FEATURES.claimsFollowFocus`, a bar field that already has focus claims when the move asks for it (Ctrl+L
+    on an open bar, a hero bar asked again), and a field claims again when it takes focus. The contract's missing part
+    is #989's acknowledgement; until it lands, a hold gives up 3 s after the command.
+  - **Held:** character keys with no Ctrl, Alt or Win, turned into characters when recorded (`ToUnicodeEx` with flag 4,
+    so the dead-key state is left alone). Modifiers pass. At most 64.
+  - **Replay:** one `WM_CHAR` at a time (a surrogate pair together) posted to the focused `InputSiteWindowClass`
+    window, then a sentinel to the hold's own message window, re-checking the window in front and the focus before the
+    next. No `SendInput`.
+  - **Ends a hold, dropping what it holds and passing the key on:** a key with Ctrl, Alt or Win (so AltGr characters
+    and Ctrl+V right after Ctrl+T aren't held); Backspace and Enter, since a posted key event can't be ordered by the
+    sentinel; a key without a character (Escape, Tab, arrows, function keys); a dead key, `VK_PROCESSKEY` or
+    `VK_PACKET`; a mouse button; another window in front or the window closing; the move cancelled; another field
+    taking focus; a reload; 64 keys; 3 s. Repeats of a held key stay swallowed until it's released. A dead key already
+    pending before Ctrl+T isn't protected.
+  - **Launch log:** `keys hold <g> begun for <command>`, `keys hold <g> ready after <ms> ms, replayed <n>` and
+    `keys hold <g> dropped: <why> with <n> held, <m> replayed`.
+  - **Tour:** the first-letter stop (ten tries each at 80 and 120 ms a key) and the 15 ms stop are required, and the
+    `hold-*` stops in the typing part check capitals from Shift and Caps Lock, Backspace, Escape, a click into another
+    window of ours and into Notepad, and Ctrl+V.
+  - **Telemetry:** `command_bar_key_holds`, `command_bar_keys_replayed` and `command_bar_key_hold_drops_<reason>` in
+    `usage_counts`.
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
   `MenuKeyboard.h` sends `reopenClosedTab` for a plain Ctrl+Z in a browser window (Little Ardia included, Settings and
   Import not) when Reopen isn't disabled, no command is bound to Ctrl+Z, the window itself is the active one (not a

@@ -2,6 +2,8 @@ export type KeyHoldDrop = "modified" | "edit" | "character" | "dead" | "ime" | "
 
 export type KeyHoldCounts = { holds: number; replayed: number; drops: Partial<Record<KeyHoldDrop, number>> };
 
+export type KeyHoldNative = { keyHoldCounts(): KeyHoldCounts };
+
 export type FocusNative = {
   setSwitcherCapture(active: boolean): Promise<void>;
   setDragEscapeCapture(active: boolean): Promise<void>;
@@ -13,5 +15,4 @@ export type FocusNative = {
   switcherPointerMoved(): boolean;
   pressesWithoutRelease(): number;
   pressRepeated(): Promise<{ landedOn: string; ms: number } | null>;
-  keyHoldCounts?(): KeyHoldCounts;
 };
