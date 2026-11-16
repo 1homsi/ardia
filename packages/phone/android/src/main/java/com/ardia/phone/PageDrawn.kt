@@ -17,6 +17,7 @@ internal class PageDrawnWatch(private val surface: DrawnSurface, private val onD
 
     var stage = Stage.Hidden
         private set
+    var onVisible: () -> Unit = {}
     private var request = 0
 
     fun frame() {
@@ -41,6 +42,7 @@ internal class PageDrawnWatch(private val surface: DrawnSurface, private val onD
         request += 1
         val mine = request
         stage = Stage.Waiting
+        onVisible()
         val posted = surface.postVisualState {
             if (mine != request) return@postVisualState
             surface.afterNextFrameCommits {

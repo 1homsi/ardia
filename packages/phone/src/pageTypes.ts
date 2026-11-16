@@ -62,6 +62,8 @@ export type PageViewProps = ViewProps & {
   onPageTone?: (tone: PageTone) => void;
   onPageError?: (error: PageError) => void;
   onPageDrawn?: () => void;
+  coverNativeId?: string;
+  onPageCoverHidden?: (reason: "drawn" | "cap", found: boolean) => void;
 };
 
 export type PageViewHandle = {
@@ -189,6 +191,7 @@ export type PageEventPayload =
       Omit<PageNavigationState, "url"> & { url?: string })
   | { name: "tone"; top?: string; bottom?: string }
   | { name: "drawn" }
+  | { name: "coverHidden"; reason: "drawn" | "cap"; found: boolean }
   | ({ name: "error" } & PageError);
 
 export type DownloadProgress = {

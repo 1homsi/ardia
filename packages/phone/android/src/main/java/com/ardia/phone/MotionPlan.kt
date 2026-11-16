@@ -127,6 +127,8 @@ interface MotionClock {
 
 class MotionRunner(private val surface: MotionSurface) {
     var onEnd: ((Boolean) -> Unit)? = null
+    var nearEndPx: Float? = null
+    var onNearEnd: ((Float) -> Unit)? = null
     var trace: ((String) -> Unit)? = null
     var shown: MotionValues? = null
         private set
@@ -138,6 +140,14 @@ class MotionRunner(private val surface: MotionSurface) {
     private var clock: MotionClock? = null
     private var moving: Set<MotionChannel> = emptySet()
     private var reported = 0
+    private var nearSent = 0
+
+    private fun sendNear(mine: Int, remaining: Float) {
+        if (nearSent == mine || mine != move) return
+        nearSent = mine
+        trace?.invoke("move #$mine near its end, ${"%.1f".format(remaining)} px left")
+        onNearEnd?.invoke(remaining)
+    }
 
     fun presentation(): MotionValues? {
         val target = shown ?: return null
@@ -170,18 +180,24 @@ class MotionRunner(private val surface: MotionSurface) {
         }.toSet()
         surface.set(if (changed.isEmpty()) next else changed.fold(next) { values, channel -> values.with(channel, before!!.value(channel)!!) }, MotionChannel.entries.toSet())
         if (changed.isEmpty()) {
-            if (before != null) onEnd?.invoke(true)
+            if (before != null) {
+                if (nearEndPx != null) sendNear(mine, 0f)
+                onEnd?.invoke(true)
+            }
             return
         }
         val travel = changed.maxOf { channel -> surface.pixels(channel, abs(next.value(channel)!! - before!!.value(channel)!!)) }
         val fitted = nextCurve.overPixels(travel)
         trace?.invoke("move #$mine ${changed.joinToString(",")} over ${travel.toInt()} px, ${fitted.durationMillis} ms")
+        val nearAt = nearEndPx?.let { nearFraction(fitted, travel, it) }
         from = before
         curve = fitted
         moving = changed
         surface.startRenderThread(changed.filter { it != MotionChannel.CornerRadius }.associateWith { next.value(it)!! }, fitted)
         val corners = MotionChannel.CornerRadius in changed
+        if (nearAt != null && nearAt <= 0f) sendNear(mine, travel)
         clock = surface.startClock(fitted.durationMillis, onFrame = { fraction ->
+            if (nearAt != null && fraction >= nearAt) sendNear(mine, (1 - fitted.interpolator.getInterpolation(fraction)) * travel)
             if (corners && mine == move) {
                 val a = before!!.cornerRadius!!
                 val b = next.cornerRadius!!
@@ -193,11 +209,25 @@ class MotionRunner(private val surface: MotionSurface) {
                 return@startClock
             }
             reported = mine
+            if (finished && nearAt != null) sendNear(mine, 0f)
             trace?.invoke("move #$mine ended, finished $finished")
             clock = null
             moving = emptySet()
             surface.set(next, MotionChannel.entries.toSet())
             onEnd?.invoke(finished)
+        }
+    }
+
+    companion object {
+        private const val NEAR_STEPS = 2000
+
+        fun nearFraction(curve: MotionCurve, travel: Float, pixels: Float): Float {
+            if (travel <= pixels) return 0f
+            for (step in 0..NEAR_STEPS) {
+                val fraction = step.toFloat() / NEAR_STEPS
+                if ((1 - curve.interpolator.getInterpolation(fraction)) * travel <= pixels) return fraction
+            }
+            return 1f
         }
     }
 

@@ -20,6 +20,7 @@ type NativeProps = ViewProps & {
   topClearance?: number;
   obscuresSafeTop?: boolean;
   surfaceColor?: NativeColor;
+  coverNativeId?: string;
   onPageEvent?: (event: NativeSyntheticEvent<PageEventPayload>) => void;
 };
 
@@ -38,7 +39,7 @@ export const pageObscuresInsets = () => obscuresInsets;
 export const pageReportsDrawn = () => reportsDrawn;
 
 export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageView(props, ref) {
-  const { onPageState, onPageTone, onPageError, onPageDrawn, toneInsets, obscuredInsets, surfaceColor, ...rest } = props;
+  const { onPageState, onPageTone, onPageError, onPageDrawn, onPageCoverHidden, coverNativeId, toneInsets, obscuredInsets, surfaceColor, ...rest } = props;
   const native = useRef<NativeHandle>(null);
   useImperativeHandle(
     ref,
@@ -59,6 +60,8 @@ export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageV
       onPageTone?.({ top: nativeEvent.top ?? null, bottom: nativeEvent.bottom ?? null });
     } else if (nativeEvent.name === "drawn") {
       onPageDrawn?.();
+    } else if (nativeEvent.name === "coverHidden") {
+      onPageCoverHidden?.(nativeEvent.reason, nativeEvent.found);
     } else {
       onPageError?.({ code: nativeEvent.code, message: nativeEvent.message });
     }
@@ -70,6 +73,7 @@ export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageV
       toneInsets={toneInsets ? [toneInsets.top, toneInsets.bottom] : undefined}
       obscuredInsets={obscuresInsets && obscuredInsets ? [obscuredInsets.top, obscuredInsets.bottom] : undefined}
       surfaceColor={Platform.OS === "android" ? nativeFieldColor(surfaceColor) : undefined}
+      coverNativeId={reportsDrawn ? coverNativeId : undefined}
       onPageEvent={onPageEvent}
     />
   );

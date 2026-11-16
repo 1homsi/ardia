@@ -1,6 +1,6 @@
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
 import { createElement, useEffect, useRef, type ComponentType, type ReactNode } from "react";
-import { Animated, Easing, type NativeSyntheticEvent, type ViewProps } from "react-native";
+import { Animated, Easing, Platform, type NativeSyntheticEvent, type ViewProps } from "react-native";
 
 export type MotionTarget = { opacity?: number; translateX?: number; translateY?: number; scale?: number; cornerRadius?: number };
 
@@ -13,10 +13,19 @@ export type MotionViewProps = ViewProps & {
   from?: MotionTarget;
   motion: MotionCurve;
   onMotionEnd?: (finished: boolean) => void;
+  nearEndPx?: number;
+  onMotionNearEnd?: (remainingPx: number) => void;
   children?: ReactNode;
 };
 
-type NativeProps = Omit<MotionViewProps, "onMotionEnd"> & { onMotionEnd?: (event: NativeSyntheticEvent<{ finished: boolean }>) => void };
+type NativeProps = Omit<MotionViewProps, "onMotionEnd" | "onMotionNearEnd"> & {
+  onMotionEnd?: (event: NativeSyntheticEvent<{ finished: boolean }>) => void;
+  onMotionNearEnd?: (event: NativeSyntheticEvent<{ remainingPx: number }>) => void;
+};
+
+const reportsNearEnd = Platform.OS === "android";
+
+export const motionReportsNearEnd = () => reportsNearEnd && motionRunsInRenderServer();
 
 const native = requireOptionalNativeModule<{ runsInRenderServer?: boolean }>("ArdiaPhoneMotion");
 
@@ -27,9 +36,10 @@ export const motionRunsInRenderServer = () => native?.runsInRenderServer === tru
 
 const filled = (to: MotionTarget) => ({ opacity: to.opacity ?? 1, translateX: to.translateX ?? 0, translateY: to.translateY ?? 0, scale: to.scale ?? 1, cornerRadius: to.cornerRadius });
 
-export function MotionView({ to, from, motion, onMotionEnd, ...rest }: MotionViewProps) {
+export function MotionView({ to, from, motion, onMotionEnd, nearEndPx, onMotionNearEnd, ...rest }: MotionViewProps) {
   if (motionRunsInRenderServer()) {
-    return createElement(view(), { ...rest, to: filled(to), from: from ? filled(from) : undefined, motion, onMotionEnd: onMotionEnd ? (event: NativeSyntheticEvent<{ finished: boolean }>) => onMotionEnd(event.nativeEvent.finished) : undefined });
+    const near = reportsNearEnd ? { nearEndPx, onMotionNearEnd: onMotionNearEnd ? (event: NativeSyntheticEvent<{ remainingPx: number }>) => onMotionNearEnd(event.nativeEvent.remainingPx) : undefined } : {};
+    return createElement(view(), { ...rest, ...near, to: filled(to), from: from ? filled(from) : undefined, motion, onMotionEnd: onMotionEnd ? (event: NativeSyntheticEvent<{ finished: boolean }>) => onMotionEnd(event.nativeEvent.finished) : undefined });
   }
   return createElement(AnimatedMotionView, { to, from, motion, onMotionEnd, ...rest });
 }

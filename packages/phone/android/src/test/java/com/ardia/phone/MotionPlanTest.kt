@@ -130,6 +130,74 @@ class MotionPlanTest {
         return (1 - curve.progress(curve.durationMillis / 1000.0)) * travel
     }
 
+    private val nears = ArrayList<Float>()
+
+    private fun nearAt(pixels: Float) {
+        runner.nearEndPx = pixels
+        runner.onNearEnd = { nears += it }
+    }
+
+    @Test
+    fun theNearEndFiresOnceWhenTheChosenDistanceIsLeft() {
+        nearAt(2f)
+        runner.show(MotionValues(translateY = 0f), cardSpring)
+        runner.show(MotionValues(translateY = 300f), cardSpring)
+        val curve = surface.renderThread.single().second
+        val clock = surface.clocks.single()
+        val at = MotionRunner.nearFraction(curve, 300f, 2f)
+        assertTrue("2 px of 300 comes well before the half-pixel end: $at", at in 0.5f..0.95f)
+        clock.at(at - 0.01f)
+        assertTrue(nears.isEmpty())
+        clock.at(at)
+        assertEquals(1, nears.size)
+        assertTrue("it reports what is left, in device pixels: ${nears.single()}", nears.single() <= 2f && nears.single() > 0.5f)
+        clock.at(at + 0.05f)
+        clock.finish()
+        assertEquals("once per move", 1, nears.size)
+        assertEquals(listOf(true), ends)
+    }
+
+    @Test
+    fun aMoveShorterThanTheDistanceFiresAtItsStart() {
+        nearAt(20f)
+        runner.show(MotionValues(translateY = 0f), cardSpring)
+        runner.show(MotionValues(translateY = 10f), cardSpring)
+        assertEquals(listOf(10f), nears)
+    }
+
+    @Test
+    fun aSupersededMoveNeverFiresAndTheNewOneFiresForItself() {
+        nearAt(2f)
+        runner.show(MotionValues(translateY = 0f), cardSpring)
+        runner.show(MotionValues(translateY = 300f), cardSpring)
+        val first = surface.clocks.single()
+        first.at(0.2f)
+        runner.show(MotionValues(translateY = 0f), cardSpring)
+        first.at(0.99f)
+        assertTrue("the old move's frames don't fire it", nears.isEmpty())
+        surface.clocks.last().finish()
+        assertEquals("the new move fires by its end at the latest", 1, nears.size)
+    }
+
+    @Test
+    fun withMotionOffTheNearEndComesWithTheEnd() {
+        nearAt(2f)
+        runner.show(MotionValues(translateY = 0f), cardSpring)
+        surface.animates = false
+        runner.show(MotionValues(translateY = 300f), cardSpring)
+        assertEquals(listOf(0f), nears)
+        assertEquals(listOf(true), ends)
+    }
+
+    @Test
+    fun withoutADistanceNothingFires() {
+        runner.onNearEnd = { nears += it }
+        runner.show(MotionValues(translateY = 0f), cardSpring)
+        runner.show(MotionValues(translateY = 300f), cardSpring)
+        surface.clocks.single().finish()
+        assertTrue(nears.isEmpty())
+    }
+
     @Test
     fun aSpringEndsOnceLessThanHalfADevicePixelIsLeft() {
         val left = pixelsLeftAtTheEnd(300f)

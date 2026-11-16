@@ -334,6 +334,8 @@ class PageViewModule : Module() {
 
             Prop("title") { view: PageView, title: String? -> view.title = title }
 
+            Prop("coverNativeId") { view: PageView, id: String? -> view.coverNativeId = id }
+
             Prop("isPrivate") { view: PageView, isPrivate: Boolean? -> view.isPrivate = isPrivate == true }
 
             Prop("savedState") { view: PageView, savedState: String? -> view.savedState = savedState }

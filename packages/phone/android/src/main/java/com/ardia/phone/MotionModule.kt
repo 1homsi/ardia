@@ -38,8 +38,10 @@ class MotionCurveRecord : Record {
 
 class MotionView(context: Context, appContext: AppContext) : ExpoView(context, appContext), MotionSurface {
     private val onMotionEnd by EventDispatcher()
+    private val onMotionNearEnd by EventDispatcher()
     private val runner = MotionRunner(this).apply {
         onEnd = { finished -> onMotionEnd(mapOf("finished" to finished)) }
+        onNearEnd = { remaining -> onMotionNearEnd(mapOf("remainingPx" to remaining.toDouble())) }
         if (PhoneLab.isOn) trace = { line -> lab(line) }
     }
     private var shownAt = 0L
@@ -62,6 +64,10 @@ class MotionView(context: Context, appContext: AppContext) : ExpoView(context, a
 
     fun start(values: MotionValues?) {
         pendingStart = values
+    }
+
+    fun nearEnd(pixels: Double?) {
+        runner.nearEndPx = pixels?.toFloat()?.takeIf { it >= 0f }
     }
 
     fun curve(curve: MotionCurve) {
@@ -185,13 +191,15 @@ class MotionModule : Module() {
         Constants("runsInRenderServer" to true)
 
         View(MotionView::class) {
-            Events("onMotionEnd")
+            Events("onMotionEnd", "onMotionNearEnd")
 
             Prop("to") { view: MotionView, target: MotionTargetRecord -> view.target(target.values()) }
 
             Prop("from") { view: MotionView, start: MotionTargetRecord? -> view.start(start?.values()) }
 
             Prop("motion") { view: MotionView, curve: MotionCurveRecord -> view.curve(curve.curve()) }
+
+            Prop("nearEndPx") { view: MotionView, pixels: Double? -> view.nearEnd(pixels) }
 
             OnViewDidUpdateProps { view: MotionView -> view.applyProps() }
         }
