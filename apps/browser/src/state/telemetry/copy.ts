@@ -110,6 +110,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times you switched to an Ardia window, and how many of those found the window's pages still paused as if another window covered it, summed up once an hour",
       "How many times a page open in WebKit was kept out of sight while it waited, ready, to be switched to: the open tab of a neighbouring profile, or the tab that takes over while you drag one away. Summed up once an hour, never which page",
       "How many Peek cards and Little Ardia windows you opened or closed with a trackpad pinch, how many Little Ardia windows you closed by swiping back or started to and let go, summed up once an hour",
+      "How many times swiping back or forward and holding opened the list of pages to go to, and how many of those you called off by pulling the swipe back before letting go, summed up once an hour. Never which pages",
       "How many Little Ardia windows you closed with Escape, and whether the page had the keyboard, nothing in the window did, or the window was still blank, summed up once an hour",
       "How many Little Ardia windows closed on their own because their page opened another app, and how many times closing a Little Ardia window brought back the app you came from, summed up once an hour. Never which app or page",
       "How many times a Peek came back because you returned to the tab it was opened from, summed up once an hour. Never which tab or page",
