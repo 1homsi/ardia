@@ -93,7 +93,7 @@ final class CompletingFieldView: ExpoView {
   func replace(_ text: String, selectsAll: Bool) {
     field.reset(to: text)
     if selectsAll, !text.isEmpty {
-      DispatchQueue.main.async { [weak self] in self?.field.selectAll(nil) }
+      DispatchQueue.main.async { [weak self] in self?.field.selectAllShowingStart() }
     }
   }
 
@@ -165,6 +165,10 @@ public final class CompletingFieldModule: Module {
           view.field.completionColor = highlight
           view.field.tintColor = highlight.withAlphaComponent(1)
         }
+      }
+
+      Prop("holdsScroll") { (view: CompletingFieldView, value: Bool?) in
+        MainActor.assumeIsolated { view.field.holdsAppearance = value == true }
       }
 
       Prop("selectsAllOnFocus") { (view: CompletingFieldView, value: Bool?) in

@@ -34,6 +34,7 @@ export type CompletingFieldProps = ViewProps &
     offer?: CompletionOffer | null;
     highlightColor?: string;
     selectsAllOnFocus?: boolean;
+    holdsScroll?: boolean;
     color?: string;
     fontSize?: number;
     fontWeight?: "regular" | "medium" | "semibold" | "bold";
@@ -79,7 +80,7 @@ export function nativeFieldColor(value: ColorValue | undefined): NativeColor | u
 const fallbackWeights = { regular: "400", medium: "500", semibold: "600", bold: "700" } as const;
 
 export const CompletingField = forwardRef<CompletingFieldHandle, CompletingFieldProps>(function CompletingField(props, ref) {
-  const { onTypedChange, onSubmit, onFocusChange, onSuffixChange, text, offer, highlightColor, selectsAllOnFocus, color, fontSize, fontWeight, style, accessibilityLabel, ...rest } = props;
+  const { onTypedChange, onSubmit, onFocusChange, onSuffixChange, text, offer, highlightColor, selectsAllOnFocus, holdsScroll, color, fontSize, fontWeight, style, accessibilityLabel, ...rest } = props;
   const native = useRef<CompletingFieldHandle>(null);
   const eventCount = useRef(0);
   const input = useRef<TextInputInstance>(null);
@@ -112,6 +113,7 @@ export const CompletingField = forwardRef<CompletingFieldHandle, CompletingField
       offer: offer ?? null,
       highlightColor: nativeFieldColor(highlightColor),
       selectsAllOnFocus,
+      holdsScroll: Platform.OS === "ios" ? holdsScroll : undefined,
       color: nativeFieldColor(color),
       fontSize,
       fontWeight,

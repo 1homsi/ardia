@@ -1,0 +1,625 @@
+import ArdiaDesign
+import ExpoModulesCore
+import QuartzCore
+import SwiftUI
+import UIKit
+
+final class SearchStagePanelView: ExpoView {
+  var takesTouches = true
+  var onResize: (() -> Void)?
+  private var placedSize: CGSize = .zero
+
+  var content: UIView? {
+    subviews.first { !($0 is UIImageView) }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard bounds.size != placedSize else { return }
+    placedSize = bounds.size
+    onResize?()
+  }
+
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    takesTouches ? super.hitTest(point, with: event) : nil
+  }
+}
+
+final class SearchStageView: ExpoView {
+  enum Exit: String {
+    case morph
+    case depart
+    case drop
+  }
+
+  let onLift = EventDispatcher()
+  let onReveal = EventDispatcher()
+  let onSettled = EventDispatcher()
+
+  var shownProp = false
+  private var appliedShown = false
+  var anchorNativeId: String?
+  var faceNativeId: String?
+  var focusNativeId: String?
+  var fieldCenter = BrowseLayout.stageFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight)
+  var commandTop: CGFloat?
+  var look = StageMorphLook()
+
+  private let keyboardSentinel = UIView()
+  private var keyboard: StageKeyboardTracker?
+  private var keyboardHeight: CGFloat = 0
+  private var reduceMotion = UIAccessibility.isReduceMotionEnabled
+
+  private var isShown = false
+  private var isClosing = false
+  private var isDeparting = false
+  private var hasLanded = false
+  private var isHoldingLift = false
+  private var heldLift: CGFloat?
+  private var dragOffset: CGFloat = 0
+  private var releaseVelocity: CGFloat = 0
+  private var revealsContents = true
+  private var hasRevealed = false
+  private var reportedLift: (lift: CGFloat, up: Bool)?
+  private var face: StageFace?
+  private var emergence: StageEmergence?
+  private var morph: StageMorph?
+  private var fadingMorph: StageMorph?
+  private var pendingFlight: CGFloat?
+  private var pendingFallback: Task<Void, Never>?
+  private var landingTask: Task<Void, Never>?
+  private var releaseTask: Task<Void, Never>?
+  private var settleTask: Task<Void, Never>?
+  private var revealDeadline: Task<Void, Never>?
+  private var revealLink: CADisplayLink?
+  private var rise: UIViewPropertyAnimator?
+
+  private static let keyboardThreshold: CGFloat = 120
+  private static let keyboardWait: Duration = .milliseconds(220)
+  private static let keyboardGrace: Duration = .milliseconds(50)
+  private static let contentDeadline: Duration = .milliseconds(250)
+  private static let settlePoll: Duration = .milliseconds(16)
+  private static let settleDeadline: Duration = .milliseconds(1500)
+  private static let stillReleaseSpeed: CGFloat = 1
+  private static let commandBarTuckedScale: CGFloat = 0.96
+
+  required init(appContext: AppContext? = nil) {
+    super.init(appContext: appContext)
+    backgroundColor = .clear
+    keyboardSentinel.isHidden = true
+    keyboardSentinel.isUserInteractionEnabled = false
+    addSubview(keyboardSentinel)
+    NotificationCenter.default.addObserver(self, selector: #selector(reduceMotionChanged), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    guard window != nil else {
+      keyboard?.stop()
+      keyboard = nil
+      tearDown()
+      return
+    }
+    guard keyboard == nil else { return }
+    let tracker = StageKeyboardTracker(minimumHeight: Self.keyboardThreshold) { [weak self] height in self?.keyboardWillMove(to: height) }
+    tracker.start()
+    keyboard = tracker
+  }
+
+  private func tearDown() {
+    landingTask?.cancel()
+    releaseTask?.cancel()
+    settleTask?.cancel()
+    stopWaitingForContent()
+    cancelPendingFlight()
+    dropMorph()
+    if let panel { emergence?.end(on: panel) }
+    emergence = nil
+    keyboardHeight = 0
+    isShown = false
+    isClosing = false
+    isDeparting = false
+    hasLanded = false
+    heldLift = nil
+    dragOffset = 0
+  }
+
+  @objc private func reduceMotionChanged() {
+    reduceMotion = UIAccessibility.isReduceMotionEnabled
+  }
+
+  private var panel: SearchStagePanelView? {
+    subviews.lazy.compactMap { $0 as? SearchStagePanelView }.first
+  }
+
+  override func didAddSubview(_ subview: UIView) {
+    super.didAddSubview(subview)
+    if let panel = subview as? SearchStagePanelView {
+      panel.onResize = { [weak self] in self?.place() }
+      place()
+    }
+    if subview !== keyboardSentinel, keyboardSentinel.superview === self { bringSubviewToFront(keyboardSentinel) }
+  }
+
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard isShown else { return nil }
+    if isClosing { return bounds.contains(point) ? self : nil }
+    let hit = super.hitTest(point, with: event)
+    return hit === self ? nil : hit
+  }
+
+  func propsDidUpdate() {
+    let turnedOn = shownProp && !appliedShown
+    let turnedOff = !shownProp && appliedShown
+    appliedShown = shownProp
+    if turnedOn {
+      present()
+    } else if turnedOff, isShown {
+      finish()
+    } else {
+      place()
+    }
+  }
+
+  private var keyboardUp: Bool { keyboardHeight > 0 }
+  private var trayHeight: CGFloat { panel?.bounds.height ?? 0 }
+  private var isCommandBar: Bool { commandTop != nil }
+  private var isUp: Bool { keyboardUp || (!isClosing && hasLanded) }
+  private var offscreenDrop: CGFloat { trayHeight + BrowseLayout.sheetTopRadius }
+  private var safeBottom: CGFloat { window?.safeAreaInsets.bottom ?? 0 }
+
+  private var liveLift: CGFloat {
+    let restsWithoutKeyboard = hasLanded && !keyboardUp && !isClosing
+    return restsWithoutKeyboard ? max(keyboardHeight, safeBottom) : keyboardHeight
+  }
+
+  private var card: CGRect {
+    CGRect(x: BrowseLayout.panelInset, y: 0, width: (panel?.bounds.width ?? 0) - 2 * BrowseLayout.panelInset, height: max(trayHeight - BrowseLayout.panelAboveKeyboard, 0))
+  }
+
+  private var trayOffset: CGFloat {
+    let departure = isDeparting ? -BrowseLayout.stageDepartLift : 0
+    guard !isCommandBar else { return dragOffset + departure }
+    if let emergence, !isUp, !isClosing {
+      return emergence.restingOffset(trayHeight: trayHeight, stageBottom: bounds.maxY) + dragOffset
+    }
+    let restingDrop = isUp || isDeparting || reduceMotion ? 0 : offscreenDrop
+    return -(heldLift ?? liveLift) + dragOffset + restingDrop + departure
+  }
+
+  private var trayAlpha: CGFloat {
+    if isDeparting || morph?.isShown == true { return 0 }
+    return isUp || (!reduceMotion && !isCommandBar) ? 1 : 0
+  }
+
+  var hasSettled: Bool {
+    guard !keyboardUp, pendingFlight == nil else { return false }
+    guard let morph else { return !isAnimating }
+    return !morph.isMoving
+  }
+
+  private var isAnimating: Bool {
+    [panel?.layer, keyboardSentinel.layer].contains { !(($0?.animationKeys()) ?? []).isEmpty }
+  }
+
+
+  func present() {
+    appliedShown = true
+    guard !isShown || isClosing else { return }
+    landingTask?.cancel()
+    releaseTask?.cancel()
+    settleTask?.cancel()
+    dropMorph()
+    endEmergence()
+    let anchor = resolveAnchor()
+    face = anchor.flatMap(renderFace(of:))
+    move(.immediate) { [self] in
+      isShown = true
+      isClosing = false
+      isDeparting = false
+      hasLanded = keyboardUp
+      dragOffset = 0
+      heldLift = nil
+      isHoldingLift = false
+      hasRevealed = false
+      revealsContents = true
+    }
+    if let anchor, !keyboardUp, !isCommandBar, !reduceMotion, let panel {
+      revealsContents = false
+      emergence = StageEmergence(pill: convert(anchor.frame, from: nil), fieldCenter: fieldCenter, face: face?.makeView(), on: panel)
+      place()
+    }
+    startWaitingForContent()
+    focusField()
+    guard !hasLanded else { return }
+    landingTask = Task { [weak self] in
+      try? await Task.sleep(for: Self.keyboardWait)
+      guard let self, !Task.isCancelled, isShown, !isClosing, !hasLanded else { return }
+      rise = move(.timing(reduceMotion ? Motion.stageReduced : Motion.riseCurve)) { [self] in self.hasLanded = true }
+    }
+  }
+
+  func holdLift() {
+    guard isShown, !isClosing else { return }
+    releaseTask?.cancel()
+    isHoldingLift = true
+    if heldLift == nil { heldLift = liveLift }
+  }
+
+  func releaseLift() {
+    isHoldingLift = false
+    guard heldLift != nil, !isClosing else { return }
+    move(.spring(Motion.smoothSpring, velocity: 0)) { [self] in heldLift = nil }
+  }
+
+  func close(_ exit: Exit, velocity: CGFloat) {
+    guard isShown, !isClosing else { return }
+    landingTask?.cancel()
+    releaseTask?.cancel()
+    foldDragIntoStage()
+    releaseVelocity = velocity
+    defer { releaseVelocity = 0 }
+    let shownSurface = emergence.flatMap { emergence in panel.map { emergence.shownSurface(of: $0, card: card, in: self) } }
+    endEmergence()
+    if exit == .morph, !reduceMotion, !isCommandBar {
+      beginMorph(from: shownSurface)
+    } else if exit == .depart, !reduceMotion {
+      heldLift = heldLift ?? liveLift
+      move(.timing(Motion.stageDepartCurve)) { [self] in
+        isClosing = true
+        isDeparting = true
+      }
+    } else if keyboardUp, heldLift == nil {
+      move(.immediate) { [self] in isClosing = true }
+    } else {
+      let travel = trayHeight + (heldLift ?? 0) + BrowseLayout.sheetTopRadius
+      let slidesOut = heldLift != nil && !reduceMotion
+      let distance = (slidesOut ? max(travel - dragOffset, 0) : 0) + (reduceMotion ? 0 : offscreenDrop)
+      let relative = Motion.relativeVelocity(releaseVelocity, over: distance)
+      move(reduceMotion ? .timing(Motion.stageReduced) : .spring(Motion.leaveSpring, velocity: relative)) { [self] in
+        isClosing = true
+        if slidesOut { dragOffset = max(dragOffset, travel) }
+      }
+    }
+    watchSettling()
+  }
+
+  func finish() {
+    landingTask?.cancel()
+    releaseTask?.cancel()
+    settleTask?.cancel()
+    stopWaitingForContent()
+    handOffMorph()
+    endEmergence()
+    move(.immediate) { [self] in
+      isShown = false
+      isClosing = false
+      isDeparting = false
+      hasLanded = false
+      dragOffset = 0
+      heldLift = nil
+      isHoldingLift = false
+    }
+  }
+
+  private func foldDragIntoStage() {
+    guard let content = panel?.content else { return }
+    let shown = (content.layer.presentation() ?? content.layer).affineTransform().ty
+    guard shown != 0 else { return }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    content.layer.removeAllAnimations()
+    content.layer.setAffineTransform(.identity)
+    dragOffset = max(dragOffset + shown, 0)
+    place()
+    CATransaction.commit()
+  }
+
+  private func watchSettling() {
+    settleTask?.cancel()
+    settleTask = Task { [weak self] in
+      guard let self else { return }
+      guard await StageSettlePoll.until(every: Self.settlePoll, within: Self.settleDeadline, { self.hasSettled }), isClosing else { return }
+      onSettled(["landed": morph?.hasDestination == true])
+    }
+  }
+
+  private func keyboardWillMove(to height: CGFloat) {
+    guard window != nil else { return }
+    keyboardHeight = height
+    if isShown, keyboardUp, !isClosing, !hasLanded {
+      landingTask?.cancel()
+      hasLanded = true
+    }
+    if let rise, rise.isRunning {
+      UIView.performWithoutAnimation { rise.stopAnimation(true) }
+    }
+    rise = nil
+    if !isHoldingLift, let held = heldLift, abs(liveLift - held) < 2 {
+      heldLift = nil
+    }
+    keyboardSentinel.center.y = height
+    place()
+    if let velocity = pendingFlight, !keyboardUp { flyMorph(velocity: velocity) }
+  }
+
+  private func beginMorph(from shownSurface: StageMorph.Start?) {
+    guard let panel else { return }
+    morph = StageMorph(card: card, fieldCenter: fieldCenter, of: panel, in: self, look: look, from: shownSurface)
+    move(.immediate) { [self] in
+      isClosing = true
+      if !keyboardUp { morph?.appear() }
+    }
+    pendingFlight = releaseVelocity
+    DispatchQueue.main.async { [weak self] in self?.launchMorph() }
+  }
+
+  private func launchMorph() {
+    guard let velocity = pendingFlight else { return }
+    guard keyboardUp else {
+      flyMorph(velocity: velocity)
+      return
+    }
+    pendingFallback?.cancel()
+    pendingFallback = Task { [weak self] in
+      try? await Task.sleep(for: Self.keyboardGrace)
+      guard let self, !Task.isCancelled, let velocity = pendingFlight else { return }
+      flyMorph(velocity: velocity)
+    }
+  }
+
+  private func flyMorph(velocity: CGFloat) {
+    cancelPendingFlight()
+    guard let morph else { return }
+    guard let anchor = resolveAnchor() else {
+      morph.vanish()
+      hidePanelUnderMorph()
+      return
+    }
+    let target = convert(anchor.frame, from: nil)
+    let carried = face.flatMap { $0.fits(anchor) ? $0 : nil }
+    if abs(velocity) < Self.stillReleaseSpeed, let clock = StageKeyboardClock(layer: keyboardSentinel.layer) {
+      morph.fly(to: target, style: anchor.style, carrying: carried, timing: clock.timing, duration: clock.duration)
+    } else {
+      let distance = target.midY - morph.view.frame.midY
+      let timing = Motion.smoothSpring.stageTimingParameters(initialVelocity: Motion.relativeVelocity(velocity, over: distance))
+      morph.fly(to: target, style: anchor.style, carrying: carried, timing: timing, duration: Motion.smoothSpring.settlingDuration)
+    }
+    hidePanelUnderMorph()
+  }
+
+  private func cancelPendingFlight() {
+    pendingFallback?.cancel()
+    pendingFallback = nil
+    pendingFlight = nil
+  }
+
+  private func hidePanelUnderMorph() {
+    UIView.performWithoutAnimation { panel?.alpha = 0 }
+  }
+
+  private func handOffMorph() {
+    cancelPendingFlight()
+    fadingMorph?.remove()
+    fadingMorph = morph
+    morph?.handOff()
+    morph = nil
+  }
+
+  private func dropMorph() {
+    cancelPendingFlight()
+    morph?.remove()
+    morph = nil
+    fadingMorph?.remove()
+    fadingMorph = nil
+  }
+
+  private func endEmergence() {
+    if let panel { emergence?.end(on: panel) }
+    emergence = nil
+    if !revealsContents { revealsContents = true }
+    revealIfReady()
+  }
+
+  private func startWaitingForContent() {
+    stopWaitingForContent()
+    revealDeadline = Task { [weak self] in
+      try? await Task.sleep(for: Self.contentDeadline)
+      guard let self, !Task.isCancelled, isShown, !hasRevealed else { return }
+      if !contentIsLaidOut, PhoneTestBuild.isOn { NSLog("ARDIA_SEARCH_STAGE content not laid out 250 ms after shown") }
+      reveal(late: !contentIsLaidOut || !revealsContents)
+    }
+    let link = CADisplayLink(target: self, selector: #selector(contentTick))
+    link.add(to: .main, forMode: .common)
+    revealLink = link
+  }
+
+  private func stopWaitingForContent() {
+    revealDeadline?.cancel()
+    revealDeadline = nil
+    revealLink?.invalidate()
+    revealLink = nil
+  }
+
+  @objc private func contentTick() {
+    revealIfReady()
+  }
+
+  private var contentIsLaidOut: Bool {
+    guard let content = panel?.content else { return false }
+    return content.bounds.width > 0 && content.bounds.height > 0
+  }
+
+  private func revealIfReady() {
+    guard isShown, !hasRevealed, revealsContents, contentIsLaidOut else { return }
+    reveal(late: false)
+  }
+
+  private func reveal(late: Bool) {
+    guard !hasRevealed else { return }
+    hasRevealed = true
+    stopWaitingForContent()
+    let base = CACurrentMediaTime()
+    emergence?.fadeFace(from: base)
+    onReveal(["late": late])
+    place()
+  }
+
+  private func revealContentsNextTurn() {
+    guard !revealsContents else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self, !self.revealsContents else { return }
+      self.revealsContents = true
+      self.revealIfReady()
+    }
+  }
+
+  private func focusField() {
+    guard let id = focusNativeId else { return }
+    let focus = { [weak self] in
+      guard let self, self.isShown, !self.isClosing, let field = Self.find(nativeId: id, in: self) as? CompletingFieldView else { return false }
+      field.focus()
+      return true
+    }
+    if focus() { return }
+    DispatchQueue.main.async { _ = focus() }
+  }
+
+  private func resolveAnchor() -> StageAnchor? {
+    guard let id = anchorNativeId, let root = window, let view = Self.find(nativeId: id, in: root), view.window != nil else { return nil }
+    let frame = view.convert(view.bounds, to: nil)
+    guard !frame.isEmpty else { return nil }
+    return StageAnchor(id: id, frame: frame, style: view.traitCollection.userInterfaceStyle)
+  }
+
+  private func renderFace(of anchor: StageAnchor) -> StageFace? {
+    guard let root = window, let view = Self.find(nativeId: faceNativeId ?? anchor.id, in: root), view.bounds.width > 0, view.bounds.height > 0 else { return nil }
+    let size = anchor.frame.size
+    let origin = view.convert(view.bounds, to: nil).origin
+    let format = UIGraphicsImageRendererFormat.preferred()
+    format.opaque = false
+    let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+      let at = CGRect(x: origin.x - anchor.frame.minX, y: origin.y - anchor.frame.minY, width: view.bounds.width, height: view.bounds.height)
+      view.drawHierarchy(in: at, afterScreenUpdates: false)
+    }
+    return StageFace(anchor: anchor, image: image)
+  }
+
+  static func find(nativeId: String, in view: UIView) -> UIView? {
+    let selector = NSSelectorFromString("nativeId")
+    if view.responds(to: selector), (view.value(forKey: "nativeId") as? String) == nativeId { return view }
+    for child in view.subviews {
+      if let found = find(nativeId: nativeId, in: child) { return found }
+    }
+    return nil
+  }
+
+  private enum Curve {
+    case immediate
+    case spring(Spring, velocity: CGFloat)
+    case timing(ArdiaDesign.MotionCurve)
+  }
+
+  @discardableResult
+  private func move(_ curve: Curve, _ changes: @escaping () -> Void) -> UIViewPropertyAnimator? {
+    switch curve {
+    case .immediate:
+      UIView.performWithoutAnimation {
+        changes()
+        place()
+      }
+      return nil
+    case .spring(let spring, let velocity):
+      UIView.animate(springDuration: spring.duration, bounce: spring.bounce, initialSpringVelocity: velocity, delay: 0, options: [.allowUserInteraction]) {
+        changes()
+        self.place()
+      }
+      return nil
+    case .timing(let timing):
+      let animator = timing.stageAnimator {
+        changes()
+        self.place()
+      }
+      animator.startAnimation()
+      return animator
+    }
+  }
+
+  private func place() {
+    guard window != nil, let panel, panel.window != nil else { return }
+    let lift = heldLift ?? liveLift
+    let scale: CGFloat = isCommandBar && !isUp && !reduceMotion ? Self.commandBarTuckedScale : 1
+    let height = panel.bounds.height
+    let pivot = isCommandBar ? -height / 2 : height / 2
+    panel.isHidden = !isShown
+    panel.transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: 0, ty: trayOffset + pivot * (1 - scale))
+    panel.alpha = trayAlpha
+    placeEmergence(on: panel)
+    let isUnrevealed = emergence != nil && !isUp
+    panel.takesTouches = isShown && !isClosing && !isUnrevealed
+    panel.accessibilityElementsHidden = isUnrevealed
+    accessibilityViewIsModal = isShown
+    let up = isShown && isUp
+    if reportedLift?.lift != lift || reportedLift?.up != up {
+      reportedLift = (lift, up)
+      onLift(["lift": lift, "up": up])
+    }
+  }
+
+  private func placeEmergence(on panel: UIView) {
+    guard let emergence else { return }
+    emergence.place(on: panel, in: self, card: card, isOpen: isUp)
+    guard isUp else { return }
+    emergence.whenSettled { [weak self] in self?.endEmergence() }
+    revealContentsNextTurn()
+  }
+}
+
+public final class SearchStageModule: Module {
+  public func definition() -> ModuleDefinition {
+    Name("ArdiaPhoneSearchStage")
+
+    View(SearchStageView.self) {
+      ViewName("SearchStage")
+      Events("onLift", "onReveal", "onSettled")
+      Prop("shown") { (view: SearchStageView, value: Bool?) in view.shownProp = value ?? false }
+      Prop("anchorNativeId") { (view: SearchStageView, value: String?) in view.anchorNativeId = value }
+      Prop("faceNativeId") { (view: SearchStageView, value: String?) in view.faceNativeId = value }
+      Prop("focusNativeId") { (view: SearchStageView, value: String?) in view.focusNativeId = value }
+      Prop("fieldCenter") { (view: SearchStageView, value: Double?) in
+        view.fieldCenter = value.map { CGFloat($0) } ?? BrowseLayout.stageFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight)
+      }
+      Prop("commandTop") { (view: SearchStageView, value: Double?) in view.commandTop = value.map { CGFloat($0) } }
+      Prop("morphUsesGlass") { (view: SearchStageView, value: Bool?) in view.look.usesGlass = value ?? true }
+      Prop("morphPanelTint") { (view: SearchStageView, value: UIColor?) in view.look.panelTint = value ?? .clear }
+      Prop("morphPanelDark") { (view: SearchStageView, value: Bool?) in view.look.panelStyle = value == true ? .dark : .unspecified }
+      Prop("morphClassicPanel") { (view: SearchStageView, value: UIColor?) in view.look.classicPanel = value ?? .secondarySystemBackground }
+      OnViewDidUpdateProps { (view: SearchStageView) in
+        MainActor.assumeIsolated { view.propsDidUpdate() }
+      }
+      AsyncFunction("present") { (view: SearchStageView) in
+        MainActor.assumeIsolated { view.present() }
+      }.runOnQueue(.main)
+      AsyncFunction("holdLift") { (view: SearchStageView) in
+        MainActor.assumeIsolated { view.holdLift() }
+      }.runOnQueue(.main)
+      AsyncFunction("releaseLift") { (view: SearchStageView) in
+        MainActor.assumeIsolated { view.releaseLift() }
+      }.runOnQueue(.main)
+      AsyncFunction("close") { (view: SearchStageView, exit: String, velocity: Double?) in
+        MainActor.assumeIsolated { view.close(SearchStageView.Exit(rawValue: exit) ?? .drop, velocity: CGFloat(velocity ?? 0)) }
+      }.runOnQueue(.main)
+      AsyncFunction("finish") { (view: SearchStageView) in
+        MainActor.assumeIsolated { view.finish() }
+      }.runOnQueue(.main)
+    }
+
+    View(SearchStagePanelView.self) {
+      ViewName("SearchStagePanel")
+    }
+  }
+}

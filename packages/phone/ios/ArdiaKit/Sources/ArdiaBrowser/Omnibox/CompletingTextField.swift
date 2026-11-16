@@ -22,6 +22,40 @@ open class CompletingTextField: UITextField {
     }
   }
 
+  private var still: UIView?
+
+  public func selectAllShowingStart() {
+    selectedTextRange = textRange(from: beginningOfDocument, to: endOfDocument)
+    UIView.performWithoutAnimation {
+      layoutIfNeeded()
+      for scroller in Self.scrollers(in: self) { scroller.setContentOffset(.zero, animated: false) }
+    }
+  }
+
+  public var holdsAppearance: Bool {
+    get { still != nil }
+    set {
+      guard newValue != holdsAppearance else { return }
+      if newValue, let snapshot = snapshotView(afterScreenUpdates: false) {
+        snapshot.frame = bounds
+        snapshot.isUserInteractionEnabled = false
+        addSubview(snapshot)
+        still = snapshot
+      } else {
+        still?.removeFromSuperview()
+        still = nil
+      }
+    }
+  }
+
+  private static func scrollers(in view: UIView) -> [UIScrollView] {
+    view.subviews.flatMap { child -> [UIScrollView] in
+      let nested = scrollers(in: child)
+      guard let scroller = child as? UIScrollView else { return nested }
+      return [scroller] + nested
+    }
+  }
+
   override open func textRect(forBounds bounds: CGRect) -> CGRect {
     super.textRect(forBounds: bounds).insetBy(dx: Self.horizontalInset, dy: 0)
   }
@@ -183,7 +217,7 @@ public final class CompletingFieldEditing: NSObject, UITextFieldDelegate {
     onFocusChange(true)
     if selectsAllOnFocus, !didSelectAllOnFocus, !(textField.text ?? "").isEmpty {
       didSelectAllOnFocus = true
-      DispatchQueue.main.async { textField.selectAll(nil) }
+      DispatchQueue.main.async { (textField as? CompletingTextField)?.selectAllShowingStart() ?? textField.selectAll(nil) }
     }
   }
 
