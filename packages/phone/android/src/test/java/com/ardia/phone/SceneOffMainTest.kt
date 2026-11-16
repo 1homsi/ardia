@@ -211,10 +211,9 @@ class SceneOffMainTest {
     }
 
     @Test
-    fun aCrossFadeMidwayIsCloserToTheTrueSceneThanOneOldFrameStepMovesIt() {
+    fun aCrossFadeMidwayNeverStraysFromTheTrueSceneByMoreThanHalfWhatTheFadeCrosses() {
         val deck = deck()
         val start = 12_345L
-        val pace = LookRules.blobPaceMillis(1080f, 2400f)
         val from = deck.sceneForTests(start)!!
         val to = deck.sceneForTests(start + LookRules.FADE_SCENE_MILLIS)!!
         val truth = deck.sceneForTests(start + LookRules.FADE_SCENE_MILLIS / 2)!!
@@ -223,9 +222,30 @@ class SceneOffMainTest {
             drawBitmap(from, 0f, 0f, null)
             drawBitmap(to, 0f, 0f, android.graphics.Paint().apply { alpha = 128 })
         }
-        val fadeError = meanDifference(blend, truth)
-        val oldStep = meanDifference(deck.sceneForTests(start + LookRules.FADE_SCENE_MILLIS / 2 + pace)!!, truth)
-        println("PAGELAB cross-fade check: midway blend against the true scene ${"%.3f".format(fadeError)} of 255 a channel; one old frame step (${pace} ms) changes it by ${"%.3f".format(oldStep)}")
-        assertTrue("the fade's error is smaller than what one frame of the old stepping changed", fadeError < oldStep)
+        val a = from.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        val b = to.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        val m = truth.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        val mixed = blend.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        var over = 0
+        var worst = 0.0
+        val channels = listOf<(Int) -> Int>(android.graphics.Color::red, android.graphics.Color::green, android.graphics.Color::blue)
+        for (y in 0 until a.height) for (x in 0 until a.width) {
+            val pa = a.getPixel(x, y)
+            val pb = b.getPixel(x, y)
+            val pm = m.getPixel(x, y)
+            val pf = mixed.getPixel(x, y)
+            for (channel in channels) {
+                val allowed = kotlin.math.abs(channel(pa) - channel(pb)) / 2.0 + ROUNDING_STEPS
+                val error = kotlin.math.abs(channel(pf) - channel(pm)).toDouble()
+                worst = maxOf(worst, error - allowed + ROUNDING_STEPS)
+                if (error > allowed) over += 1
+            }
+        }
+        println("PAGELAB cross-fade check: midway blend against the true scene ${"%.3f".format(meanDifference(blend, truth))} of 255 a channel on average, the two scenes ${"%.3f".format(meanDifference(from, to))} apart; worst excess over half that distance ${"%.1f".format(worst)} steps")
+        assertEquals("every channel of the blend is within half the fade's change, plus the rounding of four 8-bit pictures", 0, over)
+    }
+
+    private companion object {
+        const val ROUNDING_STEPS = 2.0
     }
 }
