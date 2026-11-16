@@ -33,9 +33,10 @@ test("a floating video closing is counted by who closed it and whether it was au
   setPictureInPictureState("d", { kind: "video", active: false, closedBy: "app", auto: false });
   setPictureInPictureState("e", { kind: "video", active: false });
   setPictureInPictureState("f", { kind: "video", active: true, closedBy: "app", auto: true });
+  setPictureInPictureState("g", { kind: "document", active: false, closedBy: "chrome", auto: true });
   usage.sessionEnding();
   assert.deepEqual(await sentUsageCounts(), [
-    { pip_closed_auto_by_app: 1, pip_closed_auto_by_chrome: 2, pip_closed_manual_by_app: 1, pip_closed_manual_by_chrome: 0 },
+    { pip_closed_auto_by_app: 1, pip_closed_auto_by_chrome: 3, pip_closed_manual_by_app: 1, pip_closed_manual_by_chrome: 0 },
   ]);
 
   usage.sessionEnding();

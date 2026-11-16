@@ -229,23 +229,23 @@ BOOL TracingPictureInPicture() {
 }
 
 - (void)tab:(ArdiaCoreTab *)tab didChangePictureInPicture:(NSDictionary<NSString *, id> *)state {
+  const BOOL active = [state[@"active"] boolValue];
+  NSMutableDictionary *payload = [@{@"kind" : [state[@"kind"] isEqual:@"document"] ? @"document" : @"video", @"active" : @(active)} mutableCopy];
+  if (!active && state[@"closedBy"]) {
+    payload[@"closedBy"] = state[@"closedBy"];
+    payload[@"auto"] = @([state[@"auto"] boolValue]);
+  }
   if (![state[@"kind"] isEqual:@"document"]) {
-    const BOOL active = [state[@"active"] boolValue];
     if (!active && !_reports.inPictureInPicture) return;
     _reports.inPictureInPicture = active;
-    NSMutableDictionary *payload = [@{@"kind" : @"video", @"active" : @(active)} mutableCopy];
-    if (!active && state[@"closedBy"]) {
-      payload[@"closedBy"] = state[@"closedBy"];
-      payload[@"auto"] = @([state[@"auto"] boolValue]);
-    }
     [self emit:@"pictureInPicture" payload:payload];
     if (!active) return;
     ardia_pip::WatchZoom();
     ardia_pip::VideoEntered(self, [NSURL URLWithString:tab.url ?: @""].host ?: @"");
     return;
   }
-  _reports.inPictureInPicture = [state[@"active"] boolValue];
-  [self emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @([state[@"active"] boolValue])}];
+  _reports.inPictureInPicture = active;
+  [self emit:@"pictureInPicture" payload:payload];
   if (_reports.inPictureInPicture) ardia_pip::DocumentEntered(self);
 }
 

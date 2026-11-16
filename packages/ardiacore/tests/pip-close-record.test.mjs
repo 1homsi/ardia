@@ -88,7 +88,9 @@ test("the close reaches the page as closedBy and auto, and the record reaches Co
   const change = body(pipNative, "- (void)tab:(ArdiaCoreTab *)tab didChangePictureInPicture:");
   assert.match(change, /payload\[@"closedBy"\] = state\[@"closedBy"\]/);
   assert.match(change, /payload\[@"auto"\]/);
-  assert.match(hostBridge, /@"pictureInPictureCloses" : engine\.pictureInPictureCloses/);
+  assert.ok(change.indexOf('payload[@"closedBy"]') < change.indexOf("[self emit:"), "the close fields are on the payload before either kind emits it");
+  assert.equal((change.match(/\[self emit:@"pictureInPicture" payload:payload\]/g) ?? []).length, 2, "video and document closes both emit the payload with the close fields");
+  assert.match(hostBridge, /@"pictureInPictureCloses" : \[engine respondsToSelector:@selector\(pictureInPictureCloses\)\] \? \(engine\.pictureInPictureCloses/);
   assert.match(engine("ardiacore_engine.mm"), /- \(NSString\*\)pictureInPictureCloses \{\s*return NS\(PictureInPictureCloseRecord\(\)\);/);
   assert.match(engine("public/ArdiaCore.h"), /@property\(readonly\) NSString\* pictureInPictureCloses;/);
 });
