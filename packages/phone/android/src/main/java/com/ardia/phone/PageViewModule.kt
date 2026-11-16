@@ -181,6 +181,12 @@ class PageViewModule : Module() {
 
         AsyncFunction("download") { pageId: String, url: String -> PhonePages.require(pageId).download(url) }.runOnQueue(Queues.MAIN)
 
+        AsyncFunction("print") { pageId: String ->
+            val activity = PhonePages.hostActivity() ?: return@AsyncFunction false
+            val page = PhonePages.page(pageId) ?: throw CodedException("ERR_NO_PAGE", "No page is open with id $pageId", null)
+            PagePrinting.print(activity, page).also { shown -> if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB print ${if (shown) "sheet shown" else "refused"} for page $pageId") }
+        }.runOnQueue(Queues.MAIN)
+
         AsyncFunction("readableContent") Coroutine { pageId: String ->
             withContext(Dispatchers.Main) {
                 val page = PhonePages.require(pageId)
