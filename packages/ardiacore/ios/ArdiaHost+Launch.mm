@@ -255,7 +255,12 @@ static void TryEarlyWindow() {
   ArdiaCoreProfile *loaded = ardia_host::LoadedProfile(profile);
   if (!loaded) return;
   [loaded warmSpareRenderer];
-  const BOOL shown = [ArdiaEarlyWindow showWindow:focused frame:window[@"frame"] key:key profile:profile backdrop:backdrop];
+  const BOOL shown = [ArdiaEarlyWindow showWindow:focused
+                                        frame:window[@"frame"]
+                                      display:[window[@"display"] isKindOfClass:NSString.class] ? window[@"display"] : nil
+                                          key:key
+                                      profile:profile
+                                     backdrop:backdrop];
   if (shown) launch.earlyWindowShownAt = NSDate.date.timeIntervalSince1970 * 1000;
   [ArdiaWebView startLaunchTab:key url:url profile:profile];
   if (!shown) return;
