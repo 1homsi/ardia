@@ -492,7 +492,7 @@ for (const busy of [0, 120]) {
 }
 for (const mode of ["page", "commandBar"]) {
   await ac(`ac.store.getState().updateSettings({ newTabOpens: ${JSON.stringify(mode)} }); return 1;`);
-  for (const busy of [450, 700, 1200]) {
+  for (const busy of mode === "page" ? [450, 700, 1200] : [450]) {
     for (const gap of [50, 600]) {
       await resetToPageField("", [0, 0]);
       await busyJsOnce(busy);

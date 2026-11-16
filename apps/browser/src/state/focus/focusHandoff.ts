@@ -1,4 +1,4 @@
-import { ackFocusMove, cancelFocusMove } from "../../platform/focus";
+import { cancelFocusMove } from "../../platform/focus";
 import type { CommandEvent } from "../../platform/commands";
 import { useBrowser } from "../browser/store";
 import { resolveWindowId } from "../browser/model";
@@ -20,7 +20,6 @@ export function settlingCommandFocus(e: CommandEvent, run: (e: CommandEvent) => 
     cancelFocusMove(generation, false);
     return run(e);
   }
-  ackFocusMove(generation);
   const before = activeTab(windowId);
   let expects = false;
   try {

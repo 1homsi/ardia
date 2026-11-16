@@ -559,9 +559,9 @@ test("raiseView lifts a dragged chip and its parents above their siblings and pu
   await raise(null, 0, true);
 });
 
-test("window close animations, the drag preview, focus acknowledgement and cancellation and haptics settle immediately, and unavailable features reject explicitly", async () => {
+test("window close animations, the drag preview, focus cancellation and haptics settle immediately, and unavailable features reject explicitly", async () => {
   const host = linuxHost();
-  for (const name of ["animateWindowClose", "dragPreviewBegin", "dragPreviewPage", "dragPreviewUpdate", "dragPreviewPlaceholder", "dragPreviewEnd", "dragPreviewCancel", "ackFocusMove", "cancelFocusMove", "replyToTerminate"]) {
+  for (const name of ["animateWindowClose", "dragPreviewBegin", "dragPreviewPage", "dragPreviewUpdate", "dragPreviewPlaceholder", "dragPreviewEnd", "dragPreviewCancel", "cancelFocusMove", "replyToTerminate"]) {
     assert.equal(await resolveHostModule(host, "ArdiaShell", name)(), undefined, name);
   }
   assert.equal(resolveHostModule(host, "ArdiaShell", "switcherPointerMoved")(), false);

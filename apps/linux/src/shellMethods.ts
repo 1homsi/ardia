@@ -108,7 +108,6 @@ const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
   saveKeyResponder,
   restoreKeyResponder,
   discardKeyResponder,
-  ackFocusMove: resolved,
   cancelFocusMove: resolved,
   switcherPointerMoved: () => false,
   pressesWithoutRelease: () => 0,

@@ -43,7 +43,6 @@ final class FocusHandoff {
   }
 
   private static let pickupLimit: CFTimeInterval = 3
-  private static let settleLimit: CFTimeInterval = 2
   private static let capacity = 64
   private var gates: [ObjectIdentifier: Gate] = [:]
   private var generations = 0
@@ -68,7 +67,7 @@ final class FocusHandoff {
     guard existing != nil || Self.isPage(focused) else { return nil }
     if Self.isPage(focused), let input = focused as? NSTextInputClient, input.hasMarkedText() { return nil }
     let gate = existing ?? open(in: window)
-    if existing != nil { extendDeadline(of: gate, after: Self.pickupLimit) }
+    if existing != nil { setDeadline(of: gate, after: Self.pickupLimit) }
     if let page = focused as? NSView, Self.isPage(page) {
       ArdiaWebView.keepOutgoingFocus(from: page)
       gate.resigned = page
@@ -76,7 +75,7 @@ final class FocusHandoff {
     }
     generations += 1
     drop(in: gate) { _ in true }
-    gate.generations.append(Generation(generations))
+    gate.generations = [Generation(generations)]
     begun = generations
     note("begin \(generations)")
     return generations
@@ -134,13 +133,12 @@ final class FocusHandoff {
     guard let gate = gate(of: id), live(gate), let newest = gate.generations.last, newest.id == id else { return }
     newest.destination = destination
     newest.claimed = true
+    if let window = gate.window, Self.unfocused(window), let page = gate.resigned, page.window === window, page.isDescendant(of: destination),
+      !page.isHiddenOrHasHiddenAncestor
+    {
+      window.makeFirstResponder(page)
+    }
     deliverIfReady(gate)
-  }
-
-  func ack(_ id: Int) {
-    note("ack \(id)")
-    guard let gate = gate(of: id), live(gate), let newest = gate.generations.last, newest.id == id else { return }
-    setDeadline(of: gate, after: Self.settleLimit)
   }
 
   func cancel(_ id: Int, restoringSource: Bool) {
@@ -252,11 +250,6 @@ final class FocusHandoff {
     }
     gate.timer = timer
     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: timer)
-  }
-
-  private func extendDeadline(of gate: Gate, after delay: CFTimeInterval) {
-    guard CACurrentMediaTime() + delay > gate.deadline else { return }
-    setDeadline(of: gate, after: delay)
   }
 
   private func liveGate(in window: NSWindow) -> Gate? {

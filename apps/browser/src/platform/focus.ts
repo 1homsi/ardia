@@ -3,7 +3,6 @@ import { nativeModule } from "@ardia/shell";
 const Focus = nativeModule("ArdiaFocus");
 
 export const setSwitcherCapture = (active: boolean) => Focus.setSwitcherCapture(active);
-export const ackFocusMove = (generation: number) => void Focus.ackFocusMove(generation);
 const escapeOwners = new Set<string>();
 
 export function captureEscape(owner: string, active: boolean) {
