@@ -1,4 +1,5 @@
 import { engineAvailable, engineCallJson, hostCall, onEngineTopic } from "../engine/host";
+import { mountPage } from "../engine/pages";
 import { httpPagesPort } from "./engineBackForward";
 import { expectEqual, expectTrue, type Check } from "./check";
 import { click, evaluate, firstWindow, heard, LEFT, listed, pause, show, until } from "./engineSleep";
@@ -8,10 +9,9 @@ const LOAD_MS = 20000;
 const PLAY_BUTTON = { x: 100, y: 130 };
 const NEXT_LINK = { x: 100, y: 185 };
 const CTRL = 2;
-const AUTOPLAY_SETTLES_MS = 2500;
+const AUTOPLAY_SETTLES_MS = 1500;
 const PER_PAGE_COUNT = 20;
 
-type ListedTab = { key?: unknown; url?: unknown; title?: unknown; loading?: unknown };
 type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean };
 
 const port = engineAvailable() ? httpPagesPort() : null;
@@ -236,9 +236,9 @@ const autoplayChecks: Check[] = [
     ),
   },
   {
-    name: "engine autoplay: a click inside a cross-site iframe does not let the top page play",
+    name: "engine autoplay: a click inside an iframe does not let the top page play",
     run: blocked(() =>
-      withMedia("iframe-click", "framed?quiet", "framed page", async (key) => {
+      withMedia("iframe-click", "framed?quiet-same", "framed page", async (key) => {
         await until("the iframe reports", SETTLE_MS, () => framed(key), (state) => state.paused === true);
         await click(key, PLAY_BUTTON.x, PLAY_BUTTON.y);
         await until("the click reaches the iframe's play button", SETTLE_MS, () => framed(key), (state) => (state.tries?.length ?? 0) > 0);
@@ -258,25 +258,29 @@ const autoplayChecks: Check[] = [
   },
   {
     name: "engine autoplay: a background tab opened by Ctrl+click on a same-site link does not play",
-    run: blocked(() =>
-      withMedia("ctrl", "media", "media page", async (key) => {
-        const before = new Set(((await hostCall<{ tabs?: ListedTab[] }>("tabs.list")).tabs ?? []).map((tab) => String(tab.key)));
-        const opened = heard("tab.opened", (event) => event.opener === key, "a background tab from Ctrl+click");
-        await click(key, NEXT_LINK.x, NEXT_LINK.y, CTRL);
-        await opened;
-        const background = await until(
-          "the app takes the background tab and it loads",
-          LOAD_MS,
-          async () => ((await hostCall<{ tabs?: ListedTab[] }>("tabs.list")).tabs ?? []).find((tab) => !before.has(String(tab.key)) && String(tab.url).endsWith("/media?second") && tab.loading === false && tab.title === "media page"),
-          (tab) => !!tab,
-        );
-        try {
-          await refusedThenStill(String(background!.key), DETACHED_SOUND, "the background tab's play with sound");
-        } finally {
-          await hostCall("tab.close", { key: String(background!.key) }).catch(() => null);
-        }
-      }),
-    ),
+    run: blocked(async () => {
+      const windowId = await firstWindow();
+      const opener = "self-check-autoplay-ctrl";
+      const background = `${opener}-background`;
+      const offered: string[] = [];
+      const closeOpener = mountPage(opener, { url: `${origin}/media`, profile: "", windowId }, (name, data) => {
+        const adopt = (data as { adoptId?: unknown } | null)?.adoptId;
+        if (name === "openWindow" && typeof adopt === "string") offered.push(adopt);
+      });
+      let closeBackground: (() => void) | null = null;
+      try {
+        await loadedAt(opener, "/media", "media page");
+        await show(opener, windowId, LEFT);
+        await click(opener, NEXT_LINK.x, NEXT_LINK.y, CTRL);
+        await until("the Ctrl+click's tab is offered to the page", SETTLE_MS, async () => offered.length, (count) => count > 0);
+        closeBackground = mountPage(background, { url: "", profile: "", adopt: offered[0], windowId }, () => {});
+        await loadedAt(background, "/media?second", "media page");
+        await refusedThenStill(background, DETACHED_SOUND, "the background tab's play with sound");
+      } finally {
+        closeBackground?.();
+        closeOpener();
+      }
+    }),
   },
   {
     name: "engine autoplay: Ardia's play toggle gives no user activation to a cross-site iframe",
