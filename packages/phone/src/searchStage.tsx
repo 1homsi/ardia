@@ -21,6 +21,8 @@ export type SearchStageProps = ViewProps & {
   anchorNativeId?: string | null;
   faceNativeId?: string | null;
   focusNativeId?: string | null;
+  revealNativeId?: string | null;
+  rowsRevealNativeId?: string | null;
   fieldCenter?: number;
   commandTop?: number | null;
   morphLook?: SearchStageMorphLook;
@@ -32,11 +34,13 @@ export type SearchStageProps = ViewProps & {
 
 type NativeHandle = { present(): Promise<void>; holdLift(): Promise<void>; releaseLift(): Promise<void>; close(exit: string, velocity: number): Promise<void>; finish(): Promise<void> };
 
-type NativeProps = Omit<SearchStageProps, "onLift" | "onReveal" | "onSettled" | "morphLook" | "anchorNativeId" | "faceNativeId" | "focusNativeId" | "commandTop"> & {
+type NativeProps = Omit<SearchStageProps, "onLift" | "onReveal" | "onSettled" | "morphLook" | "anchorNativeId" | "faceNativeId" | "focusNativeId" | "revealNativeId" | "rowsRevealNativeId" | "commandTop"> & {
   ref?: Ref<NativeHandle>;
   anchorNativeId?: string;
   faceNativeId?: string;
   focusNativeId?: string;
+  revealNativeId?: string;
+  rowsRevealNativeId?: string;
   commandTop?: number;
   morphUsesGlass?: boolean;
   morphPanelTint?: ColorValue;
@@ -71,7 +75,7 @@ export const SearchStage = forwardRef<SearchStageHandle, SearchStageProps>(funct
     }),
     [],
   );
-  const { onLift, onReveal, onSettled, morphLook, anchorNativeId, faceNativeId, focusNativeId, commandTop, ...rest } = props;
+  const { onLift, onReveal, onSettled, morphLook, anchorNativeId, faceNativeId, focusNativeId, revealNativeId, rowsRevealNativeId, commandTop, ...rest } = props;
   if (!hasNative) return createElement(View, { ...rest, pointerEvents: props.shown ? "box-none" : "none" });
   return createElement(stage(), {
     ...rest,
@@ -79,6 +83,8 @@ export const SearchStage = forwardRef<SearchStageHandle, SearchStageProps>(funct
     anchorNativeId: anchorNativeId ?? undefined,
     faceNativeId: faceNativeId ?? undefined,
     focusNativeId: focusNativeId ?? undefined,
+    revealNativeId: revealNativeId ?? undefined,
+    rowsRevealNativeId: rowsRevealNativeId ?? undefined,
     commandTop: commandTop ?? undefined,
     morphUsesGlass: morphLook?.usesGlass,
     morphPanelTint: morphLook?.panelTint,

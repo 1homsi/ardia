@@ -26,6 +26,69 @@ struct StageFace {
   }
 }
 
+extension SearchStageView {
+  func resolveAnchor() -> StageAnchor? {
+    guard let id = anchorNativeId, let root = window, let view = Self.find(nativeId: id, in: root), view.window != nil else { return nil }
+    let frame = view.convert(view.bounds, to: nil)
+    guard !frame.isEmpty else { return nil }
+    return StageAnchor(id: id, frame: frame, style: view.traitCollection.userInterfaceStyle)
+  }
+
+  func renderFace(of anchor: StageAnchor) -> StageFace? {
+    guard let root = window, let view = Self.find(nativeId: faceNativeId ?? anchor.id, in: root), view.bounds.width > 0, view.bounds.height > 0 else { return nil }
+    let size = anchor.frame.size
+    let origin = view.convert(view.bounds, to: nil).origin
+    let format = UIGraphicsImageRendererFormat.preferred()
+    format.opaque = false
+    let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+      let at = CGRect(x: origin.x - anchor.frame.minX, y: origin.y - anchor.frame.minY, width: view.bounds.width, height: view.bounds.height)
+      UIGraphicsGetCurrentContext().map { context in
+        context.translateBy(x: at.minX, y: at.minY)
+        view.layer.render(in: context)
+      }
+    }
+    return StageFace(anchor: anchor, image: image)
+  }
+
+  func focusField() {
+    guard let id = focusNativeId else { return }
+    let focus = { [weak self] in
+      guard let self, self.isPresentedAndOpen, let field = Self.find(nativeId: id, in: self) as? CompletingFieldView else { return false }
+      field.focus()
+      return true
+    }
+    if focus() { return }
+    DispatchQueue.main.async { _ = focus() }
+  }
+
+  func holdReveals() {
+    for id in [revealNativeId, rowsRevealNativeId].compactMap({ $0 }) {
+      guard let view = Self.find(nativeId: id, in: self) else { continue }
+      UIView.performWithoutAnimation {
+        view.layer.removeAllAnimations()
+        view.layer.opacity = 0
+      }
+    }
+  }
+
+  func fadeInReveals(from base: CFTimeInterval) {
+    let fades: [(String?, CFTimeInterval)] = [(revealNativeId, Motion.stageRevealFieldDelay), (rowsRevealNativeId, Motion.stageRevealRowsDelay)]
+    for (id, delay) in fades {
+      guard let id, let view = Self.find(nativeId: id, in: self) else { continue }
+      view.restartStageOpacityFade(to: 1, after: reduceMotionNow ? 0 : delay, from: base, curve: Motion.stageRevealCurve)
+    }
+  }
+
+  static func find(nativeId: String, in view: UIView) -> UIView? {
+    let selector = NSSelectorFromString("nativeId")
+    if view.responds(to: selector), (view.value(forKey: "nativeId") as? String) == nativeId { return view }
+    for child in view.subviews {
+      if let found = find(nativeId: nativeId, in: child) { return found }
+    }
+    return nil
+  }
+}
+
 struct StageMorphLook {
   var usesGlass = true
   var panelTint: UIColor = .clear

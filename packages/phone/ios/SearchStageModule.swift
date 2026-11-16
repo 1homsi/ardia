@@ -41,6 +41,10 @@ final class SearchStageView: ExpoView {
   var anchorNativeId: String?
   var faceNativeId: String?
   var focusNativeId: String?
+  var revealNativeId: String?
+  var rowsRevealNativeId: String?
+  var reduceMotionNow: Bool { reduceMotion }
+  var isPresentedAndOpen: Bool { isShown && !isClosing }
   var fieldCenter = BrowseLayout.stageFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight)
   var commandTop: CGFloat?
   var look = StageMorphLook()
@@ -206,7 +210,6 @@ final class SearchStageView: ExpoView {
     [panel?.layer, keyboardSentinel.layer].contains { !(($0?.animationKeys()) ?? []).isEmpty }
   }
 
-
   func present() {
     appliedShown = true
     guard !isShown || isClosing else { return }
@@ -233,6 +236,7 @@ final class SearchStageView: ExpoView {
       emergence = StageEmergence(pill: convert(anchor.frame, from: nil), fieldCenter: fieldCenter, face: face?.makeView(), on: panel)
       place()
     }
+    holdReveals()
     startWaitingForContent()
     focusField()
     guard !hasLanded else { return }
@@ -465,6 +469,7 @@ final class SearchStageView: ExpoView {
     stopWaitingForContent()
     let base = CACurrentMediaTime()
     emergence?.fadeFace(from: base)
+    fadeInReveals(from: base)
     onReveal(["late": late])
     place()
   }
@@ -476,46 +481,6 @@ final class SearchStageView: ExpoView {
       self.revealsContents = true
       self.revealIfReady()
     }
-  }
-
-  private func focusField() {
-    guard let id = focusNativeId else { return }
-    let focus = { [weak self] in
-      guard let self, self.isShown, !self.isClosing, let field = Self.find(nativeId: id, in: self) as? CompletingFieldView else { return false }
-      field.focus()
-      return true
-    }
-    if focus() { return }
-    DispatchQueue.main.async { _ = focus() }
-  }
-
-  private func resolveAnchor() -> StageAnchor? {
-    guard let id = anchorNativeId, let root = window, let view = Self.find(nativeId: id, in: root), view.window != nil else { return nil }
-    let frame = view.convert(view.bounds, to: nil)
-    guard !frame.isEmpty else { return nil }
-    return StageAnchor(id: id, frame: frame, style: view.traitCollection.userInterfaceStyle)
-  }
-
-  private func renderFace(of anchor: StageAnchor) -> StageFace? {
-    guard let root = window, let view = Self.find(nativeId: faceNativeId ?? anchor.id, in: root), view.bounds.width > 0, view.bounds.height > 0 else { return nil }
-    let size = anchor.frame.size
-    let origin = view.convert(view.bounds, to: nil).origin
-    let format = UIGraphicsImageRendererFormat.preferred()
-    format.opaque = false
-    let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
-      let at = CGRect(x: origin.x - anchor.frame.minX, y: origin.y - anchor.frame.minY, width: view.bounds.width, height: view.bounds.height)
-      view.drawHierarchy(in: at, afterScreenUpdates: false)
-    }
-    return StageFace(anchor: anchor, image: image)
-  }
-
-  static func find(nativeId: String, in view: UIView) -> UIView? {
-    let selector = NSSelectorFromString("nativeId")
-    if view.responds(to: selector), (view.value(forKey: "nativeId") as? String) == nativeId { return view }
-    for child in view.subviews {
-      if let found = find(nativeId: nativeId, in: child) { return found }
-    }
-    return nil
   }
 
   private enum Curve {
@@ -590,6 +555,8 @@ public final class SearchStageModule: Module {
       Prop("anchorNativeId") { (view: SearchStageView, value: String?) in view.anchorNativeId = value }
       Prop("faceNativeId") { (view: SearchStageView, value: String?) in view.faceNativeId = value }
       Prop("focusNativeId") { (view: SearchStageView, value: String?) in view.focusNativeId = value }
+      Prop("revealNativeId") { (view: SearchStageView, value: String?) in view.revealNativeId = value }
+      Prop("rowsRevealNativeId") { (view: SearchStageView, value: String?) in view.rowsRevealNativeId = value }
       Prop("fieldCenter") { (view: SearchStageView, value: Double?) in
         view.fieldCenter = value.map { CGFloat($0) } ?? BrowseLayout.stageFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight)
       }
