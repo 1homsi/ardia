@@ -53,6 +53,9 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
   const touch = useSharedValue({ x: 0, y: 0, inList: false });
   const listTop = useSharedValue(0);
   const listPulls = useSharedValue(false);
+  useEffect(() => {
+    height.value = Math.max(1, window.height - top);
+  }, [window.height, top]);
 
   useEffect(() => {
     const step = presenceTarget(presence.current, sheet);
@@ -148,7 +151,7 @@ export function FullSheet<T extends string>({ sheet, progress, onDismiss, childr
           onLayout={(event) => {
             height.value = Math.max(1, event.nativeEvent.layout.height);
           }}
-          style={[styles.sheet, { top, borderBottomLeftRadius: bottomCorner, borderBottomRightRadius: bottomCorner }, slide]}
+          style={[styles.sheet, { top, left: insets.left, right: insets.right, borderBottomLeftRadius: bottomCorner, borderBottomRightRadius: bottomCorner }, slide]}
         >
           <SheetFrameContext.Provider value={frame}>{children(shown)}</SheetFrameContext.Provider>
         </Animated.View>

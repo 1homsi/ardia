@@ -117,9 +117,7 @@ export function Sheet({ open, onDismiss, onHidden, fill, children }: Props) {
       { translateY: (1 - shown.value) * sheetHeight.value + drag.value },
     ],
   }));
-  const [settled] = useState(() =>
-    Math.max(height - insets.top - menuLayout.sheetTopGap, 0),
-  );
+  const settled = Math.max(height - insets.top - menuLayout.sheetTopGap, 0);
   return (
     <View
       style={StyleSheet.absoluteFill}
@@ -145,6 +143,8 @@ export function Sheet({ open, onDismiss, onHidden, fill, children }: Props) {
             styles.sheet,
             {
               maxHeight: settled,
+              left: insets.left,
+              right: insets.right,
               paddingBottom: insets.bottom,
               shadowColor: theme.trayShadow,
             },

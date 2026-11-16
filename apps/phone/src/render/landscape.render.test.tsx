@@ -134,3 +134,31 @@ test("a Duo layout is counted once a launch, and the phone layout never counts",
   expect(counted.mock.calls).toEqual([["duo_layout_shown"]]);
   forgetLandscapeCount();
 });
+
+test("in landscape a sheet stops at the side insets and fits the shorter window, and a sheet opened upright refits after a turn, so its top rows stay on screen", () => {
+  const { Sheet } = require("../components/ui") as typeof import("../components/ui");
+  const panel = (root: Root) => root.root.findAll((node) => node.props.accessibilityViewIsModal === true && typeof node.type === "string")[0]!;
+  Dimensions.set({ window: { ...PORTRAIT, width: 393, height: 852 }, screen: { ...PORTRAIT, width: 393, height: 852 } });
+  const upright = { top: 47, bottom: 34, left: 0, right: 0 };
+  const insets = jest.spyOn(safeArea, "useSafeAreaInsets").mockImplementation(() => upright);
+  const root = renderSurface(<Sheet open onDismiss={() => undefined} onHidden={() => undefined}>{null}</Sheet>);
+  const before = flat(panel(root));
+  expect(before).toMatchObject({ left: 0, right: 0 });
+  insets.mockImplementation(() => INSETS);
+  act(() => Dimensions.set({ window: { ...PORTRAIT, ...LANDSCAPE }, screen: { ...PORTRAIT, ...LANDSCAPE } }));
+  const after = flat(panel(root));
+  expect(after).toMatchObject({ left: 59, right: 59, paddingBottom: 21 });
+  expect(after.maxHeight).toBe(LANDSCAPE.height - INSETS.top - (Platform.OS === "ios" ? 0 : 24));
+  expect(after.maxHeight as number).toBeLessThan(before.maxHeight as number);
+  unmount(root);
+});
+
+test("in landscape the original design's deck bar pads by the wider side inset, so Android's Settings button clears a side navigation bar", () => {
+  act(() => browse.useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null, leaving: null }));
+  const root = renderSurface(<DesignProvider design="original"><TabDeck /></DesignProvider>);
+  const settings = root.root.findAll((node) => node.props.accessibilityLabel === "Settings" && typeof node.props.onPress === "function")[0]!;
+  let bar: ReactTestInstance | null = settings.parent;
+  while (bar && (typeof bar.type !== "string" || flat(bar).paddingHorizontal === undefined)) bar = bar.parent;
+  expect(flat(bar!).paddingHorizontal).toBeGreaterThanOrEqual(59);
+  unmount(root);
+});

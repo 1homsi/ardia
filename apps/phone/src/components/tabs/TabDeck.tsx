@@ -978,7 +978,7 @@ export const TabDeck = memo(function TabDeck() {
         {redesigned ? null : (
           <Animated.View
             pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}
-            style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: tabsLayout.barSideInset - 4 }, chromeStyle]}
+            style={[styles.bar, { top: g.barCenterY - tabsLayout.barPlus.height / 2 - 2, paddingHorizontal: g.safeSide + tabsLayout.barSideInset - 4 }, chromeStyle]}
           >
             <DeckBar
               leading={

@@ -4,6 +4,7 @@ import { useTrayKeyboard } from "../components/search/useTrayKeyboard";
 import { renderSurface, textOf, unmount } from "../../test/render/harness";
 
 const mockListeners = new Set<(change: { source: number; target: number; durationMs: number; navigationBar: number }) => void>();
+const mockSettled = new Set<(change: { height: number; navigationBar: number }) => void>();
 
 jest.mock("@ardia/phone-native", () => {
   const actual = jest.requireActual("@ardia/phone-native");
@@ -16,7 +17,10 @@ jest.mock("@ardia/phone-native", () => {
         mockListeners.add(listener);
         return { remove: () => mockListeners.delete(listener) };
       },
-      addDidChangeListener: () => ({ remove: () => undefined }),
+      addDidChangeListener: (listener: (change: { height: number; navigationBar: number }) => void) => {
+        mockSettled.add(listener);
+        return { remove: () => mockSettled.delete(listener) };
+      },
     },
   };
 });
@@ -40,4 +44,18 @@ onAndroid("on Android the tray takes the keyboard's height as its animation star
   expect(textOf(root)).toContain("target 0 full 312");
   unmount(root);
   expect(mockListeners.size).toBe(0);
+});
+
+onAndroid("on Android a turn with the keyboard up, which sends only the keyboard's settled height, moves the tray to the new keyboard: landscape's shorter one and back", () => {
+  const root = renderSurface(<Probe />);
+  act(() => mockListeners.forEach((listener) => listener({ source: 0, target: 326, durationMs: 250, navigationBar: 24 })));
+  expect(textOf(root)).toContain("target 326 full 326");
+  act(() => mockSettled.forEach((listener) => listener({ height: 213, navigationBar: 0 })));
+  expect(textOf(root)).toContain("target 213 full 213");
+  act(() => mockSettled.forEach((listener) => listener({ height: 326, navigationBar: 24 })));
+  expect(textOf(root)).toContain("target 326 full 326");
+  act(() => mockSettled.forEach((listener) => listener({ height: 0, navigationBar: 24 })));
+  expect(textOf(root)).toContain("target 0 full 326");
+  unmount(root);
+  expect(mockSettled.size).toBe(0);
 });

@@ -25,7 +25,14 @@ export function useTrayKeyboard(): TrayKeyboard {
         remember(change.target);
         setTarget(change.target > TRAY_LIFT.keyboardThreshold ? change.target : 0);
       });
-      return () => willChange.remove();
+      const didChange = keyboardTargets.addDidChangeListener((change) => {
+        remember(change.height);
+        setTarget(change.height > TRAY_LIFT.keyboardThreshold ? change.height : 0);
+      });
+      return () => {
+        willChange.remove();
+        didChange.remove();
+      };
     }
     const shows = Platform.OS === "ios" ? ["keyboardWillShow", "keyboardWillChangeFrame"] : ["keyboardDidShow"];
     const hides = Platform.OS === "ios" ? ["keyboardWillHide"] : ["keyboardDidHide"];
