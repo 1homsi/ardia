@@ -86,6 +86,18 @@ export function PinnedTiles({ onOpen, ...props }: SettingsPieceProps & { tiles: 
   return createElement(NativePinnedTiles, { ...props, onTileOpen: (event: { nativeEvent: { url: string; title: string } }) => onOpen(event.nativeEvent) });
 }
 
+const NativeFullScreenCover = piece<SettingsPieceProps & { isPresented: boolean; onIsPresentedChange: (event: { nativeEvent: { isPresented: boolean } }) => void }>("FullScreenCoverView");
+
+export function FullScreenCover({ onIsPresentedChange, ...props }: SettingsPieceProps & { isPresented: boolean; onIsPresentedChange?: (isPresented: boolean) => void }) {
+  return createElement(NativeFullScreenCover, { ...props, onIsPresentedChange: (event: { nativeEvent: { isPresented: boolean } }) => onIsPresentedChange?.(event.nativeEvent.isPresented) });
+}
+
+const NativeFilterTextEditor = piece<SettingsPieceProps & { text: string; onTextChange: (event: { nativeEvent: { text: string } }) => void }>("FilterTextEditorView");
+
+export function FilterTextEditor({ onTextChange, ...props }: SettingsPieceProps & { text: string; onTextChange: (text: string) => void }) {
+  return createElement(NativeFilterTextEditor, { ...props, onTextChange: (event: { nativeEvent: { text: string } }) => onTextChange(event.nativeEvent.text) });
+}
+
 type SpaceFunctions = {
   spaceMenuSymbol(name: string, icon: string | null): string;
   spaceSymbol(icon: string | null): string | null;

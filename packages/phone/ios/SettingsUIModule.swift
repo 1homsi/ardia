@@ -284,6 +284,53 @@ struct SpaceBackdropLayer: View {
   }
 }
 
+final class FullScreenCoverProps: UIBaseViewProps {
+  @Field var isPresented: Bool = false
+  var onIsPresentedChange = EventDispatcher()
+}
+
+struct FullScreenCoverView: ExpoSwiftUI.View {
+  @ObservedObject var props: FullScreenCoverProps
+  @State private var isPresented = false
+
+  var body: some View {
+    Color.clear
+      .frame(width: 0, height: 0)
+      .fullScreenCover(isPresented: $isPresented) {
+        Children()
+      }
+      .onChange(of: isPresented) { _, presented in
+        if props.isPresented != presented { props.onIsPresentedChange(["isPresented": presented]) }
+      }
+      .onChange(of: props.isPresented) { _, presented in isPresented = presented }
+      .onAppear { isPresented = props.isPresented }
+  }
+}
+
+final class FilterTextEditorProps: UIBaseViewProps {
+  @Field var text: String = ""
+  var onTextChange = EventDispatcher()
+}
+
+struct FilterTextEditorView: ExpoSwiftUI.View {
+  @ObservedObject var props: FilterTextEditorProps
+  @State private var text = ""
+
+  var body: some View {
+    TextEditor(text: $text)
+      .font(.footnote.monospaced())
+      .autocorrectionDisabled()
+      .textInputAutocapitalization(.never)
+      .onAppear { text = props.text }
+      .onChange(of: props.text) { _, value in
+        if value != text { text = value }
+      }
+      .onChange(of: text) { _, value in
+        if value != props.text { props.onTextChange(["text": value]) }
+      }
+  }
+}
+
 struct SettingsChromeModifier: ViewModifier, Record {
   func body(content: Content) -> some View {
     content.ardiaSettingsChrome()
@@ -426,6 +473,8 @@ public final class SettingsUIModule: Module {
     ExpoUIView(GlassCircleButtonView.self)
     ExpoUIView(SpacePageDotsView.self)
     ExpoUIView(PinnedTilesView.self)
+    ExpoUIView(FullScreenCoverView.self)
+    ExpoUIView(FilterTextEditorView.self)
 
     Function("spaceMenuSymbol") { (name: String, icon: String?) -> String in
       SpaceGlyph.menuSymbol(for: SpaceFields.profile(name: name, icon: icon, color: nil, themeColors: [], themeDarkColors: nil))
