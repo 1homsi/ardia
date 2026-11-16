@@ -123,7 +123,7 @@ others() {
   [ $(( $(cpuTicks $pids) - before )) -gt 50 ] && echo "$pids"
   return 0
 }
-spare() { echo $(( (limit - $(cat /sys/fs/cgroup/memory.current) + $(awk '$1 == "inactive_file" || $1 == "slab_reclaimable" { sum += $2 } END { printf "%d", sum }' /sys/fs/cgroup/memory.stat)) / gib )); }
+spare() { echo $(( (limit - $(cat /sys/fs/cgroup/memory.current) + $(awk '$1 == "inactive_file" || $1 == "slab_reclaimable" { sum += $2 } END { printf "%.0f", sum }' /sys/fs/cgroup/memory.stat)) / gib )); }
 deadline=$(( $(date +%s) + ${ARDIA_BUILD_WAIT:-1800} ))
 while [ -n "$(others)" ] || [ "$(spare)" -lt 6 ]; do
   [ "$(date +%s)" -lt "$deadline" ] || { echo "bots stayed busy; not testing" >&2; exit 75; }
