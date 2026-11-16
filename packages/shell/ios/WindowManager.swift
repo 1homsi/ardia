@@ -417,10 +417,10 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   private func forget(_ entry: ManagedWindow) {
     LittleArdiaHandoff.shared.forget(entry.id)
-    entry.stopWatchingContent()
-    lightsCenters[entry.id] = nil
     hostFitSizes[entry.id] = nil
     landingFits.removeValue(forKey: entry.id)?.stop()
+    entry.stopWatchingContent()
+    lightsCenters[entry.id] = nil
     entry.takeReveal()?.then.forEach { $0() }
     entry.takeExit()?.forEach { $0() }
   }

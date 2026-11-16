@@ -5,11 +5,9 @@
 
 namespace {
 
-using ardia_little_fit::Rect;
+ardia_little_fit::Rect FromNSRect(NSRect rect) { return {rect.origin.x, rect.origin.y, rect.size.width, rect.size.height}; }
 
-Rect FromNSRect(NSRect rect) { return {rect.origin.x, rect.origin.y, rect.size.width, rect.size.height}; }
-
-NSRect ToNSRect(Rect rect) { return NSMakeRect(rect.x, rect.y, rect.w, rect.h); }
+NSRect ToNSRect(ardia_little_fit::Rect rect) { return NSMakeRect(rect.x, rect.y, rect.w, rect.h); }
 
 }
 
@@ -27,10 +25,10 @@ NSRect ToNSRect(Rect rect) { return NSMakeRect(rect.x, rect.y, rect.w, rect.h); 
   if (![info[(id)kCGWindowIsOnscreen] boolValue]) return nil;
   CGRect bounds = CGRectZero;
   if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds)) return nil;
-  const Rect landed = ardia_little_fit::FlipFromTopLeft(FromNSRect(bounds), NSHeight(screens.firstObject.frame));
+  const ardia_little_fit::Rect landed = ardia_little_fit::FlipFromTopLeft(FromNSRect(bounds), NSHeight(screens.firstObject.frame));
   std::vector<ardia_little_fit::Display> displays;
   for (NSScreen *screen in screens) displays.push_back({FromNSRect(screen.frame), FromNSRect(screen.visibleFrame)});
-  Rect fitted;
+  ardia_little_fit::Rect fitted;
   if (!ardia_little_fit::FitLanding(landed, displays, {minimum.width, minimum.height}, &fitted)) return nil;
   return [NSValue valueWithRect:ToNSRect(fitted)];
 }
