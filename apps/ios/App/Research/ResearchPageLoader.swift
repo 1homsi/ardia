@@ -8,8 +8,6 @@ final class ResearchPageLoader {
   static let pageTimeout: Duration = .seconds(8)
   static let settle: Duration = .milliseconds(350)
 
-  static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) " + BrowserUserAgent.applicationName
-
   private let dataStore = WKWebsiteDataStore.nonPersistent()
   private let blocker: ContentBlocker?
   private let blockedResources = BlockedResourceCounter()
@@ -20,12 +18,11 @@ final class ResearchPageLoader {
 
   func searchLinks(for query: String) async throws -> [ResearchLink] {
     guard let page = ResearchSearch.resultsPage(for: query) else { return [] }
-    var request = URLRequest(url: page, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.searchTimeout.seconds)
-    request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-    request.setValue(Locale.preferredLanguages.prefix(3).joined(separator: ","), forHTTPHeaderField: "Accept-Language")
-    let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
-    guard (response as? HTTPURLResponse)?.statusCode == 200 else { return [] }
-    return ResearchSearch.links(fromHTML: String(decoding: data, as: UTF8.self))
+    let webView = makeWebView()
+    defer { webView.stopLoading() }
+    try await load(page, in: webView, timeout: Self.searchTimeout)
+    let html = try await webView.evaluateJavaScript("document.documentElement.outerHTML") as? String ?? ""
+    return ResearchSearch.links(fromHTML: html)
   }
 
   func read(_ link: ResearchLink) async -> ReadableContent? {
