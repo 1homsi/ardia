@@ -12,7 +12,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var managed: [String: ManagedWindow] = [:]
   private var pending: [PendingOpen] = []
   private var lightsCenters: [String: (center: NSPoint, trailing: Bool)] = [:]
-  private var titleOverrides: [String: String] = [:]
   private var unreportedFrames = Set<ObjectIdentifier>()
   private weak var lastPlaced: NSWindow?
   private static let lastFrameKey = "ArdiaLastWindowFrame"
@@ -89,7 +88,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
     let kind = options.kind, title = options.title, frame = options.frame, claim = options.claim
     let small = kind == .small
     if kind != .browser && !small { return openAux(id: id, kind: kind, title: title) }
-    if let titleOverride = options.titleOverride { titleOverrides[id] = titleOverride }
     guard let makeWindow = WindowHost.makeWindow, let makeContentView = WindowHost.makeContentView else { return }
     if !small, ArdiaChromeWindowHost.takeDismissedAppWindow(id) {
       ShellEvents.send(.window, ["type": "close", "id": id])
@@ -102,7 +100,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
     if let chromeWindow = ChromeWindows.makeWindow(profile: options.profile, chromeWindow: small ? nil : options.chromeWindow, appWindow: small ? claim : id) {
       if options.incognito { chromeWindow.appearance = NSAppearance(named: .darkAqua) }
       let entry = ManagedWindow(id: id, kind: kind, window: chromeWindow)
-      entry.hostsChrome = true
       let root = makeContentView(id)
       ArdiaChromeWindowHost.embedRootView(root, in: chromeWindow)
       if !chromeWindow.isVisible {
@@ -141,11 +138,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   ) {
     let window = entry.window, id = entry.id
     if let lights = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(lights.center, trailing: lights.trailing, in: window) }
-    if entry.hostsChrome {
-      if let pinned = titleOverrides[id] { ChromeWindows.setTitleOverride(pinned, in: window) }
-    } else {
-      window.title = title
-    }
+    window.title = title
     Self.identify(window, id: id, kind: entry.kind)
     if small, frame == nil { placeSmall(window, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
     relayoutRoot(window)
@@ -245,18 +238,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
     ChromeWindows.setTrafficLightsCenter(center, trailing: trailing, in: window)
   }
 
-  func setTitleOverride(id: String, title: String?) {
-    titleOverrides[id] = title
-    if let index = pending.firstIndex(where: { $0.id == id }) { pending[index].options.titleOverride = title }
-    guard let entry = managed[id], entry.hostsChrome else { return }
-    ChromeWindows.setTitleOverride(title, in: entry.window)
-  }
-
   private func adopt(from: NSWindow, to: NSWindow) {
     guard let id = id(of: from), let entry = managed[id] else { return }
     NotificationCenter.default.removeObserver(self, name: nil, object: from)
     entry.window = to
-    if entry.hostsChrome, let pinned = titleOverrides[id] { ChromeWindows.setTitleOverride(pinned, in: to) }
+    if !from.title.isEmpty { to.title = from.title }
     if entry.kind == .small { ArdiaChromeWindowHost.float(forWindowManagers: to) }
     Self.identify(to, id: id, kind: entry.kind)
     if lastPlaced === from { lastPlaced = to }
@@ -393,7 +379,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func close(id: String) {
-    titleOverrides[id] = nil
     if let index = pending.firstIndex(where: { $0.id == id }) {
       pending.remove(at: index)
       return
@@ -419,7 +404,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
     LittleArdiaHandoff.shared.forget(entry.id)
     entry.stopWatchingContent()
     lightsCenters[entry.id] = nil
-    titleOverrides[entry.id] = nil
     entry.takeReveal()?.then.forEach { $0() }
     entry.takeExit()?.forEach { $0() }
   }
@@ -433,8 +417,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func setTitle(id: String, title: String) {
     if let index = pending.firstIndex(where: { $0.id == id }) { pending[index].options.title = title }
-    guard let entry = managed[id], !entry.hostsChrome, entry.window.title != title else { return }
-    entry.window.title = title
+    guard let window = window(id), window.title != title else { return }
+    window.title = title
   }
 
   private static func identify(_ window: NSWindow, id: String, kind: WindowKind) {

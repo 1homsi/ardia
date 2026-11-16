@@ -231,7 +231,6 @@ void WindowHost::BrowserWindowDestroyed(ACBrowserWindow* window) {
       break;
     }
   }
-  UpdateTitle();
   if (browsers_.empty() &&
       (closing() || browser_shutdown::IsTryingToQuit())) {
     close_state_ = CloseState::kClosing;

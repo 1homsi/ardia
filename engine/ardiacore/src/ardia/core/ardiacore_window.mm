@@ -130,10 +130,6 @@
   }
 }
 
-- (void)setTitleOverride:(NSString*)title {
-  _host->SetTitleOverride(base::SysNSStringToUTF16(title));
-}
-
 - (void)activateTab:(ArdiaCoreTab*)tab {
   if (ardiacore::DeferWhileTabStripNotifies(^{
         [self activateTab:tab];

@@ -24,7 +24,6 @@ namespace ardiacore {
 
 void WindowHost::ActiveTabChanged(Browser* browser,
                                   content::WebContents* contents) {
-  UpdateTitle();
   if (!contents) {
     return;
   }
@@ -109,7 +108,6 @@ void WindowHost::OnTabStripModelChanged(
         [delegate window:owner didRemoveTab:bridge->tab()];
       }
     }
-    UpdateTitle();
   }
 }
 

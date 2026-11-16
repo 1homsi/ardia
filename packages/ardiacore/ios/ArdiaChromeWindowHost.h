@@ -31,8 +31,6 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
 + (void)moveTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
 
-+ (void)setTitleOverride:(nullable NSString *)title inWindow:(NSWindow *)window;
-
 + (void)closeWindow:(NSWindow *)window;
 
 + (NSSize)windowSizeFromInterfaceSize:(NSSize)size forWindow:(nullable NSWindow *)window NS_SWIFT_NAME(windowSize(fromInterface:for:));

@@ -110,11 +110,6 @@ const windowsModule: Modules["ArdiaAppWindows"] & { requestClose(id: string): Pr
     if (window) window.title = title;
     return Promise.resolve();
   },
-  setWindowTitleOverride: (id, title) => {
-    const window = windows.open.get(id);
-    if (window) window.titleOverride = title ?? undefined;
-    return Promise.resolve();
-  },
   windowIds: () => Promise.resolve([...windows.open.keys()]),
   watchSidebarEdge: () => Promise.resolve(),
   dragPreviewBegin: () => Promise.resolve(),

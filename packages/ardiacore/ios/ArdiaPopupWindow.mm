@@ -295,7 +295,7 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
 
 - (void)updateTitle {
   NSString *url = _tab.url ?: @"", *title = _tab.title;
-  [_coreWindow setTitleOverride:title.length && ![title isEqualToString:url] ? title : PopupOriginText(url)];
+  _coreWindow.window.title = title.length && ![title isEqualToString:url] ? title : PopupOriginText(url);
 }
 
 - (void)updateOrigin {

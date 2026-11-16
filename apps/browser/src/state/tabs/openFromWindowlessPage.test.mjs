@@ -145,7 +145,6 @@ const recordingPort = (opened) => ({
   open: (id, options) => opened.push({ id, options }),
   close: () => {},
   setTitle: () => {},
-  setTitleOverride: () => {},
   windowIds: async () => [],
   restoreFullScreen: () => {},
   onEvent: () => {},

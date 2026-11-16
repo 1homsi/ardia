@@ -34,10 +34,6 @@ enum ChromeWindows {
     }
   }
 
-  static func setTitleOverride(_ title: String?, in window: NSWindow) {
-    ArdiaChromeWindowHost.setTitleOverride(title, in: window)
-  }
-
   private static var swapHandlerInstalled = false
   static func onSwap(_ handler: @escaping (NSWindow, NSWindow) -> Void) {
     guard !swapHandlerInstalled else { return }

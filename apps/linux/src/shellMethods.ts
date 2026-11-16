@@ -113,7 +113,6 @@ const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
   pressesWithoutRelease: () => 0,
   pressRepeated: () => Promise.resolve(null),
   animateWindowClose: resolved,
-  setWindowTitleOverride: resolved,
   raiseView,
   dragPreviewBegin: resolved,
   dragPreviewPage: resolved,

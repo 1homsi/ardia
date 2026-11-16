@@ -121,8 +121,6 @@ class WindowHost : public TabStripModelObserver,
   void AddBrowser(Browser* browser);
   void BrowserWindowDestroyed(ACBrowserWindow* window);
   void ActiveTabChanged(Browser* browser, content::WebContents* contents);
-  void UpdateTitle();
-  void SetTitleOverride(const std::u16string& title);
   void DevToolsDockChanged(content::WebContents* inspected,
                            content::WebContents* devtools);
   bool OfferPasswordSave(content::WebContents* contents);
@@ -165,7 +163,6 @@ class WindowHost : public TabStripModelObserver,
   std::map<Profile*, raw_ptr<Browser>> browsers_;
   std::map<const Browser*, base::CallbackListSubscription> close_cancelled_;
   raw_ptr<Profile> active_profile_ = nullptr;
-  std::u16string title_override_;
   CloseState close_state_ = CloseState::kOpen;
   raw_ptr<Browser> asking_ = nullptr;
   int close_attempt_ = 0;
