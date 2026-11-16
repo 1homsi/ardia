@@ -1,8 +1,10 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdlib>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -111,6 +113,17 @@ struct FocusHold {
     RegisterClassW(&type);
     messages = CreateWindowExW(0, L"ArdiaFocusHold", L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, type.hInstance, nullptr);
     return messages;
+  }
+
+  static ULONGLONG ReadyFloorMs() noexcept {
+    static const ULONGLONG floor = []() noexcept -> ULONGLONG {
+      std::optional<std::string> asked = AppLaunch::TestValue("keyHoldReadyMs");
+      if (!asked) return 0;
+      char *end = nullptr;
+      unsigned long long value = std::strtoull(asked->c_str(), &end, 10);
+      return end && *end == '\0' ? (std::min)(static_cast<ULONGLONG>(value), kReadyMs / 2) : 0;
+    }();
+    return floor;
   }
 
   static bool Allowed() noexcept {
@@ -249,7 +262,7 @@ struct FocusHold {
   }
 
   void Ready() noexcept {
-    if (!active || ready || !claimedTag || focusedTag != claimedTag) return;
+    if (!active || ready || !claimedTag || focusedTag != claimedTag || GetTickCount64() - startedAt < ReadyFloorMs()) return;
     ready = true;
     Pump();
   }
@@ -285,7 +298,8 @@ struct FocusHold {
     }
     if (!IsWindow(window)) return Drop("window", L"the window closed");
     if (OwnerRoot(GetForegroundWindow()) != window) return Drop("window", L"the window lost the keyboard");
-    if (!ready && GetTickCount64() - startedAt > kReadyMs) Drop("timeout", L"no field took the keyboard in 3 s");
+    if (!ready && GetTickCount64() - startedAt > kReadyMs) return Drop("timeout", L"no field took the keyboard in 3 s");
+    Ready();
   }
 
   void Stop() noexcept {

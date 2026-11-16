@@ -383,9 +383,11 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     pending before Ctrl+T isn't protected.
   - **Launch log:** `keys hold <g> begun for <command>`, `keys hold <g> ready after <ms> ms, replayed <n>` and
     `keys hold <g> dropped: <why> with <n> held, <m> replayed`.
-  - **Tour:** the first-letter stop (ten tries each at 80 and 120 ms a key) and the 15 ms stop are required, and the
-    `hold-*` stops in the typing part check capitals from Shift and Caps Lock, Backspace, Escape, a click into another
-    window of ours and into Notepad, and Ctrl+V.
+  - **Tour:** the first-letter stop (ten tries each at 80 and 120 ms a key) and the 15 ms stop are required, at the
+    runner's own timing. The `hold-*` stops in the typing part launch with `ARDIA_TEST=keyHoldReadyMs=400`, which keeps
+    a hold from being ready for 400 ms (a slow launch; a warm runner is ready in about 50 ms), so each path runs: all of
+    example.com replayed, capitals from Shift and Caps Lock, and drops on Backspace, Escape, a click into another
+    window of ours and Notepad taking the keyboard, each logged with keys held. Ctrl+V passes through.
   - **Telemetry:** `command_bar_key_holds`, `command_bar_keys_replayed` and `command_bar_key_hold_drops_<reason>` in
     `usage_counts`.
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
