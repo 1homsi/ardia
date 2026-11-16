@@ -122,6 +122,7 @@ extension MainMenu {
   }
 
   static func applyShortcuts(_ bindings: [String: [[String]]]) {
+    LittleArdiaHotKey.bindingHoldsFunction = LittleArdiaHotKey.holdsFunction(bindings)
     defer { announceShortcuts() }
     for (id, group) in shortcutGroups() {
       guard let bound = bindings[id] else {

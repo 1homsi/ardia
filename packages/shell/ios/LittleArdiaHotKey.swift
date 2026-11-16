@@ -110,6 +110,14 @@ final class LittleArdiaHotKey {
     }, 1, &spec, nil, &handler)
   }
 
+  static var bindingHoldsFunction = false {
+    didSet { if oldValue != bindingHoldsFunction { shared.shortcutsChanged() } }
+  }
+
+  static func holdsFunction(_ bindings: [String: [[String]]]) -> Bool {
+    bindings[command]?.first?.dropFirst().contains(ModifierName.function.rawValue) == true
+  }
+
   static func chord() -> Chord? {
     guard let item = commandItem(in: NSApp.mainMenu), !item.keyEquivalent.isEmpty,
       let keyCode = keyCode(for: item.keyEquivalent)
@@ -118,7 +126,7 @@ final class LittleArdiaHotKey {
     if item.keyEquivalent != item.keyEquivalent.lowercased() { mods.insert(.shift) }
     let carbon = GlobalChordRule.modifiers(
       command: mods.contains(.command), option: mods.contains(.option), control: mods.contains(.control), shift: mods.contains(.shift))
-    guard GlobalChordRule.registrable(key: item.keyEquivalent, modifiers: carbon) else { return nil }
+    guard GlobalChordRule.registrable(key: item.keyEquivalent, modifiers: carbon, function: mods.contains(.function) || bindingHoldsFunction) else { return nil }
     return Chord(keyCode: keyCode, modifiers: carbon)
   }
 

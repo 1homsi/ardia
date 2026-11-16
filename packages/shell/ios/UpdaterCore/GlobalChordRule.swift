@@ -15,7 +15,8 @@ enum GlobalChordRule {
     (command ? Self.command : 0) | (option ? Self.option : 0) | (control ? Self.control : 0) | (shift ? Self.shift : 0)
   }
 
-  static func registrable(key: String, modifiers: UInt32) -> Bool {
-    modifiers & (command | control) != 0 || isFunctionKey(key)
+  static func registrable(key: String, modifiers: UInt32, function: Bool = false) -> Bool {
+    if function, !isFunctionKey(key) { return false }
+    return modifiers & (command | control) != 0 || isFunctionKey(key)
   }
 }
