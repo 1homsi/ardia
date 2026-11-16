@@ -6,6 +6,8 @@
 # On a Linux host (Chromium's supported one for Windows cross builds), the standard checkout: gclient adds the host,
 # so the Linux sysroot and host tools come with it, and every CIPD package DEPS lists. The sysroots hard-link a few
 # files, which the tree guard (pathguard.py) refuses in a tree other than ~/chromium-build: each gets its own copy.
+# The win_toolchain hook mounts the toolchain through ciopfs, which inherits this script's open-file limit: it is raised
+# to the hard limit first, because 16 compiles through the mount ran out of 1024.
 # The hooks that need the Windows toolchain fail until toolchain.sh has run: run this again after it.
 # Usage: scripts/windows/engine/01-sync.sh --apply | --help (under the chromium lock)
 set -euo pipefail
@@ -20,7 +22,7 @@ mkdir -p "$CB/chromium_git/chromium"
 cd "$CB/chromium_git/chromium"
 case "$(uname -s)" in
   Darwin) target_os_only="target_os_only = True"; trimmed_cipd=1 ;;
-  Linux) target_os_only=""; trimmed_cipd=0 ;;
+  Linux) target_os_only=""; trimmed_cipd=0; ulimit -n "$(ulimit -Hn)" ;;
   *) echo "01-sync.sh: cross-build Windows from a Linux or Mac host" >&2; exit 64 ;;
 esac
 cat > .gclient <<GCLIENT
