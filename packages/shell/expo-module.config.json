@@ -12,7 +12,9 @@
       "DocumentsModule",
       "SymbolModule",
       "FadeLabelModule",
+      "EdgeFadeMaskModule",
       "ActivitySpinnerModule",
+      "FolderIconModule",
       "ContextMenuAreaModule",
       "OutsidePressAreaModule",
       "MagnifyAreaModule",
@@ -27,6 +29,7 @@
       "AppModule",
       "UpdaterModule",
       "NotificationsModule",
+      "LocationModule",
       "ScriptingModule",
       "DevModule",
       "CalendarModule",
@@ -39,7 +42,9 @@
       "UserScriptsModule",
       "ConfigModule",
       "AutomationModule",
-      "SystemSignalsModule"
+      "SystemSignalsModule",
+      "ReportModule",
+      "TelemetryLocalModule"
     ]
   }
 }

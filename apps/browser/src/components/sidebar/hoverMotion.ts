@@ -1,4 +1,4 @@
-import { createContext, useContext, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
 import { spring, curve } from "../ui/motion";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
@@ -10,13 +10,13 @@ export const HOVER_CARD_FADE_MS = SIDEBAR_MOTION.hoverCardFade;
 
 const fade = curve.fade;
 
-const HoverCardFrameContext = createContext<HoverCardFrame>({ side: "left", windowWidth: 0 });
+const HoverCardFrameContext = createContext<HoverCardFrame>({ side: "left", windowWidth: 0, sidebarEdge: 0 });
 export const HoverCardFrameProvider = HoverCardFrameContext.Provider;
 export const useHoverCardFrame = () => useContext(HoverCardFrameContext);
 
-export function useHoverCardOrigin(anchor: Anchor, edge?: number) {
+export function useHoverCardOrigin(anchor: Anchor) {
   const frame = useHoverCardFrame();
-  return hoverCardBox(hoverCardAt(anchor, frame.side, edge), frame);
+  return hoverCardBox(hoverCardAt(anchor, frame), frame);
 }
 
 function createMotion() {
@@ -97,6 +97,16 @@ export function useHoverCardMotion<T>(key: string, target: T | null) {
   );
 
   return { drawn, leaving, entering, motion };
+}
+
+export function useHoverFade(shown: boolean) {
+  const [opacity] = useState(() => new Animated.Value(shown ? 1 : 0));
+  useEffect(() => {
+    const fade = Animated.timing(opacity, { toValue: shown ? 1 : 0, duration: HOVER_CARD_FADE_MS, easing: curve.fade, useNativeDriver: true });
+    fade.start();
+    return () => fade.stop();
+  }, [shown]);
+  return opacity;
 }
 
 export function useHoverCardPlacement(
