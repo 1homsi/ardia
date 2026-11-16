@@ -1794,36 +1794,90 @@ apps/phone/scripts/corex-test <commit> [--patch FILE] [--tests filters]   the Ko
   `~/Android/Sdk`. The Linux `hermesc` is pinned by hash in `packages/phone/android/build.gradle`. pnpm 11.1.3 comes
   from `packageManager` (corex's own is 12).
 
-### What a first Android release still needs (for the owner to answer)
+### Android release
 
-iPhone ships through `ios-release.yml`: App Store Connect, TestFlight and a public testers link. Android has no such
-path yet. Every build so far is a lab or test build, and nothing below exists.
+Decided by the owner (2026-11-16): Android ships as an APK on GitHub Releases, with no Play listing. Everything up to
+publishing is automated; only the owner publishes. iPhone's counterpart is "The Expo app on TestFlight" below.
 
-- **Which key signs it.**
-  - Every Expo build is signed with the debug key committed in the repo (`apps/phone/android/app/debug.keystore`,
-    signer `fac61745…`). Anyone can read it, so it must not sign a release.
-  - The Compose app was only ever built as a debug build, signed by the building machine's own
-    `~/.android/debug.keystore`. This Mac's is `eeb05c92…`, the signer of the reference build on corex; CI's runners
-    make a throwaway key each run.
-  - No GitHub release or CI artifact has ever carried an APK.
-  - Android installs an update only over the same key. So a tester who has a Compose app can update in place only if
-    the new app is signed with the key their copy was built with: `eeb05c92…` if it came from this Mac, any other
-    machine's key otherwise. Otherwise they uninstall first and lose its local data (tabs not synced, history).
-  - Owner: was a Compose APK ever handed to anyone, and from which machine?
-  - Owner: is the release key a new one kept out of the repo (on the Play Console that means Play App Signing, with
-    our upload key), or this Mac's debug key, so that existing installs update?
-- **Where it ships.** Owner: choose one or both.
-  - **Play Console:** a developer account, an app listing, Play App Signing, and an internal or closed testing track
-    as TestFlight's counterpart. `build-apk --store --bundle` already makes the `.aab` it takes.
-  - **An APK from ardia.dev:** signed by our own key, installed by the user allowing unknown sources. Updates through
-    the app's own check or by hand.
-- **The release workflow beside iPhone's.**
-  - An `android-release.yml`: build the `--store` (lab off) bundle and APK from a tag, on a runner or on corex.
-  - Sign with the release key from a CI secret, never the repo's.
-  - Run `check-names.py` and `check-upgrade.py` against the Compose build users have.
-  - Then the upload: Play's track via its API, or the APK as a GitHub release asset and the site's link.
-  - Release notes and the versionCode bump go with the shared release skill.
-  - Owner: which channel, and is a nightly track wanted as for the Mac?
+**The workflow.** `.github/workflows/android-release.yml`, dispatch-only. The commands:
+
+```
+gh workflow run android-release.yml --ref t3/unify-expo-architecture -f mode=dry-run [-f commit=<sha>] [-f version=0.2.47-nightly.2]
+gh workflow run android-release.yml --ref t3/unify-expo-architecture -f mode=draft -f commit=<sha> -f version=<release version>
+gh run watch --exit-status                                     the run's summary has the stamp and every check
+```
+
+- **What a run does.** It builds the shrunk arm64 APK on `ubuntu-latest` with `build-apk --store` from the commit's
+  export, so the lab is off and `ardia_sync_offered` is false. Then it signs it with the release key and runs
+  `check-release-apk`.
+  - **dry-run** keeps `Ardia-<version>.apk`, its `.txt` stamp and `.sha256` as a workflow artifact for 14 days.
+  - **draft** attaches the same three files to a new draft prerelease `android-v<version>`.
+  - Neither publishes, and neither marks a release as latest.
+- **The release key.** It lives only in the repository secrets: `ANDROID_RELEASE_KEYSTORE_B64` (PKCS12),
+  `ANDROID_RELEASE_KEYSTORE_PASSWORD` and `ANDROID_RELEASE_KEY_ALIAS`. Its certificate's SHA-256 is pinned in the
+  workflow: `8A:B5:0E:90:…:41:98:BC`.
+  - The keystore is decoded under `RUNNER_TEMP` with umask 077 and removed by a trap and an `always()` step. The
+    password reaches `apksigner` as `env:`, never on a command line.
+  - It is never on a Mac or on corex. Lab builds keep the repo's debug key.
+  - The alias is a secret, so GitHub masks the word "ardia" in that job's logs and summary; the attached stamp file
+    isn't masked.
+- **Dispatching.** A workflow can only be dispatched once its file is on the default branch, the same as
+  `ios-release.yml` for the Expo iPhone app. `android-release.yml` has to be on `main` once; the run then uses this
+  branch's copy through `--ref`.
+- **No gate.** It needs no `gate` job and no `GATED_WORKFLOWS` entry: it has no `pull_request` trigger, so no outside
+  author can start it, and dispatching takes write access.
+
+**The checks** (`apps/phone/scripts/check-release-apk`). The run fails if any of these fail:
+- the signer equals the pinned fingerprint, and the signature verifies;
+- the package is `com.ardia.browser.android`;
+- the versionName and versionCode are what `android-version.ts` gives;
+- there's no debuggable flag, and the native code is exactly `arm64-v8a`;
+- the stamps: the commit, a clean tree, and the JS from the export;
+- sync isn't offered, the shell's profiling is off, and the release version is stamped;
+- `check-names.py` passes.
+
+**The version.** One source, no hand edits: the `version` input, or else the Mac app's `MARKETING_VERSION` at that
+commit, as `release-ios` takes it.
+- `apps/phone/scripts/android-version.ts` turns it into the versionName (the release version itself, e.g.
+  `0.2.47-nightly.2`) and the versionCode: major·10^7 + minor·10^5 + patch·10^2 + the nightly's number, or 99 for a
+  stable. So `0.2.47-nightly.2` is 204702 and `0.2.47` is 204799.
+- Every nightly sorts below its stable, each release is above the last, and every release is above the lab builds'
+  versionCode 2.
+- `build-apk --version` passes both to Gradle. The app's `appRelease()` gives the Settings footer "Ardia 0.2.47
+  (204799)". The JS label shows "Nightly" only for a TestFlight receipt, so an Android nightly reads without it, a
+  screens-agent change if wanted.
+- The iPhone build of the same release reads "Ardia 0.2.47 Nightly 4 (n)". Its build number counts uploads; Android's
+  versionCode comes from the version alone.
+
+**Existing installs.**
+- **Outside:** the Compose app was never released, so nobody outside has it installed.
+- **The owner's phones:** a Compose build or a lab build there is signed with another key, so the first release key
+  build needs that one uninstalled first, losing its local tabs and history.
+- **After that:** release builds update over each other, since the key and a rising versionCode are what Android
+  checks.
+
+**Why an Android release can't move the Mac's.**
+- **The repo's consumers.** Every one that wants the Mac's current release asks for GitHub's "latest": the Sparkle feed
+  (`releases/latest/download/appcast.xml`, also behind ardia.dev's nginx), `scripts/lib/releases.sh`'s
+  `latest_stable_tag` (used by `publish.sh` and `rollout-everyone.sh`), `release.yml`'s feed checks, the site's
+  Releases link and the CLI installer.
+- **GitHub never makes a draft or a prerelease "latest".** The repo already shows it: newer `engine-*`,
+  `windows-alpha` and `v0.2.47-nightly.*` prereleases and `windows-engine-*` drafts sit above `v0.2.46`, and latest is
+  still `v0.2.46`.
+- **The Android release is a prerelease from the start.** It stays one when published, so publishing can't make it
+  latest either.
+- **Consumers that name a tag:** `nightly`, `v<version>`, the engine pins by exact tag. `android-v` matches none of
+  their patterns.
+- **The dashboard and `scripts/stats/github.mjs`:** they list every release, and take "latest" as the first
+  non-prerelease, as they already do past the engine and Windows prereleases. An Android row counts no `.dmg` or
+  `.zip`.
+
+**What is left, and who presses it.**
+1. **Me:** put `android-release.yml` on `main` with the owner's OK, since it's a change to `main`.
+2. **The owner, the first time** (the first use of the release key on CI): dispatch the dry run.
+3. **Me:** the phone pass on that artifact's APK on the F4 (evidence in `/tmp/ardia-phone-shots/android-rc1/`).
+4. **The owner:** dispatch `mode=draft` for the release version.
+5. **The owner:** publish the draft on GitHub. Keep it a prerelease, and never set it as latest.
 
 ### The lab switch
 
