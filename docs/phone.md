@@ -1,6 +1,7 @@
 # Ardia for phones (Expo)
 
-One Expo app for both phones, replacing `apps/ios` (SwiftUI) and `apps/android` (Compose) step by step (issue #1556).
+One Expo app for both phones, replacing the SwiftUI iPhone app and the Compose Android app (issue #1556). On this
+branch the old Android app is gone ("The old Android app, cleaned out" below); `main` keeps it until the merge.
 Screens, app state and the data store are TypeScript; what has to be native is an Expo module wrapping the Kotlin and
 Swift code that already exists. Both phones run it: Android and the iPhone.
 
@@ -15,11 +16,11 @@ apps/phone/                 the app, and the root of its own pnpm workspace with
                             state/<domain>, platform, lib
   ios/                      the iPhone project, checked in (bundle id com.ardia.browser.ios, the SwiftUI app's, iOS 27,
                             iPhone only, React Native's prebuilt core)
-  scripts/gradle-locked     Gradle under the same lock as apps/android, so one Android build runs at a time
+  scripts/gradle-locked     Gradle under one lock, so one Android build runs at a time
 packages/phone/             @ardia/phone-native, the Expo module package
   src/                      the TypeScript side: PageView and its types
-  android/                  the Kotlin side. Its Gradle build compiles apps/android/browser's sources, assets and
-                            resources directly (namespace com.ardia.browser), so both apps run one PageEngine
+  android/                  the Kotlin side: the module (com.ardia.phone) and the engine it owns, the page engine
+                            (com.ardia.browser), content blocking, the script runtime and sync, with their tests
   ios/                      the Swift side, pod ArdiaPhoneNative. It builds against ArdiaKit's ArdiaBrowser, so the
                             SwiftUI app and this app run one WebEngine and WebTab
 ```
@@ -44,7 +45,7 @@ macOS and react-native-macos stops at 0.83):
 
 ## The page view
 
-`PageView` (`packages/phone/src`) is the page. Android backs it with `PageEngine` from `apps/android/browser`
+`PageView` (`packages/phone/src`) is the page. Android backs it with `PageEngine` (`com.ardia.browser` in `packages/phone/android`)
 (`DevelopmentWebViewEngine` over the system WebView today). The iPhone backs it with `WebEngine` and `WebTab` from
 `packages/phone/ios/ArdiaKit` (WKWebView with the SwiftUI app's content blocking, popups, downloads and page requests),
 in an in-memory tab store until this app takes over the SwiftUI app's data. Its tone is `PageTone.resolve` and
@@ -76,8 +77,8 @@ the Expo app calls `@ardia/core` itself and hosts the page's view natively.
 ## Sync on Android
 
 Sync is a native subsystem with its own script runtime; the app's JavaScript never sees the host functions,
-keys, the phrase's entropy or sealed bytes. `@ardia/phone-native` compiles `apps/android/sync` and
-`apps/android/shared` in place, and `ArdiaPhoneSync` (`packages/phone/src/sync.ts`) wraps `SyncController` whole:
+keys, the phrase's entropy or sealed bytes. `@ardia/phone-native` holds the sync engine (`com.ardia.sync`) and its
+script runtime (`com.ardia.shared`, `ardia_hermes.cpp`), and `ArdiaPhoneSync` (`packages/phone/src/sync.ts`) wraps `SyncController` whole:
 status and the synced view as getters and events, connect and change folder with the system folder picker, sync
 now, stop, the reset notice, device name, profile, send, pin to Mac, incoming sends. One controller owns every
 cycle on its own thread; `MainApplication` is the `SyncControllerOwner`, so WorkManager's `SyncWorker` (every 15
@@ -144,7 +145,22 @@ says what happened, and no tab or removed visit is lost or shows up twice.
 
 ## System entry points on Android
 
-The Expo app has the Compose app's entry points (`docs/android.md`), from its own code where it can be shared.
+The Expo app has the Compose app's entry points, beside the iPhone's:
+
+| iPhone | Android |
+| --- | --- |
+| Default browser and http/https links | the browser role and `VIEW` intent filters for http, https and `ardia://` |
+| Home Screen widgets (search, the Mac's tabs) | Glance widgets: Search, and Your Mac's Tabs where sync is offered |
+| Lock Screen widgets | none |
+| Control Center controls | a Quick Settings tile: Search |
+| Home Screen quick actions | app shortcuts: Search, Voice Search, New Incognito Tab, and Open Synced Tabs where sync is offered |
+| Share extension | a share target (`ShareActivity`): Open in Ardia, Search in Ardia, and Send to Your Mac where sync is offered |
+| Open in Ardia action | the same share target, and Search in Ardia in the text selection menu (`PROCESS_TEXT`) |
+| App Intents and Siri phrases | `WEB_SEARCH` intents; no assistant phrases |
+| Spotlight for open and archived tabs | none |
+| Handoff of the current page | none: Android has no counterpart |
+
+Where it can be shared, it is the app's own code:
 - **Links.** `MainActivity` hands every intent to `PhoneSystemLinks` (`@ardia/phone-native`), which maps it to
   a `SystemLink` with the Compose app's `SystemLink` parser and queues it until the app listens
   (`system.initialLink()`, `system.addLinkListener`). http and https `VIEW` (default browser) is `open`, source
@@ -455,7 +471,7 @@ off in the lab`.
     name stays. Fix the word: it connects again by itself, no folder picker opens, and sync connects. Then Stop Syncing, pick a folder and leave without connecting; pick another folder and connect with
     it. `adb shell dumpsys activity uri-permissions | grep -i ardia` (or the Files app's access list) shows only the
     connected folder's grant, not the one left unused.
-41. **Launch arguments** (lab build): run the Compose app's capture commands from `docs/android.md` against the Expo
+41. **Launch arguments** (lab build): run the capture commands from "Launch arguments on Android" against the Expo
     app, for example
     `adb shell am start -S -n $P/.MainActivity --ez ArdiaDemo true --es BrowseQuery otters`,
     `… --ez ArdiaDemo true --ez BrowseDeck true`, `… --ez ArdiaDemo true --es ArdiaOpenSheet settings` and
@@ -1686,7 +1702,7 @@ simulator, the list under "The iPhone redesign".
 - [ ] Add a Lock Screen widget and a Control Center control, and the search widget. Expect: each opens the right link; the search widget follows the profile colour and Match My Mac.
 
 **11. Lab builds only**
-- [ ] Launch with `ArdiaDemo`, then each `Browse…` and `Ardia…` argument in `docs/android.md` and "Launch arguments on iPhone" below (Android: step 41). Expect: eight demo tabs with Sintra selected, nothing written to the real store, the demo Macs in Spaces; each argument does what it does in the native apps at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
+- [ ] Launch with `ArdiaDemo`, then each `Browse…` and `Ardia…` argument in "Launch arguments on Android" and "Launch arguments on iPhone" below (Android: step 41). Expect: eight demo tabs with Sintra selected, nothing written to the real store, the demo Macs in Spaces; each argument does what it does in the native apps at the same delays (6 s browse delay, 600 ms sheet, 1.5 s toast, 3 s deck open, 1.2 s deck script start); `ArdiaDeck` steps play in order; the pager freeze and script hold and swipe as Compose's do.
 
 Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 
@@ -1917,7 +1933,14 @@ and what comparisons need. `main` keeps it until this branch merges. The iPhone 
 
 **What the Expo app built from `apps/android`** (443 tracked files; 163 compiled by the Expo build). Each was compiled
 in place through source sets with file lists, in `packages/phone/android/build.gradle`,
-`apps/phone/android/app/build.gradle` and `apps/phone/android/ardia-design/build.gradle`.
+`apps/phone/android/app/build.gradle` and `apps/phone/android/ardia-design/build.gradle`. The clean-up's commits:
+- a83ddfb2b pins;
+- 0f7aadf43 moves (223 renames);
+- 683d4fecb and 6c4cb6e19 paths;
+- be0ba4048 deletion (221 files, 31,047 lines);
+- the follow-through after them.
+
+Reverting them restores `apps/android`.
 
 | In `apps/android` | What used it | Decision | Now |
 |---|---|---|---|
@@ -1980,6 +2003,8 @@ Proven on 2026-11-16, with `apps/android` still present:
 - **`release`** rebuilt in 582 s. Same package, versions, debuggable flag and ABIs, the same manifest components, and
   the same 6,158 dex classes as the pinned APK. It isn't byte-identical: 16,751,618 bytes against 16,847,017, another
   signer, and R8's own output.
+- **`upgrade17`** rebuilt in 295 s. The same in each of those, with all 30,279 dex classes; 66,016,201 bytes against
+  69,356,915.
 
 A rebuild carries corex's debug key. For an install over the pinned one, re-sign it on this Mac:
 
@@ -1990,8 +2015,9 @@ apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android <apk>
 **The upgrade tests' Compose store.** Two sources:
 - `PhoneLegacyTest` writes its own Compose-shaped store from the schema it pins (`COMPOSE_SCHEMA`), so it needs no
   app.
-- A store written by the Compose app itself, captured with `run-as` from `ardia-compose-upgrade17.apk` (debuggable),
-  is the fixture the upgrade import is proven against (below).
+- A store written by the Compose app itself, captured with `run-as` from `ardia-compose-upgrade17.apk` (debuggable)
+  on a phone, is to be kept as a fixture beside `PhoneLegacyTest`. That's the clean-up's F4 step. Until it lands, the
+  import is proven against the schema the test pins and against `check-upgrade.py` on the two APKs.
 
 ### The old iPhone app, cleaned out
 
@@ -2064,6 +2090,29 @@ ARDIA_LAB=0 apps/phone/scripts/gradle-locked :app:bundleRelease
 
 To see the lab with Metro, start it with `EXPO_PUBLIC_ARDIA_LAB=true pnpm -C apps/phone dev` and run a debug
 build from `gradle-locked`.
+
+### Launch arguments on Android
+
+The iPhone's launch arguments are intent extras on Android, with the same names. Lab and debug builds read them
+(`LaunchExtras.allowedInThisBuild`); a store build ignores them.
+
+```
+adb shell am start -S -n com.ardia.browser.android/.MainActivity --ez ArdiaDemo true --es BrowseQuery otters
+```
+
+`ArdiaDemo` runs on demo data (two Macs, two profiles) and never touches real data. The rest drive captures without
+touch:
+- `BrowseOpen <url>`, `BrowseQuery <text>`, `BrowseSurface browsing`, `BrowseTab <n>`, `BrowseToolbar`, `BrowseReader`,
+  `BrowseIncognito`, `BrowseDelay <s>`;
+- `BrowseDeck`, `BrowseDeckOpen <n>`, `BrowsePlus`, `BrowseOverlay <text>`, `BrowseSteps <n,n>` with
+  `BrowseStepGap <s>`;
+- `ArdiaDeck <script>`, `ArdiaOnboarding`, `ArdiaOpenSheet <sheet>`, `ArdiaOpenSettings`, `ArdiaRestingStart`,
+  `ArdiaColor <name>`, `ArdiaToast <text>`, `ArdiaTrustedSites`;
+- motion captures, demo only: `BrowsePagerFreeze <fraction>`, `BrowsePagerScript`, `BrowseLoadFreeze <progress>`;
+- the lab's own flags, such as `ArdiaOneContainerScroll`, `ArdiaOpeningCard` and `ArdiaNativeGlass`.
+
+Flags take `--ez` (or any string but false, no and 0); everything else can be `--es`. The list is `LaunchArguments.kt`
+(`packages/phone/android/src/main/java/com/ardia/appmodel`).
 
 ### Size on Android
 
