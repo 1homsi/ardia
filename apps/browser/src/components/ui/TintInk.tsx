@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { tintTheme, useTheme } from "./theme";
-import { ThemeOverride } from "./ThemeOverride";
+import { ThemeContext, tintTheme, useTheme } from "./theme";
 
 export function TintInk({ children }: { children: ReactNode }) {
-  return <ThemeOverride theme={tintTheme(useTheme())}>{children}</ThemeOverride>;
+  return <ThemeContext.Provider value={tintTheme(useTheme())}>{children}</ThemeContext.Provider>;
 }

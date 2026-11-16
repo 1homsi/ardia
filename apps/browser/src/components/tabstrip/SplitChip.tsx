@@ -4,8 +4,7 @@ import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../sta
 import { useShownTabIdFor } from "../../state/tabs/topStrip";
 import { TabIcon } from "../sidebar/TabIcon";
 import { Divider, FadeLabel, Symbol } from "../ui";
-import { surfaceTheme, useTheme } from "../ui/theme";
-import { ThemeOverride } from "../ui/ThemeOverride";
+import { surfaceTheme, ThemeContext, useTheme } from "../ui/theme";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { font, space } from "../ui/tokens";
 import { DockContext, FloatingStrip } from "./context";
@@ -58,7 +57,7 @@ export function SplitChip({ tabIds, width, paneWidths, geometry: givenGeometry, 
     axis: "x",
   });
   return (
-    <ThemeOverride theme={theme}>
+    <ThemeContext.Provider value={theme}>
       <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={{ ...drag.style, zIndex: drag.dragging ? 10 : active ? 1 : 0 }}>
         <Animated.View {...hover.hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
           {active && <SelectedTab width={width} band={band} opaque={drag.dragging} />}
@@ -69,7 +68,7 @@ export function SplitChip({ tabIds, width, paneWidths, geometry: givenGeometry, 
           </ItemRow>
         </Animated.View>
       </Animated.View>
-    </ThemeOverride>
+    </ThemeContext.Provider>
   );
 }
 

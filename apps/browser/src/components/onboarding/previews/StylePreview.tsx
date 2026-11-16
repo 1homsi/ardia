@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { GlassFill, GlassLookContext, liquidGlass, type GlassState } from "../../ui/Glass";
-import { useTheme } from "../../ui/theme";
-import { ThemeOverride } from "../../ui/ThemeOverride";
+import { ThemeContext, useTheme } from "../../ui/theme";
 import { capsule, font, space } from "../../ui/tokens";
 import { curve } from "../../ui/motion";
 import { mix } from "../../../lib/color";
@@ -151,14 +150,14 @@ export function StyleStage({ look, choice }: { look: Look; choice: StyleChoice }
   const glass = liquidGlass && choice.glass;
   const glassLook = useMemo(() => ({ controls: glass, panes: glass, tint: choice.tint }), [glass, choice.tint]);
   return (
-    <ThemeOverride theme={look.t}>
+    <ThemeContext.Provider value={look.t}>
       <GlassLookContext.Provider value={glassLook}>
         <View style={{ width: STAGE.width, height: STAGE.height, overflow: "hidden" }}>
           <Scene dark={look.dark} />
           <Surfaces look={look} glass={glass} />
         </View>
       </GlassLookContext.Provider>
-    </ThemeOverride>
+    </ThemeContext.Provider>
   );
 }
 

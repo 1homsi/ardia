@@ -1,10 +1,11 @@
+import { useContext } from "react";
 import { Symbol as NativeSymbol, type SymbolProps } from "@ardia/shell";
 import { iconName } from "../../lib/activeLook";
-import { hex, useScopedTheme } from "./theme";
+import { hex, ThemeContext } from "./theme";
 
 export type { SymbolProps };
 
 export function Symbol(props: SymbolProps) {
-  useScopedTheme();
+  useContext(ThemeContext);
   return <NativeSymbol {...props} name={iconName(props.name)} color={props.color && hex(props.color)} />;
 }
