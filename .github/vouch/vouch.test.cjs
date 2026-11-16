@@ -1533,34 +1533,42 @@ test("a reply retired when its holder left is posted afresh when they hold the i
   ]);
 });
 
-test("two takes at once: only as many as the cap leaves room for keep their issue, lowest number first", () => {
-  assert.equal(vouch.losesTakeRace({ number: 130, heldBefore: [121, 122], heldAfter: [121, 122] }), false);
-  assert.equal(vouch.losesTakeRace({ number: 130, heldBefore: [121, 122], heldAfter: [121, 122, 131] }), false);
-  assert.equal(vouch.losesTakeRace({ number: 131, heldBefore: [121, 122], heldAfter: [121, 122, 130] }), true);
-  assert.equal(vouch.losesTakeRace({ number: 130, heldBefore: [200, 201], heldAfter: [131, 200, 201] }), false);
-  assert.equal(vouch.losesTakeRace({ number: 131, heldBefore: [200], heldAfter: [130, 200] }), false);
-  assert.equal(vouch.losesTakeRace({ number: 132, heldBefore: [200], heldAfter: [130, 131, 200] }), true);
+test("an outsider whose other /take landed meanwhile is unassigned again and told about the cap, whichever issue number is lower", async () => {
+  for (const other of [119, 131]) {
+    const held = [121, 122].map((number) => claimIssue(number, { assignees: ["stranger"] }));
+    const elsewhere = claimIssue(other);
+    const issue = claimIssue(120);
+    const github = fakeGithub({ issues: [issue, elsewhere, ...held], comments: { 120: [comment(1, "stranger", "/take")] } });
+    const assign = github.rest.issues.addAssignees;
+    github.rest.issues.addAssignees = async (params) => {
+      elsewhere.assignees.push({ login: "stranger", type: "User" });
+      return assign(params);
+    };
+    await command(github, issue);
+    assert.deepEqual(claimWrites(github), [
+      ["assign", 120, "stranger"],
+      ["unassign", 120, "stranger"],
+      ["react", 1, "-1"],
+      ["reply", 120, "@stranger, you hold 3 issues already."],
+      ["minimize", "IC_1", "RESOLVED"],
+    ], String(other));
+    assert.deepEqual(issue.assignees, [], String(other));
+  }
 });
 
-test("an outsider whose other /take landed first is unassigned again and told about the cap", async () => {
+test("the cap counts what the outsider holds after the take, so an assignment a maintainer moved meanwhile costs nothing", async () => {
   const held = [121, 122].map((number) => claimIssue(number, { assignees: ["stranger"] }));
-  const elsewhere = claimIssue(119);
+  const moved = claimIssue(119);
   const issue = claimIssue(120);
-  const github = fakeGithub({ issues: [issue, elsewhere, ...held], comments: { 120: [comment(1, "stranger", "/take")] } });
+  const github = fakeGithub({ issues: [issue, moved, ...held], comments: { 120: [comment(1, "stranger", "/take")] } });
   const assign = github.rest.issues.addAssignees;
   github.rest.issues.addAssignees = async (params) => {
-    elsewhere.assignees.push({ login: "stranger", type: "User" });
+    held[0].assignees = [];
+    moved.assignees.push({ login: "stranger", type: "User" });
     return assign(params);
   };
   await command(github, issue);
-  assert.deepEqual(claimWrites(github), [
-    ["assign", 120, "stranger"],
-    ["unassign", 120, "stranger"],
-    ["react", 1, "-1"],
-    ["reply", 120, "@stranger, you hold 3 issues already."],
-    ["minimize", "IC_1", "RESOLVED"],
-  ]);
-  assert.deepEqual(issue.assignees, []);
+  assert.deepEqual(claimWrites(github), [["assign", 120, "stranger"], ["react", 1, "+1"], ["minimize", "IC_1", "RESOLVED"]]);
 });
 
 test("any admitted event on the issue handles a command whose own run was dropped", async () => {
@@ -1578,6 +1586,10 @@ test("any admitted event on the issue handles a command whose own run was droppe
   const unassigned = fakeGithub({ issues: [freed], comments: waiting() });
   await invoke("run", { github: unassigned, eventName: "issues", payload: { action: "unassigned", issue: freed } });
   assert.deepEqual(claimWrites(unassigned), taken);
+  const back = claimIssue(120);
+  const reopened = fakeGithub({ issues: [back], comments: waiting() });
+  await invoke("run", { github: reopened, eventName: "issues", payload: { action: "reopened", issue: back } });
+  assert.deepEqual(claimWrites(reopened), taken);
 });
 
 test("a command handled by a run that died before tidying up is tidied by the next event", async () => {
@@ -1616,6 +1628,15 @@ test("the reply naming a pull request's author is retired when that pull request
   });
   await event(still, "closed", another);
   assert.deepEqual(claimWrites(still), []);
+  const first = fresh(130, "alice", { created_at: CLAIMED, linked: [120], state: "closed" });
+  const second = fresh(133, "alice", { created_at: "2026-11-17T11:00:00Z", linked: [120] });
+  const moved = fakeGithub({
+    issues: [claimIssue(120)],
+    pulls: [first, second],
+    comments: { 120: [comment(5, "github-actions[bot]", "@alice is already working on this in #130.", "2026-11-17T10:00:00Z")] },
+  });
+  await event(moved, "closed", first);
+  assert.deepEqual(claimWrites(moved), [["minimize", "IC_5", "OUTDATED"]]);
 });
 
 test("a /take GitHub will not assign gets a confused reaction and a warning, and nothing else", async () => {

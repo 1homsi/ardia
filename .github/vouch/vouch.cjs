@@ -247,11 +247,6 @@ function claimCommand(body) {
   return text === TAKE || text === DROP ? text : null;
 }
 
-function losesTakeRace({ number, heldBefore, heldAfter }) {
-  const racing = [number, ...heldAfter.filter((held) => !heldBefore.includes(held))].sort((a, b) => a - b);
-  return racing.indexOf(number) >= OPEN_PR_LIMIT - heldBefore.length;
-}
-
 function takeDecision({ login, tier, issue, held = 0 }) {
   const holder = issueHolder(issue);
   if (holder && !holdsIssue(holder, login)) return { outcome: "taken", holder };
@@ -288,7 +283,7 @@ function holderPattern(template, values) {
     .split(/(\{holder\}|\{pull\})/)
     .map((part) => {
       if (part === "{holder}") return "([A-Za-z0-9-]+)";
-      if (part === "{pull}") return "\\d+";
+      if (part === "{pull}") return "(\\d+)";
       return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     })
     .join("");
@@ -1062,7 +1057,9 @@ function outdatedReplies(session, thread) {
   return thread.comments.filter((comment) => {
     if (comment.minimized || !comment.bot || comment.login !== WORKFLOW_BOT) return false;
     const named = patterns.map((pattern) => pattern.exec(comment.body.trim())).find(Boolean);
-    return Boolean(named) && !holdsIssue(holder, named[1]);
+    if (!named) return false;
+    const namesAnotherPull = Boolean(named[2]) && Number(named[2]) !== (holder && holder.pull);
+    return !holdsIssue(holder, named[1]) || namesAnotherPull;
   });
 }
 
@@ -1117,8 +1114,8 @@ async function handleClaimCommand(session, number, comment) {
   const issue = await readIssueThread(session, number);
   if (!issue || issue.state !== "open") return null;
   const capped = command === TAKE && tier === "outsider";
-  const heldBefore = capped ? await otherIssuesHeldBy(session, login, number) : [];
-  let decision = command === DROP ? dropDecision({ login, issue }) : takeDecision({ login, tier, issue, held: heldBefore.length });
+  const held = capped ? (await otherIssuesHeldBy(session, login, number)).length : 0;
+  let decision = command === DROP ? dropDecision({ login, issue }) : takeDecision({ login, tier, issue, held });
   const result = { number, login, command, outcome: decision.outcome };
   core.info(`Issue #${number}: ${command} by ${login}: ${decision.outcome}`);
   if (decision.outcome === "assign") {
@@ -1129,8 +1126,8 @@ async function handleClaimCommand(session, number, comment) {
       await minimize(session, comment, "RESOLVED");
       return { ...result, outcome: "not-assignable" };
     }
-    if (capped && losesTakeRace({ number, heldBefore, heldAfter: await otherIssuesHeldBy(session, login, number) })) {
-      core.info(`Issue #${number}: ${login} took another issue at the same time and is over the limit`);
+    if (capped && (await otherIssuesHeldBy(session, login, number)).length >= OPEN_PR_LIMIT) {
+      core.info(`Issue #${number}: ${login} took another issue meanwhile and is over the limit`);
       await write(session, () => github.rest.issues.removeAssignees({ ...repo, issue_number: number, assignees: [login] }));
       decision = { outcome: "at-limit" };
       result.outcome = decision.outcome;
@@ -1360,7 +1357,9 @@ async function run(args) {
     return evaluatePullRules(session, pull.number);
   }
   if (eventName === "issues" && (action === "opened" || action === "reopened")) {
-    return handleIssue(session, payload.issue);
+    await handleIssue(session, payload.issue);
+    if (action === "reopened" && !payload.issue.pull_request) await settleIssueClaims(session, payload.issue.number);
+    return null;
   }
   if (eventName === "issues" && (action === "labeled" || action === "unlabeled")) {
     const label = String((payload.label || {}).name || "").toLowerCase();
@@ -1455,7 +1454,6 @@ module.exports = {
   issueHolder,
   claimCommand,
   takeDecision,
-  losesTakeRace,
   dropDecision,
   claimLastActive,
   claimIsStale,
