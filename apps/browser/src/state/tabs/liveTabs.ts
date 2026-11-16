@@ -277,8 +277,8 @@ function intoWindow(s: BrowserState, key: string, to: string): BrowserState {
 function show(s: BrowserState, key: string): BrowserState {
   const tab = s.tabs[key]!;
   const w = s.windows[tab.windowId];
-  if (!w || w.profileId !== tab.profileId) return s;
-  const shown = w.activeTabIds[tab.profileId];
+  if (!w || engineProfile(s, w.profileId) !== engineProfile(s, tab.profileId)) return s;
+  const shown = w.activeTabIds[w.profileId];
   if (shown === key || (shown && splitTabIdsOf(splitOf(s, shown))?.includes(key))) return withoutPeek(s, shown);
   let next = apply(s, activated(s, key));
   if (shown && !switchKeepsOpeners(s, shown, key)) next = forgetOpeners(next, w.id);

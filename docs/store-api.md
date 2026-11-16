@@ -223,8 +223,10 @@ ordered transaction that names its cause. There are no echo windows, timers or "
     decides. An extension that activates another tab and then discards the shown one (Auto Tab Discard) is a switch
     too: the old tab stays in the strip, so there is no successor to pick. An explicit activation
     in the same change as the close (an extension's remove then update) is a switch, and wins over the store's
-    successor command still on its way. A split's other pane and a tab of a profile the window isn't showing
-    aren't shown (the focused pane changes on user focus; profiles keep their own tab);
+    successor command still on its way. A tab of another space that shares the window's data is shown too: the
+    window switches to that space (otherwise the app would send Chrome back to the tab being discarded). A split's
+    other pane and a tab of a space with its own data aren't shown (the focused pane changes on user focus;
+    spaces with their own data keep their own tab);
   - a tab Chrome made (`tab:` adoption) takes Chrome's pin, place and activation the first time the app sees it;
     a tab arriving in a strip of another app window (an extension moving it; the window is `appWindow`, else the
     one its other tabs are in) changes window as it is, page and live state included (`intoWindow`; its view takes
