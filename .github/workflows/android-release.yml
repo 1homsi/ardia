@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=""
-          for needed in apps/phone/scripts/android-version.ts apps/phone/scripts/build-apk apps/phone/scripts/check-release-apk apps/phone/test/r8/check-names.py; do
+          for needed in apps/phone/scripts/android-version.ts apps/phone/scripts/build-apk apps/phone/scripts/sign-release-apk apps/phone/scripts/check-release-apk apps/phone/test/release/sign-release-apk.test.sh apps/phone/test/r8/check-names.py; do
             [ -f "$needed" ] || missing="$missing $needed"
           done
           if [ -n "$missing" ]; then
@@ -102,6 +102,8 @@ jobs:
           export TMPDIR="$RUNNER_TEMP"
           ARDIA_APK_DIR="$RUNNER_TEMP/android-release" ARDIA_GRADLE_EPHEMERAL=1 \
             apps/phone/scripts/build-apk "android-$VERSION" --store --commit "$COMMIT" --version "$VERSION"
+      - name: The signing script loads a PKCS12 keystore (a throwaway key)
+        run: apps/phone/test/release/sign-release-apk.test.sh
       - name: Sign with the release key
         env:
           VERSION: ${{ steps.plan.outputs.version }}
@@ -112,15 +114,9 @@ jobs:
           set -euo pipefail
           [ -n "$ANDROID_RELEASE_KEYSTORE_B64" ] && [ -n "$ANDROID_RELEASE_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_RELEASE_KEY_ALIAS" ] \
             || { echo "::error::missing the secrets ANDROID_RELEASE_KEYSTORE_B64, ANDROID_RELEASE_KEYSTORE_PASSWORD and ANDROID_RELEASE_KEY_ALIAS"; exit 1; }
-          keys="$RUNNER_TEMP/release-keys"
-          (umask 077 && mkdir -p "$keys")
-          trap 'rm -rf "$keys"' EXIT
-          (umask 077 && printf '%s' "$ANDROID_RELEASE_KEYSTORE_B64" | base64 -d > "$keys/release.p12")
-          tools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           out="$RUNNER_TEMP/android-release"
-          "$tools/apksigner" sign --ks "$keys/release.p12" --ks-type PKCS12 --ks-key-alias "$ANDROID_RELEASE_KEY_ALIAS" \
-            --ks-pass env:ANDROID_RELEASE_KEYSTORE_PASSWORD --key-pass env:ANDROID_RELEASE_KEYSTORE_PASSWORD \
-            --v4-signing-enabled false --out "$out/Ardia-$VERSION.apk" "$out/android-$VERSION.apk"
+          mkdir -p "$RUNNER_TEMP/release-keys"
+          TMPDIR="$RUNNER_TEMP/release-keys" apps/phone/scripts/sign-release-apk "$out/android-$VERSION.apk" "$out/Ardia-$VERSION.apk" > /dev/null
           rm -f "$out/android-$VERSION.apk"
       - name: Check the signed APK
         env:

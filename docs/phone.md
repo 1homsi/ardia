@@ -1796,34 +1796,50 @@ apps/phone/scripts/corex-test <commit> [--patch FILE] [--tests filters]   the Ko
 
 ### Android release
 
-Decided by the owner (2026-11-16): Android ships as an APK on GitHub Releases, with no Play listing. Everything up to
-publishing is automated; only the owner publishes. iPhone's counterpart is "The Expo app on TestFlight" below.
+Decided by the owner (2026-11-16): Android ships as an APK on GitHub Releases, with no Play listing. Nothing is
+published without the owner's OK. iPhone's counterpart is "The Expo app on TestFlight" below.
 
-**The workflow.** `.github/workflows/android-release.yml`, dispatch-only. The commands:
+**Which build goes public first.** Not the Android of today. The APK goes public with the release that follows the Expo
+work being finished, iPhone and Android together. On Android that means the redesign switched on, the release checks
+passing, and a phone pass on the candidate. Until then the workflow and the candidates are rehearsals.
+
+**The workflow.** `.github/workflows/android-release.yml`, dispatch-only. It reaches `main` with the Expo branch's own
+pull request (#1556, which also closes #2160), and can't be dispatched before that merge. Then the commands are:
 
 ```
-gh workflow run android-release.yml --ref t3/unify-expo-architecture -f mode=dry-run [-f commit=<sha>] [-f version=0.2.47-nightly.2]
-gh workflow run android-release.yml --ref t3/unify-expo-architecture -f mode=draft -f commit=<sha> -f version=<release version>
+gh workflow run android-release.yml -f mode=dry-run [-f commit=<sha>] [-f version=0.2.47-nightly.2]
+gh workflow run android-release.yml -f mode=draft -f commit=<sha> -f version=<release version>
 gh run watch --exit-status                                     the run's summary has the stamp and every check
 ```
 
 - **What a run does.** It builds the shrunk arm64 APK on `ubuntu-latest` with `build-apk --store` from the commit's
-  export, so the lab is off and `ardia_sync_offered` is false. Then it signs it with the release key and runs
-  `check-release-apk`.
+  export, so the lab is off and `ardia_sync_offered` is false. Then it runs `sign-release-apk.test.sh`, signs the APK
+  with the release key through `apps/phone/scripts/sign-release-apk`, and runs `check-release-apk`.
   - **dry-run** keeps `Ardia-<version>.apk`, its `.txt` stamp and `.sha256` as a workflow artifact for 14 days.
   - **draft** attaches the same three files to a new draft prerelease `android-v<version>`.
   - Neither publishes, and neither marks a release as latest.
 - **The release key.** It lives only in the repository secrets: `ANDROID_RELEASE_KEYSTORE_B64` (PKCS12),
   `ANDROID_RELEASE_KEYSTORE_PASSWORD` and `ANDROID_RELEASE_KEY_ALIAS`. Its certificate's SHA-256 is pinned in the
   workflow: `8A:B5:0E:90:…:41:98:BC`.
-  - The keystore is decoded under `RUNNER_TEMP` with umask 077 and removed by a trap and an `always()` step. The
-    password reaches `apksigner` as `env:`, never on a command line.
-  - It is never on a Mac or on corex. Lab builds keep the repo's debug key.
+  - `sign-release-apk` decodes the keystore into a private folder (umask 077) that a trap removes, and the workflow's
+    `always()` step checks it's gone.
+  - The password reaches `apksigner` as `env:` for both the store and the key. It's never on a command line, and never
+    `file:`: given one file for both, apksigner reads the key's password from the file's second line, and the signer
+    fails to load.
+  - `apps/phone/test/release/sign-release-apk.test.sh` makes a throwaway PKCS12 key and a minimal APK, and runs the
+    script. It checks:
+    - the signer;
+    - that no keystore is left behind;
+    - that a wrong password fails;
+    - that the password never reaches the output.
+
+    It runs in the workflow before the real signing, and on a Mac without Gradle.
+  - It is never on corex. Lab builds keep the repo's debug key.
   - The alias is a secret, so GitHub masks the word "ardia" in that job's logs and summary; the attached stamp file
     isn't masked.
 - **Dispatching.** A workflow can only be dispatched once its file is on the default branch, the same as
-  `ios-release.yml` for the Expo iPhone app. `android-release.yml` has to be on `main` once; the run then uses this
-  branch's copy through `--ref`.
+  `ios-release.yml` for the Expo iPhone app. A run on a commit without the release scripts stops at its first step and
+  says so.
 - **No gate.** It needs no `gate` job and no `GATED_WORKFLOWS` entry: it has no `pull_request` trigger, so no outside
   author can start it, and dispatching takes write access.
 
@@ -1875,15 +1891,19 @@ commit, as `release-ios` takes it.
   non-prerelease, as they already do past the engine and Windows prereleases. An Android row counts no `.dmg` or
   `.zip`.
 
-**What is left, and who presses it.**
-1. **Me:** put `android-release.yml` on `main` through its own pull request (#2161, closing #2160); the owner merges it.
-   The file is the same as this branch's. On `main` it stops at its first step until the Expo branch brings the scripts.
-2. **The owner, the first time** (the first use of the release key on CI): dispatch the dry run.
-3. **Me:** the full phone pass runs on corex's release-style build (`rc1`, the debug key, store settings), with
-   evidence in `/tmp/ardia-phone-shots/android-rc1/`. The dry run's release-key APK then gets a short check: install,
-   launch, and refusing to install over a build signed with another key.
-4. **The owner:** dispatch `mode=draft` for the release version.
-5. **The owner:** publish the draft on GitHub. Keep it a prerelease, and never set it as latest.
+**A candidate before the workflow is on main.** The Android agent builds a release-style APK on corex:
+`corex-build <name> <commit> --store --version <release version>`, with the lab off and sync not offered. The lead
+signs a copy on the owner's Mac with the release key and runs `check-release-apk` on it, then puts it beside the build
+as `<name>-release.apk` with its stamp. The key never leaves that Mac. The phone pass runs on that file.
+- The first was `rc1-release`: 53e013c78, 0.2.47-nightly.2, 204702, every check passing.
+- The second, `rc2-release`, checks an update in place.
+
+**Who presses what.**
+1. **The Android agent:** the candidate's build on corex, and the phone pass on the signed file, with the evidence in
+   `/tmp/ardia-phone-shots/android-<candidate>/`.
+2. **The lead:** signing a candidate with the release key on the owner's Mac.
+3. **After #1556 merges, the owner the first time:** the workflow's dry run, then `mode=draft` for the release version.
+4. **The owner only:** publishing the draft on GitHub. Keep it a prerelease, and never set it as latest.
 
 ### The lab switch
 
