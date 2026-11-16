@@ -59,6 +59,7 @@ export type PageViewProps = ViewProps & {
   onPageState?: (state: PageState) => void;
   onPageTone?: (tone: PageTone) => void;
   onPageError?: (error: PageError) => void;
+  onPageDrawn?: () => void;
 };
 
 export type PageViewHandle = {
@@ -185,6 +186,7 @@ export type PageEventPayload =
   | ({ name: "state" } & Partial<Omit<PageState, "url" | "title" | "progress" | "isLoading" | "canGoBack" | "canGoForward">> &
       Omit<PageNavigationState, "url"> & { url?: string })
   | { name: "tone"; top?: string; bottom?: string }
+  | { name: "drawn" }
   | ({ name: "error" } & PageError);
 
 export type DownloadProgress = {

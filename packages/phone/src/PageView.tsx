@@ -25,12 +25,18 @@ const NativePageView = requireNativeViewManager<NativeProps>("ArdiaPhonePageView
 
 export const closePage = (pageId: string) => pages.close(pageId);
 
-const obscuresInsets = requireOptionalNativeModule<{ obscuresInsets?: boolean }>("ArdiaPhonePageView")?.obscuresInsets === true;
+const pageModule = requireOptionalNativeModule<{ obscuresInsets?: boolean; reportsDrawn?: boolean }>("ArdiaPhonePageView");
+
+const obscuresInsets = pageModule?.obscuresInsets === true;
+
+const reportsDrawn = pageModule?.reportsDrawn === true;
 
 export const pageObscuresInsets = () => obscuresInsets;
 
+export const pageReportsDrawn = () => reportsDrawn;
+
 export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageView(props, ref) {
-  const { onPageState, onPageTone, onPageError, toneInsets, obscuredInsets, surfaceColor, ...rest } = props;
+  const { onPageState, onPageTone, onPageError, onPageDrawn, toneInsets, obscuredInsets, surfaceColor, ...rest } = props;
   const native = useRef<NativeHandle>(null);
   useImperativeHandle(
     ref,
@@ -49,6 +55,8 @@ export const PageView = forwardRef<PageViewHandle, PageViewProps>(function PageV
       onPageState?.(normalizeState(state, props.isPrivate ?? false));
     } else if (nativeEvent.name === "tone") {
       onPageTone?.({ top: nativeEvent.top ?? null, bottom: nativeEvent.bottom ?? null });
+    } else if (nativeEvent.name === "drawn") {
+      onPageDrawn?.();
     } else {
       onPageError?.({ code: nativeEvent.code, message: nativeEvent.message });
     }

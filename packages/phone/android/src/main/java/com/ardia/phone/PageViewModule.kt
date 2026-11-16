@@ -62,6 +62,8 @@ class PageViewModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhonePageView")
 
+        Constants("reportsDrawn" to true)
+
         Events("onPageEngineEvent")
 
         OnCreate {

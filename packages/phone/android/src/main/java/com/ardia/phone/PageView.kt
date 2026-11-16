@@ -1,9 +1,11 @@
 package com.ardia.phone
 
 import android.content.Context
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.WebView
 import android.widget.FrameLayout
 import com.ardia.browser.Page
 import com.ardia.browser.PageColors
@@ -63,6 +65,34 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
             gestures.surfaceColor = value
         }
 
+    private var drawnAskedAt = 0L
+
+    private val drawn = PageDrawnWatch(
+        object : DrawnSurface {
+            override fun visible() = isShown && width > 0 && height > 0 && PageDrawnWatch.shownAlpha(this@PageView) > 0f
+
+            override fun postVisualState(done: () -> Unit): Boolean {
+                val web = PageDrawnWatch.webViewIn(host) ?: return false
+                drawnAskedAt = SystemClock.uptimeMillis()
+                web.postVisualStateCallback(
+                    drawnAskedAt,
+                    object : WebView.VisualStateCallback() {
+                        override fun onComplete(requestId: Long) = done()
+                    },
+                )
+                return true
+            }
+
+            override fun afterNextFrameCommits(done: () -> Unit) {
+                viewTreeObserver.registerFrameCommitCallback { done() }
+                (PageDrawnWatch.webViewIn(host) ?: this@PageView).invalidate()
+            }
+        },
+    ) {
+        lab { "page view ${page?.id ?: pageId} drawn ${SystemClock.uptimeMillis() - drawnAskedAt} ms after it became visible" }
+        onPageEvent(mapOf("name" to "drawn"))
+    }
+
     init {
         addView(host, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         gestures.install()
@@ -100,6 +130,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     fun unbind() {
+        drawn.reset()
         page?.id?.let { PhonePages.viewLeaves(it, this) }
         scope?.cancel()
         scope = null
@@ -115,6 +146,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     private val asksWhenShown = android.view.ViewTreeObserver.OnPreDrawListener {
         if (PhonePages.permissionAsks.pending > 0) PhonePages.permissionAsks.pump()
+        drawn.frame()
         true
     }
 
@@ -126,6 +158,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     override fun onDetachedFromWindow() {
         viewTreeObserver.removeOnPreDrawListener(asksWhenShown)
+        drawn.reset()
         super.onDetachedFromWindow()
     }
 
@@ -133,6 +166,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         if (view != null && view.parent === host && host.childCount == 1) return
         val hadView = host.childCount > 0
         host.removeAllViews()
+        drawn.reset()
         if (view == null) {
             if (hadView) lab { "page view ${page?.id ?: pageId} lost its WebView (the page released it), ${width}x$height" }
             return
