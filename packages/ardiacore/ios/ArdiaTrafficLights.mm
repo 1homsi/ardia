@@ -431,6 +431,14 @@ bool MoveTrafficLights(NSWindow *window, NSValue *center) {
 }
 
 const void *const kTitledForAccessibilityKey = &kTitledForAccessibilityKey;
+const void *const kTitleReadKey = &kTitleReadKey;
+void (^gTitleRead)(NSWindow *) = nil;
+
+void NoteTitleRead(NSWindow *window) {
+  if (objc_getAssociatedObject(window, kTitleReadKey)) return;
+  objc_setAssociatedObject(window, kTitleReadKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  if (gTitleRead) gTitleRead(window);
+}
 
 void AnswerAccessibilityTitleFromWindowTitle(NSWindow *window) {
   objc_setAssociatedObject(window, kTitledForAccessibilityKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -441,7 +449,9 @@ void AnswerAccessibilityTitleFromWindowTitle(NSWindow *window) {
   ReplaceMethod(windowClass, @selector(accessibilityTitle), ^id(IMP original) {
     return ^NSString *(NSWindow *titled) {
       NSString *title = objc_getAssociatedObject(titled, kTitledForAccessibilityKey) ? titled.title : nil;
-      return title.length ? title : ((NSString * (*)(id, SEL)) original)(titled, @selector(accessibilityTitle));
+      if (!title.length) return ((NSString * (*)(id, SEL))original)(titled, @selector(accessibilityTitle));
+      NoteTitleRead(titled);
+      return title;
     };
   });
 }
@@ -472,3 +482,15 @@ NSValue *ArdiaTrafficLightsCenter(NSWindow *window) {
 BOOL ArdiaTrafficLightsTrailing(NSWindow *window) {
   return window && objc_getAssociatedObject(window, kLightsTrailingKey) != nil;
 }
+
+@implementation ArdiaChromeWindowHost (AccessibilityTitle)
+
++ (void)setAccessibilityTitleReadHandler:(void (^)(NSWindow *))handler {
+  ardia_window::gTitleRead = [handler copy];
+}
+
++ (void (^)(NSWindow *))accessibilityTitleReadHandler {
+  return ardia_window::gTitleRead;
+}
+
+@end
