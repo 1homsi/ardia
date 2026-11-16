@@ -31,6 +31,24 @@ public class DevModule: Module {
       }
     }
 
+    AsyncFunction("devNotificationCategoryRace") { (promise: Promise) in
+      let center = UNUserNotificationCenter.current()
+      let engineWrite = { center.setNotificationCategories([UNNotificationCategory(identifier: "engine-late", actions: [], intentIdentifiers: [], options: [])]) }
+      let readLater = { (done: @escaping ([String]) -> Void) in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { center.getNotificationCategories { done($0.map(\.identifier).sorted()) } }
+      }
+      center.setNotificationCategories([])
+      center.getNotificationCategories { snapshot in
+        engineWrite()
+        center.setNotificationCategories(snapshot)
+        readLater { unguarded in
+          center.setNotificationCategories([])
+          NotificationHub.shared.registerOwnCategories(afterRead: engineWrite)
+          readLater { guarded in promise.resolve(["unguarded": unguarded, "guarded": guarded]) }
+        }
+      }
+    }
+
     AsyncFunction("devRenderIntroMusic") { (cues: [String: Double], path: String) -> Double? in
       return IntroMusic.render(cues: cues, to: path)
     }

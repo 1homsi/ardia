@@ -11,6 +11,7 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
     UNNotificationCategory(identifier: dismissibleCategory, actions: [], intentIdentifiers: [], options: [.customDismissAction]),
   ]
 
+  private let categoryLedger = CategoryLedger()
   private let engineDelegateLock = NSLock()
   private weak var engineDelegateStore: UNUserNotificationCenterDelegate?
 
@@ -20,7 +21,15 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
     Self.holdCenter
     if let current = center.delegate, current !== self { adoptEngineDelegate(current) }
     center.delegate = self
-    center.getNotificationCategories { [center] categories in center.setNotificationCategories(categories) }
+    registerOwnCategories()
+  }
+
+  func registerOwnCategories(afterRead: (() -> Void)? = nil) {
+    let mark = categoryLedger.mark
+    center.getNotificationCategories { [center, categoryLedger] categories in
+      afterRead?()
+      categoryLedger.writeUnlessWritten(since: mark) { center.setNotificationCategories(categories) }
+    }
   }
 
   var engineDelegate: UNUserNotificationCenterDelegate? {
@@ -53,9 +62,8 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
       let original = unsafeBitCast(method_getImplementation(method), to: Setter.self)
       let block: @convention(block) (UNUserNotificationCenter, NSSet) -> Void = { center, categories in
         let given = categories.compactMap { $0 as? UNNotificationCategory }
-        let taken = Set(given.map(\.identifier))
-        let kept = given + ownCategories.filter { !taken.contains($0.identifier) }
-        original(center, categoriesSetter, NSSet(array: kept))
+        let kept = CategoryLedger.merged(given, keeping: Array(ownCategories), id: \.identifier)
+        NotificationHub.shared.categoryLedger.write { original(center, categoriesSetter, NSSet(array: kept)) }
       }
       method_setImplementation(method, imp_implementationWithBlock(block))
     }
