@@ -1910,6 +1910,60 @@ as `<name>-release.apk` with its stamp. The key never leaves that Mac. The phone
 3. **After #1556 merges, the owner the first time:** the workflow's dry run, then `mode=draft` for the release version.
 4. **The owner only:** publishing the draft on GitHub. Keep it a prerelease, and never set it as latest.
 
+### The old iPhone app, cleaned out
+
+The owner's order (2026-11-16), as for Android above: clean the SwiftUI app out of this branch, keeping only what the
+Expo app builds from and what comparisons need. `main` keeps it until this branch merges.
+
+**What the Expo app and the rest of the repo used from `apps/ios`** (249 tracked files, about 56,800 lines).
+
+| In `apps/ios` | What used it | Decision | Now |
+|---|---|---|---|
+| `Packages/ArdiaKit` (ArdiaShared, ArdiaSync, ArdiaBrowser, ArdiaDesign) and its tests | the `ArdiaPhoneNative` pod (ArdiaBrowser, ArdiaDesign, through the Podfile's `link_ardia_kit`); the widgets and the share extension (ArdiaDesign); the PhoneMotion and PhoneSync test packages; Android's sync bundle (`ArdiaShared/Scripts/ardia-sync.js`); `ios.yml` | keep | `packages/phone/ios/ArdiaKit` |
+| `Share`, `Action`, `Widgets` | the Expo project's three extension targets, compiled in place as synchronized folders | keep | `apps/phone/ios/{Share,Action,Widgets}` |
+| `Config`: `Share`, `Open` and `Widgets` Info.plists and entitlements, `Ardia.entitlements`, `Ardia-DefaultBrowser.entitlements` | the Expo project's build settings; `defaultBrowserSwitch.test.ts` | keep | `apps/phone/ios/Config` |
+| `Config/ExportOptions-TestFlight.plist` | `release-ios` | keep | `apps/phone/ios/Config` |
+| `Config/TestFlight-WhatToTest.txt` | `ios-release.yml`'s public link step | keep | `apps/phone/ios/Config` |
+| `Config/Ardia-Info.plist` | the SwiftUI app only (the Expo app has `apps/phone/ios/Ardia/Info.plist`) | delete | |
+| `App/AppIcon.icon`, `App/Assets.xcassets` | the Expo app's icon and asset catalog | keep | `apps/phone/ios/App` |
+| The rest of `App` (screens, app model, intents, its PrivacyInfo) | the SwiftUI app only; the Expo app has its own intents and `PrivacyInfo.xcprivacy` | delete | |
+| `Ardia.xcodeproj`, `project.yml` | the SwiftUI app only | delete | |
+| `scripts/asc.mjs` | `ios-release.yml` (status, next build, wait, public link, testers, certificates), `release-ios` | keep | `apps/phone/scripts/asc.mjs` |
+| `scripts/bundle-shared.mjs` | the `packages/core` and `packages/sync` test scripts; `ios.yml` | keep | `apps/phone/scripts/bundle-shared.mjs` |
+| `scripts/update-filter-catalog.mjs` | refreshes ArdiaBrowser's `FilterListCatalog.json`, which the iPhone ships | keep | `apps/phone/scripts/update-filter-catalog.mjs` |
+
+**Outside `apps/ios`:**
+- `scripts/release-ios.sh`: the SwiftUI app's TestFlight build, reached only through `ios-release.yml`'s `swiftui`
+  path. It goes, and so do that path and the workflow's `app` input. The Expo app is the only iPhone app; build
+  0.2.47 (9) stays on TestFlight as it is.
+- `ios.yml`: its `app` job built the SwiftUI project and goes. Its `packages` job stays and also runs PhoneMotion and
+  PhoneSync, so its `GATED_WORKFLOWS` entry in `.github/vouch/vouch.cjs` stays.
+- `docs/ios.md`: it documented the SwiftUI app and goes. What is still true (the code shared with the Mac, the
+  TestFlight secrets and the version scheme) is in this file.
+- `.gitignore`, the Podfile, the Expo project, `build-sim-app`, `release-ios`, `packages/phone/android/build.gradle`
+  (the sync bundle) and the PhoneMotion and PhoneSync manifests follow the moves.
+- `ios-update-launch-check` and the upgrade proof take the SwiftUI app as a built `.app`, the pinned reference below.
+  `PhoneSyncTests` writes its own SwiftUI-shaped store with ArdiaKit's schema, so it needs no app.
+- The site, dashboard, CLI, extras, infra and the Mac app name nothing in `apps/ios`.
+
+**The pinned reference.** `~/Developer/ardia-phone-references/swiftui-main.app` (linked from
+`/tmp/ardia-phone/swiftui-main.app`), with `swiftui-main.txt`, is main's SwiftUI app built from
+`a6ab643116b53c7a7079521adbb9374537eaec0f`: Release, for the simulator, ad hoc signed with simulated entitlements.
+It is the one SwiftUI build the launch check, the upgrade proof and the speed comparisons install. To rebuild it once
+`apps/ios` is gone here:
+
+```
+apps/phone/scripts/rebuild-swiftui-reference [<commit>] [<out dir>]
+```
+
+The script does the following:
+- exports the commit's `apps/ios` and `packages/sync` with `git archive` into a scratch folder;
+- builds the SwiftUI project there under the xcodebuild lock, ad hoc signed as above;
+- writes `swiftui-main-rebuilt.app` and its `.txt` beside the pinned one, and checks it carries its entitlements.
+
+A comparison against main's newer SwiftUI app takes main's commit: `apps/phone/scripts/rebuild-swiftui-reference
+origin/main`.
+
 ### The lab switch
 
 The page lab (`com.ardia.phone.PAGE_LAB`) and sync's demo mode (`com.ardia.phone.SYNC_DEMO`) exist only in lab
