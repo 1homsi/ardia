@@ -32,8 +32,8 @@ async function withMedia(name: string, path: string, title: string, run: (key: s
   }
 }
 
-const played = async (key: string) => ((await evaluate(key, "JSON.stringify({ paused: m.paused, time: m.currentTime, tries })")) ?? {}) as Played;
-const framed = async (key: string) => ((await evaluate(key, "JSON.stringify(frameState || {})")) ?? {}) as Played;
+const played = async (key: string) => ((await evaluate(key, 'post("result", JSON.stringify({ paused: m.paused, time: m.currentTime, tries }));')) ?? {}) as Played;
+const framed = async (key: string) => ((await evaluate(key, 'post("result", JSON.stringify(frameState || {}));')) ?? {}) as Played;
 const playing = (state: Played) => state.paused === false && (state.time ?? 0) > 0.3;
 const held = (state: Played) => state.paused === true && (state.tries?.length ?? 0) > 0;
 const blockedHeard = (key: string, what: string) => heard("tab", (event) => event.key === key && event.name === "autoplayBlocked" && Number(event.data?.count) > 0, what);
@@ -84,7 +84,7 @@ const autoplayChecks: Check[] = [
         await withMedia("click", "media?auto-muted", "media page", async (key) => {
           await until("the muted autoplay is paused before the click", SETTLE_MS, () => played(key), held);
           await click(key, PLAY_BUTTON.x, PLAY_BUTTON.y);
-          await evaluate(key, "JSON.stringify(m.muted = false)");
+          await evaluate(key, 'm.muted = false; post("result", "true");');
           const state = await until("the clicked play plays", SETTLE_MS, () => played(key), playing);
           expectEqual(state.tries?.at(-1), "played", "the click's play() resolves");
         });
