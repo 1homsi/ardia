@@ -2,7 +2,7 @@ import { engineAvailable, engineCallJson, hostCall, onEngineTopic } from "../eng
 import { mountPage } from "../engine/pages";
 import { httpPagesPort } from "./engineBackForward";
 import { expectEqual, expectTrue, type Check } from "./check";
-import { click, evaluate, firstWindow, heard, LEFT, listed, pause, show, until } from "./engineSleep";
+import { click, evaluate, firstWindow, heard, LEFT, listed, pause, RIGHT, show, until } from "./engineSleep";
 
 const SETTLE_MS = 6000;
 const LOAD_MS = 20000;
@@ -12,7 +12,7 @@ const CTRL = 2;
 const AUTOPLAY_SETTLES_MS = 1500;
 const PER_PAGE_COUNT = 20;
 
-type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean };
+type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean; downs?: number };
 
 const port = engineAvailable() ? httpPagesPort() : null;
 const origin = `http://127.0.0.1:${port}`;
@@ -241,7 +241,10 @@ const autoplayChecks: Check[] = [
       withMedia("iframe-click", "framed?quiet-same", "framed page", async (key) => {
         await until("the iframe reports", SETTLE_MS, () => framed(key), (state) => state.paused === true);
         await click(key, PLAY_BUTTON.x, PLAY_BUTTON.y);
-        await until("the click reaches the iframe's play button", SETTLE_MS, () => framed(key), (state) => (state.tries?.length ?? 0) > 0);
+        await until("the click reaches the iframe's play button", SETTLE_MS, () => framed(key), (state) => (state.tries?.length ?? 0) > 0).catch(async (error: Error) => {
+          const seen = await evaluate(key, `const box = document.querySelector("iframe").getBoundingClientRect(); post("result", JSON.stringify({ topDowns, under: document.elementFromPoint(${PLAY_BUTTON.x}, ${PLAY_BUTTON.y})?.tagName ?? null, iframe: [box.x, box.y, box.width, box.height], frame: frameState }));`).catch(() => null);
+          throw new Error(`${error.message}; the page saw ${JSON.stringify(seen)}`);
+        });
         await refusedThenStill(key, DETACHED_SOUND, "the top page's play with sound after a click in the iframe");
       }),
     ),
@@ -275,6 +278,7 @@ const autoplayChecks: Check[] = [
         await until("the Ctrl+click's tab is offered to the page", SETTLE_MS, async () => offered.length, (count) => count > 0);
         closeBackground = mountPage(background, { url: "", profile: "", adopt: offered[0], windowId }, () => {});
         await loadedAt(background, "/media?second", "media page");
+        await show(background, windowId, RIGHT);
         await refusedThenStill(background, DETACHED_SOUND, "the background tab's play with sound");
       } finally {
         closeBackground?.();
