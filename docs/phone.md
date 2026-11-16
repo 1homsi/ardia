@@ -1316,17 +1316,17 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 
 | Area | Screen or state | Status | What | Owner |
 | --- | --- | --- | --- | --- |
-| Onboarding | Welcome | different | Expo's title is larger (about 34 pt against main's 28) and its button a rounded rectangle where main's is a capsule | screens |
-| Onboarding | Blocking | different | Expo's rows have icons and a shadowed card higher up; its title wraps on two lines; rectangle button | screens |
-| Onboarding | Sync step | different | Expo's illustration sits lower and smaller | screens |
-| Onboarding | All set | different | Expo's tips have icons, main's don't | screens |
+| Onboarding | Welcome | match | Main's 28 pt title, 17 pt subtitle and capsule button; main's rise, 911cbb80b | |
+| Onboarding | Blocking | match | Plain toggle rows on main's card, main's spacing and capsule, 911cbb80b | |
+| Onboarding | Sync step | not seen | Art centred as main's (911cbb80b); our demo shows the connected state, main's the connect buttons | screens |
+| Onboarding | All set | match | Plain tip rows on main's card, 911cbb80b | |
 | Onboarding | All set: usage-stats toggle | deliberate | Expo only; consent is asked where sharing is described (telemetry rule) | owner's rule |
 | Onboarding | Default browser step | not seen | Hidden in both without the entitlement | |
 | Start page | Header, switcher, dots, bar | match | | |
 | Start page | Pinned tiles | match | Tiles draw main's SF Symbols (Calendar, folders) at main's sizes, d09343dba | |
 | Start page | No spaces, sync off (invitation) | match | The Sync With Your Mac capsule alone, same place and size (`r-e-light`/`r-m-light`/invitation) | |
-| Search panel | Empty, recent searches | different | Main also lists the open tab (SwiftUI…, Switch to Tab); Expo doesn't | screens |
-| Search panel | Typing | different | Typed for real, both complete inline (app to apple.com, the rest selected) with the same rows; only `-BrowseQuery` skips completion. Left: Expo prefixes Switch to Tab with a glyph main doesn't have | screens |
+| Search panel | Empty, recent searches | match | Main's source lists recent searches and the Mac's tabs, no open tab (the audit's SwiftUI row is a Mac tab); rows now refresh live with sync, 2fd28bbe5 | |
+| Search panel | Typing | match | Typed for real: app completes to apple.com as main's; main's row and field measures, no glyph before Switch to Tab, 2fd28bbe5. Left: main's eyeglasses glyph shape | screens |
 | Search panel | Incognito | different | Same panel; main's keyboard turns dark. The field now takes `keyboardAppearance` (6f1653513); the panel has to pass dark | screens |
 | Search panel | Voice | seen in Expo only | Expo's dictation page ("Speech dictation is unavailable" on the simulator, Try Again capsule); main's voice button wasn't reached by the script | |
 | Page | Page with bar, secure | match | | |
@@ -1335,7 +1335,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Page | Loading | different | Main centres the placeholder (icon, title, host) on the page; Expo puts it at the top left. Both run the loading line | screens |
 | Page | Failure | different | Same page; main's Try Again is a filled capsule, Expo's an outlined one; the bar as in Not secure | screens |
 | Page | Page dialogs | not seen | | |
-| Page | Collapsed bar (host pill) | missing | Expo's bar slides away instead | screens |
+| Page | Collapsed bar (host pill) | match | Main's glass host pill on scroll down, tap or scroll up to expand, 3fa565c4f | |
 | Page | Tabs button menu | match | Main's BarControls: up to eight recent tabs, a divider, Close Tab; Previous and Next Tab are its VoiceOver actions, not menu items. Ours is the system menu with the same items | |
 | Page | Find on Page | match by decision | The system find navigator by default since ec6f9bc52 | |
 | Page menu | Rows and groups | match | The sheet now reaches the safe top as main's large detent does, and rows land at main's places; the action glyphs are main's size; Open in Default Browser shows, as main's does, only when Ardia can ask to be the default and isn't (hidden in builds without the entitlement) | |
@@ -1343,7 +1343,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Reader | Article | match | | |
 | Reader | Top buttons | match | Main's glass circle (textformat.size, label colour) and glass Done capsule, 16 pt from each side; the lead image's 12 pt corners | |
 | Deck | Cards, Archive capsule, tab strip | match | | |
-| Deck | `···` and bottom bar (grid, Search Tabs, plus) | different | Still drawn without glass at a1973a86e. Cause: the chrome's Reanimated opacity parent is at 0 when the glass enters the window, and UIKit then never draws it (removing that opacity brings it back; snapping it to 1 doesn't; a native re-apply fixed only the first open). Fix: no Glass under a fading parent; ChromeSurface passes Glass's `shown` and only glyphs fade (`glassexp/`) | screens |
+| Deck | `···` and bottom bar (grid, Search Tabs, plus) | match | Glass on all four on every open: no fading parent, Glass's shown, glyphs fade, 34c24a317 | |
 | Deck | `···` menu | different | Both are the system menu now (22045b612), same items, place and glass. Main lists Reopen Closed Tab on a fresh demo install where Expo doesn't; the button under it lacks glass (row above) | screens |
 | Deck | Grid view | missing | The button only dismisses the keyboard | screens |
 | Deck | Card menu | match | System menu over the lifted card: Copy Link, Share, Send to MacBook Pro, Pin to Mac, Move to Space, Close Tab | |
