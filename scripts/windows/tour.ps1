@@ -1553,7 +1553,7 @@ function Set-ScaleStep([int]$Step) {
 }
 
 function Get-PageWindow($Session, [string]$TitlePattern) {
-  return @(Get-TopWindows $Session | Where-Object { $_.ClassName -match "^Chrome_" -and $_.Title -match $TitlePattern -and $_.Width -ge 100 -and $_.Height -ge 100 }) | Select-Object -First 1
+  return @(Get-TopWindows $Session | Where-Object { $_.ClassName -match "^Chrome_" -and $_.Title -match $TitlePattern -and $_.Width -ge 100 -and $_.Height -ge 100 -and $_.Left -gt -5000 -and $_.Top -gt -5000 }) | Select-Object -First 1
 }
 
 function Measure-Colour([string]$Path, $Box, [int[]]$Colour) {
@@ -1604,26 +1604,28 @@ function Open-TourPage($Session, $Stop, [string]$Path, [string]$TitlePattern) {
   Send-Address "127.0.0.1:$($script:TourPagesPort)$Path"
   Send-Key 0x0D 0
   Send-Key 0x0D 2
-  $loaded = Wait-Title $Session $TitlePattern 20000
+  $loaded = Wait-Until $Session { $null -ne (Get-PageWindow $Session $TitlePattern) } 20000
   Start-Sleep -Milliseconds 2000
-  $Stop.Facts.Add("opened $Path in a new tab (newTab logged: $opened, the window's title matched: $loaded)")
+  $Stop.Facts.Add("opened $Path in a new tab (newTab logged: $opened, its page window shows: $loaded)")
   return $loaded
 }
 
-function Switch-Tab($Session, $Stop, [string]$TitlePattern) {
+function Switch-Tab($Session, $Stop, [string]$TitlePattern, [string]$Leaving, [string]$Row) {
   Send-Chord @(0x11) 0x09
-  $switched = Wait-Title $Session $TitlePattern 6000
+  $shown = { $null -ne (Get-PageWindow $Session $TitlePattern) -and $null -eq (Get-PageWindow $Session $Leaving) }
+  $switched = Wait-Until $Session $shown 6000
   $how = "Ctrl+Tab"
   if (-not $switched) {
-    $rows = @(Find-Named $Session.Main ($TitlePattern -replace '\\', ''))
+    $rows = @(Find-Named $Session.Main $Row)
     if ($rows.Count) {
       Send-Click $rows[0].X $rows[0].Y
-      $switched = Wait-Title $Session $TitlePattern 6000
+      $switched = Wait-Until $Session $shown 6000
       $how = "Ctrl+Tab, then a click on the tab's row"
     }
   }
   Start-Sleep -Milliseconds 1500
-  $Stop.Facts.Add("switched by $how; the window's title is '$([ArdiaTour]::TitleOf($Session.Main))'")
+  $pages = @(Get-TopWindows $Session | Where-Object { $_.ClassName -match '^Chrome_' -and $_.Width -ge 100 } | ForEach-Object { "'$($_.Title)'" }) -join ", "
+  $Stop.Facts.Add("switched by $how (switched: $switched); page windows shown: $pages")
   return $switched
 }
 
@@ -1687,7 +1689,7 @@ function Invoke-PeekTabsTour {
     $stop.Did = "Switched to tab B with real input and shot the window."
     $stop.Expected = "tab B's solid red page is whole where the Peek card was: no card-shaped hole, under 2% of its pixels there are not red."
     if (-not $state.Card) { $stop.Facts.Add("no Peek card to compare with"); Set-Seen $stop $false; return }
-    $switched = Switch-Tab $session $stop "tour tab b"
+    $switched = Switch-Tab $session $stop "tour tab b" "tour tab a|a got" "tour tab b"
     Save-Shot $stop $session.Main | Out-Null
     $pageB = Get-PageWindow $session "tour tab b"
     $state.PageB = Get-Box $pageB
@@ -1704,7 +1706,7 @@ function Invoke-PeekTabsTour {
     param($stop)
     $stop.Did = "Switched back to tab A with real input, shot the window, then typed 'def'."
     $stop.Expected = "the Peek shows again, and the letters reach its page, whose title then reads 'peek got abcdef'."
-    $switched = Switch-Tab $session $stop "tour tab a|a got"
+    $switched = Switch-Tab $session $stop "tour tab a|a got" "tour tab b" "tour tab a"
     Start-Sleep -Milliseconds 800
     $shown = $null -ne (Get-PageWindow $session "tour typed|peek got")
     Save-Shot $stop $session.Main | Out-Null
@@ -1732,8 +1734,8 @@ function Invoke-PeekTabsTour {
     }
     $notBlue = Measure-Colour $stop.Shot $where $blue
     Send-Text "xyz"
-    $typed = Wait-Title $session "a got xyz" 5000
-    $stop.Facts.Add("the Peek closed: $closed; where the card was, $notBlue% of tab A's page is not blue; tab A got 'xyz': $typed; the window's title is '$([ArdiaTour]::TitleOf($session.Main))'")
+    $typed = Wait-Until $session { $null -ne (Get-PageWindow $session "a got xyz") } 5000
+    $stop.Facts.Add("the Peek closed: $closed; where the card was, $notBlue% of tab A's page is not blue; tab A got 'xyz': $typed; tab A's page is titled '$((Get-PageWindow $session 'tour tab a|a got').Title)'")
     Set-Seen $stop ($closed -and $null -ne $notBlue -and $notBlue -lt 2 -and $typed)
   }
   Note-Required $stop "peek-tabs"
