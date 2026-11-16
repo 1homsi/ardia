@@ -1,7 +1,6 @@
 package com.ardia.blocking
 
 import java.io.File
-import java.lang.management.ManagementFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -56,7 +55,7 @@ class MatcherSpeedTest {
         repeat(20_000) { index -> request(engine, index) }
         val runs = 200_000
         val samples = LongArray(runs)
-        val bean = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
+        val bean = ThreadMeter
         val thread = Thread.currentThread().id
         val regexRunsBefore = RequestContext.current().regexRuns
         val allocatedBefore = bean.getThreadAllocatedBytes(thread)

@@ -48,7 +48,7 @@ class ListSafetyTest {
             for (body in listOf("a".repeat(30_000), "".padEnd(30_000, 'x'), "ab".repeat(15_000))) {
                 val url = "https://site.test/$body"
                 engine.blocks(url, "https://site.test/")
-                val clock = java.lang.management.ManagementFactory.getThreadMXBean()
+                val clock = ThreadMeter
                 val cpuStart = clock.currentThreadCpuTime
                 engine.blocks(url, "https://site.test/")
                 val elapsed = (clock.currentThreadCpuTime - cpuStart) / 1_000_000.0
@@ -88,7 +88,7 @@ class ListSafetyTest {
     fun regexWorkIsMeteredAndCappedPerRequest() {
         val url = "https://site.test/" + "a".repeat(4_078)
         val context = RequestContext.current()
-        val bean = java.lang.management.ManagementFactory.getThreadMXBean()
+        val bean = ThreadMeter
         val shapes = listOf(
             "reviewer" to { suffix: String -> "/.*" + "a?".repeat(490) + suffix + "/" },
             "maximal" to { suffix: String -> "/.*(?:a?){990}" + suffix + "/" },
@@ -144,7 +144,7 @@ class ListSafetyTest {
         val context = RequestContext.current()
         val budget = ListRegex.stepsFor(url.length)
         val oneRun = budget - context.regexScratch.steps
-        val bean = java.lang.management.ManagementFactory.getThreadMXBean()
+        val bean = ThreadMeter
         repeat(2) { engine.blocks(url, "https://site.test/") }
         val runsBefore = context.regexRuns
         val skippedBefore = context.regexRulesSkipped
@@ -177,7 +177,7 @@ class ListSafetyTest {
         val engine = engineOf(rules)
         val url = "https://cdn.test/" + "x1".repeat(40)
         val context = RequestContext.current()
-        val bean = java.lang.management.ManagementFactory.getThreadMXBean()
+        val bean = ThreadMeter
         repeat(2) { engine.blocks(url, "https://site.test/") }
         val runsBefore = context.regexRuns
         val cpuBefore = bean.currentThreadCpuTime

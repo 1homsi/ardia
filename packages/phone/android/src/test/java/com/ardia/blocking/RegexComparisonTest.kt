@@ -1,7 +1,6 @@
 package com.ardia.blocking
 
 import java.io.File
-import java.lang.management.ManagementFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -117,7 +116,7 @@ class RegexComparisonTest {
             }
         }
         repeat(3) { runAll() }
-        val bean = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
+        val bean = ThreadMeter
         val thread = Thread.currentThread().id
         val allocatedBefore = bean.getThreadAllocatedBytes(thread)
         val cpuStart = bean.currentThreadCpuTime

@@ -108,3 +108,13 @@ internal class Fixture(val catalog: FilterListCatalog = FilterListCatalog("test"
             FilterListCatalog.Entry(id = id, title = id, group = group, group2 = group2, off = off, updateAfter = updateAfter, urls = listOf("https://lists.test/$id.txt"))
     }
 }
+
+internal object ThreadMeter {
+    private val bean: Any = Class.forName("java.lang.management.ManagementFactory").getMethod("getThreadMXBean").invoke(null)
+    private val cpuTime = Class.forName("java.lang.management.ThreadMXBean").getMethod("getCurrentThreadCpuTime")
+    private val allocatedBytes = Class.forName("com.sun.management.ThreadMXBean").getMethod("getThreadAllocatedBytes", Long::class.javaPrimitiveType)
+
+    val currentThreadCpuTime: Long get() = cpuTime.invoke(bean) as Long
+
+    fun getThreadAllocatedBytes(threadId: Long): Long = allocatedBytes.invoke(bean, threadId) as Long
+}
