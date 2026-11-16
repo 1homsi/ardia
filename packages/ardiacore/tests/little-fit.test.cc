@@ -21,13 +21,13 @@ static const Rect kBuiltIn = {-1512, 0, 1512, 950};
 static const Rect kUltrawide = {0, 0, 3440, 1415};
 
 static void FitTests() {
-  CHECK(Same(Fit(kUltrawide, {2406, 1085}, kMinimum), {517, 236, 2406, 1085}));
+  CHECK(Same(Fit(kUltrawide, {2406, 1085}, kMinimum), {517, 165, 2406, 1085}));
 
   const Rect shrunk = Fit(kBuiltIn, {2406, 1085}, kMinimum);
   CHECK(Same(shrunk, {-1512, 0, 1512, 950}));
   CHECK(Contains(kBuiltIn, shrunk));
 
-  CHECK(Same(Fit(kBuiltIn, {1400, 400}, kMinimum), {-1456, 323, 1400, 400}));
+  CHECK(Same(Fit(kBuiltIn, {1400, 400}, kMinimum), {-1456, 275, 1400, 400}));
 
   const Rect floor = Fit(kBuiltIn, {100, 100}, kMinimum);
   CHECK(floor.w == 420 && floor.h == 300);
@@ -40,9 +40,9 @@ static void FitTests() {
   CHECK(Same(raised, {-1512, 40, 1512, 910}));
 }
 
-static void LiftTests() {
-  CHECK(Same(Fit({0, 0, 1000, 1000}, {500, 400}, kMinimum), {250, 350, 500, 400}));
-  CHECK(Same(Fit({0, 0, 1000, 1000}, {500, 960}, kMinimum), {250, 40, 500, 960}));
+static void CentreTests() {
+  CHECK(Same(Fit({0, 0, 1000, 1000}, {500, 400}, kMinimum), {250, 300, 500, 400}));
+  CHECK(Same(Fit({0, 0, 1000, 1000}, {500, 960}, kMinimum), {250, 20, 500, 960}));
   CHECK(Same(Fit({0, 0, 1000, 1000}, {500, 1000}, kMinimum), {250, 0, 500, 1000}));
 }
 
@@ -97,7 +97,7 @@ static void LandedBeyondTheVisibleFrameTests() {
   CHECK(Contains(kBuiltInDisplay.frame, underTheDock));
   CHECK(!Contains(visible, underTheDock));
   CHECK(FitLanding(underTheDock, displays, kMinimum, &fitted));
-  CHECK(Same(fitted, {-1156, 257, 800, 600}));
+  CHECK(Same(fitted, {-1156, 213, 800, 600}));
   CHECK(Contains(visible, fitted));
 
   const Rect underTheMenuBar = {-1400, 500, 800, 480};
@@ -117,7 +117,7 @@ static void LandedBeyondTheVisibleFrameTests() {
 
 int main() {
   FitTests();
-  LiftTests();
+  CentreTests();
   ScreenHoldingTests();
   ContainsTests();
   FlipTests();

@@ -17,14 +17,12 @@ struct Rect {
   double midY() const { return y + h / 2; }
 };
 
-constexpr double kLiftFraction = 0.05;
 constexpr double kContainTolerance = 1;
 
 inline Rect Fit(Rect visible, Size wanted, Size minimum) {
   const double width = std::min(std::max(wanted.w, minimum.w), visible.w);
   const double height = std::min(std::max(wanted.h, minimum.h), visible.h);
-  const double lift = std::min(visible.h * kLiftFraction, (visible.h - height) / 2);
-  return {std::round(visible.midX() - width / 2), std::round(visible.midY() - height / 2 + lift), std::round(width),
+  return {std::round(visible.midX() - width / 2), std::round(visible.midY() - height / 2), std::round(width),
           std::round(height)};
 }
 
