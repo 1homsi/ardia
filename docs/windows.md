@@ -316,6 +316,25 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     each typing at 80 and at 120 ms a key that read the field after every key.
   - **Not covered:** a JS thread that stalls for hundreds of ms, as on a slow first launch (#2059). That needs the
     native key hold the Mac has (#2099).
+- The command bar puts back a letter its text field drops (#2101). React Native Windows 0.81's text field applies
+  the state of its first change (event count 0) whenever that state mounts. When JS is busy, as right after Ctrl+T,
+  the state lands after the next letter and wipes it: "example.com" became "eample.com" in 2 of 10 tries at 80 ms a
+  key and 2 of 10 at 120 ms. React Native Windows fixed it with React Native 0.88 (commit 1f59db13f9), not in 0.81.40,
+  and the app uses its prebuilt package, so the bar repairs it instead.
+  - **The repair:** with `PLATFORM_FEATURES.textInputRevertsFirstChange` (Windows only), `useRevertRepair` sees that
+    one revert in the change events (`components/omnibox/revertedText.ts`). It acts once, within 3 s of the field's
+    first change, with the caret collapsed at the end, when the new text starts from the first change and neither
+    extends nor shortens the last. It writes the lost text back, then puts the caret after it, since React Native
+    keeps the old caret position. Selection replacements, Backspace and edits in the middle pass through.
+  - **Launch log:** `bar change <variant> #<count> len <n>`, `bar write <variant> len <n> over native len <m>`,
+    `bar repair <variant> native len <n> to len <m>`, `bar suggestions <ms> ms`, `js stall <ms>` after a New Tab
+    page mounts, `new tab bar gone <tab>` and `new tab pane <tab> mounted|gone|<flags>`
+    (`platform/barMarks.windows.ts`, `platform/newTabMarks.windows.ts`).
+  - **Tour:** ten first-run launches each at 80 and 120 ms a key are required to lose no letter after the first one
+    the field took. A first letter lost before the bar had focus is #2099; one lost because the page mounted twice is
+    #2115. The `typing` part types ten times each into Ctrl+L's field, a warm Ctrl+T, the top-tabs toolbar field and
+    the floating bar (report only; none lost a letter).
+  - **Telemetry:** `command_bar_letters_restored` in `usage_counts`, counted once per field the repair acted on.
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
   `MenuKeyboard.h` sends `reopenClosedTab` for a plain Ctrl+Z in a browser window (Little Ardia included, Settings and
   Import not) when Reopen isn't disabled, no command is bound to Ctrl+Z, the window itself is the active one (not a

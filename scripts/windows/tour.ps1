@@ -1006,13 +1006,14 @@ function Invoke-TypingTour {
   Stop-Ardia $session
 }
 
-function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText) {
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$JudgeAfterFirstKey) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = $Did
     $firstKey = if ($Into -eq "ctrl+t") { "the new tab's bar takes focus within $($script:FocusBoundMs) ms of the newTab command, and the first key, typed $FirstKeyMs ms after Ctrl+T, lands in the new tab's bar (the first typed mark after the command is the new tab's, and its field starts with 'e' and can't be read as a later 'e' with the keys before it lost)" } else { "the first key lands in the box (its field starts with 'e' and can't be read as a later 'e')" }
     $wholeText = "every key lands, so the field reads 'example.com' after the last key, and $Submit opens Example Domain in a tab"
-    $stop.Expected = if ($JudgeWholeText) { "$wholeText. Report only ($Issues)." } else { "$firstKey. Report only ($Issues): $wholeText." }
+    $afterFirst = "no letter is lost after the first one the field took (#2101): the field ends as 'example.com', or as the end of it when only leading letters went before the bar took them"
+    $stop.Expected = if ($JudgeAfterFirstKey) { "$afterFirst. Report only ($Issues): $wholeText." } elseif ($JudgeWholeText) { "$wholeText. Report only ($Issues)." } else { "$firstKey. Report only ($Issues): $wholeText." }
     if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
     Focus-Window $Session $Session.Main $stop | Out-Null
     $mark = Get-LogCount $Session
@@ -1078,8 +1079,10 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $firstKeyOk = $startsRight
       $stop.Facts.Add("required: the first key in the box: $firstKeyOk")
     }
+    $keptAfterFirst = [bool]($typed -and "example.com".EndsWith([string]$typed))
+    if ($JudgeAfterFirstKey) { $stop.Facts.Add("required (#2101): no letter lost after the first one the field took: $keptAfterFirst") }
     $stop.Facts.Add("report only ($Issues): every key landed and $Submit opened Example Domain: $whole")
-    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } else { $firstKeyOk }))
+    Set-Seen $stop ($(if ($JudgeAfterFirstKey) { $keptAfterFirst } elseif ($JudgeWholeText) { $whole } else { $firstKeyOk }))
   }
   if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
   return $stop
@@ -1183,7 +1186,7 @@ function Invoke-FirstRunTour {
       Invoke-FirstRunLaunch "cadence-$keyMs-$repeat" "" {
         param($session)
         $walk = Walk-OnboardingToOutro $session -SkipEach
-        Invoke-TypeStop $session "cadence-$keyMs-$repeat" "First run: Ctrl+T after Get Started, then typing at $keyMs ms a key, try $repeat of 10" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, $keyMs ms a key, reading the field after every key, then pressed Enter. A person's pace: every letter has to land (#2101)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101" -KeyMs $keyMs -ReadEachKey -JudgeWholeText -Required | Out-Null
+        Invoke-TypeStop $session "cadence-$keyMs-$repeat" "First run: Ctrl+T after Get Started, then typing at $keyMs ms a key, try $repeat of 10" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, $keyMs ms a key, reading the field after every key, then pressed Enter. A person's pace: no letter may go missing after the first one the field took (#2101)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "a first letter lost before the bar had focus: #2099; with the page mounted twice: #2115" -KeyMs $keyMs -ReadEachKey -JudgeAfterFirstKey -Required | Out-Null
       }
     }
   }
