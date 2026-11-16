@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, withTiming } from "react-native-reanimated";
-import { hideArchiveCard, hideArchiveCardSoon } from "../../state/browse/archiveCard";
+import { dismissArchiveCard, hideArchiveCardSoon } from "../../state/browse/archiveCard";
 import { setArchiveInterval } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
@@ -28,7 +28,7 @@ export function ArchiveIntervalCard({ edgeY }: { edgeY: number }) {
       style={[styles.place, { height: edgeY }]}
     >
       <View
-        {...screenReaderActions([{ name: "dismiss", label: "Dismiss", run: () => hideArchiveCard() }])}
+        {...screenReaderActions([{ name: "dismiss", label: "Dismiss", run: () => dismissArchiveCard() }])}
         style={[styles.card, { backgroundColor: theme.panel, shadowColor: theme.trayShadow }]}
       >
         <View style={styles.label}>
@@ -86,7 +86,7 @@ export function ArchiveCapsule({ centerY, safeSide }: { centerY: number; safeSid
       style={[styles.capsulePlace, { top: centerY - deckChromeLayout.archiveHeight / 2, paddingHorizontal: safeSide + deckChromeLayout.headerSide }]}
     >
       <ChromeSurface testID="archiveCapsule" shape="capsule" cornerRadius={capsule(deckChromeLayout.archiveHeight)} interactive={false} dark={theme.dark} style={styles.capsule}>
-        <View {...screenReaderActions([{ name: "dismiss", label: "Dismiss", run: () => hideArchiveCard() }])} style={styles.capsuleRow}>
+        <View {...screenReaderActions([{ name: "dismiss", label: "Dismiss", run: () => dismissArchiveCard() }])} style={styles.capsuleRow}>
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={deckChromeLayout.archiveTextMinScale} style={[styles.capsuleText, { color: theme.headerText }]}>
             Archive inactive tabs
           </Text>
@@ -98,7 +98,7 @@ export function ArchiveCapsule({ centerY, safeSide }: { centerY: number; safeSid
               </Pressable>
             )}
           </MenuTrigger>
-          <Pressable testID="archiveCapsuleDismiss" accessibilityRole="button" accessibilityLabel="Dismiss" onPress={() => hideArchiveCard()} style={styles.capsuleDismiss}>
+          <Pressable testID="archiveCapsuleDismiss" accessibilityRole="button" accessibilityLabel="Dismiss" onPress={() => dismissArchiveCard()} style={styles.capsuleDismiss}>
             <Symbol name="xmark" size={deckChromeLayout.archiveDismissGlyph} color={theme.secondaryLabel} />
           </Pressable>
         </View>

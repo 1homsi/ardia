@@ -6,7 +6,7 @@ import { menuOpenedHaptic } from "../../state/browse/tabMenus";
 import { useCanReopen, useIncognito } from "../../state/tabs/hooks";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
-import { capsule, ChromeSurface, deckChromeLayout, deckChromeMotion, font, startLayout, Symbol, tabsCurve, tabsLayout, useTheme, type MenuItem } from "../ui";
+import { capsule, ChromeSurface, deckChromeLayout, deckChromeMotion, font, iPhoneOr, startLayout, Symbol, tabsCurve, tabsLayout, useTheme, type MenuItem } from "../ui";
 import { MenuTrigger } from "../ui/MenuTrigger";
 import { useKeyboardHeight } from "../search/useKeyboardHeight";
 import { FadingGlyphs, GlassCircleButton, GlassPlusButton, type ChromeFade } from "./ChromeButtons";
@@ -89,7 +89,7 @@ export function SearchTabsField({ search, testID = "deckSearchTabs", style, glas
             testID="deckSearchField"
             accessibilityLabel="Search Tabs"
             placeholder="Search Tabs"
-            placeholderTextColor={roles.secondaryLabel}
+            placeholderTextColor={iPhoneOr(roles.tertiaryLabel, roles.secondaryLabel)}
             value={text}
             onChangeText={change}
             onFocus={focus}

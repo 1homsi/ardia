@@ -24,7 +24,7 @@ import { pageUi, usePageUi, type Press } from "./store";
 import { closeVoiceSearch, useVoice } from "../voice/store";
 import { addOnlineAgainListener } from "../../platform/network";
 import { countUsage } from "../telemetry/telemetry";
-import { hideArchiveCard } from "../browse/archiveCard";
+import { dismissArchiveCard } from "../browse/archiveCard";
 import { copy } from "../../lib/platformCopy";
 import { launchValues } from "../../platform/launch";
 import { COPIED_LINK } from "../browse/tabMenus";
@@ -409,7 +409,7 @@ export function handleSystemBack(): boolean {
     return true;
   }
   if (surface === "deck") {
-    if (hideArchiveCard()) return true;
+    if (dismissArchiveCard()) return true;
     if (currentTabs().open.length || currentTabs().privates.length) sendDeckCommand({ kind: "openSelected" });
     else leaveDeck();
     return true;

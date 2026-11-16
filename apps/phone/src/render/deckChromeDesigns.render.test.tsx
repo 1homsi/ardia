@@ -298,3 +298,11 @@ test("the redesign's Archive card is main's slim capsule, 43 points tall and cen
   expect(shift()).toBeCloseTo(0, 1);
   unmount(root);
 });
+
+test("on iPhone the Search Tabs placeholder is the system's placeholder tone (label at 30%) as main's TextField draws it; Android keeps its secondary tone", () => {
+  const root = deck();
+  const placeholder = searchField(root).props.placeholderTextColor;
+  if (Platform.OS === "ios") expect(placeholder).toBe("rgba(60,60,67,0.3)");
+  else expect(placeholder).not.toBe("rgba(60,60,67,0.3)");
+  unmount(root);
+});
