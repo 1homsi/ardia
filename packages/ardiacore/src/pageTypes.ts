@@ -53,6 +53,7 @@ export type OpenWindowRequest = {
   site?: boolean;
   fromClick?: boolean;
   linkWait?: "matched" | "skipped" | "timedOut";
+  popup?: boolean;
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
@@ -246,6 +247,7 @@ export type WebViewHandle = {
   forceReload(): Promise<void>;
   stopLoading(): Promise<void>;
   focus(): Promise<void>;
+  focusIfUnfocused(): Promise<boolean>;
   setMuted(muted: boolean): Promise<void>;
   zoomStep(direction: 1 | -1 | 0): Promise<void>;
   find(text: string, forward: boolean, findNext: boolean): Promise<void>;
