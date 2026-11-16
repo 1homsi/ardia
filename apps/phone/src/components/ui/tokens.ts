@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 export const ink = { white: "#FFFFFF", black: "#000000", clear: "#00000000", knobShadow: "rgba(0,0,0,0.25)" } as const;
 
 export const toggleLayout = { width: 51, height: 31, knob: 27, inset: 2 } as const;
@@ -118,7 +119,7 @@ export const menuLayout = {
   iconSlot: 26,
   zoomButton: { width: 40, height: 34 },
   zoomReset: 48,
-  sheetTopGap: 24,
+  sheetTopGap: Platform.OS === "ios" ? 0 : 24,
 } as const;
 
 export const pageMenuLayout = { barSpacing: 8, groupSpacing: 16, zoomHeight: 32, zoomButtonWidth: 40, zoomReset: 48, rowInset: 16, accessibilityBottom: 24, accessibilityTextScale: 1.6, pressedScale: 0.94 } as const;
