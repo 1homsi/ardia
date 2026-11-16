@@ -40,7 +40,7 @@ test("the kept-key handoff travels from the hook to a capped, property-free tele
   assert.match(keys, /if \(sent >= MAX_DEVTOOLS_KEY_EVENTS\) return;/);
   assert.match(keys, /capture\("devtools_key_kept"\);/);
   assert.match(keys, /watchDevToolsKeys = \(\) => onDevToolsKeyKept\(trackDevToolsKeyKept\);/);
-  assert.match(read("../state/telemetry/index.ts"), /startUsage\(\);\s*watchDevToolsKeys\(\);/);
+  assert.match(read("../state/telemetry/index.ts"), /startUsage\(continuing\);\s*watchPlatformCounts\(\);\s*watchDevToolsKeys\(\);/);
   const copy = read("../state/telemetry/copy.ts");
   assert.match(copy, /That ⇧⌘C was passed to a focused Developer Tools instead of copying the page address, once per press/);
   assert.doesNotMatch(copy, /element picker on or off/, "the event is a handoff, it doesn't say the picker toggled");
