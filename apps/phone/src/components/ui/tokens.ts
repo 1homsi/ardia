@@ -402,6 +402,27 @@ export const sheetLayout = { topGap: 10, iPhoneTopGap: 0, radius: 32, background
 
 export const syncInk = { banner: "#FF9500" } as const;
 
+export const expoSpacesLayout = {
+  sheetRadius: 38,
+  headerCircle: 44,
+  headerGap: 8,
+  headerLeading: 24,
+  page: 16,
+  small: 12,
+  tight: 8,
+  section: 32,
+  bannerGap: 10,
+  bannerPadding: 12,
+  bannerRadius: 14,
+  rowInset: 20,
+  rowHeight: 48,
+  showAllHeight: 44,
+  icon: 24,
+  iconMax: 40,
+  dotsPadding: 22,
+  dotsHeight: 44,
+} as const;
+
 export const spacesLayout = {
   headerCircle: 32,
   bannerGap: 10,

@@ -22,7 +22,7 @@ export { Symbol } from "./Symbol";
 export { placeholderTint, TabFace, tabFill } from "./TabFace";
 export { isSymbolName, type SymbolName } from "./symbolPaths";
 export { DEFAULT_PROFILE_COLOR, PROFILE_PRESETS, ProfileLookContext, rolesFor, useProfileLook, useTheme, type StartBackdrop, type Theme } from "./theme";
-export { appIconLayout, browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayout, pageInk, pageMenuInk, pageMenuLayout, readerInk, readerLayout, settingsLayout, settingsTint, PROFILE_COLORS, scanInk, scanLayout, shadowRadius, spacesLayout, syncInk, tabsInk, voiceInk, voiceLayout, failureLayout, archiveCardLayout, onboardingArt, syncSketch, chromeInk, chromeLayout, floatingBarLayout, floatingPanelLayout, deckChromeInk, deckChromeLayout, startInk, startLayout, tabsLayout, toastLayout, trayShadow, type ColorRoles, type ProfileColor } from "./tokens";
+export { appIconLayout, browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayout, pageInk, pageMenuInk, pageMenuLayout, readerInk, readerLayout, settingsLayout, settingsTint, PROFILE_COLORS, scanInk, scanLayout, shadowRadius, spacesLayout, expoSpacesLayout, syncInk, tabsInk, voiceInk, voiceLayout, failureLayout, archiveCardLayout, onboardingArt, syncSketch, chromeInk, chromeLayout, floatingBarLayout, floatingPanelLayout, deckChromeInk, deckChromeLayout, startInk, startLayout, tabsLayout, toastLayout, trayShadow, type ColorRoles, type ProfileColor } from "./tokens";
 export { useCoverFocus } from "./coverFocus";
 export { FullSheet, SheetBackground, useSheetFrame } from "./FullSheet";
 export { SwipeToDelete } from "./SwipeToDelete";
@@ -32,4 +32,4 @@ export { ChromeSurface, DeckLookBackdrop, DeckLookBackdropBase, LookBackdrop, Lo
 export { appDesign, DesignProvider, useDesign, usePageUnderBars } from "./design";
 export { FadeView, fadeIsNative, FrostSource, pageObscuresInsets, PasteButton, pasteButtonIsNative, ScrollActions } from "@ardia/phone-native";
 export { MotionView, type MotionCurve, type MotionTarget } from "@ardia/phone-native";
-export { AppIconPreview, CheckmarkLabel, chromeSurface, ColorSwatch, contentMargins, legibleInk, modifierList, pressableStyle, profileLook, settingsChrome, SettingsHeroContent, SettingsIconTile, settingsPage, SettingsRowLabel, SettingsShortcuts, settingsSwitchStyle, settingsUIAvailable, SetupStepRow, type ProfilePresetName, type SettingsTintName, type SetupProgress } from "./settingsPieces";
+export { AppIconPreview, CheckmarkLabel, chromeSurface, ColorSwatch, contentMargins, GlassCircleButton, legibleInk, modifierList, PinnedTiles, pressableStyle, profileLook, settingsChrome, SettingsHeroContent, SettingsIconTile, settingsPage, SettingsRowLabel, SettingsShortcuts, settingsSwitchStyle, settingsUIAvailable, SetupStepRow, spaceBackdrop, spaceColor, spaceMenuSymbol, SpacePageDots, spaceSymbol, SpaceTitle, type ProfilePresetName, type SettingsTintName, type SetupProgress } from "./settingsPieces";

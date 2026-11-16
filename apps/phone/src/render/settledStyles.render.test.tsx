@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { Surfaces } from "../App";
@@ -53,7 +53,7 @@ const END_STATES: EndState[] = [
   { name: "the tray up", reach: () => presentSearch("page", "") },
   { name: "a toast showing", reach: () => showToast("Copied URL", "link", 60_000) },
   { name: "the bar collapsed", reach: () => storeNavigation(currentTabs().selectedId!, page("down")) },
-  { name: "the Spaces sheet at rest", reach: () => useBrowse.setState({ sheet: "spaces" }) },
+  ...(Platform.OS === "android" ? [{ name: "the Spaces sheet at rest", reach: () => void useBrowse.setState({ sheet: "spaces" }) }] : []),
 ];
 
 for (const end of END_STATES) {

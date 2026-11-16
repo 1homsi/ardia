@@ -1454,7 +1454,7 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 - Pin to Mac from the page menu: Android keeps Compose's toast, iPhone answers in the menu's title as SwiftUI does (5023ecabd).
 - Paste and Go: Android only; SwiftUI has no such row (`lib/platformCopy.ts` `offersPasteAndGo`).
 - Wording: each phone keeps its native app's words through one copy table per platform (`lib/platformCopy.ts`, 5db9a2263).
-- Settings, the Archive and Spaces share one drawn sheet on both phones, as Compose's `SheetHost` (3a9ca2f10); SwiftUI uses the system sheet.
+- On iPhone, Settings, the Archive and Spaces are toolkit screens in the system's own sheet (Expo UI's BottomSheet), as main's SwiftUI app shows them; on Android they share one drawn sheet, as Compose's `SheetHost` (3a9ca2f10). Spaces keeps a Bookmarks section until the Library sheet holds bookmarks, so they are never unreachable on iPhone; the Library commit removes it.
 - Menus are drawn by the app (`components/ui/Menu.tsx`) on both phones, not system menus, so they match across platforms.
 - Backdrops: native look views where the module has them, CSS gradients elsewhere; no Skia (the owner's decision).
 - The code scanner is the module's own view (`ScanView`); expo-camera and its ML Kit are gone (00b9064e9).

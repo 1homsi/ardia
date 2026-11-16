@@ -13,6 +13,7 @@ import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { ImportFailedView } from "./components/upgrade/ImportFailedView";
 import { ExpoSettingsSheet } from "./components/settings/ExpoSettingsStack";
 import { ExpoArchiveSheet } from "./components/tabs/ExpoArchive";
+import { ExpoSpacesSheet } from "./components/sync/ExpoSpaces";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
@@ -105,8 +106,8 @@ export function Surfaces() {
   const searching = useSearchOpen();
   const voice = useVoicePresented();
   const sheetProgress = useSharedValue(0);
-  const systemSheet = SYSTEM_SHEETS && (settingsOpen || sheet === "archive");
-  const front = frontSheet(settingsOpen && !SYSTEM_SHEETS, SYSTEM_SHEETS && sheet === "archive" ? null : sheet);
+  const systemSheet = SYSTEM_SHEETS && (settingsOpen || sheet === "archive" || sheet === "spaces");
+  const front = frontSheet(settingsOpen && !SYSTEM_SHEETS, SYSTEM_SHEETS && (sheet === "archive" || sheet === "spaces") ? null : sheet);
   const theme = useTheme();
   countRender("Surfaces");
   const incognito = useIncognito();
@@ -135,6 +136,7 @@ export function Surfaces() {
       </Layer>
       {SYSTEM_SHEETS ? <ExpoSettingsSheet /> : null}
       {SYSTEM_SHEETS ? <ExpoArchiveSheet /> : null}
+      {SYSTEM_SHEETS ? <ExpoSpacesSheet /> : null}
       <Layer covered={onboarding}>
         <VoiceSearchView />
       </Layer>
