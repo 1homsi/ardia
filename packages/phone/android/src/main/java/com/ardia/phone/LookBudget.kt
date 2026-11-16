@@ -2,6 +2,7 @@ package com.ardia.phone
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -12,6 +13,18 @@ import android.view.Window
 import org.json.JSONObject
 
 object LookBudget {
+    private var layout: Pair<Int, Int>? = null
+
+    fun samplesIn(orientation: Int): Boolean = orientation != Configuration.ORIENTATION_LANDSCAPE
+
+    fun configurationChanged(next: Configuration) {
+        val now = next.orientation to next.screenWidthDp
+        val before = layout
+        layout = now
+        if (before == null || before == now) return
+        if (FrameSampler.cancel() && PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look budget: the sample under way is dropped, the screen turned or resized")
+    }
+
     private const val PREFERENCES = "ardia-look-budget"
     private const val KEY_STATE = "state"
     private const val KEY_FORCED = "forced"
@@ -231,9 +244,11 @@ internal object FrameSampler {
     private var active: SampleSession? = null
     private val main = Handler(Looper.getMainLooper())
 
-    fun cancel() {
-        active?.cancel()
+    fun cancel(): Boolean {
+        val running = active ?: return false
         active = null
+        running.cancel()
+        return true
     }
 
     internal fun begin(session: SampleSession, millis: Long, schedule: (Runnable, Long) -> Unit = { run, delay -> main.postDelayed(run, delay) }) {
@@ -251,6 +266,10 @@ internal object FrameSampler {
 
     fun sample(activity: Activity, millis: Long, done: (Sample?) -> Unit) {
         val window: Window = activity.window ?: return done(null)
+        if (!LookBudget.samplesIn(activity.resources.configuration.orientation)) {
+            if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB look budget: not sampled in landscape; the verdict is portrait's")
+            return done(null)
+        }
         val refreshRate = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) activity.display?.refreshRate else null) ?: @Suppress("DEPRECATION") activity.windowManager.defaultDisplay.refreshRate
         val interval = 1_000_000_000.0 / refreshRate.coerceAtLeast(1f)
         val thread = HandlerThread("ardia-frame-sampler").apply { start() }

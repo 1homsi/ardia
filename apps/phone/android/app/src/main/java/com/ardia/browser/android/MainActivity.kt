@@ -7,6 +7,7 @@ import android.os.Bundle
 import com.ardia.phone.FirstScreenDrawn
 import com.ardia.phone.InsetHold
 import com.ardia.phone.InsetsLab
+import com.ardia.phone.LookBudget
 import com.ardia.phone.PhoneSystemLinks
 import com.ardia.phone.ReactBack
 import com.ardia.phone.RestorableState
@@ -34,6 +35,7 @@ class MainActivity : ReactActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         InsetHold.window.configurationChanged(newConfig)
+        LookBudget.configurationChanged(newConfig)
         super.onConfigurationChanged(newConfig)
     }
 
