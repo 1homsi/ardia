@@ -50,15 +50,14 @@ extension SearchStageView {
     return StageFace(anchor: anchor, image: image)
   }
 
+  var reduceMotionNow: Bool { reduceMotion }
+  var isPresentedAndOpen: Bool { isShown && !isClosing }
+
   func focusField() {
-    guard let id = focusNativeId else { return }
-    let focus = { [weak self] in
-      guard let self, self.isPresentedAndOpen, let field = Self.find(nativeId: id, in: self) as? CompletingFieldView else { return false }
-      field.focus()
-      return true
-    }
-    if focus() { return }
-    DispatchQueue.main.async { _ = focus() }
+    guard focusPending, isPresentedAndOpen, let id = focusNativeId else { return }
+    guard let field = Self.find(nativeId: id, in: self) as? CompletingFieldView, field.window != nil else { return }
+    field.focus()
+    focusPending = false
   }
 
   func holdReveals() {

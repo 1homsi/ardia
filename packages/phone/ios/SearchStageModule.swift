@@ -43,8 +43,12 @@ final class SearchStageView: ExpoView {
   var focusNativeId: String?
   var revealNativeId: String?
   var rowsRevealNativeId: String?
-  var reduceMotionNow: Bool { reduceMotion }
-  var isPresentedAndOpen: Bool { isShown && !isClosing }
+  var focusPending = false
+  private var contentIsLate = false
+  private(set) var isStarted = false
+  private var contentGaveUp = false
+  private var pendingAnchor: StageAnchor?
+  private var startWaiters: [() -> Void] = []
   var fieldCenter = BrowseLayout.stageFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight)
   var commandTop: CGFloat?
   var look = StageMorphLook()
@@ -52,10 +56,10 @@ final class SearchStageView: ExpoView {
   private let keyboardSentinel = UIView()
   private var keyboard: StageKeyboardTracker?
   private var keyboardHeight: CGFloat = 0
-  private var reduceMotion = UIAccessibility.isReduceMotionEnabled
+  private(set) var reduceMotion = UIAccessibility.isReduceMotionEnabled
 
-  private var isShown = false
-  private var isClosing = false
+  private(set) var isShown = false
+  private(set) var isClosing = false
   private var isDeparting = false
   private var hasLanded = false
   private var isHoldingLift = false
@@ -82,6 +86,7 @@ final class SearchStageView: ExpoView {
   private static let keyboardWait: Duration = .milliseconds(220)
   private static let keyboardGrace: Duration = .milliseconds(50)
   private static let contentDeadline: Duration = .milliseconds(250)
+  private static let contentCap: Duration = .milliseconds(750)
   private static let settlePoll: Duration = .milliseconds(16)
   private static let settleDeadline: Duration = .milliseconds(1500)
   private static let stillReleaseSpeed: CGFloat = 1
@@ -114,7 +119,14 @@ final class SearchStageView: ExpoView {
     keyboard = tracker
   }
 
+  private func releaseStartWaiters() {
+    let waiters = startWaiters
+    startWaiters = []
+    waiters.forEach { $0() }
+  }
+
   private func tearDown() {
+    releaseStartWaiters()
     landingTask?.cancel()
     releaseTask?.cancel()
     settleTask?.cancel()
@@ -196,7 +208,7 @@ final class SearchStageView: ExpoView {
   }
 
   private var trayAlpha: CGFloat {
-    if isDeparting || morph?.isShown == true { return 0 }
+    if !isStarted || isDeparting || morph?.isShown == true { return 0 }
     return isUp || (!reduceMotion && !isCommandBar) ? 1 : 0
   }
 
@@ -210,9 +222,15 @@ final class SearchStageView: ExpoView {
     [panel?.layer, keyboardSentinel.layer].contains { !(($0?.animationKeys()) ?? []).isEmpty }
   }
 
-  func present() {
+  func present(onStarted: (() -> Void)? = nil) {
     appliedShown = true
-    guard !isShown || isClosing else { return }
+    guard !isShown || isClosing else {
+      if isStarted { onStarted?() } else if let onStarted { startWaiters.append(onStarted) }
+      focusField()
+      return
+    }
+    startWaiters.forEach { $0() }
+    startWaiters = onStarted.map { [$0] } ?? []
     landingTask?.cancel()
     releaseTask?.cancel()
     settleTask?.cancel()
@@ -220,8 +238,10 @@ final class SearchStageView: ExpoView {
     endEmergence()
     let anchor = resolveAnchor()
     face = anchor.flatMap(renderFace(of:))
+    pendingAnchor = anchor
     move(.immediate) { [self] in
       isShown = true
+      isStarted = false
       isClosing = false
       isDeparting = false
       hasLanded = keyboardUp
@@ -231,14 +251,25 @@ final class SearchStageView: ExpoView {
       hasRevealed = false
       revealsContents = true
     }
-    if let anchor, !keyboardUp, !isCommandBar, !reduceMotion, let panel {
+    holdReveals()
+    contentIsLate = false
+    contentGaveUp = false
+    focusPending = focusNativeId != nil
+    startWaitingForContent()
+    startIfLaidOut()
+  }
+
+  private func startIfLaidOut() {
+    guard isShown, !isStarted, !isClosing, contentIsLaidOut || contentGaveUp, let panel else { return }
+    isStarted = true
+    if let anchor = pendingAnchor, !keyboardUp, !isCommandBar, !reduceMotion {
       revealsContents = false
       emergence = StageEmergence(pill: convert(anchor.frame, from: nil), fieldCenter: fieldCenter, face: face?.makeView(), on: panel)
-      place()
     }
-    holdReveals()
-    startWaitingForContent()
+    pendingAnchor = nil
+    place()
     focusField()
+    releaseStartWaiters()
     guard !hasLanded else { return }
     landingTask = Task { [weak self] in
       try? await Task.sleep(for: Self.keyboardWait)
@@ -293,6 +324,7 @@ final class SearchStageView: ExpoView {
   }
 
   func finish() {
+    releaseStartWaiters()
     landingTask?.cancel()
     releaseTask?.cancel()
     settleTask?.cancel()
@@ -435,7 +467,12 @@ final class SearchStageView: ExpoView {
       try? await Task.sleep(for: Self.contentDeadline)
       guard let self, !Task.isCancelled, isShown, !hasRevealed else { return }
       if !contentIsLaidOut, PhoneTestBuild.isOn { NSLog("ARDIA_SEARCH_STAGE content not laid out 250 ms after shown") }
-      reveal(late: !contentIsLaidOut || !revealsContents)
+      contentIsLate = !contentIsLaidOut
+      revealIfReady()
+      try? await Task.sleep(for: Self.contentCap)
+      guard !Task.isCancelled, isShown, !isStarted else { return }
+      contentGaveUp = true
+      startIfLaidOut()
     }
     let link = CADisplayLink(target: self, selector: #selector(contentTick))
     link.add(to: .main, forMode: .common)
@@ -450,6 +487,8 @@ final class SearchStageView: ExpoView {
   }
 
   @objc private func contentTick() {
+    startIfLaidOut()
+    focusField()
     revealIfReady()
   }
 
@@ -459,8 +498,8 @@ final class SearchStageView: ExpoView {
   }
 
   private func revealIfReady() {
-    guard isShown, !hasRevealed, revealsContents, contentIsLaidOut else { return }
-    reveal(late: false)
+    guard isShown, isStarted, !hasRevealed, revealsContents, contentIsLaidOut || contentIsLate else { return }
+    reveal(late: contentIsLate)
   }
 
   private func reveal(late: Bool) {
@@ -524,7 +563,7 @@ final class SearchStageView: ExpoView {
     panel.transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: 0, ty: trayOffset + pivot * (1 - scale))
     panel.alpha = trayAlpha
     placeEmergence(on: panel)
-    let isUnrevealed = emergence != nil && !isUp
+    let isUnrevealed = !isStarted || (emergence != nil && !isUp)
     panel.takesTouches = isShown && !isClosing && !isUnrevealed
     panel.accessibilityElementsHidden = isUnrevealed
     accessibilityViewIsModal = isShown
@@ -541,52 +580,5 @@ final class SearchStageView: ExpoView {
     guard isUp else { return }
     emergence.whenSettled { [weak self] in self?.endEmergence() }
     revealContentsNextTurn()
-  }
-}
-
-public final class SearchStageModule: Module {
-  public func definition() -> ModuleDefinition {
-    Name("ArdiaPhoneSearchStage")
-
-    View(SearchStageView.self) {
-      ViewName("SearchStage")
-      Events("onLift", "onReveal", "onSettled")
-      Prop("shown") { (view: SearchStageView, value: Bool?) in view.shownProp = value ?? false }
-      Prop("anchorNativeId") { (view: SearchStageView, value: String?) in view.anchorNativeId = value }
-      Prop("faceNativeId") { (view: SearchStageView, value: String?) in view.faceNativeId = value }
-      Prop("focusNativeId") { (view: SearchStageView, value: String?) in view.focusNativeId = value }
-      Prop("revealNativeId") { (view: SearchStageView, value: String?) in view.revealNativeId = value }
-      Prop("rowsRevealNativeId") { (view: SearchStageView, value: String?) in view.rowsRevealNativeId = value }
-      Prop("fieldCenter") { (view: SearchStageView, value: Double?) in
-        view.fieldCenter = value.map { CGFloat($0) } ?? BrowseLayout.stageFieldCenter(fieldHeight: BrowseLayout.searchFieldHeight)
-      }
-      Prop("commandTop") { (view: SearchStageView, value: Double?) in view.commandTop = value.map { CGFloat($0) } }
-      Prop("morphUsesGlass") { (view: SearchStageView, value: Bool?) in view.look.usesGlass = value ?? true }
-      Prop("morphPanelTint") { (view: SearchStageView, value: UIColor?) in view.look.panelTint = value ?? .clear }
-      Prop("morphPanelDark") { (view: SearchStageView, value: Bool?) in view.look.panelStyle = value == true ? .dark : .unspecified }
-      Prop("morphClassicPanel") { (view: SearchStageView, value: UIColor?) in view.look.classicPanel = value ?? .secondarySystemBackground }
-      OnViewDidUpdateProps { (view: SearchStageView) in
-        MainActor.assumeIsolated { view.propsDidUpdate() }
-      }
-      AsyncFunction("present") { (view: SearchStageView) in
-        MainActor.assumeIsolated { view.present() }
-      }.runOnQueue(.main)
-      AsyncFunction("holdLift") { (view: SearchStageView) in
-        MainActor.assumeIsolated { view.holdLift() }
-      }.runOnQueue(.main)
-      AsyncFunction("releaseLift") { (view: SearchStageView) in
-        MainActor.assumeIsolated { view.releaseLift() }
-      }.runOnQueue(.main)
-      AsyncFunction("close") { (view: SearchStageView, exit: String, velocity: Double?) in
-        MainActor.assumeIsolated { view.close(SearchStageView.Exit(rawValue: exit) ?? .drop, velocity: CGFloat(velocity ?? 0)) }
-      }.runOnQueue(.main)
-      AsyncFunction("finish") { (view: SearchStageView) in
-        MainActor.assumeIsolated { view.finish() }
-      }.runOnQueue(.main)
-    }
-
-    View(SearchStagePanelView.self) {
-      ViewName("SearchStagePanel")
-    }
   }
 }
