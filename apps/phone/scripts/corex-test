@@ -1,0 +1,101 @@
+#!/bin/bash
+# corex-test <commit> [--patch FILE] [Gradle --tests filters…]
+# Runs the phone's Kotlin unit tests (:ardia-phone-native:testDebugUnitTest) on corex, in the bots container, in
+# corex-build's build-only clone at a pushed commit, so no Gradle runs on the Mac. --patch FILE (or - for stdin)
+# applies a diff from the main checkout on top of the commit for this run only; the clone is reset when the run
+# ends, as every build resets it. Waits like corex-build for another Gradle run or memory, and holds the clone's lock
+# so a build and a test never share it. Gradle runs without a daemon and Kotlin in-process. Prints each test class's
+# count and every failure; exits 1 when one fails.
+set -euo pipefail
+if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+  sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+  [ $# -ge 1 ] && [ "$1" != "--help" ] && [ "$1" != "-h" ] && exit 64
+  exit 0
+fi
+wanted="$1"
+shift
+patch=""
+filters=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --patch) patch="$2"; shift ;;
+    *) filters+=(--tests "$1") ;;
+  esac
+  shift
+done
+base="$HOME/Developer/ardia-android-build"
+src="$base/src"
+branch="${ARDIA_BUILD_BRANCH:-t3/unify-expo-architecture}"
+gib=$((1024 * 1024 * 1024))
+
+[ "$(uname)" = "Linux" ] || { echo "corex-test runs on corex" >&2; exit 64; }
+limit="$(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo max)"
+if [ "$limit" = "max" ] || [ "$limit" -lt $((14 * gib)) ]; then
+  echo "this isn't the bots container (memory limit $limit)" >&2
+  exit 64
+fi
+[ -d "$src/.git" ] || { echo "no build clone yet: run corex-build once" >&2; exit 64; }
+if [ "$patch" = "-" ]; then
+  patchFile="$base/test.patch"
+  cat > "$patchFile"
+elif [ -n "$patch" ]; then
+  patchFile="$patch"
+else
+  patchFile=""
+fi
+
+exec 9> "$base/clone.lock"
+flock -w "${ARDIA_BUILD_WAIT:-1800}" 9 || { echo "the build clone stayed busy" >&2; exit 75; }
+others() { pgrep -f 'org.gradle.launcher.daemon|GradleWrapperMain|org.gradle.launcher.GradleMain|KotlinCompileDaemon' || true; }
+spare() { echo $(( (limit - $(cat /sys/fs/cgroup/memory.current)) / gib )); }
+deadline=$(( $(date +%s) + ${ARDIA_BUILD_WAIT:-1800} ))
+while [ -n "$(others)" ] || [ "$(spare)" -lt 6 ]; do
+  [ "$(date +%s)" -lt "$deadline" ] || { echo "bots stayed busy; not testing" >&2; exit 75; }
+  sleep 30
+done
+
+reset() {
+  git -C "$src" reset --quiet --hard
+  git -C "$src" clean -ffdq
+}
+trap reset EXIT
+git -C "$src" fetch --quiet origin "$branch"
+commit="$(git -C "$src" rev-parse --verify --quiet "$wanted^{commit}" || true)"
+[ -n "$commit" ] || { echo "$wanted isn't on origin/$branch: push it first" >&2; exit 64; }
+git -C "$src" checkout --quiet --detach --force "$commit"
+reset
+if [ -n "$patchFile" ]; then
+  git -C "$src" apply --whitespace=nowarn "$patchFile"
+  echo "testing $commit with $(git -C "$src" diff --stat | tail -1)"
+else
+  echo "testing $commit"
+fi
+
+pinned="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$src/apps/phone/package.json")"
+export PATH="$base/pnpm-$pinned/node_modules/.bin:$PATH"
+export TMPDIR="$base/tmp"
+(cd "$src/apps/phone" && pnpm install --frozen-lockfile --reporter=silent)
+results="$src/packages/phone/android/build/test-results/testDebugUnitTest"
+rm -rf "$results"
+started=$(date +%s)
+status=0
+(cd "$src/apps/phone/android" && ARDIA_LAB=1 EXPO_PUBLIC_ARDIA_LAB=true flock -w 540 /tmp/ardia-android-gradle.lock ./gradlew -PardiaLab=true --no-daemon -Pkotlin.compiler.execution.strategy=in-process :ardia-phone-native:testDebugUnitTest ${filters[@]+"${filters[@]}"} --max-workers=4 --console=plain -q > "$base/test.log" 2>&1) || status=$?
+python3 - "$results" <<'SUMMARY'
+import glob, re, sys
+total = failed = 0
+for path in sorted(glob.glob(sys.argv[1] + "/TEST-*.xml")):
+    text = open(path, encoding="utf-8", errors="replace").read()
+    tests, failures, errors = map(int, re.search(r'tests="(\d+)".*?failures="(\d+)".*?errors="(\d+)"', text).groups())
+    total += tests
+    failed += failures + errors
+    name = path.rsplit("TEST-", 1)[1][:-4].replace("com.ardia.phone.", "")
+    print(f"{name}: {tests - failures - errors}/{tests}")
+    for case in re.finditer(r'<testcase name="([^"]+)"[^>]*>\s*<(?:failure|error) message="([^"]{0,400})', text):
+        print(f"  FAILED {case.group(1)}: {case.group(2)}")
+print(f"{total - failed} of {total} passed")
+SUMMARY
+echo "tests took $(( $(date +%s) - started )) s"
+if [ "$status" != "0" ]; then
+  grep -E "^e: |What went wrong|error:" "$base/test.log" | head -20 >&2 || true
+  exit 1
+fi

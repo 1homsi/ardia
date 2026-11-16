@@ -56,13 +56,16 @@ done
 echo "bots: ${free} GB free, no other Gradle build"
 
 mkdir -p "$base" "$out"
+exec 9> "$base/clone.lock"
+flock -w "${ARDIA_BUILD_WAIT:-1800}" 9 || { echo "the build clone stayed busy (corex-test?)" >&2; exit 75; }
 cat > "$base/README.md" <<'README'
 # Build-only clone for corex-build
 
 `src/` is a clone of ardia used only to build the Android app on corex (`apps/phone/scripts/corex-build`).
 Every build fetches, detaches it at the requested commit and resets it there; untracked files are removed, and only
 the build outputs Git ignores stay. Never edit, commit or push from here: all work happens in the main checkout on
-the Mac. `tools/` holds the branch head's `apps/phone/scripts` and `apps/phone/test/r8`, rewritten every build.
+the Mac. `apps/phone/scripts/corex-test` runs the Kotlin unit tests here too: it may apply a diff from the main
+checkout for one run and resets the clone when it ends. Both hold `clone.lock`. `tools/` holds the branch head's `apps/phone/scripts` and `apps/phone/test/r8`, rewritten every build.
 `pnpm-<version>/` is the pinned pnpm, `sdk-view/` the pinned apkanalyzer in an SDK layout that links the shared
 SDK's parts, and `tmp/` holds the bundle exports.
 APKs go to `~/Developer/ardia-phone-apks/`.

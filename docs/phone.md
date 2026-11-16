@@ -1728,12 +1728,26 @@ release APK in about 2.
 
 ### Building Android on corex
 
-Android APKs for phone runs are built on corex, not on the Mac. The Mac's disk and load are for the iPhone builds,
-and the phones are on corex.
+Android APKs for phone runs are built on corex, not on the Mac, and so are the Kotlin unit tests. The Mac's disk
+and load are for the iPhone builds, and the phones are on corex.
+
+**Never start Gradle on the Mac, not even for the unit tests.** One unit-test compile there regenerates several
+gigabytes of `~/.gradle/caches/9.4.1/transforms` and leaves a daemon holding memory. On 2026-11-16 the Mac fell to
+3.7 GB free, the level at which every session crashed on 2026-11-14. The one exception is the upgrade pair signed with
+the Compose app's key (`build-apk --compose-key`), built rarely and with `ARDIA_GRADLE_EPHEMERAL=1`, so Gradle runs
+with `--no-daemon`.
 
 ```
-apps/phone/scripts/corex-build <name> <commit> [build-apk options]   in corex's bots container
+apps/phone/scripts/corex-build <name> <commit> [build-apk options]   an APK, in corex's bots container
+apps/phone/scripts/corex-test <commit> [--patch FILE] [--tests filters]   the Kotlin unit tests, the same way
 ```
+
+- **`corex-test`** runs `:ardia-phone-native:testDebugUnitTest` in the same build-only clone, at a pushed commit.
+  - `--patch` applies a diff from the main checkout (`git diff HEAD -- <your files>`) for that run only; the clone is
+    reset when it ends.
+  - It prints each test class's count and every failure.
+  - It and `corex-build` hold the clone's lock, so a build and a test never share it, and both wait for another
+    Gradle run.
 
 - **Where it runs.** In the `bots` container (14 GB); it refuses `dev`, which holds the owner's T3. It waits while
   another Gradle build runs there or less than 8 GB is free, and never moves to `dev`. One Android build at a time:
