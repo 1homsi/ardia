@@ -193,6 +193,8 @@ export function ChromeSurface({
   interactive = true,
   tinted = false,
   dark,
+  shown,
+  shownMs,
   testID,
   style,
   children,
@@ -204,6 +206,8 @@ export function ChromeSurface({
   interactive?: boolean;
   tinted?: boolean;
   dark?: boolean;
+  shown?: boolean;
+  shownMs?: number;
   testID?: string;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
@@ -213,7 +217,7 @@ export function ChromeSurface({
   const surface = useChromeStyle();
   if (glassIsNative()) {
     return (
-      <Glass testID={testID} source={SURFACES_FROST} shape={shape} cornerRadius={cornerRadius} interactive={interactive} tinted={tinted} surface={surface} barShadow={barShadow} {...lookColors(look, incognito)} dark={dark ?? (incognito || theme.dark)} style={[style, { borderRadius: cornerRadius }]}>
+      <Glass testID={testID} source={SURFACES_FROST} shape={shape} cornerRadius={cornerRadius} interactive={interactive} tinted={tinted} surface={surface} barShadow={barShadow} shown={shown} shownMs={shownMs} {...lookColors(look, incognito)} dark={dark ?? (incognito || theme.dark)} style={[style, { borderRadius: cornerRadius }]}>
         {children}
       </Glass>
     );

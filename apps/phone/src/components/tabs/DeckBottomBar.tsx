@@ -9,7 +9,7 @@ import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
 import { capsule, ChromeSurface, deckChromeLayout, deckChromeMotion, font, startLayout, Symbol, tabsCurve, tabsLayout, useTheme, type MenuItem } from "../ui";
 import { MenuTrigger } from "../ui/MenuTrigger";
 import { useKeyboardHeight } from "../search/useKeyboardHeight";
-import { GlassCircleButton, GlassPlusButton } from "./ChromeButtons";
+import { FadingGlyphs, GlassCircleButton, GlassPlusButton, type ChromeFade } from "./ChromeButtons";
 
 type Props = {
   shown: boolean;
@@ -21,7 +21,7 @@ type Props = {
   onQuery: (needle: string) => void;
   menusShown?: boolean;
   onMenu?: (open: boolean) => void;
-};
+} & ChromeFade;
 
 export function plusMenu(incognito: boolean, canReopen: boolean): MenuItem[] {
   return [
@@ -30,12 +30,12 @@ export function plusMenu(incognito: boolean, canReopen: boolean): MenuItem[] {
   ];
 }
 
-export function PlusMenuButton({ width, label, testID, dark, incognito = false, place, menusShown = true, onMenu }: { width: number; label: string; testID: string; dark: boolean; incognito?: boolean; place: ViewStyle; menusShown?: boolean; onMenu?: (open: boolean) => void }) {
+export function PlusMenuButton({ width, label, testID, dark, incognito = false, place, menusShown = true, onMenu, ...fade }: { width: number; label: string; testID: string; dark: boolean; incognito?: boolean; place: ViewStyle; menusShown?: boolean; onMenu?: (open: boolean) => void } & ChromeFade) {
   const tabIncognito = useIncognito();
   const canReopen = useCanReopen();
   return (
     <MenuTrigger items={plusMenu(tabIncognito, canReopen)} trigger="longPress" haptic={menuOpenedHaptic} disabled={!menusShown} onOpen={() => onMenu?.(true)} onClose={() => onMenu?.(false)} place={place} style={{ width, height: startLayout.barPlus.height }}>
-      {({ onLongPress }) => <GlassPlusButton width={width} label={label} testID={testID} dark={dark} incognito={incognito} onPress={newTab} onLongPress={onLongPress ?? noop} />}
+      {({ onLongPress }) => <GlassPlusButton width={width} label={label} testID={testID} dark={dark} incognito={incognito} {...fade} onPress={newTab} onLongPress={onLongPress ?? noop} />}
     </MenuTrigger>
   );
 }
@@ -44,7 +44,8 @@ const noop = () => undefined;
 
 export const deckBarAboveKeyboard = (deckHeight: number, keyboard: number) => deckHeight - keyboard - deckChromeLayout.barGap - deckChromeLayout.barCircle / 2;
 
-export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, onGrid, onQuery, menusShown = true, onMenu }: Props) {
+export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, onGrid, onQuery, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
+  const fade = { glassShown, glassShownMs, glyphFade };
   const roles = useTheme();
   const dark = roles.dark;
   const [text, setText] = useState("");
@@ -94,41 +95,44 @@ export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incogni
           testID="deckBarGrid"
           diameter={deckChromeLayout.barCircle}
           dark={dark}
+          {...fade}
           onPress={() => {
             input.current?.blur();
             onGrid();
           }}
         />
         <Pressable accessible={false} onPress={() => input.current?.focus()} style={styles.searchHit}>
-          <ChromeSurface testID="deckSearchTabs" shape="capsule" cornerRadius={capsule(deckChromeLayout.barCircle)} dark={dark} style={[styles.search, { paddingRight: text ? deckChromeLayout.searchTrailFilled : deckChromeLayout.searchTrail }]}>
-            <View pointerEvents="none">
-              <Symbol name="magnifyingglass" size={deckChromeLayout.searchGlyph} color={roles.secondaryLabel} />
-            </View>
-            <TextInput
-              ref={input}
-              testID="deckSearchField"
-              accessibilityLabel="Search Tabs"
-              placeholder="Search Tabs"
-              placeholderTextColor={roles.secondaryLabel}
-              value={text}
-              onChangeText={change}
-              onFocus={focus}
-              onBlur={() => setFocused(false)}
-              onSubmitEditing={() => input.current?.blur()}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-              keyboardAppearance={dark ? "dark" : "light"}
-              style={[font.callout, styles.field, { color: roles.label }]}
-            />
-            {text ? (
-              <Pressable testID="deckSearchClear" accessibilityRole="button" accessibilityLabel="Clear Search" onPress={() => change("")} style={styles.clear}>
-                <Symbol name="xmarkCircleFill" size={deckChromeLayout.clearGlyph} color={roles.secondaryLabel} />
-              </Pressable>
-            ) : null}
+          <ChromeSurface testID="deckSearchTabs" shape="capsule" cornerRadius={capsule(deckChromeLayout.barCircle)} dark={dark} shown={glassShown} shownMs={glassShownMs} style={[styles.search, { paddingRight: text ? deckChromeLayout.searchTrailFilled : deckChromeLayout.searchTrail }]}>
+            <FadingGlyphs testID="deckSearchTabsContent" fade={glyphFade} style={styles.searchRow}>
+              <View pointerEvents="none">
+                <Symbol name="magnifyingglass" size={deckChromeLayout.searchGlyph} color={roles.secondaryLabel} />
+              </View>
+              <TextInput
+                ref={input}
+                testID="deckSearchField"
+                accessibilityLabel="Search Tabs"
+                placeholder="Search Tabs"
+                placeholderTextColor={roles.secondaryLabel}
+                value={text}
+                onChangeText={change}
+                onFocus={focus}
+                onBlur={() => setFocused(false)}
+                onSubmitEditing={() => input.current?.blur()}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                keyboardAppearance={dark ? "dark" : "light"}
+                style={[font.callout, styles.field, { color: roles.label }]}
+              />
+              {text ? (
+                <Pressable testID="deckSearchClear" accessibilityRole="button" accessibilityLabel="Clear Search" onPress={() => change("")} style={styles.clear}>
+                  <Symbol name="xmarkCircleFill" size={deckChromeLayout.clearGlyph} color={roles.secondaryLabel} />
+                </Pressable>
+              ) : null}
+            </FadingGlyphs>
           </ChromeSurface>
         </Pressable>
-        <PlusMenuButton width={deckChromeLayout.barCircle} label={incognito ? "New Incognito Tab" : "New Tab"} testID="deckBarPlus" dark={dark} place={{ bottom: deckHeight - barCenterY + deckChromeLayout.barCircle / 2 + deckChromeLayout.menuGap, right: deckChromeLayout.barSideInset, width: tabsLayout.menuWidth }} menusShown={menusShown} onMenu={onMenu} />
+        <PlusMenuButton width={deckChromeLayout.barCircle} label={incognito ? "New Incognito Tab" : "New Tab"} testID="deckBarPlus" dark={dark} place={{ bottom: deckHeight - barCenterY + deckChromeLayout.barCircle / 2 + deckChromeLayout.menuGap, right: deckChromeLayout.barSideInset, width: tabsLayout.menuWidth }} menusShown={menusShown} onMenu={onMenu} {...fade} />
       </View>
     </Animated.View>
   );
@@ -138,7 +142,8 @@ const styles = StyleSheet.create({
   place: { position: "absolute", left: 0, right: 0 },
   bar: { height: deckChromeLayout.barCircle, flexDirection: "row", alignItems: "center", gap: deckChromeLayout.barGap },
   searchHit: { flex: 1, height: deckChromeLayout.barCircle },
-  search: { flex: 1, flexDirection: "row", alignItems: "center", gap: deckChromeLayout.searchSpacing, paddingLeft: deckChromeLayout.searchLead },
+  search: { flex: 1, paddingLeft: deckChromeLayout.searchLead },
+  searchRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: deckChromeLayout.searchSpacing },
   field: { flex: 1, paddingVertical: 0 },
   clear: { width: deckChromeLayout.clearHit, height: deckChromeLayout.clearHit, alignItems: "center", justifyContent: "center" },
 });

@@ -11,7 +11,7 @@ import { countUsage } from "../../state/telemetry/telemetry";
 import { browseLayout, capsule, deckChromeInk, deckChromeLayout, deckChromeMotion, font, Symbol, tabsInk, tabsLayout, useTheme, type MenuItem } from "../ui";
 import { MenuTrigger, spaceSystemImage } from "../ui/MenuTrigger";
 import { SpaceTitle, spaceMenuSymbol } from "../search/StartSpaces";
-import { GlassCircleButton } from "./ChromeButtons";
+import { FadingGlyphs, GlassCircleButton, type ChromeFade } from "./ChromeButtons";
 
 type Props = {
   safeTop: number;
@@ -22,7 +22,7 @@ type Props = {
   onCloseAll: () => void;
   menusShown?: boolean;
   onMenu?: (open: boolean) => void;
-};
+} & ChromeFade;
 
 export const deckHeaderBottom = () => deckChromeLayout.headerCenter + deckChromeLayout.headerCircle / 2;
 
@@ -41,7 +41,7 @@ function deckMoreMenuItems({ syncEnabled, canReopen, hasTabs, onCloseAll }: { sy
   ];
 }
 
-export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIncognito, onCloseAll, menusShown = true, onMenu }: Props) {
+export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIncognito, onCloseAll, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
   const theme = useTheme();
   const status = useSyncStatus();
   const view = useSyncView();
@@ -66,7 +66,7 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIn
   const pillItems: MenuItem[] = [{ label: "Close Incognito Tabs", destructive: true, onPress: onCloseIncognito }];
   return (
     <View testID="deckHeader" pointerEvents="box-none" style={[styles.row, { top: safeTop + deckChromeLayout.headerCenter - browseLayout.hitTarget / 2, paddingHorizontal: side }]}>
-      <View testID="deckSwitcher" style={styles.switcher}>
+      <FadingGlyphs testID="deckSwitcher" fade={glyphFade} style={styles.switcher}>
         {current && spaces.length > 1 ? (
           <MenuTrigger items={spaceItems} {...menu} place={{ top: below, left: side, width: tabsLayout.menuWidth }}>
             {({ onPress }) => (
@@ -84,17 +84,19 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIn
             Tabs
           </Text>
         )}
-      </View>
+      </FadingGlyphs>
       <View style={styles.spacer} />
       {privateCount > 0 ? (
         <Animated.View entering={pillIn} exiting={pillOut}>
-          <MenuTrigger items={pillItems} {...menu} place={{ top: below, right: side + deckChromeLayout.headerCircle + deckChromeLayout.headerGap, width: tabsLayout.menuWidth }}>
-            {({ onPress }) => <IncognitoPill count={privateCount} onPress={onPress ?? noop} />}
-          </MenuTrigger>
+          <FadingGlyphs testID="deckIncognitoPillFade" fade={glyphFade}>
+            <MenuTrigger items={pillItems} {...menu} place={{ top: below, right: side + deckChromeLayout.headerCircle + deckChromeLayout.headerGap, width: tabsLayout.menuWidth }}>
+              {({ onPress }) => <IncognitoPill count={privateCount} onPress={onPress ?? noop} />}
+            </MenuTrigger>
+          </FadingGlyphs>
         </Animated.View>
       ) : null}
       <MenuTrigger items={moreItems} {...menu} place={{ top: below, right: side, width: tabsLayout.menuWidth }}>
-        {({ onPress }) => <GlassCircleButton icon="ellipsis" label="More" testID="deckHeaderMore" diameter={deckChromeLayout.headerCircle} dark={theme.dark} onPress={onPress ?? noop} />}
+        {({ onPress }) => <GlassCircleButton icon="ellipsis" label="More" testID="deckHeaderMore" diameter={deckChromeLayout.headerCircle} dark={theme.dark} glassShown={glassShown} glassShownMs={glassShownMs} glyphFade={glyphFade} onPress={onPress ?? noop} />}
       </MenuTrigger>
     </View>
   );

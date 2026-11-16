@@ -1,11 +1,11 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DeckLookProbe } from "./DeckLookProbe";
 import { useSheet, useSurface } from "../../state/browse/hooks";
 import { useHeldDeckOrder, useHeldRootSize, useHeldSearchOpen } from "../../state/browse/deckHold";
 import { beginInteraction, countRender, INTERACTION_WINDOW_MS, interactionPerfEnabled } from "../../state/app/interactionPerf";
 import { Keyboard, Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { POOF, poofCentreY } from "../../lib/poof";
 import { pictureKey, whenPicturePainted } from "../../lib/shownSnapshots";
 import { countUsage } from "../../state/telemetry/telemetry";
@@ -19,6 +19,7 @@ import {
   deckGeometry,
   archiveCardEdgeY,
   deckScrollActionTarget,
+  DECK_CHROME_FROM,
   deckChromeOpacity,
   deckLeading,
   deckIsTap,
@@ -59,7 +60,7 @@ import {
 } from "../../state/browse/store";
 import { menuOpenedHaptic } from "../../state/browse/tabMenus";
 import { useCanReopen, useHasArchivedTabs, useIncognito, usePrivateCount, useShownSpace } from "../../state/tabs/hooks";
-import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, moveTo, poofMs, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion } from "../ui";
+import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, moveTo, poofMs, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion, usesGlass } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { confirmInSheet, nativeMenus } from "../ui/MenuTrigger";
 import { useSyncEnabled } from "../../state/sync/hooks";
@@ -101,6 +102,7 @@ export const TabDeck = memo(function TabDeck() {
   const { width, height } = measuredOr(root, window);
   const design = useDesign();
   const redesigned = design === "redesigned";
+  const glassChrome = redesigned && usesGlass();
   const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS, design, deckHeaderBottom()), [width, height, insets.top, insets.bottom, design]);
   useEffect(() => labTrace(`PAGELAB deck frame ${Math.round(width)}x${Math.round(height)} window ${Math.round(window.width)}x${Math.round(window.height)} insets ${insets.top}/${insets.bottom}`), [width, height, window.width, window.height, insets.top, insets.bottom]);
   const archiveShift = useMemo(
@@ -213,7 +215,8 @@ export const TabDeck = memo(function TabDeck() {
     const target = archiveCard ? archiveShift : 0;
     cardsShift.value = reduceMotion ? withTiming(target, { duration: tabsMotion.fade }) : withSpring(target, deckChromeMotion.chromeShift);
   }, [archiveCard, archiveShift, redesigned]);
-  const chromeStyle = useAnimatedStyle(() => ({ opacity: deckChromeOpacity(positionProgress.value) }));
+  const chromeOpacity = useDerivedValue(() => deckChromeOpacity(positionProgress.value));
+  const chromeStyle = useAnimatedStyle(() => ({ opacity: chromeOpacity.value }));
   const chipStyle = useAnimatedStyle(() => ({ opacity: dragIndex.value >= 0 ? 0 : deckChromeOpacity(positionProgress.value) }));
 
   const poofSeed = useRef(0);
@@ -798,28 +801,40 @@ export const TabDeck = memo(function TabDeck() {
         {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} growsAtMount={openingCard.path === "coveringCard"} onGrowing={() => openingCardGrowing(openingCard.id)} /> : null}
         <MotionView testID="deckChromeFade" style={StyleSheet.absoluteFill} pointerEvents="box-none" to={{ opacity: openingCard ? 0 : 1 }} motion={openingCard ? OPENING_CARD_MOTION : CHROME_BACK}>
         {redesigned ? (
-          <Animated.View style={[StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
-            <DeckHeader
-              safeTop={g.safeTop}
-              safeSide={0}
-              privateCount={privateCount}
-              hasTabs={allTabs.length > 0}
-              menusShown={shown && phase.kind === "settled"}
-              onMenu={setChromeMenu}
-              onCloseIncognito={confirmLeaveIncognito}
-              onCloseAll={confirmCloseAll}
-            />
-            <DeckBottomBar
-              shown={shown}
-              barCenterY={g.barCenterY}
-              deckHeight={deckHeight}
-              safeSide={0}
-              incognito={incognito}
-              onGrid={dismissKeyboard}
-              onQuery={setNeedle}
-              menusShown={shown && phase.kind === "settled"}
-              onMenu={setChromeMenu}
-            />
+          <Animated.View testID="deckRedesignedChrome" style={glassChrome ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
+            <ChromeGlassShown progress={positionProgress} initiallyIn={first.progress >= DECK_CHROME_FROM} away={!shown || phase.kind === "closing" || openingCard !== null}>
+              {(glassShown) => (
+                <>
+                  <DeckHeader
+                    safeTop={g.safeTop}
+                    safeSide={0}
+                    privateCount={privateCount}
+                    hasTabs={allTabs.length > 0}
+                    menusShown={shown && phase.kind === "settled"}
+                    onMenu={setChromeMenu}
+                    onCloseIncognito={confirmLeaveIncognito}
+                    onCloseAll={confirmCloseAll}
+                    glassShown={glassShown}
+                    glassShownMs={CHROME_GLASS_MS}
+                    glyphFade={glassChrome ? chromeOpacity : undefined}
+                  />
+                  <DeckBottomBar
+                    shown={shown}
+                    barCenterY={g.barCenterY}
+                    deckHeight={deckHeight}
+                    safeSide={0}
+                    incognito={incognito}
+                    onGrid={dismissKeyboard}
+                    onQuery={setNeedle}
+                    menusShown={shown && phase.kind === "settled"}
+                    onMenu={setChromeMenu}
+                    glassShown={glassShown}
+                    glassShownMs={CHROME_GLASS_MS}
+                    glyphFade={glassChrome ? chromeOpacity : undefined}
+                  />
+                </>
+              )}
+            </ChromeGlassShown>
           </Animated.View>
         ) : privateCount > 0 ? (
           <Animated.View style={[StyleSheet.absoluteFill, chipStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
@@ -883,6 +898,17 @@ export const TabDeck = memo(function TabDeck() {
   );
 });
 
+function ChromeGlassShown({ progress, initiallyIn, away, children }: { progress: SharedValue<number>; initiallyIn: boolean; away: boolean; children: (glassShown: boolean) => ReactNode }) {
+  const [entered, setEntered] = useState(initiallyIn);
+  useAnimatedReaction(
+    () => progress.value >= DECK_CHROME_FROM,
+    (now, was) => {
+      if (now !== was) runOnJS(setEntered)(now);
+    },
+  );
+  return children(entered && !away);
+}
+
 const ignoreTouch = () => {
   "worklet";
 };
@@ -896,6 +922,7 @@ const HANDOVER_CAP_MS = 250;
 const DRAWN_CAP_MS = 200;
 const CARD_LANDED = 0.02;
 const CHROME_BACK: MotionCurve = { type: "timing", durationMs: 0 };
+const CHROME_GLASS_MS = 200;
 const PAGE_MOUNT_AFTER_GROWTH_MS = 34;
 
 const criticalSpringLandsMs = (response: number, within: number) => {
