@@ -39,15 +39,15 @@ import { openRemote, selectProfile, syncNow } from "../../state/sync/actions";
 import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { COLLAPSED_LIMIT, remoteTitle } from "../../state/sync/spaces";
 import { showAllDeviceTabs, toggleSpaceRow, useSpaceOpenFor } from "../../state/sync/spaceOpen";
-import { deviceIcon, syncBanner, type BannerIcon, type DeviceIcon } from "../../state/sync/syncRules";
+import { syncBanner, type BannerIcon } from "../../state/sync/syncRules";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { DEFAULT_PROFILE_COLOR, expoSpacesLayout as L, Favicon, chromeSurface, contentMargins, GlassCircleButton, modifierList, PinnedTiles, PROFILE_PRESETS, settingsUIAvailable, spaceBackdrop, spaceColor, spaceMenuSymbol, SpacePageDots, spaceSymbol, SpaceTitle, useIncreasedContrast, useReduceMotion, useTheme } from "../ui";
+import { DEFAULT_PROFILE_COLOR, expoSpacesLayout as L, Favicon, chromeSurface, contentMargins, GlassCircleButton, minListRowHeight, modifierList, PinnedTiles, PROFILE_PRESETS, settingsUIAvailable, spaceBackdrop, spaceColor, spaceMenuSymbol, SpacePageDots, spaceSymbol, SpaceTitle, useIncreasedContrast, useReduceMotion, useTheme } from "../ui";
 
 const SECONDARY = { type: "hierarchical", style: "secondary" } as const;
 const FILL = Number.MAX_SAFE_INTEGER;
 const LARGE_TEXT = 1.35;
 const BANNER_SYMBOLS: Record<BannerIcon, string> = { folder: "folder.badge.questionmark", lock: "lock.fill", reset: "exclamationmark.arrow.triangle.2.circlepath", warning: "exclamationmark.icloud", offline: "wifi.slash" };
-const DEVICE_SYMBOLS: Record<DeviceIcon, string> = { phone: "iphone", laptop: "laptop", desktop: "desktopcomputer", studio: "macstudio", mini: "macmini" };
+const deviceSymbol = (kind: string, name: string) => (kind === "phone" ? "iphone" : /book/i.test(name) ? "laptopcomputer" : "desktopcomputer");
 const SPACE_ROW = [listRowBackground("transparent"), listRowSeparator("hidden"), listRowInsets({ top: 0, leading: L.rowInset, bottom: 0, trailing: L.rowInset })];
 
 const shareable = (url: string) => /^https?:\/\//i.test(url);
@@ -157,7 +157,7 @@ function SpacePage({ profile, dotsBelow }: { profile: SyncedProfile; dotsBelow: 
   const pinnedEmpty = profile.pinned.tiles.length === 0 && profile.pinned.sections.length === 0;
   const go = (url: string, title: string) => openRemote(url, title, profile.syncId);
   return (
-    <List modifiers={modifierList(listStyle("plain"), scrollContentBackground("hidden"), refreshable(() => syncNow().then(() => undefined)), dotsBelow ? contentMargins({ edges: "bottom", length: L.dotsHeight + L.tight }) : null)}>
+    <List modifiers={modifierList(listStyle("plain"), scrollContentBackground("hidden"), minListRowHeight(L.rowHeight), refreshable(() => syncNow().then(() => undefined)), dotsBelow ? contentMargins({ edges: "bottom", length: L.dotsHeight + L.tight }) : null)}>
       {profile.pinned.tiles.length ? <PinnedTileRows tiles={profile.pinned.tiles} open={go} /> : null}
       {profile.pinned.sections.map((section) => (
         <PinnedSectionRow key={section.tab?.key ?? section.group?.key} profileId={profile.syncId} section={section} openGroups={open} open={go} />
@@ -168,7 +168,7 @@ function SpacePage({ profile, dotsBelow }: { profile: SyncedProfile; dotsBelow: 
         return (
           <Section
             key={device.deviceId}
-            header={<Label title={device.deviceName} systemImage={DEVICE_SYMBOLS[deviceIcon(device.kind, device.deviceName)] as never} modifiers={[font({ textStyle: "footnote", weight: "semibold" }), foregroundStyle(SECONDARY), padding({ top: L.small })]} />}
+            header={<Label title={device.deviceName} systemImage={deviceSymbol(device.kind, device.deviceName) as never} modifiers={[font({ textStyle: "footnote", weight: "semibold" }), foregroundStyle(SECONDARY), padding({ top: L.small })]} />}
           >
             {(all ? device.tabs : device.tabs.slice(0, COLLAPSED_LIMIT)).map((tab, index) => (
               <RemoteRow key={`${device.deviceId}:${index}`} title={tab.title} url={tab.url} symbol={null} open={go} />
