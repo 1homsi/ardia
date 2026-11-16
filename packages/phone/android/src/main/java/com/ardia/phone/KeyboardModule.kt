@@ -22,11 +22,10 @@ class KeyboardModule : Module() {
 
         Function("current") {
             val view = watched?.get() ?: appContext.currentActivity?.let(::contentOf)
-            val insets = view?.let(ViewCompat::getRootWindowInsets)
             val density = view?.resources?.displayMetrics?.density ?: 1f
             mapOf(
-                "height" to ((insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0) / density).toDouble(),
-                "navigationBar" to ((insets?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0) / density).toDouble(),
+                "height" to ((view?.let(InsetHold::imeBottom) ?: 0) / density).toDouble(),
+                "navigationBar" to ((view?.let(InsetHold::navigationBottom) ?: 0) / density).toDouble(),
             )
         }
 
@@ -56,7 +55,7 @@ class KeyboardModule : Module() {
                 runCatching { sendEvent(DID_CHANGE, mapOf("height" to change.height, "navigationBar" to change.navigationBar)) }
             },
         )
-        fun ime(): Int = ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
+        fun ime(): Int = InsetHold.imeBottom(view)
         fun navigation(): Int = InsetHold.navigationBottom(view)
         ViewCompat.setWindowInsetsAnimationCallback(
             view,

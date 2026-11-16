@@ -98,8 +98,74 @@ class InsetHoldTest {
     fun fullscreenVideoReleasesTheHoldSoItsHiddenBarsGetThrough() {
         settled()
         hold.configurationChanged(config(night = true))
-        hold.release()
+        hold.fullscreenStarts()
         assertEquals(gone, hold.navigationBars(gone))
+    }
+
+    @Test
+    fun aSecondChangeThatLeavesTheLayoutAloneKeepsTheHold() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        now += 120
+        hold.configurationChanged(config(night = true).apply { colorMode = Configuration.COLOR_MODE_WIDE_COLOR_GAMUT_YES })
+        now += 60
+        assertEquals("on the F4 a second change 120-200 ms after the light/dark one ended the hold, and the drop got through", threeButton, hold.navigationBars(gone))
+        hold.configurationChanged(config(night = true).apply { colorMode = Configuration.COLOR_MODE_WIDE_COLOR_GAMUT_YES })
+        assertEquals("the same configuration again", threeButton, hold.navigationBars(gone))
+    }
+
+    @Test
+    fun aLaterChangeThatMovesTheLayoutEndsTheHold() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        hold.configurationChanged(config(night = true, landscape = true, width = 872, height = 392))
+        assertFalse(hold.holding)
+        assertEquals(gone, hold.navigationBars(gone))
+    }
+
+    @Test
+    fun theKeyboardKeepsTheNavigationBarItSitsAboveDuringTheHold() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        assertEquals("the keyboard's 897 px lost the bar's 130 while the bar was gone; the tray followed it down", 897, hold.ime(767, gone))
+        assertEquals(897, hold.ime(897, threeButton))
+        assertEquals("no keyboard stays no keyboard", 0, hold.ime(0, gone))
+        now += InsetHold.HOLD_MILLIS
+        assertEquals(767, hold.ime(767, gone))
+    }
+
+    @Test
+    fun withoutAHoldTheKeyboardIsAsTheSystemSays() {
+        settled()
+        assertEquals(767, hold.ime(767, gone))
+    }
+
+    @Test
+    fun leavingFullscreenShowsTheBarsAtTheirOldInsetUntilTheSystemReportsThem() {
+        settled()
+        hold.fullscreenStarts()
+        assertEquals("fullscreen hides the bars at once", gone, hold.navigationBars(gone))
+        hold.fullscreenEnds()
+        assertEquals("the page's bar sat 70 px low for about 100 ms on the F4 until the inset came back", threeButton, hold.navigationBars(gone))
+        now += 120
+        assertEquals(threeButton, hold.navigationBars(threeButton))
+    }
+
+    @Test
+    fun leavingFullscreenIsHeldOnlyBriefly() {
+        settled()
+        hold.fullscreenStarts()
+        hold.navigationBars(gone)
+        hold.fullscreenEnds()
+        now += InsetHold.RETURN_MILLIS
+        assertEquals("whatever the system says after the bound wins", gone, hold.navigationBars(gone))
+    }
+
+    @Test
+    fun leavingFullscreenWithoutHavingEnteredItHoldsNothing() {
+        settled()
+        hold.fullscreenEnds()
+        assertFalse(hold.holding)
     }
 
     @Test
@@ -121,6 +187,6 @@ class InsetHoldTest {
         ViewCompat.dispatchApplyWindowInsets(content, dispatched)
         assertEquals("the React root is handed the held navigation bar", threeButton, seen!!.getInsets(WindowInsetsCompat.Type.navigationBars()))
         assertEquals("and the keyboard as the system reports it", keyboard, seen!!.getInsets(WindowInsetsCompat.Type.ime()))
-        InsetHold.window.release()
+        InsetHold.window.fullscreenStarts()
     }
 }

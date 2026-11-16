@@ -33,7 +33,7 @@ class FullscreenHost {
         (video.view.parent as? ViewGroup)?.removeView(video.view)
         holder.addView(video.view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         decor.addView(holder, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        InsetHold.window.release()
+        InsetHold.fullscreenStarts()
         bars(activity, holder).run {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.systemBars())
@@ -58,6 +58,7 @@ class FullscreenHost {
         holder.removeAllViews()
         (holder.parent as? ViewGroup)?.removeView(holder)
         activity?.let { bars(it, it.window.decorView).show(WindowInsetsCompat.Type.systemBars()) }
+        InsetHold.fullscreenEnds()
     }
 
     fun owns(video: FullscreenVideo?): Boolean = video != null && shown === video
