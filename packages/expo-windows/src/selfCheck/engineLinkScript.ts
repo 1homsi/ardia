@@ -9,11 +9,14 @@ const OPEN_MS = 3000;
 const LOAD_MS = 20000;
 const BLANK_LINK = { x: 110, y: 90 };
 
-type Round = { received: boolean; opened: boolean; fromClick: unknown };
+type Round = { received: boolean; opened: boolean; fromClick: unknown; sentBeforePaint: boolean };
+
+const CONTENTFUL_PAINT_AT = 'const paint = performance.getEntriesByName("first-contentful-paint")[0]; post("result", JSON.stringify(paint ? performance.timeOrigin + (paint.paintTime ?? paint.startTime) : null));';
 
 async function clickAtOnce(page: string): Promise<Round> {
   let opened = false;
   let fromClick: unknown = null;
+  let sentBy = 0;
   const watching = onEngineTopic("tab.opened", (event: { opener?: unknown; fromClick?: unknown; adopt?: unknown }) => {
     if (event.opener !== page || opened) return;
     opened = true;
@@ -22,19 +25,26 @@ async function clickAtOnce(page: string): Promise<Round> {
   });
   try {
     await click(page, BLANK_LINK.x, BLANK_LINK.y);
-    const by = Date.now() + OPEN_MS;
+    sentBy = Date.now();
+    const by = sentBy + OPEN_MS;
     while (!opened && Date.now() < by) await pause(50);
   } finally {
     watching.remove();
   }
   const downs = await evaluate(page, 'post("result", JSON.stringify(window.downs));').catch(() => null);
-  return { received: Number(downs) > 0, opened, fromClick };
+  const paintedAt = await evaluate(page, CONTENTFUL_PAINT_AT).catch(() => null);
+  return { received: Number(downs) > 0, opened, fromClick, sentBeforePaint: typeof paintedAt !== "number" || sentBy < paintedAt };
 }
 
 function judge(rounds: Round[], what: string) {
-  const missed = rounds.filter((round) => round.received && !(round.opened && round.fromClick === true));
-  const dropped = rounds.filter((round) => !round.received).length;
-  expectEqual(missed.length, 0, `${what}: every click the page received opened a tab its link script saw (${dropped} of ${rounds.length} clicks never reached the page, which is Chromium holding input until the first paint) ${JSON.stringify(rounds)}`);
+  const missed = rounds.filter((round) => round.received && !(round.opened && round.fromClick === true)).length;
+  const lostAfterPaint = rounds.filter((round) => !round.received && !round.sentBeforePaint).length;
+  const reached = rounds.filter((round) => round.received).length;
+  expectEqual(
+    { missed, lostAfterPaint, mostReached: reached * 2 >= rounds.length },
+    { missed: 0, lostAfterPaint: 0, mostReached: true },
+    `${what}: every click the page received opened a tab its link script saw, every click that never reached the page was sent before the page's first contentful paint (Chromium drops input while it holds commits for that paint), and at least half reached the page (${reached} of ${rounds.length}) ${JSON.stringify(rounds)}`,
+  );
 }
 
 const linkScriptChecks = (port: string): Check[] => [

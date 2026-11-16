@@ -50,7 +50,7 @@ export async function until<T>(what: string, ms: number, read: () => Promise<T>,
   return value;
 }
 
-export const painted = (key: string) => until(`the page ${key} paints`, LOAD_MS, async () => evaluate(key, 'post("result", JSON.stringify(performance.getEntriesByType("paint").length));'), (count) => Number(count) > 0);
+export const painted = (key: string) => until(`the page ${key} has its first contentful paint`, LOAD_MS, async () => evaluate(key, 'post("result", JSON.stringify(performance.getEntriesByName("first-contentful-paint").length));'), (count) => Number(count) > 0);
 
 export const loaded = (key: string, title = TITLE) => until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === title && tab.loading === false && tab.discarded !== true);
 
