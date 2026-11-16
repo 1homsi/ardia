@@ -20,6 +20,7 @@ struct FocusHold {
   static constexpr size_t kCapacity = 64;
   static constexpr ULONGLONG kReadyMs = 3000;
   static constexpr ULONGLONG kDeliveryMs = 1000;
+  static constexpr ULONGLONG kAfterFirstMs = 50;
   static constexpr UINT_PTR kTimer = 2099;
   static constexpr UINT kTickMs = 15;
   static constexpr UINT kSentinel = WM_APP + 0x99;
@@ -46,6 +47,7 @@ struct FocusHold {
   std::vector<wchar_t> held;
   unsigned replayed = 0;
   ULONGLONG postedAt = 0;
+  ULONGLONG nextAt = 0;
   std::set<UINT> heldKeys;
   std::set<UINT> droppedKeys;
   HWND messages = nullptr;
@@ -145,6 +147,7 @@ struct FocusHold {
     startedAt = GetTickCount64();
     claimedTag = 0;
     askedTag = 0;
+    nextAt = 0;
     ready = false;
     sentinelOut = false;
     held.clear();
@@ -300,7 +303,8 @@ struct FocusHold {
   }
 
   void Pump() noexcept {
-    if (!active || !ready || sentinelOut) return;
+    if (!active || !ready || sentinelOut || (nextAt && GetTickCount64() < nextAt)) return;
+    nextAt = 0;
     if (held.empty()) return Finish();
     HWND site = nullptr;
     if (!Deliverable(site)) return Drop("site", L"the field's window doesn't have the keyboard");
@@ -319,6 +323,7 @@ struct FocusHold {
     if (!active || delivered != generation) return;
     if (GetTickCount64() - postedAt > kDeliveryMs) return Drop("timeout", L"a replayed character wasn't delivered in 1 s");
     sentinelOut = false;
+    if (replayed == 1) nextAt = postedAt + kAfterFirstMs;
     Pump();
   }
 
@@ -332,6 +337,7 @@ struct FocusHold {
     if (!ready && GetTickCount64() - startedAt > kReadyMs) return Drop("timeout", L"no field took the keyboard in 3 s");
     if (sentinelOut && GetTickCount64() - postedAt > kDeliveryMs) return Drop("timeout", L"a replayed character wasn't delivered in 1 s");
     Ready();
+    Pump();
   }
 
   void Stop() noexcept {

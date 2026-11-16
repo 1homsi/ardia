@@ -1161,6 +1161,31 @@ function Invoke-HoldTour {
     Send-Typed "example.com"
   } { param($stop, $field, $mark) $field -ceq "example.com" -and @(Get-HoldLines $session $mark | Where-Object { $_ -match " ready after \d+ ms, replayed 11" }).Count -eq 1 }
 
+  Invoke-Stop $session "hold-pairs" "Key hold: ab typed from 15 ms after Ctrl+T, six tries (report only)" {
+    param($stop)
+    $stop.Did = "Six times: pressed Ctrl+T, and from 15 ms after it typed ab, 10 ms a key, with readiness held to $($script:HoldReadyMs) ms, read the bar after 1.5 s, then pressed Escape and Ctrl+W."
+    $stop.Expected = "report only: how often the bar reads 'ab' once both are replayed, since #2101's first-change revert can take the second letter."
+    if (-not (Test-Usable $session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
+    $kept = 0
+    for ($try = 1; $try -le 6; $try++) {
+      Focus-Window $session $session.Main $null | Out-Null
+      $chord = Send-QuickChord @(0x11) 0x54
+      $left = 15 - $chord.ElapsedMilliseconds
+      if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+      Send-Typed "ab" 10
+      Start-Sleep -Milliseconds 1500
+      $field = Read-FocusedText
+      if ($field -ceq "ab") { $kept++ }
+      $stop.Facts.Add("try $try`: '$field'")
+      Send-Escape
+      Start-Sleep -Milliseconds 150
+      Send-Chord @(0x11) 0x57
+      Start-Sleep -Milliseconds 500
+    }
+    $stop.Facts.Add("the bar read 'ab' in $kept of 6")
+    $stop.Seen = "yes"
+  } | Out-Null
+
   Invoke-HoldStop $session "hold-backspace" "Key hold: Backspace typed 15 ms after Ctrl+T ends the hold" "Pressed Ctrl+T, and from 15 ms after it typed ab, 10 ms a key, then Backspace." "the hold ends on Backspace with a and b dropped, logged as a drop with keys held, the bar is empty and Example Domain's tab is unchanged (Backspace and Enter end a hold in version 1) (#2099)." {
     param($stop)
     Send-Typed "ab" 10
@@ -1178,6 +1203,8 @@ function Invoke-HoldTour {
   Start-Sleep -Milliseconds 2500
   $second = @(Get-NewWindows $session $before) | Select-Object -First 1
   if ($second) {
+    [ArdiaTour]::SetWindowPos($second.Handle, [IntPtr](-1), 500, 400, 520, 360, 0x0040) | Out-Null
+    Start-Sleep -Milliseconds 700
     $secondBox = @(Find-Edits $second.Handle) | Select-Object -First 1
     Focus-Window $session $session.Main $null | Out-Null
     Invoke-HoldStop $session "hold-click-ours" "Key hold: typing, then a click into another window of ours before the bar is ready" "Opened a second window, went back to the first, pressed Ctrl+T, and from 15 ms after it typed ab, then clicked the second window's bar." "the hold ends on the click, logged as a drop with keys held, and the second window's bar gets none of it (#2099)." {
@@ -1190,7 +1217,10 @@ function Invoke-HoldTour {
       $stop.Facts.Add("the second window's fields: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
       Focus-Window $session $session.Main $null | Out-Null
       return $texts
-    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and $script:HoldReadCount -ge 1 -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $stop.Facts.Add("the second window's field to click: $(if ($secondBox) { "$($secondBox.X),$($secondBox.Y)" } else { 'not found' })"); $end -eq "dropped" -and $secondBox -and $script:HoldReadCount -ge 1 -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+    [ArdiaTour]::SetWindowPos($second.Handle, [IntPtr](-2), 0, 0, 0, 0, 0x0013) | Out-Null
+    [ArdiaTour]::PostMessageW($second.Handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    Start-Sleep -Milliseconds 800
   } else {
     $script:Required.Add("Key hold: Ctrl+N opened no second window")
   }
