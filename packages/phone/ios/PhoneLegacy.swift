@@ -6,7 +6,7 @@ import SQLite3
 import SwiftData
 
 enum LegacyPaths {
-  static let migratedPrefixes = ["blocking.", "browsing.", "filters.", "reader.", "settings.", "tabs."]
+  static let migratedPrefixes = ["blocking.", "browsing.", "filters.", "library.", "reader.", "settings.", "tabs."]
   static let nativePrefixes = ["blocking.", "browsing.", "filters."]
   static let pagesSuite = "ardia.phone.pages"
 
