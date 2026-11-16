@@ -1942,6 +1942,14 @@ as `<name>-release.apk` with its stamp. The key never leaves that Mac. The phone
 - The first was `rc1-release`: 53e013c78, 0.2.47-nightly.2, 204702, every check passing.
 - The second, `rc2-release`, checks an update in place.
 
+**Known in a candidate, not a regression.** Read these before judging a candidate:
+
+| What | Why | Until |
+|---|---|---|
+| No way into the Library (History, Bookmarks, Downloads) on Android | The old Android design has no entry point. The redesign's page menu has History, Bookmarks and Downloads rows. Seen in rc1-release (F4, 2026-11-16) | Android switches to the redesign |
+| Copy Link leaves the page menu open | Compose did the same: its Copy Link tile copies and confirms with a haptic, and only Share dismisses (`PageMenu.kt` at 01a149d87) | deliberate |
+| A spoken voice search is untested | The phone lab has no audio path into a phone's microphone (corex has no audio device), so the recognizer is only checked up to its Listening screen and cancel | a person tries it on a phone before a stable release |
+
 **Who presses what.**
 1. **The Android agent:** the candidate's build on corex, and the phone pass on the signed file, with the evidence in
    `/tmp/ardia-phone-shots/android-<candidate>/`.
