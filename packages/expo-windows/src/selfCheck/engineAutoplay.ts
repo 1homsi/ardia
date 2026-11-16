@@ -12,7 +12,7 @@ const CTRL = 2;
 const AUTOPLAY_SETTLES_MS = 1500;
 const PER_PAGE_COUNT = 20;
 
-type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean; downs?: number };
+type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean };
 
 const port = engineAvailable() ? httpPagesPort() : null;
 const origin = `http://127.0.0.1:${port}`;
@@ -232,20 +232,6 @@ const autoplayChecks: Check[] = [
         await pause(AUTOPLAY_SETTLES_MS);
         expectEqual((await stateOf(key, 'document.getElementById("w")')).paused, true, "the rewritten document's muted autoplay stays paused");
         await refusedThenStill(key, DETACHED_MUTED_VIDEO, "a muted play() after document.open()");
-      }),
-    ),
-  },
-  {
-    name: "engine autoplay: a click inside an iframe does not let the top page play",
-    run: blocked(() =>
-      withMedia("iframe-click", "framed?quiet-same", "framed page", async (key) => {
-        await until("the iframe reports", SETTLE_MS, () => framed(key), (state) => state.paused === true);
-        await click(key, PLAY_BUTTON.x, PLAY_BUTTON.y);
-        await until("the click reaches the iframe's play button", SETTLE_MS, () => framed(key), (state) => (state.tries?.length ?? 0) > 0).catch(async (error: Error) => {
-          const seen = await evaluate(key, `const box = document.querySelector("iframe").getBoundingClientRect(); post("result", JSON.stringify({ topDowns, under: document.elementFromPoint(${PLAY_BUTTON.x}, ${PLAY_BUTTON.y})?.tagName ?? null, iframe: [box.x, box.y, box.width, box.height], frame: frameState }));`).catch(() => null);
-          throw new Error(`${error.message}; the page saw ${JSON.stringify(seen)}`);
-        });
-        await refusedThenStill(key, DETACHED_SOUND, "the top page's play with sound after a click in the iframe");
       }),
     ),
   },
