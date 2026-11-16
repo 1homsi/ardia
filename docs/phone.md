@@ -1360,9 +1360,9 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Search panel | Typing | match | Typed for real: app completes to apple.com as main's; main's row and field measures, no glyph before Switch to Tab, 2fd28bbe5. The Incognito toggle draws SF `eyeglasses` at 17 semibold on iPhone, as main does: the same ink box and pixel count on the simulator | |
 | Search panel | Incognito | match | Same panel; the field asks for the dark keyboard in Incognito as main's does (6f1653513 native, the panel passes it since this change) | |
 | Search panel | Voice | seen in Expo only | Expo's dictation page ("Speech dictation is unavailable" on the simulator, Try Again capsule); main's voice button wasn't reached by the script | |
-| Search panel | Open and close morph (main's PR #2010, e945077b6) | not seen | Wired on iPhone behind `searchStageIsNative()`: the native stage owns the panel's lift, the morph from the bar's capsule or host pill, the drop and the departure on Go. JS owns the dim (200 ms ease-out, fading with the drag), main's `TrayDrag` (keyboard let go on the pull, a 650 ms grace before the lift returns, `close(exit, velocity)` on a dismissing pull), the reveal handed to the stage (`revealNativeId` and `rowsRevealNativeId`: held hidden from `present()` and faded natively at 60 and 90 ms over main's 0.12 s ease-out, from the same base as the face, as main's `OmniboxTextField` fades its field) and `holdsScroll` while the stage moves. A cancel morphs into the bar where it has a pill and no command bar; Go departs; anything else drops. To compare in frames beside main: open, cancel, drag, Go, Incognito Classic | screens, iPhone |
+| Search panel | Open and close morph (main's PR #2010, e945077b6) | partly | Recorded 2026-11-16 on the iPhone 18 Pro beside main, one still localhost page, stage-4.app (`search-stage-18pro/{open,close,drag,go}-pair.png`). Open stills match: the address selected whole, its start shown, the site row then the typed-address row (363e43f41). Cancel into the pill: level within a frame, the face carrying its whole label (b861cd01e) and the bar back whole. Pull-down: the motion is level (616 ms both), but main folds the panel into the pill at the end and ours fades it in place; the JS sends `morph` with the pull's velocity, so the fold is the native close's (iPhone). Go: main holds the panel about 370 ms before departing up, ours about 170 ms; the JS blurs and closes in one tick, so this too is the native depart's. Open: ours sits about five frames before the panel moves, where main's face rises with the keyboard from the second frame; the native start now waits for the content's layout (e4b1e1739) and the field's late focus is traced by the iPhone agent | screens, iPhone |
 | Search panel | Reopen while closing | not seen | Every open calls the stage's `present()` once its content is mounted, and a reopen mid-close takes the panel back as main's present does; `shown` is only the mounted gate. The bar's capsule hides once `present()` resolves, after the stage has taken its face. Every open starts its ending as a cancel, so a close after an earlier Go no longer departs | screens, iPhone |
-| Bar | Side buttons and capsule around the search panel | not seen | On open the capsule hides at once and the side buttons scale to 0.8, move 12 pt out and fade over 0.1 s; they spring back 120 ms after the close, and the capsule shows at once after a morph that landed, else fades in over 150 ms. Their glass sits under a fading parent: to check in frames that it draws whole through the fades | screens |
+| Bar | Side buttons and capsule around the search panel | match | Seen 2026-11-16 in the cancel strip beside main: the capsule hides as the panel takes it and comes back whole after the landing; the side buttons shrink, slide out and spring back, and their glass draws all the way through, since no ancestor of the glass fades (each Glass takes its own `shown`, the glyphs fade) | |
 | Page | Page with bar, secure | match | | |
 | Page | Not secure | match | Port dropped as main's; "Not Secure" stays for http as main's source shows it (BarControls.swift:119-124). Main's frame lacks it because of a bug in main: a tab opened on an http URL skips the security check (WebTab.swift:103/113, 359-363). Ours shows it on a tab opened directly on an http address too, the state main gets wrong; pageStates.render.test.tsx pins it | |
 | Page | Private | match | Same page and bar with the Incognito glasses | |
@@ -1385,7 +1385,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Deck | Search Tabs | match | Typing "wiki": the bar rises above the keyboard and the deck narrows to the same Wikipedia tabs (`pairs3/search-tabs.png`) | |
 | Deck | Incognito pill | not seen | | |
 | Deck | Dark | match | Deck, `···` menu and card menu as in light; once a card showed its placeholder (title and host) where main showed the snapshot, on the first deck open after a fresh install in dark. Not reproduced in two more fresh dark installs (browsing, then Tabs): every card showed its picture (`dark-deck/`) | |
-| Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet | |
+| Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet. Both show Show All after a device's eighth tab (main's `collapsedLimit`); in main that row sits behind the page dots and is unseen at rest, in ours it shows beside them (`pr-2184/spaces.png`) | screens |
 | Archive | Sheet | match | Light and dark | |
 | Library | History, Bookmarks, Downloads sheet | match | History, Bookmarks and Downloads seen beside main's, light and dark (`pairs3`, `pairs4`). Ours uses the system toolbar and search field where main hides the bar and draws its own capsules | screens |
 | Settings | Root, Sync With Mac, Appearance, Search Engine, Clear Browsing Data | match | | |
@@ -2668,6 +2668,19 @@ Scrolling, what was found and what the stepped window and the pages do:
   19.5 to 12 long frames a flick; with the pages, 3.5. A 100-row page was worse (8.5): each extension is itself a
   rebuild.
 - Archive gained less (10.5 to 7.5); its rows sit in native `Section`s, and what is left there is not yet found.
+
+Left, and the next step for each (2026-11-16, the screens agent took these over from the speed agent):
+- Archive scroll, 7.5 long frames a flick against main's 3. The next step is a `sample` of the main thread during one flick
+  on the seeded state (1,000 archived tabs), to find what the native `Section`s rebuild beyond the stepped window; that
+  needs the seeded container, which `seed.py` (in the speed agent's scratch, not committed) writes into a local
+  simulator's data container, so it can't run on a leased Simlock device.
+- Archive open, about 100 ms behind main (409 against 308 ms to the sheet moving). What is left is the part of Expo UI's
+  first SwiftUI frame build the deck-idle warm-up doesn't reach. The next step is warming the sheet's toolbar and
+  search field as well as its list, and timing the ··· menu again, since warming at menu open delayed the menu by
+  150–200 ms.
+- History scroll, 3.5 long frames a flick against main's 0.5. What is left is SwiftUI walking the visible days' rows on
+  each window step. The next step is fewer, larger steps once a flick is gliding, or native sections per day as
+  Archive's; either is a change to the recycling hook that needs a sample before and after on the seeded state.
 
 The deck as one piece (`ContainedDeck`, the Android agent's container that moves by one transform) was tried on iPhone
 and left off: at 100 tabs, four drags spent 81–117 ms of the main thread in Reanimated worklets with the current deck
