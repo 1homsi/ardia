@@ -904,9 +904,30 @@ public static class ArdiaSnapKeys {
     return $foreground -eq $Handle
   }
 
-  function Test-SnapKeys([System.Diagnostics.Process]$Process, [string]$Where) {
+  function Get-KeyboardPlace([IntPtr]$Handle) {
+    $foreground = [ArdiaSnapKeys]::GetForegroundWindow()
+    if (Test-SnapFocusHeld $Handle "page") { return "the page" }
+    if ($foreground -eq $Handle) { return "the app window" }
+    return "another window, $(Get-SnapDescription $foreground)"
+  }
+
+  function Send-HeldWindowsKeys([byte[]]$Keys) {
+    [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 300
+    foreach ($key in $Keys) {
+      $extended = if ($key -ge 0x25 -and $key -le 0x28) { 1 } else { 0 }
+      [ArdiaInput]::keybd_event($key, 0, $extended, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 60
+      [ArdiaInput]::keybd_event($key, 0, $extended + 2, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 300
+    }
+    [ArdiaInput]::keybd_event(0x5B, 0, 3, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 1500
+  }
+
+  function Test-SnapKeys([System.Diagnostics.Process]$Process, [string]$Where, [string]$Label = $Where, [switch]$Held) {
     $handle = $Process.MainWindowHandle
-    if ($handle -eq [IntPtr]::Zero) { return @("snap keys ($Where): the window never showed") }
+    if ($handle -eq [IntPtr]::Zero) { return @("snap keys ($Label): the window never showed") }
     $work = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
     $failures = @()
     $steps = @(
@@ -926,12 +947,12 @@ public static class ArdiaSnapKeys {
       $foreground = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
       if (-not (Test-SnapFocusHeld $handle $Where)) {
         $how = if ($step.Home) { "after a click there" } else { "kept from the step before, without a new click" }
-        $failures += "snap keys ($Where): before $($step.Name) the keyboard was not in the $Where ($how); the foreground window was $foreground"
-        Write-Host "Snap keys ($Where): before $($step.Name) the foreground window was $foreground, not the $Where; the step is skipped."
+        $failures += "snap keys ($Label): before $($step.Name) the keyboard was not in the $Where ($how); the foreground window was $foreground"
+        Write-Host "Snap keys ($Label): before $($step.Name) the foreground window was $foreground, not the $Where; the step is skipped."
         continue
       }
       $before = Get-SnapBounds $handle
-      Send-WindowsArrow ([byte]$step.Arrow)
+      if ($Held) { Send-HeldWindowsKeys @([byte]$step.Arrow) } else { Send-WindowsArrow ([byte]$step.Arrow) }
       $zoomed = [ArdiaInput]::IsZoomed($handle)
       $iconic = [ArdiaInput]::IsIconic($handle)
       $after = Get-SnapBounds $handle
@@ -947,41 +968,83 @@ public static class ArdiaSnapKeys {
         "left half" { $after -and -not $iconic -and (& $near $after.Left $work.Left) -and (& $near $after.Right ($work.Left + $half)) -and (& $near $after.Top $work.Top) -and (& $near $after.Bottom $work.Bottom) }
         "right half" { $after -and -not $iconic -and (& $near $after.Left ($work.Left + $half)) -and (& $near $after.Right $work.Right) -and (& $near $after.Top $work.Top) -and (& $near $after.Bottom $work.Bottom) }
       }
-      Write-Host "Snap keys ($Where): $($step.Name) with the foreground window $foreground; the window was at $was and is at $place (maximized $zoomed, minimized $iconic; the work area is $($work.Left),$($work.Top),$($work.Right),$($work.Bottom)); wanted $($step.Want): $got."
-      if (-not $got) { $failures += "snap keys ($Where): $($step.Name) did not leave the window $($step.Want) (maximized $zoomed, minimized $iconic, at $place; the foreground window was $foreground)" }
+      Write-Host "Snap keys ($Label): $($step.Name) with the foreground window $foreground; the window was at $was and is at $place (maximized $zoomed, minimized $iconic; the work area is $($work.Left),$($work.Top),$($work.Right),$($work.Bottom)); wanted $($step.Want): $got."
+      if (-not $got) { $failures += "snap keys ($Label): $($step.Name) did not leave the window $($step.Want) (maximized $zoomed, minimized $iconic, at $place; the foreground window was $foreground)" }
       if ($step.Arrow -eq 0x25 -or $step.Arrow -eq 0x27) {
         [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
         [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 400
       }
+      Write-Host "Snap keys ($Label): after $($step.Name) the keyboard is in $(Get-KeyboardPlace $handle)."
     }
     Set-SnapHome $handle $work
     return $failures
   }
 
-  function Test-SnapKeyWithWindowsHeld([System.Diagnostics.Process]$Process) {
+  function Get-SnapChain([System.Diagnostics.Process]$Process, [string]$Where, [string]$Label) {
     $handle = $Process.MainWindowHandle
-    if ($handle -eq [IntPtr]::Zero) { return @("snap keys (page, Windows key held): the window never showed") }
+    $work = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    Set-SnapHome $handle $work
+    Set-SnapFocus $Process $Where
+    $ready = Test-SnapFocusHeld $handle $Where
+    Send-HeldWindowsKeys @([byte]0x25, [byte]0x26)
+    $bounds = Get-SnapBounds $handle
+    $zoomed = [ArdiaInput]::IsZoomed($handle)
+    $iconic = [ArdiaInput]::IsIconic($handle)
+    Save-Screenshot (Join-Path $Out "snap-keys-$($Label -replace '[ ,+]', '-')-chain.png")
+    [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+    [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 600
+    $place = Get-KeyboardPlace $handle
+    $at = if ($bounds) { "$($bounds.Left),$($bounds.Top),$($bounds.Right),$($bounds.Bottom)" } else { "unknown" }
+    Write-Host "Snap keys ($Label): Win+Left then Up in one Windows key press, the keyboard in the $Where first ($ready): the window is at $at (maximized $zoomed, minimized $iconic); after Escape the keyboard is in $place."
+    Set-SnapHome $handle $work
+    return @{ Ready = $ready; Bounds = $bounds; Zoomed = $zoomed; Iconic = $iconic; Place = $place }
+  }
+
+  function Test-SnapChainLike($Chain, $Control, [string]$Label) {
+    if (-not $Control -or -not $Control.Bounds) { return @("snap keys ($Label): the sidebar's Win+Left then Up gave nothing to compare with") }
+    if (-not $Chain.Ready) { return @("snap keys ($Label): the keyboard was not in the page before Win+Left then Up") }
+    $near = { param($a, $b) [Math]::Abs($a - $b) -le 16 }
+    $same = $Chain.Bounds -and $Chain.Zoomed -eq $Control.Zoomed -and $Chain.Iconic -eq $Control.Iconic -and (& $near $Chain.Bounds.Left $Control.Bounds.Left) -and (& $near $Chain.Bounds.Top $Control.Bounds.Top) -and (& $near $Chain.Bounds.Right $Control.Bounds.Right) -and (& $near $Chain.Bounds.Bottom $Control.Bounds.Bottom)
+    if ($same) { return @() }
+    $got = if ($Chain.Bounds) { "$($Chain.Bounds.Left),$($Chain.Bounds.Top),$($Chain.Bounds.Right),$($Chain.Bounds.Bottom)" } else { "unknown" }
+    $want = "$($Control.Bounds.Left),$($Control.Bounds.Top),$($Control.Bounds.Right),$($Control.Bounds.Bottom)"
+    return @("snap keys ($Label): Win+Left then Up in one Windows key press left the window at $got, not where the sidebar's left it ($want)")
+  }
+
+  function Test-HeldFieldKeys([System.Diagnostics.Process]$Process, [string]$Label, [string[]]$Letters) {
+    $handle = $Process.MainWindowHandle
     $work = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
     Set-SnapHome $handle $work
     Set-SnapFocus $Process "page"
-    $foreground = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
-    if (-not (Test-SnapFocusHeld $handle "page")) { return @("snap keys (page, Windows key held): the keyboard was not in the page after a click; the foreground window was $foreground") }
-    [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 80
-    [ArdiaInput]::keybd_event(0x26, 0, 1, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 60
-    [ArdiaInput]::keybd_event(0x26, 0, 3, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 900
-    $zoomedHeld = [ArdiaInput]::IsZoomed($handle)
-    [ArdiaInput]::keybd_event(0x5B, 0, 3, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 1200
-    $zoomed = [ArdiaInput]::IsZoomed($handle)
-    $held = Test-SnapFocusHeld $handle "page"
-    Write-Host "Snap keys (page, Windows key held): Win+Up with the Windows key held 900 ms past the arrow, foreground window $foreground; maximized while held $zoomedHeld, after $zoomed; the keyboard back in the page: $held."
+    $failures = @()
+    $typed = ""
+    $presses = @(@{ Name = "Win+V"; Key = 0x56 }, @{ Name = "Win+."; Key = 0xBE }, @{ Name = "a Windows key tap"; Key = 0 })
+    for ($index = 0; $index -lt $presses.Count; $index++) {
+      $press = $presses[$index]
+      $before = Get-KeyboardPlace $handle
+      if ($press.Key) { Send-HeldWindowsKeys @([byte]$press.Key) }
+      else {
+        [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 100
+        [ArdiaInput]::keybd_event(0x5B, 0, 3, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 1500
+      }
+      $shown = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
+      [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+      [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 1000
+      $place = Get-KeyboardPlace $handle
+      $typed += $Letters[$index]
+      Send-Text $Letters[$index]
+      Start-Sleep -Milliseconds 800
+      $reached = (Test-Path $httpPagesLog) -and @(Select-String -Path $httpPagesLog -SimpleMatch "/event/typed?$typed").Count -gt 0
+      Write-Host "Snap keys ($Label): $($press.Name) from the page's text box: before it the keyboard was in $before; with it pressed the foreground window was $shown; after Escape the keyboard is in $place; typing reached the text box: $reached."
+      if (-not $reached) { $failures += "snap keys ($Label): after $($press.Name) and Escape typing did not reach the page's text box (the keyboard is in $place)" }
+    }
     Set-SnapHome $handle $work
-    if (-not $zoomed) { return @("snap keys (page, Windows key held): Win+Up with the Windows key still held did not maximize the window") }
-    return @()
+    return $failures
   }
 
   function Send-WindowsChord([byte]$Key) {
@@ -1037,8 +1100,8 @@ public static class ArdiaSnapKeys {
     else {
       $snapApp.Refresh()
       Test-SnapKeys $snapApp "sidebar" | ForEach-Object { $failures += $_ }
-      Test-SnapKeys $snapApp "page" | ForEach-Object { $failures += $_ }
-      Test-SnapKeyWithWindowsHeld $snapApp | ForEach-Object { $failures += $_ }
+      Test-SnapKeys $snapApp "sidebar" "sidebar, Windows key held" -Held | ForEach-Object { $failures += $_ }
+      $chainControl = Get-SnapChain $snapApp "sidebar" "sidebar, Windows key held"
       if (Test-Path $snapLog) { Select-String -Path $snapLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log: $($_.Line)" } }
     }
   } finally {
@@ -1066,6 +1129,36 @@ public static class ArdiaSnapKeys {
     if (-not $fieldApp.HasExited) {
       Stop-Process -Id $fieldApp.Id -Force
       $fieldApp.WaitForExit(10000) | Out-Null
+    }
+  }
+  foreach ($strategy in @(@{ Name = "early"; Letters = @("k", "j", "q") }, @{ Name = "late"; Letters = @("m", "n", "p") })) {
+    $snapStrategy = $strategy.Name
+    $strategyLog = Join-Path $Out "snap-keys-$snapStrategy.log"
+    $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-$snapStrategy-data"
+    $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
+    $env:ARDIA_TEST = "snapKeys=$snapStrategy"
+    Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+    Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
+    $strategyApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$strategyLog`"", "http://127.0.0.1:$httpPagesPort/field" -PassThru
+    $env:ARDIA_CONFIG_DIR = ""
+    $env:ARDIA_TEST = ""
+    try {
+      Start-Sleep -Seconds 12
+      if ($strategyApp.HasExited) { $failures += "snap keys ($snapStrategy): the app exited on its own (exit code $($strategyApp.ExitCode))" }
+      else {
+        $strategyApp.Refresh()
+        Test-SnapKeys $strategyApp "page" "$snapStrategy, page" | ForEach-Object { $failures += $_ }
+        Test-SnapKeys $strategyApp "page" "$snapStrategy, page, Windows key held" -Held | ForEach-Object { $failures += $_ }
+        $chain = Get-SnapChain $strategyApp "page" "$snapStrategy, page, Windows key held"
+        Test-SnapChainLike $chain $chainControl "$snapStrategy, page, Windows key held" | ForEach-Object { $failures += $_ }
+        Test-HeldFieldKeys $strategyApp "$snapStrategy, page, Windows key held" $strategy.Letters | ForEach-Object { $failures += $_ }
+        if (Test-Path $strategyLog) { Select-String -Path $strategyLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log ($snapStrategy): $($_.Line)" } }
+      }
+    } finally {
+      if (-not $strategyApp.HasExited) {
+        Stop-Process -Id $strategyApp.Id -Force
+        $strategyApp.WaitForExit(10000) | Out-Null
+      }
     }
   }
   $env:ARDIA_CONFIG_DIR = ""
