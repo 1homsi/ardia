@@ -42,6 +42,9 @@ def ardiaCommit = bundleExportCommit ?: nativeCommit
 def ardiaDirty = bundleExport ? "no" : (runBundleGuard(["dirty"])[1] == "no" ? "no" : "yes")
 def ardiaBundleSource = bundleExport ? "export of the commit" : "working tree"
 def ardiaNative = runBundleGuard(["native"])[1]
+def ardiaReleaseVersion = findProperty('ardiaVersionName') ?: ''
+def ardiaVersionCode = (findProperty('ardiaVersionCode') ?: '2') as int
+if (ardiaReleaseVersion && ardiaLab) throw new GradleException("a release version is for builds without the lab switch: drop -PardiaLab or the version")
 def bundleGuardState = new File(buildDir, "bundle-guard/state.json")
 tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAssets') }.configureEach { task ->
     inputs.property('ardiaLab', ardiaLab)
@@ -87,8 +90,9 @@ android {
         applicationId 'com.ardia.browser.android'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "0.1.0"
+        versionCode ardiaVersionCode
+        versionName ardiaReleaseVersion ?: "0.1.0"
+        resValue "string", "ardia_release_version", ardiaReleaseVersion
         resValue "string", "ardia_build_commit", ardiaCommit
         resValue "string", "ardia_build_dirty", ardiaDirty
         resValue "string", "ardia_build_source", ardiaBundleSource

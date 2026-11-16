@@ -64,6 +64,8 @@ class PageViewModule : Module() {
 
         Constants("reportsDrawn" to true)
 
+        Function("appRelease") { AppReleaseInfo.of(context) }
+
         Events("onPageEngineEvent")
 
         OnCreate {

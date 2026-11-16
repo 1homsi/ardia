@@ -2,7 +2,7 @@
 # Builds a release APK whose JavaScript is one commit, and stamps it with that commit and the native tree's state.
 #
 #   apps/phone/scripts/build-apk <name> [--commit REV] [--compose-key] [--store] [--direct] [--no-r8] [--abi ABI[,ABI]]
-#                                [--compress libs|dex|libs,dex] [--bundle]
+#                                [--compress libs|dex|libs,dex] [--bundle] [--version RELEASE]
 #
 # The bundle comes from an export of REV (default HEAD at start, see bundle-export.ts), so edits and commits in the
 # working tree during the build don't reach it; the export is deleted afterwards. Kotlin, resources and the native
@@ -18,10 +18,11 @@
 # bundle stays uncompressed. --bundle builds <name>.aab for the Play Store instead, and checks its stamp and
 # names on the universal APK made from it, kept as <name>-universal.apk.
 # ARDIA_BUILD_ROOT builds another checkout with these scripts (corex-build's build-only clone); --compose-key is
-# Mac-only, since only the Mac holds the Compose app's key.
+# Mac-only, since only the Mac holds the Compose app's key. --version gives a --store build its release version
+# (0.2.47 or 0.2.47-nightly.2): android-version.ts turns it into the versionName and versionCode.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && exit 0 || exit 64
 fi
 name="$1"
@@ -34,6 +35,7 @@ rev=HEAD
 abis=arm64-v8a
 compress=""
 bundle=0
+release=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --compose-key) composeKey=1 ;;
@@ -45,6 +47,7 @@ while [ $# -gt 0 ]; do
     --compress) compress="$2"; shift ;;
     --bundle) bundle=1 ;;
     --commit) rev="$2"; shift ;;
+    --version) release="$2"; shift ;;
     *) echo "unknown option $1" >&2; exit 64 ;;
   esac
   shift
@@ -93,6 +96,13 @@ else
 fi
 echo "bundling $commit from the $source"
 gradleArgs+=(-Pandroid.enableMinifyInReleaseBuilds=$([ "$r8" = "1" ] && echo true || echo false))
+if [ -n "$release" ]; then
+  [ "$lab" = "0" ] || { echo "--version is for a --store build: a lab build carries no release version" >&2; exit 64; }
+  planned="$(node --no-warnings "$here/android-version.ts" "$release")"
+  versionName="$(sed -n 's/^name=//p' <<<"$planned")"
+  versionCode="$(sed -n 's/^code=//p' <<<"$planned")"
+  gradleArgs+=(-PardiaVersionName="$versionName" -PardiaVersionCode="$versionCode")
+fi
 gradleArgs+=(-PreactNativeArchitectures="$abis")
 case ",$compress," in *,libs,*) gradleArgs+=(-Pexpo.useLegacyPackaging=true) ;; esac
 case ",$compress," in *,dex,*) gradleArgs+=(-PardiaCompressDex=true) ;; esac
@@ -174,6 +184,7 @@ sum="$(shasum -a 256 "$apk" | cut -d' ' -f1)"
   echo "packaging: $packaging"
   [ "$r8" = "1" ] && echo "names: check-names.py passed"
   echo "versionCode: $version"
+  echo "versionName: $("$tools/aapt2" dump badging "$apk" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
   echo "signer sha256: $signer"
   echo "sha256: $sum"
   echo "size: $(wc -c < "$apk" | tr -d ' ')"
