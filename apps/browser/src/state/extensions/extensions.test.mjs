@@ -862,3 +862,57 @@ test("re-checking kept panels: a re-check's \"no panel\" for a tab is ignored on
   assert.equal(panels.panelDroppedOnTab(x.w, x.a), false, "A isn't marked as having no panel");
   checkInvariants(x, "after the older answer");
 });
+
+test("Add on an install prompt the engine no longer holds says so in the dialog, and Cancel on one rejects nothing", async () => {
+  const { showInstallPrompt, confirmInstall, cancelInstall } = await import("./actions.ts");
+  const { ArdiaError } = await import("@ardia/core");
+  const { w } = setup();
+  const unhandled = [];
+  const noteUnhandled = (reason) => unhandled.push(reason);
+  process.on("unhandledRejection", noteUnhandled);
+  const answers = [];
+  native.extensionAnswers.resolveInstallPrompt = async (requestId, accepted) => {
+    answers.push([requestId, accepted]);
+    throw new ArdiaError("ERR_EXTENSION_PROMPT_STALE", "The prompt belongs to another window");
+  };
+  const prompt = { requestId: "install1", profile: "", id: "abc", name: "Ext", version: "1", type: "install", icon: null, permissions: [], tabId: null };
+  try {
+    showInstallPrompt(w, prompt);
+    await confirmInstall();
+    const install = E().install;
+    assert.equal(install?.status, "error");
+    assert.match(install.error, /install request has closed/);
+    showInstallPrompt(w, { ...prompt, requestId: "install2" });
+    showInstallPrompt(w, { ...prompt, requestId: "install3" });
+    cancelInstall();
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(answers, [["install1", true], ["install2", false], ["install3", false]]);
+    assert.equal(E().install, null);
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off("unhandledRejection", noteUnhandled);
+    native.extensionAnswers.resolveInstallPrompt = async () => null;
+  }
+});
+
+test("a failed Add doesn't replace an install prompt that arrived while it was waiting", async () => {
+  const { showInstallPrompt, confirmInstall } = await import("./actions.ts");
+  const { ArdiaError } = await import("@ardia/core");
+  const { w } = setup();
+  let fail;
+  native.extensionAnswers.resolveInstallPrompt = (requestId, accepted) =>
+    accepted ? new Promise((_, reject) => { fail = () => reject(new ArdiaError("ERR_EXTENSION_PROMPT_STALE", "The prompt belongs to another window")); }) : Promise.resolve(null);
+  const prompt = { requestId: "first", profile: "", id: "abc", name: "Ext", version: "1", type: "install", icon: null, permissions: [], tabId: null };
+  try {
+    showInstallPrompt(w, prompt);
+    const confirming = confirmInstall();
+    showInstallPrompt(w, { ...prompt, requestId: "second" });
+    fail();
+    await confirming;
+    const install = E().install;
+    assert.equal(install?.status, "prompt");
+    assert.equal(install.prompt.requestId, "second");
+  } finally {
+    native.extensionAnswers.resolveInstallPrompt = async () => null;
+  }
+});
