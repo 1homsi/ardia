@@ -3,7 +3,7 @@ import { PlatformColor, StyleSheet, useWindowDimensions, View } from "react-nati
 import { BottomSheet, Button, ConfirmationDialog, ContentUnavailableView, ContextMenu, Divider, HStack, Host, Label, List, Menu, NavigationStack, Picker, RNHostView, Section, ShareLink, Spacer, Text, Toolbar, ToolbarItem, VStack, useNativeState } from "@expo/ui/swift-ui";
 import { accessibilityElement, accessibilityHint, buttonStyle, disabled, font, foregroundStyle, frame, lineLimit, listStyle, navigationBarTitleDisplayMode, navigationTitle, onAppear, padding, pickerStyle, searchable, tag, tint } from "@expo/ui/swift-ui/modifiers";
 import { ARCHIVE_SEARCH_DELAY_MS, archiveDayTitle } from "../../lib/archiveDay";
-import { eagerSections, sectionOverscan, sheetWasSlow } from "../../lib/sectionWindow";
+import { eagerSections, LIST_PAGE_ROWS, sectionOverscan, sectionsWithin, sheetWasSlow } from "../../lib/sectionWindow";
 import { clockTime } from "../../state/library/libraryText";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { haptics } from "../../state/app/haptics";
@@ -93,7 +93,14 @@ function WarmArchive() {
 function ArchiveNavigation({ requestedAt }: { requestedAt: MutableRefObject<number | null> }) {
   const days = useArchiveDays();
   const loaded = useArchiveLoaded();
-  const eager = useMemo(() => eagerSections(days.map((day) => day.tabs.length)), [days]);
+  const sizes = useMemo(() => days.map((day) => day.tabs.length), [days]);
+  const eager = useMemo(() => eagerSections(sizes), [sizes]);
+  const [pageRows, setPageRows] = useState(LIST_PAGE_ROWS);
+  const listed = sectionsWithin(sizes, pageRows);
+  const more = useCallback(() => {
+    countUsage("list_pages_added");
+    setPageRows((rows) => rows + LIST_PAGE_ROWS);
+  }, []);
   useEffect(() => {
     if (!loaded) return;
     const frame = requestAnimationFrame(() => {
@@ -134,7 +141,7 @@ function ArchiveNavigation({ requestedAt }: { requestedAt: MutableRefObject<numb
       {results ? (
         <ArchiveRows tabs={results} />
       ) : (
-        (shown ? days : days.filter((_, index) => eager[index])).map((day, index) => <ArchiveDaySection key={day.tabs[0]!.id} title={archiveDayTitle(day.tabs[0]!.archivedAt ?? day.tabs[0]!.lastActive, now)} tabs={day.tabs} eager={eager[index] ?? false} />)
+        days.slice(0, listed).filter((_, index) => shown || eager[index]).map((day, index) => <ArchiveDaySection key={day.tabs[0]!.id} title={archiveDayTitle(day.tabs[0]!.archivedAt ?? day.tabs[0]!.lastActive, now)} tabs={day.tabs} eager={eager[index] ?? false} onLast={shown && index === listed - 1 && listed < days.length ? more : undefined} />)
       )}
     </List>
   );
@@ -184,12 +191,15 @@ function ArchiveNavigation({ requestedAt }: { requestedAt: MutableRefObject<numb
   );
 }
 
-function ArchiveDaySection({ title, tabs, eager }: { title: string; tabs: BrowserTab[]; eager: boolean }) {
+function ArchiveDaySection({ title, tabs, eager, onLast }: { title: string; tabs: BrowserTab[]; eager: boolean; onLast?: () => void }) {
   const [seen, setSeen] = useState(false);
   const near = eager || seen;
-  const wake = useCallback(() => setSeen(true), []);
+  const appeared = () => {
+    setSeen(true);
+    onLast?.();
+  };
   return (
-    <Section title={title} modifiers={near ? undefined : [onAppear(wake)]}>
+    <Section title={title} modifiers={near && !onLast ? undefined : [onAppear(appeared)]}>
       <ArchiveRows tabs={tabs} overscan={sectionOverscan(near)} />
     </Section>
   );

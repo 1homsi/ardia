@@ -12,6 +12,17 @@ export function eagerSections(sizes: readonly number[], rows: number = EAGER_SEC
   });
 }
 
+export const LIST_PAGE_ROWS = 200;
+
+export function sectionsWithin(sizes: readonly number[], rows: number): number {
+  let total = 0;
+  for (let index = 0; index < sizes.length; index++) {
+    total += sizes[index]!;
+    if (total >= rows) return index + 1;
+  }
+  return sizes.length;
+}
+
 export const sectionOverscan = (near: boolean) => (near ? NEAR_OVERSCAN : FAR_OVERSCAN);
 
 export const sheetWasSlow = (requestedAt: number | null, drawnAt: number) => requestedAt !== null && drawnAt - requestedAt > SLOW_SHEET_MS;

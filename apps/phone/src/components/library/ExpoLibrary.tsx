@@ -36,7 +36,7 @@ import { copyLink } from "../../state/browse/tabMenus";
 import { bookmarkMatches, bookmarkSections } from "../../state/library/bookmarkSearch";
 import { filterHistory, historyDays, historyDayTitle, historyHost, type HistoryEntry } from "../../state/library/historyTimeline";
 import { clockTime, downloadSubtitle, FILE_SYMBOLS } from "../../state/library/libraryText";
-import { eagerSections, sectionOverscan, sheetWasSlow } from "../../lib/sectionWindow";
+import { eagerSections, LIST_PAGE_ROWS, sectionOverscan, sectionsWithin, sheetWasSlow } from "../../lib/sectionWindow";
 import { countUsage } from "../../state/telemetry/telemetry";
 import {
   closeLibrary,
@@ -196,7 +196,14 @@ function HistoryContent({ query, page }: { query: string; page: PageModifiers })
   }, [open, syncRevision, space]);
   const shown = useMemo(() => filterHistory(entries, query), [entries, query]);
   const days = useMemo(() => historyDays(shown), [shown]);
-  const eager = useMemo(() => eagerSections(days.map((day) => day.entries.length)), [days]);
+  const sizes = useMemo(() => days.map((day) => day.entries.length), [days]);
+  const eager = useMemo(() => eagerSections(sizes), [sizes]);
+  const [pageRows, setPageRows] = useState(LIST_PAGE_ROWS);
+  const listed = sectionsWithin(sizes, pageRows);
+  const more = useCallback(() => {
+    countUsage("list_pages_added");
+    setPageRows((rows) => rows + LIST_PAGE_ROWS);
+  }, []);
   const requestedAt = useRef<number | null>(null);
   if (!open) requestedAt.current = null;
   else requestedAt.current ??= Date.now();
@@ -215,21 +222,24 @@ function HistoryContent({ query, page }: { query: string; page: PageModifiers })
   if (!shown.length) return noResults(query, page);
   return (
     <List modifiers={listModifiers(page)}>
-      {days.map((day, index) => (
-        <HistoryDaySection key={day.day} title={historyDayTitle(day.day, now)} entries={day.entries} iconSize={iconSize} eager={eager[index] ?? false} />
+      {days.slice(0, listed).map((day, index) => (
+        <HistoryDaySection key={day.day} title={historyDayTitle(day.day, now)} entries={day.entries} iconSize={iconSize} eager={eager[index] ?? false} onLast={index === listed - 1 && listed < days.length ? more : undefined} />
       ))}
     </List>
   );
 }
 
-function HistoryDaySection({ title, entries, iconSize, eager }: { title: string; entries: HistoryEntry[]; iconSize: number; eager: boolean }) {
+function HistoryDaySection({ title, entries, iconSize, eager, onLast }: { title: string; entries: HistoryEntry[]; iconSize: number; eager: boolean; onLast?: () => void }) {
   const row = useCallback(({ item }: { item: HistoryEntry }) => <HistoryRow entry={item} iconSize={iconSize} />, [iconSize]);
   const [seen, setSeen] = useState(false);
   const near = eager || seen;
   const wake = useCallback(() => setSeen(true), []);
   return (
     <>
-      <LibrarySectionHeader title={title} onAppear={near ? undefined : wake} />
+      <LibrarySectionHeader title={title} onAppear={near && !onLast ? undefined : () => {
+        wake();
+        onLast?.();
+      }} />
       <List.ForEach data={entries} keyExtractor={(entry) => entry.url} onDelete={(indices) => indices.forEach((index) => entries[index] && deleteHistoryEntry(entries[index]))} estimatedItemSize={64} overscanCount={sectionOverscan(near)}>
         {row}
       </List.ForEach>

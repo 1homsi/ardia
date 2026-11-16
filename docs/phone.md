@@ -1220,7 +1220,7 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 | `app_launched` | `legacy_import` (imported, started_fresh, none), `legacy_import_failures` (failed tries before the app opened), `look_mode` (full, no_blur, no_motion, neither: the look this launch shows, after the look's budget and the system's Reduce Motion and Reduce Transparency), `interface_style` (match_mac, glass, classic) and `color_scheme` (match_mac, system, light, dark): the redesign's Appearance choices | each launch with sharing on |
 | `perf_launch` | `launch_ms`, `js_ms` | each launch, once the module gives the process start (`ArdiaPhoneSystem.processStartedAt()`, epoch ms) |
 | `perf_backdrop` | `backdrop_ms` | each launch on iPhone, once the native launch backdrop has shown (`system.launchBackdropShownAt()`, epoch ms on the process start's clock) |
-| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `find_opened_system` and `find_opened_bar` (Find on Page opened in WebKit's own panel, or in the app's find bar), `spaces_swiped` (a swipe in Spaces or on the start page that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `search_tabs_opened` (the deck's Search Tabs field focused, in the redesign), `spaces_picked` (a space picked from the start page's or the deck's switcher menu that changed the profile, in the redesign), `tabs_moved_to_space` (a tab moved to another space with the deck card menu's Move to Space, in the redesign), `pages_printed` (a page printed from the page menu's Print, counted when the print sheet opened, in the redesign), `site_permissions_revoked` (a site's camera, microphone or location access revoked from Site Settings, by swipe or by its dialog, on iPhone's Expo UI Settings), `tray_back_swiped` (a search tray closed with Android's predictive back swipe), `card_opens_waited` (a card opened from the deck whose growth landed before its page had laid out and its picture painted, so the page waited up to 250 ms to take over), `native_menus_opened` (a menu opened as the system's own: a deck card's long press, the deck's ···, the space switchers, the + menus, Reader's Text Appearance, the page menu's Send to Device, the tabs button's recent tabs, on iPhone), `library_opened` (History, Bookmarks or Downloads opened in the system sheet from the page menu, on iPhone), `deck_grid_shown` (the deck switched to its grid with the bottom bar's Show as Grid, on iPhone), `landscape_shown` (a launch in which the phone was turned to landscape at least once, counted once a launch), `duo_layout_shown` (a launch that used the column, wide or split layout at least once, counted once a launch, on iPhone), `list_sheets_late` (an Archive or History sheet whose rows were drawn more than 400 ms after it was asked for, on iPhone) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
+| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `find_opened_system` and `find_opened_bar` (Find on Page opened in WebKit's own panel, or in the app's find bar), `spaces_swiped` (a swipe in Spaces or on the start page that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `search_tabs_opened` (the deck's Search Tabs field focused, in the redesign), `spaces_picked` (a space picked from the start page's or the deck's switcher menu that changed the profile, in the redesign), `tabs_moved_to_space` (a tab moved to another space with the deck card menu's Move to Space, in the redesign), `pages_printed` (a page printed from the page menu's Print, counted when the print sheet opened, in the redesign), `site_permissions_revoked` (a site's camera, microphone or location access revoked from Site Settings, by swipe or by its dialog, on iPhone's Expo UI Settings), `tray_back_swiped` (a search tray closed with Android's predictive back swipe), `card_opens_waited` (a card opened from the deck whose growth landed before its page had laid out and its picture painted, so the page waited up to 250 ms to take over), `native_menus_opened` (a menu opened as the system's own: a deck card's long press, the deck's ···, the space switchers, the + menus, Reader's Text Appearance, the page menu's Send to Device, the tabs button's recent tabs, on iPhone), `library_opened` (History, Bookmarks or Downloads opened in the system sheet from the page menu, on iPhone), `deck_grid_shown` (the deck switched to its grid with the bottom bar's Show as Grid, on iPhone), `landscape_shown` (a launch in which the phone was turned to landscape at least once, counted once a launch), `duo_layout_shown` (a launch that used the column, wide or split layout at least once, counted once a launch, on iPhone), `list_sheets_late` (an Archive or History sheet whose rows were drawn more than 400 ms after it was asked for, on iPhone), `list_pages_added` (Archive or History adding its next 200 rows as you scroll, on iPhone) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
 
 On the dashboard they are kept out of every Mac section by source and lib (`PHONE_APP_SOURCE` in `apps/dashboard/src/server/sql.ts`).
 
@@ -1252,6 +1252,7 @@ Every count and timing the phone can send, for the owner to read as one set and 
 | `card_opens_waited` | the card open's hand-over | Whether the page mounted at the start of a card's growth is ready when the card lands; a share of card opens that grows after a release means the open is again held at full size before the page takes over |
 | `deck_pictures_late` | the deck-entrance hold | Whether the leaving page's picture paints before the deck shrinks; a share of deck opens that grows after a release means a card may again open on a blank or placeholder face |
 | `list_sheets_late` | the Archive and History opens on iPhone | Whether those sheets still mount their rows before they move; near zero is the goal, and a share that grows after a release means the open is again doing its work on the tap's path |
+| `list_pages_added` | the Archive and History pages on iPhone | How often people scroll past the first 200 rows; near zero would argue for a larger first page or none, a large share for a smaller one |
 
 ## What is left before the Expo app replaces both native apps
 
@@ -2574,8 +2575,8 @@ Ranked by how much a person feels it, worst first:
 | 1 | Archive open, 1,000 archived tabs: tap Archive in the deck's ··· menu to the sheet moving | 308 ms (277–337) | 1,354 ms (1,297–1,445) | **409 ms** (358–438) | this commit |
 | 1 | Archive open, the same, to settled | 823 ms | 1,880 ms | **927 ms** | this commit |
 | 2 | History open, 3,000 visits: tap History in the page menu to the sheet moving | ~800 ms | 963–1,288 ms | 675–790 ms | this commit (level) |
-| 3 | History scroll, three flicks: frames over 34 ms | 7–11, worst 68–90 ms | 46–66, worst 107–233 ms | not yet fixed | |
-| 4 | Archive scroll, three flicks: frames over 34 ms | 13–19, worst 77–90 ms | 14–55, worst 78–148 ms | not yet fixed | |
+| 3 | History scroll, one flick at a time: frames over 34 ms (frames drawn) | 0.5, worst 34 ms (147) | 19.5, worst 88 ms (106) | **3.5**, worst 54 ms (133) | stepped window and pages |
+| 4 | Archive scroll, one flick at a time: frames over 34 ms (frames drawn) | 3, worst 54 ms (140) | 10.5, worst 55 ms (124) | **7.5**, worst 48 ms (128) | stepped window and pages |
 | – | Deck scroll, 30 tabs, two 300 ms drags: frames over 34 ms | 4–7, worst 48–58 ms | 0–5, worst 33–57 ms | | level, Expo smoother |
 | – | Deck scroll, 100 tabs | 4–6, worst 52–58 ms | 0–3, worst 28–45 ms | | level, Expo smoother |
 | – | Deck open, 30 / 100 tabs, motion ends | 205 ms (first movement +38–44 ms after the tap) | about 160 ms, moving in the tap's frame; a faint fade lasts to 237–245 ms | | level |
@@ -2609,9 +2610,27 @@ What was found, and what the fix does (this commit):
   both apps wait for the page menu to close before the sheet rises, about 0.8 s from the tap in main and 0.68–0.79 s in
   Expo. Expo's difference is what happens meanwhile: main closes its menu at once, Expo holds it until the sheet starts.
 
+Scrolling, what was found and what the stepped window and the pages do:
+- Three flicks in a row overstate both apps: `agent-device` takes an XCTest accessibility snapshot for each gesture,
+  and the next one lands while the last flick is still gliding (873 of 1,963 ms of the main thread in one History
+  sample). One flick per recording, 2.2 s apart, keeps it out; the rows above are measured that way.
+- What is left is SwiftUI rebuilding the list: whenever Expo UI's row window moves (every row, while scrolling),
+  `UpdateCollectionViewListCoordinator` walks every row of every day (`ForEachList.applyNodes`,
+  `SectionAccumulator.formResult`), about 3,000 rows in History. The favicon arriving was not it: JavaScript was 61 ms
+  of a five-second sample.
+- The fix: on iPhone, Metro gives Expo UI's recycling hook `src/lib/steppedWindow.ts` in place of its
+  `recycling/window`, which moves the window in steps of the overscan (ten rows) instead of one, so a flick causes a
+  tenth of the rebuilds; and both lists show whole days up to 200 rows, adding the next 200 when the last day shown
+  appears, so each rebuild walks a few hundred rows instead of thousands. The stepped window alone took History from
+  19.5 to 12 long frames a flick; with the pages, 3.5. A 100-row page was worse (8.5): each extension is itself a
+  rebuild.
+- Archive gained less (10.5 to 7.5); its rows sit in native `Section`s, and what is left there is not yet found.
+
 To watch on the dashboard: `list_sheets_late` in `usage_counts` counts Archive or History sheets whose rows were drawn
 more than 400 ms after they were asked for; it should be near zero, and a rise means the open is again doing its
-mounting before the sheet moves.
+mounting before the sheet moves. `list_pages_added` counts each time a list added its next 200 rows: how often
+people scroll that far, which says whether the page size is felt. Smoothness itself can't be counted from the app: the
+frames that drop are the main thread's, which JavaScript doesn't see.
 
 Found on the way, not speed:
 - The Expo app stores each tab's picture as an absolute `file://` path inside its own data container. That folder's name
