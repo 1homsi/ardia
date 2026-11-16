@@ -546,10 +546,26 @@ struct WindowManager {
     return nullptr;
   }
 
+  static std::optional<RECT> RestoredRect(HWND hwnd) noexcept {
+    if (!hwnd || !IsIconic(hwnd)) return std::nullopt;
+    WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
+    if (!GetWindowPlacement(hwnd, &placement)) return std::nullopt;
+    RECT rect = placement.rcNormalPosition;
+    MONITORINFO monitor{sizeof(MONITORINFO)};
+    if (GetMonitorInfoW(MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST), &monitor)) {
+      OffsetRect(&rect, monitor.rcWork.left - monitor.rcMonitor.left, monitor.rcWork.top - monitor.rcMonitor.top);
+    }
+    if (rect.right <= rect.left || rect.bottom <= rect.top) return std::nullopt;
+    return rect;
+  }
+
   static std::array<double, 4> FrameOf(ManagedWindow const &entry) noexcept {
     try {
       double scale = Scale(entry.hwnd);
       double placed = PositionScale();
+      if (std::optional<RECT> restored = RestoredRect(entry.hwnd)) {
+        return {restored->left / placed, restored->top / placed, (restored->right - restored->left) / scale, (restored->bottom - restored->top) / scale};
+      }
       auto position = entry.appWindow.Position();
       auto size = entry.appWindow.Size();
       return {position.X / placed, position.Y / placed, size.Width / scale, size.Height / scale};
@@ -684,7 +700,7 @@ struct WindowManager {
           ManagedWindow *found = Find(id);
           if (!found) return;
           try {
-            if (args.DidPositionChange() || args.DidSizeChange()) {
+            if ((args.DidPositionChange() || args.DidSizeChange()) && !IsIconic(found->hwnd)) {
               auto frame = FrameOf(*found);
               winrt::Microsoft::ReactNative::JSValueArray values;
               for (double value : frame) values.push_back(value);

@@ -17,14 +17,19 @@
 #include "ardia/win/frame_view.h"
 #include "ardia/win/hooks.h"
 #include "ardia/win/host.h"
+#include "ardia/win/launch_guard.h"
 #include "ardia/win/test_gate.h"
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
+#include "base/location.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/process/process.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
 #include "chrome/install_static/user_data_dir.h"
@@ -53,6 +58,7 @@ struct App {
   ArdiaAppPreTranslateFunction pre_translate = nullptr;
   ArdiaAppStopFunction stop = nullptr;
   bool started = false;
+  bool start_failed = false;
 };
 
 App& TheApp() {
@@ -266,18 +272,57 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
 }
 
 void WriteLaunchLog(const std::string& line) {
-  const base::FilePath path =
-      base::CommandLine::ForCurrentProcess()->GetSwitchValuePath("log-file");
+  std::wstring path =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueNative("log-file");
+  if (path.empty()) {
+    path = LaunchLogPath();
+  }
   if (path.empty()) {
     return;
   }
-  FILE* file = _wfsopen(path.value().c_str(), L"ab", _SH_DENYNO);
+  FILE* file = _wfsopen(path.c_str(), L"ab", _SH_DENYNO);
   if (!file) {
     return;
   }
   const std::string text = "engine 0 " + line + "\n";
   fwrite(text.data(), 1, text.size(), file);
   fclose(file);
+}
+
+void SaveLaunchGuardFacts(const LaunchGuardFacts& facts) {
+  const std::wstring data_dir = AppDataDirectory();
+  if (data_dir.empty()) {
+    return;
+  }
+  const std::string json =
+      "{\"waitedForPreviousMs\":" +
+      std::to_string(facts.predecessor_wait_ms < 0 ? 0
+                                                    : facts.predecessor_wait_ms) +
+      ",\"unfinishedStartsBefore\":" +
+      std::to_string(facts.unfinished_starts_before) +
+      ",\"restoreStateSetAside\":" +
+      (facts.recovered_to.empty() ? "false" : "true") + "}\n";
+  FILE* file = nullptr;
+  if (_wfopen_s(&file, (data_dir + L"\\launch-guard.json").c_str(), L"wb") !=
+          0 ||
+      !file) {
+    return;
+  }
+  fwrite(json.data(), 1, json.size(), file);
+  fclose(file);
+}
+
+void NoteLaunchGuard() {
+  const LaunchGuardFacts& facts = GuardFacts();
+  SaveLaunchGuardFacts(facts);
+  WriteLaunchLog("launch guard: waited " +
+                 std::to_string(facts.predecessor_wait_ms < 0
+                                    ? 0
+                                    : facts.predecessor_wait_ms) +
+                 " ms for a previous Ardia, " +
+                 std::to_string(facts.unfinished_starts_before) +
+                 " unfinished starts before this one, restore state " +
+                 (facts.recovered_to.empty() ? "kept" : "set aside"));
 }
 
 void NoteTestGate() {
@@ -360,16 +405,65 @@ bool PreTranslate(const MSG& msg) {
   return taken;
 }
 
-void StartApp() {
+void ShowStartFailureAndQuit(const std::wstring& reason) {
+  if (!Set(Environment(L"ARDIA_BACKGROUND"))) {
+    const std::wstring log = LaunchLogPath();
+    std::wstring text = L"Ardia couldn't start.\n\n" + reason +
+                        L"\n\nInstalling Ardia again from ardia.dev usually "
+                        L"fixes this.";
+    if (!log.empty()) {
+      text += L" The details are in " + log + L".";
+    }
+    ::MessageBoxW(nullptr, text.c_str(), L"Ardia",
+                  MB_OK | MB_ICONERROR | MB_SETFOREGROUND | MB_TASKMODAL);
+  }
+  QuitApp();
+}
+
+void FailStart(const std::wstring& reason) {
+  TheApp().start_failed = true;
+  LOG(ERROR) << "Ardia: the app did not start: " << base::WideToUTF8(reason);
+  WriteLaunchLog("app start failed: " + base::WideToUTF8(reason));
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&ShowStartFailureAndQuit, reason));
+}
+
+std::wstring AppRefusal(HMODULE module, int result) {
+  auto failure = reinterpret_cast<ArdiaAppStartFailureFunction>(
+      ::GetProcAddress(module, "ArdiaAppStartFailure"));
+  const wchar_t* text = failure ? failure() : nullptr;
+  std::wstring reason = text && *text ? std::wstring(text)
+                                      : std::wstring(L"The app stopped while starting");
+  return reason + L" (code " + std::to_wstring(result) + L").";
+}
+
+void ShowRecoveryNotice(const std::wstring& folder) {
+  if (Set(Environment(L"ARDIA_BACKGROUND"))) {
+    return;
+  }
+  const std::wstring text =
+      L"Ardia didn't finish starting the last few times, so it opened "
+      L"without your last session.\n\nYour bookmarks, history and "
+      L"passwords are untouched. The session it set aside is in " +
+      folder + L".";
+  ::MessageBoxW(nullptr, text.c_str(), L"Ardia",
+                MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+}
+
+bool StartApp() {
   App& app = TheApp();
   std::wstring path = AppLibraryPath();
   app.module =
       ::LoadLibraryExW(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
   if (!app.module) {
-    LOG(ERROR) << "Ardia: the app library did not load, error "
-               << ::GetLastError();
-    QuitApp();
-    return;
+    const DWORD error = ::GetLastError();
+    FailStart(error == ERROR_MOD_NOT_FOUND
+                  ? L"A file Ardia needs is missing from its folder "
+                    L"(Windows error 126)."
+                  : L"Ardia's app library could not be loaded (Windows "
+                    L"error " +
+                        std::to_wstring(error) + L").");
+    return false;
   }
   auto start = reinterpret_cast<ArdiaAppStartFunction>(
       ::GetProcAddress(app.module, "ArdiaAppStart"));
@@ -378,9 +472,8 @@ void StartApp() {
   app.stop = reinterpret_cast<ArdiaAppStopFunction>(
       ::GetProcAddress(app.module, "ArdiaAppStop"));
   if (!start) {
-    LOG(ERROR) << "Ardia: the app library has no ArdiaAppStart";
-    QuitApp();
-    return;
+    FailStart(L"Ardia's app library doesn't match its engine.");
+    return false;
   }
   std::wstring traced = Environment(L"ARDIA_INPUT_TRACE");
   if (!traced.empty()) {
@@ -388,12 +481,12 @@ void StartApp() {
   }
   int result = start(EngineApi());
   if (result != 0) {
-    LOG(ERROR) << "Ardia: the app did not start, code " << result;
-    QuitApp();
-    return;
+    FailStart(AppRefusal(app.module, result));
+    return false;
   }
   app.started = true;
   base::g_ardia_pre_translate_message = &PreTranslate;
+  return true;
 }
 
 void StopApp() {
@@ -423,12 +516,24 @@ class MainParts : public ChromeBrowserMainExtraParts {
 
   void PostBrowserStart() override {
     NoteTestGate();
+    NoteLaunchGuard();
     Host::Get()->Start();
     WatchEngineEvents();
-    StartApp();
+    if (!StartApp()) {
+      return;
+    }
+    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, base::BindOnce(&MarkStartSettled),
+        base::Seconds(kStartSettlesAfterSeconds));
+    const std::wstring recovered = GuardFacts().recovered_to;
+    if (!recovered.empty()) {
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&ShowRecoveryNotice, recovered));
+    }
   }
 
   void PostMainMessageLoopRun() override {
+    MarkExiting();
     StopApp();
     KeepAlive().reset();
   }
@@ -474,6 +579,13 @@ void BeforeChromeMain() {
   if (!AppLibraryPresent()) {
     return;
   }
+  std::wstring data_dir = Environment(L"ARDIA_DATA_DIR");
+  while (!data_dir.empty() &&
+         (data_dir.back() == L'\\' || data_dir.back() == L'/')) {
+    data_dir.pop_back();
+  }
+  GuardBrowserLaunch(data_dir.empty() ? ChromiumUserDataDir()
+                                      : data_dir + L"\\Chromium");
   AddLaunchSwitches(command_line);
   g_ardia_win_hosts_normal_windows = true;
   g_ardia_win_frame_view = &CreateHostedFrameView;
@@ -483,11 +595,22 @@ void BeforeChromeMain() {
   g_ardia_keeps_window_without_tabs = &KeepsWindowWithoutTabs;
 }
 
+void AfterChromeMain(int exit_code) {
+  if (!g_ardia_win_add_main_parts) {
+    return;
+  }
+  base::Process::TerminateCurrentProcessImmediately(exit_code);
+}
+
 const char* TestGateDecision() {
   return TheGate().refusal.c_str();
 }
 
 void QuitApp() {
+  MarkExiting();
+  if (!TheApp().start_failed) {
+    MarkStartSettled();
+  }
   KeepAlive().reset();
   ChromeDevToolsManagerDelegate::AllowBrowserToClose();
   chrome::CloseAllBrowsersAndQuit();
