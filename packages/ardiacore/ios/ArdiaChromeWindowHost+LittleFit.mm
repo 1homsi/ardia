@@ -13,10 +13,6 @@ NSRect ToNSRect(ardia_little_fit::Rect rect) { return NSMakeRect(rect.x, rect.y,
 
 @implementation ArdiaChromeWindowHost (LittleFit)
 
-+ (NSRect)littleFrameFittingVisible:(NSRect)visible size:(NSSize)size minimumSize:(NSSize)minimum {
-  return ToNSRect(ardia_little_fit::Fit(FromNSRect(visible), {size.width, size.height}, {minimum.width, minimum.height}));
-}
-
 + (NSValue *)littleFrameFittingLandingOf:(NSWindow *)window minimumSize:(NSSize)minimum {
   NSArray<NSScreen *> *screens = NSScreen.screens;
   if (window.windowNumber <= 0 || screens.count == 0) return nil;

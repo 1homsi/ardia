@@ -338,9 +338,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
     let screen = (pointer == nil && NSApp.isActive ? NSApp.keyWindow?.screen : nil)
       ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
     guard let visible = screen?.visibleFrame else { return window.center() }
-    let frame = ArdiaChromeWindowHost.littleFrame(fittingVisible: visible, size: size ?? CGSize(width: 900, height: 640), minimumSize: window.minSize)
-    hostFitSizes[id] = frame.size
-    window.setFrame(frame, display: false)
+    let width = min(max(size?.width ?? 900, window.minSize.width), visible.width)
+    let height = min(max(size?.height ?? 640, window.minSize.height), visible.height)
+    let origin = NSPoint(x: (visible.midX - width / 2).rounded(), y: (visible.midY - height / 2).rounded())
+    window.setFrame(NSRect(origin: origin, size: NSSize(width: width.rounded(), height: height.rounded())), display: false)
+    hostFitSizes[id] = window.frame.size
   }
 
   private func place(_ window: NSWindow, frame: CGRect?) {
