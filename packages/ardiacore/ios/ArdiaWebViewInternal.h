@@ -142,6 +142,7 @@ struct ArdiaPageFocusState {
   CFTimeInterval _linkDropAt;
   NSMutableArray<NSDictionary<NSString *, id> *> *_newTabLinks;
   id _sightObserver;
+  id _interfaceScaleObserver;
 }
 - (ArdiaWindowController *)controller;
 - (void)emit:(NSString *)name payload:(NSDictionary *)payload;
@@ -200,6 +201,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 + (void)noteShown:(ArdiaCoreTab *)tab;
 + (void)drainPainting;
 - (void)layoutPage;
+- (void)interfaceScaleChanged;
 - (BOOL)paints;
 - (BOOL)neighbourPageAsleep;
 - (void)holdLittlePage;
@@ -274,6 +276,12 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 + (BOOL)playsForAutoPictureInPictureInWindow:(NSWindow *)window;
 @end
 
+@interface ArdiaWebView (SystemNowPlaying)
+- (void)systemNowPlayingChanged;
+- (void)withdrawSystemNowPlaying;
+- (void)noteSystemNowPlayingCommand;
+@end
+
 @interface ArdiaWebView (NavigationInternal)
 - (void)emitNavigation;
 - (void)queueNavigation;
@@ -333,6 +341,10 @@ void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
 NSString *PeekConfigJSON(ArdiaWebView *view);
 NSDictionary *_Nullable RecentClickPoint(ArdiaWebView *view);
+
+NSPoint RootPointFromWindow(NSWindow *window, NSPoint inWindow);
+NSRect RootRectFromWindow(NSWindow *window, NSRect inWindow);
+CGFloat RootPointsPerLocalPoint(NSView *view);
 BOOL MayHoldUserActivation(NSWindow *window);
 
 void InstallControlPressMonitor();
