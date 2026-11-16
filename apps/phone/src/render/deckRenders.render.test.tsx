@@ -100,7 +100,7 @@ test("a touch in the band above the deck bar starts no card gesture, the clearan
   unmount(root);
 });
 
-test("an opening card grows as one Core Animation move from its deck place to full screen; the page is prepared two frames after it starts, and takes over only once the card has landed", () => {
+(Platform.OS === "ios" ? test : test.skip)("on iPhone, an opening card grows as one Core Animation move from its deck place to full screen; the page is prepared two frames after it starts, and takes over only once the card has landed", () => {
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<TabDeck />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
@@ -120,5 +120,22 @@ test("an opening card grows as one Core Animation move from its deck place to fu
   expect(preparedAt).toBeLessThanOrEqual(96);
   expect(switchedAt).toBeGreaterThanOrEqual(landed);
   expect(switchedAt).toBeLessThanOrEqual(Math.max(rest, 250 + 64));
+  unmount(root);
+});
+
+(Platform.OS === "android" ? test : test.skip)("on Android, a card hands over to its page once it is within 2% of full size, not when its spring comes to rest, so the page takes over as the card lands", () => {
+  useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const root = renderSurface(<TabDeck />);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  let handedAt = -1;
+  for (let frame = 1; frame <= 30 && handedAt < 0; frame++) {
+    act(() => jest.advanceTimersByTime(16));
+    if (useBrowse.getState().opening !== null) handedAt = frame * 16;
+  }
+  expect(useBrowse.getState().opening).toBeTruthy();
+  const [landed, rest] = Platform.OS === "ios" ? [192, 216] : [304, 336];
+  expect(handedAt).toBeGreaterThan(120);
+  expect(handedAt).toBeLessThanOrEqual(landed);
+  expect(handedAt).toBeLessThan(rest);
   unmount(root);
 });

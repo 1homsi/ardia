@@ -238,6 +238,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
   );
 }, sameCard);
 
+export const OPENS_WITH_OPENING_CARD = iPhoneOr(true, false);
 export const OPENING_CARD_RESPONSE = iPhoneOr(0.18, 0.3);
 export const OPENING_CARD_MOTION: MotionCurve = { type: "spring", response: OPENING_CARD_RESPONSE, dampingFraction: 1 };
 

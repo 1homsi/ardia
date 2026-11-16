@@ -63,7 +63,7 @@ import { pinToMac, sendTab, sendTargetsFor, spaceMoveTargets } from "../../state
 import { currentTabs, moveTabToSpace } from "../../state/tabs/store";
 import { tabMatchesQuery } from "../../state/tabs/tabModels";
 import { DeckBar } from "./DeckBar";
-import { DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, type DeckMotion } from "./DeckCard";
+import { DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, OPENS_WITH_OPENING_CARD, type DeckMotion } from "./DeckCard";
 import { MotionView, type MotionCurve } from "../ui";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
 import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
@@ -433,7 +433,7 @@ export const TabDeck = memo(function TabDeck() {
     openingId.current = id;
     handedOver.current = null;
     prepared.current = null;
-    setOpeningCard({ id, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + (redesigned ? cardsShift.value : 0) });
+    if (OPENS_WITH_OPENING_CARD) setOpeningCard({ id, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + (redesigned ? cardsShift.value : 0) });
     requestAnimationFrame(() => {
       if (openingId.current !== id) return;
       landing.value = true;
@@ -459,7 +459,13 @@ export const TabDeck = memo(function TabDeck() {
 
   const prepared = useRef<{ id: string; ready: boolean; landed: boolean } | null>(null);
   const finishOpen = (id: string) => {
-    if (openingId.current === id) settledOpen(id);
+    if (OPENS_WITH_OPENING_CARD) {
+      if (openingId.current === id) settledOpen(id);
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (openingId.current === id) settledOpen(id);
+    });
   };
   const prepareHandOver = (id: string) => {
     if (openingId.current !== id || prepared.current?.id === id) return;
