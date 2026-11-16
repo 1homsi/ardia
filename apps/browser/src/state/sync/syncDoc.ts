@@ -60,6 +60,7 @@ export type SyncDoc = {
   sends?: Record<string, SendLedger>;
   tabCloses?: Record<string, string[]>;
   removing?: string[];
+  removingDevices?: string[];
 };
 
 export const DOC = "sync.json";

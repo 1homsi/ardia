@@ -4,6 +4,7 @@ import { DEVICE_TABS, PROFILE, deviceTabs, profileRecord, profileScope, recordId
 import { deviceKindOf, deviceRecords, isCurrentDevice, offersTabs } from "./devices";
 import { remoteProfileRecord, sharedDataChain } from "./profileLinks";
 import { beingRemoved, sharesItsData } from "./profileRemoval";
+import { deviceBeingRemoved } from "./deviceRemoval";
 import { APP_SCOPE, type RemoteProfile, type RemoteTabs, type SyncDoc, type SyncedDevice, type SyncUi } from "./syncDoc";
 
 export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> {
@@ -14,7 +15,7 @@ export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" |
     for (const [device, at] of Object.entries(scope.seen)) lastSeen.set(device, Math.max(at, lastSeen.get(device) ?? 0));
   }
   const now = Date.now();
-  const records = new Map([...deviceRecords(app)].filter(([id, r]) => id === doc.deviceId || isCurrentDevice(r, lastSeen.get(id), now)));
+  const records = new Map([...deviceRecords(app)].filter(([id, r]) => id === doc.deviceId || (!deviceBeingRemoved(doc, id) && isCurrentDevice(r, lastSeen.get(id), now))));
   const names = new Map([...records].map(([id, r]) => [id, r.n]));
   const devices: SyncedDevice[] = [...records].map(([id, r]) => ({
     id,

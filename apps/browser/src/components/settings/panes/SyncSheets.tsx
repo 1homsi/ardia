@@ -13,8 +13,8 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { addRemoteProfile, enterRecoveryPhrase, removeRemoteProfile, stopSync, useSync } from "../../../state/sync/engine";
-import type { RemoteProfile } from "../../../state/sync/syncDoc";
+import { addRemoteProfile, enterRecoveryPhrase, removeRemoteProfile, removeSyncedDevice, stopSync, useSync } from "../../../state/sync/engine";
+import type { RemoteProfile, SyncedDevice } from "../../../state/sync/syncDoc";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, Row } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -216,6 +216,16 @@ async function confirmRemoveFromSync(profile: RemoteProfile) {
     destructive: true,
   });
   if (confirmed) removeRemoteProfile(profile.syncId);
+}
+
+export async function confirmRemoveDevice(device: SyncedDevice) {
+  const { confirmed } = await confirm({
+    title: `Remove “${device.name}” from Sync?`,
+    message: "It leaves this list on all your devices, with the tabs it shared. Its data stays on it, and if it still syncs, it comes back here.",
+    confirmTitle: "Remove",
+    destructive: true,
+  });
+  if (confirmed) removeSyncedDevice(device.id);
 }
 
 export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
