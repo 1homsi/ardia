@@ -4,7 +4,7 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BAR_SHOWN, followScroll, pageInsets } from "../../lib/barCollapse";
+import { BAR_SHOWN, barShown, followScroll, pageInsets } from "../../lib/barCollapse";
 import { neighbours } from "../../lib/pagerPhysics";
 import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone, watchPageLoad } from "../../state/browse/hooks";
@@ -40,6 +40,8 @@ import {
 } from "../ui";
 import { BottomBar } from "./BottomBar";
 import { FloatingBar } from "./FloatingBar";
+import { HostPill, useBarFold } from "./HostPill";
+import { hostPillLayout } from "./hostPillTokens";
 import { FindBar } from "./FindBar";
 import { PageMenu } from "./PageMenu";
 import { PageRequestHost, PressMenu } from "./PageRequests";
@@ -88,7 +90,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const bottom = pageTone?.bottom ?? theme.surface;
   const barDark = design === "redesigned" && !pageTone?.bottom ? theme.dark : isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
-  const collapse = useBarCollapse(tab.id, finding);
+  const collapse = useBarCollapse(tab.id, finding, design === "redesigned");
   const underBar = usePageUnderBars();
   const layout = underBar ? { pageBottom: 0, toneBottom: barHeight(insets.bottom, design) } : pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
   const painted = useSharedValue(false);
@@ -126,6 +128,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
         {
           <GestureDetector gesture={pager.gesture}>
             <Animated.View
+              testID="pageBar"
               pointerEvents={collapse.hidden ? "none" : design === "redesigned" ? "box-none" : "auto"} collapsable={false}
               importantForAccessibility={collapse.hidden ? "no-hide-descendants" : "auto"}
               accessibilityElementsHidden={collapse.hidden}
@@ -133,19 +136,38 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
             >
               {design === "redesigned" ? (
                 <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - floatingBarLayout.control / 2 }]} pointerEvents="box-none">
-                  <FloatingBar
-                    tab={tab}
-                    order={order}
-                    roles={rolesFor(barDark)}
-                    dark={barDark}
-                    showsPlus={!searching}
-                    onTabs={showDeck}
-                    onTabsMenu={openTabsMenu}
-                    onStep={stepTab}
-                    onAddress={editPageQuery}
-                    onPlus={newTab}
-                    onMore={openPageMenu}
-                  />
+                  <Animated.View
+                    testID="floatingBarFold"
+                    style={collapse.fold.bar}
+                    pointerEvents={collapse.collapsed ? "none" : "box-none"}
+                    importantForAccessibility={collapse.collapsed ? "no-hide-descendants" : "auto"}
+                    accessibilityElementsHidden={collapse.collapsed}
+                  >
+                    <FloatingBar
+                      tab={tab}
+                      order={order}
+                      roles={rolesFor(barDark)}
+                      dark={barDark}
+                      showsPlus={!searching}
+                      onTabs={showDeck}
+                      onTabsMenu={openTabsMenu}
+                      onStep={stepTab}
+                      onAddress={editPageQuery}
+                      onPlus={newTab}
+                      onMore={openPageMenu}
+                    />
+                  </Animated.View>
+                  {collapse.fold.pillMounted ? (
+                    <Animated.View
+                      testID="hostPillFold"
+                      style={[styles.pillPlace, collapse.fold.pill]}
+                      pointerEvents={collapse.collapsed ? "box-none" : "none"}
+                      importantForAccessibility={collapse.collapsed ? "auto" : "no-hide-descendants"}
+                      accessibilityElementsHidden={!collapse.collapsed}
+                    >
+                      <HostPill tab={tab} dark={barDark} shown={collapse.collapsed} contentStyle={collapse.fold.pillContent} onExpand={collapse.expand} />
+                    </Animated.View>
+                  ) : null}
                 </View>
               ) : (
                 <>
@@ -175,20 +197,24 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   );
 });
 
-function useBarCollapse(tabId: string, finding: boolean) {
+function useBarCollapse(tabId: string, finding: boolean, folds: boolean) {
   const collapses = usePreferences((p) => p.collapsesBottomBar);
   const direction = useNavigation(tabId, (n) => n?.scrollDirection ?? "up");
   const page = useNavigation(tabId, (n) => n?.url ?? null);
   const reduceMotion = useReduceMotion();
   const [state, setState] = useState(() => followScroll(BAR_SHOWN, tabId, page, direction, collapses));
   useEffect(() => setState((now) => followScroll(now, tabId, page, direction, collapses)), [tabId, page, direction, collapses]);
-  const hidden = (state.hidden && state.tabId === tabId) || finding;
+  const scrolledAway = state.hidden && state.tabId === tabId;
+  const collapsed = folds && scrolledAway && !finding;
+  const hidden = finding || (!folds && scrolledAway);
+  const fold = useBarFold(collapsed, reduceMotion);
   const hide = useSharedValue(0);
   useEffect(() => {
     hide.value = reduceMotion ? withTiming(hidden ? 1 : 0, { duration: tabsMotion.barCollapseReduced }) : withSpring(hidden ? 1 : 0, tabsMotion.barCollapse);
   }, [hidden, reduceMotion]);
   const style = useAnimatedStyle(() => ({ opacity: 1 - hide.value, transform: [{ translateY: hide.value * browseLayout.barCollapseTravel }] }));
-  return { collapses, hidden, style };
+  const expand = () => setState(barShown);
+  return { collapses, hidden, collapsed, fold, expand, style };
 }
 
 function tabsMenuItems(order: BrowserTab[]): MenuItem[] {
@@ -212,4 +238,5 @@ const styles = StyleSheet.create({
   loading: { position: "absolute", left: 0, right: 0 },
   bar: { position: "absolute", left: 0, right: 0, bottom: 0 },
   controls: { position: "absolute", left: 0, right: 0 },
+  pillPlace: { position: "absolute", left: 0, right: 0, bottom: 0, height: hostPillLayout.height, alignItems: "center", justifyContent: "flex-end" },
 });
