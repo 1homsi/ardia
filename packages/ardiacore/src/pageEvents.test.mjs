@@ -19,7 +19,7 @@ const webKitTab = files(/^WebKitTab.*\.swift$/).map(native);
 const pageScript = native("page_script.js");
 const messageReceivers = ["ArdiaWebView+PageMessages.mm", "ArdiaWebView+Peek.mm"].map(native);
 
-const WEBKIT_ONLY_EVENTS = new Set(["mediaFault"]);
+const WEBKIT_ONLY_EVENTS = new Set(["mediaFault", "focusRestore"]);
 
 test("the Chromium view emits every page event in PAGE_EVENTS except the WebKit-only ones, and nothing else", () => {
   const expected = [...PAGE_EVENTS].filter((name) => !WEBKIT_ONLY_EVENTS.has(name));

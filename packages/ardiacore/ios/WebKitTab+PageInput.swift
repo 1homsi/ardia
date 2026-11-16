@@ -12,16 +12,27 @@ extension WebKitTab {
     view.onPressRefused = nil
   }
 
-  func takeFocusWhenShown(tries: Int = 20) {
+  func noteShownChanged() {
+    let shown = visible && selected
+    if shown, !wasShown { takeFocusWhenShown() }
+    wasShown = shown
+  }
+
+  private func takeFocusWhenShown(tries: Int = 20) {
     DispatchQueue.main.asyncAfter(deadline: .now() + (tries == 20 ? 0 : 0.05)) { [weak self] in
-      guard let self, self.visible, let view = self.webView, let window = view.window else { return }
+      guard let self, self.visible, self.selected, let view = self.webView, let window = view.window else { return }
       let responder = window.firstResponder
-      let waiting = view.isHiddenOrHasHiddenAncestor || Self.isOtherPage(responder, than: view)
-      if waiting { return tries > 0 ? self.takeFocusWhenShown(tries: tries - 1) : () }
-      guard responder == nil || responder === window || (responder as? NSView)?.isHiddenOrHasHiddenAncestor == true else { return }
-      window.makeFirstResponder(view)
+      if view.isHiddenOrHasHiddenAncestor {
+        return tries > 0 ? self.takeFocusWhenShown(tries: tries - 1) : self.focusRestored("gaveUp")
+      }
+      if responder === view || (responder as? NSView)?.isDescendant(of: view) == true { return }
+      let free = responder == nil || responder === window || (responder as? NSView)?.isHiddenOrHasHiddenAncestor == true
+      guard free || Self.isOtherPage(responder, than: view) else { return self.focusRestored("kept") }
+      self.focusRestored(window.makeFirstResponder(view) ? "focused" : "refused")
     }
   }
+
+  private func focusRestored(_ outcome: String) { emit("focusRestore", ["outcome": outcome]) }
 
   private static func isOtherPage(_ responder: NSResponder?, than view: NSView) -> Bool {
     guard let held = responder as? NSView, held !== view, !held.isDescendant(of: view), !held.isHiddenOrHasHiddenAncestor else { return false }
