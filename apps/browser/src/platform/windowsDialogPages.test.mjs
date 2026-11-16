@@ -154,7 +154,9 @@ test("a pop-up menu tracks on a RunModal thread, owned by that thread's own wind
   assert.match(popup, /TrackPopupMenuEx\(popup\.menu, popup\.flags, popup\.point\.x, popup\.point\.y, window, nullptr\)/, "the menu's owner is the menu thread's own window");
   assert.match(popup, /DialogParts::ModalWatch::OnAbandon\(\[\] \{ EndMenu\(\); \}\);/, "a menu closes when its window goes or the app stops");
   assert.match(native("ModalThread.h"), /if \(m_disablesOwner\) EnableWindow\(m_owner, TRUE\);/, "a menu's parent never enables a window it didn't disable");
-  assert.match(native("WindowManager.h"), /if \(message == WM_ACTIVATEAPP && wParam == FALSE && !DialogParts::ActivatesMenuThread\(static_cast<DWORD>\(lParam\)\)\) manager->EmitApp\("resignActive"\);/);
+  assert.match(popup, /if \(!SetForegroundWindow\(window\) \|\| !ForegroundIsOurs\(\)\) \{[^}]*return;/, "a menu that can't take the foreground isn't tracked");
+  assert.match(native("WindowManager.h"), /if \(DialogParts::ActivatesMenuThread\(static_cast<DWORD>\(lParam\)\)\) DialogParts::ModalRegistry::Shared\(\)\.withheldResign = true;\n\s+else \{\n\s+DialogParts::ModalRegistry::Shared\(\)\.withheldResign = false;\n\s+manager->EmitApp\("resignActive"\);/, "a normal resignActive replaces the one a menu held back");
+  assert.match(shown, /withheldResign\.exchange\(false\) && !Menus::ForegroundIsOurs\(\)\) EmitEvent/, "the menu sends only the resignActive it held back");
   const held = readFileSync(new URL("../../../../packages/expo-windows/src/selfCheck/heldMenus.ts", import.meta.url), "utf8");
   assert.match(held, /loadWhileMenuHeld\(false, "held-menu-own-thread", LOAD_MS\)/);
   assert.match(held, /held = menus\(\)\.devHoldMenu\(MENU_OWNER, onUiThread\);/, "the menu is held in a window of its own, so the page loads in another window");

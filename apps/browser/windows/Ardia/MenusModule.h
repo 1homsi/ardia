@@ -50,7 +50,7 @@ struct MenusModule {
           if (usable) Menus::TrackOnThisThread(*popup, true);
           if (DialogParts::Stopping()) return;
           RunOnUI(context, [context, popup, promise]() noexcept {
-            if (!Menus::ForegroundIsOurs()) EmitEvent(context, L"ArdiaShell", L"onAppEvent", JSValueObject{{"type", "resignActive"}});
+            if (DialogParts::ModalRegistry::Shared().withheldResign.exchange(false) && !Menus::ForegroundIsOurs()) EmitEvent(context, L"ArdiaShell", L"onAppEvent", JSValueObject{{"type", "resignActive"}});
             std::optional<std::string> chosen = Menus::ChoiceOf(*popup);
             promise.Resolve(chosen ? JSValue{std::string{*chosen}} : JSValue{nullptr});
           });

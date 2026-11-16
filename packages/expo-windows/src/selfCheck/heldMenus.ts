@@ -68,11 +68,11 @@ async function loadWhileMenuHeld(onUiThread: boolean, key: string, withinMs: num
     return didLoad;
   } finally {
     const pick = await releaseMenu(held, GIVE_UP_MS);
-    expectTrue(pick !== undefined, `the held menu was still open ${GIVE_UP_MS} ms after its release`);
-    expectTrue(pick === false, "the released menu reported a pick");
     await created;
     await hostCall("tab.close", { key }).catch(() => undefined);
-    await windows().closeWindow(MENU_OWNER);
+    await windows().closeWindow(MENU_OWNER).catch(() => undefined);
+    expectTrue(pick !== undefined, `the held menu was still open ${GIVE_UP_MS} ms after its release`);
+    expectTrue(pick === false, "the released menu reported a pick");
   }
 }
 

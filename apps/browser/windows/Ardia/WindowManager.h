@@ -1054,7 +1054,13 @@ struct WindowManager {
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE && DialogParts::BringModalForward(hwnd)) return 0;
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd, reinterpret_cast<HWND>(lParam));
     if (message == WM_SIZE && wParam != SIZE_MINIMIZED) manager->ArrangeToClient(hwnd, LOWORD(lParam), HIWORD(lParam));
-    if (message == WM_ACTIVATEAPP && wParam == FALSE && !DialogParts::ActivatesMenuThread(static_cast<DWORD>(lParam))) manager->EmitApp("resignActive");
+    if (message == WM_ACTIVATEAPP && wParam == FALSE) {
+      if (DialogParts::ActivatesMenuThread(static_cast<DWORD>(lParam))) DialogParts::ModalRegistry::Shared().withheldResign = true;
+      else {
+        DialogParts::ModalRegistry::Shared().withheldResign = false;
+        manager->EmitApp("resignActive");
+      }
+    }
     return DefSubclassProc(hwnd, message, wParam, lParam);
   }
 

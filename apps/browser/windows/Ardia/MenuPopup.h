@@ -367,7 +367,12 @@ inline void TrackOnThisThread(Popup &popup, bool takesForeground) noexcept {
   DialogParts::ModalRegistry &registry = DialogParts::ModalRegistry::Shared();
   if (takesForeground) {
     registry.menuThread = thread;
-    SetForegroundWindow(window);
+    if (!SetForegroundWindow(window) || !ForegroundIsOurs()) {
+      MenuLog("pop-up menu not shown: Ardia is no longer in front");
+      parent.Release();
+      registry.menuThread.compare_exchange_strong(thread, 0);
+      return;
+    }
   }
   OpenMenus()++;
   DialogParts::ModalWatch::NoteShown();

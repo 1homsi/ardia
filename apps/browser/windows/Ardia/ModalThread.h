@@ -36,6 +36,7 @@ struct ModalRegistry {
   std::atomic<ULONGLONG> stoppedAt{0};
   std::atomic<ULONGLONG> releasedAt{0};
   std::atomic<DWORD> menuThread{0};
+  std::atomic<bool> withheldResign{false};
   std::mutex parentsLock;
   std::set<HWND> parents;
 
