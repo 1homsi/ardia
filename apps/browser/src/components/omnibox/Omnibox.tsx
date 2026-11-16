@@ -300,6 +300,7 @@ export function Omnibox({
       scope={scope}
       incognito={incognito}
       onLayout={focusOnce}
+      claim={{ windowId, destination: hero ? heroBarFocus(tabId) : commandBarFocus }}
       value={value}
       focusEcho={focusEcho}
       onSelection={(next) => {

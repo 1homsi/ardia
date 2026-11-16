@@ -249,6 +249,7 @@ const ADDED_ITEMS = {
     "On Windows, how many times the command bar put back a letter its text field had dropped while you typed, summed up once an hour. Never what you typed",
     "How many times a window's interface was started a second time while the first was still up, summed up once an hour",
     "How many times suggestions that came in late waited because the pointer was over the command bar's list or its Go button, summed up once an hour. Never what you typed",
+    "On Windows, how many times Ardia held the keys you typed right after opening a new tab or the command bar until its field was ready, how many of those keys it then typed into the field, and how many holds it let go and why (a shortcut, a key that isn't a letter, a click, another window, the field going away or taking too long), summed up once an hour. Never which keys or what you typed",
   ],
 };
 

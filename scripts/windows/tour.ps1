@@ -1079,6 +1079,13 @@ function Get-HoldLines($Session, [int]$Mark) {
   return @(Get-LinesSince $Session $Mark "^keys \d+ hold ")
 }
 
+function Get-HoldEnd($Session, [int]$Mark, [string]$Reason) {
+  $lines = @(Get-HoldLines $Session $Mark)
+  if (@($lines | Where-Object { $_ -match "dropped: $Reason with [1-9]\d* held" }).Count -ge 1) { return "dropped" }
+  if (@($lines | Where-Object { $_ -match " ready after \d+ ms, replayed [1-9]" }).Count -ge 1) { return "ready" }
+  return "none"
+}
+
 function Invoke-HoldStop($Session, [string]$Slug, [string]$Title, [string]$Did, [string]$Expected, [scriptblock]$Act, [scriptblock]$Judge) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
@@ -1124,22 +1131,17 @@ function Invoke-HoldTour {
     Send-Key 0x14 0; Send-Key 0x14 2; Send-Char 'c'; Start-Sleep -Milliseconds 30; Send-Char 'd'; Send-Key 0x14 0; Send-Key 0x14 2
   } { param($stop, $field) $field -ceq "AbCD" }
 
-  Invoke-HoldStop $session "hold-backspace-enter" "Key hold: Backspace and Enter typed 15 ms after Ctrl+T" "Pressed Ctrl+T, and from 15 ms after it typed examplx, Backspace, e.com and Enter, 30 ms a key." "the field takes the Backspace and Enter opens Example Domain in the new tab (#2099)." {
+  Invoke-HoldStop $session "hold-backspace" "Key hold: Backspace typed 15 ms after Ctrl+T ends the hold" "Pressed Ctrl+T, and from 15 ms after it typed ab, 10 ms a key, then Backspace." "the hold either ends on Backspace with a and b dropped, logged as a drop with keys held, and the bar is empty, or the bar was ready first, took ab, and Backspace leaves 'a'; Example Domain's tab is unchanged either way (Backspace and Enter end a hold in version 1) (#2099)." {
     param($stop)
-    Send-Typed "examplx"
-    Send-Key 0x08 0; Send-Key 0x08 2; Start-Sleep -Milliseconds 30
-    Send-Typed "e.com"
-    Send-Key 0x0D 0; Send-Key 0x0D 2
-    $loaded = Wait-Title $session "example\.com" 15000
-    $stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($session.Main))'")
-    return $loaded
-  } { param($stop, $field, $mark, $acted) [bool]$acted -and @(Get-LinesSince $session $mark "^command \d+ newTab").Count -eq 1 -and ([ArdiaTour]::TitleOf($session.Main)) -match "example\.com & 2 Tabs" }
+    Send-Typed "ab" 10
+    Send-Key 0x08 0; Send-Key 0x08 2
+  } { param($stop, $field, $mark) $end = Get-HoldEnd $session $mark "Backspace or Enter"; $stop.Facts.Add("the hold ended: $end"); (($end -eq "dropped" -and $field -eq "") -or ($end -eq "ready" -and $field -eq "a")) -and ([ArdiaTour]::TitleOf($session.Main)) -match "Tabs" }
 
   Invoke-HoldStop $session "hold-escape" "Key hold: typing then Escape 15 ms after Ctrl+T leaves nothing anywhere" "With Example Domain in the first tab, pressed Ctrl+T, and from 15 ms after it typed ab, then Escape." "the new tab's bar is empty and Example Domain's tab is unchanged (#2099)." {
     param($stop)
     Send-Typed "ab"
     Send-Escape
-  } { param($stop, $field) $field -eq "" -and ([ArdiaTour]::TitleOf($session.Main)) -match "Tabs" }
+  } { param($stop, $field, $mark) $end = Get-HoldEnd $session $mark "a key without a character"; $stop.Facts.Add("the hold ended: $end"); $end -ne "none" -and $field -eq "" -and ([ArdiaTour]::TitleOf($session.Main)) -match "Tabs" }
 
   $before = @(Get-TopWindows $session)
   Send-Chord @(0x11) 0x4E
@@ -1156,7 +1158,7 @@ function Invoke-HoldTour {
       $stop.Facts.Add("the second window's fields: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
       Focus-Window $session $session.Main $null | Out-Null
       return $texts
-    } { param($stop, $field, $mark, $acted) @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard|another field took focus|the field lost focus)"; $stop.Facts.Add("the hold ended: $end"); $end -ne "none" -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
   } else {
     $script:Required.Add("Key hold: Ctrl+N opened no second window")
   }
@@ -1185,7 +1187,7 @@ function Invoke-HoldTour {
       $stop.Facts.Add("Notepad's text: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
       Focus-Window $session $session.Main $null | Out-Null
       return $texts
-    } { param($stop, $field, $mark, $acted) @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $end -ne "none" -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
   } else {
     Invoke-Stop $session "hold-click-other" "Key hold: typing, then a click into another program" { param($stop) $stop.Did = "Tried to open Notepad."; $stop.Expected = "a Notepad window to click into."; $stop.Seen = "unverified"; $stop.Facts.Add("Notepad didn't open on this runner") } | Out-Null
   }

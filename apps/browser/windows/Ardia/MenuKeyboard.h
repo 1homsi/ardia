@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "Events.h"
+#include "FocusHold.h"
 #include "LaunchLog.h"
 #include "MenuKeys.h"
 #include "MenuPopup.h"
@@ -75,7 +76,10 @@ struct MenuKeyboard {
     payload["command"] = JSValue{std::string{command}};
     payload["arg"] = arg ? JSValue{std::string{*arg}} : JSValue{nullptr};
     payload["windowId"] = windowId.empty() ? JSValue{nullptr} : JSValue{std::string{windowId}};
-    payload["focusGeneration"] = JSValue{nullptr};
+    int generation = 0;
+    if (command == "newTab" || command == "focusCommandBar") generation = FocusHold::Shared().Begin(WindowManager::Shared().Hwnd(windowId), command);
+    else FocusHold::Shared().OtherCommand();
+    payload["focusGeneration"] = generation ? JSValue{static_cast<int64_t>(generation)} : JSValue{nullptr};
     EmitEvent(context, L"ArdiaMenus", L"onCommand", std::move(payload));
     LaunchLog::Write(L"command", Paths::Wide(command));
   }
@@ -292,12 +296,17 @@ struct MenuKeyboard {
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));
+      FocusHold::Shared().Released(virtualKey);
       if (swallowedKeyUps.erase(virtualKey)) return true;
       if ((virtualKey == VK_MENU || virtualKey == VK_LMENU || virtualKey == VK_RMENU) && consumedWithAlt) {
         consumedWithAlt = false;
         return true;
       }
       return false;
+    }
+    if (FocusHold::Shared().Key(virtualKey, flags) == FocusHold::Taken::Held) {
+      swallowedKeyUps.insert(virtualKey);
+      return true;
     }
     if (IsModifierKey(virtualKey)) return false;
     if (capturedWHeld && virtualKey == 'W') {
