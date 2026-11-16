@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PlatformColor, View } from "react-native";
-import { BottomSheet, Button, ConfirmationDialog, ContentUnavailableView, Form, Group, HStack, Image, Label, LabeledContent, List, NavigationLink, NavigationStack, ProgressView, RNHostView, Section, Spacer, Text, TextField, Toggle, Toolbar, ToolbarItem, VStack, useNativeState } from "@expo/ui/swift-ui";
+import { PlatformColor, useWindowDimensions, View } from "react-native";
+import { BottomSheet, Button, ConfirmationDialog, ContentUnavailableView, Form, Group, HStack, Image, Label, LabeledContent, List, NavigationLink, NavigationStack, ProgressView, RNHostView, Section, Spacer, Text, TextField, Toggle, Toolbar, ToolbarItem, VStack, ZStack, useNativeState } from "@expo/ui/swift-ui";
 import {
   accessibilityHidden,
+  backgroundOverlay,
   accessibilityHint,
   autocorrectionDisabled,
   buttonStyle,
@@ -30,11 +31,12 @@ import {
   truncationMode,
 } from "@expo/ui/swift-ui/modifiers";
 import { copy } from "../../lib/platformCopy";
-import { addList, openFromSettings, removeList, resetLists, setListEnabled, trustSite, updateLists, updateListsFromButton, useBlocking, type FilterListInfo } from "../../state/settings/actions";
+import { addList, applyMyFilters, openFromSettings, removeList, resetLists, setListEnabled, trustSite, updateLists, updateListsFromButton, useBlocking, type FilterListInfo } from "../../state/settings/actions";
 import { popSettings, pushSettings, settingsRouteKey, type SettingsRoute } from "../../state/settings/nav";
-import { FILTER_LIST_ADDRESS, filterListAddress, formatNumber, listFacts, listIsBusy, listsStatus, listStatus, listsText, listUpdatedAt, myFiltersCount, resetMessage, rulesText } from "../../state/settings/settingsRules";
+import { FILTER_LIST_ADDRESS, filterListAddress, formatNumber, listFacts, listIsBusy, listsStatus, listStatus, listsText, listUpdatedAt, myFiltersCount, myFiltersSummary, resetMessage, rulesText } from "../../state/settings/settingsRules";
 import { PasteAction, SYSTEM_PASTE_SIZE } from "../sync/SyncPage";
-import { legibleInk, modifierList, settingsChrome, settingsPage, settingsSwitchStyle } from "../ui";
+import { FilterTextEditor, legibleInk, modifierList, navigationBarBackButtonHidden, settingsChrome, settingsLayout, settingsPage, settingsSwitchStyle } from "../ui";
+import { haptics } from "../../state/app/haptics";
 import { ExpoHero } from "./ExpoSettingsParts";
 
 const FILL = Number.MAX_SAFE_INTEGER;
@@ -298,3 +300,54 @@ export function ExpoTrustedSitesPage() {
     </Toolbar>
   );
 }
+
+const FILTER_SYNTAX_URL = "https://github.com/gorhill/uBlock/wiki/Static-filter-syntax";
+const MY_FILTERS_PLACEHOLDER = "||ads.example.com^\nexample.com##.newsletter-popup";
+
+export function ExpoMyFiltersPage() {
+  const state = useBlocking((s) => s.state);
+  const saved = state?.myFilters ?? "";
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? saved;
+  const changed = draft !== null && draft !== saved;
+  const [applying, setApplying] = useState(false);
+  const applyingNow = useRef(false);
+  const large = useWindowDimensions().fontScale >= settingsLayout.accessibilityFontScale;
+  const apply = async () => {
+    if (!changed || applyingNow.current) return;
+    applyingNow.current = true;
+    setApplying(true);
+    await applyMyFilters(text);
+    applyingNow.current = false;
+    setApplying(false);
+    setDraft(null);
+    haptics.success();
+  };
+  return (
+    <Toolbar>
+      <VStack spacing={0} modifiers={modifierList(navigationTitle("My Filters"), navigationBarTitleDisplayMode("inline"), navigationBarBackButtonHidden(changed), tint(BLUE))}>
+        <ZStack alignment="topLeading">
+          <FilterTextEditor text={text} onTextChange={setDraft} />
+          {text ? null : (
+            <Text modifiers={[font({ textStyle: "callout", design: "monospaced" }), foregroundStyle({ type: "hierarchical", style: "tertiary" }), padding({ leading: MY_FILTERS_INSET + 5, trailing: MY_FILTERS_INSET, top: 8 }), accessibilityHidden(true)]}>{MY_FILTERS_PLACEHOLDER}</Text>
+          )}
+        </ZStack>
+        <VStack alignment="leading" spacing={4} modifiers={[frame({ maxWidth: FILL, alignment: "leading" }), padding({ horizontal: 16, vertical: 12 }), backgroundOverlay({ color: PlatformColor("secondarySystemBackground") })]}>
+          <Text modifiers={[font({ textStyle: "footnote", weight: "semibold" }), changed ? legibleInk("orange") : foregroundStyle(SECONDARY), contentTransition("opacity")].filter((modifier) => modifier !== null)}>{myFiltersSummary(state?.myFiltersRuleCount ?? 0, state?.myFiltersSkippedCount ?? 0, changed)}</Text>
+          {large ? null : <Text modifiers={[font({ textStyle: "footnote" }), foregroundStyle(SECONDARY)]}>||site.com^ blocks a site. site.com##.ad hides part of a page. Lines that start with ! are notes.</Text>}
+          <Button label="Filter Syntax" onPress={() => openFromSettings(FILTER_SYNTAX_URL)} modifiers={[buttonStyle("plain"), font({ textStyle: "footnote", weight: "semibold" }), foregroundStyle(BLUE)]} />
+        </VStack>
+      </VStack>
+      <Toolbar.Content>
+        {changed ? (
+          <ToolbarItem placement="cancellationAction">
+            <Button label="Revert" onPress={() => setDraft(null)} />
+          </ToolbarItem>
+        ) : null}
+        <ToolbarItem placement="confirmationAction">{applying ? <ProgressView /> : <Button label="Apply" onPress={() => void apply()} modifiers={[disabled(!changed)]} />}</ToolbarItem>
+      </Toolbar.Content>
+    </Toolbar>
+  );
+}
+
+const MY_FILTERS_INSET = 12;

@@ -7,7 +7,7 @@ import { openLibrary } from "../library/store";
 import { openPageMenu, showReader } from "../page/actions";
 import { presentSearch } from "../search/store";
 import { trustSite } from "../settings/actions";
-import { openSettings } from "../settings/nav";
+import { openSettings, settingsRouteFromKey } from "../settings/nav";
 import { acceptsPreference, type ColorChoice } from "../settings/preferences";
 import { setPreference } from "../settings/store";
 import { closeEveryTab, closeTabById, currentTabs, openNewTab, receiveSentTabs, setIncognito, updateTabById } from "../tabs/store";
@@ -90,9 +90,11 @@ async function runDemoScenario(args: LaunchArguments) {
 
 async function runLaunchHooks(args: LaunchArguments) {
   if (args.trustedSitesSample) for (const host of TRUSTED_SITES_SAMPLE) void trustSite(host, true);
-  if (!args.opensSettings && args.openSheet === null && args.toast === null) return;
+  if (!args.opensSettings && args.settingsPage === null && args.openSheet === null && args.toast === null) return;
   await wait(LAUNCH_TIMING.sheetMs);
   if (args.opensSettings || args.openSheet === "settings") openSettings();
+  const page = args.settingsPage === null ? null : settingsRouteFromKey(args.settingsPage);
+  if (page) openSettings(page);
   if (args.openSheet === "archive") openArchive();
   if (args.openSheet === "spaces") openSpaces();
   if (args.openSheet === "history" || args.openSheet === "bookmarks" || args.openSheet === "downloads") openLibrary(args.openSheet);

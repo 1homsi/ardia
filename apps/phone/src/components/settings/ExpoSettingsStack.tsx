@@ -15,7 +15,7 @@ import { ExpoSyncPage } from "./ExpoSyncPage";
 import { ExpoSyncConnectPage } from "./ExpoSyncConnectPage";
 import { ExpoPhrasePage } from "./ExpoPhrasePage";
 import { ExpoSearchEnginePage } from "./ExpoSearchEnginePage";
-import { ExpoFilterListPage, ExpoFilterListsPage, ExpoTrustedSitesPage } from "./ExpoBlockingPages";
+import { ExpoFilterListPage, ExpoFilterListsPage, ExpoMyFiltersPage, ExpoTrustedSitesPage } from "./ExpoBlockingPages";
 import { ExpoClearDataPage } from "./ExpoClearDataPage";
 import { ExpoAboutPage, ExpoLicensesPage } from "./ExpoAboutPages";
 import { ExpoDefaultBrowserPage, ExpoWhatsSentPage } from "./ExpoInfoPages";
@@ -33,6 +33,7 @@ const CONVERTED: Partial<Record<SettingsRoute["page"], (props: { route: Settings
   filterLists: ExpoFilterListsPage,
   filterList: ExpoFilterListPage,
   trustedSites: ExpoTrustedSitesPage,
+  myFilters: ExpoMyFiltersPage,
   clearData: ExpoClearDataPage,
   defaultBrowser: ExpoDefaultBrowserPage,
   about: ExpoAboutPage,
