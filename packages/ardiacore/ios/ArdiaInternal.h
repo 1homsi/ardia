@@ -41,7 +41,6 @@ NSString *AppDisposition(NSString *chromeDisposition);
 
 void InstallActivationGuardsEarly();
 void InstallActivationGuardsLate();
-void InstallPageDragSession();
 bool Background();
 void LogActivation(NSString *what);
 void WatchFocusChanges();
