@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { countRender } from "../../state/app/interactionPerf";
-import { Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { PixelRatio, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { isUnseenReceived } from "../../lib/tabFace";
 import { DECK, DECK_HEADER, deckBarBand, deckHeaderIconReveal, deckStatusStrip, deckHeaderLeading, deckHeaderPlacement, deckLeading, deckSlot, deckVisibleWidth, lerp, titleReveal, type DeckGeometry, type DeckSlots } from "../../lib/deckGeometry";
@@ -322,6 +322,14 @@ export const OPENING_CARD_MOTION: MotionCurve = { type: "spring", response: OPEN
 
 type OpeningCardProps = { tab: BrowserTab; geometry: DeckGeometry; centerX: number; centerY: number; growsAtMount?: boolean; endsSquare?: boolean; onGrowing: () => void; onLanded?: () => void };
 
+export function coveringScale(g: DeckGeometry): number {
+  const left = (g.width - g.cardWidth) / 2;
+  const top = (g.height - g.cardHeight) / 2;
+  const laidWidth = Math.max(PixelRatio.roundToNearestPixel(left + g.cardWidth) - PixelRatio.roundToNearestPixel(left), 1);
+  const laidHeight = Math.max(PixelRatio.roundToNearestPixel(top + g.cardHeight) - PixelRatio.roundToNearestPixel(top), 1);
+  return Math.max(g.width / laidWidth, g.height / laidHeight) + 1 / (laidWidth * PixelRatio.get());
+}
+
 export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount = false, endsSquare = false, onGrowing, onLanded }: OpeningCardProps) {
   const theme = useTheme();
   const design = useDesign();
@@ -338,7 +346,7 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount =
     if (grown) onGrowing();
   }, [grown]);
   const pageTop = (tab.snapshotFileName ? snapshotPageTop(tab.snapshotFileName) : null) ?? (underBars ? 0 : g.safeTop);
-  const full = g.width / Math.max(g.cardWidth, 1);
+  const full = endsSquare ? coveringScale(g) : g.width / Math.max(g.cardWidth, 1);
   const bar = deckBarBand(g, barHeight(g.safeBottom), 1);
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
@@ -354,16 +362,19 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount =
       to={to}
       motion={OPENING_CARD_MOTION}
       onMotionEnd={onLanded ? (finished) => finished && onLanded() : undefined}
-      style={[styles.opening, { left: (g.width - g.cardWidth) / 2, top: (g.height - g.cardHeight) / 2, width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface }]}
+      style={[styles.opening, endsSquare ? null : styles.openingEdge, { left: (g.width - g.cardWidth) / 2, top: (g.height - g.cardHeight) / 2, width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface }]}
     >
       <MotionView testID="openingCardFace" style={StyleSheet.absoluteFill} from={growsAtMount ? { translateY: 0 } : undefined} to={{ translateY: grown ? deckStatusStrip(g, 0, pageTop) : 0 }} motion={OPENING_CARD_MOTION}>
         <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} paintedAs={`deck:${tab.id}`} />
       </MotionView>
       {underBars ? null : (
-        <MotionView testID="openingCardBand" style={[styles.openingBand, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }]} from={growsAtMount ? { translateY: bar.height } : undefined} to={{ translateY: grown ? 0 : bar.height }} motion={OPENING_CARD_MOTION}>
+        <MotionView testID="openingCardBand" style={[styles.openingBand, { top: g.cardHeight - bar.height, width: g.cardWidth, height: bar.height, backgroundColor: tone.bottom ?? theme.surface }]} from={growsAtMount ? { translateY: bar.height } : undefined} to={{ translateY: grown ? 0 : bar.height }} motion={OPENING_CARD_MOTION}>
           {design === "original" ? <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
         </MotionView>
       )}
+      {endsSquare ? (
+        <MotionView testID="openingCardEdge" pointerEvents="none" style={[styles.openingEdgeOverlay, { borderColor: theme.cardEdge }]} from={growsAtMount ? { opacity: 1 } : undefined} to={{ opacity: grown ? 0 : 1 }} motion={OPENING_CARD_MOTION} />
+      ) : null}
     </MotionView>
   );
 }
@@ -394,8 +405,10 @@ const styles = StyleSheet.create({
   },
   band: { position: "absolute", left: 0, right: 0, bottom: 0, transformOrigin: "bottom" },
   cardMenu: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: DECK.cardRadius },
-  opening: { position: "absolute", overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
-  openingBand: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  opening: { position: "absolute", overflow: "hidden" },
+  openingEdge: { borderWidth: StyleSheet.hairlineWidth },
+  openingEdgeOverlay: { ...StyleSheet.absoluteFill, borderWidth: StyleSheet.hairlineWidth },
+  openingBand: { position: "absolute", left: 0 },
   badge: {
     position: "absolute",
     top: RECEIVED_INSET,

@@ -6,6 +6,14 @@ export function noteSnapshotShown(uri: string) {
   shown.add(uri);
 }
 
+const aspects = new Map<string, number>();
+
+export const snapshotAspect = (uri: string): number | null => aspects.get(uri) ?? null;
+
+export function noteSnapshotAspect(uri: string, aspect: number) {
+  aspects.set(uri, aspect);
+}
+
 const paintWaiters = new Map<string, Set<(painted: boolean) => void>>();
 
 export const pictureKey = (owner: string, uri: string) => `${owner}|${uri}`;

@@ -1,12 +1,16 @@
-import { Platform, StyleSheet } from "react-native";
+import { PixelRatio, Platform, StyleSheet } from "react-native";
 import * as reanimated from "react-native-reanimated";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { Surfaces } from "../App";
-import { DECK } from "../lib/deckGeometry";
+import { DECK, deckGeometry } from "../lib/deckGeometry";
+
+import { coveringScale } from "../components/tabs/DeckCard";
+import { deckHeaderBottom } from "../components/tabs/DeckHeader";
 import { NO_LAUNCH_ARGUMENTS, parseLaunchArguments } from "../lib/launchArguments";
 import * as launchFlags from "../state/app/launchFlags";
 import { sendDeckCommand } from "../state/browse/deckCommands";
+import * as browseStore from "../state/browse/store";
 import { useBrowse } from "../state/browse/store";
 import { currentTabs } from "../state/tabs/store";
 import * as telemetry from "../state/telemetry/telemetry";
@@ -106,8 +110,17 @@ onAndroid("with ArdiaOpeningCard, the opening card mounts in the tap's own commi
   expect(from).toMatchObject({ scale: 1, cornerRadius: DECK.cardRadius });
   expect(to).toMatchObject({ translateX: 0, translateY: 0, cornerRadius: 0 });
   expect(to.scale).toBeCloseTo(393 / tapped.width);
+  expect(to.scale).toBeGreaterThanOrEqual(393 / tapped.width);
+  expect(StyleSheet.flatten(card.props.style).borderWidth).toBeUndefined();
+  expect(motionView(root, "openingCardEdge")!.props.from).toEqual({ opacity: 1 });
+  expect(motionView(root, "openingCardEdge")!.props.to).toEqual({ opacity: 0 });
   expect(typeof card.props.onMotionEnd).toBe("function");
   const band = motionView(root, "openingCardBand")!;
+  const bandFrame = StyleSheet.flatten(band.props.style);
+  expect(bandFrame).toMatchObject({ position: "absolute", left: 0, width: tapped.width });
+  expect(bandFrame.top + bandFrame.height).toBeCloseTo(tapped.height, 5);
+  expect(bandFrame.right).toBeUndefined();
+  expect(bandFrame.bottom).toBeUndefined();
   expect(band.props.from.translateY).toBeGreaterThan(0);
   expect(band.props.to).toEqual({ translateY: 0 });
   expect(motionView(root, "openingCardFace")!.props.from).toEqual({ translateY: 0 });
@@ -272,5 +285,37 @@ onAndroid("after an open through the opening card, the deck reopens settled and 
   cardStops(root);
   reportDrawn(root);
   expect(useBrowse.getState().surface).toBe("browsing");
+  unmount(root);
+});
+
+test("the covering card's target scale covers the POCO F4's 1080 by 2400 pixels from the card's laid-out pixels, with at most a pixel or two to spare, never short", () => {
+  jest.spyOn(PixelRatio, "get").mockReturnValue(2.75);
+  const g = deckGeometry(1080 / 2.75, 2400 / 2.75, 80 / 2.75, 130 / 2.75, 0, "android", "redesigned", deckHeaderBottom());
+  const left = (g.width - g.cardWidth) / 2;
+  const top = (g.height - g.cardHeight) / 2;
+  const laidWidth = Math.round((left + g.cardWidth) * 2.75) - Math.round(left * 2.75);
+  const laidHeight = Math.round((top + g.cardHeight) * 2.75) - Math.round(top * 2.75);
+  const scale = coveringScale(g);
+  expect(laidWidth * scale).toBeGreaterThanOrEqual(1080);
+  expect(laidWidth * scale).toBeLessThan(1083);
+  expect(laidHeight * scale).toBeGreaterThanOrEqual(2400);
+  expect(laidHeight * scale).toBeLessThan(2405);
+  jest.restoreAllMocks();
+});
+
+onAndroid("with ArdiaOpeningCard, the deck moves off screen on the UI thread in the drawn report's own call (a move, never a fade, so its glass is never under a fading parent), before React switches to browsing, so the page and its bar under it show at once", () => {
+  const root = renderSurface(<Surfaces />);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  advance(LANDS_MS);
+  cardStops(root);
+  advance(100);
+  const deckAway = () => ((getAnimatedStyle(root.root.findAll((node) => node.props.testID === "tabDeck" && typeof node.type === "string")[0]!) as { transform?: { translateX?: number }[] }).transform ?? [])[0]?.translateX ?? 0;
+  expect(deckAway()).toBe(0);
+  const switched = jest.spyOn(browseStore, "openTab").mockImplementation(() => undefined);
+  reportDrawn(root);
+  expect(switched).toHaveBeenCalledTimes(1);
+  expect(useBrowse.getState().surface).toBe("deck");
+  expect(deckAway()).toBeGreaterThan(10_000);
+  switched.mockRestore();
   unmount(root);
 });

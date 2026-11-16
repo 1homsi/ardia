@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
-import { forgetPicturePainted, notePicturePainted, noteSnapshotShown, pictureKey, snapshotWasShown } from "../../lib/shownSnapshots";
+import { forgetPicturePainted, notePicturePainted, noteSnapshotAspect, noteSnapshotShown, pictureKey, snapshotAspect, snapshotWasShown } from "../../lib/shownSnapshots";
 import { tabsMotion } from "./motion";
 import { isDarkColor } from "../../lib/color";
 import { Favicon } from "./Favicon";
@@ -66,7 +66,7 @@ function PlainFace({ tab, title, host, fill, roles, compact }: { tab: TabFaceTab
 }
 
 function Snapshot({ uri, fill, under, paintedAs }: { uri: string; fill: string; under: ReactNode; paintedAs?: string }) {
-  const [aspect, setAspect] = useState<number | null>(null);
+  const [aspect, setAspect] = useState<number | null>(() => snapshotAspect(uri));
   const [loaded, setLoaded] = useState(false);
   const [wasShown] = useState(() => snapshotWasShown(uri));
   const [covered, setCovered] = useState(!wasShown);
@@ -89,7 +89,10 @@ function Snapshot({ uri, fill, under, paintedAs }: { uri: string; fill: string; 
         resizeMethod="scale"
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
-          if (width > 0 && height > 0) setAspect(width / height);
+          if (width > 0 && height > 0) {
+            noteSnapshotAspect(uri, width / height);
+            setAspect(width / height);
+          }
           setLoaded(true);
           if (snapshotWasShown(uri)) {
             appear.value = 1;

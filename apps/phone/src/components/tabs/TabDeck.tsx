@@ -226,6 +226,11 @@ export const TabDeck = memo(function TabDeck() {
   const backdropStyle = useAnimatedStyle(() => ({ opacity: deckPhase.value === DECK_PHASE.closing ? 1 : Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
   const cardsOpacity = useSharedValue(first.cardsOpacity);
   const cardsShift = useSharedValue(0);
+  const handedOverAway = useSharedValue(0);
+  const handOverStyle = useAnimatedStyle(() => ({ transform: [{ translateX: handedOverAway.value * HANDED_OVER_AWAY }] }));
+  useEffect(() => {
+    if (!shown) handedOverAway.value = 0;
+  }, [shown]);
   const archiveMorph = useSharedValue<DeckMorph>(NO_DECK_MORPH);
   const archiveMorphed = useSharedValue(1);
   const cardsStyle = useAnimatedStyle(() => {
@@ -524,7 +529,9 @@ export const TabDeck = memo(function TabDeck() {
   const prepared = useRef<{ id: string; ready: boolean; landed: boolean } | null>(null);
   const finishOpen = (id: string) => {
     if (openPath.current !== "deckCard") {
-      if (openingId.current === id) settledOpen(id);
+      if (openingId.current !== id) return;
+      if (openPath.current === "coveringCard") handedOverAway.value = 1;
+      settledOpen(id);
       return;
     }
     requestAnimationFrame(() => {
@@ -817,9 +824,9 @@ export const TabDeck = memo(function TabDeck() {
     });
 
   return (
-    <View
+    <Animated.View
       testID="tabDeck"
-      style={[StyleSheet.absoluteFill, shown ? null : styles.hidden]}
+      style={[StyleSheet.absoluteFill, shown ? null : styles.hidden, handOverStyle]}
       pointerEvents={shown ? "auto" : "none"} collapsable={false}
       importantForAccessibility={shown ? "auto" : "no-hide-descendants"}
       accessibilityElementsHidden={!shown}
@@ -1020,7 +1027,7 @@ export const TabDeck = memo(function TabDeck() {
         />
       ) : null}
       {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}
-    </View>
+    </Animated.View>
   );
 });
 
@@ -1071,6 +1078,7 @@ const HIDDEN = { opacity: 0 };
 const HANDOVER_CAP_MS = 250;
 const DRAWN_CAP_MS = 200;
 const ARCHIVE_RESIZE_SLACK = 0.5;
+const HANDED_OVER_AWAY = 100_000;
 const CARD_LANDED = 0.02;
 const CHROME_BACK: MotionCurve = { type: "timing", durationMs: 0 };
 const CHROME_GLASS_MS = 200;
