@@ -296,8 +296,9 @@ struct MenuKeyboard {
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));
-      if (FocusHold::Shared().Up(virtualKey)) return true;
-      if (swallowedKeyUps.erase(virtualKey)) return true;
+      bool owedToHold = FocusHold::Shared().Up(virtualKey);
+      bool swallowed = swallowedKeyUps.erase(virtualKey) > 0;
+      if (owedToHold || swallowed) return true;
       if ((virtualKey == VK_MENU || virtualKey == VK_LMENU || virtualKey == VK_RMENU) && consumedWithAlt) {
         consumedWithAlt = false;
         return true;

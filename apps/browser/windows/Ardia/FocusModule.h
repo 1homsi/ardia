@@ -100,6 +100,11 @@ struct FocusModule {
     RunOnUI(m_context, [tag]() noexcept { Menus::FocusHold::Shared().Focused(tag); });
   }
 
+  REACT_METHOD(fieldAsked)
+  void fieldAsked(int tag) noexcept {
+    RunOnUI(m_context, [tag]() noexcept { Menus::FocusHold::Shared().Asked(tag); });
+  }
+
   REACT_METHOD(fieldBlurred)
   void fieldBlurred(int tag) noexcept {
     RunOnUI(m_context, [tag]() noexcept { Menus::FocusHold::Shared().Blurred(tag); });

@@ -169,6 +169,12 @@ struct FocusHold {
     return droppedKeys.erase(virtualKey) > 0 || owed;
   }
 
+  Taken PassOn(UINT virtualKey) noexcept {
+    droppedKeys.erase(virtualKey);
+    heldKeys.erase(virtualKey);
+    return Taken::Pass;
+  }
+
   Taken Key(UINT virtualKey, LPARAM flags) noexcept {
     bool repeat = (flags & (1u << 30)) != 0;
     if (droppedKeys.count(virtualKey)) {
@@ -181,7 +187,7 @@ struct FocusHold {
     }
     if (virtualKey == VK_PROCESSKEY || virtualKey == VK_PACKET) {
       Drop("ime", L"IME or packet input");
-      return Taken::Pass;
+      return PassOn(virtualKey);
     }
     switch (virtualKey) {
       case VK_CONTROL:
@@ -193,7 +199,7 @@ struct FocusHold {
       case VK_LWIN:
       case VK_RWIN:
         if (!repeat) Drop("modified", L"a key with Ctrl, Alt or Win");
-        return Taken::Pass;
+        return PassOn(virtualKey);
       default:
         break;
     }
@@ -204,43 +210,43 @@ struct FocusHold {
       case VK_CAPITAL:
       case VK_NUMLOCK:
       case VK_SCROLL:
-        return Taken::Pass;
+        return PassOn(virtualKey);
       default:
         break;
     }
     bool modified = (GetKeyState(VK_CONTROL) & 0x8000) || (GetKeyState(VK_MENU) & 0x8000) || (GetKeyState(VK_LWIN) & 0x8000) || (GetKeyState(VK_RWIN) & 0x8000);
     if (modified) {
       Drop("modified", L"a key with Ctrl, Alt or Win");
-      return Taken::Pass;
+      return PassOn(virtualKey);
     }
     if (virtualKey == VK_BACK || virtualKey == VK_RETURN) {
       Drop("edit", L"Backspace or Enter");
-      return Taken::Pass;
+      return PassOn(virtualKey);
     }
     BYTE state[256] = {};
     if (!GetKeyboardState(state)) {
       Drop("character", L"a key without a character");
-      return Taken::Pass;
+      return PassOn(virtualKey);
     }
     wchar_t units[8] = {};
     UINT scan = static_cast<UINT>((flags >> 16) & 0xFF);
     int typed = ToUnicodeEx(virtualKey, scan, state, units, 8, 0x4, GetKeyboardLayout(0));
     if (typed < 0) {
       Drop("dead", L"a dead key");
-      return Taken::Pass;
+      return PassOn(virtualKey);
     }
     bool printable = typed > 0;
     for (int i = 0; i < typed; i++) printable = printable && units[i] >= 0x20 && units[i] != 0x7F;
     if (!printable) {
       Drop("character", L"a key without a character");
-      return Taken::Pass;
+      return PassOn(virtualKey);
     }
-    size_t repeat = (std::max)(static_cast<size_t>(flags & 0xFFFF), static_cast<size_t>(1));
-    if (held.size() + repeat * static_cast<size_t>(typed) > kCapacity) {
+    size_t times = (std::max)(static_cast<size_t>(flags & 0xFFFF), static_cast<size_t>(1));
+    if (held.size() + times * static_cast<size_t>(typed) > kCapacity) {
       Drop("capacity", L"64 keys held");
-      return Taken::Pass;
+      return PassOn(virtualKey);
     }
-    for (size_t r = 0; r < repeat; r++) held.insert(held.end(), units, units + typed);
+    for (size_t r = 0; r < times; r++) held.insert(held.end(), units, units + typed);
     heldKeys.insert(virtualKey);
     Pump();
     return Taken::Held;
@@ -261,6 +267,10 @@ struct FocusHold {
     if (!active) return;
     if (claimedTag && tag != claimedTag) return Drop("focus", L"another field took focus");
     Ready();
+  }
+
+  void Asked(int tag) noexcept {
+    if (active && claimedTag && tag != claimedTag) Drop("focus", L"another field was asked to take focus");
   }
 
   void Blurred(int tag) noexcept {
@@ -301,6 +311,7 @@ struct FocusHold {
 
   void Delivered(int delivered) noexcept {
     if (!active || delivered != generation) return;
+    if (GetTickCount64() - postedAt > kDeliveryMs) return Drop("timeout", L"a replayed character wasn't delivered in 1 s");
     sentinelOut = false;
     Pump();
   }

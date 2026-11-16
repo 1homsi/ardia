@@ -1227,8 +1227,10 @@ function Invoke-HoldTour {
   } else {
     Invoke-Stop $session "hold-click-other" "Key hold: typing, then a click into another program" { param($stop) $stop.Did = "Tried to open Notepad."; $stop.Expected = "a Notepad window to click into."; $stop.Seen = "unverified"; $stop.Facts.Add("Notepad didn't open on this runner") } | Out-Null
   }
-  $ours = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "^notepad$" -and $padsBefore -notcontains $_.Id })
-  $ours | Stop-Process -Force -ErrorAction SilentlyContinue
+  $padIds = @()
+  if ($notepad) { $padIds += $notepad.Id }
+  if ($pad -ne [IntPtr]::Zero) { $padIds += [int][ArdiaTour]::ProcessOf($pad) }
+  foreach ($id in ($padIds | Select-Object -Unique)) { if ($padsBefore -notcontains $id) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue } }
 
   try { Set-Clipboard -Value "pasted" } catch { }
   Invoke-HoldStop $session "hold-ctrl-v" "Key hold: Ctrl+V right after Ctrl+T passes through as today" "Put 'pasted' on the clipboard, pressed Ctrl+T, and 15 ms after it pressed Ctrl+V." "the hold ends on the modified key and the paste goes where it does today (a documented limit) (#2099)." {

@@ -5,7 +5,7 @@ import { engineAvailable, hostCall } from "./engine/host";
 import { onPagePress } from "./engine/pages";
 import { requireNativeModule } from "./modules";
 
-export type FocusOnWindows = FocusNative & { setTextInputFocused(focused: boolean): Promise<void>; textInputFocused(): boolean; takeKeyboardFromPage(windowId: string): Promise<boolean>; fieldFocused(tag: number): void; fieldBlurred(tag: number): void };
+export type FocusOnWindows = FocusNative & { setTextInputFocused(focused: boolean): Promise<void>; textInputFocused(): boolean; takeKeyboardFromPage(windowId: string): Promise<boolean>; fieldFocused(tag: number): void; fieldAsked(tag: number): void; fieldBlurred(tag: number): void };
 
 type SharedTextInputState = Pick<(typeof TextInput)["State"], "currentlyFocusedInput" | "focusTextInput" | "blurTextInput">;
 type TextField = Parameters<SharedTextInputState["focusTextInput"]>[0];
@@ -27,7 +27,7 @@ const textInputState: { default: TextInputState } = require("react-native/Librar
 let installed = false;
 let reported: boolean | undefined;
 
-const focus = () => requireNativeModule<Pick<FocusOnWindows, "setTextInputFocused" | "takeKeyboardFromPage" | "fieldFocused" | "fieldBlurred">>("ArdiaFocus");
+const focus = () => requireNativeModule<Pick<FocusOnWindows, "setTextInputFocused" | "takeKeyboardFromPage" | "fieldFocused" | "fieldAsked" | "fieldBlurred">>("ArdiaFocus");
 
 export function textInputHasFocus(state: Pick<TextInputState, "currentlyFocusedInput" | "isTextInput"> = textInputState.default): boolean {
   const field = state.currentlyFocusedInput();
@@ -55,7 +55,8 @@ export function installTextFocusReport() {
   for (const name of REPORTED) {
     const original = state[name].bind(state);
     state[name] = (field: TextField) => {
-      const tag = name === "focusInput" || LEAVING.has(name) ? tagOfField(field) : null;
+      const tag = name === "focusInput" || name === "focusTextInput" || LEAVING.has(name) ? tagOfField(field) : null;
+      if (tag && name === "focusTextInput") focus().fieldAsked?.(tag);
       original(field);
       if (tag && name === "focusInput") focus().fieldFocused?.(tag);
       if (tag && LEAVING.has(name)) focus().fieldBlurred?.(tag);
