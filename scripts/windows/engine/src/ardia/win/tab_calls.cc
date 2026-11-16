@@ -58,6 +58,7 @@
 #include "components/zoom/page_zoom.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_agent_host_client.h"
+#include "content/public/browser/media_session.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/render_frame_host.h"
@@ -931,6 +932,57 @@ void ClickForTest(content::WebContents* contents,
                    std::move(reply)));
 }
 
+void TouchForTest(content::WebContents* contents,
+                  const base::DictValue& args,
+                  Reply reply) {
+  if (!ardiacore::TestInstance()) {
+    std::move(reply).Run(Error("touchForTest is for test instances"));
+    return;
+  }
+  base::DictValue point;
+  point.Set("x", args.FindDouble("x").value_or(0));
+  point.Set("y", args.FindDouble("y").value_or(0));
+  base::ListValue down;
+  down.Append(std::move(point));
+  base::DictValue start;
+  start.Set("type", "touchStart");
+  start.Set("touchPoints", std::move(down));
+  CallDevTools(contents, "Input.dispatchTouchEvent", std::move(start),
+               std::nullopt, base::BindOnce(&Ignore));
+  base::DictValue end;
+  end.Set("type", "touchEnd");
+  end.Set("touchPoints", base::ListValue());
+  CallDevTools(contents, "Input.dispatchTouchEvent", std::move(end),
+               std::nullopt, base::BindOnce(&Ignore));
+  base::DictValue last;
+  last.Set("expression", "0");
+  CallDevTools(contents, "Runtime.evaluate", std::move(last), std::nullopt,
+               base::BindOnce(
+                   [](Reply reply, std::optional<base::DictValue> result,
+                      std::optional<std::string> error) {
+                     std::move(reply).Run(error ? Error(*error) : Ok());
+                   },
+                   std::move(reply)));
+}
+
+void MediaSessionActionForTest(content::WebContents* contents,
+                               const base::DictValue& args,
+                               Reply reply) {
+  if (!ardiacore::TestInstance()) {
+    std::move(reply).Run(Error("mediaSessionActionForTest is for test instances"));
+    return;
+  }
+  const std::string action = Text(args, "action");
+  if (action != "play" && action != "pause") {
+    std::move(reply).Run(Error("the action is play or pause"));
+    return;
+  }
+  content::MediaSession::Get(contents)->DidReceiveAction(
+      action == "play" ? media_session::mojom::MediaSessionAction::kPlay
+                       : media_session::mojom::MediaSessionAction::kPause);
+  std::move(reply).Run(Ok());
+}
+
 void InsertTextForTest(content::WebContents* contents,
                        const base::DictValue& args,
                        Reply reply) {
@@ -1014,6 +1066,8 @@ constexpr NamedMethod kMethods[] = {
     {"sleepIfHidden", &SleepIfHidden},
     {"insertText", &InsertTextForTest},
     {"clickForTest", &ClickForTest},
+    {"touchForTest", &TouchForTest},
+    {"mediaSessionActionForTest", &MediaSessionActionForTest},
     {"testClient", &TestClientForTest},
     {"discardEligibilityForTest", &DiscardEligibilityForTest},
     {"setFrozen", &SetFrozen},
