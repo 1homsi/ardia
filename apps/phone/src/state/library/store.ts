@@ -161,4 +161,4 @@ export function deleteAllDownloads() {
 
 export const previewDownload = (file: DownloadedFile) => void settled(() => downloads.preview(file.uri), false);
 
-export const shareDownload = (file: DownloadedFile) => void settled(() => downloads.open(file.uri), false);
+export const shareDownload = (file: DownloadedFile) => void settled(() => downloads.share(file.uri), false);

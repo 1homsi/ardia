@@ -3,6 +3,7 @@ import { act, type ReactTestInstance } from "react-test-renderer";
 import { Surfaces } from "../App";
 import * as browse from "../state/browse/store";
 import * as tabMenus from "../state/browse/tabMenus";
+import { downloads } from "../platform/downloads";
 import * as library from "../state/library/store";
 import * as settingsActions from "../state/settings/actions";
 import { useLibrary } from "../state/library/store";
@@ -204,4 +205,15 @@ onAndroid("Android draws no Library sheet", async () => {
   const root = renderSurface(<Surfaces />);
   expect(hosts(root.root, (props) => props.testID === "expoLibrarySheet")).toHaveLength(0);
   unmount(root);
+});
+
+test("a download's Share opens the share sheet on both phones, not the file's viewer, which Android's open is", async () => {
+  const shared = jest.spyOn(downloads, "share").mockResolvedValue(true);
+  const opened = jest.spyOn(downloads, "open").mockResolvedValue(true);
+  await act(async () => {
+    library.shareDownload({ uri: "file:///Download/report-1.pdf", name: "report-1.pdf" } as never);
+    for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+  });
+  expect(shared).toHaveBeenCalledWith("file:///Download/report-1.pdf");
+  expect(opened).not.toHaveBeenCalled();
 });

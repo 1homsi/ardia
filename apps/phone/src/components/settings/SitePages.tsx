@@ -1,9 +1,13 @@
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { permissionSummary, PERMISSION_NAMES, sortedPermissions } from "../../lib/sitePermissionNames";
+import type { SitePermissionGrant } from "../../platform/pages";
+import { refreshSitePermissions, revokeSiteAccess, useSitePermissions } from "../../state/settings/sitePermissions";
 import { setBlockingCategory, setCollapsesBottomBar, setDefaultNightShade, setSwipeNavigation, setSearchEngine, useBlocking, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { popSettings, pushSettings, type SettingsRoute } from "../../state/settings/nav";
 import { formatNumber } from "../../state/settings/settingsRules";
-import { font, settingsLayout, settingsTint, Symbol, useTheme } from "../ui";
+import { Dialog, Favicon, font, settingsLayout, settingsTint, Symbol, useTheme, type DialogButton } from "../ui";
 import { Divider, Group, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
 import { useSyncEnabled, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName } from "../../state/sync/syncRules";
@@ -65,9 +69,73 @@ export function SiteSettingsPage() {
   return (
     <SettingsPage title="Site Settings" onBack={popSettings}>
       <SiteSettingsGroups openRoute={pushSettings} />
+      <AllowedSites />
     </SettingsPage>
   );
 }
+
+function AllowedSites() {
+  const theme = useTheme();
+  const listed = useSitePermissions((s) => s.listed);
+  const grants = useSitePermissions((s) => s.grants);
+  useEffect(() => {
+    void refreshSitePermissions();
+  }, []);
+  if (!listed) return null;
+  return (
+    <Group header="Camera, Microphone and Location" footer="Sites you allowed keep access on this phone until you revoke it. Private tabs always ask.">
+      {grants.length ? (
+        grants.map((grant, index) => <AllowedSite key={grant.origin} grant={grant} divider={index < grants.length - 1} />)
+      ) : (
+        <View style={styles.row}>
+          <Text style={[font.body, { color: theme.secondaryLabel }]}>None</Text>
+        </View>
+      )}
+    </Group>
+  );
+}
+
+function AllowedSite({ grant, divider }: { grant: SitePermissionGrant; divider: boolean }) {
+  const theme = useTheme();
+  const [asking, setAsking] = useState(false);
+  const kinds = sortedPermissions(grant.permissions);
+  const summary = permissionSummary(kinds);
+  const revoke = (kind?: (typeof kinds)[number]) => {
+    setAsking(false);
+    void revokeSiteAccess(grant.origin, kind);
+  };
+  const buttons: DialogButton[] = [
+    ...(kinds.length > 1 ? kinds.map((kind) => ({ title: `Revoke ${PERMISSION_NAMES[kind]}`, destructive: true, onPress: () => revoke(kind) })) : []),
+    { title: kinds.length > 1 ? "Revoke All" : `Revoke ${summary}`, destructive: true, onPress: () => revoke() },
+    { title: "Cancel", onPress: () => setAsking(false) },
+  ];
+  return (
+    <View>
+      <Pressable
+        testID="allowedSite"
+        accessibilityRole="button"
+        accessibilityLabel={`${grant.host}, ${summary}`}
+        accessibilityHint="Revoke access"
+        onPress={() => setAsking(true)}
+        style={({ pressed }) => [styles.row, styles.site, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+      >
+        <Favicon iconUrl={null} pageUrl={grant.origin} size={SITE_FAVICON} />
+        <View style={styles.fill}>
+          <Text style={[font.body, { color: theme.label }]} numberOfLines={1}>
+            {grant.host}
+          </Text>
+          <Text style={[font.footnote, { color: theme.secondaryLabel }]} numberOfLines={1}>
+            {summary}
+          </Text>
+        </View>
+      </Pressable>
+      {divider ? <Divider /> : null}
+      {asking ? <Dialog title={grant.host} message={`Allowed: ${summary}`} buttons={buttons} onDismiss={() => setAsking(false)} /> : null}
+    </View>
+  );
+}
+
+const SITE_FAVICON = 22;
 
 export function SiteSettingsGroups({ openRoute }: { openRoute: (route: SettingsRoute) => void }) {
   const state = useBlocking((s) => s.state);
@@ -119,4 +187,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", minHeight: settingsLayout.rowMinHeight, paddingHorizontal: settingsLayout.rowInset },
   fill: { flex: 1 },
   labelled: { gap: settingsLayout.labelGap },
+  site: { gap: 12, paddingVertical: 8 },
 });
