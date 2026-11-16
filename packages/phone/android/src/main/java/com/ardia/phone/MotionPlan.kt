@@ -45,19 +45,25 @@ sealed class MotionCurve {
         override val interpolator: TimeInterpolator get() = controlPoints.let { PathInterpolator(it[0], it[1], it[2], it[3]) }
     }
 
-    data class Spring(val response: Double, val dampingFraction: Double) : MotionCurve() {
-        private val solved by lazy { SpringSolution(response.coerceAtLeast(0.01), dampingFraction.coerceIn(0.0, 2.0)) }
+    data class Spring(val response: Double, val dampingFraction: Double, val settledFraction: Double = SpringSolution.SETTLED) : MotionCurve() {
+        private val solved by lazy { SpringSolution(response.coerceAtLeast(0.01), dampingFraction.coerceIn(0.0, 2.0), settledFraction) }
         override val durationMillis: Long get() = solved.settlingMillis
         override val interpolator: TimeInterpolator get() = solved
         fun progress(seconds: Double): Double = solved.position(seconds)
     }
 
+    fun overPixels(pixels: Float): MotionCurve {
+        if (this !is Spring || pixels <= 0f) return this
+        return copy(settledFraction = (HALF_PIXEL / pixels).toDouble().coerceIn(SpringSolution.SETTLED_AT_MOST_ONCE, SpringSolution.SETTLED_AT_MOST))
+    }
+
     companion object {
         val FALLBACK_POINTS = listOf(0f, 0f, 0.58f, 1f)
+        const val HALF_PIXEL = 0.5f
     }
 }
 
-internal class SpringSolution(response: Double, dampingFraction: Double) : TimeInterpolator {
+internal class SpringSolution(response: Double, dampingFraction: Double, private val settled: Double = SETTLED) : TimeInterpolator {
     private val omega = 2 * PI / response
     private val zeta = dampingFraction
 
@@ -82,7 +88,7 @@ internal class SpringSolution(response: Double, dampingFraction: Double) : TimeI
         var last = 0
         var step = 1
         while (step <= 10_000) {
-            if (abs(1 - position(step / 1000.0)) > SETTLED) last = step
+            if (abs(1 - position(step / 1000.0)) > settled) last = step
             step += 1
         }
         (last + 1).toLong()
@@ -92,6 +98,8 @@ internal class SpringSolution(response: Double, dampingFraction: Double) : TimeI
 
     companion object {
         const val SETTLED = 0.001
+        const val SETTLED_AT_MOST = 0.02
+        const val SETTLED_AT_MOST_ONCE = 0.00001
     }
 }
 
@@ -107,6 +115,8 @@ interface MotionSurface {
     fun cancelRenderThread()
 
     fun startClock(durationMillis: Long, onFrame: (Float) -> Unit, onEnd: (Boolean) -> Unit): MotionClock
+
+    fun pixels(channel: MotionChannel, change: Float): Float = change
 }
 
 interface MotionClock {
@@ -161,16 +171,18 @@ class MotionRunner(private val surface: MotionSurface) {
             if (before != null) onEnd?.invoke(true)
             return
         }
+        val travel = changed.maxOf { channel -> surface.pixels(channel, abs(next.value(channel)!! - before!!.value(channel)!!)) }
+        val fitted = nextCurve.overPixels(travel)
         from = before
-        curve = nextCurve
+        curve = fitted
         moving = changed
-        surface.startRenderThread(changed.filter { it != MotionChannel.CornerRadius }.associateWith { next.value(it)!! }, nextCurve)
+        surface.startRenderThread(changed.filter { it != MotionChannel.CornerRadius }.associateWith { next.value(it)!! }, fitted)
         val corners = MotionChannel.CornerRadius in changed
-        clock = surface.startClock(nextCurve.durationMillis, onFrame = { fraction ->
+        clock = surface.startClock(fitted.durationMillis, onFrame = { fraction ->
             if (corners && mine == move) {
                 val a = before!!.cornerRadius!!
                 val b = next.cornerRadius!!
-                surface.set(next.copy(cornerRadius = a + (b - a) * nextCurve.interpolator.getInterpolation(fraction)), setOf(MotionChannel.CornerRadius))
+                surface.set(next.copy(cornerRadius = a + (b - a) * fitted.interpolator.getInterpolation(fraction)), setOf(MotionChannel.CornerRadius))
             }
         }) { finished ->
             if (mine != move || reported == mine) return@startClock

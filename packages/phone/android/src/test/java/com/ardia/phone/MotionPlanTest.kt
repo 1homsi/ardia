@@ -121,17 +121,57 @@ class MotionPlanTest {
         assertTrue("a bouncy spring overshoots", (1..600).any { bouncy.progress(it / 1000.0) > 1.0 })
     }
 
+    private val cardSpring = MotionCurve.Spring(0.3, 1.0)
+
+    private fun pixelsLeftAtTheEnd(travel: Float): Double {
+        runner.show(MotionValues(translateY = 0f), cardSpring)
+        runner.show(MotionValues(translateY = travel), cardSpring)
+        val curve = surface.renderThread.last().second as MotionCurve.Spring
+        return (1 - curve.progress(curve.durationMillis / 1000.0)) * travel
+    }
+
+    @Test
+    fun aSpringEndsOnceLessThanHalfADevicePixelIsLeft() {
+        val left = pixelsLeftAtTheEnd(300f)
+        val curve = surface.renderThread.last().second as MotionCurve.Spring
+        assertTrue("half a pixel or less is left for the last frame's snap: $left", left <= 0.5)
+        assertTrue("a millisecond sooner more than half a pixel is left", (1 - curve.progress((curve.durationMillis - 2) / 1000.0)) * 300 > 0.5)
+        assertTrue("the card's 300 px growth ends near 410 ms, not the spring's 0.1% at ${cardSpring.durationMillis}: ${curve.durationMillis}", curve.durationMillis in 395L..425L)
+        assertTrue(curve.durationMillis < cardSpring.durationMillis)
+    }
+
+    @Test
+    fun aLongerMoveTakesLongerToComeWithinHalfAPixel() {
+        val short = pixelsLeftAtTheEnd(100f).let { surface.renderThread.last().second.durationMillis }
+        val long = pixelsLeftAtTheEnd(2000f).let { surface.renderThread.last().second.durationMillis }
+        assertTrue("$short < $long", short < long)
+        assertTrue("a 2000 px move needs more than the spring's 0.1%", long > cardSpring.durationMillis)
+    }
+
+    @Test
+    fun aTinyMoveStillRunsItsSpringUntilWithinTwoPercent() {
+        pixelsLeftAtTheEnd(5f)
+        assertEquals(MotionCurve.Spring(0.3, 1.0, SpringSolution.SETTLED_AT_MOST).durationMillis, surface.renderThread.last().second.durationMillis)
+    }
+
+    @Test
+    fun aTimingCurveIsNotFittedToTheMove() {
+        runner.show(MotionValues(), depart)
+        runner.show(departed, depart)
+        assertEquals(depart, surface.renderThread.single().second)
+    }
+
     @Test
     fun theCardsCornersGrowWithTheSameCurveBesideTheRenderThreadMove() {
         runner.show(MotionValues(scale = 0.8f, cornerRadius = 28f), expand)
         assertEquals(28f, surface.values.cornerRadius)
         runner.show(MotionValues(scale = 1f, cornerRadius = 55f), expand)
-        val (targets, _) = surface.renderThread.single()
+        val (targets, fitted) = surface.renderThread.single()
         assertEquals("the corners can't run on the render thread, so the clock moves them", mapOf(MotionChannel.Scale to 1f), targets)
         val clock = surface.clocks.single()
-        assertEquals(expand.durationMillis, clock.durationMillis)
+        assertEquals("the corners and the render thread share one curve", fitted.durationMillis, clock.durationMillis)
         clock.at(0.5f)
-        val half = 28f + (55f - 28f) * expand.interpolator.getInterpolation(0.5f)
+        val half = 28f + (55f - 28f) * fitted.interpolator.getInterpolation(0.5f)
         assertEquals(half, surface.values.cornerRadius!!, 0.001f)
         clock.finish()
         assertEquals(55f, surface.values.cornerRadius)
@@ -204,7 +244,8 @@ class MotionPlanTest {
         runner.show(fullPose, expand, start = cardPose)
         val (targets, curve) = surface.renderThread.single()
         assertEquals(mapOf(MotionChannel.TranslateY to 0f, MotionChannel.Scale to 1f), targets)
-        assertEquals(expand, curve)
+        assertEquals(expand.response, (curve as MotionCurve.Spring).response, 0.0)
+        assertEquals(expand.dampingFraction, curve.dampingFraction, 0.0)
         assertEquals("the start pose is shown first", 0.69f, surface.values.scale)
         assertEquals(140f, surface.values.translateY)
         assertEquals(28f, surface.values.cornerRadius)

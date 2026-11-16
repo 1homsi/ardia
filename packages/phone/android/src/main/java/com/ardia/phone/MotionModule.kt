@@ -103,6 +103,19 @@ class MotionView(context: Context, appContext: AppContext) : ExpoView(context, a
 
     override fun cancelRenderThread() = animate().cancel()
 
+    override fun pixels(channel: MotionChannel, change: Float): Float = when (channel) {
+        MotionChannel.TranslateX, MotionChannel.TranslateY, MotionChannel.CornerRadius -> change * density
+        MotionChannel.Scale -> change * reach() / 2f
+        MotionChannel.Opacity -> change * OPACITY_STEPS
+    }
+
+    private fun reach(): Float {
+        val laidOut = maxOf(width, height)
+        if (laidOut > 0) return laidOut.toFloat()
+        val screen = resources.displayMetrics
+        return maxOf(screen.widthPixels, screen.heightPixels).toFloat()
+    }
+
     override fun startClock(durationMillis: Long, onFrame: (Float) -> Unit, onEnd: (Boolean) -> Unit): MotionClock {
         val animator = ValueAnimator.ofFloat(0f, 1f).setDuration(durationMillis)
         animator.interpolator = LinearInterpolator()
@@ -126,6 +139,10 @@ class MotionView(context: Context, appContext: AppContext) : ExpoView(context, a
     override fun onDetachedFromWindow() {
         runner.interrupt()
         super.onDetachedFromWindow()
+    }
+
+    private companion object {
+        const val OPACITY_STEPS = 255f
     }
 }
 
