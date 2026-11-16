@@ -267,7 +267,7 @@ test("Chrome decides each sleep: a tab it keeps, or whose answer doesn't come in
   lifecycle.noteDiscarded(ids[0]);
   asked.length = 0;
   assert.deepEqual(await sweep(now + 12 * minute), []);
-  assert.deepEqual(asked.map(([id]) => id), [ids[5], ids[4], ids[1], ids[3]], "ten minutes later Chrome is asked again, the tab it had seen on screen as the most recent");
+  assert.deepEqual(asked.map(([id]) => id), [ids[3], ids[5], ids[4], ids[1]], "ten minutes later Chrome is asked again: first the tab it had only seen on screen, then the tabs it kept");
   assert.equal(takeTabSleepCounts().tabs_slept_over_budget, 2);
   lifecycle.noteReady(ids[2]);
   assert.equal(takeTabSleepCounts().tabs_slept_over_budget_reopened, 1, "a slept tab opened again within half an hour is counted: the sign the budget is too tight");
