@@ -430,7 +430,7 @@ class NetworkWatchTest(unittest.TestCase):
 
         self.assertTrue(run(go()).enabled)
 
-    def test_an_unconfirmed_disable_drops_the_cdp_session(self):
+    def test_an_unconfirmed_disable_keeps_the_cdp_session_for_the_rest_of_the_command(self):
         detached = []
 
         class Failing(WatchPage):
@@ -459,8 +459,31 @@ class NetworkWatchTest(unittest.TestCase):
             return page
 
         page = run(go())
-        self.assertIsNone(page.session_id)
-        self.assertEqual(detached, [("Target.detachFromTarget", {"sessionId": "S"})])
+        self.assertEqual(page.session_id, "S")
+        self.assertEqual(page.sent, ["Network.enable", "Network.disable"])
+        self.assertEqual(detached, [])
+
+    def test_a_request_from_before_the_watch_enabled_capture_is_not_its_own(self):
+        class LateRenderer(WatchPage):
+            async def send(self, method, params=None, **kwargs):
+                self.sent.append(method)
+                if method == "Network.enable":
+                    old = {"requestId": "old", "type": "XHR", "request": {"method": "POST", "url": "http://x/earlier"}}
+                    for listener in list(self.state.listeners):
+                        listener(self, "Network.requestWillBeSent", old)
+                return {}
+
+        async def go():
+            page = LateRenderer()
+            watch = changes.NetworkWatch(page)
+            await watch.start()
+            watch.listener(page, "Network.responseReceived", {"requestId": "old", "response": {"status": 200}})
+            watch.listener(page, "Network.requestWillBeSent", {"requestId": "new", "type": "Fetch", "request": {"method": "PUT", "url": "http://x/mine"}})
+            await watch.stop()
+            return watch
+
+        watch = run(go())
+        self.assertEqual([(write["method"], write["url"]) for write in watch.writes()], [("PUT", "http://x/mine")])
 
     def test_capture_already_on_is_left_on(self):
         async def go():
@@ -691,18 +714,32 @@ class AutoAttach(unittest.TestCase):
         state.refresh_targets = refresh
         return state
 
-    def test_token_path_takes_the_active_tab(self):
+    def test_a_session_without_a_tab_never_takes_the_users_tab(self):
+        state = self.state("http://127.0.0.1:1/ardia/active?token=x")
+        state.connect = mock.AsyncMock()
+        with mock.patch.object(state, "active_target", mock.AsyncMock(return_value="B")) as active, \
+                mock.patch.object(state, "shown_target", mock.AsyncMock(return_value="B")) as shown:
+            with self.assertRaises(BrowseError) as caught:
+                run(state.page())
+        self.assertEqual(caught.exception.code, "no_session_tab")
+        self.assertIn("`ardia browse open <url>`", str(caught.exception))
+        self.assertIn("`ardia browse tab active`", str(caught.exception))
+        active.assert_not_called()
+        shown.assert_not_called()
+        self.assertIsNone(state.current)
+        self.assertNotIn("attached", state.extras)
+
+    def test_tab_active_on_the_token_path_takes_the_active_tab_as_the_users(self):
         state = self.state("http://127.0.0.1:1/ardia/active?token=x")
         with mock.patch.object(state, "active_target", mock.AsyncMock(return_value="B")):
-            self.assertEqual(run(state.attach_active()), "B")
-        self.assertEqual(state.current, "B")
-        self.assertIn("[t1] B - http://b/", state.extras["notice"])
+            self.assertEqual(run(state.take_active()), "B")
+        self.assertEqual((state.current, state.extras["attached"]), ("B", "B"))
 
     def test_a_session_whose_tab_closed_does_not_move_to_the_users_tab(self):
         state = self.state(None)
         state.extras["had_tab"] = True
         state.connect = mock.AsyncMock()
-        state.attach_active = mock.AsyncMock(side_effect=AssertionError("must not auto-attach"))
+        state.take_active = mock.AsyncMock(side_effect=AssertionError("must not take the user's tab"))
         with self.assertRaises(BrowseError) as caught:
             run(state.page())
         self.assertEqual(caught.exception.code, "tab_gone")
@@ -711,22 +748,22 @@ class AutoAttach(unittest.TestCase):
         state = self.state("http://127.0.0.1:1/ardia/active?token=x")
         with mock.patch.object(state, "active_target", mock.AsyncMock(return_value=None)):
             with self.assertRaises(BrowseError) as caught:
-                run(state.attach_active())
+                run(state.take_active())
         self.assertEqual(caught.exception.code, "no_tab")
 
     def test_test_servers_take_visible_and_focused_then_visible(self):
         state = self.state(None)
         answers = {"A": (True, False), "B": (True, True)}
         with mock.patch.object(state, "probe", mock.AsyncMock(side_effect=lambda target: answers[target])):
-            self.assertEqual(run(state.attach_active()), "B")
+            self.assertEqual(run(state.take_active()), "B")
         state = self.state(None)
         answers = {"A": (False, False), "B": (True, False)}
         with mock.patch.object(state, "probe", mock.AsyncMock(side_effect=lambda target: answers[target])):
-            self.assertEqual(run(state.attach_active()), "B")
+            self.assertEqual(run(state.take_active()), "B")
         state = self.state(None)
         with mock.patch.object(state, "probe", mock.AsyncMock(return_value=(False, False))):
             with self.assertRaises(BrowseError):
-                run(state.attach_active())
+                run(state.take_active())
 
 
 class SiteNotes(unittest.TestCase):

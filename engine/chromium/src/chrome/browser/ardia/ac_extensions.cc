@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/functional/callback_helpers.h"
@@ -192,23 +193,33 @@ class ExtensionsState : public ProfileState {
               Reply reply,
               extensions::ExtensionInfoGenerator::ExtensionInfoList infos) {
     Drop(key);
+    base::ListValue list;
     ToolbarActionsModel* toolbar = ToolbarActionsModel::Get(profile());
     const bool toolbar_ready = toolbar && toolbar->actions_initialized();
-    const extensions::ExtensionIdList saved_pins =
-        toolbar_ready
-            ? extensions::ExtensionIdList()
-            : extensions::ExtensionPrefs::Get(profile())->GetPinnedExtensions();
-    base::ListValue list;
+    std::vector<ToolbarActionsModel::ActionId> toolbar_order;
+    if (toolbar_ready) {
+      toolbar_order = toolbar->pinned_action_ids();
+    } else {
+      for (const auto& id :
+           extensions::ExtensionPrefs::Get(profile())->GetPinnedExtensions()) {
+        const bool enabled = std::ranges::any_of(infos, [&id](const auto& info) {
+          return info.id == id &&
+                 info.state == developer::ExtensionState::kEnabled;
+        });
+        if (enabled) {
+          toolbar_order.push_back(id);
+        }
+      }
+    }
     for (const auto& info : infos) {
       if (info.type == developer::ExtensionType::kExtension) {
         base::DictValue entry = Entry(info);
-        entry.Set("pinned",
-                  toolbar_ready
-                      ? toolbar->HasAction(info.id) &&
-                            toolbar->IsActionPinned(info.id)
-                      : info.state == developer::ExtensionState::kEnabled &&
-                            std::ranges::find(saved_pins, info.id) !=
-                                saved_pins.end());
+        auto on_toolbar = std::ranges::find(toolbar_order, info.id);
+        entry.Set("pinned", on_toolbar != toolbar_order.end());
+        if (on_toolbar != toolbar_order.end()) {
+          entry.Set("pinnedIndex",
+                    static_cast<int>(on_toolbar - toolbar_order.begin()));
+        }
         const Extension* extension = Find(profile(), info.id);
         if (extension && !info.disable_reasons.blocked_by_policy &&
             info.state != developer::ExtensionState::kEnabled &&
@@ -500,6 +511,18 @@ AC_PROFILE_CALL(ac_extensions_configure) {
     if (model->IsActionPinned(id) != *pinned) {
       model->SetActionVisibility(id, *pinned);
     }
+  }
+  if (std::optional<int> index = call.args().FindInt("pinnedIndex")) {
+    ToolbarActionsModel* model = ToolbarActionsModel::Get(profile);
+    if (profile->IsOffTheRecord()) {
+      return call.TakeReply().Error(
+          "Toolbar order can't change in a private window");
+    }
+    if (!model->IsActionPinned(id)) {
+      return call.TakeReply().Error("The extension isn't pinned");
+    }
+    const int last = static_cast<int>(model->pinned_action_ids().size()) - 1;
+    model->MovePinnedAction(id, static_cast<size_t>(std::clamp(*index, 0, last)));
   }
   if (std::optional<bool> allow = call.args().FindBool("fileAccess")) {
     extensions::util::SetAllowFileAccess(id, profile, *allow);
