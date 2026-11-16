@@ -1075,7 +1075,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     $goStayed = $false
     if ($Submit -eq "Go") {
       Send-HumanText "e" $keyReads $KeyMs
-      $rested = @(Find-Named $Session.Main "Go") | Select-Object -First 1
+      $rested = @(@(Find-Named $Session.Main "Go") + @(Find-Named $Session.Main "Tour")) | Select-Object -First 1
       if ($rested) { Send-MouseMove $rested.X $rested.Y }
       $stop.Facts.Add("after the first letter, moved the mouse onto Go: $([bool]$rested)")
       Send-HumanText "xample.com" $keyReads $KeyMs
