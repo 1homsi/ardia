@@ -1350,7 +1350,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Settings | Filter lists, My Filters, Trusted Sites, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
 | Toasts | All kinds | not seen | | |
 | Extensions, widgets, intents | | match by construction | The Expo project compiles main's own sources for these | |
-| iPhone in landscape, Duo layouts | | decision | Main allows landscape and has Duo layouts; Expo is portrait only | decision |
+| iPhone in landscape, Duo layouts | | missing | Decided 2026-11-16: build it after Library, the grid and the pill, to the specification below; Expo is portrait only today | iPhone, screens |
 
 **Motions from main's pass (d199b885c)**:
 
@@ -1392,6 +1392,120 @@ Nothing here is done until it has been watched in the screens agent's own simula
 - Deck: the bar rising above the keyboard and back; Search Tabs typing (the gap-close, the scroll to the last match, the keyboard hiding on a tap); the plus menu above the new bar; the header and bar fading with the deck's open and close; the glass on the new pieces and the grid glyph.
 
 The owner's decisions on these (native menus on both phones, the entitlement requested) are in "Decided by the owner".
+
+#### Landscape and Duo: the specification
+
+Decided 2026-11-16: main has landscape and the Duo layouts, so the Expo app gets them, after the three missing screens
+(Library, deck grid, collapsed pill). Read from main's source at d2d73b04a (`apps/ios/App/Duo/*`, `RootView`,
+`BrowsingView`, `BottomBar`, `WebPageView`, `TabSwitcherView`, `TabDeckBar`, `DeckChrome`, `SearchTrayHost`,
+`SearchHomeView`, and the tokens in `ArdiaDesign/{BrowseTokens,TabsTokens,TabsDeckGeometry,Tokens}.swift`). Native
+side: the iPhone agent. Screens: the screens agent. Numbers are points.
+
+**Orientations.** Portrait, landscape left and landscape right; never upside down. iPhone only
+(`TARGETED_DEVICE_FAMILY = 1`), no `UIRequiresFullScreen`. In Expo that is `UISupportedInterfaceOrientations` in
+`apps/phone/ios/Ardia/Info.plist` (by hand: `app.json`'s `"default"` would add upside down). Android's manifest stays
+portrait until decided separately.
+
+**Choosing a layout** (main's `ScreenLayout.resolve`). It reads the safe-area size, the safe-area insets, the
+vertical bar edge trait, the hinge and the fold rectangle; never size classes, orientation or the model. The
+keyboard never changes it. Checked in this order:
+1. Hinge partly open and a horizontal fold (a division at least half the screen wide, wider than tall): `split`,
+   with `fold.top = rect.minY + safeTop` and `fold.bottom = rect.maxY + safeTop`.
+2. Safe-area size at least 600 by 600: `wide`.
+3. One side inset at least 60 (the vertical bar edge, or else one side at least 60, the other 0 and the top 0):
+   `column` on that edge, inset rounded up to a multiple of 12.
+4. Otherwise `phone`.
+
+A closed Duo (466×678, 84 trailing) is `column`; an open Duo (669×951, or 951×669 on its side) is `wide`; half open
+is `split`. An ordinary iPhone in landscape has equal side insets and stays `phone`. Open question, to settle on a
+simulator: whether iOS 27.1 reports the vertical bar edge on a plain iPhone in landscape; if it does, a Pro (62
+side insets) would get `column` with 72, and a non-Pro (59) would stay `phone`.
+
+A layout change is not animated: views swap at once. Pages are not reloaded (the web views are re-parented), the
+open search tray stays, and app state (tabs, surface, grid, sheets) survives. Going between `phone` and `wide`
+resets the browsing view's own state: the bar comes back expanded and the sidebar closes. A plain rotation stays
+`phone` and keeps everything, the deck's scroll included.
+
+**`phone`, which is also iPhone landscape.**
+- Page: full screen under the safe area. Obscured insets top = safe top, bottom = bar height 75, left and right 0,
+  re-applied whenever the safe area changes (rotation). In landscape the safe top is 0 (no status bar), so the
+  status-tone strip is 0 high.
+- Bar: stays at the bottom, one row (tabs circle 48, address capsule 48 high and flexible, plus circle 48), gap 8.
+  Horizontal padding = `max(left, right)` + 12 on **both** sides, so the bar stays centred; no maximum width (852
+  wide with 59 insets gives a 598 address capsule). 21.5 above the bottom edge, ignoring the safe area. Collapsed
+  pill unchanged (30 high, at most 240 wide).
+- Pager: the full screen width.
+- Search tray: the panel is the safe width less 8 each side, so it clears the island; radius 26; 8 above the
+  keyboard; height `min(274 + 47.5·(fieldScale − 1), safeH + safeBottom − keyboard − 16)`, the keyboard term
+  usually winning in landscape.
+- Deck: side padding `max(left, right)` for the header (+12), the bottom bar (+12) and the grid (+16).
+  Cards take the screen's aspect: `cardW = min(W·306/440, band/(H/W))`, with `bandTop = chromeBottom + 41`,
+  `bandBottom = H − max(safeBottom, 20) − 43`, band at least 120; `focusLeading = W·66/440`,
+  `spacing = min(cardW, W·218/440)`, `barCenterY = H − max(safeBottom, 20) − 11`. Check at 852×393, safe top 0,
+  safe bottom 21: card 520.3×240, centre y 209, focus leading 127.8, spacing 422.1, bar centre 361; with the archive
+  card, 407.6×188.
+- Start page: `safeSide = max(left, right)` as now; nothing else changes. Main lets a second row of tiles run into
+  the page dots at 393 high; match it, and note it as main's.
+- Page menu, share sheet, Settings, Archive and the other sheets: the system's, no landscape rules.
+
+**`column`** (closed Duo, or any one-sided inset of 60 or more).
+- `contentWidth = W − inset`. The button column's centre is `min(48, inset − 24)` from the column edge, its top 166,
+  buttons 48, spacing 7.
+- Page: padded by the inset on the column edge; behind it the system background, not the look's surface; obscured
+  insets 0 top and bottom. The column holds Tabs, the site button (48 circle: favicon 18, the reader glasses, or a
+  warning triangle), the menu button and Plus. It never collapses; it fades with the bar's motion.
+- Deck: `contentWidth` wide with side padding 0, away from the column; the backdrop runs full width. The header
+  drops its `···`; the column holds grid, Search Tabs, `···` (48) and Plus. The Search Tabs field floats over the
+  cards, `contentWidth − 24` wide, centred in the content, at y 245, fading over 0.25 s.
+- Start page: the spaces are `contentWidth` wide, away from the column; the dots sit at the bar's centre line, not
+  60 above it; the bar becomes a column of Tabs, Plus, Settings.
+- Search, the page menu, Settings and onboarding keep the phone layout.
+
+**`wide`** (open Duo, 600 both ways). The deck is never shown; the start page keeps the phone arrangement.
+- Card: x = 11 + left, y = `max(33, safeTop + 4)`, width `W − 22 − left − right`, bottom margin
+  `max(9, safeBottom − 20)`; radius 16 continuous; shadow black 0.12, radius 10, y 2. The page inside has no bar; its
+  content inset and obscured top are 63 (toolbar 45 + 9 above and below), bottom 0.
+- Toolbar at the card's top + 9, card wide, padding 8, gap 7: back, forward, reload or stop as 45 circles with 18
+  medium glyphs; the address capsule (44 high, leading 8, trailing 20, inner gap 10, a 30×44 sidebar button with a
+  17 glyph, the host at 15 with a 13 lock, capped at xxLarge) centred between spacers; share and `···`. The capsule
+  hides while the sidebar shows. The toolbar's scheme follows the page tone at the top.
+- Sidebar over the card: a black 0.12 dim over the screen (tap hides); 260 wide, `H − 11 − bottom margin` high, at
+  x = 11 + left, y = 11; radius 16, filled with the look's surface (Incognito's sheet colour in Incognito); shadow
+  black 0.18, radius 18, y 4. Header 50 high from 25: the space switcher, `···` (44) and the sidebar button (44).
+  Address field 43 high, padding 10 outside and 18 inside. Spaces page sideways when there is more than one. Pinned
+  tiles 2 a row; "Today" heading (leading 19, top 16, bottom 4); rows 41 high on a 46 pitch, radius 11, lead 13,
+  icon 18, gap 12; the selected row glass with a 44×41 close (xmark 13 semibold); a New Tab row; dots 8 above and 26
+  below. Slides with `smooth`; under Reduce Motion an opacity change over 0.2 s.
+- Entering `wide` with the deck up: a selected tab goes to browsing and, with no fold, the sidebar opens. Picking a
+  tab browses it; starting a search or a fold change hides the sidebar; hiding it from the deck with no tab selected
+  goes to the start page.
+- Search is a command bar instead of the tray: top = card top + 127 − safe top, side padding 27 + 8, height at most
+  `min(484, keyboardTop − top − 24)`; top-anchored, fading in from 0.96 scale; no resting drop.
+
+**`split`** (half open). Card x 11, width `W − 22` (side insets unused), y the card top, height
+`max(fold.top − y − 11, 120)`; toolbar without the address. Below the fold, the sidebar as a panel `W` by
+`H − fold.bottom`, bottom padding the safe bottom, no background (the backdrop shows), no tiles, header from 16, no
+sidebar button. Search uses the phone tray.
+
+**Safe areas in landscape.** The page runs under the island. Every bar (browsing, deck header and bar, start bar
+and tiles) pads by `max(left, right)` on both sides; the tray uses the safe width. The browsing bar sits 21.5 above
+the edge, the deck and start bars at `max(safeBottom, 20) + 11`.
+
+**What Expo has to change.**
+
+| Piece | Change | Owner |
+| --- | --- | --- |
+| `apps/phone/ios/Ardia/Info.plist` | The three orientations | iPhone |
+| `PageView` (`packages/phone/ios`) | Re-apply obscured insets on a safe-area change; a top content inset (63 in `wide`) beside the obscured insets | iPhone |
+| Simulation | A test-build switch forcing `wide`, `split` and `column` on a phone, as main's `-ArdiaDuoCanvas` does, plus the layout probe (vertical bar edge, hinge, fold) as a native module function | iPhone |
+| `App.tsx` | Resolve the layout from window size, insets and the probe; swap in the Duo view | screens |
+| `FloatingBar`, `BottomBar`, `barGeometry` | Pad by `max(left, right)`; the column arrangement | screens |
+| `PageSurface`, `TabPager` | Insets and pager width on rotation; the `wide` clearance | screens |
+| `TabDeck`, `DeckHeader`, `DeckBottomBar`, `deckGeometry` | `safeSide = max(left, right)` (it passes 0 now); the landscape card formula; the column variant | screens |
+| `SearchTray` | Side safe area; the `wide` command bar | screens |
+| `StartPage`, `StartSpaces` | The column and dots variants | screens |
+| `Sheet`, `FullSheet` | Check width and height in landscape (main uses system sheets) | screens |
+| New | Duo toolbar, sidebar, card, column stack | screens |
 
 ### Tester checklist for the next build
 
