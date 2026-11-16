@@ -1353,7 +1353,8 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Deck | Grid view | match | Main's grid (adaptive columns, title row with close, selected edge, card menu, cross-fade, remembered). It opens centred on the selected tab as laid out (measured cell, viewport and content, one scroll), so its rows sit where main's do on the simulator; the bar's Show as Stack glyph is main's `square.stack`, within 1 pt | screens |
 | Deck | Card menu | match | System menu over the lifted card: Copy Link, Share, Send to MacBook Pro, Pin to Mac, Move to Space, Close Tab | |
 | Deck | Close and poof | match | Closed from the card menu in both: the card goes in about 83 to 166 ms, the gap closes by 250, rest by about 450 ms against main's 470 (`s-e-light`/`s-m-light`/close.mp4) | |
-| Deck | Search Tabs, Incognito pill | not seen | | |
+| Deck | Search Tabs | match | Typing "wiki": the bar rises above the keyboard and the deck narrows to the same Wikipedia tabs (`pairs3/search-tabs.png`) | |
+| Deck | Incognito pill | not seen | | |
 | Deck | Dark | match | Deck, `···` menu and card menu as in light; once a card showed its placeholder (title and host) where main showed the snapshot, on the first deck open after a fresh install in dark | screens |
 | Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet | |
 | Archive | Sheet | match | Light and dark | |
