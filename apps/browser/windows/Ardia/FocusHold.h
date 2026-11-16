@@ -39,6 +39,7 @@ struct FocusHold {
   std::string command;
   ULONGLONG startedAt = 0;
   int claimedTag = 0;
+  int askedTag = 0;
   int focusedTag = 0;
   bool ready = false;
   bool sentinelOut = false;
@@ -143,6 +144,7 @@ struct FocusHold {
     command = name;
     startedAt = GetTickCount64();
     claimedTag = 0;
+    askedTag = 0;
     ready = false;
     sentinelOut = false;
     held.clear();
@@ -254,6 +256,7 @@ struct FocusHold {
 
   void Claim(int claimed, int tag) noexcept {
     if (!active || claimed != generation || tag <= 0) return;
+    if (askedTag && askedTag != tag) return Drop("focus", L"another field was asked to take focus");
     claimedTag = tag;
     Ready();
   }
@@ -270,7 +273,9 @@ struct FocusHold {
   }
 
   void Asked(int tag) noexcept {
-    if (active && claimedTag && tag != claimedTag) Drop("focus", L"another field was asked to take focus");
+    if (!active) return;
+    if (!claimedTag) askedTag = tag;
+    else if (tag != claimedTag) Drop("focus", L"another field was asked to take focus");
   }
 
   void Blurred(int tag) noexcept {
@@ -284,6 +289,7 @@ struct FocusHold {
 
   void Ready() noexcept {
     if (!active || ready || !claimedTag || focusedTag != claimedTag || GetTickCount64() - startedAt < ReadyFloorMs()) return;
+    if (GetTickCount64() - startedAt > kReadyMs) return Drop("timeout", L"no field took the keyboard in 3 s");
     ready = true;
     Pump();
   }
