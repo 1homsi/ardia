@@ -12,6 +12,13 @@ public class AppModule: Module {
       DispatchQueue.main.async { AppIcons.restore() }
     }
 
+    Function("interfaceScale") { () -> Double in Double(InterfaceScale.scale) }
+    Function("interfaceScaleRange") { () -> [Double] in [Double(InterfaceScale.minimum), Double(InterfaceScale.maximum)] }
+    AsyncFunction("setInterfaceScale") { (scale: Double) -> Double in
+      InterfaceScale.scale = CGFloat(scale)
+      return Double(InterfaceScale.scale)
+    }.runOnQueue(.main)
+
     AsyncFunction("setWindowActivity") { (windowId: String, url: String?, title: String?) in
       Handoff.setActivity(windowId: windowId, url: url, title: title)
     }.runOnQueue(.main)
