@@ -153,8 +153,7 @@ export const noteEmptyTabSidebarExtensionPress = () => counts.emptyTabSidebarExt
 export const noteToolbarExtensionMove = (via: "drag" | "menu") => void (counts.toolbarExtensionMoves++, via === "menu" && counts.toolbarExtensionMenuMoves++);
 
 export const noteContentBlockerUnavailable = () => counts.contentBlockerUnavailable++;
-export const noteContentBlockerWriteFailure = () => counts.contentBlockerWriteFailures++;
-export const noteBlockedPageBehind = () => counts.contentBlockerPagesBehind++;
+export const noteContentBlockerWriteFailure = () => counts.contentBlockerWriteFailures++, noteBlockedPageBehind = () => counts.contentBlockerPagesBehind++;
 export const noteCustomFilterList = (event: "added" | "addFailed" | "removed") => void counts[({ added: "contentBlockerCustomListsAdded", addFailed: "contentBlockerCustomListAddFailures", removed: "contentBlockerCustomListsRemoved" } as const)[event]]++;
 
 export function noteCliEdits(tabEdits: number, groupEdits: number, failures: number) {
