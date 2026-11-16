@@ -24,9 +24,10 @@
 # and the web-browser entitlement only with --default-browser).
 #
 # --unsigned archives without signing and stops after the checks: proof without the Apple account.
-# --no-upload signs and exports an .ipa. Otherwise it uploads. Signing and upload take ASC_KEY (path to the
-# .p8), ASC_KEY_ID and ASC_ISSUER, or the account Xcode is signed in to. Output and logs go to
-# dist/ios-expo/<release version>-<build>, or --out.
+# --no-upload signs the archive and stops: nothing reaches App Store Connect, whose app-store export opens an
+# upload record and takes the build number even when it only writes an .ipa. Otherwise it exports and uploads.
+# Signing and upload take ASC_KEY (path to the .p8), ASC_KEY_ID and ASC_ISSUER, or the account Xcode is signed
+# in to. Output and logs go to dist/ios-expo/<release version>-<build>, or --out.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -183,25 +184,14 @@ if [ "$unsigned" = 0 ]; then
 fi
 echo "checks passed: $(du -sk "$app" | awk '{printf "%.1f MB", $1 / 1024}') installed, JS $commit, release $release_version, build $build"
 
-if [ "$unsigned" = 1 ]; then
-  echo "Unsigned archive, nothing exported: $archive"
+if [ "$upload" = 0 ]; then
+  if [ "$unsigned" = 1 ]; then echo "Unsigned archive, nothing sent to App Store Connect: $archive"; else echo "Signed archive, nothing sent to App Store Connect: $archive"; fi
   exit 0
 fi
 
 options="$out/ExportOptions.plist"
 cp "$root/apps/phone/ios/Config/ExportOptions-TestFlight.plist" "$options"
-if [ "$upload" = 1 ]; then step=upload; else
-  step=export
-  /usr/libexec/PlistBuddy -c "Set :destination export" "$options"
-fi
-run_logged "$step" xcodebuild -exportArchive \
+run_logged upload xcodebuild -exportArchive \
   -archivePath "$archive" -exportOptionsPlist "$options" -exportPath "$out/export" \
   -allowProvisioningUpdates ${auth[@]+"${auth[@]}"}
-
-if [ "$upload" = 1 ]; then
-  echo "Uploaded Ardia for iPhone (Expo) $release_version ($build) to App Store Connect."
-else
-  ipa="$(find "$out/export" -maxdepth 1 -name '*.ipa' | head -1)"
-  [ -n "$ipa" ] || die "the export wrote no .ipa"
-  echo "Signed, not uploaded: $ipa"
-fi
+echo "Uploaded Ardia for iPhone (Expo) $release_version ($build) to App Store Connect."

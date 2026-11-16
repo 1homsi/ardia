@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight's Internal group; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; expire ends testing of an older build for good; certificate makes the development certificate CI signs with
+        description: status lists what App Store Connect holds; dry-run builds and signs the archive and sends nothing to App Store Connect; upload sends the build to TestFlight's Internal group; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; expire ends testing of an older build for good; certificate makes the development certificate CI signs with
         type: choice
         options: [status, dry-run, upload, public-link, add-tester, expire, certificate]
         default: status

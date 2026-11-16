@@ -2899,7 +2899,8 @@ d5fbaabc1). After a hand edit to the project, run `pod install` and commit what 
 - **What is left to press, in order. None of it is an agent's to do on its own:**
   1. **Push this branch** (`git push origin t3/unify-expo-architecture`). GitHub holds e508d5cc5, without the release
      path. Or merge the branch into `main`.
-  2. **A CI dry run**, which signs with the team's stored certificate but uploads nothing: `gh workflow run
+  2. **A CI dry run**, which signs the archive with the team's stored certificate and sends nothing to App Store
+     Connect: `gh workflow run
      ios-release.yml --ref t3/unify-expo-architecture -f mode=dry-run -f version=<release version>`.
      - It runs from the branch: `ios-release.yml` exists on `main`, so it can be dispatched, and the run uses the
        branch's copy.
@@ -3107,10 +3108,19 @@ core has its own). Not applicable: the default-browser status (no entitlement in
 This was `docs/ios.md`'s, for main's SwiftUI app; since the clean-up the workflow builds only the Expo app.
 - **The app record.** "Ardia", bundle id `com.ardia.browser.ios`, team `U5L5T3NGVV`; the extensions are `.widgets`,
   `.share` and `.open`, sharing the app group `group.com.ardia.browser.ios`.
-- **The workflow** (`.github/workflows/ios-release.yml`). `mode=status` lists what App Store Connect holds and builds
-  nothing; `mode=dry-run` stops at the signed .ipa; `mode=upload` uploads through the App Store Connect key the Mac
-  release notarizes with (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`) and waits for processing. The build number
-  is the one after the highest uploaded, refused uploads included, unless `build` is set. An upload goes to the
+- **The workflow** (`.github/workflows/ios-release.yml`). What each mode touches in App Store Connect:
+  - `mode=status` only reads: the app record, App IDs, devices, certificates, profiles, builds, build uploads and
+    tester groups.
+  - `mode=dry-run` reads the next build number, archives and signs with the stored development certificate
+    (automatic signing, so Xcode may refresh its own managed profiles, as main's SwiftUI release always did), runs
+    the checks and stops. It sends nothing. Until 2026-11-16 it also ran the app-store export, which opened an
+    upload record and took the number though no build was sent: dry runs 43776739132 and 43868789082 left 0.2.47
+    (10) and (11) as `AWAITING_UPLOAD`, and main's SwiftUI dry runs ran the same export.
+  - `mode=upload` does the same, then exports for App Store Connect through the key the Mac release notarizes with
+    (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`), which opens the upload record and sends the build, and
+    waits for processing.
+  - The build number is one more than the highest App Store Connect has recorded, builds and upload records alike,
+    unless `build` is set. With (10) and (11) held by empty records, the next upload is 0.2.47 (12). An upload goes to the
   Internal group only: `public_testers` is off by default, and an upload with it on is refused until the owner moves
   the Expo app to public testers. On a Mac, `apps/phone/scripts/release-ios` does the same with the account Xcode is
   signed in to, or with `ASC_KEY`, `ASC_KEY_ID` and `ASC_ISSUER`; `node apps/phone/scripts/asc.mjs --help` lists the
