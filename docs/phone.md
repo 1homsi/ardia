@@ -1403,8 +1403,8 @@ side: the iPhone agent. Screens: the screens agent. Numbers are points.
 
 **Orientations.** Portrait, landscape left and landscape right; never upside down. iPhone only
 (`TARGETED_DEVICE_FAMILY = 1`), no `UIRequiresFullScreen`. In Expo that is `UISupportedInterfaceOrientations` in
-`apps/phone/ios/Ardia/Info.plist` (by hand: `app.json`'s `"default"` would add upside down). Android's manifest stays
-portrait until decided separately.
+`apps/phone/ios/Ardia/Info.plist` (by hand: `app.json`'s `"default"` would add upside down). Android rotates too, as
+the Compose app does: see "Android's half" below.
 
 **Choosing a layout** (main's `ScreenLayout.resolve`). It reads the safe-area size, the safe-area insets, the
 vertical bar edge trait, the hinge and the fold rectangle; never size classes, orientation or the model. The
@@ -1491,11 +1491,50 @@ sidebar button. Search uses the phone tray.
 and tiles) pads by `max(left, right)` on both sides; the tray uses the safe width. The browsing bar sits 21.5 above
 the edge, the deck and start bars at `max(safeBottom, 20) + 11`.
 
+**Android's half**, read from the Compose app (`apps/android`, 2026-11-16). The owner's app rotates on both phones;
+the Compose app has no orientation lock.
+- **Orientation.** Compose's main activity declares no `screenOrientation`, so the whole app follows the phone: it
+  turns with auto-rotate on and stays put under the user's rotation lock. Upside-down portrait comes only where the
+  system offers it, which phones usually don't for apps.
+  - Its `configChanges` take orientation, screen size, smallest width and layout, so a rotation recreates nothing.
+  - The Expo app's `MainActivity` is locked to `portrait` in `apps/phone/android/app/src/main/AndroidManifest.xml`;
+    the lock goes. Its `configChanges` already cover rotation.
+- **Fullscreen video.** Compose hides the system bars (transient by swipe), asks for no orientation, and the video
+  turns only as the whole app does. It ends on Back (the first thing Back closes) or when the page leaves
+  fullscreen. **Rotation never ends it.**
+  - Expo's `FullscreenHost` asks for `FULL_USER` while a video shows and puts back the portrait it found on exit
+    (e1c2afc18).
+  - On the F4 at expo58j, rotating back to portrait kept the video fullscreen, as Compose does. At expo58i it had
+    ended fullscreen. What changed between them was the inset hold keeping the covered page's insets steady (the
+    likely cause, unproven).
+  - Once the manifest lock goes, `FullscreenHost` asks for no orientation at all.
+- **Layouts.** Compose has no separate landscape layouts. Every screen sizes itself from its window and the safe
+  drawing insets:
+  - **Deck:** `TabsDeckGeometry(window, safeTop, safeBottom, safeSide = max(left, right))`, main's earlier Swift
+    formula. Its test pins 852×393, safe top 0, safe bottom 21: card 592.5 wide, spacing 422.1, left reach 70.2,
+    card centre y 185. Main's current formula, above, gives a 520.3 card. Follow main's, and note the difference.
+  - **Archive and Spaces:** pad by the safe drawing insets, top and sides, with the bottom as content padding.
+  - **Sheets:** full width, status-bar padding on top, at most the window height less 24 dp, navigation-bar
+    padding inside.
+  - **Find bar and reader:** navigation-bar padding.
+  - **Page pager:** the window's width.
+- **Insets in landscape.** With 3-button navigation, landscape moves the navigation bar to a side (about 47 dp on
+  the F4), next to any cutout; gesture navigation keeps it at the bottom. `max(left, right)` covers both cases.
+  - The inset hold (`InsetHold`) holds only a navigation bar dropping to zero at a light/dark change. A rotation
+    ends any hold, so the new side inset gets through at once (F4, expo58j: the video filled landscape, and the deck
+    never saw a zero).
+- **Not read yet; check on the F4 once the lock is gone:**
+  - the side padding of Compose's browsing bar;
+  - what Compose does when turned with the deck mid-scroll;
+  - the Expo app at 2400×1080 with the navigation bar on a side.
+
 **What Expo has to change.**
 
 | Piece | Change | Owner |
 | --- | --- | --- |
 | `apps/phone/ios/Ardia/Info.plist` | The three orientations | iPhone |
+| `apps/phone/android/app/src/main/AndroidManifest.xml` | Drop `screenOrientation="portrait"` from `MainActivity` | Android |
+| `FullscreenHost` (`packages/phone/android`) | Ask for no orientation once the lock is gone; never end fullscreen on rotation | Android |
 | `PageView` (`packages/phone/ios`) | Re-apply obscured insets on a safe-area change; a top content inset (63 in `wide`) beside the obscured insets | iPhone |
 | Simulation | A test-build switch forcing `wide`, `split` and `column` on a phone, as main's `-ArdiaDuoCanvas` does, plus the layout probe (vertical bar edge, hinge, fold) as a native module function | iPhone |
 | `App.tsx` | Resolve the layout from window size, insets and the probe; swap in the Duo view | screens |
