@@ -1339,7 +1339,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Page | Private | match | Same page and bar with the Incognito glasses | |
 | Page | Loading | match | Main's centred placeholder (44 pt icon, 17 pt semibold title, host), its theme-colour and title rules, 250 ms wait then 150 ms fade | |
 | Page | Failure | match | Main's filled Try Again capsule, 50 pt, and the icon at main's size | |
-| Page | Page dialogs | not seen | | |
+| Page | Page dialogs | different | Main shows the system alert (glass, a full-width OK capsule); ours draws a JavaScript `Dialog` (PageRequests.tsx) like the old card with a blue OK on the right. React Native's `Alert.alert` and `Alert.prompt` are UIAlertController and get the system look (`s-e-light`/`s-m-light`/dialog-alert) | screens |
 | Page | Collapsed bar (host pill) | match | Main's glass host pill on scroll down, tap or scroll up to expand, 3fa565c4f | |
 | Page | Tabs button menu | match | Main's BarControls: up to eight recent tabs, a divider, Close Tab; Previous and Next Tab are its VoiceOver actions, not menu items. Ours is the system menu with the same items | |
 | Page | Find on Page | match by decision | The system find navigator by default since ec6f9bc52 | |
@@ -1352,16 +1352,21 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Deck | `···` menu | match | The system menu with main's items, place and glass (22045b612); the button's glass since 34c24a317. Reopen Closed Tab follows the same undo rule as main's (archiving and closing are undoable); a fresh demo lacks it only because main's demo seed archives through `archive()`, which fills the undo stack, and ours writes the archived pages straight to the database | |
 | Deck | Grid view | match | Main's grid (adaptive columns, title row with close, selected edge, card menu, cross-fade, remembered). It opens centred on the selected tab as laid out (measured cell, viewport and content, one scroll), so its rows sit where main's do on the simulator; the bar's Show as Stack glyph is main's `square.stack`, within 1 pt | screens |
 | Deck | Card menu | match | System menu over the lifted card: Copy Link, Share, Send to MacBook Pro, Pin to Mac, Move to Space, Close Tab | |
-| Deck | Close and poof, Search Tabs, Incognito pill | not seen | A scripted upward swipe closed no card in either app | |
+| Deck | Close and poof | match | Closed from the card menu in both: the card goes in about 83 to 166 ms, the gap closes by 250, rest by about 450 ms against main's 470 (`s-e-light`/`s-m-light`/close.mp4) | |
+| Deck | Search Tabs, Incognito pill | not seen | | |
+| Deck | Dark | match | Deck, `···` menu and card menu as in light; once a card showed its placeholder (title and host) where main showed the snapshot, on the first deck open after a fresh install in dark | screens |
 | Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet | |
 | Archive | Sheet | match | Light and dark | |
-| Library | History, Bookmarks, Downloads sheet | match | History seen beside main's; Bookmarks and Downloads seen, main's not yet captured. Ours uses the system toolbar and search field where main hides the bar and draws its own capsules | screens |
+| Library | History, Bookmarks, Downloads sheet | match | History, Bookmarks and Downloads seen beside main's, light and dark (`pairs3`, `pairs4`). Ours uses the system toolbar and search field where main hides the bar and draws its own capsules | screens |
 | Settings | Root, Sync With Mac, Appearance, Search Engine, Clear Browsing Data | match | | |
 | Settings | Site Settings | match | Permissions persist (942dc45df); the permission rows carry main's 22 pt favicons, d09343dba | |
 | Settings | Trusted Sites | match | Empty state the same | |
 | Settings | Filter Lists | match | The demo now uses main's demo lists (`FilterLists.demo`, as main's AppModel does): a fresh demo install shows 11 lists and 271,481 rules at once, no downloads. Neither app bundles list files: a real install downloads them, and the built-in seed rules block from the first page, network or not (`PhoneBlockingTests`); on the simulator 46 requests were blocked within 5 s of a fresh launch | |
-| Settings | My Filters, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
-| Toasts | All kinds | not seen | | |
+| Settings | My Filters | different | Same editor and footer; main's top bar is drawn in the space's colour and its Apply is a filled glass capsule, ours a white bar and a pale Apply (`pairs3`, `pairs4`) | screens |
+| Settings | About | match | The app icon since 042a23ace (main's asset catalog); the version reads "Ardia Dev (1)", as current main's AppVersionLabel does for a build without a release version (the reference SwiftUI build predates it) | |
+| Settings | Licenses | match | | |
+| Settings | Connect pages | match | The connect flow worked end to end on 2026-11-16 | |
+| Toasts | Copy Link | match | Neither app shows a toast half a second after Copy Link in the page menu; both keep the menu open. Other kinds not seen | |
 | Extensions, widgets, intents | | match by construction | The Expo project compiles main's own sources for these | |
 | iPhone in landscape, Duo layouts | | partly | Decided 2026-11-16. Built to the specification below. `phone` in landscape (db4823c0f and this change): every bar pads by `max(left, right)`, the deck takes main's landscape card, and the archive capsule now swaps the deck to main's archive geometry (407.6×188 at 852×393; 273.2 wide in portrait on a 402×874 iPhone), springing from the old card as main animates it. Seen on the iPhone 18 Pro simulator turned on its side: browsing, the deck with and without the capsule. `column`, `wide` and `split` are built (components/column, components/duo) and switch from the native probe (44797e4ed); under `-ArdiaDuoCanvas` on the iPhone 18 Pro each draws, but the 669×951 canvas overflows that screen, so their sizes still need the iPhone Duo simulator. `column` seen beside main on the iPhone Duo simulator closed (466×678, trailing 84): the deck's and browsing's columns land on main's, and the deck now clips its cards at the content edge as main's does. Simlock's Duo can't fold or turn (its scoped simulator set has no hinge), so `wide`, `split` and the open Duo on its side still wait for a Duo in the default set. Not matched yet: the command bar is fixed at its greatest height where main fits its rows; the status bar in `wide` follows the backdrop rather than the page's top tone | screens |
 
