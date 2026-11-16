@@ -305,11 +305,15 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     fresh New Tab page commits its bar alone, and the bar focuses in its commit's layout effect, with the layout event
     as the fallback. The rest of the page (the logo mark, the intro glow, the bar's shadows, `NewTabExtras`) mounts a
     frame after the bar lays out.
-  - **Launch log:** `new tab bar page|committed|focused|rest <tab>` (`platform/newTabMarks.windows.ts`).
-  - **Tour:** the `first-run` part of `scripts/windows/tour.ps1` types at a person's pace, the first key 100 ms after
-    Ctrl+T, then 30 ms a key. It does so in fresh launches after Get Started, during and after the tool tour, under
-    CPU and disk load, and with the Go button, and reports the gap from the `newTab` command to each mark. A
-    report-only stop types from 15 ms after Ctrl+T.
+  - **Launch log:** `new tab bar page|committed|focused|rest|typed <tab>` (`platform/newTabMarks.windows.ts`);
+    `typed` is the bar's first typed change, once per page.
+  - **Tour:** the `first-run` part of `scripts/windows/tour.ps1` presses Ctrl+T and types the first key 100 ms later,
+    in fresh launches after Get Started, during and after the tool tour, under CPU and disk load, and with the Go
+    button. A stop fails only when the new tab's bar takes focus more than 90 ms after the `newTab` command (the
+    worst seen was 69 ms under load), or the first key does not land in the new tab's bar (its first `typed` mark
+    after the command, and the settled text starting with that key). The rest is report only: the whole text at
+    30 ms a key (#2101), where Go goes (#2102), a stop typing from 15 ms after Ctrl+T (#2099), and three launches
+    each typing at 80 and at 120 ms a key that read the field after every key.
   - **Not covered:** a JS thread that stalls for hundreds of ms, as on a slow first launch (#2059). That needs the
     native key hold the Mac has (#2099).
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in

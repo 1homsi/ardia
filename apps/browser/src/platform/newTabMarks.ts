@@ -1,4 +1,4 @@
-export type NewTabBarStage = "page" | "committed" | "focused" | "rest";
+export type NewTabBarStage = "page" | "committed" | "focused" | "rest" | "typed";
 
 export type MarkNewTabBar = (stage: NewTabBarStage, tabId: string) => void;
 

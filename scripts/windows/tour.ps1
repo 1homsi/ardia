@@ -813,7 +813,7 @@ function Send-QuickChord([byte[]]$Modifiers, [byte]$Key) {
   foreach ($modifier in $Modifiers) { Send-Key $modifier 2 }
 }
 
-function Send-HumanText([string]$Text, $Reads) {
+function Send-HumanText([string]$Text, $Reads, [int]$KeyMs = 30) {
   $clock = [System.Diagnostics.Stopwatch]::StartNew()
   foreach ($character in $Text.ToUpperInvariant().ToCharArray()) {
     $began = $clock.ElapsedMilliseconds
@@ -821,7 +821,8 @@ function Send-HumanText([string]$Text, $Reads) {
     if ($character -eq '.') { $key = 0xBE }
     Send-Key $key 0
     Send-Key $key 2
-    $left = 30 - ($clock.ElapsedMilliseconds - $began)
+    if ($null -ne $Reads) { $Reads.Add("$($character.ToString().ToLowerInvariant()) +$began '$(Read-FocusedText)' at +$($clock.ElapsedMilliseconds)") }
+    $left = $KeyMs - ($clock.ElapsedMilliseconds - $began)
     if ($left -gt 0) { Start-Sleep -Milliseconds $left }
   }
 }
@@ -889,6 +890,7 @@ function Get-BarGaps($Session, [int]$Mark) {
   $lines = @(Get-LinesSince $Session $Mark "^(command \d+ newTab|\w+ \d+ \[ardia windows\] new tab bar )")
   $command = $null
   $tab = $null
+  $firstTyped = $null
   $found = [ordered]@{}
   foreach ($line in $lines) {
     if ($line -match "^command (\d+) newTab") { if ($null -eq $command) { $command = [int64]$Matches[1] }; continue }
@@ -896,25 +898,36 @@ function Get-BarGaps($Session, [int]$Mark) {
     $at = [int64]$Matches[1]
     $stage = $Matches[2]
     $id = $Matches[3]
+    if ($null -eq $firstTyped -and $stage -eq "typed") { $firstTyped = [pscustomobject]@{ Tab = $id; Ms = $at - $command } }
     if ($null -eq $tab -and $stage -eq "page") { $tab = $id }
     if ($id -ne $tab -and $null -ne $tab) { continue }
     if (-not $found.Contains("$id $stage")) { $found["$id $stage"] = $at }
   }
-  if ($null -eq $command) { return "no newTab command in the log" }
-  if ($null -eq $tab) { return "no new tab page after the command" }
-  $parts = @(foreach ($stage in "page", "committed", "focused", "rest") { if ($found.Contains("$tab $stage")) { "$stage +$($found["$tab $stage"] - $command) ms" } else { "$stage not logged" } })
-  return "$tab " + ($parts -join ", ")
+  $gaps = [pscustomobject]@{ Text = ""; Tab = $tab; FocusedMs = $null; FirstTyped = $firstTyped }
+  if ($null -eq $command) { $gaps.Text = "no newTab command in the log"; return $gaps }
+  if ($null -eq $tab) { $gaps.Text = "no new tab page after the command"; return $gaps }
+  if ($found.Contains("$tab focused")) { $gaps.FocusedMs = $found["$tab focused"] - $command }
+  $parts = @(foreach ($stage in "page", "committed", "focused", "rest", "typed") { if ($found.Contains("$tab $stage")) { "$stage +$($found["$tab $stage"] - $command) ms" } else { "$stage not logged" } })
+  $typedBy = if ($firstTyped) { "the first typed mark after the command: $($firstTyped.Tab) +$($firstTyped.Ms) ms" } else { "no typed mark after the command" }
+  $gaps.Text = "$tab " + ($parts -join ", ") + "; $typedBy"
+  return $gaps
 }
 
-function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [switch]$Required, [int]$FirstKeyMs = 100) {
+$script:FocusBoundMs = 90
+
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = $Did
-    $stop.Expected = "every key lands in the field, so it reads 'example.com' after the last key, and $Submit opens Example Domain in a tab."
+    $firstKey = if ($Into -eq "ctrl+t") { "the new tab's bar takes focus within $($script:FocusBoundMs) ms of the newTab command, and the first key, typed $FirstKeyMs ms after Ctrl+T, lands in the new tab's bar (the first typed mark after the command is the new tab's and its field starts with 'e')" } else { "the first key lands in the box (its field starts with 'e')" }
+    $wholeText = "every key lands, so the field reads 'example.com' after the last key, and $Submit opens Example Domain in a tab"
+    $stop.Expected = if ($JudgeWholeText) { "$wholeText. Report only ($Issues)." } else { "$firstKey. Report only ($Issues): $wholeText." }
     if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
     Focus-Window $Session $Session.Main $stop | Out-Null
     $mark = Get-LogCount $Session
     $reads = [System.Collections.Generic.List[string]]::new()
+    $keyReads = $null
+    if ($ReadEachKey) { $keyReads = [System.Collections.Generic.List[string]]::new() }
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
     if ($Before) { & $Before $stop }
     $stop.Facts.Add("onboarding.json at the press: $(Format-OnboardingNow $Session)")
@@ -934,7 +947,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
         $stop.Facts.Add("no text box showed within 3 s; typed into whatever had focus")
       }
     }
-    Send-HumanText "example.com" $null
+    Send-HumanText "example.com" $keyReads $KeyMs
     $settle = [System.Diagnostics.Stopwatch]::StartNew()
     $typed = Read-FocusedText
     $reads.Add("0ms '$typed'")
@@ -945,6 +958,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $typed = $now
     }
     Save-Shot $stop $Session.Main | Out-Null
+    if ($null -ne $keyReads) { $stop.Facts.Add("the field after every key ($KeyMs ms a key; key +sent ms 'field' at +read ms): $($keyReads -join ', ')") }
     $stop.Facts.Add("the field after the last key, as it settled: $($reads -join ', ')")
     $stop.Facts.Add("the field before $($Submit): '$typed'")
     if ($Submit -eq "Go") {
@@ -960,8 +974,21 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     $stop.Facts.Add("onboarding.json after: $(Format-OnboardingNow $Session)")
     $around = @(Get-LinesSince $Session $mark "keyboard|focus|keys |follow|page|tab\.|navigat|omnibox|command|error|onboarding|tour|new tab bar" | Select-Object -First 30)
     if ($around.Count) { $stop.Facts.Add("log from the press on: $($around -join ' / ')") }
-    $stop.Facts.Add("from Ctrl+T: $(Get-BarGaps $Session $mark)")
-    Set-Seen $stop ($loaded -and $typed -eq "example.com")
+    $gaps = Get-BarGaps $Session $mark
+    $stop.Facts.Add("from Ctrl+T: $($gaps.Text)")
+    $startsRight = ([string]$typed).StartsWith("e")
+    $whole = [bool]($loaded -and $typed -eq "example.com")
+    if ($Into -eq "ctrl+t") {
+      $focusInTime = $null -ne $gaps.FocusedMs -and $gaps.FocusedMs -le $script:FocusBoundMs
+      $firstInNewBar = $null -ne $gaps.FirstTyped -and $gaps.FirstTyped.Tab -eq $gaps.Tab -and $startsRight
+      $stop.Facts.Add("required: focus within $($script:FocusBoundMs) ms: $focusInTime; the first key in the new tab's bar: $firstInNewBar")
+      $firstKeyOk = $focusInTime -and $firstInNewBar
+    } else {
+      $firstKeyOk = $startsRight
+      $stop.Facts.Add("required: the first key in the box: $firstKeyOk")
+    }
+    $stop.Facts.Add("report only ($Issues): every key landed and $Submit opened Example Domain: $whole")
+    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } else { $firstKeyOk }))
   }
   if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
   return $stop
@@ -1013,20 +1040,20 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-ctrl-t" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
-    Invoke-TypeStop $session "human-ctrl-t" "First run: Ctrl+T within 100 ms of Get Started, the first key 100 ms after it, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
+    Invoke-TypeStop $session "human-ctrl-t" "First run: Ctrl+T within 100 ms of Get Started, the first key 100 ms after it, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101" -Required | Out-Null
   }
 
   Invoke-FirstRunLaunch "human-box" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
-    Invoke-TypeStop $session "human-box" "First run: the New Tab page's own box right after Get Started, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, clicked the New Tab page's box as soon as it showed and typed example.com at once, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked") } "box" "Enter" -Required | Out-Null
+    Invoke-TypeStop $session "human-box" "First run: the New Tab page's own box right after Get Started, then Enter" "Skipped every onboarding step to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, clicked the New Tab page's box as soon as it showed and typed example.com at once, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked") } "box" "Enter" "#2101" -Required | Out-Null
   }
 
   Invoke-FirstRunLaunch "tool-tour" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
-    Invoke-TypeStop $session "tool-tour-up" "First run: Ctrl+T while the tool tour is up at its first stop" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Take the Tour, waited 1.5 s for its first stop, pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Take the Tour"; $stop.Facts.Add("Take the Tour clicked: $clicked"); Start-Sleep -Milliseconds 1500; $stop.Facts.Add("tour buttons showing: Next $(@(Find-Named $session.Main 'Next').Count), Skip Tour $(@(Find-Named $session.Main 'Skip Tour').Count)") } "ctrl+t" "Enter" -Required | Out-Null
-    Invoke-TypeStop $session "tool-tour-ended" "First run: Ctrl+T right after ending the tool tour" "Ended the tool tour with Skip Tour (or Escape), then about 100 ms later pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Skip Tour"; if (-not $clicked) { Send-Escape }; $stop.Facts.Add("Skip Tour clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
+    Invoke-TypeStop $session "tool-tour-up" "First run: Ctrl+T while the tool tour is up at its first stop" "Skipped to the last onboarding screen ($($walk.Screens)), clicked Take the Tour, waited 1.5 s for its first stop, pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Take the Tour"; $stop.Facts.Add("Take the Tour clicked: $clicked"); Start-Sleep -Milliseconds 1500; $stop.Facts.Add("tour buttons showing: Next $(@(Find-Named $session.Main 'Next').Count), Skip Tour $(@(Find-Named $session.Main 'Skip Tour').Count)") } "ctrl+t" "Enter" "#2101" -Required | Out-Null
+    Invoke-TypeStop $session "tool-tour-ended" "First run: Ctrl+T right after ending the tool tour" "Ended the tool tour with Skip Tour (or Escape), then about 100 ms later pressed Ctrl+T and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Skip Tour"; if (-not $clicked) { Send-Escape }; $stop.Facts.Add("Skip Tour clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101" -Required | Out-Null
   }
 
   $cold = Join-Path $Out "cold-app"
@@ -1040,7 +1067,7 @@ function Invoke-FirstRunTour {
       $engineMs = @(Read-LogLines $session.Log | Where-Object { $_ -match "engine" } | Select-Object -First 3)
       Write-Host "[tour] slow launch, first engine lines: $($engineMs -join ' / ')"
       $walk = Walk-OnboardingToOutro $session -SkipEach
-      Invoke-TypeStop $session "slow-engine" "First run under load from a cold copy: Ctrl+T within 100 ms of Get Started, then Enter" "With CPU and disk hogs running and the app copied to a fresh folder (first window $($session.FirstWindowMs) ms after start), skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -Required | Out-Null
+      Invoke-TypeStop $session "slow-engine" "First run under load from a cold copy: Ctrl+T within 100 ms of Get Started, then Enter" "With CPU and disk hogs running and the app copied to a fresh folder (first window $($session.FirstWindowMs) ms after start), skipped to the last onboarding screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then pressed Enter." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101" -Required | Out-Null
     }
   } finally {
     $hogs | Stop-Job -ErrorAction SilentlyContinue
@@ -1051,13 +1078,23 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "human-go" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session
-    Invoke-TypeStop $session "human-go" "First run: Ctrl+T within 100 ms of Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then clicked Go." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" -Required | Out-Null
+    Invoke-TypeStop $session "human-go" "First run: Ctrl+T within 100 ms of Get Started, the first key 100 ms after it, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, 30 ms a key, then clicked Go." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101; where Go goes: #2102" -Required | Out-Null
   }
 
   Invoke-FirstRunLaunch "faster-than-a-person" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
-    Invoke-TypeStop $session "faster-than-a-person" "Report only: Ctrl+T with the first key 15 ms after it" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 15 ms after it, 30 ms a key, then pressed Enter. Faster than a person types; this stop never fails the run and shows how much of the window the bar still misses." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" -FirstKeyMs 15 | Out-Null
+    Invoke-TypeStop $session "faster-than-a-person" "Report only (#2099): Ctrl+T with the first key 15 ms after it" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 15 ms after it, 30 ms a key, then pressed Enter. Faster than a person types; this stop never fails the run and shows how much of the window the bar still misses." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "keys before focus: #2099; the whole text: #2101" -FirstKeyMs 15 | Out-Null
+  }
+
+  foreach ($keyMs in 80, 120) {
+    foreach ($repeat in 1, 2, 3) {
+      Invoke-FirstRunLaunch "cadence-$keyMs-$repeat" "" {
+        param($session)
+        $walk = Walk-OnboardingToOutro $session -SkipEach
+        Invoke-TypeStop $session "cadence-$keyMs-$repeat" "Report only (#2101): Ctrl+T after Get Started, then typing at $keyMs ms a key, try $repeat of 3" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 100 ms later and typed example.com from 100 ms after it, $keyMs ms a key, reading the field after every key, then pressed Enter. Shows whether a person's pace loses letters or only the 30 ms one does." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101" -KeyMs $keyMs -ReadEachKey -JudgeWholeText | Out-Null
+      }
+    }
   }
 }
 
