@@ -9,19 +9,23 @@ import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.lang.ref.WeakReference
+import kotlin.math.abs
 
 class InsetHold(private val clock: () -> Long = SystemClock::uptimeMillis) {
     private var seen: Configuration? = null
+    private var themeBase: Configuration? = null
     private var last: Insets? = null
     private var held: Insets? = null
-    private var beforeFullscreen: Insets? = null
+    private var lastIme = 0
+    private var heldIme = 0
     private var until = 0L
+    private var fullscreen = false
     private var heldSince = -1L
     private var why = ""
 
-    val holding: Boolean get() = clock() < until
+    val holding: Boolean get() = fullscreen || clock() < until
 
-    val heldMillisLeft: Long get() = (until - clock()).coerceAtLeast(0)
+    val heldMillisLeft: Long get() = if (fullscreen) 0 else (until - clock()).coerceAtLeast(0)
 
     fun configurationChanged(next: Configuration) {
         val before = seen
@@ -30,26 +34,43 @@ class InsetHold(private val clock: () -> Long = SystemClock::uptimeMillis) {
         val diff = before.diff(next)
         val change = "0x${Integer.toHexString(diff)}"
         when {
-            diff and LAYOUT_CHANGES != 0 -> {
-                if (holding || diff and ActivityInfo.CONFIG_UI_MODE != 0) lab { "inset hold: none, the change $change moves the layout" }
+            diff and ActivityInfo.CONFIG_UI_MODE != 0 && diff and LAYOUT_CHANGES == 0 -> {
+                themeBase = Configuration(before)
+                hold(last, HOLD_MILLIS, "a light/dark change ($change)")
+                heldIme = lastIme
+            }
+            fullscreen -> lab { "inset hold: the change $change leaves fullscreen's hold on" }
+            clock() >= until -> Unit
+            diff and LAYOUT_CHANGES == 0 || onlyTheNavigationBarWindow(next) -> lab { "inset hold: the change $change leaves the hold on, ${heldMillisLeft} ms left" }
+            else -> {
+                lab { "inset hold: none, the change $change moves the layout" }
                 until = 0
             }
-            diff and ActivityInfo.CONFIG_UI_MODE != 0 -> {
-                hold(last, HOLD_MILLIS, "a light/dark change ($change)")
-            }
-            holding -> lab { "inset hold: the change $change leaves the hold on, ${heldMillisLeft} ms left" }
         }
     }
 
+    private fun onlyTheNavigationBarWindow(next: Configuration): Boolean {
+        val base = themeBase ?: return false
+        val bar = held ?: return false
+        if (next.orientation != base.orientation || next.screenWidthDp != base.screenWidthDp || next.densityDpi != base.densityDpi || next.fontScale != base.fontScale) return false
+        val barDp = bar.bottom / (next.densityDpi.coerceAtLeast(1) / 160f)
+        return abs(next.screenHeightDp - base.screenHeightDp) <= barDp + DP_SLACK
+    }
+
     fun fullscreenStarts() {
-        if (last != null && last != Insets.NONE) beforeFullscreen = last
+        val bars = last
         until = 0
+        if (bars == null || bars == Insets.NONE) return
+        held = bars
+        fullscreen = true
+        why = "fullscreen"
+        lab { "inset hold: fullscreen keeps the page's navigation bar at ${bars.bottom} px while the video covers it" }
     }
 
     fun fullscreenEnds() {
-        val bars = beforeFullscreen ?: return
-        beforeFullscreen = null
-        hold(bars, RETURN_MILLIS, "leaving fullscreen")
+        if (!fullscreen) return
+        fullscreen = false
+        hold(held, RETURN_MILLIS, "leaving fullscreen")
     }
 
     private fun hold(value: Insets?, millis: Long, reason: String) {
@@ -62,7 +83,7 @@ class InsetHold(private val clock: () -> Long = SystemClock::uptimeMillis) {
 
     fun navigationBars(raw: Insets): Insets {
         val keep = held
-        if (holding && raw == Insets.NONE && keep != null) {
+        if (holding && keep != null && (raw == Insets.NONE || fullscreen)) {
             if (heldSince < 0) heldSince = clock()
             return keep
         }
@@ -75,10 +96,12 @@ class InsetHold(private val clock: () -> Long = SystemClock::uptimeMillis) {
         return raw
     }
 
-    fun ime(rawIme: Int, rawNavigation: Insets): Int {
-        val keep = held
-        if (!holding || rawIme <= 0 || rawNavigation != Insets.NONE || keep == null) return rawIme
-        return rawIme + keep.bottom
+    fun ime(rawIme: Int): Int {
+        val bar = held?.bottom ?: 0
+        if (!fullscreen && clock() < until && heldIme > 0 && rawIme > 0 && bar > 0 && abs(rawIme - heldIme) <= bar + PX_SLACK) return heldIme
+        lastIme = rawIme
+        if (rawIme == 0) heldIme = 0
+        return rawIme
     }
 
     private inline fun lab(line: () -> String) {
@@ -88,6 +111,8 @@ class InsetHold(private val clock: () -> Long = SystemClock::uptimeMillis) {
     companion object {
         const val HOLD_MILLIS = 1000L
         const val RETURN_MILLIS = 500L
+        private const val DP_SLACK = 2f
+        private const val PX_SLACK = 6
         private const val LAYOUT_CHANGES = ActivityInfo.CONFIG_ORIENTATION or ActivityInfo.CONFIG_SCREEN_SIZE or ActivityInfo.CONFIG_SMALLEST_SCREEN_SIZE or
             ActivityInfo.CONFIG_SCREEN_LAYOUT or ActivityInfo.CONFIG_DENSITY or ActivityInfo.CONFIG_NAVIGATION or ActivityInfo.CONFIG_KEYBOARD or
             ActivityInfo.CONFIG_KEYBOARD_HIDDEN or ActivityInfo.CONFIG_FONT_SCALE
@@ -105,7 +130,7 @@ class InsetHold(private val clock: () -> Long = SystemClock::uptimeMillis) {
                 val passed = window.navigationBars(raw)
                 view.removeCallbacks(again)
                 if (passed == raw) return@setOnApplyWindowInsetsListener insets
-                view.postDelayed(again, window.heldMillisLeft + 1)
+                if (window.heldMillisLeft > 0) view.postDelayed(again, window.heldMillisLeft + 1)
                 WindowInsetsCompat.Builder(insets).setInsets(WindowInsetsCompat.Type.navigationBars(), passed).build()
             }
         }
@@ -123,8 +148,8 @@ class InsetHold(private val clock: () -> Long = SystemClock::uptimeMillis) {
         }
 
         fun imeBottom(view: View): Int {
-            val insets = ViewCompat.getRootWindowInsets(view) ?: return 0
-            return window.ime(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom, insets.getInsets(WindowInsetsCompat.Type.navigationBars()))
+            val raw = ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: return 0
+            return window.ime(raw)
         }
     }
 }

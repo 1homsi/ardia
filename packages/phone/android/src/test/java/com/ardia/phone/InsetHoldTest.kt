@@ -24,8 +24,10 @@ class InsetHoldTest {
     private val threeButton = Insets.of(0, 0, 0, 130)
     private val gestures = Insets.of(0, 0, 0, 44)
     private val gone = Insets.NONE
+    private val keyboard = 897
+    private val keyboardWithoutTheBar = 767
 
-    private fun config(night: Boolean = false, landscape: Boolean = false, width: Int = 392, height: Int = 872) = Configuration().apply {
+    private fun config(night: Boolean = false, landscape: Boolean = false, width: Int = 392, height: Int = 796) = Configuration().apply {
         uiMode = Configuration.UI_MODE_TYPE_NORMAL or if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
         orientation = if (landscape) Configuration.ORIENTATION_LANDSCAPE else Configuration.ORIENTATION_PORTRAIT
         screenWidthDp = width
@@ -52,6 +54,54 @@ class InsetHoldTest {
     }
 
     @Test
+    fun miuiTakingDownAndRestoringItsNavigationBarWindowKeepsTheHold() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        now += 90
+        hold.configurationChanged(config(night = true, height = 844))
+        assertTrue("on the F4 the screen grows by the bar's 48 dp (0x20000400) and the hold ended on it", hold.holding)
+        assertEquals(threeButton, hold.navigationBars(gone))
+        now += 90
+        hold.configurationChanged(config(night = true, height = 796))
+        assertTrue(hold.holding)
+        assertEquals(threeButton, hold.navigationBars(gone))
+    }
+
+    @Test
+    fun aRealResizeDuringTheHoldEndsIt() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        hold.configurationChanged(config(night = true, height = 420))
+        assertFalse("split screen takes far more than the bar's height", hold.holding)
+        assertEquals(gone, hold.navigationBars(gone))
+    }
+
+    @Test
+    fun aWidthChangeDuringTheHoldEndsIt() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        hold.configurationChanged(config(night = true, width = 360, height = 844))
+        assertFalse(hold.holding)
+    }
+
+    @Test
+    fun rotationDuringTheHoldEndsIt() {
+        settled()
+        hold.configurationChanged(config(night = true))
+        hold.configurationChanged(config(night = true, landscape = true, width = 844, height = 392))
+        assertFalse(hold.holding)
+        assertEquals(gone, hold.navigationBars(gone))
+    }
+
+    @Test
+    fun rotationWithTheNightModeChangingOpensNoHold() {
+        settled()
+        hold.configurationChanged(config(night = true, landscape = true, width = 844, height = 392))
+        assertFalse(hold.holding)
+        assertEquals(gone, hold.navigationBars(gone))
+    }
+
+    @Test
     fun afterTheDeadlineWhateverTheSystemSaysWins() {
         settled()
         hold.configurationChanged(config(night = true))
@@ -60,7 +110,6 @@ class InsetHoldTest {
         assertEquals(InsetHold.HOLD_MILLIS - 200, hold.heldMillisLeft)
         now += InsetHold.HOLD_MILLIS
         assertFalse(hold.holding)
-        assertEquals(gone, hold.navigationBars(gone))
         assertEquals(gone, hold.navigationBars(gone))
     }
 
@@ -71,15 +120,7 @@ class InsetHoldTest {
     }
 
     @Test
-    fun rotationGetsThroughAtOnceEvenWhenTheNightModeChangesWithIt() {
-        settled()
-        hold.configurationChanged(config(night = true, landscape = true, width = 872, height = 392))
-        assertFalse(hold.holding)
-        assertEquals(gone, hold.navigationBars(gone))
-    }
-
-    @Test
-    fun splitScreenGetsThroughAtOnce() {
+    fun splitScreenWithoutALightDarkChangeGetsThroughAtOnce() {
         settled()
         hold.configurationChanged(config(height = 420))
         assertFalse(hold.holding)
@@ -95,70 +136,59 @@ class InsetHoldTest {
     }
 
     @Test
-    fun fullscreenVideoReleasesTheHoldSoItsHiddenBarsGetThrough() {
+    fun theKeyboardHeightIsHeldThroughTheBarsSwingInEitherDirection() {
         settled()
+        assertEquals(keyboard, hold.ime(keyboard))
         hold.configurationChanged(config(night = true))
-        hold.fullscreenStarts()
-        assertEquals(gone, hold.navigationBars(gone))
-    }
-
-    @Test
-    fun aSecondChangeThatLeavesTheLayoutAloneKeepsTheHold() {
-        settled()
-        hold.configurationChanged(config(night = true))
-        now += 120
-        hold.configurationChanged(config(night = true).apply { colorMode = Configuration.COLOR_MODE_WIDE_COLOR_GAMUT_YES })
-        now += 60
-        assertEquals("on the F4 a second change 120-200 ms after the light/dark one ended the hold, and the drop got through", threeButton, hold.navigationBars(gone))
-        hold.configurationChanged(config(night = true).apply { colorMode = Configuration.COLOR_MODE_WIDE_COLOR_GAMUT_YES })
-        assertEquals("the same configuration again", threeButton, hold.navigationBars(gone))
-    }
-
-    @Test
-    fun aLaterChangeThatMovesTheLayoutEndsTheHold() {
-        settled()
-        hold.configurationChanged(config(night = true))
-        hold.configurationChanged(config(night = true, landscape = true, width = 872, height = 392))
-        assertFalse(hold.holding)
-        assertEquals(gone, hold.navigationBars(gone))
-    }
-
-    @Test
-    fun theKeyboardKeepsTheNavigationBarItSitsAboveDuringTheHold() {
-        settled()
-        hold.configurationChanged(config(night = true))
-        assertEquals("the keyboard's 897 px lost the bar's 130 while the bar was gone; the tray followed it down", 897, hold.ime(767, gone))
-        assertEquals(897, hold.ime(897, threeButton))
-        assertEquals("no keyboard stays no keyboard", 0, hold.ime(0, gone))
+        assertEquals("the F4 reported the bar's 47.27 dp added", keyboard, hold.ime(keyboard + 130))
+        assertEquals("and then taken away, after the bar's own dip", keyboard, hold.ime(keyboardWithoutTheBar))
+        assertEquals(keyboard, hold.ime(keyboard))
         now += InsetHold.HOLD_MILLIS
-        assertEquals(767, hold.ime(767, gone))
+        assertEquals(keyboardWithoutTheBar, hold.ime(keyboardWithoutTheBar))
+    }
+
+    @Test
+    fun theKeyboardClosingOrChangingSizeDuringTheHoldGetsThrough() {
+        settled()
+        hold.ime(keyboard)
+        hold.configurationChanged(config(night = true))
+        assertEquals("an emoji panel or a taller keyboard is real", keyboard + 300, hold.ime(keyboard + 300))
+        assertEquals("closing is real", 0, hold.ime(0))
+        assertEquals("a keyboard opened afterwards isn't held to the old height", keyboardWithoutTheBar, hold.ime(keyboardWithoutTheBar))
     }
 
     @Test
     fun withoutAHoldTheKeyboardIsAsTheSystemSays() {
         settled()
-        assertEquals(767, hold.ime(767, gone))
+        hold.ime(keyboard)
+        assertEquals(keyboardWithoutTheBar, hold.ime(keyboardWithoutTheBar))
     }
 
     @Test
-    fun leavingFullscreenShowsTheBarsAtTheirOldInsetUntilTheSystemReportsThem() {
+    fun fullscreenKeepsThePagesInsetWhileTheVideoCoversItSoLeavingShowsThePageAsItWas() {
         settled()
         hold.fullscreenStarts()
-        assertEquals("fullscreen hides the bars at once", gone, hold.navigationBars(gone))
+        assertEquals("the page under the video keeps its bar; on the F4 it was laid out without it and sat 70 px low on leaving", threeButton, hold.navigationBars(gone))
+        hold.configurationChanged(config(landscape = true, width = 844, height = 392))
+        assertEquals("rotating the video doesn't reach the covered page", threeButton, hold.navigationBars(Insets.of(130, 0, 0, 0)))
+        hold.configurationChanged(config())
         hold.fullscreenEnds()
-        assertEquals("the page's bar sat 70 px low for about 100 ms on the F4 until the inset came back", threeButton, hold.navigationBars(gone))
-        now += 120
+        assertEquals("until the system reports the bar again", threeButton, hold.navigationBars(gone))
         assertEquals(threeButton, hold.navigationBars(threeButton))
+        now += InsetHold.RETURN_MILLIS
+        assertEquals("then whatever the system says wins", gone, hold.navigationBars(gone))
     }
 
     @Test
-    fun leavingFullscreenIsHeldOnlyBriefly() {
+    fun fullscreenStartedInsideALightDarkHoldStillHoldsUntilItEnds() {
         settled()
+        hold.configurationChanged(config(night = true))
         hold.fullscreenStarts()
-        hold.navigationBars(gone)
+        now += InsetHold.HOLD_MILLIS * 3
+        assertEquals(threeButton, hold.navigationBars(gone))
         hold.fullscreenEnds()
         now += InsetHold.RETURN_MILLIS
-        assertEquals("whatever the system says after the bound wins", gone, hold.navigationBars(gone))
+        assertEquals(gone, hold.navigationBars(gone))
     }
 
     @Test
@@ -169,7 +199,7 @@ class InsetHoldTest {
     }
 
     @Test
-    fun theKeyboardIsNotTouched() {
+    fun theReactRootIsHandedTheHeldBarAndTheKeyboardAsTheSystemReportsIt() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val content = activity.findViewById<View>(android.R.id.content)
         val child = FrameLayout(activity)
@@ -182,11 +212,11 @@ class InsetHoldTest {
         InsetHold.install(activity)
         InsetHold.window.navigationBars(threeButton)
         InsetHold.window.configurationChanged(Configuration(activity.resources.configuration).apply { uiMode = uiMode xor Configuration.UI_MODE_NIGHT_MASK })
-        val keyboard = Insets.of(0, 0, 0, 900)
-        val dispatched = WindowInsetsCompat.Builder().setInsets(WindowInsetsCompat.Type.navigationBars(), gone).setInsets(WindowInsetsCompat.Type.ime(), keyboard).build()
+        val typing = Insets.of(0, 0, 0, 900)
+        val dispatched = WindowInsetsCompat.Builder().setInsets(WindowInsetsCompat.Type.navigationBars(), gone).setInsets(WindowInsetsCompat.Type.ime(), typing).build()
         ViewCompat.dispatchApplyWindowInsets(content, dispatched)
-        assertEquals("the React root is handed the held navigation bar", threeButton, seen!!.getInsets(WindowInsetsCompat.Type.navigationBars()))
-        assertEquals("and the keyboard as the system reports it", keyboard, seen!!.getInsets(WindowInsetsCompat.Type.ime()))
-        InsetHold.window.fullscreenStarts()
+        assertEquals(threeButton, seen!!.getInsets(WindowInsetsCompat.Type.navigationBars()))
+        assertEquals(typing, seen!!.getInsets(WindowInsetsCompat.Type.ime()))
+        InsetHold.window.configurationChanged(Configuration(activity.resources.configuration).apply { orientation = Configuration.ORIENTATION_LANDSCAPE; screenWidthDp = 2000 })
     }
 }
