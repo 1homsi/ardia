@@ -930,7 +930,7 @@ function Get-BarGaps($Session, [int]$Mark) {
 $script:FocusBoundMs = 90
 
 function Format-BarMarks($Session, [int]$Mark) {
-  $lines = @(Get-LinesSince $Session $Mark "\[ardia windows\] (bar |js stall|new tab bar )" | ForEach-Object { $_ -replace '\[ardia windows\] ', '' } | Select-Object -First 40)
+  $lines = @(Get-LinesSince $Session $Mark "\[ardia windows\] (bar |js stall|new tab bar |new tab pane )" | ForEach-Object { $_ -replace '\[ardia windows\] ', '' } | Select-Object -First 60)
   if ($lines.Count) { return $lines -join ' / ' }
   return "none"
 }

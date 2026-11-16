@@ -1,5 +1,5 @@
-import type { MarkNewTabBar } from "./newTabMarks";
-export type { MarkNewTabBar, NewTabBarStage } from "./newTabMarks";
+import type { MarkNewTabBar, MarkNewTabPane } from "./newTabMarks";
+export type { MarkNewTabBar, MarkNewTabPane, NewTabBarStage } from "./newTabMarks";
 
 const STALL_MS = 40;
 const WATCH_MS = 1500;
@@ -30,3 +30,5 @@ export const markNewTabBar: MarkNewTabBar = (stage, tabId) => {
   }
   console.info(`[ardia windows] new tab bar ${stage} ${tabId}`);
 };
+
+export const markNewTabPane: MarkNewTabPane = (tabId, state) => console.info(`[ardia windows] new tab pane ${tabId} ${state}`);
