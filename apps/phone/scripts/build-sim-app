@@ -11,6 +11,7 @@
 # bundle is compiled into it with Hermes and the copy is re-signed ad hoc; otherwise xcodebuild runs first, through
 # scripts/agent/locked. Writes $ARDIA_APK_DIR/<name>.app (default /tmp/ardia-phone) and <name>.txt beside it; the app
 # logs "ARDIA build <commit> dirty: … from the …; native …" at launch.
+# Refuses under 4 GB free on the data volume, and under 10 GB when the native app has to be built.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
   sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
@@ -38,11 +39,15 @@ case "$name" in
   */*|.*|"") echo "name $name must be a plain file name" >&2; exit 64 ;;
 esac
 df -h /System/Volumes/Data | sed -n '2p' | awk '{print "data volume: " $4 " free of " $2}'
-free=$(df -g /System/Volumes/Data | awk 'NR==2 {print $4}')
-if [ "$free" -lt 10 ]; then
-  echo "only ${free} GB free on the data volume: not building" >&2
-  exit 1
-fi
+needsFree() {
+  local floor="$1" what="$2" free
+  free=$(df -g /System/Volumes/Data | awk 'NR==2 {print $4}')
+  if [ "$free" -lt "$floor" ]; then
+    echo "only ${free} GB free on the data volume, and $what needs ${floor}: not building" >&2
+    exit 1
+  fi
+}
+needsFree 4 "a bundle over the cached native app"
 started=$(date +%s)
 nativePaths=(apps/phone/ios packages/phone/ios apps/phone/app.json packages/phone/expo-module.config.json apps/phone/pnpm-lock.yaml apps/phone/pnpm-workspace.yaml patches)
 nativeHash() {
@@ -80,6 +85,7 @@ cachedApp="$cache/Ardia.app"
 native=reused
 if [ ! -d "$cachedApp" ] || [ "$(cat "$cache/native.hash" 2>/dev/null)" != "$hashBefore" ]; then
   native=built
+  needsFree 10 "a native build"
   echo "native inputs $hashBefore differ from the cached build: running xcodebuild"
   rm -rf "$cachedApp" "$cache/native.hash"
   export LANG=en_US.UTF-8
