@@ -14,6 +14,7 @@ import type { BookmarkNode, HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
 import { BOOKMARK, DEVICE, DEVICE_TABS, HISTORY, RECEIVES_TABS, SHARE, bookmarkValue, historyValue, passwordValue, recordId, type BookmarkValue, type DeviceRecord, type DeviceTabs, type HistoryValue, type PasswordValue, type ShareRecord } from "./records";
 import { isAsleep } from "../tabs/pageSession";
+import { withSyncWorkCounts } from "../telemetry/workCounts";
 
 const store = () => useBrowser.getState();
 
@@ -59,7 +60,7 @@ export function deviceAdapter(deviceId: string, name: () => string, retired = fa
 
 export function bookmarksAdapter(profileId: string): Adapter {
   const ready = () => !!store().bookmarksReady[engineProfile(store(), profileId)];
-  return {
+  return withSyncWorkCounts("bookmark", {
     prefix: BOOKMARK,
     extract: (base) => {
       if (!ready()) return null;
@@ -164,7 +165,7 @@ export function bookmarksAdapter(profileId: string): Adapter {
       }
       useBrowser.setState({ bookmarks: { ...b, nodes } });
     },
-  };
+  });
 }
 
 const HISTORY_WINDOW_MS = 90 * 86_400_000;
@@ -180,7 +181,7 @@ export function historyExpired(key: string, value: unknown, now: number) {
 
 export function historyAdapter(profileId: string): Adapter {
   const ready = () => !!historyViewOf(store(), profileId)?.ready;
-  return {
+  return withSyncWorkCounts("history", {
     prefix: HISTORY,
     extract: (base) => {
       if (!ready()) return null;
@@ -261,7 +262,7 @@ export function historyAdapter(profileId: string): Adapter {
         return withHistoryList(s, engine, list);
       });
     },
-  };
+  });
 }
 
 const MAX_DEVICE_TABS = 30;
