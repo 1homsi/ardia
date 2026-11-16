@@ -4,10 +4,14 @@ import { BrowsingScreen } from "../components/browsing/BrowsingScreen";
 import { FloatingBar } from "../components/browsing/FloatingBar";
 import { SearchTray } from "../components/search/SearchTray";
 import { TabDeck } from "../components/tabs/TabDeck";
-import { deckHeaderBottom } from "../components/tabs/DeckHeader";
+import { deckArchiveBottom, deckHeaderBottom } from "../components/tabs/DeckHeader";
 import { DesignProvider } from "../components/ui";
 import { deckGeometry } from "../lib/deckGeometry";
-import { forgetLandscapeCount, noteWindowShape } from "../state/app/landscapeCount";
+import { forgetLandscapeCount, noteScreenLayoutName, noteWindowShape } from "../state/app/landscapeCount";
+import { useArchiveCard } from "../state/browse/archiveCard";
+import * as deckGrid from "../state/browse/deckGrid";
+import { writePreference } from "../state/store/browserDatabase";
+import { browserDatabase } from "../state/store/database";
 import { setRootSize } from "../state/app/rootSize";
 import * as browse from "../state/browse/store";
 import { presentSearch } from "../state/search/store";
@@ -32,6 +36,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => jest.runOnlyPendingTimers());
   act(() => setRootSize(0, 0));
+  writePreference(browserDatabase(), deckGrid.DECK_GRID_KEY, null);
+  act(() => deckGrid.forgetDeckGrid());
   Dimensions.set({ window: PORTRAIT, screen: PORTRAIT });
   jest.useRealTimers();
   jest.restoreAllMocks();
@@ -99,5 +105,32 @@ test("turning to landscape is counted once a launch, and a portrait window never
   noteWindowShape(393, 852);
   noteWindowShape(852, 393);
   expect(counted.mock.calls).toEqual([["landscape_shown"]]);
+  forgetLandscapeCount();
+});
+
+test("in landscape the archive capsule shrinks the deck's cards to main's 407.6 by 188, as main's geometry takes the capsule's bottom as the chrome; in portrait on a 402 by 874 iPhone they go from 279.6 to 273.2", () => {
+  const archive = deckGeometry(852, 393, 0, 21, 59, "ios", "redesigned", deckArchiveBottom());
+  expect(archive.cardWidth).toBeCloseTo(407.6, 1);
+  expect(archive.cardHeight).toBeCloseTo(188, 1);
+  expect(deckGeometry(402, 874, 62, 34, 0, "ios", "redesigned", deckHeaderBottom()).cardWidth).toBeCloseTo(279.6, 1);
+  expect(deckGeometry(402, 874, 62, 34, 0, "ios", "redesigned", deckArchiveBottom()).cardWidth).toBeCloseTo(273.2, 1);
+  act(() => browse.useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null, leaving: null }));
+  act(() => useArchiveCard.setState({ showing: true }));
+  const root = redesigned(<TabDeck />);
+  const card = root.root.findAll((node) => node.props.testID === "deckCard" && typeof node.type === "string")[0]!;
+  expect(flat(card).width).toBeCloseTo(407.6, 1);
+  expect(flat(card).height).toBeCloseTo(188, 1);
+  unmount(root);
+  act(() => useArchiveCard.setState({ showing: false }));
+});
+
+test("a Duo layout is counted once a launch, and the phone layout never counts", () => {
+  const counted = jest.spyOn(telemetry, "countUsage").mockImplementation(() => undefined);
+  forgetLandscapeCount();
+  noteScreenLayoutName("phone");
+  noteScreenLayoutName("column");
+  noteScreenLayoutName("wide");
+  noteScreenLayoutName("split");
+  expect(counted.mock.calls).toEqual([["duo_layout_shown"]]);
   forgetLandscapeCount();
 });

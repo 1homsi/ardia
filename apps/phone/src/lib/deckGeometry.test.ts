@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  deckMorphFrom,
   DECK_CHROME_FROM,
   deckChromeOpacity,
   deckSlot,
@@ -232,4 +233,16 @@ test("the deck chrome is fully opaque the moment its motion settles, even when a
   assert.equal(deckChromeOpacity(DECK_CHROME_FROM), 0);
   assert.equal(deckChromeOpacity(0), 0);
   assert.ok(Math.abs(deckChromeOpacity(0.8) - 0.5) < 1e-9);
+});
+
+test("the archive capsule's geometry swap starts from where the focused card was: the cards' layer moves its centre back and scales it to its old width, then springs to rest", () => {
+  const was = deckGeometry(852, 393, 0, 21, 59, "ios", "redesigned", 48);
+  const now = deckGeometry(852, 393, 0, 21, 59, "ios", "redesigned", 96);
+  const morph = deckMorphFrom(was, now);
+  assert.equal(morph.originX, now.focusLeading + now.cardWidth / 2);
+  assert.equal(morph.originY, now.cardCenterY);
+  const centre = { x: morph.originX + morph.dx, y: morph.originY + morph.dy };
+  assert.ok(Math.abs(centre.x - (was.focusLeading + was.cardWidth / 2)) < 1e-9);
+  assert.ok(Math.abs(centre.y - was.cardCenterY) < 1e-9);
+  assert.ok(Math.abs(now.cardWidth * morph.scale - was.cardWidth) < 1e-9);
 });

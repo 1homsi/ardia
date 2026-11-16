@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, TextInput, View, type TextInputInstance, type ViewInstance, type ViewStyle } from "react-native";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { Pressable, StyleSheet, TextInput, View, type StyleProp, type TextInputInstance, type ViewInstance, type ViewStyle } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { newIncognitoTab, newRegularTab, newTab, reopenLastClosed } from "../../state/browse/store";
 import { menuOpenedHaptic } from "../../state/browse/tabMenus";
@@ -45,30 +45,13 @@ const noop = () => undefined;
 
 export const deckBarAboveKeyboard = (deckHeight: number, keyboard: number) => deckHeight - keyboard - deckChromeLayout.barGap - deckChromeLayout.barCircle / 2;
 
-export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, grid = false, onGrid, onQuery, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
-  const fade = { glassShown, glassShownMs, glyphFade };
-  const roles = useTheme();
-  const dark = roles.dark;
+export type SearchTabs = { input: RefObject<TextInputInstance | null>; text: string; focused: boolean; change: (next: string) => void; focus: () => void; blur: () => void };
+
+export function useSearchTabs(shown: boolean, incognito: boolean, onQuery: (needle: string) => void): SearchTabs {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const needle = useRef("");
   const input = useRef<TextInputInstance>(null);
-  const row = useRef<ViewInstance>(null);
-  const keyboard = useKeyboardHeight(shown);
-  const lift = focused && keyboard > 0 ? Math.max(0, barCenterY - deckBarAboveKeyboard(deckHeight, keyboard)) : 0;
-  const rise = useSharedValue(0);
-  useEffect(() => {
-    rise.value = withTiming(-lift, { duration: deckChromeMotion.keyboard, easing: tabsCurve.easeOut });
-  }, [lift]);
-  const riseStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
-  const measure = () =>
-    row.current?.measureInWindow((_x, y, _width, height) => {
-      if (height > 0) noteDeckBarTop(y);
-    });
-  useEffect(() => {
-    watchDeckBar(measure);
-    return () => watchDeckBar(null);
-  }, []);
   useEffect(() => {
     if (shown) return;
     input.current?.blur();
@@ -87,6 +70,70 @@ export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incogni
     setFocused(true);
     if (!incognito) countUsage("search_tabs_opened");
   };
+  return { input, text, focused, change, focus, blur: () => setFocused(false) };
+}
+
+export function SearchTabsField({ search, testID = "deckSearchTabs", style, glassShown, glassShownMs, glyphFade }: { search: SearchTabs; testID?: string; style?: StyleProp<ViewStyle> } & ChromeFade) {
+  const roles = useTheme();
+  const dark = roles.dark;
+  const { input, text, change, focus, blur } = search;
+  return (
+    <Pressable accessible={false} onPress={() => input.current?.focus()} style={style}>
+      <ChromeSurface testID={testID} shape="capsule" cornerRadius={capsule(deckChromeLayout.barCircle)} dark={dark} shown={glassShown} shownMs={glassShownMs} style={[styles.search, { paddingRight: text ? deckChromeLayout.searchTrailFilled : deckChromeLayout.searchTrail }]}>
+        <FadingGlyphs testID={`${testID}Content`} fade={glyphFade} style={styles.searchRow}>
+          <View pointerEvents="none">
+            <Symbol name="magnifyingglass" size={deckChromeLayout.searchGlyph} color={roles.secondaryLabel} />
+          </View>
+          <TextInput
+            ref={input}
+            testID="deckSearchField"
+            accessibilityLabel="Search Tabs"
+            placeholder="Search Tabs"
+            placeholderTextColor={roles.secondaryLabel}
+            value={text}
+            onChangeText={change}
+            onFocus={focus}
+            onBlur={blur}
+            onSubmitEditing={() => input.current?.blur()}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            keyboardAppearance={dark ? "dark" : "light"}
+            style={[font.callout, styles.field, { color: roles.label }]}
+          />
+          {text ? (
+            <Pressable testID="deckSearchClear" accessibilityRole="button" accessibilityLabel="Clear Search" onPress={() => change("")} style={styles.clear}>
+              <Symbol name="xmarkCircleFill" size={deckChromeLayout.clearGlyph} color={roles.secondaryLabel} />
+            </Pressable>
+          ) : null}
+        </FadingGlyphs>
+      </ChromeSurface>
+    </Pressable>
+  );
+}
+
+export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, grid = false, onGrid, onQuery, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
+  const fade = { glassShown, glassShownMs, glyphFade };
+  const roles = useTheme();
+  const dark = roles.dark;
+  const search = useSearchTabs(shown, incognito, onQuery);
+  const { input, focused } = search;
+  const row = useRef<ViewInstance>(null);
+  const keyboard = useKeyboardHeight(shown);
+  const lift = focused && keyboard > 0 ? Math.max(0, barCenterY - deckBarAboveKeyboard(deckHeight, keyboard)) : 0;
+  const rise = useSharedValue(0);
+  useEffect(() => {
+    rise.value = withTiming(-lift, { duration: deckChromeMotion.keyboard, easing: tabsCurve.easeOut });
+  }, [lift]);
+  const riseStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
+  const measure = () =>
+    row.current?.measureInWindow((_x, y, _width, height) => {
+      if (height > 0) noteDeckBarTop(y);
+    });
+  useEffect(() => {
+    watchDeckBar(measure);
+    return () => watchDeckBar(null);
+  }, []);
   return (
     <Animated.View pointerEvents="box-none" style={[styles.place, { top: barCenterY - deckChromeLayout.barCircle / 2 }, riseStyle]}>
       <View ref={row} testID="deckBottomBar" onLayout={measure} pointerEvents="box-none" style={[styles.bar, { paddingHorizontal: safeSide + deckChromeLayout.barSideInset }]}>
@@ -102,37 +149,7 @@ export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incogni
             onGrid();
           }}
         />
-        <Pressable accessible={false} onPress={() => input.current?.focus()} style={styles.searchHit}>
-          <ChromeSurface testID="deckSearchTabs" shape="capsule" cornerRadius={capsule(deckChromeLayout.barCircle)} dark={dark} shown={glassShown} shownMs={glassShownMs} style={[styles.search, { paddingRight: text ? deckChromeLayout.searchTrailFilled : deckChromeLayout.searchTrail }]}>
-            <FadingGlyphs testID="deckSearchTabsContent" fade={glyphFade} style={styles.searchRow}>
-              <View pointerEvents="none">
-                <Symbol name="magnifyingglass" size={deckChromeLayout.searchGlyph} color={roles.secondaryLabel} />
-              </View>
-              <TextInput
-                ref={input}
-                testID="deckSearchField"
-                accessibilityLabel="Search Tabs"
-                placeholder="Search Tabs"
-                placeholderTextColor={roles.secondaryLabel}
-                value={text}
-                onChangeText={change}
-                onFocus={focus}
-                onBlur={() => setFocused(false)}
-                onSubmitEditing={() => input.current?.blur()}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="search"
-                keyboardAppearance={dark ? "dark" : "light"}
-                style={[font.callout, styles.field, { color: roles.label }]}
-              />
-              {text ? (
-                <Pressable testID="deckSearchClear" accessibilityRole="button" accessibilityLabel="Clear Search" onPress={() => change("")} style={styles.clear}>
-                  <Symbol name="xmarkCircleFill" size={deckChromeLayout.clearGlyph} color={roles.secondaryLabel} />
-                </Pressable>
-              ) : null}
-            </FadingGlyphs>
-          </ChromeSurface>
-        </Pressable>
+        <SearchTabsField search={search} style={styles.searchHit} {...fade} />
         <PlusMenuButton width={deckChromeLayout.barCircle} label={incognito ? "New Incognito Tab" : "New Tab"} testID="deckBarPlus" dark={dark} place={{ bottom: deckHeight - barCenterY + deckChromeLayout.barCircle / 2 + deckChromeLayout.menuGap, right: deckChromeLayout.barSideInset, width: tabsLayout.menuWidth }} menusShown={menusShown} onMenu={onMenu} {...fade} />
       </View>
     </Animated.View>

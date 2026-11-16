@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
@@ -20,6 +20,7 @@ import {
   barCenterFromBottom,
   barHeight,
   browseLayout,
+  ink,
   isDarkColor,
   LoadingLine,
   type LoadWatch,
@@ -52,6 +53,9 @@ import { PageSurface } from "./PageSurface";
 import { useDemoMotion } from "./DemoMotion";
 import { PagerBackdrop, PagerNeighbour, useTabPager } from "./TabPager";
 import { launchArguments } from "../../state/app/launchFlags";
+import { columnContentWidth, SCREEN_COLUMN, type ScreenColumn } from "../../state/app/screenLayout";
+import { BrowsingColumn } from "../column/BrowsingColumn";
+import { columnMenuPlace, columnPadding, useColumn } from "../column/SideColumn";
 import { shownTone } from "../../lib/pageTone";
 
 export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: BrowserTab }) {
@@ -61,6 +65,8 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const safeSide = Math.max(insets.left, insets.right);
+  const column = useColumn();
+  const pageWidth = column ? columnContentWidth(column, width) : width;
   const menuOpen = useMenuOpen();
   const finding = useFindOpen();
   const readerId = useReaderTabId();
@@ -77,14 +83,14 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const left = around.left ? (byId.get(around.left) ?? null) : null;
   const right = around.right ? (byId.get(around.right) ?? null) : null;
   const pager = useTabPager({
-    width,
+    width: pageWidth,
     selectedId: tab.id,
     left: left?.id ?? null,
     right: right?.id ?? null,
     onCommit: switchToNeighbour,
     onGrab: captureCurrentCover,
   });
-  useDemoMotion(pager, width);
+  useDemoMotion(pager, pageWidth);
   const failed = useNavigation(tab.id, (n) => n?.failure != null);
   const pageTone = failed ? null : shownTone(tone, tab.themeColorHex);
   const top = pageTone?.top ?? theme.surface;
@@ -93,7 +99,8 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding, design === "redesigned");
   const underBar = usePageUnderBars();
-  const layout = underBar ? { pageBottom: 0, toneBottom: barHeight(insets.bottom, design) } : pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
+  const layout = column ? COLUMN_PAGE : underBar ? { pageBottom: 0, toneBottom: barHeight(insets.bottom, design) } : pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
+  const obscured = column ? COLUMN_OBSCURED : underBar ? { top: insets.top, bottom: barHeight(insets.bottom, design) } : undefined;
   const painted = useSharedValue(false);
   useEffect(() => {
     painted.value = true;
@@ -109,24 +116,42 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const statusStyle = useAnimatedStyle(() => ({ backgroundColor: painted.value ? withTiming(top, { duration: tabsMotion.barTone }) : top }), [top]);
   const barStyle = useAnimatedStyle(() => ({ backgroundColor: painted.value ? withTiming(bottom, { duration: tabsMotion.barTone }) : bottom }), [bottom]);
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]} onLayout={() => pageLaidOut(tab.id)}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: column ? (theme.dark ? ink.black : ink.white) : theme.surface }]} onLayout={() => pageLaidOut(tab.id)}>
       <Shade shaded={menuOpen || readerId === tab.id || pressing || tabsMenu}>
+        <PageStack column={column}>
         <PagerBackdrop />
         <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
           {underBar ? null : <Animated.View testID="pageStatusStrip" style={[{ height: insets.top }, statusStyle]} />}
           <View testID="pageArea" style={[styles.page, { marginBottom: layout.pageBottom }]}>
-            <PageSurface key={tab.id} tab={tab} toneBottom={layout.toneBottom} obscured={underBar ? { top: insets.top, bottom: barHeight(insets.bottom, design) } : undefined} />
+            <PageSurface key={tab.id} tab={tab} toneBottom={layout.toneBottom} obscured={obscured} />
             <PageCover key={`${tab.id}:cover`} tab={tab} />
             <PageFailureView key={`${tab.id}:failure`} tabId={tab.id} />
           </View>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }, pager.dim]} pointerEvents="none" />
         </Animated.View>
-        {left ? <PagerNeighbour pager={pager} tab={left} side={-1} width={width} statusHeight={insets.top} hasLeft hasRight={right !== null} /> : null}
-        {right ? <PagerNeighbour pager={pager} tab={right} side={1} width={width} statusHeight={insets.top} hasLeft={left !== null} hasRight /> : null}
+        {left ? <PagerNeighbour pager={pager} tab={left} side={-1} width={pageWidth} statusHeight={insets.top} hasLeft hasRight={right !== null} /> : null}
+        {right ? <PagerNeighbour pager={pager} tab={right} side={1} width={pageWidth} statusHeight={insets.top} hasLeft={left !== null} hasRight /> : null}
         <View style={[styles.loading, { top: insets.top }]} pointerEvents="none">
           <PageLoadingLine tabId={tab.id} color={theme.accent} />
         </View>
-        {
+        </PageStack>
+        {column ? (
+          <BrowsingColumn
+            column={column}
+            width={width}
+            tab={tab}
+            order={order}
+            roles={rolesFor(theme.dark)}
+            dark={theme.dark}
+            hidden={finding}
+            onTabs={showDeck}
+            onTabsMenu={openTabsMenu}
+            onStep={stepTab}
+            onAddress={editPageQuery}
+            onPlus={newTab}
+            onMore={openPageMenu}
+          />
+        ) : (
           <GestureDetector gesture={pager.gesture}>
             <Animated.View
               testID="pageBar"
@@ -182,13 +207,13 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
               )}
             </Animated.View>
           </GestureDetector>
-        }
+        )}
         {finding ? <FindBar tabId={tab.id} /> : null}
       </Shade>
       {tabsMenu ? (
         <Menu
           items={tabsMenuItems(order)}
-          place={{ bottom: barHeight(insets.bottom, design) + space.xs, left: space.l, width: Math.min(tabsLayout.menuWidth, width - space.l * 2) }}
+          place={column ? { ...columnMenuPlace(column, width, SCREEN_COLUMN.top), width: Math.min(tabsLayout.menuWidth, pageWidth - space.l * 2) } : { bottom: barHeight(insets.bottom, design) + space.xs, left: space.l, width: Math.min(tabsLayout.menuWidth, width - space.l * 2) }}
           onDismiss={() => setTabsMenu(false)}
         />
       ) : null}
@@ -199,6 +224,18 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
     </View>
   );
 });
+
+const COLUMN_PAGE = { pageBottom: 0, toneBottom: 0 };
+const COLUMN_OBSCURED = { top: 0, bottom: 0 };
+
+function PageStack({ column, children }: { column: ScreenColumn | null; children: ReactNode }) {
+  if (!column) return children;
+  return (
+    <View testID="columnPageStack" style={[styles.columnPage, columnPadding(column)]}>
+      {children}
+    </View>
+  );
+}
 
 function useBarCollapse(tabId: string, finding: boolean, folds: boolean) {
   const collapses = usePreferences((p) => p.collapsesBottomBar);
@@ -239,6 +276,7 @@ const styles = StyleSheet.create({
   outgoing: { overflow: "hidden" },
   page: { flex: 1 },
   loading: { position: "absolute", left: 0, right: 0 },
+  columnPage: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, overflow: "hidden" },
   bar: { position: "absolute", left: 0, right: 0, bottom: 0 },
   controls: { position: "absolute", left: 0, right: 0 },
   pillPlace: { position: "absolute", left: 0, right: 0, bottom: 0, height: hostPillLayout.height, alignItems: "center", justifyContent: "flex-end" },

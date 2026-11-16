@@ -27,6 +27,7 @@ import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, 
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
+import { commandBarMotion, commandPanelPlace, useCommandBar } from "../duo/CommandBar";
 
 const LARGE_FONT_SCALE = 1.5;
 import { useTrayKeyboard } from "./useTrayKeyboard";
@@ -102,7 +103,9 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
   const preferred = SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
   const panel = useDesign() === "redesigned";
   const reduceTransparency = useReduceTransparency();
-  const trayHeight = trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s + (panel ? floatingPanelLayout.aboveKeyboard : 0));
+  const placement = useCommandBar(Math.max(keyboard.target, safeBottom));
+  const command = panel ? placement : null;
+  const trayHeight = command ? command.maxHeight : trayMaxHeight(preferred, window.height - insets.top, Math.max(keyboard.target, safeBottom), space.s + (panel ? floatingPanelLayout.aboveKeyboard : 0));
   const extend = window.height;
   const closedOnPressIn = useRef(false);
   const closeFromTouch = () => {
@@ -302,11 +305,12 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
   const trayStyle = useAnimatedStyle(() => {
     const lift = currentLift();
     const rise = reduceMotion ? 1 : Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0));
+    if (command) return commandBarMotion(Math.max(landing.value, keyboardProgress(keyboard.height.value, keyboard.full.value, 0)), dim.value, reduceMotion, drag.value, back.value * trayBackTravel);
     return {
       opacity: reduceMotion ? dim.value : 1,
       transform: [{ translateY: trayOffset(lift, drag.value, rise, trayHeight, panel ? floatingPanelLayout.radius : radius.sheet) + back.value * trayBackTravel }],
     };
-  }, [trayHeight, safeBottom, reduceMotion, panel]);
+  }, [trayHeight, safeBottom, reduceMotion, panel, command !== null]);
 
   return (
     <DepartContext.Provider value={beginDeparture}>
@@ -326,8 +330,8 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
         <Animated.View
           testID="trayPanel"
           style={[
-            styles.panel,
-            { left: insets.left + floatingPanelLayout.inset, right: insets.right + floatingPanelLayout.inset, height: trayHeight, boxShadow: incognito ? floatingPanelLayout.incognitoShadow : floatingPanelLayout.shadow },
+            command ? commandPanelPlace(command) : [styles.panel, { left: insets.left + floatingPanelLayout.inset, right: insets.right + floatingPanelLayout.inset, height: trayHeight }],
+            { boxShadow: incognito ? floatingPanelLayout.incognitoShadow : floatingPanelLayout.shadow },
             trayStyle,
           ]}
         >

@@ -37,6 +37,9 @@ import {
   deckSlotsNow,
   mergeDeckOrder,
   type DeckSlots,
+  deckMorphFrom,
+  NO_DECK_MORPH,
+  type DeckMorph,
 } from "../../lib/deckGeometry";
 import {
   beginOpeningTab,
@@ -79,6 +82,9 @@ import { DeckEmpty, IncognitoChip } from "./DeckChrome";
 import { TabGrid } from "./TabGrid";
 import { tabGridMotion } from "./tabGridLayout";
 import { setDeckGrid, useDeckGrid } from "../../state/browse/deckGrid";
+import { columnContentLeft, columnContentWidth } from "../../state/app/screenLayout";
+import { DeckColumn } from "../column/DeckColumn";
+import { ColumnContent, useColumn } from "../column/SideColumn";
 
 type Phase = { kind: "opening" | "settled" | "closing"; id: string | null };
 
@@ -109,13 +115,17 @@ export const TabDeck = memo(function TabDeck() {
   const gridAvailable = redesigned && DECK_GRID_ON_PLATFORM;
   const gridChosen = useDeckGrid();
   const grid = gridAvailable && gridChosen;
-  const safeSide = Math.max(insets.left, insets.right);
-  const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckHeaderBottom()), [width, height, insets.top, insets.bottom, safeSide, design]);
+  const column = useColumn();
+  const deckWidth = column ? columnContentWidth(column, width) : width;
+  const contentLeft = column ? columnContentLeft(column) : 0;
+  const safeSide = column ? 0 : Math.max(insets.left, insets.right);
+  const archiveCard = useArchiveCardShowing();
+  const headerGeometry = useMemo(() => deckGeometry(deckWidth, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckHeaderBottom()), [deckWidth, height, insets.top, insets.bottom, safeSide, design]);
+  const archiveGeometry = useMemo(() => deckGeometry(deckWidth, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckArchiveBottom()), [deckWidth, height, insets.top, insets.bottom, safeSide, design]);
+  const archiveResizes = redesigned && archiveGeometry.cardWidth < headerGeometry.cardWidth - ARCHIVE_RESIZE_SLACK;
+  const g = archiveResizes && archiveCard && !grid ? archiveGeometry : headerGeometry;
   useEffect(() => labTrace(`PAGELAB deck frame ${Math.round(width)}x${Math.round(height)} window ${Math.round(window.width)}x${Math.round(window.height)} insets ${insets.top}/${insets.bottom}`), [width, height, window.width, window.height, insets.top, insets.bottom]);
-  const archiveShift = useMemo(
-    () => (redesigned ? deckGeometry(width, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckArchiveBottom()).cardCenterY - g.cardCenterY : 0),
-    [g, redesigned],
-  );
+  const archiveShift = redesigned && !archiveResizes ? archiveGeometry.cardCenterY - headerGeometry.cardCenterY : 0;
   const [deckHeight, setDeckHeight] = useState(height);
   const { tabs: allTabs, selectedId: heldSelected } = useHeldDeckOrder();
   const shownSpace = useShownSpace();
@@ -181,7 +191,6 @@ export const TabDeck = memo(function TabDeck() {
   const trayOpen = useHeldSearchOpen();
   const probeTouch = useRef<(touching: boolean) => void>(() => undefined);
   const touchChanged = useCallback((on: boolean) => probeTouch.current(on), []);
-  const archiveCard = useArchiveCardShowing();
   const hidden = useRef(new Set<string>());
   const deckPhase = useSharedValue<number>(DECK_PHASE[first.shownPhase.kind]);
   const expandedIndex = useSharedValue(first.expanded);
@@ -217,10 +226,32 @@ export const TabDeck = memo(function TabDeck() {
   const backdropStyle = useAnimatedStyle(() => ({ opacity: deckPhase.value === DECK_PHASE.closing ? 1 : Math.min(1, positionProgress.value * BACKDROP_LEAD) }));
   const cardsOpacity = useSharedValue(first.cardsOpacity);
   const cardsShift = useSharedValue(0);
-  const cardsStyle = useAnimatedStyle(
-    () => (redesigned ? { opacity: cardsOpacity.value, transform: [{ translateY: cardsShift.value * Math.min(1, Math.max(0, positionProgress.value)) }] } : { opacity: cardsOpacity.value }),
-    [redesigned],
-  );
+  const archiveMorph = useSharedValue<DeckMorph>(NO_DECK_MORPH);
+  const archiveMorphed = useSharedValue(1);
+  const cardsStyle = useAnimatedStyle(() => {
+    if (!redesigned) return { opacity: cardsOpacity.value };
+    const morph = archiveMorph.value;
+    const left = 1 - archiveMorphed.value;
+    return {
+      opacity: cardsOpacity.value,
+      transformOrigin: [morph.originX, morph.originY, 0],
+      transform: [{ translateX: morph.dx * left }, { translateY: cardsShift.value * Math.min(1, Math.max(0, positionProgress.value)) + morph.dy * left }, { scale: 1 + (morph.scale - 1) * left }],
+    };
+  }, [redesigned]);
+  const morphedFrom = useRef(g);
+  useEffect(() => {
+    const was = morphedFrom.current;
+    morphedFrom.current = g;
+    if (was === g) return;
+    const archiveSwap = (was === headerGeometry || was === archiveGeometry) && was.width === g.width && was.height === g.height;
+    if (!archiveSwap || reduceMotion || !shown || positionProgress.value < 1) {
+      archiveMorphed.value = 1;
+      return;
+    }
+    archiveMorph.value = deckMorphFrom(was, g);
+    archiveMorphed.value = 0;
+    archiveMorphed.value = withSpring(1, tabsMotion.expand);
+  }, [g]);
   useEffect(() => {
     if (!redesigned) return;
     const target = archiveCard ? archiveShift : 0;
@@ -804,6 +835,7 @@ export const TabDeck = memo(function TabDeck() {
         </FrostSource>
       </Animated.View>
       <Shade shaded={menu !== null || (chromeMenu && !nativeMenus()) || cardMenu !== null || confirmation !== null}>
+        <ColumnContent column={column} width={width}>
         <StackLayer available={gridAvailable} grid={grid} motion={crossfade} onFaded={() => setStackLayer(!grid)}>
         <ScrollActions
           style={StyleSheet.absoluteFill}
@@ -866,18 +898,21 @@ export const TabDeck = memo(function TabDeck() {
           )
         ) : null}
         {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} growsAtMount={openingCard.path === "coveringCard"} endsSquare={openingCard.path === "coveringCard"} onGrowing={() => openingCardGrowing(openingCard.id)} onLanded={openingCard.path === "coveringCard" ? () => landCoveringCard(openingCard.id) : undefined} /> : null}
+        </ColumnContent>
         <MotionView testID="deckChromeFade" style={StyleSheet.absoluteFill} pointerEvents="box-none" to={{ opacity: openingCard ? 0 : 1 }} motion={openingCard ? OPENING_CARD_MOTION : CHROME_BACK}>
         {redesigned ? (
           <Animated.View testID="deckRedesignedChrome" style={glassChrome ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
             <ChromeGlassShown progress={positionProgress} initiallyIn={first.progress >= DECK_CHROME_FROM} away={!shown || phase.kind === "closing" || openingCard !== null}>
               {(glassShown) => (
                 <>
+                  <ColumnContent column={column} width={width}>
                   <DeckHeader
                     safeTop={g.safeTop}
                     safeSide={g.safeSide}
                     privateCount={privateCount}
                     hasTabs={allTabs.length > 0}
                     menusShown={shown && phase.kind === "settled"}
+                    showsMore={!column}
                     onMenu={setChromeMenu}
                     onCloseIncognito={confirmLeaveIncognito}
                     onCloseAll={confirmCloseAll}
@@ -885,6 +920,26 @@ export const TabDeck = memo(function TabDeck() {
                     glassShownMs={CHROME_GLASS_MS}
                     glyphFade={glassChrome ? chromeOpacity : undefined}
                   />
+                  </ColumnContent>
+                  {column ? (
+                    <DeckColumn
+                      column={column}
+                      width={width}
+                      shown={shown}
+                      incognito={incognito}
+                      grid={grid}
+                      gridAvailable={gridAvailable}
+                      hasTabs={allTabs.length > 0}
+                      onGrid={toggleGrid}
+                      onQuery={setNeedle}
+                      onCloseAll={confirmCloseAll}
+                      menusShown={shown && phase.kind === "settled"}
+                      onMenu={setChromeMenu}
+                      glassShown={glassShown}
+                      glassShownMs={CHROME_GLASS_MS}
+                      glyphFade={glassChrome ? chromeOpacity : undefined}
+                    />
+                  ) : (
                   <DeckBottomBar
                     shown={shown}
                     barCenterY={g.barCenterY}
@@ -900,6 +955,7 @@ export const TabDeck = memo(function TabDeck() {
                     glassShownMs={CHROME_GLASS_MS}
                     glyphFade={glassChrome ? chromeOpacity : undefined}
                   />
+                  )}
                 </>
               )}
             </ChromeGlassShown>
@@ -928,9 +984,11 @@ export const TabDeck = memo(function TabDeck() {
           </Animated.View>
         )}
         </MotionView>
+        <ColumnContent column={column} width={width}>
         {poofs.map((spec) => (
           <PoofBurst key={spec.id} spec={spec} />
         ))}
+        </ColumnContent>
       </Shade>
       <DeckLookProbe
         busy={phase.kind !== "settled" || menu !== null || chromeMenu || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck" || archiveCard}
@@ -955,7 +1013,7 @@ export const TabDeck = memo(function TabDeck() {
           items={cardMenuItems(cardMenu.index)}
           place={{
             top: Math.min(cardMenu.y, height - tabsLayout.cardMenuHeight),
-            left: Math.min(Math.max(cardMenu.x - tabsLayout.menuWidth / 2, space.l), width - tabsLayout.menuWidth - space.l),
+            left: contentLeft + Math.min(Math.max(cardMenu.x - tabsLayout.menuWidth / 2, space.l), deckWidth - tabsLayout.menuWidth - space.l),
             width: tabsLayout.menuWidth,
           }}
           onDismiss={() => setCardMenu(null)}
@@ -1012,6 +1070,7 @@ const SHOWN = { opacity: 1 };
 const HIDDEN = { opacity: 0 };
 const HANDOVER_CAP_MS = 250;
 const DRAWN_CAP_MS = 200;
+const ARCHIVE_RESIZE_SLACK = 0.5;
 const CARD_LANDED = 0.02;
 const CHROME_BACK: MotionCurve = { type: "timing", durationMs: 0 };
 const CHROME_GLASS_MS = 200;

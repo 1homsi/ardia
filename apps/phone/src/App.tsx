@@ -34,7 +34,10 @@ import { useSearchOpen } from "./state/search/hooks";
 import { useLeavingTab, useOpeningTab, useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser, type Surface } from "./state/browse/store";
 import { refreshHiddenDeck } from "./state/browse/deckHold";
-import { noteWindowShape } from "./state/app/landscapeCount";
+import { noteScreenLayoutName, noteWindowShape } from "./state/app/landscapeCount";
+import { DUO_CANVAS, reportScreenLayout, useScreenLayout } from "./state/app/screenLayout";
+import { DuoBrowsing } from "./components/duo/DuoBrowsing";
+import { ScreenLayoutProbe } from "@ardia/phone-native";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { VoiceSearchView } from "./components/search/VoiceSearchView";
 import { useVoicePresented } from "./state/voice/store";
@@ -86,8 +89,9 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root} onLayout={(event) => setRootSize(event.nativeEvent.layout.width, event.nativeEvent.layout.height)}>
       <SafeAreaProvider>
+        <ScreenLayoutProbe onLayoutChange={reportScreenLayout} />
         <ProfileLookContext.Provider value={look}>
-          <OverlayHost>{ready ? <Surfaces /> : importFailed ? <ImportFailedView /> : null}</OverlayHost>
+          <OverlayHost>{ready ? <DuoCanvasFrame><Surfaces /></DuoCanvasFrame> : importFailed ? <ImportFailedView /> : null}</OverlayHost>
           {interactionPerfEnabled() ? <FrameProbe /> : null}
         </ProfileLookContext.Provider>
       </SafeAreaProvider>
@@ -120,6 +124,7 @@ export function Surfaces() {
   const layer = inkLayer({ onboarding, voice, sheet: front !== null || systemSheet, searching, surface });
   const lightIcons = lightStatusIcons(layer, { cover: theme.backdrop[0], surface: theme.surface, deck: theme.backdrop[0], incognito });
   useEffect(goBackToStartIfEmpty, [tab, surface]);
+  const duo = useScreenLayout((s) => s.layout.name === "wide" || s.layout.name === "split");
   const deckMounted = useDeckStandby(surface, surface === "browsing" && tab !== null && opening === null && leaving === null && !searching && !voice && !onboarding && front === null, tab?.id ?? null);
   return (
     <>
@@ -128,8 +133,9 @@ export function Surfaces() {
         <Layer covered={onboarding || voice} muted={front !== null || systemSheet}>
           <Shade shaded={searching}>
             <FrostSource name={SURFACES_FROST} style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
-              {(surface === "browsing" || pageUnderDeck) && tab ? <BrowsingScreen tab={tab} /> : null}
-              {deckMounted ? <TabDeck /> : null}
+              {duo && surface !== "start" ? <DuoBrowsing /> : null}
+              {!duo && (surface === "browsing" || pageUnderDeck) && tab ? <BrowsingScreen tab={tab} /> : null}
+              {!duo && deckMounted ? <TabDeck /> : null}
               {surface === "start" ? <StartScreen /> : null}
             </FrostSource>
           </Shade>
@@ -155,9 +161,21 @@ export function Surfaces() {
   );
 }
 
+function DuoCanvasFrame({ children }: { children: ReactNode }) {
+  const canvas = useScreenLayout((s) => s.canvas);
+  if (!canvas) return <>{children}</>;
+  return (
+    <View testID="duoCanvas" style={styles.canvasBack}>
+      <View style={[styles.canvas, { width: canvas.width, height: canvas.height }]}>{children}</View>
+    </View>
+  );
+}
+
 function LandscapeCount() {
   const { width, height } = useWindowDimensions();
+  const layout = useScreenLayout((s) => s.layout.name);
   useEffect(() => noteWindowShape(width, height), [width, height]);
+  useEffect(() => noteScreenLayoutName(layout), [layout]);
   return null;
 }
 
@@ -203,4 +221,9 @@ function Layer({ covered, muted = false, children }: { covered: boolean; muted?:
   );
 }
 
-const styles = StyleSheet.create({ root: { flex: 1 }, gone: { display: "none" } });
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  gone: { display: "none" },
+  canvasBack: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#000000", alignItems: "center", justifyContent: "center" },
+  canvas: { borderRadius: DUO_CANVAS.radius, borderCurve: "continuous", overflow: "hidden" },
+});

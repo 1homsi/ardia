@@ -78,6 +78,15 @@ export function deckGeometry(width: number, height: number, safeTop: number, saf
   };
 }
 
+export type DeckMorph = { dx: number; dy: number; scale: number; originX: number; originY: number };
+
+export const NO_DECK_MORPH: DeckMorph = { dx: 0, dy: 0, scale: 1, originX: 0, originY: 0 };
+
+export function deckMorphFrom(was: DeckGeometry, now: DeckGeometry): DeckMorph {
+  const originX = now.focusLeading + now.cardWidth / 2;
+  return { dx: was.focusLeading + was.cardWidth / 2 - originX, dy: was.cardCenterY - now.cardCenterY, scale: was.cardWidth / Math.max(now.cardWidth, 1), originX, originY: now.cardCenterY };
+}
+
 export function deckLeading(g: DeckGeometry, relative: number): number {
   "worklet";
   if (relative >= 0) return g.focusLeading + g.spacing * relative;

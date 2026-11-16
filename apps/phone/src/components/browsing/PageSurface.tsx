@@ -9,7 +9,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { pageSwipe } from "../../state/settings/settingsRules";
 import { PageView, useTheme, type PageViewHandle } from "../ui";
 
-export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; toneBottom: number; obscured?: { top: number; bottom: number } }) {
+export function PageSurface({ tab, toneBottom, obscured, topClearance, testID }: { tab: BrowserTab; toneBottom: number; obscured?: { top: number; bottom: number }; topClearance?: number; testID?: string }) {
   const handle = useRef<PageViewHandle>(null);
   const theme = useTheme();
   const id = tab.id;
@@ -23,6 +23,7 @@ export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; to
   return (
     <PageView
       ref={handle}
+      testID={testID}
       style={veiled ? [StyleSheet.absoluteFill, styles.veiled] : StyleSheet.absoluteFill}
       pageId={id}
       initialUrl={setup.url}
@@ -31,6 +32,7 @@ export function PageSurface({ tab, toneBottom, obscured }: { tab: BrowserTab; to
       savedState={setup.saved}
       toneInsets={{ top: 0, bottom: toneBottom }}
       obscuredInsets={obscured}
+      topClearance={topClearance}
       swipeNavigation={pageSwipe(swipe)}
       pullToRefresh
       surfaceColor={theme.surface}

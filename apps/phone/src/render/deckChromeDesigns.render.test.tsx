@@ -289,7 +289,7 @@ test("the redesign's Archive card is main's slim capsule, 43 points tall and cen
   expect(place.top + 43 / 2).toBe(SAFE_TOP + 78.5);
   expect(style(root, "archiveCapsule")).toMatchObject({ minHeight: 43, borderRadius: 21.5, maxWidth: 560 });
   act(() => jest.advanceTimersByTime(1000));
-  const shift = () => (getAnimatedStyle(host(root, "deckCards")!).transform as { translateY: number }[])[0]!.translateY;
+  const shift = () => (getAnimatedStyle(host(root, "deckCards")!).transform as { translateY?: number }[]).find((step) => step.translateY !== undefined)!.translateY;
   expect(shift()).toBeCloseTo(26, 1);
   act(() => pressable(root, "Dismiss").props.onPress());
   expect(useArchiveCard.getState().showing).toBe(false);

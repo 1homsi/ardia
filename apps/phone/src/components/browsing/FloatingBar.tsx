@@ -49,35 +49,10 @@ export function barAddress(tab: BrowserTab): BarAddress {
 export function FloatingBar({ tab, order, roles, dark, showsPlus, onTabs, onTabsMenu, onStep, onAddress, onPlus, onMore }: Props) {
   const ink = dark ? chromeInk.dark : chromeInk.light;
   const address = barAddress(tab);
-  const count = order.length;
   const size = floatingBarLayout.control;
   return (
     <View testID="floatingBar" style={styles.row} pointerEvents="box-none">
-      <TabsMenuTrigger order={order} onTabsMenu={onTabsMenu}>
-        {({ onLongPress, screenReaderActions }) => (
-          <PressScale
-            label="Tabs"
-            value={`${count} ${count === 1 ? "tab" : "tabs"}`}
-            hint="Touch and hold for recent tabs."
-            longPressLabel="Recent Tabs"
-            actions={[
-              ...screenReaderActions,
-              { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
-              { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
-            ]}
-            onPress={onTabs}
-            onPressIn={haptics.barPress}
-            onLongPress={onLongPress}
-            style={styles.circleHit}
-          >
-            <ChromeSurface testID="floatingBarTabs" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
-              <View pointerEvents="none">
-                <TabStack tabs={order.slice(-2)} roles={roles} />
-              </View>
-            </ChromeSurface>
-          </PressScale>
-        )}
-      </TabsMenuTrigger>
+      <FloatingTabsButton tab={tab} order={order} roles={roles} dark={dark} testID="floatingBarTabs" onTabs={onTabs} onTabsMenu={onTabsMenu} onStep={onStep} />
       <ChromeSurface testID="floatingBarAddress" shape="capsule" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.address}>
         <Pressable
           accessibilityRole="button"
@@ -105,15 +80,55 @@ export function FloatingBar({ tab, order, roles, dark, showsPlus, onTabs, onTabs
         </PressScale>
       </ChromeSurface>
       <View style={styles.circleHit}>
-        {showsPlus ? (
-          <PressScale label="New Search" onPress={onPlus} onPressIn={haptics.barPress} style={styles.circleHit}>
-            <ChromeSurface testID="floatingBarPlus" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
-              <Symbol name="plus" size={floatingBarLayout.plusSymbol} color={ink.foreground} />
-            </ChromeSurface>
-          </PressScale>
-        ) : null}
+        {showsPlus ? <FloatingPlusButton tab={tab} dark={dark} testID="floatingBarPlus" onPlus={onPlus} /> : null}
       </View>
     </View>
+  );
+}
+
+type ButtonProps = { tab: BrowserTab; dark: boolean; testID: string };
+
+export function FloatingTabsButton({ tab, order, roles, dark, testID, onTabs, onTabsMenu, onStep }: ButtonProps & { order: BrowserTab[]; roles: ColorRoles; onTabs: () => void; onTabsMenu: () => void; onStep: (delta: -1 | 1) => void }) {
+  const count = order.length;
+  const size = floatingBarLayout.control;
+  return (
+    <TabsMenuTrigger order={order} onTabsMenu={onTabsMenu}>
+      {({ onLongPress, screenReaderActions }) => (
+        <PressScale
+          label="Tabs"
+          value={`${count} ${count === 1 ? "tab" : "tabs"}`}
+          hint="Touch and hold for recent tabs."
+          longPressLabel="Recent Tabs"
+          actions={[
+            ...screenReaderActions,
+            { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
+            { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
+          ]}
+          onPress={onTabs}
+          onPressIn={haptics.barPress}
+          onLongPress={onLongPress}
+          style={styles.circleHit}
+        >
+          <ChromeSurface testID={testID} shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
+            <View pointerEvents="none">
+              <TabStack tabs={order.slice(-2)} roles={roles} />
+            </View>
+          </ChromeSurface>
+        </PressScale>
+      )}
+    </TabsMenuTrigger>
+  );
+}
+
+export function FloatingPlusButton({ tab, dark, testID, onPlus }: ButtonProps & { onPlus: () => void }) {
+  const ink = dark ? chromeInk.dark : chromeInk.light;
+  const size = floatingBarLayout.control;
+  return (
+    <PressScale label="New Search" onPress={onPlus} onPressIn={haptics.barPress} style={styles.circleHit}>
+      <ChromeSurface testID={testID} shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
+        <Symbol name="plus" size={floatingBarLayout.plusSymbol} color={ink.foreground} />
+      </ChromeSurface>
+    </PressScale>
   );
 }
 

@@ -34,7 +34,7 @@ import {
 } from "../ui";
 import { MenuTrigger, spaceSystemImage, type MenuHandlers } from "../ui/MenuTrigger";
 
-export type StartGeometry = { width: number; height: number; safeSide: number; barCenterY: number };
+export type StartGeometry = { width: number; height: number; safeSide: number; barCenterY: number; dotsOnBar?: boolean };
 
 export const startBarCenterY = (height: number, safeBottom: number) => height - Math.max(safeBottom, startLayout.minSafeBottom) - startLayout.barAboveSafeBottom;
 
@@ -109,7 +109,7 @@ export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeom
               );
             }}
           />
-          <SpacePageDots count={spaces.length} index={index} dark={dark} y={geometry.barCenterY - startLayout.pageDotsAboveBar} />
+          <SpacePageDots count={spaces.length} index={index} dark={dark} y={geometry.dotsOnBar ? geometry.barCenterY : geometry.barCenterY - startLayout.pageDotsAboveBar} />
         </>
       ) : spaces.length === 1 ? (
         page(spaces[0]!)

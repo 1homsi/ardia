@@ -11,6 +11,9 @@ import { LookBackdrop, LookBackdropBase, space, startLayout, startMotion, tabsCu
 import { GlassCircleButton } from "../tabs/ChromeButtons";
 import { PlusMenuButton } from "../tabs/DeckBottomBar";
 import { StartSpaces, startBarCenterY, type StartGeometry } from "./StartSpaces";
+import { columnContentWidth } from "../../state/app/screenLayout";
+import { StartColumn } from "../column/StartColumn";
+import { columnContentFrame, useColumn } from "../column/SideColumn";
 
 export function StartPage() {
   const insets = useSafeAreaInsets();
@@ -21,7 +24,10 @@ export function StartPage() {
   const theme = useTheme();
   const dark = incognito || theme.dark;
   const reduceMotion = useReduceMotion();
-  const geometry: StartGeometry = { width, height, safeSide: Math.max(insets.left, insets.right), barCenterY: startBarCenterY(height, insets.bottom) };
+  const column = useColumn();
+  const geometry: StartGeometry = column
+    ? { width: columnContentWidth(column, width), height, safeSide: 0, barCenterY: startBarCenterY(height, insets.bottom), dotsOnBar: true }
+    : { width, height, safeSide: Math.max(insets.left, insets.right), barCenterY: startBarCenterY(height, insets.bottom) };
   const shown = useSharedValue(trayUp ? 0 : 1);
   useEffect(() => {
     shown.value = reduceMotion
@@ -36,22 +42,28 @@ export function StartPage() {
     <View testID="startPage" style={StyleSheet.absoluteFill}>
       <LookBackdropBase themed={!incognito} incognito={incognito} />
       <LookBackdrop themed={!incognito} incognito={incognito} baseOutside veiled />
-      <Animated.View testID="startContent" {...hidden} style={[StyleSheet.absoluteFill, contentStyle]}>
+      <Animated.View testID="startContent" {...hidden} style={[StyleSheet.absoluteFill, column ? columnContentFrame(column, width) : null, contentStyle]}>
         <StartSpaces geometry={geometry} dark={dark} incognito={incognito} />
       </Animated.View>
-      <Animated.View testID="startBar" {...hidden} style={[styles.bar, { top: barTop, paddingHorizontal: geometry.safeSide + startLayout.barSideInset }, barStyle]}>
-        <GlassCircleButton icon="squareOnSquare" label="Tabs" testID="startBarTabs" dark={dark} incognito={incognito} onPress={showDeck} />
-        <PlusMenuButton
-          width={startLayout.barPlus.width}
-          label={incognito ? "New Incognito Tab" : "New Tab"}
-          testID="startBarPlus"
-          dark={dark}
-          incognito={incognito}
-          place={{ bottom: height - barTop + space.s, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
-          menusShown={!trayUp}
-        />
-        <GlassCircleButton icon="gearshape" label="Settings" testID="startBarSettings" dark={dark} incognito={incognito} onPress={() => openSettings()} />
-      </Animated.View>
+      {column ? (
+        <Animated.View testID="startBar" {...hidden} style={[StyleSheet.absoluteFill, barStyle]}>
+          <StartColumn column={column} width={width} dark={dark} incognito={incognito} menusShown={!trayUp} />
+        </Animated.View>
+      ) : (
+        <Animated.View testID="startBar" {...hidden} style={[styles.bar, { top: barTop, paddingHorizontal: geometry.safeSide + startLayout.barSideInset }, barStyle]}>
+          <GlassCircleButton icon="squareOnSquare" label="Tabs" testID="startBarTabs" dark={dark} incognito={incognito} onPress={showDeck} />
+          <PlusMenuButton
+            width={startLayout.barPlus.width}
+            label={incognito ? "New Incognito Tab" : "New Tab"}
+            testID="startBarPlus"
+            dark={dark}
+            incognito={incognito}
+            place={{ bottom: height - barTop + space.s, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
+            menusShown={!trayUp}
+          />
+          <GlassCircleButton icon="gearshape" label="Settings" testID="startBarSettings" dark={dark} incognito={incognito} onPress={() => openSettings()} />
+        </Animated.View>
+      )}
     </View>
   );
 }

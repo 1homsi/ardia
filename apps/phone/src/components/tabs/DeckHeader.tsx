@@ -21,6 +21,7 @@ type Props = {
   onCloseIncognito: () => void;
   onCloseAll: () => void;
   menusShown?: boolean;
+  showsMore?: boolean;
   onMenu?: (open: boolean) => void;
 } & ChromeFade;
 
@@ -28,7 +29,7 @@ export const deckHeaderBottom = () => deckChromeLayout.headerCenter + deckChrome
 
 export const deckArchiveBottom = () => deckChromeLayout.archiveCenter + deckChromeLayout.archiveHeight / 2;
 
-function deckMoreMenuItems({ syncEnabled, canReopen, hasTabs, onCloseAll }: { syncEnabled: boolean; canReopen: boolean; hasTabs: boolean; onCloseAll: () => void }): MenuItem[] {
+export function deckMoreMenuItems({ syncEnabled, canReopen, hasTabs, onCloseAll }: { syncEnabled: boolean; canReopen: boolean; hasTabs: boolean; onCloseAll: () => void }): MenuItem[] {
   return [
     { label: "Archive", onPress: openArchive },
     ...(syncEnabled ? [{ label: "Spaces From Your Mac", onPress: openSpaces }] : []),
@@ -41,7 +42,7 @@ function deckMoreMenuItems({ syncEnabled, canReopen, hasTabs, onCloseAll }: { sy
   ];
 }
 
-export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIncognito, onCloseAll, menusShown = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
+export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIncognito, onCloseAll, menusShown = true, showsMore = true, onMenu, glassShown, glassShownMs, glyphFade }: Props) {
   const theme = useTheme();
   const status = useSyncStatus();
   const view = useSyncView();
@@ -89,15 +90,17 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIn
       {privateCount > 0 ? (
         <Animated.View entering={pillIn} exiting={pillOut}>
           <FadingGlyphs testID="deckIncognitoPillFade" fade={glyphFade}>
-            <MenuTrigger items={pillItems} {...menu} place={{ top: below, right: side + deckChromeLayout.headerCircle + deckChromeLayout.headerGap, width: tabsLayout.menuWidth }}>
+            <MenuTrigger items={pillItems} {...menu} place={{ top: below, right: showsMore ? side + deckChromeLayout.headerCircle + deckChromeLayout.headerGap : side, width: tabsLayout.menuWidth }}>
               {({ onPress }) => <IncognitoPill count={privateCount} onPress={onPress ?? noop} />}
             </MenuTrigger>
           </FadingGlyphs>
         </Animated.View>
       ) : null}
-      <MenuTrigger items={moreItems} {...menu} place={{ top: below, right: side, width: tabsLayout.menuWidth }}>
-        {({ onPress }) => <GlassCircleButton icon="ellipsis" label="More" testID="deckHeaderMore" diameter={deckChromeLayout.headerCircle} dark={theme.dark} glassShown={glassShown} glassShownMs={glassShownMs} glyphFade={glyphFade} onPress={onPress ?? noop} />}
-      </MenuTrigger>
+      {showsMore ? (
+        <MenuTrigger items={moreItems} {...menu} place={{ top: below, right: side, width: tabsLayout.menuWidth }}>
+          {({ onPress }) => <GlassCircleButton icon="ellipsis" label="More" testID="deckHeaderMore" diameter={deckChromeLayout.headerCircle} dark={theme.dark} glassShown={glassShown} glassShownMs={glassShownMs} glyphFade={glyphFade} onPress={onPress ?? noop} />}
+        </MenuTrigger>
+      ) : null}
     </View>
   );
 }
