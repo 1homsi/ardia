@@ -315,9 +315,8 @@ bool WaitForExitingPredecessor(const std::wstring& key,
   state.facts.predecessor_wait_ms = waited;
   std::string line;
   if (stayed) {
-    line = "launch guard: the previous Ardia on this profile took this "
-           "launch after " +
-           std::to_string(waited) + " ms instead of exiting";
+    line = "launch guard: another Ardia took over this profile after " +
+           std::to_string(waited) + " ms";
   } else if (!state.owns_alive) {
     line = "launch guard: the previous Ardia on this profile was still "
            "exiting after " +
@@ -328,7 +327,10 @@ bool WaitForExitingPredecessor(const std::wstring& key,
   }
   LOG(WARNING) << "Ardia " << line;
   AppendLog(line);
-  return !stayed;
+  if (stayed) {
+    return WaitForStartingOwner(chromium_user_data_dir);
+  }
+  return true;
 }
 
 }
