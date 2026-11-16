@@ -50,7 +50,7 @@ test("without the native module the settings pieces draw nothing and send no mod
     expect(root.toJSON()).toBeNull();
     act(() => root.unmount());
   }
-  const all = [ui.settingsChrome(), ui.settingsPage("Sync With Mac"), ui.chromeSurface({ shape: "capsule" }), ui.settingsSwitchStyle(), ui.pressableStyle(), ui.legibleInk("green"), ui.profileLook({ color: "plum" }), ui.contentMargins({ edges: "top", length: 12 }), ui.spaceBackdrop({ color: "purple" })];
+  const all = [ui.settingsChrome(), ui.settingsPage("Sync With Mac"), ui.chromeSurface({ shape: "capsule" }), ui.settingsSwitchStyle(), ui.pressableStyle(), ui.legibleInk("green"), ui.profileLook({ color: "plum" }), ui.contentMargins({ edges: "top", length: 12 }), ui.spaceBackdrop({ color: "purple" }), ui.minListRowHeight(48)];
   expect(all.every((modifier) => modifier === null)).toBe(true);
   expect(ui.modifierList(...all)).toEqual([]);
 });
@@ -72,6 +72,7 @@ test("with the native module each view mounts by its native name with its props,
   expect(ui.legibleInk("green")).toEqual({ $type: "ardia.legibleInk", tint: "green" });
   expect(ui.profileLook({ color: "blue", themeColors: ["#4F7CFF"] })).toEqual({ $type: "ardia.profileLook", color: "blue", themeColors: ["#4F7CFF"], darkThemeColors: null, usesGlass: true });
   expect(ui.contentMargins({ edges: "top", length: 12 })).toEqual({ $type: "ardia.contentMargins", edges: "top", length: 12 });
+  expect(ui.minListRowHeight(48)).toEqual({ $type: "ardia.minListRowHeight", height: 48 });
   expect(ui.spaceBackdrop({ color: "purple", themeColors: ["#7A4FFF"] })).toEqual({ $type: "ardia.spaceBackdrop", color: "purple", icon: null, themeColors: ["#7A4FFF"], themeDarkColors: null, animated: true });
   expect(ui.modifierList(ui.settingsChrome(), null, false, ui.pressableStyle()).map((modifier) => modifier.$type)).toEqual(["ardia.settingsChrome", "ardia.pressableStyle"]);
 });

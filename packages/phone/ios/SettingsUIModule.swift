@@ -343,6 +343,14 @@ struct LegibleInkResolver: ViewModifier {
   }
 }
 
+struct MinListRowHeightModifier: ViewModifier, Record {
+  @Field var height: Double = 44
+
+  func body(content: Content) -> some View {
+    content.environment(\.defaultMinListRowHeight, CGFloat(height))
+  }
+}
+
 struct ContentMarginsModifier: ViewModifier, Record {
   @Field var edges: String = "top"
   @Field var length: Double = 0
@@ -374,9 +382,10 @@ struct ProfileLookModifier: ViewModifier, Record {
 }
 
 enum SettingsUIModifiers {
-  static let names = ["ardia.spaceBackdrop", "ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"]
+  static let names = ["ardia.minListRowHeight", "ardia.spaceBackdrop", "ardia.settingsChrome", "ardia.settingsPage", "ardia.chromeSurface", "ardia.settingsSwitchStyle", "ardia.pressableStyle", "ardia.legibleInk", "ardia.profileLook", "ardia.contentMargins"]
 
   static func register() {
+    ViewModifierRegistry.register("ardia.minListRowHeight") { params, context, _ in try MinListRowHeightModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.spaceBackdrop") { params, context, _ in try SpaceBackdropModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.settingsChrome") { params, context, _ in try SettingsChromeModifier(from: params, appContext: context) }
     ViewModifierRegistry.register("ardia.settingsPage") { params, context, _ in try SettingsPageModifier(from: params, appContext: context) }
