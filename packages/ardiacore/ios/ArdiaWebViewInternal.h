@@ -346,6 +346,7 @@ NSPoint RootPointFromWindow(NSWindow *window, NSPoint inWindow);
 NSRect RootRectFromWindow(NSWindow *window, NSRect inWindow);
 CGFloat RootPointsPerLocalPoint(NSView *view);
 BOOL MayHoldUserActivation(NSWindow *window);
+BOOL TakeShiftClick(ArdiaWebView *view);
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();

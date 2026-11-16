@@ -64,9 +64,8 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
     s.openPeek(page.tabId, url, point ?? null, request.site ? { landing: siteLanding(pageUrl, "source") } : {});
     return;
   }
-  if (disposition === "window" && page.tabId && shiftClickPeeks(request, s.settings.peekModifier, w.kind, !!peekSource)) {
-    notePeekFromShiftWindow();
-    return void s.openPeek(page.tabId, url, point ?? null, { adoptId });
+  if (disposition === "window" && page.tabId && shiftClickPeeks(request, s.settings.peekModifier, w.kind, !!peekSource) && s.openPeek(page.tabId, url, point ?? null, { adoptId })) {
+    return void notePeekFromShiftWindow();
   }
   const from = peekSource ? { ...page, tabId: peekSource } : page;
   if (isSmall(s, w.id) && disposition !== "window" && disposition !== "incognito") {
@@ -111,5 +110,5 @@ export function pageProfileId(windowId: string, pageProfile: string): string {
   return s.profileOrder.find((p) => engineProfile(s, p) === pageProfile) ?? w?.profileId ?? s.settings.defaultProfileId;
 }
 
-export const shiftClickPeeks = (request: Pick<OpenWindowRequest, "userGesture" | "popup">, peekModifier: string, windowKind: string, fromPeek: boolean) =>
-  !!request.userGesture && !request.popup && peekModifier === "shift" && windowKind === "main" && !fromPeek;
+export const shiftClickPeeks = (request: Pick<OpenWindowRequest, "shiftClick" | "popup">, peekModifier: string, windowKind: string, fromPeek: boolean) =>
+  !!request.shiftClick && !request.popup && peekModifier === "shift" && windowKind === "main" && !fromPeek;

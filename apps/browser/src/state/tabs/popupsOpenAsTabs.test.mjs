@@ -107,20 +107,46 @@ test("a ⇧-clicked link that asks for a new window opens as a Peek when ⇧ is 
   const { w, page, ref } = windowWithTab();
   takePopupTabCounts();
   S().updateSettings({ peekModifier: "shift" });
-  openFromPage({ url: "https://mail.example/inner", disposition: "window", userGesture: true }, ref(page));
+  openFromPage({ url: "https://mail.example/inner", disposition: "window", userGesture: true, shiftClick: true }, ref(page));
   assert.equal(S().windowOrder.length, 1, "no new window");
   assert.ok(S().peeks[page], "a Peek opens over the page");
   assert.ok(Object.values(S().tabs).some((t) => t.url === "https://mail.example/inner"));
   assert.deepEqual(takePopupTabCounts(), { popups_opened_as_tabs: 0, shift_click_window_peeks: 1 });
   S().updateSettings({ peekModifier: "alt" });
   const before = S().windowOrder.length;
-  openFromPage({ url: "https://mail.example/other", disposition: "window", userGesture: true }, ref(page));
+  openFromPage({ url: "https://mail.example/other", disposition: "window", userGesture: true, shiftClick: true }, ref(page));
   assert.equal(S().windowOrder.length, before + 1, "with ⌥ as the Peek key, ⇧-click keeps Chrome's new window");
   S().updateSettings({ peekModifier: "shift" });
   const count = S().windowOrder.length;
   openFromPage({ url: "https://mail.example/script", disposition: "window" }, ref(page));
-  openFromPage({ url: "https://mail.example/popup", disposition: "window", userGesture: true, popup: true }, ref(page));
+  openFromPage({ url: "https://mail.example/popup", disposition: "window", userGesture: true, shiftClick: true, popup: true }, ref(page));
   assert.ok(S().windowOrder.length >= count, "a window a script asks for, or a pop-up, is not turned into a Peek");
   assert.equal(takePopupTabCounts().shift_click_window_peeks, 0);
   assert.equal(S().windows[w].kind, "main");
+});
+
+test("Open Link in New Window from a link's menu opens a window even with ⇧ as the Peek key: only a real ⇧-click carries shiftClick", () => {
+  const { page, ref } = windowWithTab();
+  takePopupTabCounts();
+  S().updateSettings({ peekModifier: "shift" });
+  const before = S().windowOrder.length;
+  openFromPage({ url: "https://mail.example/menu", disposition: "window", userGesture: true, adoptId: "ardiacore:menu" }, ref(page));
+  assert.equal(S().windowOrder.length, before + 1, "a new window opens");
+  assert.equal(S().peeks[page], undefined, "no Peek");
+  assert.equal(takePopupTabCounts().shift_click_window_peeks, 0);
+});
+
+test("a ⇧-clicked link Peek can't show (file:, blob:) opens in a new window as before, with the engine's page adopted", () => {
+  const { page, ref } = windowWithTab();
+  takePopupTabCounts();
+  S().updateSettings({ peekModifier: "shift" });
+  for (const url of ["file:///Users/me/report.pdf", "blob:https://mail.example/3c1e"]) {
+    const before = S().windowOrder.length;
+    openFromPage({ url, disposition: "window", userGesture: true, shiftClick: true, adoptId: "ardiacore:shift" }, ref(page));
+    assert.equal(S().windowOrder.length, before + 1, `${url} opens a window`);
+    const opened = S().windows[S().windowOrder.at(-1)];
+    assert.ok(opened.tabIds.some((id) => S().tabs[id].url === url), `${url} is in it`);
+    assert.equal(S().peeks[page], undefined);
+  }
+  assert.equal(takePopupTabCounts().shift_click_window_peeks, 0);
 });
