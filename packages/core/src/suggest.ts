@@ -42,17 +42,18 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   }
 
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
-  const { tabIds, extra } = tabsOver(pool, source.tabs, options.currentTabId);
+  const { tabIds, extra, renamed } = tabsOver(pool, source.tabs, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
+    const shown = { ...c, title: c.pageTitle ?? c.title };
     const opened = withRootSlash(url);
-    if (withRootSlash(c.url) === opened) return pageSuggestion(c, null);
+    if (withRootSlash(c.url) === opened) return pageSuggestion(shown, null);
     const visit = savedVisit(source.history, opened);
     const bookmark = savedBookmark(source.bookmarks ?? NO_BOOKMARKS, opened);
-    const lent = visit ?? bookmark ?? c;
+    const lent = visit ?? bookmark ?? shown;
     const row: PageRow = { url: visit?.url ?? opened, title: lent.title, favicon: lent.favicon, visits: visit?.visits ?? 0, bookmarked: bookmark !== undefined };
     return pageSuggestion(row, null);
   };
@@ -60,7 +61,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const websiteFirst = preference === "website";
   const oneWord = tokens.length === 1;
   const noInline = preventInline || (oneWord && raw.length !== query.length && /\s$/.test(raw));
-  const completes = websiteFirst && !scope && oneWord && !noInline;
+  const completes = !scope && oneWord && !noInline;
   const from = narrowing(pool, q, tokens);
   const pages = from ? from.pages : pool.list;
   const again = from !== null && from.q === q;
@@ -84,6 +85,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
         scores[found++] = m;
       }
       const key = c.text.key;
+      if (inPages && renamed.has(key)) continue;
       const derank = currentKey !== null && key === currentKey ? 80 : 0;
       const lastVisit = c.fresh ? now : c.lastVisit;
       let age = 10;
@@ -157,6 +159,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   out.push(...creates.map(createRow));
   const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
   out.push(...pageRows.slice(0, 3));
+  out.push(...(options.remoteSites ?? []).slice(0, 2).map((site): Suggestion => known(site.url) ?? { kind: "page", url: site.url, title: site.title, favicon: null }));
   const providerAt = out.items.length;
   out.push(...remoteRows((text) => searchUrl(engine, text), engine.name));
   out.push(...pageRows.slice(3));
@@ -189,7 +192,7 @@ function inlineTarget(q: string, c: Candidate): { text: string; url: string; fav
   const origin = originOfPage(c.text);
   const host = hostPart(c.text.shown);
   if (origin && host.toLowerCase().startsWith(q)) return { text: host, url: `${origin}/`, favicon: c.favicon };
-  return { text: c.text.shown, url: c.url, favicon: c.favicon };
+  return { text: c.text.shown, url: c.text.url, favicon: c.favicon };
 }
 
 function bangSuggestions(match: BangMatch, source: SuggestionSource, options: SuggestOptions, limit: number): SuggestionResult {
