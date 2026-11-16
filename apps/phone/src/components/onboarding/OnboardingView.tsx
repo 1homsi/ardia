@@ -1,45 +1,56 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withDelay, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { AppIcon, appIconLayout, PrimaryButton, LookBackdrop, onboardingArt, font, radius, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName, useReduceMotion } from "../ui";
-import { CrossfadeText, ToggleRow } from "../settings/SettingsKit";
+import { AppIcon, appIconLayout, LookBackdrop, moveTo, onboardingArt, font, primaryButtonHeight, radius, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, ToggleTrack, useTheme, type SymbolName, useReduceMotion } from "../ui";
+import type { Motion } from "../ui/motion";
+import { CrossfadeText, Divider, ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
 import { LinkBubble } from "./LinkBubble";
 import { SyncScanIllustration } from "./SyncScanIllustration";
+import { onboardingLayout, onboardingMotion } from "./onboardingTokens";
 import { PHONE_SHARING_COPY } from "../../lib/telemetryCopy";
+import { withAlpha } from "../../lib/color";
 import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetry";
 import { useSyncConnected } from "../../state/sync/hooks";
 
-const welcomeSpring = spring(0.7, 0.7);
-const STEP_SHIFT = 60;
 const ONBOARDING_MIN_PAGE = 560;
 const LARGE_TEXT = 1.35;
 const smooth = spring(0.42, 0.9);
-const BACKDROP_IN = FadeIn.duration(300);
-const BACKDROP_OUT = FadeOut.duration(300);
-const REDUCED_IN = FadeIn.duration(tabsMotion.fade);
-const REDUCED_OUT = FadeOut.duration(tabsMotion.fade);
 
-const stepIn = (direction: 1 | -1) => () => {
+export const stepIn = (direction: 1 | -1, reduced: boolean) => () => {
   "worklet";
+  const motion = reduced ? onboardingMotion.stepReduced : onboardingMotion.step;
+  const shift = reduced ? 0 : direction * onboardingMotion.stepTravel;
   return {
-    initialValues: { opacity: 0, transform: [{ translateX: direction * STEP_SHIFT }] },
-    animations: { opacity: withSpring(1, smooth), transform: [{ translateX: withSpring(0, smooth) }] },
+    initialValues: { opacity: 0, transform: [{ translateX: shift }] },
+    animations: { opacity: moveTo(1, motion), transform: [{ translateX: moveTo(0, motion) }] },
   };
 };
 
-const stepOut = (direction: 1 | -1) => () => {
+export const stepOut = (direction: 1 | -1, reduced: boolean) => () => {
   "worklet";
+  const motion = reduced ? onboardingMotion.stepReduced : onboardingMotion.step;
+  const shift = reduced ? 0 : -direction * onboardingMotion.stepTravel;
   return {
     initialValues: { opacity: 1, transform: [{ translateX: 0 }] },
-    animations: { opacity: withSpring(0, smooth), transform: [{ translateX: withSpring(-direction * STEP_SHIFT, smooth) }] },
+    animations: { opacity: moveTo(0, motion), transform: [{ translateX: moveTo(shift, motion) }] },
   };
 };
-const WELCOME_DELAY_MS = 100;
+
+const fade = (from: number, to: number, motion: Motion) => () => {
+  "worklet";
+  return { initialValues: { opacity: from }, animations: { opacity: moveTo(to, motion) } };
+};
+
+const backdropIn = (reduced: boolean) => fade(0, 1, reduced ? onboardingMotion.backdropReduced : onboardingMotion.backdrop);
+const backdropOut = (reduced: boolean) => fade(1, 0, reduced ? onboardingMotion.backdropReduced : onboardingMotion.backdrop);
+
+const REDUCED_IN = FadeIn.duration(tabsMotion.fade);
+const REDUCED_OUT = FadeOut.duration(tabsMotion.fade);
 
 const slideUp = (height: number) => () => {
   "worklet";
@@ -74,13 +85,14 @@ export function OnboardingView() {
   const content = step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : step === "defaultBrowser" ? <DefaultBrowserStep /> : <AllSet />;
   return (
     <Animated.View exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <Animated.View key={welcome ? "welcome" : "steps"} entering={BACKDROP_IN} exiting={BACKDROP_OUT} style={StyleSheet.absoluteFill}>
+      <Animated.View key={welcome ? "welcomeBackdrop" : "stepsBackdrop"} entering={backdropIn(reduceMotion)} exiting={backdropOut(reduceMotion)} style={StyleSheet.absoluteFill}>
         <LookBackdrop softened={!welcome} fadesOut={!welcome} />
       </Animated.View>
       <Animated.View
         key={step}
-        entering={reduceMotion ? REDUCED_IN : forward ? stepIn(1) : stepIn(-1)}
-        exiting={reduceMotion ? REDUCED_OUT : forward ? stepOut(1) : stepOut(-1)}
+        testID="onboardingStep"
+        entering={stepIn(forward ? 1 : -1, reduceMotion)}
+        exiting={stepOut(forward ? 1 : -1, reduceMotion)}
         style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
       >
         {fontScale > LARGE_TEXT ? (
@@ -153,14 +165,28 @@ function Secondary({ title, onPress }: { title: string; onPress: () => void }) {
   );
 }
 
-const Primary = PrimaryButton;
+function Primary({ title, onPress }: { title: string; onPress: () => void }) {
+  const theme = useTheme();
+  const [height, setHeight] = useState(primaryButtonHeight);
+  const measure = (event: LayoutChangeEvent) => setHeight(Math.max(event.nativeEvent.layout.height, primaryButtonHeight()));
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      onLayout={measure}
+      style={[styles.primary, { minHeight: primaryButtonHeight(), borderRadius: onboardingLayout.buttonRadius(height), backgroundColor: theme.primaryAction }]}
+    >
+      <Text style={[font.body, styles.primaryLabel, { color: theme.onPrimaryAction }]}>{title}</Text>
+    </Pressable>
+  );
+}
 
 function Welcome() {
   const theme = useTheme();
   const reduceMotion = useReduceMotion();
   const appear = useSharedValue(0);
   useEffect(() => {
-    appear.value = reduceMotion ? withTiming(1, { duration: tabsMotion.fade }) : withDelay(WELCOME_DELAY_MS, withSpring(1, welcomeSpring));
+    appear.value = reduceMotion ? moveTo(1, onboardingMotion.riseReduced) : withDelay(onboardingMotion.riseDelayMs, moveTo(1, onboardingMotion.rise));
   }, [appear]);
   const logo = useAnimatedStyle(
     () => ({
@@ -175,44 +201,82 @@ function Welcome() {
   );
   const start = useAnimatedStyle(() => ({ opacity: Math.min(Math.max(appear.value, 0), 1) }));
   return (
-    <View style={styles.column}>
+    <View style={[styles.fill, { gap: onboardingLayout.welcomeGap }]}>
       <View style={styles.fill} />
       <Animated.View testID="welcomeIcon" style={[styles.logo, logo]}>
         <AppIcon side={appIconLayout.welcome} scalesWithText={false} />
       </Animated.View>
-      <Animated.View style={[styles.words, words]}>
-        <Text accessibilityRole="header" style={[font.hero, styles.heavy, { color: theme.label }]}>
+      <Animated.View testID="welcomeWords" style={[styles.welcomeWords, words]}>
+        <Text accessibilityRole="header" style={[onboardingLayout.welcomeTitle, styles.heavy, { color: theme.label }]}>
           Meet your new favorite browser
         </Text>
-        <Text style={[font.title3, styles.centered, { color: theme.secondaryLabel }]}>Get what you want twice as fast.</Text>
+        <Text style={[onboardingLayout.welcomeSubtitle, styles.centered, { color: theme.secondaryLabel }]}>Get what you want twice as fast.</Text>
       </Animated.View>
       <View style={styles.fill} />
-      <Animated.View style={[styles.actions, start]}>
+      <Animated.View testID="onboardingActions" style={[styles.actions, { paddingTop: onboardingLayout.welcomeActionsTop }, start]}>
         <Primary title="Get Started" onPress={advanceOnboarding} />
       </Animated.View>
     </View>
   );
 }
 
-function Page({ title, subtitle, illustration, children }: { title: ReactNode; subtitle: string; illustration: ReactNode; children: ReactNode }) {
+function Page({ title, subtitle, illustration, sitsLow, children }: { title: ReactNode; subtitle: string; illustration: ReactNode; sitsLow?: boolean; children: ReactNode }) {
   const theme = useTheme();
   return (
-    <View style={styles.column}>
-      <View style={styles.illustration}>{illustration}</View>
-      <View style={styles.words}>
-        <Text accessibilityRole="header" style={[font.largeTitle, styles.heavy, { color: theme.label }]}>
+    <View style={styles.fill}>
+      <View testID="onboardingIllustration" style={[styles.illustration, { justifyContent: sitsLow ? "flex-end" : "center" }]}>
+        {illustration}
+      </View>
+      <View testID="onboardingWords" style={styles.words}>
+        <Text accessibilityRole="header" style={[onboardingLayout.title, styles.heavy, { color: theme.label }]}>
           {title}
         </Text>
         <CrossfadeText testID="onboardingSubtitle" text={subtitle} style={[font.body, styles.centered, { color: theme.secondaryLabel }]} />
       </View>
-      <View style={styles.actions}>{children}</View>
+      <View testID="onboardingActions" style={[styles.actions, { paddingTop: onboardingLayout.actionsTop }]}>
+        {children}
+      </View>
     </View>
   );
 }
 
+function OnboardingCard({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+  const style = onboardingLayout.rowIcons
+    ? [styles.card, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]
+    : [styles.plainCard, { backgroundColor: withAlpha(theme.pageSurface, onboardingLayout.cardFill), boxShadow: onboardingLayout.cardShadow }];
+  return (
+    <View testID="onboardingCard" style={style}>
+      {children}
+    </View>
+  );
+}
+
+function PlainToggleRow({ title, value, divider, onChange }: { title: string; value: boolean; divider?: boolean; onChange: (on: boolean) => void }) {
+  const theme = useTheme();
+  return (
+    <View>
+      <Pressable accessibilityRole="switch" accessibilityLabel={title} accessibilityState={{ checked: value }} onPress={() => onChange(!value)} style={styles.plainRow}>
+        <Text importantForAccessibility="no" accessibilityElementsHidden style={[font.body, styles.fill, { color: theme.label }]}>
+          {title}
+        </Text>
+        <ToggleTrack value={value} />
+      </Pressable>
+      {divider ? <Divider inset={onboardingLayout.rowInset} /> : null}
+    </View>
+  );
+}
+
+const BLOCKING_ROWS = [
+  { key: "ads", title: "Block Ads", icon: "handRaised", tint: settingsTint.ads },
+  { key: "trackers", title: "Block Trackers", icon: "eyeglasses", tint: settingsTint.trackers },
+  { key: "cookieBanners", title: "Block Cookie Banners", icon: "listBulletFill", tint: settingsTint.cookies },
+] as const;
+
 function Blocking() {
   const theme = useTheme();
   const state = useBlocking((s) => s.state);
+  const values = { ads: state?.blocksAds ?? true, trackers: state?.blocksTrackers ?? true, cookieBanners: state?.hidesCookieBanners ?? true };
   return (
     <Page
       title={
@@ -221,12 +285,19 @@ function Blocking() {
         </>
       }
       subtitle="Trackers and cookie banners too."
+      sitsLow
       illustration={
-        <View style={[styles.card, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
-          <ToggleRow title="Block Ads" icon="handRaised" tint={settingsTint.ads} value={state?.blocksAds ?? true} divider onChange={(on) => setBlockingCategory("ads", on)} />
-          <ToggleRow title="Block Trackers" icon="eyeglasses" tint={settingsTint.trackers} value={state?.blocksTrackers ?? true} divider onChange={(on) => setBlockingCategory("trackers", on)} />
-          <ToggleRow title="Block Cookie Banners" icon="listBulletFill" tint={settingsTint.cookies} value={state?.hidesCookieBanners ?? true} onChange={(on) => setBlockingCategory("cookieBanners", on)} />
-        </View>
+        <OnboardingCard>
+          {BLOCKING_ROWS.map((row, index) => {
+            const divider = index < BLOCKING_ROWS.length - 1;
+            const change = (on: boolean) => setBlockingCategory(row.key, on);
+            return onboardingLayout.rowIcons ? (
+              <ToggleRow key={row.key} title={row.title} icon={row.icon} tint={row.tint} value={values[row.key]} divider={divider} onChange={change} />
+            ) : (
+              <PlainToggleRow key={row.key} title={row.title} value={values[row.key]} divider={divider} onChange={change} />
+            );
+          })}
+        </OnboardingCard>
       }
     >
       <Primary title="Continue" onPress={advanceOnboarding} />
@@ -247,17 +318,31 @@ function AllSet() {
     <Page
       title="You’re all set!"
       subtitle="Happy browsing."
+      sitsLow
       illustration={
-        <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} style={[styles.card, styles.tips, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
-          {TIPS.map((tip) => (
-            <View key={tip.text} style={styles.tip}>
-              <View style={styles.tipIcon}>
-                <Symbol name={tip.icon} size={20} color={theme.formAccent} />
+        onboardingLayout.tipIcons ? (
+          <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} style={[styles.card, styles.tips, { backgroundColor: theme.groupFill, shadowColor: theme.trayShadow }]}>
+            {TIPS.map((tip) => (
+              <View key={tip.text} style={styles.tip}>
+                <View style={styles.tipIcon}>
+                  <Symbol name={tip.icon} size={20} color={theme.formAccent} />
+                </View>
+                <Text style={[font.subheadline, { color: theme.label }]}>{tip.text}</Text>
               </View>
-              <Text style={[font.subheadline, { color: theme.label }]}>{tip.text}</Text>
-            </View>
-          ))}
-        </Animated.View>
+            ))}
+          </Animated.View>
+        ) : (
+          <OnboardingCard>
+            {TIPS.map((tip, index) => (
+              <View key={tip.text}>
+                <View style={styles.plainTip}>
+                  <Text style={[font.body, { color: theme.label }]}>{tip.text}</Text>
+                </View>
+                {index < TIPS.length - 1 ? <Divider inset={onboardingLayout.rowInset} /> : null}
+              </View>
+            ))}
+          </OnboardingCard>
+        )
       }
     >
       <SharingChoice />
@@ -283,22 +368,28 @@ const styles = StyleSheet.create({
   scrolled: { flexGrow: 1, minHeight: ONBOARDING_MIN_PAGE },
   sharing: { gap: space.s },
   sharingCard: { borderRadius: radius.card, overflow: "hidden" },
-  column: { flex: 1, alignItems: "stretch", gap: space.xxl },
   fill: { flex: 1 },
   logo: {
     alignSelf: "center",
+    marginBottom: onboardingLayout.welcomeIconBottom,
     padding: appIconLayout.welcomeFrame,
     borderRadius: appIconLayout.welcome * appIconLayout.corner + appIconLayout.welcomeFrame,
     backgroundColor: appIconLayout.fill,
     boxShadow: appIconLayout.welcomeShadow,
   },
-  words: { paddingHorizontal: space.huge, gap: space.s, alignItems: "center" },
+  welcomeWords: { paddingHorizontal: onboardingLayout.wordsInset, gap: onboardingLayout.wordsGap, alignItems: "center" },
+  words: { paddingTop: onboardingLayout.wordsTop, paddingHorizontal: onboardingLayout.wordsInset, gap: onboardingLayout.wordsGap, alignItems: "center" },
   heavy: { fontWeight: "700", textAlign: "center" },
   centered: { textAlign: "center" },
   bold: { fontWeight: "600" },
-  actions: { paddingHorizontal: space.xxl, paddingBottom: space.m, gap: space.s },
-  illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
+  actions: { paddingHorizontal: onboardingLayout.actionsInset, paddingBottom: onboardingLayout.actionsBottom, gap: onboardingLayout.actionsGap },
+  primary: { alignItems: "center", justifyContent: "center", paddingHorizontal: space.l, paddingVertical: space.m },
+  primaryLabel: { fontWeight: "600", textAlign: "center" },
+  illustration: { flex: 1, paddingHorizontal: onboardingLayout.illustrationInset },
   card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: shadowRadius.card },
+  plainCard: { borderRadius: onboardingLayout.cardRadius, borderCurve: "continuous", paddingVertical: onboardingLayout.cardInset },
+  plainRow: { flexDirection: "row", alignItems: "center", gap: space.s, minHeight: onboardingLayout.rowHeight, paddingHorizontal: onboardingLayout.rowInset },
+  plainTip: { minHeight: onboardingLayout.rowHeight, justifyContent: "center", paddingHorizontal: onboardingLayout.rowInset },
   art: { alignItems: "center", justifyContent: "center", paddingHorizontal: space.huge },
   browserSheet: {
     borderTopLeftRadius: onboardingArt.sheetRadius,
@@ -309,7 +400,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: shadowRadius.card,
   },
-  secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
+  secondary: { minHeight: onboardingLayout.secondaryHeight, alignItems: "center", justifyContent: "center" },
   tips: { paddingHorizontal: space.xl, paddingVertical: space.xl, gap: space.xl },
   tip: { flexDirection: "row", alignItems: "center", gap: space.m },
   tipIcon: { width: 28, alignItems: "center" },
