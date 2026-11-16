@@ -3,6 +3,7 @@ import { FlatList, Platform, PlatformColor, Pressable, StyleSheet, Text, View, t
 import { Host, Image as SystemImage } from "@expo/ui/swift-ui";
 import { font as systemFont } from "@expo/ui/swift-ui/modifiers";
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { redesignedBarCenterFromBottom } from "../../lib/deckGeometry";
 import { sfSymbol } from "../../lib/sfSymbols";
 import { haptics } from "../../state/app/haptics";
 import { copyLink, menuOpenedHaptic, shareUrl } from "../../state/browse/tabMenus";
@@ -37,7 +38,7 @@ import { syncOffered } from "../../state/sync/offer";
 
 export type StartGeometry = { width: number; height: number; safeSide: number; barCenterY: number; dotsOnBar?: boolean };
 
-export const startBarCenterY = (height: number, safeBottom: number) => height - Math.max(safeBottom, startLayout.minSafeBottom) - startLayout.barAboveSafeBottom;
+export const startBarCenterY = (height: number, safeBottom: number, os: string = Platform.OS) => height - redesignedBarCenterFromBottom(safeBottom, os);
 
 export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeometry; dark: boolean; incognito: boolean }) {
   const status = useSyncStatus();

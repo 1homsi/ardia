@@ -12,6 +12,7 @@ import {
   deckBarBand,
   deckStatusStrip,
   deckBarCenterFromBottom,
+  redesignedBarCenterFromBottom,
   deckCardAt,
   deckHeaderLeading,
   deckHeaderPlacement,
@@ -113,6 +114,20 @@ test("a header's icon fades in over the 12 points after it fits, and its content
   assert.equal(deckHeaderLeading(100, 16, 6, 60, 0), 42);
   assert.equal(deckHeaderLeading(100, 16, 6, 60, 0.5), 25.5);
   assert.equal(deckHeaderLeading(100, 16, 6, 300, 1), 0);
+});
+
+test("the redesigned bars keep iPhone's place over a home indicator or gesture bar and clear Android's 3-button bar", () => {
+  assert.equal(redesignedBarCenterFromBottom(34, "ios"), 45);
+  assert.equal(redesignedBarCenterFromBottom(48, "ios"), 59, "iPhone never lifts for a navigation bar");
+  assert.equal(redesignedBarCenterFromBottom(24, "android"), 35);
+  assert.equal(redesignedBarCenterFromBottom(0, "android"), 31);
+  assert.equal(redesignedBarCenterFromBottom(48, "android"), 78);
+  assert.ok(redesignedBarCenterFromBottom(47.27, "android") - 24 >= 47.27, "a 48 point bar ends above the navigation bar");
+  const iPhone = deckGeometry(402, 874, 62, 34, 0, "ios", "redesigned", 48);
+  const lifted = deckGeometry(393, 873, 29, 48, 0, "android", "redesigned", 48);
+  assert.equal(iPhone.barCenterY, 874 - 45);
+  assert.equal(lifted.barCenterY, 873 - 78);
+  assert.ok(lifted.cardCenterY + lifted.cardHeight / 2 < lifted.barCenterY - 24, "the cards stay above the lifted bar");
 });
 
 test("the deck's buttons keep Compose's place over a gesture bar and clear a 3-button bar", () => {

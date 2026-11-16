@@ -270,8 +270,6 @@ export const startLayout = {
   switcherRatio: 0.44,
   tilesGap: 45,
   pageDotsAboveBar: 60,
-  barAboveSafeBottom: 11,
-  minSafeBottom: 20,
   barCircle: 48,
   barPlus: { width: 77, height: 48 },
   barSideInset: 12,

@@ -52,13 +52,13 @@ test.each(DESIGNS)("the %s design draws its own page bar and only that one", (de
   unmount(root);
 });
 
-test("the redesigned bar is three glass pieces, 48 points tall, 8 apart and 12 in from the sides, their bottom 21.5 points above the screen's edge", () => {
+test("the redesigned bar is three glass pieces, 48 points tall, 8 apart and 12 in from the sides, their bottom 21.5 points above the screen's edge on iPhone and 8 above Android's 3-button bar", () => {
   const root = page("redesigned");
   const row = StyleSheet.flatten(host(root, "floatingBar")!.props.style);
   expect(row).toMatchObject({ gap: 8, paddingHorizontal: 12, height: 48 });
   let place = host(root, "floatingBar")!.parent;
   while (place && (typeof place.type !== "string" || StyleSheet.flatten(place.props.style)?.bottom === undefined)) place = place.parent;
-  expect(StyleSheet.flatten(place!.props.style).bottom).toBe(21.5);
+  expect(StyleSheet.flatten(place!.props.style).bottom).toBe(Platform.OS === "android" ? 34 + 8 : 21.5);
   for (const piece of ["floatingBarTabs", "floatingBarPlus"]) expect(StyleSheet.flatten(host(root, piece)!.props.style)).toMatchObject({ width: 48, height: 48, borderRadius: 24 });
   expect(StyleSheet.flatten(host(root, "floatingBarAddress")!.props.style)).toMatchObject({ flex: 1, height: 48, borderRadius: 24 });
   unmount(root);
@@ -92,12 +92,13 @@ test("a page loaded over plain http reads Not Secure in place of its icon, as Sw
 
 const pageViewModule = require("@ardia/phone-native/src/PageView") as typeof import("@ardia/phone-native/src/PageView");
 
-test("in the redesign the page runs full screen under the bar, told the top safe area and the bar's 75 points as obscured insets, and only the bar's pieces take touches", () => {
+test("in the redesign the page runs full screen under the bar, told the top safe area and the bar's 75 points (more where Android lifts it over a 3-button bar) as obscured insets, and only the bar's pieces take touches", () => {
   jest.spyOn(pageViewModule, "pageObscuresInsets").mockImplementation(() => true);
+  const covered = Platform.OS === "android" ? 75 + 34 + 8 - 21.5 : 75;
   const root = page("redesigned");
   const view = root.root.findAll((node) => node.props.pageId !== undefined && node.props.obscuredInsets !== undefined)[0]!;
-  expect(view.props.obscuredInsets).toEqual({ top: 47, bottom: 75 });
-  expect(view.props.toneInsets).toEqual({ top: 0, bottom: 75 });
+  expect(view.props.obscuredInsets).toEqual({ top: 47, bottom: covered });
+  expect(view.props.toneInsets).toEqual({ top: 0, bottom: covered });
   expect(StyleSheet.flatten(host(root, "pageArea")!.props.style).marginBottom).toBe(0);
   expect(host(root, "pageStatusStrip")).toBeUndefined();
   let bar = host(root, "floatingBar")!.parent;
@@ -128,10 +129,11 @@ test("on Android the page's obscured bottom is the bar's current height: the pil
   const scrolled = (scrollDirection: "up" | "down") => act(() => storeNavigation(tab.id, { url: "https://site0.example/", title: "Site", isLive: true, isLoading: false, progress: 1, failure: null, canGoBack: false, canGoForward: false, scrollDirection } as unknown as PageState));
   setPreference("collapsesBottomBar", true);
   scrolled("up");
+  const lift = follows ? 34 + 8 - 21.5 : 0;
   const root = page("redesigned", tab);
-  expect(bottom(root)).toBe(75);
+  expect(bottom(root)).toBe(75 + lift);
   scrolled("down");
-  expect(bottom(root)).toBe(follows ? 51.5 : 75);
+  expect(bottom(root)).toBe(follows ? 51.5 + lift : 75);
   scrolled("up");
   act(() => storeFullscreen(tab.id, true));
   expect(bottom(root)).toBe(follows ? 0 : 75);
@@ -142,7 +144,7 @@ test("on Android the page's obscured bottom is the bar's current height: the pil
   act(() => useSearch.setState({ open: true }));
   expect(bottom(root)).toBe(follows ? 0 : 75);
   act(() => useSearch.setState({ open: false }));
-  expect(bottom(root)).toBe(75);
+  expect(bottom(root)).toBe(75 + lift);
   setPreference("collapsesBottomBar", false);
   unmount(root);
 });

@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { StartScreen } from "../components/search/StartScreen";
@@ -24,7 +24,7 @@ const lookModule = require("@ardia/phone-native/src/look") as typeof import("@ar
 const HEIGHT = 873;
 const WIDTH = 393;
 const SWITCHER_Y = HEIGHT * 0.44;
-const BAR_CENTER_Y = HEIGHT - 34 - 11;
+const BAR_CENTER_Y = Platform.OS === "android" ? HEIGHT - 34 - 6 - 24 : HEIGHT - 34 - 11;
 
 const tile = (i: number, folder: PinnedTile["folder"] = null): PinnedTile => ({ key: `k${i}`, title: `Pin ${i}`, url: `https://pin${i}.example/`, icon: null, folder });
 const profile = (syncId: string, name: string, tiles: PinnedTile[] = [], theme: SyncedProfile["theme"] = null): SyncedProfile => ({
@@ -93,7 +93,7 @@ test("the original start page keeps its logo and its deck bar, and none of the r
   unmount(root);
 });
 
-test("the redesigned start page has no logo and no deck bar; its own bar holds Tabs, a 77 by 48 plus and Settings, centred 11 points above the safe bottom, 12 in from the sides", () => {
+test("the redesigned start page has no logo and no deck bar; its own bar holds Tabs, a 77 by 48 plus and Settings, centred 11 points above the safe bottom (6 above Android's 3-button bar), 12 in from the sides", () => {
   const root = start();
   expect(root.root.findAll((node) => node.type === ArdiaLogo)).toHaveLength(0);
   expect(root.root.findAll((node) => node.type === DeckBar)).toHaveLength(0);

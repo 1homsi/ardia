@@ -35,10 +35,17 @@ export const DECK_REDESIGN = { barReserve: 67, chromeGap: 21, minSafeBottom: 20,
 export const BUTTON_NAVIGATION_INSET = 32;
 const BAR_HALF_HEIGHT = 22;
 const BAR_GAP = 6;
+const REDESIGNED_BAR_HALF_HEIGHT = 24;
 
 export function deckBarCenterFromBottom(navigationInset: number, os: string = "android"): number {
   if (os === "android" && navigationInset > BUTTON_NAVIGATION_INSET) return navigationInset + BAR_HALF_HEIGHT + BAR_GAP;
   return Math.max(navigationInset, 20) + BAR_GAP;
+}
+
+export function redesignedBarCenterFromBottom(navigationInset: number, os: string = "android"): number {
+  const iPhonePlacement = Math.max(navigationInset, DECK_REDESIGN.minSafeBottom) + DECK_REDESIGN.barAboveSafeBottom;
+  if (os === "android" && navigationInset > BUTTON_NAVIGATION_INSET) return Math.max(iPhonePlacement, navigationInset + BAR_GAP + REDESIGNED_BAR_HALF_HEIGHT);
+  return iPhonePlacement;
 }
 
 function reach(peek: number, spacing: number): number {
@@ -52,10 +59,9 @@ export function deckGeometry(width: number, height: number, safeTop: number, saf
   const w = Math.max(width, 1);
   const h = Math.max(height, 1);
   const redesigned = design === "redesigned";
-  const bottom = Math.max(safeBottom, DECK_REDESIGN.minSafeBottom);
   const bandTop = redesigned ? safeTop + chromeHeight + DECK_REDESIGN.chromeGap + DECK.headerHeight : safeTop + DECK.topReserve + DECK.headerHeight;
-  const barCenter = redesigned ? bottom + DECK_REDESIGN.barAboveSafeBottom : deckBarCenterFromBottom(safeBottom, os);
-  const bandBottom = redesigned ? h - bottom - DECK_REDESIGN.barReserve + 24 : h - barCenter + BAR_GAP - DECK.barReserve + 24;
+  const barCenter = redesigned ? redesignedBarCenterFromBottom(safeBottom, os) : deckBarCenterFromBottom(safeBottom, os);
+  const bandBottom = redesigned ? h - barCenter + DECK_REDESIGN.barAboveSafeBottom - DECK_REDESIGN.barReserve + 24 : h - barCenter + BAR_GAP - DECK.barReserve + 24;
   const band = Math.max(bandBottom - bandTop, 120);
   const aspect = h / w;
   const cardWidth = Math.min(w * DECK.cardWidthRatio, band / aspect);
