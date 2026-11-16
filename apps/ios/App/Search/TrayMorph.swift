@@ -19,6 +19,7 @@ final class TrayMorph {
   }
 
   var hasDestination: Bool { destination != nil }
+  var isShown: Bool { !view.isHidden }
 
   var isMoving: Bool {
     guard let flight, flight.isRunning || folding.contains(where: \.isRunning) else { return false }

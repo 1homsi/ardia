@@ -393,7 +393,7 @@ final class TrayMotion {
   }
 
   private var trayAlpha: CGFloat {
-    if isDeparting || morph?.hasFlown == true { return 0 }
+    if isDeparting || morph?.isShown == true { return 0 }
     return isUp || (!reduceMotion && !isCommandBar) ? 1 : 0
   }
 
