@@ -144,12 +144,24 @@ try {
   Assert-OneBrowser "relaunch after a full exit"
   Note "relaunch after a full exit: a window in browser $($shown.Pid)"
 
-  $lingering = $shown.Pid
-  $endings = Count-LogLines 'process ending'
-  Close-Window $shown
-  Wait-LogLine 'process ending' "lingering exit" $endings
-  $held = Get-Process -Id $lingering
-  if ([RelaunchCheck.Native]::NtSuspendProcess($held.Handle) -ne 0) { throw "lingering exit: Ardia ($lingering) could not be held at its exit" }
+  $held = $null
+  foreach ($attempt in 1, 2, 3) {
+    $lingering = $shown.Pid
+    $endings = Count-LogLines 'process ending'
+    Close-Window $shown
+    Wait-LogLine 'process ending' "lingering exit" $endings
+    $candidate = Get-Process -Id $lingering -ErrorAction SilentlyContinue
+    if ($candidate -and [RelaunchCheck.Native]::NtSuspendProcess($candidate.Handle) -eq 0 -and -not $candidate.HasExited) {
+      $held = $candidate
+      break
+    }
+    Note "lingering exit: attempt $attempt ended before it could be held"
+    if ($candidate -and -not $candidate.HasExited) { [RelaunchCheck.Native]::NtResumeProcess($candidate.Handle) | Out-Null }
+    Wait-Exit $lingering "lingering exit attempt $attempt" | Out-Null
+    Start-Ardia | Out-Null
+    $shown = Wait-Window "lingering exit attempt $attempt"
+  }
+  if (-not $held) { throw "lingering exit: the browser ended before it could be held, three times" }
   try {
     Start-Ardia | Out-Null
     Start-Sleep -Seconds 26
