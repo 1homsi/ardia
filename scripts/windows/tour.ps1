@@ -539,9 +539,9 @@ function Set-Seen($Stop, [bool]$Seen) {
   if ($Seen) { $Stop.Seen = "yes" } else { $Stop.Seen = "no" }
 }
 
-function Start-Ardia([string]$Name, [switch]$Onboarded, [hashtable]$Settings) {
+function Start-Ardia([string]$Name, [switch]$Onboarded, [hashtable]$Settings, [switch]$KeepData) {
   $data = Join-Path (Join-Path $Out "data") $Name
-  Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $data
+  if (-not $KeepData) { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $data }
   New-Item -ItemType Directory -Force -Path $data | Out-Null
   if ($Onboarded) {
     Set-Content -LiteralPath (Join-Path $data "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
@@ -1039,7 +1039,7 @@ function Invoke-TypingTour {
   Stop-Ardia $session
 }
 
-function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$ReportGoHold) {
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$RequireGoHold) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = $Did
@@ -1078,7 +1078,6 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $rested = @(Find-Named $Session.Main "Go") | Select-Object -First 1
       if ($rested) { Send-MouseMove $rested.X $rested.Y }
       $stop.Facts.Add("after the first letter, moved the mouse onto Go: $([bool]$rested)")
-      $holdMark = Get-LogCount $Session
       Send-HumanText "xample.com" $keyReads $KeyMs
     } else {
       Send-HumanText "example.com" $keyReads $KeyMs
@@ -1098,11 +1097,12 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     $stop.Facts.Add("the field before $($Submit): '$typed' in $(Read-FocusedId)")
     if ($Submit -eq "Go") {
       $aimedAt = @(Find-Named $Session.Main "Go") | Select-Object -First 1
+      $holdMark = Get-LogCount $Session
       if ($aimedAt) {
-        Start-Sleep -Milliseconds 2000
+        Start-Sleep -Milliseconds 3000
         $after = @(Find-Named $Session.Main "Go")
         $where = if ($after.Count) { "$($after[0].X),$($after[0].Y)" } else { "not found by that name" }
-        $stop.Facts.Add("Go was at $($aimedAt.X),$($aimedAt.Y) when the field settled, with the mouse resting over the bar; 2 s later, as the late suggestions came in, it was at $where; clicked $($aimedAt.X),$($aimedAt.Y)")
+        $stop.Facts.Add("Go was at $($aimedAt.X),$($aimedAt.Y) when the field settled, with the mouse resting over the bar; 3 s later, after the late suggestions came in, it was at $where; clicked $($aimedAt.X),$($aimedAt.Y)")
         $goStayed = [bool]($after.Count -and $after[0].X -eq $aimedAt.X -and $after[0].Y -eq $aimedAt.Y)
         Send-Click $aimedAt.X $aimedAt.Y
       }
@@ -1132,11 +1132,15 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $stop.Facts.Add("required: the first key in the box: $firstKeyOk")
     }
     $stop.Facts.Add("report only ($Issues): every key landed and $Submit opened Example Domain: $whole")
-    if ($ReportGoHold) {
+    $heldUnderPointer = $false
+    if ($RequireGoHold) {
       $heldUnderPointer = [bool]($rested -and $null -ne $holdMark -and @(Get-LinesSince $Session $holdMark "\[ardia windows\] bar rows pointer over, holding").Count -and $goStayed)
-      $stop.Facts.Add("report only (#2102; depends on the default search engine's live suggestions arriving after the mouse rests): the mouse rested on Go, the bar held the late rows under it and Go stayed put: $heldUnderPointer; $Submit opened Example Domain: $([bool]$loaded)")
+      $stop.Facts.Add("search engine: $($script:SuggestProfile)")
+      $served = Join-Path $Out "suggest-server.log"
+      if (Test-Path -LiteralPath $served) { $stop.Facts.Add("the tour's suggest server: $((Get-Content -LiteralPath $served | Select-Object -Last 4) -join ' / ')") }
+      $stop.Facts.Add("required (#2102): the mouse rested on Go, the bar held the late rows under it after Go's position was noted, and Go stayed put: $heldUnderPointer; $Submit opened Example Domain: $([bool]$loaded)")
     }
-    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } else { $firstKeyOk }))
+    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } elseif ($RequireGoHold) { $firstKeyOk -and [bool]$loaded -and $heldUnderPointer } else { $firstKeyOk }))
   }
   if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
   return $stop
@@ -1161,11 +1165,78 @@ function Start-Hogs([string]$Folder) {
   return $jobs
 }
 
-function Invoke-FirstRunLaunch([string]$Name, [string]$Exe, [scriptblock]$Body) {
+$script:SuggestPort = 41793
+$script:LateQuery = "example.com"
+$script:LateRows = @("example.com tour one", "example.com tour two", "example.com tour three")
+$script:LateMs = 1500
+
+function Start-SuggestServer([string]$Log) {
+  Remove-Item -Force -ErrorAction SilentlyContinue $Log
+  return Start-Job -ArgumentList $script:SuggestPort, $script:LateQuery, $script:LateRows, $script:LateMs, $Log {
+    param($port, $lateQuery, $lateRows, $lateMs, $log)
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
+    $listener.Start()
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($true) {
+      $client = $listener.AcceptTcpClient()
+      try {
+        $stream = $client.GetStream()
+        $reader = [System.IO.StreamReader]::new($stream)
+        $line = [string]$reader.ReadLine()
+        while ($reader.ReadLine()) { }
+        $query = $null
+        if ($line -match "^GET /suggest\?q=([^ ]*) ") { $query = [Uri]::UnescapeDataString($Matches[1].Replace("+", " ")) }
+        $asked = $clock.ElapsedMilliseconds
+        $rows = @()
+        if ($query -eq $lateQuery) {
+          Start-Sleep -Milliseconds $lateMs
+          $rows = $lateRows
+        }
+        $body = if ($null -ne $query) { ConvertTo-Json -Compress -InputObject @($query, [object[]]$rows) } else { "<!doctype html><title>Tour search</title>" }
+        $type = if ($null -ne $query) { "application/json" } else { "text/html" }
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+        $head = [System.Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Type: $type; charset=utf-8`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`n`r`n")
+        $stream.Write($head, 0, $head.Length)
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush()
+        Add-Content -LiteralPath $log -Value "asked $asked ms for '$query', answered $($clock.ElapsedMilliseconds) ms with $($rows.Count) rows"
+      } catch {
+      } finally {
+        $client.Dispose()
+      }
+    }
+  }
+}
+
+function Get-SuggestSettings {
+  $base = "http://127.0.0.1:$($script:SuggestPort)"
+  return @{ customSearchEngines = @(@{ id = "tour"; name = "Tour"; keyword = "tour.test"; url = "$base/search?q=%s"; suggestUrl = "$base/suggest?q=%s" }); searchEngine = "tour" }
+}
+
+function Initialize-SuggestProfile([string]$Name) {
+  $prep = Start-Ardia $Name
+  $path = Join-Path $prep.Data "session.json"
+  if (Test-Usable $prep) { Wait-Until $prep { Test-Path -LiteralPath $path } 8000 | Out-Null }
+  Stop-Ardia $prep
+  $saved = $null
+  if (Test-Path -LiteralPath $path) {
+    try { $saved = Get-Content -Raw -LiteralPath $path | ConvertFrom-Json -AsHashtable } catch { $saved = $null }
+  }
+  $how = if ($saved) { "the session the app saved" } else { "a new session file" }
+  if (-not $saved) { $saved = @{ version = 11 } }
+  if ($saved["settings"] -isnot [System.Collections.IDictionary]) { $saved["settings"] = @{} }
+  foreach ($entry in (Get-SuggestSettings).GetEnumerator()) { $saved["settings"][$entry.Key] = $entry.Value }
+  Set-Content -LiteralPath $path -Value ($saved | ConvertTo-Json -Depth 64 -Compress) -Encoding utf8NoBOM
+  return "the tour search engine written into $how"
+}
+
+function Invoke-FirstRunLaunch([string]$Name, [string]$Exe, [scriptblock]$Body, [switch]$OwnSuggestions) {
   $saved = $script:App
   if ($Exe) { $script:App = $Exe }
   try {
-    $session = Start-Ardia $Name
+    $script:SuggestProfile = $null
+    if ($OwnSuggestions) { $script:SuggestProfile = Initialize-SuggestProfile $Name }
+    $session = if ($OwnSuggestions) { Start-Ardia $Name -KeepData } else { Start-Ardia $Name }
   } finally {
     $script:App = $saved
   }
@@ -1223,10 +1294,17 @@ function Invoke-FirstRunTour {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $Out "hog")
   }
 
+  $suggestLog = Join-Path $Out "suggest-server.log"
+  $suggestServer = Start-SuggestServer $suggestLog
+  try {
   Invoke-FirstRunLaunch "human-go" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session
-    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, the mouse resting on the bar, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click, typed e 100 ms after it, moved the mouse onto Go (rows then grow above it, so the pointer stays over the bar), typed xample.com 30 ms a key, noted where Go was when the field settled, waited 2 s while the late suggestions came in and clicked there. Required: the first key lands. Report only (#2102): whether the late suggestions were held under the pointer, Go stayed put and opened what the field says; that part depends on the default search engine (Google) answering the suggestion request over the network after the mouse rests, so it never fails the run." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101; where Go goes: #2102" -Required -ReportGoHold | Out-Null
+    Invoke-TypeStop $session "human-go" "First run: Ctrl+T about 400 ms after Get Started, the first key 100 ms after it, the mouse resting on the bar, then the Go button" "Walked the onboarding with its Continue buttons to the last screen ($($walk.Screens); at the last screen: $($walk.AtOutro)), clicked Get Started, pressed Ctrl+T about 400 ms after the click, typed e 100 ms after it, moved the mouse onto Go (rows then grow above it, so the pointer stays over the bar), typed xample.com 30 ms a key, noted where Go was when the field settled, waited 3 s while the late suggestions came in and clicked there. The profile's default search engine is a custom one whose suggest URL is the tour's own loopback server: it answers every request at once with no rows, except example.com, which gets three rows after $($script:LateMs) ms, so the late rows always come after the mouse rests and Go's position is noted. Required: the first key lands, the bar held the late rows under the pointer, Go stayed put and Go opened Example Domain (#2102)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Go" "the whole text: #2101" -Required -RequireGoHold | Out-Null
+  } -OwnSuggestions
+  } finally {
+    $suggestServer | Stop-Job -ErrorAction SilentlyContinue
+    $suggestServer | Remove-Job -Force -ErrorAction SilentlyContinue
   }
 
   Invoke-FirstRunLaunch "faster-than-a-person" "" {
