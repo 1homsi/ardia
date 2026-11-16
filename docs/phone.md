@@ -1794,6 +1794,37 @@ apps/phone/scripts/corex-test <commit> [--patch FILE] [--tests filters]   the Ko
   `~/Android/Sdk`. The Linux `hermesc` is pinned by hash in `packages/phone/android/build.gradle`. pnpm 11.1.3 comes
   from `packageManager` (corex's own is 12).
 
+### What a first Android release still needs (for the owner to answer)
+
+iPhone ships through `ios-release.yml`: App Store Connect, TestFlight and a public testers link. Android has no such
+path yet. Every build so far is a lab or test build, and nothing below exists.
+
+- **Which key signs it.**
+  - Every Expo build is signed with the debug key committed in the repo (`apps/phone/android/app/debug.keystore`,
+    signer `fac61745…`). Anyone can read it, so it must not sign a release.
+  - The Compose app was only ever built as a debug build, signed by the building machine's own
+    `~/.android/debug.keystore`. This Mac's is `eeb05c92…`, the signer of the reference build on corex; CI's runners
+    make a throwaway key each run.
+  - No GitHub release or CI artifact has ever carried an APK.
+  - Android installs an update only over the same key. So a tester who has a Compose app can update in place only if
+    the new app is signed with the key their copy was built with: `eeb05c92…` if it came from this Mac, any other
+    machine's key otherwise. Otherwise they uninstall first and lose its local data (tabs not synced, history).
+  - Owner: was a Compose APK ever handed to anyone, and from which machine?
+  - Owner: is the release key a new one kept out of the repo (on the Play Console that means Play App Signing, with
+    our upload key), or this Mac's debug key, so that existing installs update?
+- **Where it ships.** Owner: choose one or both.
+  - **Play Console:** a developer account, an app listing, Play App Signing, and an internal or closed testing track
+    as TestFlight's counterpart. `build-apk --store --bundle` already makes the `.aab` it takes.
+  - **An APK from ardia.dev:** signed by our own key, installed by the user allowing unknown sources. Updates through
+    the app's own check or by hand.
+- **The release workflow beside iPhone's.**
+  - An `android-release.yml`: build the `--store` (lab off) bundle and APK from a tag, on a runner or on corex.
+  - Sign with the release key from a CI secret, never the repo's.
+  - Run `check-names.py` and `check-upgrade.py` against the Compose build users have.
+  - Then the upload: Play's track via its API, or the APK as a GitHub release asset and the site's link.
+  - Release notes and the versionCode bump go with the shared release skill.
+  - Owner: which channel, and is a nightly track wanted as for the Mac?
+
 ### The lab switch
 
 The page lab (`com.ardia.phone.PAGE_LAB`) and sync's demo mode (`com.ardia.phone.SYNC_DEMO`) exist only in lab
