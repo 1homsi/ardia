@@ -3,6 +3,7 @@ export type BarFieldMarks = {
   write(variant: string, length: number, nativeLength: number): void;
   suggestions(ms: number, textLength: number): void;
   repair(variant: string, letters: number, at: number): void;
+  rows(pointerOver: boolean, held: boolean, shown: number): void;
 };
 
-export const barFieldMarks: BarFieldMarks = { change() {}, write() {}, suggestions() {}, repair() {} };
+export const barFieldMarks: BarFieldMarks = { change() {}, write() {}, suggestions() {}, repair() {}, rows() {} };

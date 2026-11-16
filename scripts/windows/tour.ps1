@@ -283,6 +283,17 @@ function Send-Click([int]$X, [int]$Y, [switch]$Right) {
   Start-Sleep -Milliseconds 300
 }
 
+function Send-MouseMove([int]$X, [int]$Y, [int]$Steps = 8) {
+  $size = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
+  $from = [System.Windows.Forms.Cursor]::Position
+  for ($step = 1; $step -le $Steps; $step++) {
+    $atX = $from.X + ($X - $from.X) * $step / $Steps
+    $atY = $from.Y + ($Y - $from.Y) * $step / $Steps
+    [ArdiaTour]::mouse_event([uint32]0x8001, [uint32]([Math]::Round($atX * 65535 / ($size.Width - 1))), [uint32]([Math]::Round($atY * 65535 / ($size.Height - 1))), 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 15
+  }
+}
+
 function Send-Key([byte]$Key, [uint32]$Flags) {
   $scan = [byte]([ArdiaTour]::MapVirtualKeyW([uint32]$Key, 0) -band 0xFF)
   [ArdiaTour]::keybd_event($Key, $scan, $Flags, [UIntPtr]::Zero)
@@ -1073,12 +1084,20 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     $stop.Facts.Add("the field before $($Submit): '$typed' in $(Read-FocusedId)")
     if ($Submit -eq "Go") {
       $go = @(Find-Named $Session.Main "Go")
+      $aims = 0
+      while ($go.Count -and $aims -lt 3) {
+        $aims++
+        Send-MouseMove $go[0].X $go[0].Y
+        Start-Sleep -Milliseconds 100
+        $still = @(Find-Named $Session.Main "Go")
+        if (-not $still.Count -or ($still[0].X -eq $go[0].X -and $still[0].Y -eq $go[0].Y)) { break }
+        $go = $still
+      }
       if ($go.Count) {
-        [ArdiaTour]::SetCursorPos($go[0].X, $go[0].Y) | Out-Null
         Start-Sleep -Milliseconds 2000
         $after = @(Find-Named $Session.Main "Go")
         $where = if ($after.Count) { "$($after[0].X),$($after[0].Y)" } else { "not found by that name" }
-        $stop.Facts.Add("the pointer rested on Go at $($go[0].X),$($go[0].Y) for 2 s while suggestions came in; Go was then at $where; clicked where the pointer rested")
+        $stop.Facts.Add("moved the mouse onto Go at $($go[0].X),$($go[0].Y) in 8 steps ($aims aim(s)), rested 2 s while suggestions came in; Go was then at $where; clicked where the pointer rested")
         Send-Click $go[0].X $go[0].Y
       }
       $stop.Facts.Add("Go button found and clicked: $($go.Count -gt 0)")

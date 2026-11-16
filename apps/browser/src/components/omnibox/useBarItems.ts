@@ -1,5 +1,5 @@
 import { suggestionKey, type SearchScope } from "@ardia/core";
-import { useMemo, type RefObject } from "react";
+import { useEffect, useMemo, type RefObject } from "react";
 import type { TextInput } from "react-native";
 import { previewText } from "./barText";
 import { offeredScope } from "../../state/omnibox/scopes";
@@ -8,6 +8,7 @@ import { useInlineCompletion } from "./useInlineCompletion";
 import { useSuggestions } from "./useSuggestions";
 import { useSteadyRows } from "./steadyRows";
 import { useHover } from "../ui";
+import { barFieldMarks } from "../../state/omnibox/barMarks";
 import type { Selection } from "./inline";
 
 export function useBarItems({
@@ -56,6 +57,7 @@ export function useBarItems({
   const listed = { items: dropdown && !edited && !scope ? start : idle ? openTabs : suggested, completion: suggestedCompletion };
   const rows = useSteadyRows(listed, `${scope?.kind ?? ""}:${scope?.name ?? ""}:${typed}`, overRows, suggestionKey);
   const { items, completion } = rows.value;
+  useEffect(() => barFieldMarks.rows(overRows, rows.held, items.length), [overRows, rows.held]);
   const selectedIndex = Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
   const preview = !idle && selectedIndex > 0 ? (previewText(current) ?? typed) : null;
