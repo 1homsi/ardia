@@ -1330,10 +1330,10 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Search panel | Incognito | different | Same panel; main's keyboard turns dark. The field now takes `keyboardAppearance` (6f1653513); the panel has to pass dark | screens |
 | Search panel | Voice | seen in Expo only | Expo's dictation page ("Speech dictation is unavailable" on the simulator, Try Again capsule); main's voice button wasn't reached by the script | |
 | Page | Page with bar, secure | match | | |
-| Page | Not secure | different | Expo's bar reads "Not Secure localhost:8766" in orange; main's shows the site's favicon and "localhost", no label, no port | screens |
+| Page | Not secure | match | Port dropped as main's; "Not Secure" stays for http as main's source shows it (BarControls.swift:119-124). Main's frame lacks it because of a bug in main: a tab opened on an http URL skips the security check (WebTab.swift:103/113, 359-363) | screens |
 | Page | Private | match | Same page and bar with the Incognito glasses | |
-| Page | Loading | different | Main centres the placeholder (icon, title, host) on the page; Expo puts it at the top left. Both run the loading line | screens |
-| Page | Failure | different | Same page; main's Try Again is a filled capsule, Expo's an outlined one; the bar as in Not secure | screens |
+| Page | Loading | match | Main's centred placeholder (44 pt icon, 17 pt semibold title, host), its theme-colour and title rules, 250 ms wait then 150 ms fade | |
+| Page | Failure | match | Main's filled Try Again capsule, 50 pt, and the icon at main's size | |
 | Page | Page dialogs | not seen | | |
 | Page | Collapsed bar (host pill) | match | Main's glass host pill on scroll down, tap or scroll up to expand, 3fa565c4f | |
 | Page | Tabs button menu | match | Main's BarControls: up to eight recent tabs, a divider, Close Tab; Previous and Next Tab are its VoiceOver actions, not menu items. Ours is the system menu with the same items | |

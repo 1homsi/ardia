@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { PAGE_COVER, pageCoverNeeded } from "../../lib/pageCover";
 import { usePageTone } from "../../state/browse/hooks";
@@ -10,6 +10,7 @@ import { display } from "../../state/search/omnibox";
 import { launchArguments } from "../../state/app/launchFlags";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { TabFace, useTheme } from "../ui";
+import { PageLoadingPlaceholder } from "./PageLoadingPlaceholder";
 
 export const PageCover = memo(function PageCover({ tab }: { tab: BrowserTab }) {
   countRender("PageCover");
@@ -73,16 +74,22 @@ export const PageCover = memo(function PageCover({ tab }: { tab: BrowserTab }) {
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   if (gone) return null;
   const shown = display(tab.url);
+  const picture = frozen ? null : tab.snapshotFileName;
+  const spoken = !picture && Platform.OS === "ios";
   return (
     <Animated.View
       testID="pageCover"
       needsOffscreenAlphaCompositing
       pointerEvents="none"
       importantForAccessibility="no-hide-descendants"
-      accessibilityElementsHidden
+      accessibilityElementsHidden={!spoken}
       style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }, style]}
     >
-      <TabFace tab={frozen ? { ...tab, snapshotFileName: null } : tab} title={tab.title || shown.host} host={shown.host} tone={tone?.top ?? null} roles={theme} paintedAs={`cover:${tab.id}`} />
+      {picture ? (
+        <TabFace tab={tab} title={tab.title || shown.host} host={shown.host} tone={tone?.top ?? null} roles={theme} paintedAs={`cover:${tab.id}`} />
+      ) : (
+        <PageLoadingPlaceholder tab={tab} />
+      )}
     </Animated.View>
   );
 });

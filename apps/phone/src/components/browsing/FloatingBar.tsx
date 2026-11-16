@@ -22,11 +22,23 @@ type Props = {
 
 export type BarAddress = { host: string; insecure: boolean; isPrivate: boolean; iconUrl: string | null; pageUrl: string | null };
 
+const AUTHORITY_PORT = /^[a-z][a-z0-9+.-]*:\/\/(?:[^/?#@]*@)?(?:\[[^\]]*\]|[^/?#:]*):0*(\d+)(?=[/?#]|$)/i;
+
+export function withoutPort(host: string, url: string): string {
+  const port = AUTHORITY_PORT.exec(url)?.[1];
+  return port && host.endsWith(`:${port}`) ? host.slice(0, -port.length - 1) : host;
+}
+
+export function siteHost(url: string): string | null {
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^/?#]/i.test(url)) return null;
+  return withoutPort(display(url).host, url) || null;
+}
+
 export function barAddress(tab: BrowserTab): BarAddress {
   const shown = display(tab.url);
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(tab.url)?.[1]?.toLowerCase() ?? null;
   return {
-    host: shown.host || tab.title || "New Tab",
+    host: withoutPort(shown.host, tab.url) || tab.title || "New Tab",
     insecure: scheme === "http",
     isPrivate: tab.isPrivate,
     iconUrl: tab.faviconUrl,
