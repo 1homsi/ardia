@@ -45,6 +45,7 @@ final class WindowDragRegion: ExpoView {
       }
       self.doubleClickDown = nil
       guard let place = self.pressPlace(event) else { return event }
+      if NSApp.isActive, NSApp.keyWindow == nil, !event.modifierFlags.contains(.command) { return event }
       ArdiaHost.notePointer(event, swallowedBy: "windowDragRegion")
       OutsidePressArea.tellAreas(event)
       self.press(event, place, releaseFollows: true)
@@ -96,9 +97,11 @@ final class WindowDragRegion: ExpoView {
 
   private func press(_ event: NSEvent, _ place: PressPlace, releaseFollows: Bool) {
     guard let window else { return }
+    let leavesWindowBehind = event.modifierFlags.contains(.command)
+    if !NSApp.isActive, !leavesWindowBehind, !LaunchConfig.shared.background { NSApp.activate() }
     var key = NSApp.keyWindow
     while let k = key, k !== window { key = k.parent }
-    if key == nil, window.canBecomeKey, !event.modifierFlags.contains(.command) { window.makeKeyAndOrderFront(nil) }
+    if key == nil, window.canBecomeKey, !leavesWindowBehind { window.makeKeyAndOrderFront(nil) }
     if clickable, place == .region { return clickOrDrag(event, in: window) }
     if event.clickCount == 2 {
       if releaseFollows { doubleClickDown = place } else { doubleClick(event, place) }

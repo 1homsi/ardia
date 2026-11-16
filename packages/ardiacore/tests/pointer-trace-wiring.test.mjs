@@ -49,7 +49,7 @@ test("the swallowing monitors report the events they consume", () => {
   assert.equal(dragRegion.match(/ArdiaHost\.notePointer\(event, swallowedBy: "windowDragRegion"\)/g).length, 2);
   assert.equal(pip.match(/ardia_host::NotePointer\(event, @"pipDrag"\)/g).length, 2);
   assert.match(pipHeader, /NSWindow \*GrabbedWindow\(\);/);
-  assert.match(pip, /NSWindow \*GrabbedWindow\(\) \{ return gDragged; \}/);
+  assert.match(pip, /NSWindow \*GrabbedWindow\(\) \{ return gDragged\.window; \}/);
 });
 
 test("Swift reaches the trace through ArdiaHost", () => {

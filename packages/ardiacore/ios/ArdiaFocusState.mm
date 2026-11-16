@@ -8,8 +8,6 @@
 
 namespace ardia_host {
 
-namespace {
-
 NSString *DescribeFocusWindow(NSWindow *window) {
   if (!window) return @"none";
   NSMutableArray<NSString *> *flags = [NSMutableArray array];
@@ -37,6 +35,8 @@ NSString *DescribeFocusWindow(NSWindow *window) {
                                     [flags componentsJoinedByString:@" "]];
 }
 
+namespace {
+
 NSString *DescribeFocusResponder(NSResponder *responder) {
   if (!responder) return @"none";
   NSMutableArray<NSString *> *chain = [NSMutableArray array];
@@ -51,6 +51,8 @@ NSMutableArray<NSString *> *FocusHistory() {
   return history;
 }
 
+}
+
 void NoteFocusChange(NSString *what, NSWindow *window) {
   static NSDateFormatter *clock = [] {
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
@@ -62,6 +64,8 @@ void NoteFocusChange(NSString *what, NSWindow *window) {
                                                 window ? DescribeFocusWindow(window) : @""]];
   if (history.count > kFocusHistoryLength) [history removeObjectAtIndex:0];
 }
+
+namespace {
 
 ardia_pointer::Trace &PointerTrace() {
   static ardia_pointer::Trace trace;
@@ -127,6 +131,7 @@ void WatchFocusChanges() {
                                           NotePointer(event, nil);
                                           return event;
                                         }];
+  WatchHover();
 }
 
 void NotePointer(NSEvent *event, NSString *swallowedBy) {
@@ -169,6 +174,7 @@ NSString *FocusState() {
       line = [line stringByAppendingFormat:@", responder %@", DescribeFocusResponder(window.firstResponder)];
     [lines addObject:line];
   }
+  [lines addObject:HoverProbeLine()];
   for (NSString *change in FocusHistory()) [lines addObject:[@"was " stringByAppendingString:change]];
   [lines addObjectsFromArray:PointerLines()];
   return [lines componentsJoinedByString:@"\n"];
