@@ -2602,6 +2602,56 @@ Notes for the real run:
 - **Tooling:** the run is the scripted pieces above plus agent-device steps. The real run is the same steps with
   `--seed <the owner's copy>`.
 
+**The upgrade proof (2026-11-16, the owner's word: a made-up profile on this Mac counts).** Main's SwiftUI app (the ad
+hoc build) was set up off its defaults in every place its source stores something (an Explore pass listed them: every
+`UserDefaults.standard` key, the SwiftData store in the app group, Documents/Downloads, Caches, Application
+Support/Sync, the Keychain, website data). It was connected to a scratch Mac seeded from a copy of the stand-in profile
+with bookmarks added (`/tmp/ardia-phone-seed/standin-proof`). Then the Expo build at **d94eaf4c0** (JavaScript and
+native from that commit, lab build) was installed over it, as an App Store update keeps the container. Evidence:
+`/tmp/ardia-phone-shots/upgrade-proof/` (`before/`, `after/`, side-by-side `pairs/`). The import's receipt:
+`{"tabs":8,"archive":1,"visits":11,"preferences":16}`.
+
+The first full run (at f94bcc021) carried everything except History's hidden entries; d94eaf4c0 fixes that, and this
+run is the proof. The same run's source pass found four other things the upgrade dropped, fixed before it in
+434d07396: the deck's grid choice, hidden History, share-sheet sends and the widget's colour.
+
+| Item | Before: main | After: the Expo build | Result |
+| --- | --- | --- | --- |
+| Open tabs | 8, in order (`ZBROWSERTAB`) | the same 8 URLs in the same order (`tabs`, diffed) | pass |
+| Archive | 1 | 1 | pass |
+| History | 11 visits | the same 11 URLs (`visits`, diffed) | pass |
+| A History entry hidden in the Library | Page 1 hidden (`library.hiddenHistory`, seconds) | the same entry in `preferences`, in milliseconds | pass (stored; the Library not reopened after, see below) |
+| Back history | main's saved state for each tab (`interactionState`) | the same bytes in `tab_state`; a tab restores what main saved | pass: main had saved the Wikipedia tab before its link was followed, so both apps restore one page; our own back history survives a relaunch |
+| Page thumbnails | 9 in Caches/TabSnapshots | 9 `-legacy` pictures | pass |
+| Website data | a page's cookie and localStorage `main1` | the page reads `cookie-main1` and `local-main1` | pass |
+| Downloads | proof-note.txt in Documents/Downloads | the same file | pass (file; the Library list not reopened after) |
+| Bookmarks (from the Mac) | Ardia; Proof Folder with 2; Hacker News in Other Bookmarks | the same sync files | partial: carried with sync, Library not reopened after |
+| Spaces, pins, the Mac's tabs | 4 spaces; Personal's 4 pins; the Mac's tabs | the same in the Spaces sheet and on the start page | pass |
+| Sync With Mac | connected: Mac "shiv", "iPhone", folder Ardia Sync | the connected page, the same; no Connect step | pass |
+| The Mac's view | one phone, kty6evegx…, 48 tab lines | the same one phone and id, 48 tab lines | pass |
+| Site permissions | localhost: camera, microphone, location | the same grant (`browsing.sitePermissions`, identical) and Site Settings row | pass (revoke not tried after) |
+| Per-site settings | Wikipedia 125% and Night Shade on | identical `browsing.sites`; the page menu shows Night Shade on, 125% | pass |
+| Block Ads, Trackers, Cookie Banners | on, on, off | the same | pass |
+| Filter lists | Badware risks off; NoCoin added (303 rules) | the same selection and custom list | pass |
+| My Filters | two lines, 2 rules | the same text, 2 rules | pass |
+| Trusted Sites | example.com | example.com | pass |
+| Night Shade, Swipe to Navigate, Collapse Bottom Bar | Automatic, From Screen Edges, on | the same | pass |
+| Reader | size step 3, San Francisco, Sepia | the same in `preferences` | pass (the Reader not reopened after) |
+| Appearance | Orange, Classic, Light | Orange, Classic, Light | pass |
+| Search engine, suggestions | DuckDuckGo (set on the Mac), off | DuckDuckGo from the Mac, off | pass |
+| Auto-Open Keyboard, Open App Links In | off, App | off, App | pass |
+| Archive Inactive Tabs | After 7 days | After 7 days | pass |
+| Deck as a grid | grid | grid | pass |
+| Onboarding | finished | not shown again | pass |
+| Relaunches | | about 15 during the checks, the same state each time | pass |
+| Private tabs | 1 open before the screenshots | none | not carried, by design: main keeps them in memory only (`isPrivate` is transient) and drops them on its own relaunch, and the install ends main's process |
+
+Not exercised in this run: revoking a grant, reopening the Library and the Reader after the upgrade, a tab sent
+each way, and kill-and-relaunch receipt reads. The lease was lost a third time, 13 minutes after the upgrade, and
+Simlock wiped the simulator. The stand-in rehearsal (above) covered sync both ways and kill and relaunch.
+Not carried by design: Spotlight's fingerprints (rebuilt under a new key) and the bang list cache (the JavaScript
+core has its own). Not applicable: the default-browser status (no entitlement in either build).
+
 #### Sync on iPhone
 
 `ArdiaPhoneSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
