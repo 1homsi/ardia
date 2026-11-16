@@ -40,7 +40,7 @@ if [ "$limit" = "max" ] || [ "$limit" -lt $((14 * gib)) ]; then
 fi
 
 others() { pgrep -f 'org.gradle.launcher.daemon|GradleWrapperMain|org.gradle.launcher.GradleMain|KotlinCompileDaemon' || true; }
-spare() { echo $(( (limit - $(cat /sys/fs/cgroup/memory.current)) / gib )); }
+spare() { echo $(( (limit - $(cat /sys/fs/cgroup/memory.current) + $(awk '$1 == "inactive_file" { print $2 }' /sys/fs/cgroup/memory.stat)) / gib )); }
 deadline=$(( $(date +%s) + ${ARDIA_BUILD_WAIT:-1800} ))
 while true; do
   busy="$(others)"
