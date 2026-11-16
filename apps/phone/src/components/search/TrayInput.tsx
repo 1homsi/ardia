@@ -15,6 +15,8 @@ type Props = {
   placeholderColor: string;
   accent: string;
   keyboardAppearance: "default" | "dark";
+  holdsScroll?: boolean;
+  nativeID?: string;
   onTyped: (text: string) => void;
   onSubmit: (text: string) => void;
   style: StyleProp<TextStyle>;
@@ -33,7 +35,7 @@ export const TrayInput = forwardRef<TrayInputHandle, Props>(function TrayInput(p
   return completingFieldIsNative() ? <CompletingInput {...props} ref={ref} /> : <PlainInput {...props} ref={ref} />;
 });
 
-const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingInput({ start, selectsStart, color, placeholderColor, accent, keyboardAppearance, onTyped, onSubmit, style }, ref) {
+const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingInput({ start, selectsStart, color, placeholderColor, accent, keyboardAppearance, holdsScroll, nativeID, onTyped, onSubmit, style }, ref) {
   const field = useRef<CompletingFieldHandle>(null);
   const [typed, setTyped] = useState(start);
   const completion = useSearchCompletion();
@@ -51,6 +53,9 @@ const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingIn
       offer={inlineOffer(completion, completedFor)}
       highlightColor={withAlpha(accent, 0.3)}
       keyboardAppearance={keyboardAppearance}
+      holdsScroll={holdsScroll}
+      nativeID={nativeID}
+      selectsAllOnFocus={selectsStart && start.length > 0}
       cursorColor={accent}
       selectionColor={withAlpha(accent, 0.3)}
       color={color}

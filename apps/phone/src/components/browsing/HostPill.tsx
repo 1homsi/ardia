@@ -1,4 +1,4 @@
-import { useEffect, type ComponentProps } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { haptics } from "../../state/app/haptics";
@@ -6,15 +6,25 @@ import type { BrowserTab } from "../../state/tabs/tabModels";
 import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, Symbol, tabsMotion, usePresence } from "../ui";
 import { barAddress } from "./FloatingBar";
 import { hostPillLayout } from "./hostPillTokens";
+import { useBarReturn } from "./barReturn";
 
 const EASE_OUT = Easing.bezier(0, 0, 0.58, 1);
 
-export function HostPill({ tab, dark, shown, contentStyle, onExpand }: { tab: BrowserTab; dark: boolean; shown: boolean; contentStyle: ComponentProps<typeof Animated.View>["style"]; onExpand: () => void }) {
+export function HostPill({ tab, dark, shown, anchors = false, contentStyle, onExpand }: { tab: BrowserTab; dark: boolean; shown: boolean; anchors?: boolean; contentStyle: ComponentProps<typeof Animated.View>["style"]; onExpand: () => void }) {
   const ink = dark ? chromeInk.dark : chromeInk.light;
   const address = barAddress(tab);
+  const back = useBarReturn();
+  const ids = anchors ? back.ids : null;
+  const centreWas = useRef(back.centreGlass.shown);
+  const centreFlips = centreWas.current !== back.centreGlass.shown;
+  useEffect(() => {
+    centreWas.current = back.centreGlass.shown;
+  }, [back.centreGlass.shown]);
   return (
-    <ChromeSurface testID="hostPill" shape="capsule" cornerRadius={capsule(hostPillLayout.height)} incognito={tab.isPrivate} dark={dark} barShadow shown={shown} shownMs={hostPillLayout.glassMs} style={styles.pill}>
-      <Animated.View testID="hostPillContent" style={[styles.content, contentStyle]}>
+    <Animated.View testID="hostPillCentre" nativeID={ids?.anchor} collapsable={false} pointerEvents={back.centreShown ? "box-none" : "none"} importantForAccessibility={back.centreShown ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={!back.centreShown}>
+    <ChromeSurface testID="hostPill" shape="capsule" cornerRadius={capsule(hostPillLayout.height)} incognito={tab.isPrivate} dark={dark} barShadow shown={shown && back.centreGlass.shown} shownMs={centreFlips ? back.centreGlass.shownMs : hostPillLayout.glassMs} style={styles.pill}>
+      <Animated.View testID="hostPillCentreGlyphs" collapsable={false} style={back.centreGlyphs}>
+      <Animated.View testID="hostPillContent" nativeID={ids?.face} collapsable={false} style={[styles.content, contentStyle]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Show Toolbar" accessibilityValue={{ text: address.host }} onPress={onExpand} onPressIn={haptics.barPress} style={styles.hit}>
         {address.insecure ? (
           <Text testID="hostPillNotSecure" maxFontSizeMultiplier={hostPillLayout.maxTextScale} numberOfLines={1} style={[styles.warning, { color: ink.notSecure }]}>
@@ -30,7 +40,9 @@ export function HostPill({ tab, dark, shown, contentStyle, onExpand }: { tab: Br
         </Text>
       </Pressable>
       </Animated.View>
+      </Animated.View>
     </ChromeSurface>
+    </Animated.View>
   );
 }
 

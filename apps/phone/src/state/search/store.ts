@@ -101,6 +101,7 @@ export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel
   feedSources();
   useSearch.setState((state) => ({
     open: true,
+    ending: "cancelled",
     origin,
     initialText: text,
     text,

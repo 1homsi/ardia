@@ -33,6 +33,20 @@ export function trayDragOffset(translation: number): number {
   return -rubberBand(-translation, TRAY_DRAG.upwardLimit);
 }
 
+export function trayDragTranslation(offset: number): number {
+  "worklet";
+  if (offset >= 0) return offset;
+  const stretch = Math.min(-offset / TRAY_DRAG.upwardLimit, 0.99);
+  return (-TRAY_DRAG.upwardLimit * stretch) / (1 - stretch);
+}
+
+export function trayVelocity(translation: number, fingerVelocity: number): number {
+  "worklet";
+  if (translation >= 0) return fingerVelocity;
+  const stretch = -translation / TRAY_DRAG.upwardLimit + 1;
+  return fingerVelocity / (stretch * stretch);
+}
+
 export function trayDismissDistance(trayHeight: number): number {
   "worklet";
   return Math.min(Math.max(trayHeight, 0) * TRAY_DRAG.distanceShare, TRAY_DRAG.distanceCap);

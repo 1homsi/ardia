@@ -10,8 +10,10 @@ import {
   trayDragDismisses,
   trayDragOffset,
   trayDragReleasesKeyboard,
+  trayDragTranslation,
   trayMaxHeight,
   trayOffset,
+  trayVelocity,
 } from "./trayMotion.ts";
 
 const close = (actual: number, expected: number, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) < epsilon, `${actual} ≈ ${expected}`);
@@ -81,4 +83,17 @@ test("the tray is shorter when the screen leaves less room", () => {
   assert.equal(trayMaxHeight(274, 800, 300, 8), 274);
   assert.equal(trayMaxHeight(274, 500, 300, 8), 192);
   assert.equal(trayMaxHeight(274, 200, 300, 8), 0);
+});
+
+test("a grab mid-spring turns the shown offset back into the finger's travel, as SwiftUI's TrayDrag.translation(for:)", () => {
+  assert.equal(trayDragTranslation(40), 40);
+  assert.equal(trayDragTranslation(0), 0);
+  for (const travel of [-5, -30, -120]) close(trayDragTranslation(trayDragOffset(travel)), travel, 1e-6);
+  assert.ok(Number.isFinite(trayDragTranslation(-TRAY_DRAG.upwardLimit * 2)));
+});
+
+test("the tray's release speed follows the finger downward and slows with the rubber band upward, as SwiftUI's TrayDrag.trayVelocity", () => {
+  assert.equal(trayVelocity(50, 900), 900);
+  assert.equal(trayVelocity(0, -300), -300);
+  close(trayVelocity(-TRAY_DRAG.upwardLimit, -400), -100);
 });

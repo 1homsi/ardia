@@ -4,14 +4,19 @@ import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, 
 import { Host, Image as SystemImage } from "@expo/ui/swift-ui";
 import { font as systemFont } from "@expo/ui/swift-ui/modifiers";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import type { GestureType } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
 import { useSearchFieldVersion, useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
+import { SEARCH_ANCHOR_ID, SEARCH_FACE_ID, SEARCH_FIELD_ID, setStageMorphs, stageExit, stageOpened, stagePresented, stageSettled, useStageBar } from "../../state/search/stageBar";
+import { SearchStage, SearchStagePanel, searchStageIsNative, type SearchStageHandle, type SearchStageLift } from "../../platform/searchStage";
+import { useScreenLayout } from "../../state/app/screenLayout";
+import { useChromeStyle } from "../../state/settings/appearance";
+import { withAlpha } from "../../lib/color";
 import { initialPresence, presenceSettled, presenceShown, presenceTarget } from "../../lib/sheetPresence";
-import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayDragDismisses, trayDragOffset, trayDragReleasesKeyboard, trayMaxHeight, trayOffset } from "../../lib/trayMotion";
+import { clampedProgress, keyboardIsUp, keyboardProgress, liveLift, TRAY_LIFT, trayDragDismisses, trayDragOffset, trayDragReleasesKeyboard, trayDragTranslation, trayMaxHeight, trayOffset, trayVelocity } from "../../lib/trayMotion";
 import { useOnboarding } from "../../state/onboarding/store";
 import { useVoice } from "../../state/voice/store";
 import { idleScrub, SCRUB, scrubBegin, scrubEnd, scrubMove, type RowFrame, type ScrubState } from "../../lib/trayScrub";
@@ -23,7 +28,7 @@ import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, settingsUIAvailable } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, stageMotion, barReturnMotion, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, settingsUIAvailable } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -44,6 +49,10 @@ function useTrayTheme() {
 }
 
 export function SearchTray() {
+  return searchStageIsNative() ? <StagedTray /> : <SheetTray />;
+}
+
+function SheetTray() {
   const open = useSearchOpen();
   const session = useSearchSession();
   const target = open ? session : null;
@@ -389,6 +398,316 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
   );
 }
 
+let knownLift = 0;
+let knownFieldHeight = 0;
+
+type StagedField = { holdsScroll: boolean; presented: boolean; onFieldHeight: (height: number) => void };
+
+const StagedFieldContext = createContext<StagedField | null>(null);
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const revealIn = (delayMs: number) => withDelay(delayMs, withTiming(1, { duration: stageMotion.revealMs, easing: tabsCurve.easeOut }));
+
+function StagedTray() {
+  countRender("TrayLayer");
+  const open = useSearchOpen();
+  const session = useSearchSession();
+  const origin = useSearchOrigin();
+  const theme = useTrayTheme();
+  const incognito = useIncognito();
+  const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
+  const reduceMotion = useReduceMotion();
+  const reduceTransparency = useReduceTransparency();
+  const chrome = useChromeStyle();
+  const phoneLayout = useScreenLayout((s) => s.layout.name === "phone");
+  const pills = useStageBar((state) => state.pills);
+  const stage = useRef<SearchStageHandle>(null);
+  const [mounted, setMounted] = useState<number | null>(open ? session : null);
+  const [presentation, setPresentation] = useState(0);
+  const [closing, setClosing] = useState(false);
+  const [stageShown, setStageShown] = useState(open);
+  const [holdsScroll, setHoldsScroll] = useState(open);
+  const [presented, setPresented] = useState(false);
+  const [lift, setLift] = useState<SearchStageLift>({ lift: knownLift, up: false });
+  const [fieldHeight, setFieldHeight] = useState(knownFieldHeight || browseLayout.searchFieldHeight * window.fontScale);
+  const live = useRef<{ mounted: number | null; closing: boolean; revealed: boolean; finishes: boolean; velocity: number; morphs: boolean; presentation: number }>({ mounted: null, closing: false, revealed: false, finishes: false, velocity: 0, morphs: false, presentation: 0 });
+  const heldRelease = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const drag = useSharedValue(0);
+  const grabbed = useSharedValue(0);
+  const released = useSharedValue(false);
+  const dim = useSharedValue(0);
+  const revealField = useSharedValue(0);
+  const revealRows = useSharedValue(0);
+  const safeBottom = insets.bottom;
+  const resting = Math.max(lift.lift, safeBottom);
+  const command = useCommandBar(resting);
+  const preferred = SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
+  const trayHeight = command ? command.maxHeight : trayMaxHeight(preferred, window.height - insets.top, resting, space.s + floatingPanelLayout.aboveKeyboard);
+  const morphs = phoneLayout && !reduceMotion && command === null && pills > 0;
+  live.current.morphs = morphs;
+  const heightNow = useSharedValue(trayHeight);
+  const travel = useSharedValue(trayHeight + lift.lift);
+  const reducedNow = useSharedValue(reduceMotion);
+  useEffect(() => {
+    heightNow.value = trayHeight;
+    travel.value = trayHeight + lift.lift;
+    reducedNow.value = reduceMotion;
+  }, [trayHeight, lift.lift, reduceMotion]);
+  useEffect(() => {
+    if (mounted !== null) setStageMorphs(morphs);
+  }, [morphs, mounted !== null]);
+
+  const clearHeldRelease = () => {
+    if (heldRelease.current) clearTimeout(heldRelease.current);
+    heldRelease.current = null;
+  };
+  useEffect(() => clearHeldRelease, []);
+
+  useEffect(() => {
+    const now = live.current;
+    if (open) {
+      if (now.mounted === null || now.closing) setPresentation((count) => count + 1);
+      now.mounted = session;
+      now.closing = false;
+      now.revealed = false;
+      now.velocity = 0;
+      setMounted(session);
+      setClosing(false);
+      setHoldsScroll(true);
+      revealField.value = 0;
+      revealRows.value = 0;
+      drag.value = 0;
+      stageOpened();
+      setStageMorphs(now.morphs);
+      setStageShown(true);
+      return;
+    }
+    if (now.mounted === null || now.closing) return;
+    now.closing = true;
+    clearHeldRelease();
+    setClosing(true);
+    setHoldsScroll(true);
+    putKeyboardAway();
+    const velocity = now.velocity;
+    now.velocity = 0;
+    stage.current?.close(stageExit(searchState().ending, now.morphs), velocity);
+  }, [open, session]);
+
+  useEffect(() => {
+    live.current.presentation = presentation;
+    if (presentation === 0) return;
+    setPresented(false);
+    void stage.current?.present().then(() => {
+      if (live.current.presentation !== presentation || live.current.closing) return;
+      setPresented(true);
+      stagePresented();
+    });
+  }, [presentation]);
+
+  useEffect(() => {
+    if (mounted !== null || !live.current.finishes) return;
+    live.current.finishes = false;
+    drag.value = 0;
+    stage.current?.finish();
+  }, [mounted]);
+
+  const settled = ({ landed }: { landed: boolean }) => {
+    const now = live.current;
+    if (!now.closing) return;
+    now.closing = false;
+    now.mounted = null;
+    now.finishes = true;
+    clearHeldRelease();
+    revealField.value = 0;
+    revealRows.value = 0;
+    stageSettled(landed);
+    setMounted(null);
+    setClosing(false);
+    setStageShown(false);
+    setHoldsScroll(false);
+  };
+
+  const revealed = ({ late }: { late: boolean }) => {
+    live.current.revealed = true;
+    if (!live.current.closing) setHoldsScroll(false);
+    revealField.value = revealIn(stageMotion.fieldDelayMs);
+    revealRows.value = revealIn(stageMotion.rowsDelayMs);
+    if (late && !useTabs.getState().incognito) countUsage("search_reveals_late");
+  };
+
+  const lifted = (next: SearchStageLift) => {
+    if (next.up && next.lift > 0) knownLift = next.lift;
+    setLift((was) => (was.lift === next.lift && was.up === next.up ? was : next));
+  };
+  useEffect(() => {
+    dim.value = withTiming(lift.up ? 1 : 0, { duration: reduceMotion ? barReturnMotion.fadeMs : stageMotion.dimMs, easing: tabsCurve.easeOut });
+  }, [lift.up]);
+
+  const measuredField = useCallback((height: number) => {
+    if (height <= 0) return;
+    knownFieldHeight = height;
+    setFieldHeight((was) => (Math.abs(was - height) < 0.5 ? was : height));
+  }, []);
+
+  const voice = useVoice((state) => state.presented);
+  const voiceWasUp = useRef(voice);
+  useEffect(() => {
+    if (closing) return;
+    if (voice) trayInput?.blur();
+    else if (voiceWasUp.current && mayFocusTray()) focusTray();
+    voiceWasUp.current = voice;
+  }, [voice, closing]);
+
+  const closedOnPressIn = useRef(false);
+  const closeFromTouch = () => {
+    if (searchState().open && searchState().session === live.current.mounted) cancelSearch();
+  };
+  const closeOnPressIn = () => {
+    closedOnPressIn.current = true;
+    closeFromTouch();
+  };
+  const closeOnPress = () => {
+    if (closedOnPressIn.current) {
+      closedOnPressIn.current = false;
+      return;
+    }
+    closeFromTouch();
+  };
+
+  const letKeyboardGoHeld = () => {
+    clearHeldRelease();
+    if (!Keyboard.isVisible()) return;
+    stage.current?.holdLift();
+    putKeyboardAway();
+  };
+  const settleHeld = () => {
+    if (live.current.closing) return;
+    if (mayFocusTray()) focusTray();
+    clearHeldRelease();
+    heldRelease.current = setTimeout(() => {
+      heldRelease.current = null;
+      if (!live.current.closing) stage.current?.releaseLift();
+    }, stageMotion.heldLiftGraceMs);
+  };
+  const dismissByDrag = (velocity: number) => {
+    live.current.velocity = velocity;
+    closeFromTouch();
+  };
+  const handlers = useRef({ letKeyboardGoHeld, settleHeld, dismissByDrag, clearHeldRelease });
+  handlers.current = { letKeyboardGoHeld, settleHeld, dismissByDrag, clearHeldRelease };
+  const onGrab = useCallback(() => handlers.current.clearHeldRelease(), []);
+  const onRelease = useCallback(() => handlers.current.letKeyboardGoHeld(), []);
+  const onSettle = useCallback(() => handlers.current.settleHeld(), []);
+  const onDismiss = useCallback((velocity: number) => handlers.current.dismissByDrag(velocity), []);
+
+  const dismissDrag = useMemo(
+    () =>
+      Gesture.Pan()
+        .withTestId("trayDismissDrag")
+        .enabled(!closing)
+        .activeOffsetY([-10, 10])
+        .failOffsetX([-24, 24])
+        .onStart(() => {
+          cancelAnimation(drag);
+          grabbed.value = trayDragTranslation(drag.value);
+          released.value = false;
+          runOnJS(onGrab)();
+        })
+        .onUpdate((event) => {
+          const translation = grabbed.value + event.translationY;
+          if (!released.value && trayDragReleasesKeyboard(translation)) {
+            released.value = true;
+            runOnJS(onRelease)();
+          }
+          drag.value = trayDragOffset(translation);
+        })
+        .onEnd((event) => {
+          const translation = grabbed.value + event.translationY;
+          grabbed.value = 0;
+          const velocity = trayVelocity(translation, event.velocityY);
+          if (trayDragDismisses(translation, event.velocityY, heightNow.value)) {
+            runOnJS(onDismiss)(velocity);
+            return;
+          }
+          drag.value = reducedNow.value ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(0, { ...stageMotion.settle, velocity });
+          if (released.value) runOnJS(onSettle)();
+        }),
+    [closing],
+  );
+
+  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * (1 - clampedProgress(drag.value, travel.value)) }));
+  const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.value }] }));
+  const fieldStyle = useAnimatedStyle(() => ({ opacity: revealField.value }));
+  const rowsStyle = useAnimatedStyle(() => ({ opacity: revealRows.value }));
+  const panelTint = withAlpha(incognito ? floatingPanelLayout.incognitoFill : theme.surface, reduceTransparency ? 1 : incognito ? floatingPanelLayout.incognitoShare : floatingPanelLayout.tintShare);
+  const morphLook = useMemo(() => ({ usesGlass: chrome === "glass", panelTint, panelDark: incognito, classicPanel: theme.surface }), [chrome, panelTint, incognito, theme.surface]);
+  const dimTakesTouches = lift.up && !closing;
+  const field = useMemo<StagedField>(() => ({ holdsScroll, presented, onFieldHeight: measuredField }), [holdsScroll, presented, measuredField]);
+
+  return (
+    <SearchStage
+      ref={stage}
+      testID="trayStage"
+      style={StyleSheet.absoluteFill}
+      shown={stageShown}
+      anchorNativeId={morphs ? SEARCH_ANCHOR_ID : null}
+      faceNativeId={morphs ? SEARCH_FACE_ID : null}
+      focusNativeId={SEARCH_FIELD_ID}
+      fieldCenter={floatingPanelLayout.fieldInset + fieldHeight / 2}
+      commandTop={command ? command.top : null}
+      morphLook={morphLook}
+      onLift={lifted}
+      onReveal={revealed}
+      onSettled={settled}
+    >
+      <AnimatedPressable
+        testID="trayDim"
+        accessibilityLabel="Close Search"
+        accessibilityRole="button"
+        {...screenReaderActions([{ name: "activate", run: closeFromTouch }])}
+        collapsable={false}
+        pointerEvents={dimTakesTouches ? "auto" : "none"}
+        importantForAccessibility={dimTakesTouches ? "auto" : "no-hide-descendants"}
+        accessibilityElementsHidden={!dimTakesTouches}
+        onPressIn={closeOnPressIn}
+        onPress={closeOnPress}
+        style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }, dimStyle]}
+      />
+      <SearchStagePanel testID="trayPanel" pointerEvents="box-none" style={command ? [styles.stagePanel, { top: command.top }] : [styles.stagePanel, styles.stagePanelBottom]}>
+        <Animated.View testID="trayDrag" collapsable={false} style={dragStyle}>
+          {mounted !== null ? (
+            <View
+              key={presentation}
+              style={command ? { marginLeft: command.left, width: command.width } : styles.stageCard}
+              importantForAccessibility={closing ? "no-hide-descendants" : "auto"}
+              accessibilityElementsHidden={closing}
+            >
+              <View style={[styles.stageSurface, { height: trayHeight, boxShadow: incognito ? floatingPanelLayout.incognitoShadow : floatingPanelLayout.shadow }]}>
+                <ChromeSurface shape="rounded" cornerRadius={floatingPanelLayout.radius} interactive={false} tinted incognito={incognito} style={StyleSheet.absoluteFill} />
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: floatingPanelLayout.radius, backgroundColor: panelTint }]} />
+                <View style={{ height: trayHeight, borderRadius: floatingPanelLayout.radius, overflow: "hidden" }}>
+                  <StagedFieldContext.Provider value={field}>
+                    <GestureDetector gesture={dismissDrag}>
+                      <Animated.View testID="trayFieldReveal" collapsable={false} style={fieldStyle}>
+                        <TrayField key={mounted} closing={closing} />
+                      </Animated.View>
+                    </GestureDetector>
+                  </StagedFieldContext.Provider>
+                  <Animated.View testID="trayRowsReveal" style={[styles.rows, rowsStyle]}>
+                    <TrayRows dismissDrag={dismissDrag} />
+                  </Animated.View>
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </Animated.View>
+      </SearchStagePanel>
+    </SearchStage>
+  );
+}
+
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 const DepartContext = createContext<() => void>(() => undefined);
@@ -463,22 +782,28 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
   const [hasText, setHasText] = useState(start.length > 0);
   const input = useRef<TrayInputHandle | null>(null);
   const submitted = useRef(false);
+  const staged = useContext(StagedFieldContext);
 
   const [fieldGone, dropField] = useState(false);
   useEffect(() => {
     if (closing) {
       input.current?.blur();
-      dropField(true);
+      if (!staged) dropField(true);
+      return;
+    }
+    if (staged && !staged.presented) return;
+    if (staged) {
+      input.current?.focus();
       return;
     }
     const focus = setTimeout(() => input.current?.focus(), 0);
     return () => clearTimeout(focus);
-  }, [closing]);
+  }, [closing, staged?.presented]);
   const lastText = useRef(start);
 
   return (
     <View style={useDesign() === "redesigned" ? styles.panelFieldArea : styles.fieldArea}>
-      <View style={[styles.field, panelField ? [styles.panelField, theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight] : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
+      <View onLayout={staged ? (event) => staged.onFieldHeight(event.nativeEvent.layout.height) : undefined} style={[styles.field, panelField ? [styles.panelField, theme.dark || incognitoField ? styles.panelFieldDark : styles.panelFieldLight] : { backgroundColor: theme.fieldFill, borderColor: theme.fieldStroke }]}>
         {fieldGone ? (
           <Text testID="trayFieldLeaving" numberOfLines={1} style={[font.title3, styles.input, styles.leavingText, { color: lastText.current ? theme.foregroundPrimary : theme.foregroundTertiary }]}>
             {lastText.current || "Search…"}
@@ -496,6 +821,8 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
           placeholderColor={theme.foregroundTertiary}
           accent={theme.formAccent}
           keyboardAppearance={incognitoField ? "dark" : "default"}
+          holdsScroll={staged?.holdsScroll}
+          nativeID={staged ? SEARCH_FIELD_ID : undefined}
           onTyped={(text) => {
             lastText.current = text;
             if (text.length > 0 !== hasText) setHasText(text.length > 0);
@@ -806,6 +1133,10 @@ const styles = StyleSheet.create({
   leavingText: { textAlignVertical: "center", lineHeight: browseLayout.searchFieldHeight },
   accessory: { width: browseLayout.accessory.width, height: browseLayout.accessory.height, alignItems: "center", justifyContent: "center" },
   rows: { flex: 1 },
+  stagePanel: { position: "absolute", left: 0, right: 0 },
+  stagePanelBottom: { bottom: 0 },
+  stageCard: { paddingHorizontal: floatingPanelLayout.inset, paddingBottom: floatingPanelLayout.aboveKeyboard },
+  stageSurface: { borderRadius: floatingPanelLayout.radius, borderCurve: "continuous" },
   incognito: {
     flexDirection: "row",
     alignItems: "center",

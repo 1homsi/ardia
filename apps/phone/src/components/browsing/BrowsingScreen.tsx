@@ -13,6 +13,8 @@ import { useFindOpen, useMenuOpen, usePressOpen, useReaderTabId } from "../../st
 import { captureCurrentCover, newTab, pageLaidOut, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
 import { usePages } from "../../state/pages/store";
+import { reportBarPill } from "../../state/search/stageBar";
+import { searchStageIsNative } from "../../platform/searchStage";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeFrontTab, menuOpenedHaptic, recentTabs, switchToTab, tabTitle } from "../../state/browse/tabMenus";
 import { useDeckOrder } from "../../state/tabs/hooks";
@@ -99,6 +101,8 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const barDark = design === "redesigned" && !pageTone?.bottom ? theme.dark : isDarkColor(bottom);
   useSystemBars(isDarkColor(top), barDark);
   const collapse = useBarCollapse(tab.id, finding, design === "redesigned");
+  const staged = design === "redesigned" && !column && searchStageIsNative();
+  useEffect(() => (staged && !collapse.hidden ? reportBarPill() : undefined), [staged, collapse.hidden]);
   const underBar = usePageUnderBars();
   const layout = column ? COLUMN_PAGE : underBar ? { pageBottom: 0, toneBottom: barHeight(insets.bottom, design) } : pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
   const fullscreen = usePages((s) => s.fullscreen[tab.id] ?? false);
@@ -178,7 +182,8 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
                       order={order}
                       roles={rolesFor(barDark)}
                       dark={barDark}
-                      showsPlus={!searching}
+                      showsPlus={staged || !searching}
+                      anchors={!collapse.collapsed}
                       onTabs={showDeck}
                       onTabsMenu={openTabsMenu}
                       onStep={stepTab}
@@ -196,7 +201,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
                       importantForAccessibility={collapse.collapsed ? "auto" : "no-hide-descendants"}
                       accessibilityElementsHidden={!collapse.collapsed}
                     >
-                      <HostPill tab={tab} dark={barDark} shown={collapse.collapsed} contentStyle={collapse.fold.pillContent} onExpand={collapse.expand} />
+                      <HostPill tab={tab} dark={barDark} shown={collapse.collapsed} anchors={collapse.collapsed} contentStyle={collapse.fold.pillContent} onExpand={collapse.expand} />
                     </Animated.View>
                   ) : null}
                 </View>
