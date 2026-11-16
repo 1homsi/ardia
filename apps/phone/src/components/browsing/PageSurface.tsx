@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
-import { pageDrawn, pageStateChanged, pageToneChanged } from "../../state/browse/store";
-import { usePageVeiled } from "../../state/browse/hooks";
+import { OPENING_COVER_ID, pageCoverHidden, pageDrawn, pageStateChanged, pageToneChanged } from "../../state/browse/store";
+import { usePageCovered, usePageVeiled } from "../../state/browse/hooks";
 import { registerPageHandle } from "../../state/pages/store";
 import { tabSavedState } from "../../state/tabs/store";
 import type { BrowserTab } from "../../state/tabs/tabModels";
@@ -15,6 +15,7 @@ export function PageSurface({ tab, toneBottom, obscured, topClearance, testID }:
   const id = tab.id;
   const swipe = usePreferences((p) => p.swipeNavigation);
   const veiled = usePageVeiled(id);
+  const covered = usePageCovered(id);
   const [setup] = useState(() => ({ url: tab.url, title: tab.title, saved: tabSavedState(id) ?? undefined }));
   useEffect(() => {
     registerPageHandle(id, handle.current);
@@ -39,6 +40,8 @@ export function PageSurface({ tab, toneBottom, obscured, topClearance, testID }:
       onPageState={(state) => pageStateChanged(id, state)}
       onPageTone={(tone) => pageToneChanged(id, tone)}
       onPageDrawn={() => pageDrawn(id)}
+      coverNativeId={covered ? OPENING_COVER_ID : undefined}
+      onPageCoverHidden={(reason) => pageCoverHidden(id, reason)}
     />
   );
 }

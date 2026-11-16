@@ -60,9 +60,9 @@ import { coverIsCapturable, isSyncableUrl, pageStatePatch, titleAfterFailedLoad,
 export type Surface = "start" | "browsing" | "deck";
 export type Sheet = "archive" | "spaces" | null;
 
-type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null; opening: string | null; veiled: string | null; leaving: string | null };
+type BrowseState = { surface: Surface; sheet: Sheet; deckEntrance: string | null; frozenOrder: string[] | null; opening: string | null; veiled: string | null; covered: string | null; leaving: string | null };
 
-export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null, opening: null, veiled: null, leaving: null }));
+export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet: null, deckEntrance: null, frozenOrder: null, opening: null, veiled: null, covered: null, leaving: null }));
 
 const lastVisits = new Map<string, Visit>();
 
@@ -192,7 +192,7 @@ export function beginOpeningTab(id: string, veiled = false) {
   showSpaceOf(id);
   setIncognito(isPrivateTab(currentTabs(), id));
   selectTabById(id);
-  useBrowse.setState({ opening: id, veiled: veiled ? id : null });
+  useBrowse.setState({ opening: id, veiled: veiled ? id : null, covered: veiled ? id : null });
 }
 
 export function unveilOpeningPage(id: string) {
@@ -221,6 +221,31 @@ export function whenPageDrawn(id: string, capMs: number, then: (drawn: boolean) 
 
 export const pageDrawn = (id: string) => drawnWaiters.get(id)?.();
 
+export const OPENING_COVER_ID = "openingCover";
+
+export type CoverHidden = "drawn" | "cap" | "lost";
+
+const coverWaiters = new Map<string, (reason: CoverHidden) => void>();
+
+export function whenPageCoverHidden(id: string, capMs: number, then: (reason: CoverHidden) => void): () => void {
+  let called = false;
+  const stop = () => {
+    called = true;
+    clearTimeout(cap);
+    if (coverWaiters.get(id) === hidden) coverWaiters.delete(id);
+  };
+  const hidden = (reason: CoverHidden) => {
+    if (called) return;
+    stop();
+    then(reason);
+  };
+  const cap = setTimeout(() => hidden("lost"), capMs);
+  coverWaiters.set(id, hidden);
+  return stop;
+}
+
+export const pageCoverHidden = (id: string, reason: "drawn" | "cap") => coverWaiters.get(id)?.(reason);
+
 const laidOutWaiters = new Map<string, () => void>();
 
 export function whenPageLaidOut(id: string, capMs: number, then: () => void) {
@@ -240,7 +265,7 @@ export function whenPageLaidOut(id: string, capMs: number, then: () => void) {
 export const pageLaidOut = (id: string) => laidOutWaiters.get(id)?.();
 
 export function stopOpeningTab(id: string) {
-  if (useBrowse.getState().opening === id) useBrowse.setState({ opening: null, veiled: null });
+  if (useBrowse.getState().opening === id) useBrowse.setState({ opening: null, veiled: null, covered: null });
 }
 
 export function openTab(id: string) {
@@ -250,7 +275,7 @@ export function openTab(id: string) {
   showSpaceOf(id);
   setIncognito(isPrivateTab(currentTabs(), id));
   if (currentTabs().selectedId !== id) selectTabById(id);
-  useBrowse.setState({ surface: "browsing", sheet: null, opening: null, veiled: null });
+  useBrowse.setState({ surface: "browsing", sheet: null, opening: null, veiled: null, covered: null });
   const tab = findTab(currentTabs(), id);
   if (tab && !tab.snapshotFileName && loading.get(id) === false) scheduleSnapshot(id);
 }
@@ -312,7 +337,7 @@ export async function showDeck() {
   }
   const leaving = surface === "browsing" ? selected : null;
   labTrace(`PAGELAB deck shown with ${currentTabs().open.length} tabs, ${currentTabs().privates.length} private`);
-  useBrowse.setState({ surface: "deck", deckEntrance: leaving, frozenOrder: null, opening: null, veiled: null, leaving });
+  useBrowse.setState({ surface: "deck", deckEntrance: leaving, frozenOrder: null, opening: null, veiled: null, covered: null, leaving });
 }
 
 export const peekDeckEntrance = () => useBrowse.getState().deckEntrance;

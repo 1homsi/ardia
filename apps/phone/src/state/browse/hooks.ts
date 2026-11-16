@@ -16,6 +16,8 @@ export const useOpeningTab = () => useBrowse((s) => s.opening);
 
 export const usePageVeiled = (id: string) => useBrowse((s) => s.veiled === id);
 
+export const usePageCovered = (id: string) => useBrowse((s) => s.covered === id);
+
 export const useLeavingTab = () => useBrowse((s) => s.leaving);
 
 export function watchPageLoad(id: string, show: (progress: number, isLoading: boolean) => void): () => void {

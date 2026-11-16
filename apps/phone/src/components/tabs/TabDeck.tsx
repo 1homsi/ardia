@@ -58,7 +58,7 @@ import {
   openTab,
   reopenLastClosed,
   unveilOpeningPage,
-  whenPageDrawn,
+  whenPageCoverHidden,
   whenPageLaidOut,
 } from "../../state/browse/store";
 import { menuOpenedHaptic } from "../../state/browse/tabMenus";
@@ -588,8 +588,8 @@ export const TabDeck = memo(function TabDeck() {
       return;
     }
     handedOver.current = id;
-    stopDrawnWait.current = whenPageDrawn(id, DRAWN_CAP_MS, (drawn) => {
-      if (!drawn && !tabs.get(id)?.isPrivate) countUsage("card_opens_waited");
+    stopDrawnWait.current = whenPageCoverHidden(id, COVER_LOST_MS, (reason) => {
+      if (reason !== "drawn" && !tabs.get(id)?.isPrivate) countUsage("card_opens_waited");
       finishOpen(id);
     });
   };
@@ -1080,6 +1080,7 @@ const SHOWN = { opacity: 1 };
 const HIDDEN = { opacity: 0 };
 const HANDOVER_CAP_MS = 250;
 const DRAWN_CAP_MS = 200;
+const COVER_LOST_MS = DRAWN_CAP_MS + 300;
 const ARCHIVE_RESIZE_SLACK = 0.5;
 const HANDED_OVER_AWAY = 100_000;
 const CARD_LANDED = 0.02;

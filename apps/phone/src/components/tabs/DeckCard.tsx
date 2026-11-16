@@ -9,9 +9,10 @@ import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
-import { barHeight, FadeView, Favicon, font, iPhoneOr, MotionView, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor, type MenuItem, type MotionCurve } from "../ui";
+import { barHeight, FadeView, Favicon, font, iPhoneOr, motionReportsNearEnd, MotionView, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor, type MenuItem, type MotionCurve } from "../ui";
 import { MenuTrigger, nativeMenus, spaceSystemImage, type MenuHandlers } from "../ui/MenuTrigger";
 import { hideArchiveCard } from "../../state/browse/archiveCard";
+import { OPENING_COVER_ID } from "../../state/browse/store";
 import { canShareTab, copyTabLink, shareTab } from "../../state/browse/tabMenus";
 import { openSettings } from "../../state/settings/nav";
 import { useIsPinned, useSendTargets, useSyncEnabled, useSyncView } from "../../state/sync/hooks";
@@ -322,15 +323,29 @@ export const OPENING_CARD_MOTION: MotionCurve = { type: "spring", response: OPEN
 
 type OpeningCardProps = { tab: BrowserTab; geometry: DeckGeometry; centerX: number; centerY: number; growsAtMount?: boolean; endsSquare?: boolean; onGrowing: () => void; onLanded?: () => void };
 
-export function coveringScale(g: DeckGeometry): number {
-  const left = (g.width - g.cardWidth) / 2;
-  const top = (g.height - g.cardHeight) / 2;
-  const laidWidth = Math.max(PixelRatio.roundToNearestPixel(left + g.cardWidth) - PixelRatio.roundToNearestPixel(left), 1);
-  const laidHeight = Math.max(PixelRatio.roundToNearestPixel(top + g.cardHeight) - PixelRatio.roundToNearestPixel(top), 1);
-  return Math.max(g.width / laidWidth, g.height / laidHeight) + 1 / (laidWidth * PixelRatio.get());
+export type CoverFrame = { left: number; top: number; width: number; height: number; startScale: number; scale: number };
+
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+export function coverFrame(g: DeckGeometry, ratio: number = PixelRatio.get()): CoverFrame {
+  const screenWidth = Math.round(g.width * ratio);
+  const screenHeight = Math.round(g.height * ratio);
+  const unit = Math.max(gcd(screenWidth, screenHeight), 1);
+  const across = screenWidth / unit;
+  const down = screenHeight / unit;
+  let steps = Math.max(Math.ceil((g.cardWidth * ratio) / across), 1);
+  while (steps < unit && ((screenWidth - across * steps) % 2 !== 0 || (screenHeight - down * steps) % 2 !== 0)) steps++;
+  steps = Math.min(steps, unit);
+  const width = (across * steps) / ratio;
+  const height = (down * steps) / ratio;
+  return { left: (screenWidth - across * steps) / 2 / ratio, top: (screenHeight - down * steps) / 2 / ratio, width, height, startScale: g.cardWidth / width, scale: screenWidth / (across * steps) };
 }
 
+const deckCardFrame = (g: DeckGeometry): CoverFrame => ({ left: (g.width - g.cardWidth) / 2, top: (g.height - g.cardHeight) / 2, width: g.cardWidth, height: g.cardHeight, startScale: 1, scale: g.width / Math.max(g.cardWidth, 1) });
+
 export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount = false, endsSquare = false, onGrowing, onLanded }: OpeningCardProps) {
+  const [frame] = useState(() => (endsSquare ? coverFrame(g) : deckCardFrame(g)));
+  const inner = { ...g, cardWidth: frame.width, cardHeight: frame.height };
   const theme = useTheme();
   const design = useDesign();
   const toneNow = shownTone(useHeldPageTone(tab.id), tab.themeColorHex);
@@ -346,11 +361,11 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount =
     if (grown) onGrowing();
   }, [grown]);
   const pageTop = (tab.snapshotFileName ? snapshotPageTop(tab.snapshotFileName) : null) ?? (underBars ? 0 : g.safeTop);
-  const full = endsSquare ? coveringScale(g) : g.width / Math.max(g.cardWidth, 1);
-  const bar = deckBarBand(g, barHeight(g.safeBottom), 1);
+  const full = frame.scale;
+  const bar = deckBarBand(inner, barHeight(g.safeBottom), 1);
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
-  const start = { translateX: centerX - g.width / 2, translateY: centerY - g.height / 2, scale: 1, cornerRadius: DECK.cardRadius };
+  const start = { translateX: centerX - g.width / 2, translateY: centerY - g.height / 2, scale: frame.startScale, cornerRadius: DECK.cardRadius / frame.startScale };
   const to = grown ? { translateX: 0, translateY: 0, scale: full, cornerRadius: endsSquare ? 0 : DECK.displayCornerRadius / full } : start;
   return (
     <MotionView
@@ -362,14 +377,17 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount =
       to={to}
       motion={OPENING_CARD_MOTION}
       onMotionEnd={onLanded ? (finished) => finished && onLanded() : undefined}
-      style={[styles.opening, endsSquare ? null : styles.openingEdge, { left: (g.width - g.cardWidth) / 2, top: (g.height - g.cardHeight) / 2, width: g.cardWidth, height: g.cardHeight, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface }]}
+      {...(endsSquare && onLanded && motionReportsNearEnd() ? { nativeID: OPENING_COVER_ID, nearEndPx: COVER_NEAR_END_PX, onMotionNearEnd: () => onLanded() } : endsSquare ? { nativeID: OPENING_COVER_ID } : {})}
+      style={[styles.opening, endsSquare ? null : styles.openingEdge, { left: frame.left, top: frame.top, width: frame.width, height: frame.height, borderColor: theme.cardEdge, backgroundColor: tone.top ?? theme.surface }]}
     >
-      <MotionView testID="openingCardFace" style={StyleSheet.absoluteFill} from={growsAtMount ? { translateY: 0 } : undefined} to={{ translateY: grown ? deckStatusStrip(g, 0, pageTop) : 0 }} motion={OPENING_CARD_MOTION}>
+      <MotionView testID="openingCardFace" style={StyleSheet.absoluteFill} from={growsAtMount ? { translateY: 0 } : undefined} to={{ translateY: grown ? deckStatusStrip(inner, 0, pageTop) : 0 }} motion={OPENING_CARD_MOTION}>
         <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} paintedAs={`deck:${tab.id}`} />
       </MotionView>
       {underBars ? null : (
-        <MotionView testID="openingCardBand" style={[styles.openingBand, { top: g.cardHeight - bar.height, width: g.cardWidth, height: bar.height, backgroundColor: tone.bottom ?? theme.surface }]} from={growsAtMount ? { translateY: bar.height } : undefined} to={{ translateY: grown ? 0 : bar.height }} motion={OPENING_CARD_MOTION}>
-          {design === "original" ? <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
+        <MotionView testID="openingCardBand" pointerEvents="none" style={StyleSheet.absoluteFill} from={growsAtMount ? { translateY: bar.height } : undefined} to={{ translateY: grown ? 0 : bar.height }} motion={OPENING_CARD_MOTION}>
+          <View testID="openingCardBandFill" style={[styles.openingBand, { top: frame.height - bar.height, width: frame.width, height: bar.height, backgroundColor: tone.bottom ?? theme.surface }]}>
+            {design === "original" ? <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
+          </View>
         </MotionView>
       )}
       {endsSquare ? (
@@ -380,6 +398,7 @@ export function OpeningCard({ tab, geometry: g, centerX, centerY, growsAtMount =
 }
 
 const CARD_ELEVATION = 14;
+const COVER_NEAR_END_PX = 2;
 const HEADER_ROW_ROOM = 2000;
 const CARD_SHADOW_BLUR = 36;
 const RECEIVED_INSET = 10;

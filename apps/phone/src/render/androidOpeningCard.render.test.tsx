@@ -5,7 +5,7 @@ import { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-
 import { Surfaces } from "../App";
 import { DECK, deckGeometry } from "../lib/deckGeometry";
 
-import { coveringScale } from "../components/tabs/DeckCard";
+import { coverFrame } from "../components/tabs/DeckCard";
 import { deckHeaderBottom } from "../components/tabs/DeckHeader";
 import { NO_LAUNCH_ARGUMENTS, parseLaunchArguments } from "../lib/launchArguments";
 import * as launchFlags from "../state/app/launchFlags";
@@ -17,6 +17,7 @@ import * as telemetry from "../state/telemetry/telemetry";
 import { landOpeningPage, renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 let mockReportsDrawn = true;
+let mockNearEnd = false;
 let mockHoldsGrowing = false;
 let mockHeldGrowing: (() => void) | null = null;
 
@@ -26,6 +27,7 @@ jest.mock("@ardia/phone-native", () => {
   return {
     ...actual,
     pageReportsDrawn: () => mockReportsDrawn,
+    motionReportsNearEnd: () => mockNearEnd,
     MotionView: (props: import("@ardia/phone-native").MotionViewProps) => createElement(actual.MotionView, { ...props, onMotionEnd: undefined }),
   };
 });
@@ -50,6 +52,7 @@ let counted: jest.SpyInstance;
 beforeEach(() => {
   jest.useFakeTimers();
   mockReportsDrawn = true;
+  mockNearEnd = false;
   mockHoldsGrowing = false;
   mockHeldGrowing = null;
   jest.spyOn(launchFlags, "launchArguments").mockImplementation(() => parseLaunchArguments({ ArdiaOpeningCard: "1" }));
@@ -93,7 +96,7 @@ const openedId = () => {
   expect(typeof id).toBe("string");
   return id!;
 };
-const reportDrawn = (root: ReactTestRenderer) => act(() => pageView(root)!.props.onPageEvent({ nativeEvent: { name: "drawn" } }));
+const reportCover = (root: ReactTestRenderer, reason: "drawn" | "cap" = "drawn") => act(() => pageView(root)!.props.onPageEvent({ nativeEvent: { name: "coverHidden", reason, found: true } }));
 
 onAndroid("with ArdiaOpeningCard, the opening card mounts in the tap's own commit already growing, from the card's place in the deck to full screen, and ends square-cornered with its bar band shown", () => {
   const root = renderSurface(<Surfaces />);
@@ -107,18 +110,22 @@ onAndroid("with ArdiaOpeningCard, the opening card mounts in the tap's own commi
   const tapped = before.reduce((best, now) => (Math.abs(now.x + now.width / 2 - centerX) < Math.abs(best.x + best.width / 2 - centerX) ? now : best));
   expect(tapped.x + tapped.width / 2).toBeCloseTo(centerX, 3);
   expect(tapped.y + tapped.height / 2).toBeCloseTo(centerY, 3);
-  expect(from).toMatchObject({ scale: 1, cornerRadius: DECK.cardRadius });
+  const frame = StyleSheet.flatten(card.props.style) as { width: number; height: number; borderWidth?: number };
+  expect(from.scale).toBeLessThanOrEqual(1);
+  expect(frame.width * from.scale).toBeCloseTo(tapped.width, 5);
+  expect(from.cornerRadius * from.scale).toBeCloseTo(DECK.cardRadius, 5);
   expect(to).toMatchObject({ translateX: 0, translateY: 0, cornerRadius: 0 });
-  expect(to.scale).toBeCloseTo(393 / tapped.width);
-  expect(to.scale).toBeGreaterThanOrEqual(393 / tapped.width);
-  expect(StyleSheet.flatten(card.props.style).borderWidth).toBeUndefined();
+  expect(frame.width * to.scale).toBeCloseTo(393, 5);
+  expect(frame.height * to.scale).toBeCloseTo(873, 5);
+  expect(card.props.nativeID).toBe("openingCover");
+  expect(frame.borderWidth).toBeUndefined();
   expect(motionView(root, "openingCardEdge")!.props.from).toEqual({ opacity: 1 });
   expect(motionView(root, "openingCardEdge")!.props.to).toEqual({ opacity: 0 });
   expect(typeof card.props.onMotionEnd).toBe("function");
   const band = motionView(root, "openingCardBand")!;
-  const bandFrame = StyleSheet.flatten(band.props.style);
-  expect(bandFrame).toMatchObject({ position: "absolute", left: 0, width: tapped.width });
-  expect(bandFrame.top + bandFrame.height).toBeCloseTo(tapped.height, 5);
+  const bandFrame = StyleSheet.flatten(root.root.findAll((node) => node.props.testID === "openingCardBandFill" && typeof node.type === "string")[0]!.props.style);
+  expect(bandFrame).toMatchObject({ position: "absolute", left: 0, width: frame.width });
+  expect(bandFrame.top + bandFrame.height).toBeCloseTo(frame.height, 5);
   expect(bandFrame.right).toBeUndefined();
   expect(bandFrame.bottom).toBeUndefined();
   expect(band.props.from.translateY).toBeGreaterThan(0);
@@ -201,30 +208,55 @@ onAndroid("with ArdiaOpeningCard, an opening card whose motion end never comes s
   unmount(root);
 });
 
-onAndroid("with ArdiaOpeningCard, the page takes over in the same call as its drawn report after the card stops, and that open isn't counted as waited", () => {
+onAndroid("with ArdiaOpeningCard, the page view is handed the opening card to hide, and takes over in the same call as its report that it hid it on its first drawn frame; that open isn't counted as waited", () => {
   const root = renderSurface(<Surfaces />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
   advance(LANDS_MS);
   cardStops(root);
   advance(100);
   expect(useBrowse.getState().surface).toBe("deck");
-  reportDrawn(root);
-  expect(useBrowse.getState()).toMatchObject({ surface: "browsing", opening: null, veiled: null });
+  expect(root.root.findAll((node) => node.props.coverNativeId === "openingCover" && typeof node.props.onPageCoverHidden === "function")).not.toHaveLength(0);
+  reportCover(root);
+  expect(useBrowse.getState()).toMatchObject({ surface: "browsing", opening: null, veiled: null, covered: null });
   expect(waited()).toBe(0);
   unmount(root);
 });
 
-onAndroid("with ArdiaOpeningCard, a page that never reports drawn takes over 200 ms after the card stops, never later, and only that open is counted as waited", () => {
-  const root = renderSurface(<Surfaces />);
+onAndroid("with ArdiaOpeningCard, a page whose view hid the card at its 200 ms cap takes over then and that open is counted as waited; with no report at all the deck still gives way after 500 ms, also counted", () => {
+  let root = renderSurface(<Surfaces />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
   advance(LANDS_MS);
   cardStops(root);
-  advance(199);
-  expect(useBrowse.getState().surface).toBe("deck");
-  expect(waited()).toBe(0);
-  advance(1);
+  reportCover(root, "cap");
   expect(useBrowse.getState().surface).toBe("browsing");
   expect(waited()).toBe(1);
+  unmount(root);
+  act(() => useBrowse.setState({ surface: "deck", deckEntrance: null, opening: null, veiled: null, covered: null }));
+  root = renderSurface(<Surfaces />);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  advance(LANDS_MS);
+  cardStops(root);
+  advance(499);
+  expect(useBrowse.getState().surface).toBe("deck");
+  advance(1);
+  expect(useBrowse.getState().surface).toBe("browsing");
+  expect(waited()).toBe(2);
+  unmount(root);
+});
+
+onAndroid("with ArdiaOpeningCard where MotionView reports its near end, the opening card asks for the last 2 device pixels and the page is unveiled there instead of at the motion's end", () => {
+  mockNearEnd = true;
+  const root = renderSurface(<Surfaces />);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  advance(LANDS_MS - 60);
+  const id = openedId();
+  const card = motionView(root, "openingCard")!;
+  expect(card.props.nearEndPx).toBe(2);
+  expect(useBrowse.getState().veiled).toBe(id);
+  act(() => card.props.onMotionNearEnd(2));
+  expect(useBrowse.getState()).toMatchObject({ surface: "deck", veiled: null, covered: id });
+  reportCover(root);
+  expect(useBrowse.getState().surface).toBe("browsing");
   unmount(root);
 });
 
@@ -236,7 +268,7 @@ onAndroid("with ArdiaOpeningCard, a card that stops before the page is made stil
   expect(useBrowse.getState()).toMatchObject({ surface: "deck", opening: openedId(), veiled: null });
   advance(16);
   expect(useBrowse.getState().veiled).toBeNull();
-  reportDrawn(root);
+  reportCover(root);
   expect(useBrowse.getState().surface).toBe("browsing");
   expect(waited()).toBe(0);
   unmount(root);
@@ -273,7 +305,7 @@ onAndroid("after an open through the opening card, the deck reopens settled and 
   act(() => sendDeckCommand({ kind: "openFocused" }));
   advance(LANDS_MS);
   cardStops(root);
-  reportDrawn(root);
+  reportCover(root);
   expect(useBrowse.getState().surface).toBe("browsing");
   act(() => useBrowse.setState({ surface: "deck", deckEntrance: null, opening: null, veiled: null }));
   advance(1000);
@@ -283,27 +315,31 @@ onAndroid("after an open through the opening card, the deck reopens settled and 
   expect(motionView(root, "openingCard")).toBeDefined();
   advance(LANDS_MS);
   cardStops(root);
-  reportDrawn(root);
+  reportCover(root);
   expect(useBrowse.getState().surface).toBe("browsing");
   unmount(root);
 });
 
-test("the covering card's target scale covers the POCO F4's 1080 by 2400 pixels from the card's laid-out pixels, with at most a pixel or two to spare, never short", () => {
-  jest.spyOn(PixelRatio, "get").mockReturnValue(2.75);
-  const g = deckGeometry(1080 / 2.75, 2400 / 2.75, 80 / 2.75, 130 / 2.75, 0, "android", "redesigned", deckHeaderBottom());
-  const left = (g.width - g.cardWidth) / 2;
-  const top = (g.height - g.cardHeight) / 2;
-  const laidWidth = Math.round((left + g.cardWidth) * 2.75) - Math.round(left * 2.75);
-  const laidHeight = Math.round((top + g.cardHeight) * 2.75) - Math.round(top * 2.75);
-  const scale = coveringScale(g);
-  expect(laidWidth * scale).toBeGreaterThanOrEqual(1080);
-  expect(laidWidth * scale).toBeLessThan(1083);
-  expect(laidHeight * scale).toBeGreaterThanOrEqual(2400);
-  expect(laidHeight * scale).toBeLessThan(2405);
-  jest.restoreAllMocks();
+test("the covering card lays out in the screen's own shape on whole pixels, so one scale lands it on the POCO F4's 1080 by 2400 exactly, and it starts at the deck card's width", () => {
+  const ratio = 2.75;
+  const g = deckGeometry(1080 / ratio, 2400 / ratio, 80 / ratio, 130 / ratio, 0, "android", "redesigned", deckHeaderBottom());
+  const frame = coverFrame(g, ratio);
+  const px = (dp: number) => dp * ratio;
+  expect(px(frame.width)).toBeCloseTo(Math.round(px(frame.width)), 6);
+  expect(px(frame.height)).toBeCloseTo(Math.round(px(frame.height)), 6);
+  expect(px(frame.left)).toBeCloseTo(Math.round(px(frame.left)), 6);
+  expect(px(frame.top)).toBeCloseTo(Math.round(px(frame.top)), 6);
+  expect([Math.round(px(frame.width)), Math.round(px(frame.height))]).toEqual([756, 1680]);
+  expect(px(frame.width) * frame.scale).toBeCloseTo(1080, 6);
+  expect(px(frame.height) * frame.scale).toBeCloseTo(2400, 6);
+  expect(px(frame.left) + px(frame.width) / 2).toBeCloseTo(540, 6);
+  expect(frame.width * frame.startScale).toBeCloseTo(g.cardWidth, 6);
+  const tall = coverFrame(deckGeometry(1080 / ratio, 2412 / ratio, 80 / ratio, 130 / ratio, 0, "android", "redesigned", deckHeaderBottom()), ratio);
+  expect(px(tall.width) * tall.scale).toBeCloseTo(1080, 6);
+  expect(px(tall.height) * tall.scale).toBeCloseTo(2412, 6);
 });
 
-onAndroid("with ArdiaOpeningCard, the deck moves off screen on the UI thread in the drawn report's own call (a move, never a fade, so its glass is never under a fading parent), before React switches to browsing, so the page and its bar under it show at once", () => {
+onAndroid("with ArdiaOpeningCard, the deck moves off screen on the UI thread in the cover report's own call (a move, never a fade, so its glass is never under a fading parent), before React switches to browsing, so the page and its bar under it show at once", () => {
   const root = renderSurface(<Surfaces />);
   act(() => sendDeckCommand({ kind: "openFocused" }));
   advance(LANDS_MS);
@@ -312,7 +348,7 @@ onAndroid("with ArdiaOpeningCard, the deck moves off screen on the UI thread in 
   const deckAway = () => ((getAnimatedStyle(root.root.findAll((node) => node.props.testID === "tabDeck" && typeof node.type === "string")[0]!) as { transform?: { translateX?: number }[] }).transform ?? [])[0]?.translateX ?? 0;
   expect(deckAway()).toBe(0);
   const switched = jest.spyOn(browseStore, "openTab").mockImplementation(() => undefined);
-  reportDrawn(root);
+  reportCover(root);
   expect(switched).toHaveBeenCalledTimes(1);
   expect(useBrowse.getState().surface).toBe("deck");
   expect(deckAway()).toBeGreaterThan(10_000);
