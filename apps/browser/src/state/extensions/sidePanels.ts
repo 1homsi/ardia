@@ -2,7 +2,7 @@ import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
 import { shownPageId } from "../peek/peek";
 import { noteSidePanelKept } from "../telemetry/usage";
-import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions, type SidePanel } from "./store";
+import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions, type SidePanel, type SidePanelCard } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
@@ -197,14 +197,25 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
 
 export const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
 
-const NO_CARDS: SidePanel[] = [];
+const NO_CARDS: SidePanelCard[] = [];
 
-function cardKept(windowId: string, card: SidePanel, shown: SidePanel | undefined): boolean {
-  if (shown && !shown.hidden && card.tabId === shown.tabId) return panelKey(card) === panelKey(shown);
-  return !!card.tabId && wanted.get(windowId) === card.extensionId && panelTabOpen(windowId, card.tabId) && !panelDroppedOnTab(windowId, card.tabId);
+const ownerKept = (windowId: string, extensionId: string, tabId: string) =>
+  wanted.get(windowId) === extensionId && panelTabOpen(windowId, tabId) && !panelDroppedOnTab(windowId, tabId);
+
+function keptCard(windowId: string, card: SidePanelCard, visible: SidePanel | undefined): SidePanelCard | null {
+  const owners = card.owners.filter((tab) => ownerKept(windowId, card.extensionId, tab) && !(visible && tab === visible.tabId && panelKey(visible) !== panelKey(card)));
+  if (!owners.length && !(visible && panelKey(visible) === panelKey(card))) return null;
+  return owners.length === card.owners.length ? card : { ...card, owners };
 }
 
-function setCards(windowId: string, cards: SidePanel[]) {
+function withVisible(card: SidePanelCard | undefined, visible: SidePanel): SidePanelCard {
+  const owners = card ? card.owners : [];
+  const all = visible.tabId && !owners.includes(visible.tabId) ? [...owners, visible.tabId] : owners;
+  const same = card && card.tabId === visible.tabId && card.opened === visible.opened && card.profile === visible.profile && all === owners;
+  return same ? card! : { ...visible, owners: all };
+}
+
+function setCards(windowId: string, cards: SidePanelCard[]) {
   useExtensions.setState((e) => {
     const sidePanelCards = { ...e.sidePanelCards };
     if (cards.length) sidePanelCards[windowId] = cards;
@@ -217,11 +228,12 @@ export const sidePanelCards = (windowId: string) => useExtensions.getState().sid
 
 export function refreshSidePanelCards(windowId: string) {
   const shown = useExtensions.getState().sidePanels[windowId];
+  const visible = shown && !shown.hidden ? shown : undefined;
   const before = sidePanelCards(windowId);
-  let next = before.filter((card) => cardKept(windowId, card, shown));
-  if (shown && !shown.hidden) {
-    const at = next.findIndex((card) => panelKey(card) === panelKey(shown));
-    next = at < 0 ? [...next, shown] : next.map((card, i) => (i === at ? shown : card));
+  let next = before.flatMap((card) => keptCard(windowId, card, visible) ?? []);
+  if (visible) {
+    const at = next.findIndex((card) => panelKey(card) === panelKey(visible));
+    next = at < 0 ? [...next, withVisible(undefined, visible)] : next.map((card, i) => (i === at ? withVisible(card, visible) : card));
   }
   if (next.length !== before.length || next.some((card, i) => card !== before[i])) setCards(windowId, next);
 }
@@ -240,35 +252,46 @@ export function watchSidePanelCards(): () => void {
   });
 }
 
-const sameTabCard = (a: SidePanel, b: SidePanel) => panelKey(a) === panelKey(b) && a.tabId === b.tabId;
+const listedCard = (windowId: string, card: SidePanel) => sidePanelCards(windowId).find((c) => panelKey(c) === panelKey(card));
 
 export function closePanelCard(windowId: string, card: SidePanel) {
-  const live = sidePanelCards(windowId).find((c) => sameTabCard(c, card));
+  const live = listedCard(windowId, card);
   if (!live) return;
+  const entry = useExtensions.getState().sidePanels[windowId];
   if (wanted.get(windowId) !== card.extensionId) {
-    const entry = useExtensions.getState().sidePanels[windowId];
-    if (entry && !entry.hidden && sameTabCard(entry, card)) hideSidePanel(windowId);
+    if (entry && !entry.hidden && panelKey(entry) === panelKey(card)) hideSidePanel(windowId);
     return dropSidePanelCard(windowId, live);
   }
-  if (!card.tabId) return closeSidePanel(windowId, card.extensionId);
-  closeSidePanelOnTab(windowId, card.tabId);
+  if (!live.owners.length) return closeSidePanel(windowId, card.extensionId);
+  const shownLast = [...live.owners].sort((x, y) => Number(x === entry?.tabId) - Number(y === entry?.tabId));
+  for (const tabId of shownLast) closeSidePanelOnTab(windowId, tabId);
+  dropSidePanelCard(windowId, live);
+}
+
+function dropOwner(windowId: string, card: SidePanelCard, tabId: string) {
+  const owners = card.owners.filter((tab) => tab !== tabId);
+  const cards = sidePanelCards(windowId);
+  setCards(windowId, owners.length ? cards.map((c) => (c === card ? { ...card, owners } : c)) : cards.filter((c) => c !== card));
 }
 
 export async function recheckKeptSidePanels(windowId: string): Promise<void> {
   const generation = (rechecks.get(windowId) ?? 0) + 1;
   rechecks.set(windowId, generation);
   const extensionId = wanted.get(windowId);
-  const listed = sidePanelCards(windowId).filter((card) => card.tabId && card.extensionId === extensionId);
+  const asks = sidePanelCards(windowId)
+    .filter((card) => card.extensionId === extensionId)
+    .flatMap((card) => card.owners.map((tabId) => ({ card, tabId })));
   await Promise.all(
-    listed.map(async (card) => {
-      const { url, stale } = await askPanel(windowId, card.tabId!, card.extensionId).catch(() => ({ url: card.url, stale: true }));
-      if (stale || rechecks.get(windowId) !== generation || wanted.get(windowId) !== card.extensionId || !sidePanelCards(windowId).includes(card)) return;
-      if (url === card.url) return;
+    asks.map(async ({ card, tabId }) => {
+      const { url, stale } = await askPanel(windowId, tabId, card.extensionId).catch(() => ({ url: card.url, stale: true }));
+      const live = listedCard(windowId, card);
+      if (stale || rechecks.get(windowId) !== generation || wanted.get(windowId) !== card.extensionId || !live?.owners.includes(tabId)) return;
+      if (url === live.url) return;
       const entry = useExtensions.getState().sidePanels[windowId];
-      const onScreen = !!entry && !entry.hidden && sameTabCard(entry, card);
-      if (url) return onScreen ? undefined : dropSidePanelCard(windowId, card);
-      shownTabs.get(windowId)?.delete(card.tabId!);
-      tabsOf(removedTabs, windowId).add(card.tabId!);
+      const onScreen = !!entry && !entry.hidden && entry.tabId === tabId && panelKey(entry) === panelKey(live);
+      if (url) return onScreen ? undefined : dropOwner(windowId, live, tabId);
+      shownTabs.get(windowId)?.delete(tabId);
+      tabsOf(removedTabs, windowId).add(tabId);
       if (onScreen) hideSidePanel(windowId);
       else refreshSidePanelCards(windowId);
     }),
@@ -277,6 +300,6 @@ export async function recheckKeptSidePanels(windowId: string): Promise<void> {
 
 export function dropSidePanelCard(windowId: string, card: SidePanel) {
   const before = sidePanelCards(windowId);
-  const after = before.filter((c) => !sameTabCard(c, card));
+  const after = before.filter((c) => panelKey(c) !== panelKey(card));
   if (after.length !== before.length) setCards(windowId, after);
 }
