@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { withSpring } from "react-native-reanimated";
 import { haptics } from "../../state/app/haptics";
 import { newIncognitoTab, openArchive, openSpaces, reopenLastClosed } from "../../state/browse/store";
@@ -9,26 +9,39 @@ import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync
 import { useCanReopen, useIncognito } from "../../state/tabs/hooks";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { browseLayout, capsule, deckChromeInk, deckChromeLayout, deckChromeMotion, font, Symbol, tabsInk, tabsLayout, useTheme, type MenuItem } from "../ui";
+import { MenuTrigger, spaceSystemImage } from "../ui/MenuTrigger";
 import { SpaceTitle, spaceMenuSymbol } from "../search/StartSpaces";
 import { GlassCircleButton } from "./ChromeButtons";
-
-export type DeckHeaderMenu = { items: MenuItem[]; place: ViewStyle };
 
 type Props = {
   safeTop: number;
   safeSide: number;
   privateCount: number;
   hasTabs: boolean;
-  onMenu: (menu: DeckHeaderMenu) => void;
   onCloseIncognito: () => void;
   onCloseAll: () => void;
+  menusShown?: boolean;
+  onMenu?: (open: boolean) => void;
 };
 
 export const deckHeaderBottom = () => deckChromeLayout.headerCenter + deckChromeLayout.headerCircle / 2;
 
 export const deckArchiveBottom = () => deckChromeLayout.archiveCenter + deckChromeLayout.archiveHeight / 2;
 
-export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onMenu, onCloseIncognito, onCloseAll }: Props) {
+function deckMoreMenuItems({ syncEnabled, canReopen, hasTabs, onCloseAll }: { syncEnabled: boolean; canReopen: boolean; hasTabs: boolean; onCloseAll: () => void }): MenuItem[] {
+  return [
+    { label: "Archive", onPress: openArchive },
+    ...(syncEnabled ? [{ label: "Spaces From Your Mac", onPress: openSpaces }] : []),
+    "divider",
+    { label: "New Incognito Tab", onPress: newIncognitoTab },
+    ...(canReopen ? [{ label: "Reopen Closed Tab", onPress: reopenLastClosed }] : []),
+    ...(hasTabs ? [{ label: "Close All Tabs", destructive: true, onPress: onCloseAll }] : []),
+    "divider",
+    { label: "Settings", onPress: () => openSettings() },
+  ];
+}
+
+export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIncognito, onCloseAll, menusShown = true, onMenu }: Props) {
   const theme = useTheme();
   const status = useSyncStatus();
   const view = useSyncView();
@@ -39,43 +52,29 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onMenu, o
   const current = shown ?? spaces[0] ?? null;
   const side = safeSide + deckChromeLayout.headerSide;
   const below = safeTop + deckHeaderBottom() + deckChromeLayout.menuGap;
-  const present = (items: MenuItem[], place: ViewStyle) => {
-    menuOpenedHaptic();
-    onMenu({ items, place: { top: below, width: tabsLayout.menuWidth, ...place } });
-  };
+  const opened = () => onMenu?.(true);
+  const closed = () => onMenu?.(false);
+  const menu = { trigger: "tap" as const, fixedOrder: true, haptic: menuOpenedHaptic, disabled: !menusShown, onOpen: opened, onClose: closed };
   const choose = (id: string) => {
     if (id === current?.syncId) return;
     haptics.selection();
     if (!incognito) countUsage("spaces_picked");
     selectProfile(id);
   };
-  const showSpaces = () =>
-    present(
-      spaces.map((space) => ({ label: space.name, icon: spaceMenuSymbol(space) ?? undefined, checked: space.syncId === current?.syncId, onPress: () => choose(space.syncId) })),
-      { left: side },
-    );
-  const showMore = () =>
-    present(
-      [
-        { label: "Archive", onPress: openArchive },
-        ...(status.isEnabled ? [{ label: "Spaces From Your Mac", onPress: openSpaces }] : []),
-        "divider",
-        { label: "New Incognito Tab", onPress: newIncognitoTab },
-        ...(canReopen ? [{ label: "Reopen Closed Tab", onPress: reopenLastClosed }] : []),
-        ...(hasTabs ? [{ label: "Close All Tabs", destructive: true, onPress: onCloseAll }] : []),
-        "divider",
-        { label: "Settings", onPress: () => openSettings() },
-      ],
-      { right: side },
-    );
-  const showPill = () => present([{ label: "Close Incognito Tabs", destructive: true, onPress: onCloseIncognito }], { right: side + deckChromeLayout.headerCircle + deckChromeLayout.headerGap });
+  const spaceItems: MenuItem[] = spaces.map((space) => ({ label: space.name, icon: spaceMenuSymbol(space) ?? undefined, systemImage: spaceSystemImage(space.name, space.icon), checked: space.syncId === current?.syncId, onPress: () => choose(space.syncId) }));
+  const moreItems = deckMoreMenuItems({ syncEnabled: status.isEnabled, canReopen, hasTabs, onCloseAll });
+  const pillItems: MenuItem[] = [{ label: "Close Incognito Tabs", destructive: true, onPress: onCloseIncognito }];
   return (
     <View testID="deckHeader" pointerEvents="box-none" style={[styles.row, { top: safeTop + deckChromeLayout.headerCenter - browseLayout.hitTarget / 2, paddingHorizontal: side }]}>
       <View testID="deckSwitcher" style={styles.switcher}>
         {current && spaces.length > 1 ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Space, ${current.name}`} accessibilityHint="Shows your Mac’s spaces." onPress={showSpaces}>
-            <SpaceTitle space={current} dark={theme.dark} showsChevron />
-          </Pressable>
+          <MenuTrigger items={spaceItems} {...menu} place={{ top: below, left: side, width: tabsLayout.menuWidth }}>
+            {({ onPress }) => (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Space, ${current.name}`} accessibilityHint="Shows your Mac’s spaces." onPress={onPress}>
+                <SpaceTitle space={current} dark={theme.dark} showsChevron />
+              </Pressable>
+            )}
+          </MenuTrigger>
         ) : current ? (
           <View accessible accessibilityRole="header" accessibilityLabel={current.name}>
             <SpaceTitle space={current} dark={theme.dark} showsChevron={false} />
@@ -89,13 +88,19 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onMenu, o
       <View style={styles.spacer} />
       {privateCount > 0 ? (
         <Animated.View entering={pillIn} exiting={pillOut}>
-          <IncognitoPill count={privateCount} onPress={showPill} />
+          <MenuTrigger items={pillItems} {...menu} place={{ top: below, right: side + deckChromeLayout.headerCircle + deckChromeLayout.headerGap, width: tabsLayout.menuWidth }}>
+            {({ onPress }) => <IncognitoPill count={privateCount} onPress={onPress ?? noop} />}
+          </MenuTrigger>
         </Animated.View>
       ) : null}
-      <GlassCircleButton icon="ellipsis" label="More" testID="deckHeaderMore" diameter={deckChromeLayout.headerCircle} dark={theme.dark} onPress={showMore} />
+      <MenuTrigger items={moreItems} {...menu} place={{ top: below, right: side, width: tabsLayout.menuWidth }}>
+        {({ onPress }) => <GlassCircleButton icon="ellipsis" label="More" testID="deckHeaderMore" diameter={deckChromeLayout.headerCircle} dark={theme.dark} onPress={onPress ?? noop} />}
+      </MenuTrigger>
     </View>
   );
 }
+
+const noop = () => undefined;
 
 function IncognitoPill({ count, onPress }: { count: number; onPress: () => void }) {
   return (

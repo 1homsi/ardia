@@ -68,10 +68,20 @@ const SF_SYMBOLS: Record<string, string> = {
   "hand.wave.fill": "handWave",
   sparkles: "sparkles",
   link: "link",
+  "plus.square.on.square": "plusSquareOnSquare",
+  desktopcomputer: "desktop",
+  camera: "camera",
+  video: "video",
 };
 
 export function sfSymbol(name: string | null, known: (symbol: string) => boolean): string | null {
   if (!name) return null;
   const symbol = SF_SYMBOLS[name];
   return symbol && known(symbol) ? symbol : null;
+}
+
+const SF_NAMES: Record<string, string> = Object.entries(SF_SYMBOLS).reduce<Record<string, string>>((names, [sf, symbol]) => (symbol in names ? names : { ...names, [symbol]: sf }), {});
+
+export function sfName(symbol: string | null | undefined): string | undefined {
+  return symbol ? SF_NAMES[symbol] : undefined;
 }

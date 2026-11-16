@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ARCHIVE_SEARCH_DELAY_MS, archiveDayTitle } from "../../lib/archiveDay";
 import { parseColor } from "../../lib/color";
 import { haptics } from "../../state/app/haptics";
 import { ArchiveTile } from "./ArchiveTile";
-import { BackHandler, Platform, Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View, type ViewInstance } from "react-native";
+import { BackHandler, Platform, Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { closeArchive } from "../../state/browse/store";
 import { canShareTab, copyTabLink, deleteArchivedTab, menuOpenedHaptic, openArchivedTab, shareTab } from "../../state/browse/tabMenus";
@@ -12,6 +12,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { useArchiveDays, useArchiveLoaded } from "../../state/tabs/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval, type BrowserTab } from "../../state/tabs/tabModels";
 import { clearArchivedTabs, loadArchive, searchArchive, setAutoArchiveInterval } from "../../state/tabs/store";
+import { MenuTrigger, confirmInSheet } from "../ui/MenuTrigger";
 import { ConfirmDialog, Favicon, FloatingMenu, font, LookBackdrop, radius, space, SwipeToDelete, Symbol, tabsLayout, tabsMotion, useSheetFrame, useTheme, type Confirmation, type MenuItem } from "../ui";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -21,12 +22,10 @@ export function ArchiveView() {
   const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
   const frame = useSheetFrame();
-  const options = useRef<ViewInstance>(null);
   const days = useArchiveDays();
   const loaded = useArchiveLoaded();
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const [query, setQuery] = useState("");
-  const [menu, setMenu] = useState(false);
   const [rowMenu, setRowMenu] = useState<{ tab: BrowserTab; y: number } | null>(null);
   useEffect(() => loadArchive(), []);
   const [searched, setSearched] = useState("");
@@ -59,8 +58,9 @@ export function ArchiveView() {
   }, [theme.surface]);
 
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const ask = (asked: Confirmation) => confirmInSheet(asked, () => setConfirmation(asked));
   const confirmClear = () =>
-    setConfirmation({
+    ask({
       title: "Delete All Archived Tabs?",
       message: "This can’t be undone.",
       action: "Delete All",
@@ -70,12 +70,15 @@ export function ArchiveView() {
       },
     });
   const items: MenuItem[] = [
-    { heading: "Archive Inactive Tabs" },
-    ...(Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((option) => ({
-      label: autoArchiveTitle(option),
-      checked: option === interval,
-      onPress: () => setAutoArchiveInterval(option),
-    })),
+    {
+      label: "Archive Inactive Tabs",
+      icon: "archivebox",
+      children: (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((option) => ({
+        label: autoArchiveTitle(option),
+        checked: option === interval,
+        onPress: () => setAutoArchiveInterval(option),
+      })),
+    },
     "divider",
     { label: "Delete All…", icon: "trash", destructive: true, disabled: !hasArchive, onPress: confirmClear },
   ];
@@ -91,9 +94,13 @@ export function ArchiveView() {
           <Text accessibilityRole="header" style={[font.body, styles.bold, { color: theme.label }]}>
             Archive
           </Text>
-          <Pressable ref={options} accessibilityRole="button" accessibilityLabel="Options" onPress={() => setMenu(true)} style={[styles.topButton, styles.end]}>
-            <Symbol name="ellipsis" size={22} color={theme.formAccent} />
-          </Pressable>
+          <MenuTrigger items={items} trigger="tap" place={{ right: space.s, width: Math.min(tabsLayout.menuWidth, width - space.l) }}>
+            {({ onPress }) => (
+              <Pressable accessibilityRole="button" accessibilityLabel="Options" onPress={onPress} style={[styles.topButton, styles.end]}>
+                <Symbol name="ellipsis" size={22} color={theme.formAccent} />
+              </Pressable>
+            )}
+          </MenuTrigger>
         </View>
         <View style={[styles.search, { backgroundColor: theme.fieldFill }]}>
           <Symbol name="magnifyingglass" size={17} color={theme.secondaryLabel} />
@@ -149,9 +156,6 @@ export function ArchiveView() {
           />
         )}
       </View>
-      {menu ? (
-        <FloatingMenu items={items} anchor={options} place={{ top: 0, right: space.s, width: Math.min(tabsLayout.menuWidth, width - space.l) }} onDismiss={() => setMenu(false)} />
-      ) : null}
       {rowMenu ? (
         <FloatingMenu
           items={rowMenuItems(rowMenu.tab)}
@@ -172,7 +176,7 @@ function rowMenuItems(tab: BrowserTab): MenuItem[] {
       ]
     : [];
   return [
-    { label: "Open", icon: "arrowUpForward", onPress: () => restoreRow(tab) },
+    { label: "Open", icon: "arrowUpForward", systemImage: "arrow.up.forward.square", onPress: () => restoreRow(tab) },
     ...sharing,
     "divider",
     { label: "Delete", icon: "trash", destructive: true, onPress: () => deleteArchivedTab(tab) },

@@ -55,25 +55,24 @@ import {
   reopenLastClosed,
   whenPageLaidOut,
 } from "../../state/browse/store";
-import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
+import { menuOpenedHaptic } from "../../state/browse/tabMenus";
 import { useCanReopen, useHasArchivedTabs, useIncognito, usePrivateCount, useShownSpace } from "../../state/tabs/hooks";
 import { archiveCardLayout, ConfirmDialog, deckChromeLayout, deckChromeMotion, DeckLookBackdrop, DeckLookBackdropBase, FrostSource, Menu, moveTo, poofMs, ScrollActions, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem, useDesign, useReduceMotion } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
+import { confirmInSheet, nativeMenus } from "../ui/MenuTrigger";
 import { useSyncEnabled } from "../../state/sync/hooks";
-import { pinToMac, sendTab, sendTargetsFor, spaceMoveTargets } from "../../state/sync/actions";
-import { currentTabs, moveTabToSpace } from "../../state/tabs/store";
+import { isTabPinned, sendTargetsFor, spaceMoveTargets } from "../../state/sync/actions";
+import { currentTabs } from "../../state/tabs/store";
 import { tabMatchesQuery } from "../../state/tabs/tabModels";
 import { DeckBar } from "./DeckBar";
-import { DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, OPENS_WITH_OPENING_CARD, type DeckMotion } from "./DeckCard";
+import { cardMenuItems as deckCardMenu, DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, OPENS_WITH_OPENING_CARD, type DeckMotion } from "./DeckCard";
 import { MotionView, type MotionCurve } from "../ui";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
 import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
 import { ArchiveCapsule, ArchiveIntervalCard } from "./ArchiveIntervalCard";
-import { plusMenuItems } from "./ChromeButtons";
 import { DeckBottomBar } from "./DeckBottomBar";
-import { deckArchiveBottom, DeckHeader, deckHeaderBottom, type DeckHeaderMenu } from "./DeckHeader";
+import { deckArchiveBottom, DeckHeader, deckHeaderBottom } from "./DeckHeader";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
-import { spaceMenuSymbol } from "../search/StartSpaces";
 
 type Phase = { kind: "opening" | "settled" | "closing"; id: string | null };
 
@@ -134,8 +133,8 @@ export const TabDeck = memo(function TabDeck() {
   const [order, setOrder] = useState<string[]>(first.ids);
   const [phase, setPhase] = useState<Phase>(first.phase);
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
-  const [headerMenu, setHeaderMenu] = useState<DeckHeaderMenu | null>(null);
-  const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number; spaces?: boolean } | null>(null);
+  const [chromeMenu, setChromeMenu] = useState(false);
+  const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number } | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [poofs, setPoofs] = useState<PoofSpec[]>(NO_POOFS);
   const [anchor, setAnchor] = useState(() => focusedIndex(first.scroll, first.ids.length));
@@ -152,7 +151,7 @@ export const TabDeck = memo(function TabDeck() {
     if (!shown) {
       if (needle) setNeedle("");
       if (menu) setMenu(null);
-      if (headerMenu) setHeaderMenu(null);
+      if (chromeMenu) setChromeMenu(false);
       if (cardMenu) setCardMenu(null);
       if (confirmation) setConfirmation(null);
       if (poofs.length) setPoofs(NO_POOFS);
@@ -611,6 +610,7 @@ export const TabDeck = memo(function TabDeck() {
   };
   const longPress = Gesture.LongPress()
     .withTestId("deckLongPress")
+    .enabled(!nativeMenus())
     .hitSlop(barBand)
     .minDuration(tabsMotion.longPress)
     .onStart((e) => {
@@ -636,30 +636,14 @@ export const TabDeck = memo(function TabDeck() {
 
   const cardMenuItems = (index: number): MenuItem[] => {
     const tab = tabs.get(order[index] ?? "");
-    const closing: MenuItem = { label: "Close Tab", icon: "xmark", destructive: true, onPress: () => close(index, 0) };
-    if (!tab || !canShareTab(tab)) return [closing];
-    const sends: MenuItem[] = sendTargetsFor(tab).map((device) => ({
-      label: `Send to ${device.name}`,
-      icon: device.kind === "phone" ? "iphone" : "laptop",
-      onPress: () => void sendTab(tab, device),
-    }));
-    const pin: MenuItem[] = !tab.isPrivate && syncEnabled ? [{ label: "Pin to Mac", icon: "star", onPress: () => void pinToMac(tab, () => openSettings({ page: "sync" })) }] : [];
-    const targets = redesigned ? spaceMoveTargets(tab) : [];
-    if (cardMenu?.spaces) return [{ heading: "Move to Space" }, ...targets.map((space): MenuItem => ({ label: space.name, icon: spaceMenuSymbol(space) ?? undefined, onPress: () => moveTabToSpace(tab.id, space.syncId) }))];
-    const move: MenuItem[] = targets.length ? [{ label: "Move to Space", icon: "chevronRight", onPress: () => setCardMenu({ ...cardMenu!, index, spaces: true }) }] : [];
-    return [
-      { label: "Copy Link", icon: "link", onPress: () => copyTabLink(tab) },
-      { label: "Share", icon: "squareAndArrowUp", onPress: () => shareTab(tab) },
-      ...sends,
-      ...pin,
-      ...move,
-      "divider",
-      closing,
-    ];
+    const closeCard = () => close(index, 0);
+    if (!tab) return [{ label: "Close Tab", destructive: true, onPress: closeCard }];
+    return deckCardMenu(tab, { devices: sendTargetsFor(tab), pinned: isTabPinned(tab), syncEnabled, spaces: redesigned ? spaceMoveTargets(tab) : [] }, closeCard);
   };
 
+  const ask = (confirmation: Confirmation) => confirmInSheet(confirmation, () => setConfirmation(confirmation));
   const confirmCloseAll = () =>
-    setConfirmation({
+    ask({
       title: count === 1 ? "Close 1 Tab?" : `Close ${count} Tabs?`,
       message: privateCount ? "Incognito tabs aren’t saved. Other tabs stay in your Archive." : "They’ll stay in your Archive.",
       action: count === 1 ? "Close Tab" : "Close All Tabs",
@@ -670,7 +654,7 @@ export const TabDeck = memo(function TabDeck() {
       },
     });
   const confirmLeaveIncognito = () =>
-    setConfirmation({
+    ask({
       title: "Close Incognito Tabs?",
       message: "Their pages, cookies and history are cleared.",
       action: "Close Incognito Tabs",
@@ -729,7 +713,7 @@ export const TabDeck = memo(function TabDeck() {
           <DeckLookBackdrop baseOutside />
         </FrostSource>
       </Animated.View>
-      <Shade shaded={menu !== null || headerMenu !== null || cardMenu !== null || confirmation !== null}>
+      <Shade shaded={menu !== null || (chromeMenu && !nativeMenus()) || cardMenu !== null || confirmation !== null}>
         <ScrollActions
           style={StyleSheet.absoluteFill}
           pointerEvents="box-none"
@@ -780,7 +764,8 @@ export const TabDeck = memo(function TabDeck() {
               safeSide={0}
               privateCount={privateCount}
               hasTabs={allTabs.length > 0}
-              onMenu={setHeaderMenu}
+              menusShown={shown && phase.kind === "settled"}
+              onMenu={setChromeMenu}
               onCloseIncognito={confirmLeaveIncognito}
               onCloseAll={confirmCloseAll}
             />
@@ -792,7 +777,8 @@ export const TabDeck = memo(function TabDeck() {
               incognito={incognito}
               onGrid={dismissKeyboard}
               onQuery={setNeedle}
-              onPlusMenu={() => setMenu("plus")}
+              menusShown={shown && phase.kind === "settled"}
+              onMenu={setChromeMenu}
             />
           </Animated.View>
         ) : privateCount > 0 ? (
@@ -824,25 +810,16 @@ export const TabDeck = memo(function TabDeck() {
         ))}
       </Shade>
       <DeckLookProbe
-        busy={phase.kind !== "settled" || menu !== null || headerMenu !== null || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck" || archiveCard}
+        busy={phase.kind !== "settled" || menu !== null || chromeMenu || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck" || archiveCard}
         touch={probeTouch}
       />
-      {menu === "plus" ? (
-        redesigned ? (
-          <Menu
-            items={plusMenuItems(incognito, canReopen)}
-            place={{ bottom: deckHeight - g.barCenterY + deckChromeLayout.barCircle / 2 + deckChromeLayout.menuGap, right: deckChromeLayout.barSideInset, width: tabsLayout.menuWidth }}
-            onDismiss={() => setMenu(null)}
-          />
-        ) : (
-          <Menu
-            items={plusItems}
-            place={{ bottom: deckHeight - g.barCenterY + tabsLayout.barPlus.height, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
-            onDismiss={() => setMenu(null)}
-          />
-        )
+      {menu === "plus" && !redesigned ? (
+        <Menu
+          items={plusItems}
+          place={{ bottom: deckHeight - g.barCenterY + tabsLayout.barPlus.height, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
+          onDismiss={() => setMenu(null)}
+        />
       ) : null}
-      {headerMenu ? <Menu items={headerMenu.items} place={headerMenu.place} onDismiss={() => setHeaderMenu(null)} /> : null}
       {menu === "chip" ? (
         <Menu
           items={[{ label: "Close Incognito Tabs", icon: "xmark", destructive: true, onPress: confirmLeaveIncognito }]}

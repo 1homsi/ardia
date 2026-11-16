@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlatformColor, StyleSheet, useWindowDimensions, View } from "react-native";
-import { BottomSheet, Button, ConfirmationDialog, ContentUnavailableView, ContextMenu, Divider, HStack, Host, List, Menu, NavigationStack, Picker, RNHostView, Section, ShareLink, Spacer, Text, Toolbar, ToolbarItem, VStack, useNativeState } from "@expo/ui/swift-ui";
+import { BottomSheet, Button, ConfirmationDialog, ContentUnavailableView, ContextMenu, Divider, HStack, Host, Label, List, Menu, NavigationStack, Picker, RNHostView, Section, ShareLink, Spacer, Text, Toolbar, ToolbarItem, VStack, useNativeState } from "@expo/ui/swift-ui";
 import { accessibilityElement, accessibilityHint, buttonStyle, disabled, font, foregroundStyle, frame, lineLimit, listStyle, navigationBarTitleDisplayMode, navigationTitle, padding, pickerStyle, searchable, tag, tint } from "@expo/ui/swift-ui/modifiers";
 import { ARCHIVE_SEARCH_DELAY_MS, archiveDayTitle } from "../../lib/archiveDay";
 import { haptics } from "../../state/app/haptics";
@@ -153,7 +153,7 @@ function ArchiveRow({ tab, iconSize }: { tab: BrowserTab; iconSize: number }) {
       <ContextMenu.Items>
         <Button label="Open" systemImage="arrow.up.forward.square" onPress={restore} />
         {canShareTab(tab) ? <Button label="Copy Link" systemImage="link" onPress={() => copyTabLink(tab)} /> : null}
-        {canShareTab(tab) ? <ShareLink item={tab.url}><Text>Share</Text></ShareLink> : null}
+        {canShareTab(tab) ? <ShareLink item={tab.url}><Label title="Share" systemImage="square.and.arrow.up" /></ShareLink> : null}
         <Divider />
         <Button label="Delete" systemImage="trash" role="destructive" onPress={() => deleteArchivedTab(tab)} />
       </ContextMenu.Items>

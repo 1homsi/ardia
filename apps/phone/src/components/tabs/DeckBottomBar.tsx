@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, TextInput, View, type TextInputInstance, type ViewInstance } from "react-native";
+import { Pressable, StyleSheet, TextInput, View, type TextInputInstance, type ViewInstance, type ViewStyle } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import { newTab } from "../../state/browse/store";
+import { newIncognitoTab, newRegularTab, newTab, reopenLastClosed } from "../../state/browse/store";
+import { menuOpenedHaptic } from "../../state/browse/tabMenus";
+import { useCanReopen, useIncognito } from "../../state/tabs/hooks";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
-import { capsule, ChromeSurface, deckChromeLayout, deckChromeMotion, font, Symbol, tabsCurve, useTheme } from "../ui";
+import { capsule, ChromeSurface, deckChromeLayout, deckChromeMotion, font, startLayout, Symbol, tabsCurve, tabsLayout, useTheme, type MenuItem } from "../ui";
+import { MenuTrigger } from "../ui/MenuTrigger";
 import { useKeyboardHeight } from "../search/useKeyboardHeight";
 import { GlassCircleButton, GlassPlusButton } from "./ChromeButtons";
 
@@ -16,12 +19,32 @@ type Props = {
   incognito: boolean;
   onGrid: () => void;
   onQuery: (needle: string) => void;
-  onPlusMenu: () => void;
+  menusShown?: boolean;
+  onMenu?: (open: boolean) => void;
 };
+
+export function plusMenu(incognito: boolean, canReopen: boolean): MenuItem[] {
+  return [
+    ...(incognito ? [{ label: "New Tab", onPress: newRegularTab }, { label: "New Incognito Tab", onPress: newTab }] : [{ label: "New Incognito Tab", onPress: newIncognitoTab }]),
+    ...(canReopen ? [{ label: "Reopen Closed Tab", onPress: reopenLastClosed }] : []),
+  ];
+}
+
+export function PlusMenuButton({ width, label, testID, dark, incognito = false, place, menusShown = true, onMenu }: { width: number; label: string; testID: string; dark: boolean; incognito?: boolean; place: ViewStyle; menusShown?: boolean; onMenu?: (open: boolean) => void }) {
+  const tabIncognito = useIncognito();
+  const canReopen = useCanReopen();
+  return (
+    <MenuTrigger items={plusMenu(tabIncognito, canReopen)} trigger="longPress" haptic={menuOpenedHaptic} disabled={!menusShown} onOpen={() => onMenu?.(true)} onClose={() => onMenu?.(false)} place={place} style={{ width, height: startLayout.barPlus.height }}>
+      {({ onLongPress }) => <GlassPlusButton width={width} label={label} testID={testID} dark={dark} incognito={incognito} onPress={newTab} onLongPress={onLongPress ?? noop} />}
+    </MenuTrigger>
+  );
+}
+
+const noop = () => undefined;
 
 export const deckBarAboveKeyboard = (deckHeight: number, keyboard: number) => deckHeight - keyboard - deckChromeLayout.barGap - deckChromeLayout.barCircle / 2;
 
-export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, onGrid, onQuery, onPlusMenu }: Props) {
+export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incognito, onGrid, onQuery, menusShown = true, onMenu }: Props) {
   const roles = useTheme();
   const dark = roles.dark;
   const [text, setText] = useState("");
@@ -105,7 +128,7 @@ export function DeckBottomBar({ shown, barCenterY, deckHeight, safeSide, incogni
             ) : null}
           </ChromeSurface>
         </Pressable>
-        <GlassPlusButton width={deckChromeLayout.barCircle} label={incognito ? "New Incognito Tab" : "New Tab"} testID="deckBarPlus" dark={dark} onPress={newTab} onLongPress={onPlusMenu} />
+        <PlusMenuButton width={deckChromeLayout.barCircle} label={incognito ? "New Incognito Tab" : "New Tab"} testID="deckBarPlus" dark={dark} place={{ bottom: deckHeight - barCenterY + deckChromeLayout.barCircle / 2 + deckChromeLayout.menuGap, right: deckChromeLayout.barSideInset, width: tabsLayout.menuWidth }} menusShown={menusShown} onMenu={onMenu} />
       </View>
     </Animated.View>
   );

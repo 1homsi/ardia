@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle, type ViewInstance } from "react-native";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
-import { duration, FloatingMenu, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, ToggleTrack, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { MenuTrigger } from "../ui/MenuTrigger";
+import { duration, LookBackdrop, settingsMotion, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, ToggleTrack, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 export const SettingsHostedContext = createContext(false);
 
@@ -224,23 +225,23 @@ type PickerProps<T extends string> = RowBase & { options: { id: T; title: string
 
 export function PickerRow<T extends string>({ title, icon, tint, divider, options, selected, onSelect }: PickerProps<T>) {
   const theme = useTheme();
-  const anchor = useRef<ViewInstance>(null);
   const { width } = useWindowDimensions();
-  const [opened, setOpened] = useState(false);
   const current = options.find((option) => option.id === selected)?.title ?? "";
-  const open = () => setOpened(true);
   const items: MenuItem[] = options.map((option) => ({ label: option.title, checked: option.id === selected, onPress: () => onSelect(option.id) }));
   return (
-    <View ref={anchor} collapsable={false}>
-      <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityValue={{ text: current }} onPress={open} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
-        <Label title={title} icon={icon} tint={tint} />
-        <Text style={[font.body, styles.value, { color: theme.secondaryLabel }]} numberOfLines={1}>
-          {current}
-        </Text>
-        <Symbol name="chevronUp" size={12} color={theme.tertiaryLabel} />
-      </Pressable>
+    <View>
+      <MenuTrigger items={items} trigger="tap" place={{ right: space.l * 2, width: Math.min(tabsLayout.menuWidth, width - space.huge * 2) }}>
+        {({ onPress }) => (
+          <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityValue={{ text: current }} onPress={onPress} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
+            <Label title={title} icon={icon} tint={tint} />
+            <Text style={[font.body, styles.value, { color: theme.secondaryLabel }]} numberOfLines={1}>
+              {current}
+            </Text>
+            <Symbol name="chevronUp" size={12} color={theme.tertiaryLabel} />
+          </Pressable>
+        )}
+      </MenuTrigger>
       {divider ? <Divider /> : null}
-      {opened ? <FloatingMenu items={items} anchor={anchor} place={{ right: space.l * 2, width: Math.min(tabsLayout.menuWidth, width - space.huge * 2) }} onDismiss={() => setOpened(false)} /> : null}
     </View>
   );
 }

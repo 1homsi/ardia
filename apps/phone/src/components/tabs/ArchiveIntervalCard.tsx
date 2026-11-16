@@ -5,7 +5,8 @@ import { hideArchiveCard, hideArchiveCardSoon } from "../../state/browse/archive
 import { setArchiveInterval } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { archiveCardLayout, capsule, ChromeSurface, deckChromeLayout, deckChromeMotion, FloatingMenu, screenReaderActions, font, ink, radius, shadowRadius, space, Symbol, tabsLayout, tabsMotion, useTheme, useReduceMotion } from "../ui";
+import { archiveCardLayout, capsule, ChromeSurface, deckChromeLayout, deckChromeMotion, FloatingMenu, screenReaderActions, font, ink, radius, shadowRadius, space, Symbol, tabsLayout, tabsMotion, useTheme, useReduceMotion, type MenuItem } from "../ui";
+import { MenuTrigger } from "../ui/MenuTrigger";
 
 import { ArchiveTile } from "./ArchiveTile";
 
@@ -59,12 +60,22 @@ export function ArchiveIntervalCard({ edgeY }: { edgeY: number }) {
   );
 }
 
+function intervalItems(interval: AutoArchiveInterval): MenuItem[] {
+  return INTERVALS.map((option) => ({
+    label: autoArchiveTitle(option),
+    checked: option === interval,
+    onPress: () => {
+      if (option === interval) return;
+      setArchiveInterval(option);
+      hideArchiveCardSoon();
+    },
+  }));
+}
+
 export function ArchiveCapsule({ centerY, safeSide }: { centerY: number; safeSide: number }) {
   const theme = useTheme();
   const reduceMotion = useReduceMotion();
   const interval = usePreferences((p) => p.autoArchiveInterval);
-  const picker = useRef<ViewInstance>(null);
-  const [open, setOpen] = useState(false);
   const title = autoArchiveTitle(interval);
   return (
     <Animated.View
@@ -79,31 +90,19 @@ export function ArchiveCapsule({ centerY, safeSide }: { centerY: number; safeSid
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={deckChromeLayout.archiveTextMinScale} style={[styles.capsuleText, { color: theme.headerText }]}>
             Archive inactive tabs
           </Text>
-          <Pressable ref={picker} accessibilityRole="button" accessibilityLabel={`Archive inactive tabs, ${title}`} onPress={() => setOpen(true)} style={styles.capsulePicker}>
-            <Text style={[styles.capsuleChoice, { color: theme.formAccent }]}>{title}</Text>
-            <Symbol name="chevronUpChevronDown" size={deckChromeLayout.archiveChevron} color={theme.formAccent} />
-          </Pressable>
+          <MenuTrigger items={intervalItems(interval)} trigger="tap" fixedOrder place={{ right: safeSide + deckChromeLayout.headerSide, width: tabsLayout.menuWidth }}>
+            {({ onPress }) => (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Archive inactive tabs, ${title}`} onPress={onPress} style={styles.capsulePicker}>
+                <Text style={[styles.capsuleChoice, { color: theme.formAccent }]}>{title}</Text>
+                <Symbol name="chevronUpChevronDown" size={deckChromeLayout.archiveChevron} color={theme.formAccent} />
+              </Pressable>
+            )}
+          </MenuTrigger>
           <Pressable testID="archiveCapsuleDismiss" accessibilityRole="button" accessibilityLabel="Dismiss" onPress={() => hideArchiveCard()} style={styles.capsuleDismiss}>
             <Symbol name="xmark" size={deckChromeLayout.archiveDismissGlyph} color={theme.secondaryLabel} />
           </Pressable>
         </View>
       </ChromeSurface>
-      {open ? (
-        <FloatingMenu
-          anchor={picker}
-          items={INTERVALS.map((option) => ({
-            label: autoArchiveTitle(option),
-            checked: option === interval,
-            onPress: () => {
-              if (option === interval) return;
-              setArchiveInterval(option);
-              hideArchiveCardSoon();
-            },
-          }))}
-          place={{ top: 0, right: safeSide + deckChromeLayout.headerSide, width: tabsLayout.menuWidth }}
-          onDismiss={() => setOpen(false)}
-        />
-      ) : null}
     </Animated.View>
   );
 }

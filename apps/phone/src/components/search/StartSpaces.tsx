@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewInstance } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from "react-native";
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { sfSymbol } from "../../lib/sfSymbols";
 import { haptics } from "../../state/app/haptics";
@@ -15,7 +15,6 @@ import {
   capsule,
   ChromeSurface,
   Favicon,
-  FloatingMenu,
   font,
   isSymbolName,
   rolesFor,
@@ -29,12 +28,11 @@ import {
   type MenuItem,
   type SymbolName,
 } from "../ui";
+import { MenuTrigger, spaceSystemImage, type MenuHandlers } from "../ui/MenuTrigger";
 
 export type StartGeometry = { width: number; height: number; safeSide: number; barCenterY: number };
 
 export const startBarCenterY = (height: number, safeBottom: number) => height - Math.max(safeBottom, startLayout.minSafeBottom) - startLayout.barAboveSafeBottom;
-
-type StartMenu = { items: MenuItem[]; anchor: RefObject<ViewInstance | null> };
 
 export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeometry; dark: boolean; incognito: boolean }) {
   const status = useSyncStatus();
@@ -42,7 +40,6 @@ export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeom
   const shown = useSelectedProfile();
   const spaces = status.isEnabled ? view.profiles : [];
   const [chosen, setChosen] = useState<string | null>(null);
-  const [menu, setMenu] = useState<StartMenu | null>(null);
   const current = (chosen ? spaces.find((p) => p.syncId === chosen) : undefined) ?? shown ?? spaces[0] ?? null;
   useEffect(() => {
     if (chosen && shown?.syncId === chosen) setChosen(null);
@@ -80,7 +77,7 @@ export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeom
     if (!incognito) countUsage("spaces_swiped");
     select(page.syncId);
   };
-  const page = (space: SyncedProfile) => <StartSpacePage geometry={geometry} space={space} spaces={spaces} dark={dark} incognito={incognito} onChoose={choose} onMenu={setMenu} />;
+  const page = (space: SyncedProfile) => <StartSpacePage geometry={geometry} space={space} spaces={spaces} dark={dark} incognito={incognito} onChoose={choose} />;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {spaces.length > 1 && current ? (
@@ -115,7 +112,6 @@ export function StartSpaces({ geometry, dark, incognito }: { geometry: StartGeom
       ) : status.phase === "off" ? (
         <SyncInvitation y={geometry.height * startLayout.switcherRatio} dark={dark} incognito={incognito} />
       ) : null}
-      {menu ? <FloatingMenu items={menu.items} anchor={menu.anchor} place={{ top: 0, left: (geometry.width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }} onDismiss={() => setMenu(null)} /> : null}
     </View>
   );
 }
@@ -127,7 +123,6 @@ function StartSpacePage({
   dark,
   incognito,
   onChoose,
-  onMenu,
 }: {
   geometry: StartGeometry;
   space: SyncedProfile;
@@ -135,23 +130,23 @@ function StartSpacePage({
   dark: boolean;
   incognito: boolean;
   onChoose: (id: string) => void;
-  onMenu: (menu: StartMenu) => void;
 }) {
   const switcherY = geometry.height * startLayout.switcherRatio;
-  const anchor = useRef<ViewInstance>(null);
   const many = spaces.length > 1;
-  const openMenu = () => {
-    menuOpenedHaptic();
-    onMenu({ anchor, items: spaces.map((other) => ({ label: other.name, icon: spaceMenuSymbol(other) ?? undefined, checked: other.syncId === profile.syncId, onPress: () => onChoose(other.syncId) })) });
-  };
+  const menuPlace = { left: (geometry.width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth };
+  const spaceItems: MenuItem[] = spaces.map((other) => ({ label: other.name, icon: spaceMenuSymbol(other) ?? undefined, systemImage: spaceSystemImage(other.name, other.icon), checked: other.syncId === profile.syncId, onPress: () => onChoose(other.syncId) }));
   const title = <SpaceTitle space={profile} dark={dark} showsChevron={many} />;
   return (
     <View style={{ width: geometry.width, height: geometry.height }} pointerEvents="box-none">
-      <View testID="startSwitcher" ref={anchor} pointerEvents="box-none" style={[styles.switcherRow, { top: switcherY - browseLayout.hitTarget / 2, height: browseLayout.hitTarget }]}>
+      <View testID="startSwitcher" pointerEvents="box-none" style={[styles.switcherRow, { top: switcherY - browseLayout.hitTarget / 2, height: browseLayout.hitTarget }]}>
         {many ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Space, ${profile.name}`} accessibilityHint="Shows your Mac’s spaces." onPress={openMenu}>
-            {title}
-          </Pressable>
+          <MenuTrigger items={spaceItems} trigger="tap" fixedOrder haptic={menuOpenedHaptic} place={menuPlace}>
+            {({ onPress }) => (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Space, ${profile.name}`} accessibilityHint="Shows your Mac’s spaces." onPress={onPress}>
+                {title}
+              </Pressable>
+            )}
+          </MenuTrigger>
         ) : (
           <View accessible accessibilityRole="header" accessibilityLabel={profile.name}>
             {title}
@@ -160,14 +155,14 @@ function StartSpacePage({
       </View>
       {profile.pinned.tiles.length ? (
         <View testID="startTiles" style={[styles.tiles, { top: switcherY + startLayout.tilesGap, paddingHorizontal: geometry.safeSide + startLayout.tileSide }]}>
-          <PinnedTiles tiles={profile.pinned.tiles} width={geometry.width - 2 * (geometry.safeSide + startLayout.tileSide)} profileId={profile.syncId} dark={dark} incognito={incognito} onMenu={onMenu} />
+          <PinnedTiles tiles={profile.pinned.tiles} width={geometry.width - 2 * (geometry.safeSide + startLayout.tileSide)} profileId={profile.syncId} dark={dark} incognito={incognito} menuPlace={menuPlace} />
         </View>
       ) : null}
     </View>
   );
 }
 
-function PinnedTiles({ tiles, width, profileId, dark, incognito, onMenu }: { tiles: PinnedTile[]; width: number; profileId: string; dark: boolean; incognito: boolean; onMenu: (menu: StartMenu) => void }) {
+function PinnedTiles({ tiles, width, profileId, dark, incognito, menuPlace }: { tiles: PinnedTile[]; width: number; profileId: string; dark: boolean; incognito: boolean; menuPlace: ViewStyle }) {
   const columns = Math.max(1, Math.min(startLayout.tilesPerRow, tiles.length));
   const side = (width - startLayout.tileGap * (columns - 1)) / columns;
   const rows: PinnedTile[][] = [];
@@ -177,7 +172,7 @@ function PinnedTiles({ tiles, width, profileId, dark, incognito, onMenu }: { til
       {rows.map((row, at) => (
         <View key={at} testID="startTileRow" style={styles.tileRow}>
           {row.map((tile) => (
-            <PinnedTileButton key={tile.key} tile={tile} width={side} profileId={profileId} dark={dark} incognito={incognito} onMenu={onMenu} />
+            <PinnedTileButton key={tile.key} tile={tile} width={side} profileId={profileId} dark={dark} incognito={incognito} menuPlace={menuPlace} />
           ))}
         </View>
       ))}
@@ -185,33 +180,24 @@ function PinnedTiles({ tiles, width, profileId, dark, incognito, onMenu }: { til
   );
 }
 
-function PinnedTileButton({ tile, width, profileId, dark, incognito, onMenu }: { tile: PinnedTile; width: number; profileId: string; dark: boolean; incognito: boolean; onMenu: (menu: StartMenu) => void }) {
-  const anchor = useRef<ViewInstance>(null);
+function PinnedTileButton({ tile, width, profileId, dark, incognito, menuPlace }: { tile: PinnedTile; width: number; profileId: string; dark: boolean; incognito: boolean; menuPlace: ViewStyle }) {
   const folder = tile.folder?.length ? tile.folder : null;
   const label = remoteTitle(tile.title, tile.url);
-  const showFolder = () => {
-    menuOpenedHaptic();
-    onMenu({ anchor, items: folder!.map((tab) => ({ label: remoteTitle(tab.title, tab.url), onPress: () => openRemote(tab.url, tab.title, profileId) })) });
-  };
-  const showLinkMenu = () => {
-    if (!/^https?:\/\//i.test(tile.url)) return;
-    menuOpenedHaptic();
-    onMenu({
-      anchor,
-      items: [
-        { label: "Copy Link", icon: "link", onPress: () => copyLink(tile.url) },
-        { label: "Share", icon: "squareAndArrowUp", onPress: () => shareUrl(tile.url, tile.title) },
-      ],
-    });
-  };
-  return (
+  const items: MenuItem[] = folder
+    ? folder.map((tab) => ({ label: remoteTitle(tab.title, tab.url), onPress: () => openRemote(tab.url, tab.title, profileId) }))
+    : /^https?:\/\//i.test(tile.url)
+      ? [
+          { label: "Copy Link", onPress: () => copyLink(tile.url) },
+          { label: "Share", onPress: () => shareUrl(tile.url, tile.title) },
+        ]
+      : [];
+  const button = ({ onPress, onLongPress }: MenuHandlers) => (
     <Pressable
-      ref={anchor}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={folder ? "Shows the folder’s tabs." : undefined}
-      onPress={() => (folder ? showFolder() : openRemote(tile.url, tile.title, profileId))}
-      onLongPress={folder ? undefined : showLinkMenu}
+      onPress={folder ? onPress : () => openRemote(tile.url, tile.title, profileId)}
+      onLongPress={folder ? undefined : onLongPress}
       style={({ pressed }) => (pressed && !folder ? styles.pressed : null)}
     >
       <ChromeSurface testID="startTile" shape="rounded" cornerRadius={startLayout.tileRadius} incognito={incognito} dark={dark} style={[styles.tile, { width }]}>
@@ -220,6 +206,12 @@ function PinnedTileButton({ tile, width, profileId, dark, incognito, onMenu }: {
         </View>
       </ChromeSurface>
     </Pressable>
+  );
+  if (!items.length) return button({});
+  return (
+    <MenuTrigger items={items} trigger={folder ? "tap" : "longPress"} haptic={menuOpenedHaptic} place={menuPlace}>
+      {button}
+    </MenuTrigger>
   );
 }
 

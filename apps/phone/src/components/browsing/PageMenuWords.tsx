@@ -1,5 +1,5 @@
-import { Children, useRef, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewInstance } from "react-native";
+import { Children, type ReactNode } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { copy } from "../../lib/platformCopy";
 import {
@@ -29,7 +29,8 @@ import type { MenuModel } from "../../state/page/pageMenu";
 import { useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
 import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
-import { capsule, ChromeSurface, FloatingMenu, font, menuLayout, pageMenuInk, pageMenuLayout, pageMenuMotion, PressScale, space, Symbol, Toggle, useTheme, type SymbolName } from "../ui";
+import { capsule, ChromeSurface, font, menuLayout, pageMenuInk, pageMenuLayout, pageMenuMotion, PressScale, space, Symbol, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { MenuTrigger } from "../ui/MenuTrigger";
 
 export const usePageMenuInk = () => pageMenuInk[useTheme().dark ? "dark" : "light"];
 
@@ -179,32 +180,25 @@ function Row({ title, enabled, onPress }: { title: string; enabled: boolean; onP
   );
 }
 
-function SendRow({ devices }: { devices: ReturnType<typeof useSendTargets> }) {
+export function SendRow({ devices }: { devices: ReturnType<typeof useSendTargets> }) {
   const theme = useTheme();
   const ink = usePageMenuInk();
-  const row = useRef<ViewInstance>(null);
-  const [open, setOpen] = useState(false);
   if (devices.length === 1) return <Row title={`Send to ${devices[0]!.name}`} enabled onPress={() => sendCurrentTab(devices[0]!)} />;
+  const items: MenuItem[] = devices.map((device) => ({ label: device.name, icon: device.kind === "mac" ? "laptop" : "iphone", systemImage: device.kind === "mac" ? "laptopcomputer" : "iphone", onPress: () => sendCurrentTab(device) }));
   return (
-    <View ref={row}>
-      <Pressable
-        testID="pageMenuRow:Send to Device"
-        accessibilityRole="button"
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.row, pressed ? { backgroundColor: ink.rowPressed } : null]}
-      >
-        <Text style={[font.callout, styles.rowTitle, { color: theme.label }]}>Send to Device</Text>
-        <Symbol name="chevronUpChevronDown" size={14} color={theme.tertiaryLabel} />
-      </Pressable>
-      {open ? (
-        <FloatingMenu
-          anchor={row}
-          items={devices.map((device) => ({ label: device.name, icon: device.kind === "mac" ? "laptop" : "iphone", onPress: () => sendCurrentTab(device) }))}
-          place={{ top: 0, left: space.xxl, width: SEND_MENU_WIDTH }}
-          onDismiss={() => setOpen(false)}
-        />
-      ) : null}
-    </View>
+    <MenuTrigger items={items} trigger="tap" place={{ left: space.xxl, width: SEND_MENU_WIDTH }}>
+      {({ onPress }) => (
+        <Pressable
+          testID="pageMenuRow:Send to Device"
+          accessibilityRole="button"
+          onPress={onPress}
+          style={({ pressed }) => [styles.row, pressed ? { backgroundColor: ink.rowPressed } : null]}
+        >
+          <Text style={[font.callout, styles.rowTitle, { color: theme.label }]}>Send to Device</Text>
+          <Symbol name="chevronUpChevronDown" size={14} color={theme.tertiaryLabel} />
+        </Pressable>
+      )}
+    </MenuTrigger>
   );
 }
 

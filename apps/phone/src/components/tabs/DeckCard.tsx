@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, type SharedValue } from "react-native-reanimated";
@@ -9,7 +9,17 @@ import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
 import { snapshotPageTop } from "../../lib/shownSnapshots";
-import { barHeight, FadeView, Favicon, font, iPhoneOr, MotionView, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor, type MotionCurve } from "../ui";
+import { barHeight, FadeView, Favicon, font, iPhoneOr, MotionView, screenReaderActions, space, Symbol, TabFace, tabsInk, tabsLayout, tabsMotion, useDesign, usePageUnderBars, useTheme, isDarkColor, type MenuItem, type MotionCurve } from "../ui";
+import { MenuTrigger, nativeMenus, spaceSystemImage } from "../ui/MenuTrigger";
+import { hideArchiveCard } from "../../state/browse/archiveCard";
+import { canShareTab, copyTabLink, shareTab } from "../../state/browse/tabMenus";
+import { openSettings } from "../../state/settings/nav";
+import { useIsPinned, useSendTargets, useSyncEnabled, useSyncView } from "../../state/sync/hooks";
+import { pinToMac, sendTab, type sendTargetsFor } from "../../state/sync/actions";
+import { useTabSpaces } from "../../state/tabs/hooks";
+import { moveTargets } from "../../state/tabs/spaces";
+import { moveTabToSpace } from "../../state/tabs/store";
+import type { SyncedProfile } from "../../state/sync/store";
 
 export type DeckRole = "stay" | "expanded" | "launcher" | "slideLeft" | "slideRight";
 
@@ -104,7 +114,7 @@ function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: number,
   return { x, y, scale, corner, opacity, header: Math.min(1, settle) * Math.min(1, liftFade) * (1 - fade), visible: deckVisibleWidth(g, relative, isLast), lift, vanish: fade };
 }
 
-export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion, onOpen, onCloseNow }: Props) {
+export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion, onOpen, onClose, onCloseNow }: Props) {
   countRender("DeckCard");
   const theme = useTheme();
   const design = useDesign();
@@ -176,6 +186,17 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
 
   const host = display(tab.url).host;
   const title = tab.title || host || "New Tab";
+  const cardContents = (
+    <>
+      <Animated.View testID="deckCardFace" style={[StyleSheet.absoluteFill, faceStyle]}>
+        <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} paintedAs={`deck:${tab.id}`} />
+      </Animated.View>
+      <Animated.View testID="deckCardBarBand" pointerEvents="none" style={[styles.band, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }, bandStyle]}>
+        {design === "original" ? <View testID="deckCardBarShade" style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
+      </Animated.View>
+      {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
+    </>
+  );
   return (
     <>
       <Animated.View
@@ -189,13 +210,13 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
           cardStyle,
         ]}
       >
-        <Animated.View testID="deckCardFace" style={[StyleSheet.absoluteFill, faceStyle]}>
-          <TabFace tab={tab} title={title} host={host} tone={tone.top} roles={theme} paintedAs={`deck:${tab.id}`} />
-        </Animated.View>
-        <Animated.View testID="deckCardBarBand" pointerEvents="none" style={[styles.band, { height: bar.height, backgroundColor: tone.bottom ?? theme.surface }, bandStyle]}>
-          {design === "original" ? <View testID="deckCardBarShade" style={[StyleSheet.absoluteFill, { backgroundColor: isDarkColor(tone.bottom ?? theme.surface) ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} /> : null}
-        </Animated.View>
-        {isUnseenReceived(tab) ? <ReceivedBadge /> : null}
+        {nativeMenus() ? (
+          <DeckCardMenu tab={tab} index={index} onClose={onClose} fill={tone.top ?? theme.surface}>
+            {cardContents}
+          </DeckCardMenu>
+        ) : (
+          cardContents
+        )}
       </Animated.View>
       <Animated.View
         accessible
@@ -237,6 +258,42 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
     </>
   );
 }, sameCard);
+
+type SendTarget = ReturnType<typeof sendTargetsFor>[number];
+
+type CardMenuContext = { devices: SendTarget[]; pinned: boolean; syncEnabled: boolean; spaces: SyncedProfile[] };
+
+const deviceSystemImage = (device: Pick<SendTarget, "name" | "kind">) => (device.kind === "phone" ? "iphone" : /book/i.test(device.name) ? "laptopcomputer" : "desktopcomputer");
+
+export function cardMenuItems(tab: BrowserTab, { devices, pinned, syncEnabled, spaces }: CardMenuContext, close: () => void): MenuItem[] {
+  const closing: MenuItem = { label: "Close Tab", destructive: true, onPress: close };
+  if (!canShareTab(tab)) return [closing];
+  const send = (device: SendTarget) => () => void sendTab(tab, device);
+  const sends: MenuItem[] =
+    devices.length === 1
+      ? [{ label: `Send to ${devices[0]!.name}`, icon: devices[0]!.kind === "phone" ? "iphone" : "laptop", systemImage: deviceSystemImage(devices[0]!), onPress: send(devices[0]!) }]
+      : devices.length > 1
+        ? [{ label: "Send to Device", children: devices.map((device): MenuItem => ({ label: device.name, icon: device.kind === "phone" ? "iphone" : "laptop", systemImage: deviceSystemImage(device), onPress: send(device) })) }]
+        : [];
+  const pin: MenuItem[] = tab.isPrivate || !syncEnabled ? [] : pinned ? [{ label: "Pinned to Mac", disabled: true, onPress: () => undefined }] : [{ label: "Pin to Mac", onPress: () => void pinToMac(tab, () => openSettings({ page: "sync" })) }];
+  const others = tab.isPrivate ? [] : spaces;
+  const move: MenuItem[] = others.length ? [{ label: "Move to Space", children: others.map((space): MenuItem => ({ label: space.name, systemImage: spaceSystemImage(space.name, space.icon), onPress: () => moveTabToSpace(tab.id, space.syncId) })) }] : [];
+  return [{ label: "Copy Link", onPress: () => copyTabLink(tab) }, { label: "Share", onPress: () => shareTab(tab) }, ...sends, ...pin, ...move, "divider", closing];
+}
+
+function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: BrowserTab; index: number; onClose: (index: number) => void; fill: string; children: ReactNode }) {
+  const devices = useSendTargets(tab.id);
+  const pinned = useIsPinned(tab.id);
+  const syncEnabled = useSyncEnabled();
+  const tabSpaces = useTabSpaces();
+  const profiles = useSyncView().profiles;
+  const spaces = moveTargets(tabSpaces, profiles, tab);
+  return (
+    <MenuTrigger testID="deckCardMenu" items={cardMenuItems(tab, { devices, pinned, syncEnabled, spaces }, () => onClose(index))} trigger="longPress" onOpen={hideArchiveCard} style={[styles.cardMenu, { backgroundColor: fill }]}>
+      {() => children}
+    </MenuTrigger>
+  );
+}
 
 export const OPENS_WITH_OPENING_CARD = iPhoneOr(true, false);
 export const OPENING_CARD_RESPONSE = iPhoneOr(0.18, 0.3);
@@ -311,6 +368,7 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: CARD_ELEVATION, shadowColor: tabsInk.cardShadow }, default: { boxShadow: `-2px 4px ${CARD_SHADOW_BLUR}px ${tabsInk.cardShadow}` } }),
   },
   band: { position: "absolute", left: 0, right: 0, bottom: 0, transformOrigin: "bottom" },
+  cardMenu: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: DECK.cardRadius },
   opening: { position: "absolute", overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
   openingBand: { position: "absolute", left: 0, right: 0, bottom: 0 },
   badge: {

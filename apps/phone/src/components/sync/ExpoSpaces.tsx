@@ -275,7 +275,7 @@ function RemoteRow({ title, url, symbol, open }: { title: string; url: string; s
         {shareable(url) ? <Button label="Copy Link" systemImage="link" onPress={() => copyLink(url)} /> : null}
         {shareable(url) ? (
           <ShareLink item={url}>
-            <Text>Share</Text>
+            <Label title="Share" systemImage="square.and.arrow.up" />
           </ShareLink>
         ) : null}
       </ContextMenu.Items>

@@ -8,6 +8,7 @@ import { useReaderSettings } from "../../state/page/hooks";
 import { useDarkScheme } from "../../state/settings/appearance";
 import {
   clampReaderStep,
+  READER_STEPS,
   leadImageAspect,
   readerBodySize,
   readerSource,
@@ -16,7 +17,8 @@ import {
   type ReaderTheme,
 } from "../../state/page/pagePrompts";
 import { copy } from "../../lib/platformCopy";
-import { font, Menu, readerInk, readerLayout, space, Symbol, tabsMotion, useTheme, type MenuItem } from "../ui";
+import { font, readerInk, readerLayout, space, Symbol, tabsMotion, useTheme, type MenuItem } from "../ui";
+import { MenuTrigger } from "../ui/MenuTrigger";
 
 
 const rise = SlideInDown.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
@@ -32,7 +34,6 @@ export function ReaderView({ tabId }: { tabId: string }) {
   const shown = readerTheme(settings.theme, dark);
   const ink = readerInk[shown];
   const [load, setLoad] = useState<Load>({ kind: "loading" });
-  const [menu, setMenu] = useState(false);
   useSystemBars(shown === "dark");
   useEffect(() => {
     let live = true;
@@ -50,14 +51,12 @@ export function ReaderView({ tabId }: { tabId: string }) {
   }, [size]);
   const family = settings.serif ? copy().readerSerif.family : copy().readerSans.family;
   const items: MenuItem[] = [
-    { label: "Smaller Text", onPress: () => setReaderStep(clampReaderStep(settings.step - 1)) },
-    { label: "Larger Text", onPress: () => setReaderStep(clampReaderStep(settings.step + 1)) },
+    { label: "Smaller Text", systemImage: "textformat.size.smaller", disabled: settings.step <= 0, onPress: () => setReaderStep(clampReaderStep(settings.step - 1)) },
+    { label: "Larger Text", systemImage: "textformat.size.larger", disabled: settings.step >= READER_STEPS.length - 1, onPress: () => setReaderStep(clampReaderStep(settings.step + 1)) },
     "divider",
-    { heading: "Font" },
     { label: copy().readerSerif.label, checked: settings.serif, onPress: () => setReaderSerif(true) },
     { label: copy().readerSans.label, checked: !settings.serif, onPress: () => setReaderSerif(false) },
     "divider",
-    { heading: "Theme" },
     ...(["light", "sepia", "dark"] as ReaderTheme[]).map((option) => ({
       label: option === "light" ? "Light" : option === "sepia" ? "Sepia" : "Dark",
       checked: option === shown,
@@ -68,9 +67,13 @@ export function ReaderView({ tabId }: { tabId: string }) {
     <Animated.View entering={rise} exiting={fall} style={[StyleSheet.absoluteFill, { backgroundColor: ink.background, paddingTop: insets.top }]}>
       <View style={styles.top}>
         {load.kind === "loaded" ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Text Appearance" onPress={() => setMenu(true)} style={styles.topButton}>
-            <Symbol name="textformatSize" size={22} color={theme.formAccent} />
-          </Pressable>
+          <MenuTrigger items={items} trigger="tap" fixedOrder dark={shown === "dark"} place={{ top: insets.top + readerLayout.topBar, left: space.s }}>
+            {({ onPress }) => (
+              <Pressable accessibilityRole="button" accessibilityLabel="Text Appearance" onPress={onPress} style={styles.topButton}>
+                <Symbol name="textformatSize" size={22} color={theme.formAccent} />
+              </Pressable>
+            )}
+          </MenuTrigger>
         ) : null}
         <View style={styles.fill} />
         <Pressable accessibilityRole="button" onPress={closeReader} style={styles.topButton}>
@@ -96,7 +99,6 @@ export function ReaderView({ tabId }: { tabId: string }) {
         />
       )}
       <View style={[styles.navigationBand, { height: insets.bottom, backgroundColor: ink.background }]} pointerEvents="none" />
-      {menu ? <Menu items={items} place={{ top: insets.top + readerLayout.topBar, left: space.s }} onDismiss={() => setMenu(false)} /> : null}
     </Animated.View>
   );
 }
