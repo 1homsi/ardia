@@ -417,3 +417,19 @@ test("a live folder whose pinned anchor goes keeps its place under the item abov
   assert.deepEqual(sidebarEntries(S(), w).pinned, [`t:${ids[1]}`, `t:${ids[3]}`]);
   removeFolder(folder);
 });
+
+test("⌘1–⌘9 count a collapsed group as one row, plus the tabs kept under its header, as the sidebar draws them", () => {
+  reset();
+  const { w, outer, inner, a, b, c, d, e } = nested();
+  const now = Date.now();
+  for (const [id, at] of [[a, 1], [b, 2], [c, 3], [d, 4], [e, 5]]) S().updateTab(id, { lastActiveAt: now - 100 + at });
+  S().updateGroup(inner, { collapsed: true });
+  assert.deepEqual(hosts(numberedTabs(S(), w)), ["a", "c", "d", "e"], "the collapsed inner group is one number, its last used tab");
+  S().updateGroup(outer, { collapsed: true });
+  assert.deepEqual(hosts(numberedTabs(S(), w)), ["d", "a", "e"], "the collapsed group is one number, and the shown tab kept under it another");
+  S().activate(b);
+  assert.deepEqual(hosts(numberedTabs(S(), w)), ["d", "a", "c", "b", "e"], "the outer header, the tabs and inner header kept under it, then e");
+  S().updateGroup(outer, { collapsed: false });
+  S().updateGroup(inner, { collapsed: false });
+  assert.deepEqual(hosts(numberedTabs(S(), w)), ["a", "b", "c", "d", "e"], "expanded groups number every tab again");
+});

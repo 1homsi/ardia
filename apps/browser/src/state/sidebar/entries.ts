@@ -85,13 +85,21 @@ function computeEntries(s: BrowserState, windowId: string, profileId?: string): 
 export function numberedTabs(s: BrowserState, windowId: string): string[] {
   const { tiles, pinned, list } = sidebarEntries(s, windowId);
   const active = activeTabId(s, windowId);
+  const profileId = s.windows[windowId]?.profileId;
+  const latest = (ids: string[]) => ids.reduce<string | undefined>((a, b) => (!a || s.tabs[b]!.lastActiveAt > s.tabs[a]!.lastActiveAt ? b : a), undefined);
+  const collapsedGroup = (groupId: string): string[] => {
+    const kept = profileId ? keptEntries(s, windowId, profileId, groupId).flatMap(rowTab) : [];
+    const members = s.groups[groupId]!.tabIds.filter((id) => s.tabs[id]);
+    const header = latest(members.filter((id) => !kept.includes(id))) ?? latest(members);
+    return header ? [header, ...kept] : kept;
+  };
   const rowTab = (entry: string): string[] => {
     const { kind, id } = parseEntry(entry);
-    if (kind === "group") return groupEntries(s, id).flatMap(rowTab);
+    if (kind === "group") return s.groups[id]?.collapsed ? collapsedGroup(id) : groupEntries(s, id).flatMap(rowTab);
     if (kind !== "split") return [id];
     const panes = splitRowPanes(s, s.splits[id]);
     if (active && panes.includes(active)) return [active];
-    const last = panes.reduce<string | undefined>((a, b) => (!a || s.tabs[b]!.lastActiveAt > s.tabs[a]!.lastActiveAt ? b : a), undefined);
+    const last = latest(panes);
     return last ? [last] : [];
   };
   return [...tiles, ...pinned.flatMap(rowTab), ...list.flatMap(rowTab)];
