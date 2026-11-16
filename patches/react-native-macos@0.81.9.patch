@@ -1699,10 +1699,10 @@ index 152e76da136756ebc962ece4cc84e84df7cfce0e..4e38bf09796d31dfc63cf79a081e40ea
   * Hide subviews if they are outside the view bounds.
   * This is an optimisation used predominantly with RKScrollViews
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31963a9502 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414fc6472aab 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
-@@ -136,6 +136,86 @@ - (RCTPlatformView *)react_findClipView // [macOS]
+@@ -136,6 +136,90 @@ - (RCTPlatformView *)react_findClipView // [macOS]
    return str;
  }
  
@@ -1784,12 +1784,16 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
 +  });
 +  return views;
 +}
++
++// [Ardia: VoiceOver that turns on while rows are hidden gets them back at once, not at the next scroll. Ardia]
++@interface ArdiaVoiceOverWatcher : NSObject
++@end
 +#endif // macOS]
 +
  @implementation RCTView {
    RCTUIColor *_backgroundColor; // [macOS]
    id<RCTEventDispatcherProtocol> _eventDispatcher; // [macOS]
-@@ -143,6 +223,13 @@ @implementation RCTView {
+@@ -143,6 +227,13 @@ @implementation RCTView {
    NSTrackingArea *_trackingArea;
    BOOL _hasMouseOver;
    BOOL _mouseDownCanMoveWindow;
@@ -1803,7 +1807,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
  #endif // macOS]
    NSMutableDictionary<NSString *, NSDictionary *> *accessibilityActionsNameMap;
    NSMutableDictionary<NSString *, NSDictionary *> *accessibilityActionsLabelMap;
-@@ -245,6 +332,14 @@ - (RCTPlatformView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event // [macOS
+@@ -245,6 +336,14 @@ - (RCTPlatformView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event // [macOS
    // be outside the bounds of `view` (e.g., if -clipsToBounds is NO).
    RCTPlatformView *hitSubview = nil; // [macOS]
    BOOL isPointInside = [self pointInside:point withEvent:event];
@@ -1818,7 +1822,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
    BOOL needsHitSubview = !(_pointerEvents == RCTPointerEventsNone || _pointerEvents == RCTPointerEventsBoxOnly);
    if (needsHitSubview && (![self clipsToBounds] || isPointInside)) {
      // Take z-index into account when calculating the touch target.
-@@ -784,16 +879,38 @@ - (void)viewDidMoveToWindow
+@@ -784,16 +883,38 @@ - (void)viewDidMoveToWindow
    // scroll event occurs either due to trackpad/gesture based scrolling or a scrollwheel event
    // both of which would not cause the mouseExited to be invoked.
  
@@ -1861,7 +1865,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
    }
  
    [self reactViewDidMoveToWindow]; // [macOS] Github#1412
-@@ -801,41 +918,53 @@ - (void)viewDidMoveToWindow
+@@ -801,41 +922,53 @@ - (void)viewDidMoveToWindow
    [super viewDidMoveToWindow];
  }
  
@@ -1945,7 +1949,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
      }
    }
  }
-@@ -943,28 +1072,59 @@ - (void)react_updateClippedSubviewsWithClipRect:(CGRect)clipRect relativeToView:
+@@ -943,28 +1076,62 @@ - (void)react_updateClippedSubviewsWithClipRect:(CGRect)clipRect relativeToView:
  
  - (void)setRemoveClippedSubviews:(BOOL)removeClippedSubviews
  {
@@ -1958,6 +1962,9 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
 +  if (removeClippedSubviews) {
 +    if (ArdiaClippingViews == nil) {
 +      ArdiaClippingViews = [NSHashTable weakObjectsHashTable];
++      static ArdiaVoiceOverWatcher *watcher;
++      watcher = [ArdiaVoiceOverWatcher new];
++      [NSWorkspace.sharedWorkspace addObserver:watcher forKeyPath:@"voiceOverEnabled" options:0 context:NULL];
 +    }
 +    [ArdiaClippingViews addObject:self];
 +    [RCTView ardia_layoutChanged];
@@ -2005,7 +2012,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
  }
  
  - (void)layoutSubviews
-@@ -1196,12 +1356,42 @@ - (void)reactSetFrame:(CGRect)frame
+@@ -1196,11 +1363,41 @@ - (void)reactSetFrame:(CGRect)frame
    // be rendered as a stretchable image, we'll need to re-render.
    // TODO: detect up-front if re-rendering is necessary
    CGSize oldSize = self.bounds.size;
@@ -2030,8 +2037,8 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
 +  if ([ArdiaBorderImageViews() containsObject:self]) { // [Ardia: a border image follows the new backing density. Ardia]
 +    [self.layer setNeedsDisplay];
 +  }
- }
- 
++}
++
 +// [Ardia: displayLayer is the only place that copies clipsToBounds to the layer, and nothing asked for one when
 +// overflow changed. A view that stopped clipping at the same size (a group's rows once its fold animation ends)
 +// kept masking its children, which cut the selected row's glow. Ardia]
@@ -2042,13 +2049,12 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
 +  }
 +  [super setClipsToBounds:clipsToBounds];
 +  [self.layer setNeedsDisplay];
-+}
+ }
 +#endif
-+
+ 
  - (void)displayLayer:(CALayer *)layer
  {
-   if (CGSizeEqualToSize(layer.bounds.size, CGSizeZero)) {
-@@ -1248,17 +1438,8 @@ - (void)displayLayer:(CALayer *)layer
+@@ -1248,17 +1445,8 @@ - (void)displayLayer:(CALayer *)layer
    RCTUIColor *backgroundColor = _backgroundColor;
  #endif // macOS]
  
@@ -2068,7 +2074,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
  
    if (useIOSBorderRendering) {
      layer.cornerRadius = cornerRadii.topLeftHorizontal;
-@@ -1293,9 +1474,10 @@ - (void)displayLayer:(CALayer *)layer
+@@ -1293,9 +1481,10 @@ - (void)displayLayer:(CALayer *)layer
    layer.contents = (id)image.CGImage;
    layer.contentsScale = image.scale;
  #else // [macOS
@@ -2080,7 +2086,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
  #endif // macOS]
    layer.needsDisplayOnBoundsChange = YES;
    layer.magnificationFilter = kCAFilterNearest;
-@@ -1514,6 +1696,20 @@ - (BOOL)acceptsFirstResponder
+@@ -1514,6 +1703,20 @@ - (BOOL)acceptsFirstResponder
  	return [self focusable] || [super acceptsFirstResponder];
  }
  
@@ -2101,7 +2107,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,22 +1718,278 @@ - (void)updateTrackingAreas
+@@ -1522,22 +1725,278 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -2130,19 +2136,19 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
 +      if (_hasMouseOver) {
 +        [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout: the resized view may have left the pointer. Ardia]
 +      }
-+    }
-+  }
-+
+     }
+   }
+ 
 +  // [Ardia: hover follows layout: the views the check looks at. Ardia]
 +  if (hasMouseHoverEvent) {
 +    if (ArdiaHoverViews == nil) {
 +      ArdiaHoverViews = [NSHashTable weakObjectsHashTable];
-     }
++    }
 +    [ArdiaHoverViews addObject:self];
 +  } else {
 +    [ArdiaHoverViews removeObject:self];
-   }
- 
++  }
++
    [super updateTrackingAreas];
  }
  
@@ -2381,7 +2387,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
    _hasMouseOver = YES;
    [self sendMouseEventWithBlock:self.onMouseEnter
                     locationInfo:[self locationInfoFromEvent:event]
-@@ -1547,6 +1999,9 @@ - (void)mouseEntered:(NSEvent *)event
+@@ -1547,6 +2006,9 @@ - (void)mouseEntered:(NSEvent *)event
  
  - (void)mouseExited:(NSEvent *)event
  {
@@ -2391,7 +2397,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
    _hasMouseOver = NO;
    [self sendMouseEventWithBlock:self.onMouseLeave
                     locationInfo:[self locationInfoFromEvent:event]
-@@ -1768,7 +2223,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
+@@ -1768,7 +2230,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
    static const char kRCTViewKeyboardEventEmittedKey = 0;
    NSNumber *emitted = objc_getAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey);
    BOOL alreadyEmitted = [emitted boolValue];
@@ -2400,6 +2406,26 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..3769438088efe43e176c67183b537e31
      [_eventDispatcher sendEvent:keyboardEvent];
      objc_setAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
    }
+@@ -1794,3 +2256,19 @@ - (void)keyUp:(NSEvent *)event {
+ #endif // macOS]
+ 
+ @end
++
++#if TARGET_OS_OSX // [macOS
++@implementation ArdiaVoiceOverWatcher // [Ardia]
++
++- (void)observeValueForKeyPath:(__unused NSString *)keyPath
++                      ofObject:(__unused id)object
++                        change:(__unused NSDictionary<NSKeyValueChangeKey, id> *)change
++                       context:(__unused void *)context
++{
++  dispatch_async(dispatch_get_main_queue(), ^{
++    [RCTView ardia_layoutChanged];
++  });
++}
++
++@end
++#endif // macOS]
 diff --git a/React/Views/ScrollView/RCTScrollView.m b/React/Views/ScrollView/RCTScrollView.m
 index eb79ff32614392cb16e6eb3dbec6cc5b037fe27a..d06ebb9e6949046c5fd546edc77556b749f055df 100644
 --- a/React/Views/ScrollView/RCTScrollView.m
