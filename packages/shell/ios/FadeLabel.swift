@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import Carbon.HIToolbox
 import ExpoModulesCore
 
@@ -45,8 +46,9 @@ final class FadeLabel: ExpoView {
     clipsToBounds = true
     ink.paint = { [weak self] ctx in self?.paint(ctx) }
     ink.needsDisplayOnBoundsChange = true
-    ink.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+    ink.contentsScale = backingDensity
     layer?.addSublayer(ink)
+    NotificationCenter.default.addObserver(self, selector: #selector(matchScale), name: .ArdiaInterfaceScaleDidChange, object: nil)
     fade.colors = [NSColor.black.cgColor, NSColor.black.cgColor, NSColor.clear.cgColor]
     fade.startPoint = CGPoint(x: 0, y: 0.5)
     fade.endPoint = CGPoint(x: 1, y: 0.5)
@@ -81,8 +83,9 @@ final class FadeLabel: ExpoView {
     matchScale()
   }
 
-  private func matchScale() {
-    guard let scale = window?.backingScaleFactor, scale != ink.contentsScale else { return }
+  @objc private func matchScale() {
+    let scale = backingDensity
+    guard scale != ink.contentsScale else { return }
     ink.contentsScale = scale
     ink.setNeedsDisplay()
   }
