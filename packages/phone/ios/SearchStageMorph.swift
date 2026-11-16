@@ -388,7 +388,7 @@ final class StageMorph {
   }
 
   private static func unfinishedTravel(of view: UIView) -> CGFloat {
-    guard let shown = view.layer.presentation() else { return 0 }
+    guard !(view.layer.animationKeys() ?? []).isEmpty, let shown = view.layer.presentation() else { return 0 }
     return shown.affineTransform().ty - view.transform.ty
   }
 
