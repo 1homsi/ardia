@@ -13,6 +13,7 @@ using namespace ardia_runtime;
   const BOOL playing = _tab.audible || [ArdiaFairPlay playsInTab:_tab] || [ArdiaProtectedVideo playsInTab:_tab] || [ArdiaHLSVideo playsInTab:_tab];
   const BOOL muted = _tab ? _tab.muted : _muted;
   [self emit:@"media" payload:@{@"playing" : @(playing), @"muted" : @(muted)}];
+  [self systemNowPlayingChanged];
 }
 
 - (void)emitZoom {

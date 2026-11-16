@@ -1,3 +1,4 @@
+#import "ArdiaPictureInPictureInternal.h"
 #import "ArdiaProtectedVideoInternal.h"
 
 using namespace ardia_runtime;
@@ -28,6 +29,7 @@ void HideEmptyMirror(NSView *view) {
   AVPictureInPictureControllerContentSource *source = [[AVPictureInPictureControllerContentSource alloc] initWithSampleBufferDisplayLayer:_display
                                                                                                                          playbackDelegate:self];
   _pip = [[AVPictureInPictureController alloc] initWithContentSource:source];
+  ardia_pip::PrepareSystemPictureInPicture();
   _pip.delegate = self;
   [_pip addObserver:self forKeyPath:@"pictureInPicturePossible" options:NSKeyValueObservingOptionNew context:kPossibleContext];
   Trace(@"pip controller ready: possible=%d", _pip.pictureInPicturePossible);
@@ -84,6 +86,7 @@ void HideEmptyMirror(NSView *view) {
   _pip = nil;
   _pipWanted = NO;
   _pipReopening = NO;
+  _pipStopping = NO;
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
@@ -125,6 +128,7 @@ void HideEmptyMirror(NSView *view) {
 - (void)exitPictureInPicture {
   _pipWanted = NO;
   _pipReopening = NO;
+  _pipStopping = _pip.pictureInPictureActive;
   const NSInteger request = ++_pipRequest;
   Trace(@"pip stop requested: active=%d", _pip.pictureInPictureActive);
   if (_pip.pictureInPictureActive) {
@@ -163,6 +167,7 @@ void HideEmptyMirror(NSView *view) {
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)controller {
   Trace(@"pip stopped");
   _inPip = NO;
+  _pipStopping = NO;
   [self unwatchPictureInPicturePanel];
   [self place];
   if (_pipReopening) {
@@ -187,6 +192,9 @@ void HideEmptyMirror(NSView *view) {
 
 - (void)pictureInPictureController:(AVPictureInPictureController *)controller
     restoreUserInterfaceForPictureInPictureStopWithCompletionHandler:(void (^)(BOOL))completionHandler {
+  const BOOL asked = ardia_pip::UserAskedToRestore();
+  Trace(@"pip restore: asked=%d reopening=%d stopping=%d", asked, _pipReopening, _pipStopping);
+  if (asked || (!_pipReopening && !_pipStopping)) ardia_pip::BackToTab(_tab, @"Back to Tab (protected video)");
   completionHandler(YES);
 }
 

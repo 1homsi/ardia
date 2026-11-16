@@ -18,7 +18,7 @@
   ].join("\n");
 
   const base = new CSSStyleSheet();
-  base.replaceSync(BASE_RULES);
+  base.replaceSync(`@layer ardia-mirror{${BASE_RULES}}`);
   const agent = new CSSStyleSheet();
   agent.replaceSync("[data-ardia-focus-visible]{outline:-webkit-focus-ring-color auto 1px}");
   const rootFrame = new CSSStyleSheet();

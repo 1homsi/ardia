@@ -1,4 +1,5 @@
 #import "ArdiaHLSVideoInternal.h"
+#import "ArdiaPictureInPictureInternal.h"
 
 using namespace ardia_runtime;
 using namespace ardia_web_view;
@@ -11,6 +12,7 @@ static void *kPossibleContext = &kPossibleContext;
 - (void)preparePictureInPicture {
   if (_pip || !_layer || !_showing || !_view.window || ![AVPictureInPictureController isPictureInPictureSupported]) return;
   _pip = [[AVPictureInPictureController alloc] initWithPlayerLayer:_layer];
+  ardia_pip::PrepareSystemPictureInPicture();
   _pip.delegate = self;
   [_pip addObserver:self forKeyPath:@"pictureInPicturePossible" options:NSKeyValueObservingOptionNew context:kPossibleContext];
   Trace(@"pip controller ready: possible=%d", _pip.pictureInPicturePossible);
@@ -23,6 +25,7 @@ static void *kPossibleContext = &kPossibleContext;
   _pip.delegate = nil;
   _pip = nil;
   _pipWanted = NO;
+  _pipStopping = NO;
   if (_inPip) {
     _inPip = NO;
     [self deliverPictureInPicture];
@@ -45,11 +48,12 @@ static void *kPossibleContext = &kPossibleContext;
   if (_pip.pictureInPictureActive) return YES;
   _pipWanted = YES;
   _pipAskedAt = CACurrentMediaTime();
+  const NSInteger request = ++_pipRequest;
   if (_pip.pictureInPicturePossible) [_pip startPictureInPicture];
   __weak ArdiaHLSVideoSession *weakSelf = self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPictureInPictureDeadline * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaHLSVideoSession *session = weakSelf;
-    if (!session || !session->_pipWanted || session->_pip.pictureInPictureActive) return;
+    if (!session || session->_pipRequest != request || !session->_pipWanted || session->_pip.pictureInPictureActive) return;
     Trace(@"pip never became possible");
     session->_pipWanted = NO;
     [session deliverPictureInPicture];
@@ -59,12 +63,14 @@ static void *kPossibleContext = &kPossibleContext;
 
 - (void)exitPictureInPicture {
   _pipWanted = NO;
+  _pipStopping = _pip.pictureInPictureActive;
   Trace(@"pip exit: active=%d", _pip.pictureInPictureActive);
+  const NSInteger request = ++_pipRequest;
   if (_pip.pictureInPictureActive) [_pip stopPictureInPicture];
   __weak ArdiaHLSVideoSession *weakSelf = self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPictureInPictureDeadline * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaHLSVideoSession *session = weakSelf;
-    if (!session || !session->_inPip || session->_pipWanted) return;
+    if (!session || session->_pipRequest != request || !session->_inPip || session->_pipWanted) return;
     Trace(@"pip stop never finished");
     [session dropPictureInPicture];
     [session place];
@@ -86,6 +92,7 @@ static void *kPossibleContext = &kPossibleContext;
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)controller {
   Trace(@"pip stopped");
   _inPip = NO;
+  _pipStopping = NO;
   [self place];
   [self deliverPictureInPicture];
 }
@@ -99,6 +106,9 @@ static void *kPossibleContext = &kPossibleContext;
 
 - (void)pictureInPictureController:(AVPictureInPictureController *)controller
     restoreUserInterfaceForPictureInPictureStopWithCompletionHandler:(void (^)(BOOL))completionHandler {
+  const BOOL asked = ardia_pip::UserAskedToRestore();
+  Trace(@"pip restore: asked=%d stopping=%d", asked, _pipStopping);
+  if (asked || !_pipStopping) ardia_pip::BackToTab(_tab, @"Back to Tab (streamed video)");
   completionHandler(YES);
 }
 

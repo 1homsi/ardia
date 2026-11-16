@@ -1,7 +1,7 @@
 import type { FairPlayReport } from "../../platform/tabs";
 
 type FairPlayStep = NonNullable<FairPlayReport["step"]>;
-type FairPlayCounts = { played: number; failed: Record<FairPlayStep, number>; mirrored: number; mirrorResyncs: number; pip: number; pipUnfitted: number; pipReopens: number; choppy: number };
+type FairPlayCounts = { played: number; failed: Record<FairPlayStep, number>; mirrored: number; mirrorResyncs: number; pip: number; pipUnfitted: number; pipReopens: number; choppy: number; nowPlayingCommands: number };
 
 const FAIRPLAY_STEPS: readonly FairPlayStep[] = ["license", "playback", "player"];
 
@@ -14,6 +14,7 @@ const emptyCounts = (): FairPlayCounts => ({
   pipUnfitted: 0,
   pipReopens: 0,
   choppy: 0,
+  nowPlayingCommands: 0,
 });
 
 let tracks = emptyCounts();
@@ -33,6 +34,7 @@ export function noteFairPlay(report: FairPlayReport) {
     if (report.fitted !== true) videos.pipUnfitted++;
   } else if (report?.event === "pipReopen" && report.video === true && report.site !== "youtube") videos.pipReopens++;
   else if (report?.event === "choppy" && report.video === true && report.site !== "youtube") videos.choppy++;
+  else if (report?.event === "nowPlayingCommand" && report.video === true) counts.nowPlayingCommands++;
 }
 
 export function takeFairPlayCounts() {
@@ -51,10 +53,12 @@ export function takeFairPlayCounts() {
     fairplay_video_pip_unfitted: videos.pipUnfitted,
     fairplay_video_pip_reopens: videos.pipReopens,
     fairplay_video_choppy: videos.choppy,
+    fairplay_video_now_playing_commands: videos.nowPlayingCommands,
     fairplay_youtube_played: youtube.played,
     fairplay_youtube_failed_license: youtube.failed.license,
     fairplay_youtube_failed_playback: youtube.failed.playback,
     fairplay_youtube_failed_player: youtube.failed.player,
+    fairplay_youtube_now_playing_commands: youtube.nowPlayingCommands,
   };
   tracks = emptyCounts();
   videos = emptyCounts();

@@ -108,10 +108,15 @@ double Seconds(CMTime time);
   NSRect _rect;
   double _coverTop;
   double _coverBottom;
+  double _cornerRadius;
+  NSColor *_backdrop;
+  CAShapeLayer *_corners;
   double _scale;
   BOOL _rectVisible;
   BOOL _inPip;
   BOOL _pipWanted;
+  BOOL _pipStopping;
+  NSInteger _pipRequest;
   CFTimeInterval _pipAskedAt;
   NSTimeInterval _lastTrace;
 }

@@ -1,4 +1,5 @@
 #import "ArdiaHLSVideoInternal.h"
+#import "ArdiaPictureInPictureInternal.h"
 
 using namespace ardia_runtime;
 using namespace ardia_web_view;
@@ -22,7 +23,12 @@ using namespace ardia_hls_video;
     _view = [ArdiaHLSLayerView new];
     _view.identifier = kViewIdentifier;
     _view.wantsLayer = YES;
+    _view.clipsToBounds = YES;
+    _view.layer.masksToBounds = YES;
     _view.layer.backgroundColor = NSColor.blackColor.CGColor;
+    _corners = [CAShapeLayer layer];
+    _corners.hidden = YES;
+    [_view.layer addSublayer:_corners];
     _view.hidden = YES;
     __weak ArdiaHLSVideoSession *weakSelf = self;
     _ticker = [NSTimer scheduledTimerWithTimeInterval:kTick
@@ -177,7 +183,7 @@ using namespace ardia_hls_video;
   _layer = [AVPlayerLayer playerLayerWithPlayer:_player];
   _layer.videoGravity = AVLayerVideoGravityResizeAspect;
   _layer.backgroundColor = NSColor.blackColor.CGColor;
-  [_view.layer addSublayer:_layer];
+  [_view.layer insertSublayer:_layer atIndex:0];
   [self muteChanged];
   __weak ArdiaHLSVideoSession *weakSelf = self;
   _endObserver = [NSNotificationCenter.defaultCenter addObserverForName:AVPlayerItemDidPlayToEndTimeNotification
@@ -379,6 +385,19 @@ using namespace ardia_hls_video;
   _rect = NSMakeRect(x, y, width, height);
   if (!Bounded(message, @"coverTop", 0, 1e5, &_coverTop)) _coverTop = 0;
   if (!Bounded(message, @"coverBottom", 0, 1e5, &_coverBottom)) _coverBottom = 0;
+  if (!Bounded(message, @"radius", 0, 1e4, &_cornerRadius)) _cornerRadius = 0;
+  NSArray *backdrop = [message[@"backdrop"] isKindOfClass:NSArray.class] ? message[@"backdrop"] : nil;
+  _backdrop = nil;
+  if (backdrop.count == 3) {
+    double rgb[3];
+    BOOL valid = YES;
+    for (NSUInteger i = 0; i < 3; i++) {
+      id value = backdrop[i];
+      valid = valid && [value isKindOfClass:NSNumber.class] && std::isfinite([value doubleValue]);
+      rgb[i] = valid ? MIN(MAX([value doubleValue], 0), 255) / 255 : 0;
+    }
+    if (valid) _backdrop = [NSColor colorWithSRGBRed:rgb[0] green:rgb[1] blue:rgb[2] alpha:1];
+  }
   _scale = scale;
   _rectVisible = Flag(message, @"visible") && width > 0 && height > 0;
   _hasRect = YES;
@@ -423,12 +442,15 @@ using namespace ardia_hls_video;
     return;
   }
   WithoutActions(^{
+    if (!self->_inPip && self->_layer && self->_layer.superlayer != self->_view.layer) [self->_view.layer insertSublayer:self->_layer atIndex:0];
     if (!NSEqualRects(self->_view.frame, visible)) self->_view.frame = visible;
     const NSRect inside = NSOffsetRect(full, -visible.origin.x, -visible.origin.y);
     CGRect layerFrame = NSRectToCGRect(inside);
     if (!self->_view.isFlipped) layerFrame.origin.y = NSHeight(visible) - CGRectGetMaxY(layerFrame);
     if (!CGRectEqualToRect(self->_layer.frame, layerFrame)) self->_layer.frame = layerFrame;
     self->_layer.contentsScale = backing;
+    ardia_pip::RoundVideoCorners(self->_view.layer, self->_corners, self->_cornerRadius * k, self->_backdrop, full, visible, host.isFlipped,
+                                 self->_view.isFlipped);
   });
   _view.hidden = _inPip;
   [self preparePictureInPicture];

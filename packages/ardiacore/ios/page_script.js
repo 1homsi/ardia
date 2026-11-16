@@ -162,6 +162,10 @@
     listenFor(m, 0);
   };
   const isPlaying = (m) => !m.paused && !m.ended;
+  const askSiteToMatch = guard((paused) => {
+    const action = paused ? "pause" : "play";
+    actions.get(action)?.({ action });
+  });
   const pickMedia = () => {
     const all = [...document.querySelectorAll("video,audio")];
     for (const m of [active, lastHeard]) if (m && !all.includes(m) && tracked.has(m)) all.push(m);
@@ -755,13 +759,36 @@
     }
     return null;
   };
+  const opaqueBackground = (el) => {
+    for (let e = el; e; e = e.parentElement) {
+      const m = /^rgba?\(([^)]*)\)$/.exec(getComputedStyle(e).backgroundColor);
+      const parts = m ? m[1].split(/[\s,/]+/).filter(Boolean).map(Number) : [];
+      if (parts.length >= 3 && (parts.length < 4 || parts[3] >= 0.98)) return parts.slice(0, 3);
+    }
+    return null;
+  };
+  const cornerRadius = (el, r) => {
+    for (let e = el, depth = 0; e && e !== document.body && depth < 8; e = e.parentElement, depth++) {
+      const style = getComputedStyle(e);
+      const radius = parseFloat(style.borderTopLeftRadius) || 0;
+      if (radius <= 0 || (e !== el && style.overflow === "visible")) continue;
+      const box = e.getBoundingClientRect();
+      const near = (a, b) => Math.abs(a - b) < 2;
+      if (!(near(box.left, r.left) && near(box.right, r.right) && near(box.top, r.top) && near(box.bottom, r.bottom))) break;
+      return { radius, backdrop: opaqueBackground(e.parentElement) };
+    }
+    return { radius: 0, backdrop: null };
+  };
   const pinnedCover = (el, r) => {
     const left = Math.max(r.left, 0);
     const right = Math.min(r.right, innerWidth);
     const top = Math.max(r.top, 0);
     const bottom = Math.min(r.bottom, innerHeight);
-    const cover = { top: 0, bottom: 0 };
+    const cover = { top: 0, bottom: 0, radius: 0, backdrop: null };
     if (right - left < 2 || bottom - top < 2) return cover;
+    const corner = cornerRadius(el, r);
+    cover.radius = corner.radius;
+    cover.backdrop = corner.backdrop;
     for (let i = 1; i <= 3; i++) {
       const x = left + ((right - left) * i) / 4;
       const above = pinnedOver(el, x, top + 1);
@@ -2885,12 +2912,12 @@
         const visible = document.visibilityState === "visible" && b.el.isConnected && r.width > 0 && r.height > 0;
         const geometry = [r.left, r.top, r.width, r.height].join();
         if (geometry !== b.coverKey || ++b.coverAge >= 10) {
-          b.cover = visible ? pinnedCover(b.el, r) : { top: 0, bottom: 0 };
+          b.cover = visible ? pinnedCover(b.el, r) : { top: 0, bottom: 0, radius: 0, backdrop: null };
           b.coverKey = geometry;
           b.coverAge = 0;
         }
-        const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible, coverTop: b.cover.top, coverBottom: b.cover.bottom };
-        const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible, rect.coverTop, rect.coverBottom].join();
+        const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible, coverTop: b.cover.top, coverBottom: b.cover.bottom, radius: b.cover.radius, backdrop: b.cover.backdrop };
+        const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible, rect.coverTop, rect.coverBottom, rect.radius, rect.backdrop].join();
         if (key === b.rectKey) return;
         b.rectKey = key;
         sendMedia(b, rect);
@@ -3487,6 +3514,7 @@
           }
           if (b.playing) startMirror(b);
         } else if (m.event === "paused") {
+          if (typeof m.paused === "boolean" && m.paused !== b.paused) askSiteToMatch(m.paused);
           if (m.paused === true && !b.paused) {
             b.time = positionOf(b);
             b.paused = true;
@@ -3718,12 +3746,12 @@
           const visible = document.visibilityState === "visible" && b.el.isConnected && r.width > 0 && r.height > 0;
           const geometry = [r.left, r.top, r.width, r.height].join();
           if (geometry !== b.coverKey || ++b.coverAge >= 10) {
-            b.cover = visible ? pinnedCover(b.el, r) : { top: 0, bottom: 0 };
+            b.cover = visible ? pinnedCover(b.el, r) : { top: 0, bottom: 0, radius: 0, backdrop: null };
             b.coverKey = geometry;
             b.coverAge = 0;
           }
-          const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible, coverTop: b.cover.top, coverBottom: b.cover.bottom };
-          const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible, rect.coverTop, rect.coverBottom].join();
+          const rect = { op: "rect", media: b.id, x: r.left, y: r.top, width: r.width, height: r.height, scale: devicePixelRatio, visible, coverTop: b.cover.top, coverBottom: b.cover.bottom, radius: b.cover.radius, backdrop: b.cover.backdrop };
+          const key = [rect.x, rect.y, rect.width, rect.height, rect.scale, visible, rect.coverTop, rect.coverBottom, rect.radius, rect.backdrop].join();
           if (key === b.rectKey) return;
           b.rectKey = key;
           send("hlsVideo", rect);
@@ -4172,6 +4200,7 @@
             fire(b.el, "seeked");
             fire(b.el, "timeupdate");
           } else if (m.event === "paused") {
+            if (typeof m.paused === "boolean" && m.paused !== b.paused) askSiteToMatch(m.paused);
             if (m.paused === true && !b.paused) {
               b.time = positionOf(b);
               b.stamp = now();

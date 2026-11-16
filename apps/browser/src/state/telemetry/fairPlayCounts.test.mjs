@@ -30,14 +30,16 @@ async function sentUsageCounts() {
       pipUnfitted: e.properties.fairplay_video_pip_unfitted,
       pipReopens: e.properties.fairplay_video_pip_reopens,
       choppy: e.properties.fairplay_video_choppy,
+      nowPlayingCommands: e.properties.fairplay_video_now_playing_commands,
       youtubePlayed: e.properties.fairplay_youtube_played,
       youtubeLicense: e.properties.fairplay_youtube_failed_license,
       youtubePlayback: e.properties.fairplay_youtube_failed_playback,
       youtubePlayer: e.properties.fairplay_youtube_failed_player,
+      youtubeNowPlayingCommands: e.properties.fairplay_youtube_now_playing_commands,
     }));
 }
 
-test("FairPlay bridge plays, failures per step, Picture in Picture sessions and reopens and choppy videos are counted, unknown reports are ignored, sent on their own, then start again from zero", async () => {
+test("FairPlay bridge plays, failures per step, Picture in Picture sessions and reopens, choppy videos and Now Playing commands are counted, unknown reports are ignored, sent on their own, then start again from zero", async () => {
   client.loadChoice();
   client.setSharing(true, "onboarding");
 
@@ -64,6 +66,10 @@ test("FairPlay bridge plays, failures per step, Picture in Picture sessions and 
   fairPlay.noteFairPlay({ event: "pipReopen" });
   fairPlay.noteFairPlay({ event: "choppy", video: true });
   fairPlay.noteFairPlay({ event: "choppy" });
+  fairPlay.noteFairPlay({ event: "nowPlayingCommand", video: true });
+  fairPlay.noteFairPlay({ event: "nowPlayingCommand" });
+  fairPlay.noteFairPlay({ event: "nowPlayingCommand", video: true, site: "youtube" });
+  fairPlay.noteFairPlay({ event: "nowPlayingCommand", video: true, site: "youtube" });
   fairPlay.noteFairPlay({ event: "played", video: true, site: "youtube" });
   fairPlay.noteFairPlay({ event: "played", video: true, site: "youtube" });
   fairPlay.noteFairPlay({ event: "failed", step: "license", video: true, site: "youtube" });
@@ -85,10 +91,12 @@ test("FairPlay bridge plays, failures per step, Picture in Picture sessions and 
       pipUnfitted: 1,
       pipReopens: 2,
       choppy: 1,
+      nowPlayingCommands: 1,
       youtubePlayed: 2,
       youtubeLicense: 1,
       youtubePlayback: 0,
       youtubePlayer: 1,
+      youtubeNowPlayingCommands: 2,
     },
   ]);
 

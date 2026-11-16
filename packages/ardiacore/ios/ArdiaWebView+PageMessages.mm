@@ -217,6 +217,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     NSDictionary *state = [_reports.nowPlaying noteFrame:frameId page:dict main:main];
     [self emit:@"nowPlaying" payload:@{@"state" : state ?: NSNull.null}];
     [self autoPictureInPictureInputsChanged];
+    [self systemNowPlayingChanged];
   } else if ([kind isEqualToString:@"theme"]) {
     if (!main || !dict) return;
     NSString *color = [dict[@"color"] isKindOfClass:NSString.class] ? Text(dict, @"color", 64) : nil;
@@ -326,6 +327,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   [ArdiaVideoMirror pageGoneFromTab:_tab];
   if ([_reports.nowPlaying reset]) [self emit:@"nowPlaying" payload:@{@"state" : NSNull.null}];
   [self autoPictureInPictureInputsChanged];
+  [self withdrawSystemNowPlaying];
 }
 
 - (void)resolveDisplayMedia:(NSString *)requestId sourceId:(NSString *)sourceId audio:(BOOL)shareAudio {

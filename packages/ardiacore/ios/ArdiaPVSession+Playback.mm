@@ -1,3 +1,4 @@
+#import "ArdiaPictureInPictureInternal.h"
 #import "ArdiaProtectedVideoInternal.h"
 
 using namespace ardia_runtime;
@@ -50,6 +51,9 @@ using namespace ardia_protected_video;
   CALayer *clip = [CALayer layer];
   clip.masksToBounds = YES;
   [clip addSublayer:_display];
+  _corners = [CAShapeLayer layer];
+  _corners.hidden = YES;
+  [clip addSublayer:_corners];
   _view.layer = clip;
   _view.wantsLayer = YES;
   _view.hidden = YES;
@@ -459,6 +463,7 @@ using namespace ardia_protected_video;
   if (host.isFlipped) layerFrame.origin.y = NSHeight(visible) - CGRectGetMaxY(layerFrame);
   if (!_inPip && !CGRectEqualToRect(_display.frame, layerFrame)) _display.frame = layerFrame;
   if (_display.contentsScale != backing) _display.contentsScale = backing;
+  ardia_pip::RoundVideoCorners(_view.layer, _corners, _cornerRadius * k, _backdrop, full, visible, host.isFlipped, NO);
   [CATransaction commit];
   if (_view.hidden != _inPip) _view.hidden = _inPip;
   [self preparePictureInPicture];
