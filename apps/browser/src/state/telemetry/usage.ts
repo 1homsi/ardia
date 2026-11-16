@@ -166,10 +166,7 @@ const OVERLAY_COUNTS = { newTabShown: "newTabNoticesShown", newTabPressed: "newT
 export const notePageOverlay = (event: keyof typeof OVERLAY_COUNTS) => void counts[OVERLAY_COUNTS[event]]++;
 
 export const notePopoverClosed = (by: "press" | "escape") => void counts[by === "press" ? "popoverPressCloses" : "popoverEscapeCloses"]++;
-export const noteAutoplayPlaysBlocked = (count: number) => {
-  if (Number.isInteger(count) && count > 0) counts.autoplayPlaysBlocked += Math.min(count, 100);
-};
-export const noteSiteControls = (event: "autoplayBlock" | "autoplayAllow" | "siteSettings" | "manageExtensions" | "sidebarField") => void counts[(({ autoplayBlock: "siteAutoplayBlocks", autoplayAllow: "siteAutoplayAllows", siteSettings: "siteSettingsOpens", manageExtensions: "siteManageExtensionsOpens", sidebarField: "sidebarFieldSiteControlsOpens" }) as const)[event]]++;
+export const noteSiteControls = (event: "autoplayBlock" | "autoplayAllow" | "autoplayPlaysBlocked" | "siteSettings" | "manageExtensions" | "sidebarField", times = 1) => void (counts[(({ autoplayBlock: "siteAutoplayBlocks", autoplayAllow: "siteAutoplayAllows", autoplayPlaysBlocked: "autoplayPlaysBlocked", siteSettings: "siteSettingsOpens", manageExtensions: "siteManageExtensionsOpens", sidebarField: "sidebarFieldSiteControlsOpens" }) as const)[event]] += times);
 
 export const noteCleanUp = (event: "suggestionShown" | "suggestionOnce" | "suggestionDaily" | "suggestionNotNow" | "suggestionNeverAgain" | "undone") => void counts[(({ suggestionShown: "cleanUpSuggestionShows", suggestionOnce: "cleanUpSuggestionOnce", suggestionDaily: "cleanUpSuggestionDaily", suggestionNotNow: "cleanUpSuggestionNotNow", suggestionNeverAgain: "cleanUpSuggestionNeverAgain", undone: "cleanUpUndos" }) as const)[event]]++;
 export const noteUpdateChannelSwitch = (outcome: "offered" | "upToDate" | "failed" | null) => void (counts.updateChannelSwitches++, outcome && counts[outcome === "offered" ? "updateChannelSwitchOffers" : outcome === "upToDate" ? "updateChannelSwitchUpToDate" : "updateChannelSwitchCheckFailures"]++);
