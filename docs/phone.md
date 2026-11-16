@@ -1836,6 +1836,7 @@ Evidence: `/tmp/ardia-phone-shots/iphone-agent-speed-nf/`.
 | Cold launch, first frame to settled | 402 ms | 403 ms | +1 ms | level | level |
 | Deck opening from a page, settled | 240 ms | 133 ms | −107 ms | faster | Expo level (137); main's 217 read low last time |
 | Card opening from the deck, settled | 175 ms | 265 ms | +90 ms (+51%) | slower | Expo 28 ms faster than 293 |
+| Card opening, re-timed 2026-11-16 at 996b1f307 (growth in MotionView, page mounted at the tap; 10 opens each, load 2.5–3.9) | 173 ms (163–180) | 195 ms (188–212) | +22 ms (+13%) | close, not level | from +90 ms; deck open in the same run 231 against 138 |
 | Search panel open to keyboard up and focused | 578 ms | 418 ms | −160 ms (−28%) | faster | level |
 | Search submitted to settled | 512 ms | 298 ms | −214 ms (−42%) | faster | level |
 | Tab swipe in the pager, settled (the 250 ms drag included) | 848 ms | 800 ms | −48 ms (−6%) | level | level |
@@ -1849,9 +1850,16 @@ lands with its rounded corners and a sliver of the deck at the edge, holds still
 the corners go square in one change. That late hand-over is the whole remaining gap. Turning the settled re-render
 off took 28 ms off it, and nothing else moved beyond the noise.
 
+At 996b1f307 the hold is gone: Expo's open is one continuous change from the first frame (1.855 to 2.050 s in
+`expo-card-a2.mp4`). Its card is still round-cornered with the deck at its edge at 2.030 s, and the bar arrives and
+the corners square off in one step by 2.05 s. Main's deck bar instead fades into the page's bar during the growth, and
+main is settled at 2.282 s, 174 ms after it starts. What's left is about one frame, from that step at the end
+(`/tmp/ardia-phone-shots/iphone-agent-card-996b/`, `expo-tail.png` and `main-tail.png`).
+
 What 0.88 leaves to fix, from these numbers:
-- **Card opening** is still the one timed gap: 265 ms against 175 in the third table. The growth matches; the bar
-  and the square corners arrive 75 ms after full size. The screens agent has it.
+- **Card opening** is the one row not level: 195 ms against 173 at 996b1f307, down from 265. The open is one motion
+  now, but the bar and the square corners arrive in one step at the end instead of during the growth, about one
+  frame late. The screens agent has it.
 - **Memory after nine tabs** is higher than SwiftUI's and higher than on 0.81. Hermes V1 and Reanimated 4.7 had a
   known memory regression before Expo 57.0.17; 58.0.25 should carry the fix. Worth a device check before the owner's
   phone, and an Instruments allocation trace of the app process.
