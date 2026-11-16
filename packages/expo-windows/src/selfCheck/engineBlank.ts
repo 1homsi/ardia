@@ -11,13 +11,15 @@ const download = `http://127.0.0.1:${port}/download.bin`;
 
 async function withTab(name: string, url: string, run: (key: string) => Promise<void>) {
   const key = `self-check-blank-${name}`;
+  const profile = `incognito-blank-check-${name}@`;
   const windowId = await firstWindow();
   try {
-    await hostCall("tab.create", { key, url, profile: "" }, windowId);
+    await hostCall("tab.create", { key, url, profile }, windowId);
     await until(`the tab ${key} settles on its blank page`, LOAD_MS, () => listed(key), (tab) => tab?.url === BLANK && tab.loading === false);
     await run(key);
   } finally {
     await hostCall("tab.close", { key }).catch(() => null);
+    await hostCall("profile.release", { profile }).catch(() => null);
   }
 }
 
