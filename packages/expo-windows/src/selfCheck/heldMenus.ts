@@ -9,6 +9,7 @@ const LOAD_MS = 8000;
 const STALLED_MS = 3000;
 const SHOWN_MS = 4000;
 const CLOSED_MS = 1000;
+const GIVE_UP_MS = 5000;
 
 const menus = () => requireNativeModule<Pick<MenusModule, "openCount" | "devHoldMenu">>("ArdiaMenus");
 const dialogs = () => requireNativeModule<Pick<DialogsModule, "devReleaseDialogs">>("ArdiaDialogs");
@@ -39,6 +40,16 @@ async function menuCountReaches(count: number, withinMs: number) {
   return false;
 }
 
+async function releaseMenu(held: Promise<boolean>, withinMs: number) {
+  let pick: boolean | undefined;
+  void held.then((result) => (pick = result)).catch(() => undefined);
+  for (let waited = 0; waited < withinMs && pick === undefined; waited += 100) {
+    dialogs().devReleaseDialogs();
+    await settled(100);
+  }
+  return pick;
+}
+
 async function loadWhileMenuHeld(onUiThread: boolean, key: string, withinMs: number) {
   const [pageWindowId] = await windows().windowIds();
   expectTrue(pageWindowId, "no window is open to host the page");
@@ -52,10 +63,13 @@ async function loadWhileMenuHeld(onUiThread: boolean, key: string, withinMs: num
     const title = `held menu ${key}`;
     const loaded = pageLoads(key, title, withinMs);
     created = hostCall("tab.create", { key, url: `data:text/html,<title>${title}</title><p>loaded while a menu was open</p>`, profile: "" }, pageWindowId).catch(() => undefined);
-    return await loaded;
+    const didLoad = await loaded;
+    expectTrue(menus().openCount() === 1, "the held menu closed before the page check ended, so it proves nothing");
+    return didLoad;
   } finally {
-    dialogs().devReleaseDialogs();
-    expectTrue((await held) === false, "the released menu reported a pick");
+    const pick = await releaseMenu(held, GIVE_UP_MS);
+    expectTrue(pick !== undefined, `the held menu was still open ${GIVE_UP_MS} ms after its release`);
+    expectTrue(pick === false, "the released menu reported a pick");
     await created;
     await hostCall("tab.close", { key }).catch(() => undefined);
     await windows().closeWindow(MENU_OWNER);
