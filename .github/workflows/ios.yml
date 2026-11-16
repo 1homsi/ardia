@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - "packages/phone/ios/**"
+      - "packages/phone/src/**"
+      - "apps/phone/ios/**"
+      - "apps/phone/src/**"
+      - "apps/phone/package.json"
+      - "apps/phone/pnpm-lock.yaml"
+      - "apps/phone/app.json"
       - "apps/phone/scripts/bundle-shared.mjs"
       - "packages/sync/**"
       - "packages/core/**"
@@ -12,6 +18,12 @@ on:
     branches: [main]
     paths:
       - "packages/phone/ios/**"
+      - "packages/phone/src/**"
+      - "apps/phone/ios/**"
+      - "apps/phone/src/**"
+      - "apps/phone/package.json"
+      - "apps/phone/pnpm-lock.yaml"
+      - "apps/phone/app.json"
       - "apps/phone/scripts/bundle-shared.mjs"
       - "packages/sync/**"
       - "packages/core/**"
@@ -49,6 +61,36 @@ jobs:
           script: |
             const vouch = require(`${process.env.GITHUB_WORKSPACE}/.github/vouch/vouch.cjs`);
             await vouch.gate({ github, context, core });
+
+  app:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 75
+    env:
+      SCRATCH: ${{ github.workspace }}/.ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+      - name: The Expo app's dependencies and Pods
+        run: |
+          set -euo pipefail
+          (cd apps/phone && pnpm install --frozen-lockfile)
+          (cd apps/phone/ios && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install)
+          git diff --exit-code -- apps/phone/ios/Podfile.lock || { echo "::error::pod install changed apps/phone/ios/Podfile.lock: commit the lockfile pod install writes"; exit 1; }
+          git diff --exit-code -- apps/phone/ios ':!apps/phone/ios/Pods' || { echo "::error::pod install rewrote the iPhone project (diff above): run pod install locally and commit what it writes"; exit 1; }
+      - name: Build the Expo app for the simulator, unsigned
+        run: >-
+          xcodebuild -workspace apps/phone/ios/Ardia.xcworkspace -scheme Ardia -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$SCRATCH/dd"
+          CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO -quiet build
 
   packages:
     needs: gate
