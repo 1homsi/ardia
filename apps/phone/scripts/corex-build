@@ -8,10 +8,11 @@
 # 8 GB of its memory is free. Gradle runs without a daemon and Kotlin in-process, so nothing of ours stays resident.
 # pnpm is the version apps/phone/package.json pins, first on the path, since bundle-export runs it too, and TMPDIR
 # sits beside the clone, so the export's offline install finds pnpm's store on the same filesystem.
-# Keeps the newest 8 APKs. --compose-key is refused: the upgrade pair is built on the Mac.
+# apkanalyzer for check-names.py is cmdline-tools 23.0 (the Mac's), pinned by checksum beside the clone, not in the
+# shared SDK. Keeps the newest 8 APKs. --compose-key is refused: the upgrade pair is built on the Mac.
 set -euo pipefail
 if [ $# -lt 2 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && [ "$1" != "--help" ] && [ "$1" != "-h" ] && exit 64
   exit 0
 fi
@@ -60,8 +61,9 @@ cat > "$base/README.md" <<'README'
 `src/` is a clone of ardia used only to build the Android app on corex (`apps/phone/scripts/corex-build`).
 Every build fetches, detaches it at the requested commit and resets it there; untracked files are removed, and only
 the build outputs Git ignores stay. Never edit, commit or push from here: all work happens in the main checkout on
-the Mac. `tools/` holds the branch head's `apps/phone/scripts`, rewritten every build. APKs go to
-`~/Developer/ardia-phone-apks/`.
+the Mac. `tools/` holds the branch head's `apps/phone/scripts` and `apps/phone/test/r8`, rewritten every build.
+`pnpm-<version>/` and `cmdline-tools-23.0/` are the pinned pnpm and apkanalyzer; `tmp/` holds the bundle exports.
+APKs go to `~/Developer/ardia-phone-apks/`.
 README
 if [ ! -d "$src/.git" ]; then
   git clone --quiet --no-checkout "$remote" "$src"
@@ -77,7 +79,16 @@ git -C "$src" clean -ffdq
 [ -z "$(git -C "$src" status --porcelain)" ] || { echo "the build clone isn't clean at $commit" >&2; exit 1; }
 rm -rf "$tools"
 mkdir -p "$tools"
-git -C "$src" archive "$head" apps/phone/scripts | tar -x -C "$tools"
+git -C "$src" archive "$head" apps/phone/scripts apps/phone/test/r8 | tar -x -C "$tools"
+analyzerHome="$base/cmdline-tools-23.0"
+if [ ! -x "$analyzerHome/cmdline-tools/bin/apkanalyzer" ]; then
+  mkdir -p "$analyzerHome"
+  curl -fsSL -o "$analyzerHome/tools.zip" https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
+  echo "e025545c62a8e64c7559119566a569fb1dec5f60  $analyzerHome/tools.zip" | sha1sum -c --quiet
+  unzip -q -o "$analyzerHome/tools.zip" -d "$analyzerHome"
+  rm -f "$analyzerHome/tools.zip"
+fi
+export ARDIA_APKANALYZER="$analyzerHome/cmdline-tools/bin/apkanalyzer"
 
 pinned="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$src/apps/phone/package.json")"
 pnpmHome="$base/pnpm-$pinned"

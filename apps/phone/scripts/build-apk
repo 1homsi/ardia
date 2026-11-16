@@ -126,7 +126,7 @@ if [ "$stamped" != "$commit" ] || [ "$dirty" != "no" ] || [ "$stampedSource" != 
   echo "the APK says ${stamped:-no commit}, dirty: ${dirty:-unknown}, from the ${stampedSource:-unknown}, but this build bundled $commit from the $source: kept as $name.rejected.apk, not shipped" >&2
   exit 1
 fi
-if [ "$r8" = "1" ] && ! names="$(python3 "$root/apps/phone/test/r8/check-names.py" "$built")"; then
+if [ "$r8" = "1" ] && ! names="$(ARDIA_BUILD_ROOT="$root" python3 "$here/../test/r8/check-names.py" "$built" 2>&1)"; then
   printf '%s\n' "$names" >&2
   mv "$built" "$out/$name.rejected.apk"
   [ "$bundle" = "1" ] && mv "$out/$name.building.aab" "$out/$name.rejected.aab"

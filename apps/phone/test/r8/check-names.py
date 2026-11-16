@@ -7,7 +7,9 @@
 # Room's WorkDatabase_Impl with its no-argument constructor, and Expo's generated package list. Exits 1 on a loss.
 # Components switched on or off by the build's ardia_sync_offered value are listed with it; their classes are still checked.
 # check-names.py --self-test checks the constructor match on fixed dexdump records.
-import json, re, subprocess, sys, zipfile, pathlib
+# The SDK is ANDROID_HOME (else ~/Library/Android/sdk), apkanalyzer ARDIA_APKANALYZER (else the SDK's cmdline-tools),
+# and the sources ARDIA_BUILD_ROOT (else this checkout).
+import json, os, re, subprocess, sys, zipfile, pathlib
 
 def has_no_argument_constructor(section):
     return re.search(r"name\s*:\s*'<init>'\s*\n\s*type\s*:\s*'\(\)V'", section) is not None
@@ -22,13 +24,16 @@ if len(sys.argv) > 1 and sys.argv[1] == '--self-test':
     sys.exit(0)
 
 if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):
-    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:9]))
+    print('\n'.join(line[2:] for line in open(__file__).read().splitlines()[1:11]))
     sys.exit(0 if len(sys.argv) > 1 else 64)
 apk = sys.argv[1]
 baseline = sys.argv[2] if len(sys.argv) > 2 else None
-repo = pathlib.Path(__file__).resolve().parents[4]
-analyzer = str(pathlib.Path.home() / 'Library/Android/sdk/cmdline-tools/latest/bin/apkanalyzer')
-aapt2 = sorted((pathlib.Path.home() / 'Library/Android/sdk/build-tools').iterdir())[-1] / 'aapt2'
+repo = pathlib.Path(os.environ.get('ARDIA_BUILD_ROOT') or pathlib.Path(__file__).resolve().parents[4])
+sdk = pathlib.Path(os.environ.get('ANDROID_HOME') or pathlib.Path.home() / 'Library/Android/sdk')
+analyzer = os.environ.get('ARDIA_APKANALYZER') or str(sdk / 'cmdline-tools/latest/bin/apkanalyzer')
+if not os.access(analyzer, os.X_OK):
+    sys.exit(f'no apkanalyzer at {analyzer}: install the SDK cmdline-tools or set ARDIA_APKANALYZER')
+aapt2 = sorted((sdk / 'build-tools').iterdir(), key=lambda path: [int(part) if part.isdigit() else part for part in re.split(r'(\d+)', path.name)])[-1] / 'aapt2'
 
 listing = subprocess.run([analyzer, 'dex', 'packages', '--defined-only', apk], capture_output=True, text=True).stdout
 classes = {line.split('\t')[3] for line in listing.splitlines() if line.startswith('C') and len(line.split('\t')) >= 4}
