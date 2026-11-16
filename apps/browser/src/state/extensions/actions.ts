@@ -133,6 +133,7 @@ export async function confirmInstall() {
     try {
       await resolveExtensionInstallPrompt(request.prompt.requestId, true);
     } catch (error) {
+      if (useExtensions.getState().install) return;
       const stale = (error as { code?: unknown } | null)?.code === "ERR_EXTENSION_PROMPT_STALE";
       useExtensions.setState({ install: { windowId: request.windowId, profile: request.profile, source: request.source, status: "error", error: stale ? STALE_PROMPT : errorText(error) } });
       return;

@@ -260,3 +260,25 @@ test("Add on an install prompt the engine no longer holds says so in the dialog,
     native.extensionAnswers.resolveInstallPrompt = async () => null;
   }
 });
+
+test("a failed Add doesn't replace an install prompt that arrived while it was waiting", async () => {
+  const { showInstallPrompt, confirmInstall } = await import("./actions.ts");
+  const { ArdiaError } = await import("@ardia/core");
+  const { w } = setup();
+  let fail;
+  native.extensionAnswers.resolveInstallPrompt = (requestId, accepted) =>
+    accepted ? new Promise((_, reject) => { fail = () => reject(new ArdiaError("ERR_EXTENSION_PROMPT_STALE", "The prompt belongs to another window")); }) : Promise.resolve(null);
+  const prompt = { requestId: "first", profile: "", id: "abc", name: "Ext", version: "1", type: "install", icon: null, permissions: [], tabId: null };
+  try {
+    showInstallPrompt(w, prompt);
+    const confirming = confirmInstall();
+    showInstallPrompt(w, { ...prompt, requestId: "second" });
+    fail();
+    await confirming;
+    const install = E().install;
+    assert.equal(install?.status, "prompt");
+    assert.equal(install.prompt.requestId, "second");
+  } finally {
+    native.extensionAnswers.resolveInstallPrompt = async () => null;
+  }
+});
