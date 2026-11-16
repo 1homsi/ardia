@@ -232,7 +232,10 @@ final class TrayMotion {
   private func beginMorph(look: TrayMorphLook, from shownSurface: TrayMorph.Start?) {
     morph = TrayMorph(card: card, fieldCenter: fieldCenter, of: controller.tray, in: controller.view, look: look, from: shownSurface)
     let velocity = releaseVelocity
-    move(.immediate) { [self] in isClosing = true }
+    move(.immediate) { [self] in
+      isClosing = true
+      if !keyboardUp { morph?.appear() }
+    }
     pendingFlight = PendingFlight(velocity: velocity)
     DispatchQueue.main.async { [weak self] in self?.launchMorph() }
   }

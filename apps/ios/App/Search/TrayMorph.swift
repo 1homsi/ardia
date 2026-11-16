@@ -95,7 +95,7 @@ final class TrayMorph {
     view.removeFromSuperview()
   }
 
-  private func appear() {
+  func appear() {
     UIView.performWithoutAnimation { view.isHidden = false }
   }
 
@@ -165,7 +165,8 @@ final class TrayMorphView: UIView {
     tint.overrideUserInterfaceStyle = look.panelStyle
     tint.layer.cornerCurve = .continuous
     tint.clipsToBounds = true
-    [tint, surface, contents, faceSlot].forEach(addSubview)
+    let layers = look.usesGlass ? [tint, surface, contents, faceSlot] : [surface, tint, contents, faceSlot]
+    layers.forEach(addSubview)
     if let snapshot {
       snapshot.frame = CGRect(origin: .zero, size: cardSize)
       contents.addSubview(snapshot)
