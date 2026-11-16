@@ -1,35 +1,55 @@
-import { engineAvailable, engineCallJson, hostCall } from "../engine/host";
+import { engineAvailable, engineCallJson, hostCall, onEngineTopic } from "../engine/host";
 import { httpPagesPort } from "./engineBackForward";
 import { expectEqual, expectTrue, type Check } from "./check";
-import { click, evaluate, firstWindow, heard, LEFT, listed, show, until } from "./engineSleep";
+import { click, evaluate, firstWindow, heard, LEFT, listed, pause, show, until } from "./engineSleep";
 
 const SETTLE_MS = 6000;
 const LOAD_MS = 20000;
 const PLAY_BUTTON = { x: 100, y: 130 };
+const NEXT_LINK = { x: 100, y: 185 };
+const CTRL = 2;
+const AUTOPLAY_SETTLES_MS = 2500;
+const PER_PAGE_COUNT = 20;
 
-type Played = { paused?: boolean; time?: number; tries?: string[] };
+type Played = { paused?: boolean; time?: number; tries?: string[]; active?: boolean };
 
 const port = engineAvailable() ? httpPagesPort() : null;
 const origin = `http://127.0.0.1:${port}`;
 
-async function setAutoplay(value: "allow" | "block" | "default") {
-  const reply = JSON.parse(await engineCallJson("ac_site_settings_set", "", JSON.stringify({ origin, type: "autoplay", value }))) as { error?: unknown };
-  expectEqual(reply.error, undefined, `Autoplay set to ${value} for ${origin}`);
+async function setSite(type: "autoplay" | "sound", value: "allow" | "block" | "default") {
+  const reply = JSON.parse(await engineCallJson("ac_site_settings_set", "", JSON.stringify({ origin, type, value }))) as { error?: unknown };
+  expectEqual(reply.error, undefined, `${type} set to ${value} for ${origin}`);
 }
+
+const setAutoplay = (value: "allow" | "block" | "default") => setSite("autoplay", value);
 
 const blockEverywhere = (enabled: boolean) => hostCall<{ everywhere?: unknown }>("autoplay.everywhere", { enabled });
 
-async function withMedia(name: string, path: string, title: string, run: (key: string) => Promise<void>) {
+async function withMedia(name: string, path: string, title: string, run: (key: string, windowId: string) => Promise<void>) {
   const key = `self-check-autoplay-${name}`;
   const windowId = await firstWindow();
   try {
     await hostCall("tab.create", { key, url: `${origin}/${path}`, profile: "" }, windowId);
     await show(key, windowId, LEFT);
     await until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === title && tab.loading === false);
-    await run(key);
+    await run(key, windowId);
   } finally {
     await hostCall("tab.close", { key }).catch(() => null);
   }
+}
+
+const tried = async (key: string, media: string) =>
+  evaluate(key, `const media = ${media}; window.lastMedia = media; media.play().then(() => "played", (error) => error.name).then((result) => post("result", JSON.stringify(result)));`);
+const stateOf = async (key: string, media: string) =>
+  ((await evaluate(key, `const media = ${media}; post("result", JSON.stringify(media ? { paused: media.paused, time: media.currentTime } : {}));`)) ?? {}) as Played;
+const DETACHED_MUTED_VIDEO = 'Object.assign(document.createElement("video"), { muted: true, loop: true, src: "/tone.wav" })';
+const DETACHED_SOUND = 'Object.assign(new Audio("/tone.wav"), { loop: true })';
+const loadedAt = (key: string, path: string, title: string) => until(`the page ${key} shows ${path}`, LOAD_MS, () => listed(key), (tab) => String(tab?.url).endsWith(path) && tab?.title === title && tab.loading === false);
+
+async function refusedThenStill(key: string, media: string, what: string) {
+  expectEqual(await tried(key, media), "NotAllowedError", `${what}: play() is refused as on the Mac`);
+  await pause(AUTOPLAY_SETTLES_MS / 2);
+  expectEqual((await stateOf(key, "window.lastMedia")).paused, true, `${what}: it stays paused`);
 }
 
 const played = async (key: string) => ((await evaluate(key, 'post("result", JSON.stringify({ paused: m.paused, time: m.currentTime, tries }));')) ?? {}) as Played;
@@ -40,8 +60,17 @@ const blockedHeard = (key: string, what: string) => heard("tab", (event) => even
 
 async function restore() {
   await blockEverywhere(false).catch(() => null);
-  await engineCallJson("ac_site_settings_set", "", JSON.stringify({ origin, type: "autoplay", value: "default" })).catch(() => null);
+  for (const type of ["autoplay", "sound"]) await engineCallJson("ac_site_settings_set", "", JSON.stringify({ origin, type, value: "default" })).catch(() => null);
 }
+
+const blocked = (run: () => Promise<void>) => async () => {
+  try {
+    await setAutoplay("block");
+    await run();
+  } finally {
+    await restore();
+  }
+};
 
 const autoplayChecks: Check[] = [
   {
@@ -139,6 +168,176 @@ const autoplayChecks: Check[] = [
         await restore();
       }
     },
+  },
+  {
+    name: "engine autoplay: a muted video the page never inserted is refused on a blocked site",
+    run: blocked(() => withMedia("detached", "media", "media page", (key) => refusedThenStill(key, DETACHED_MUTED_VIDEO, "a detached muted video"))),
+  },
+  {
+    name: "engine autoplay: a detached Audio with sound is refused on a site whose Sound was allowed before blocking turned on",
+    run: async () => {
+      try {
+        await setSite("sound", "allow");
+        await withMedia("sound-allowed", "media", "media page", async (key) => {
+          await setAutoplay("block");
+          await pause(500);
+          await refusedThenStill(key, DETACHED_SOUND, "a detached Audio with sound after the site's Sound allowance");
+        });
+      } finally {
+        await restore();
+      }
+    },
+  },
+  {
+    name: "engine autoplay: a muted video in a closed shadow root is refused, by autoplay attribute and by play()",
+    run: blocked(() =>
+      withMedia("shadow", "media", "media page", async (key) => {
+        const byPlay = await evaluate(
+          key,
+          `const root = document.body.appendChild(document.createElement("div")).attachShadow({ mode: "closed" }); window.shadowAttribute = root.appendChild(Object.assign(document.createElement("video"), { muted: true, autoplay: true, loop: true, src: "/tone.wav" })); const video = root.appendChild(Object.assign(document.createElement("video"), { muted: true, loop: true, src: "/tone.wav" })); window.shadowPlay = video; video.play().then(() => "played", (error) => error.name).then((result) => post("result", JSON.stringify(result)));`,
+        );
+        expectEqual(byPlay, "NotAllowedError", "play() on a muted video in a closed shadow root");
+        await pause(AUTOPLAY_SETTLES_MS);
+        expectEqual([(await stateOf(key, "window.shadowAttribute")).paused, (await stateOf(key, "window.shadowPlay")).paused], [true, true], "both shadow-root videos stay paused");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: a page that stops play events on window capture still gets no autoplay",
+    run: blocked(() =>
+      withMedia("stopped", "media", "media page", async (key) => {
+        await evaluate(key, 'addEventListener("play", (event) => event.stopPropagation(), true); window.stopped = document.body.appendChild(Object.assign(document.createElement("video"), { muted: true, autoplay: true, loop: true, src: "/tone.wav" })); post("result", "true");');
+        await refusedThenStill(key, DETACHED_MUTED_VIDEO, "a muted play() under the page's stopPropagation");
+        await pause(AUTOPLAY_SETTLES_MS / 2);
+        expectEqual((await stateOf(key, "window.stopped")).paused, true, "an autoplay attribute under the page's stopPropagation stays paused");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: an element named ardiaAutoplayGuard in the page changes nothing",
+    run: blocked(() =>
+      withMedia("clobber", "clobber", "clobber page", async (key) => {
+        await pause(AUTOPLAY_SETTLES_MS);
+        expectEqual((await stateOf(key, 'document.getElementById("m")')).paused, true, "the clobbering page's muted autoplay stays paused");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: after document.open() the page still gets no autoplay",
+    run: blocked(() =>
+      withMedia("reopen", "media", "media page", async (key) => {
+        await evaluate(key, `document.open(); document.write("<title>reopened</title><video id=w src='/tone.wav' autoplay muted loop></video>"); document.close(); post("result", "true");`);
+        await until("the reopened document shows", LOAD_MS, () => listed(key), (tab) => tab?.title === "reopened");
+        await pause(AUTOPLAY_SETTLES_MS);
+        expectEqual((await stateOf(key, 'document.getElementById("w")')).paused, true, "the rewritten document's muted autoplay stays paused");
+        await refusedThenStill(key, DETACHED_MUTED_VIDEO, "a muted play() after document.open()");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: a click inside a cross-site iframe does not let the top page play",
+    run: blocked(() =>
+      withMedia("iframe-click", "framed?quiet", "framed page", async (key) => {
+        await until("the iframe reports", SETTLE_MS, () => framed(key), (state) => state.paused === true);
+        await click(key, PLAY_BUTTON.x, PLAY_BUTTON.y);
+        await pause(500);
+        await refusedThenStill(key, DETACHED_SOUND, "the top page's play with sound after a click in the iframe");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: a click on page A does not let same-origin page B, reached by a link, play",
+    run: blocked(() =>
+      withMedia("next", "media", "media page", async (key) => {
+        await click(key, NEXT_LINK.x, NEXT_LINK.y);
+        await loadedAt(key, "/media?second", "media page");
+        await refusedThenStill(key, DETACHED_SOUND, "page B's play with sound");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: a background tab opened by Ctrl+click on a same-site link does not play",
+    run: blocked(() =>
+      withMedia("ctrl", "media", "media page", async (key, windowId) => {
+        const opened = heard("tab.opened", (event) => event.opener === key, "a background tab from Ctrl+click");
+        await click(key, NEXT_LINK.x, NEXT_LINK.y, CTRL);
+        const adopt = (await opened as { adopt?: unknown }).adopt;
+        expectEqual(typeof adopt, "string", "the background tab is offered to the app");
+        const background = `${key}-background`;
+        try {
+          await hostCall("tab.create", { key: background, adopt, profile: "" }, windowId);
+          await show(background, windowId, LEFT);
+          await loadedAt(background, "/media?second", "media page");
+          await refusedThenStill(background, DETACHED_SOUND, "the background tab's play with sound");
+        } finally {
+          await hostCall("tab.close", { key: background }).catch(() => null);
+        }
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: Ardia's play toggle gives no user activation to a cross-site iframe",
+    run: () =>
+      withMedia("toggle", "framed?quiet", "framed page", async (key) => {
+        await until("the iframe reports no activation yet", SETTLE_MS, () => framed(key), (state) => state.active === false);
+        await hostCall("tab.call", { key, method: "mediaCommand", action: "toggle" });
+        await pause(1000);
+        expectEqual((await framed(key)).active, false, "navigator.userActivation.hasBeenActive in the cross-site iframe after Ardia's toggle");
+      }),
+  },
+  {
+    name: "engine autoplay: an iframe in a page restored from the back/forward cache follows a setting changed while it was cached",
+    run: async () => {
+      try {
+        await withMedia("cached", "framed?quiet", "framed page", async (key) => {
+          await until("the iframe reports", SETTLE_MS, () => framed(key), (state) => state.paused === true);
+          await hostCall("tab.call", { key, method: "loadUrl", url: `${origin}/a` });
+          await until("the next page loads", LOAD_MS, () => listed(key), (tab) => tab?.title === "loaded a");
+          await setAutoplay("block");
+          await hostCall("tab.call", { key, method: "goBack" });
+          await until("the framed page is back", LOAD_MS, () => listed(key), (tab) => tab?.title === "framed page" && tab.loading === false);
+          expectEqual(await evaluate(key, 'post("result", JSON.stringify(window.restored));'), true, "the framed page came back from the back/forward cache");
+          await evaluate(key, 'frameState = null; frames[0].postMessage("play-muted", "*"); post("result", "true");');
+          const state = await until("the iframe answers the play", SETTLE_MS, () => framed(key), (now) => (now.tries?.length ?? 0) > 0);
+          expectEqual(state.tries, ["NotAllowedError"], "the restored iframe's muted play");
+        });
+      } finally {
+        await restore();
+      }
+    },
+  },
+  {
+    name: "engine autoplay: a top-level blob: page made by a blocked site gets no autoplay",
+    run: blocked(() =>
+      withMedia("blob", "media", "media page", async (key) => {
+        await evaluate(key, `const url = URL.createObjectURL(new Blob(["<title>blob page</title><video id=b src='" + location.origin + "/tone.wav' autoplay muted loop></video>"], { type: "text/html" })); setTimeout(() => { location.href = url; }, 0); post("result", "true");`);
+        await until("the blob: page shows", LOAD_MS, () => listed(key), (tab) => String(tab?.url).startsWith("blob:") && tab?.title === "blob page" && tab.loading === false);
+        await pause(AUTOPLAY_SETTLES_MS);
+        expectEqual((await stateOf(key, 'document.getElementById("b")')).paused, true, "the blob: page's muted autoplay stays paused");
+      }),
+    ),
+  },
+  {
+    name: "engine autoplay: held plays are counted per page, at most 20 each, and a page change sends the last page's count on its own",
+    run: blocked(async () => {
+      const key = "self-check-autoplay-count";
+      const counts: number[] = [];
+      const watching = onEngineTopic("tab", (event: { key?: unknown; name?: unknown; data?: { count?: unknown } }) => {
+        if (event.key === key && event.name === "autoplayBlocked") counts.push(Number(event.data?.count));
+      });
+      try {
+        await withMedia("count", "media?burst", "media page", async () => {
+          await hostCall("tab.call", { key, method: "loadUrl", url: `${origin}/media?burst-two` });
+          await loadedAt(key, "/media?burst-two", "media page");
+          await until("both pages' counts arrive", SETTLE_MS, async () => counts.reduce((sum, count) => sum + count, 0), (sum) => sum >= 2 * PER_PAGE_COUNT);
+          await pause(1500);
+        });
+        expectTrue(counts.every((count) => count > 0 && count <= PER_PAGE_COUNT), `each count is one page's, at most ${PER_PAGE_COUNT}: ${JSON.stringify(counts)}`);
+        expectEqual(counts.reduce((sum, count) => sum + count, 0), 2 * PER_PAGE_COUNT, `two pages of 25 held plays each: ${JSON.stringify(counts)}`);
+      } finally {
+        watching.remove();
+      }
+    }),
   },
 ];
 
