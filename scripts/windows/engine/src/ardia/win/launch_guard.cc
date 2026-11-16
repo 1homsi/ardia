@@ -11,6 +11,8 @@
 #include <string>
 
 #include "base/command_line.h"
+#include "base/files/file_path.h"
+#include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
@@ -29,6 +31,13 @@ constexpr const wchar_t* kRestoreStateFiles[] = {
     L"launch-look.json",
     L"switches-cache.json",
     L"bookmarks-cache.json",
+};
+
+constexpr const wchar_t* kGpuCaches[] = {
+    L"GrShaderCache",          L"GraphiteDawnCache",
+    L"ShaderCache",            L"GPUPersistentCache",
+    L"Default\\GPUCache",      L"Default\\DawnGraphiteCache",
+    L"Default\\DawnWebGPUCache",
 };
 
 constexpr char kWaitedForPreviousSwitch[] = "ardia-waited-for-previous-ms";
@@ -150,6 +159,18 @@ std::wstring SetRestoreStateAside(const std::wstring& data_dir) {
     }
   }
   return moved ? folder : std::wstring();
+}
+
+int ClearGpuCaches(const std::wstring& chromium_user_data_dir) {
+  int cleared = 0;
+  for (const wchar_t* name : kGpuCaches) {
+    const base::FilePath cache =
+        base::FilePath(chromium_user_data_dir).Append(name);
+    if (base::PathExists(cache) && base::DeletePathRecursively(cache)) {
+      cleared++;
+    }
+  }
+  return cleared;
 }
 
 void AppendLog(const std::string& line) {
@@ -329,13 +350,15 @@ void GuardBrowserLaunch(const std::wstring& chromium_user_data_dir,
   const int next = NextUnfinishedStarts(recorded, &recover);
   if (recover) {
     state.facts.recovered_to = SetRestoreStateAside(data_dir);
+    const int gpu_caches = ClearGpuCaches(chromium_user_data_dir);
     const std::string line =
         "launch guard: the last " + std::to_string(recorded) +
         " starts did not finish; " +
         (state.facts.recovered_to.empty()
              ? std::string("there was no restore state to set aside")
              : "the restore state was set aside in " +
-                   base::WideToUTF8(state.facts.recovered_to));
+                   base::WideToUTF8(state.facts.recovered_to)) +
+        ", and " + std::to_string(gpu_caches) + " graphics caches were cleared";
     LOG(WARNING) << "Ardia " << line;
     AppendLog(line);
   }

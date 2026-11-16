@@ -482,8 +482,12 @@ is plain Chromium.
 - A start that crashes or fails before it has run for 15 s counts as unfinished (`launch-starts.txt` in the data
   folder; a quit before then counts as finished). After two unfinished starts in a row, the next one moves the
   state Ardia restores at launch (`session.json`, `launch-look.json`, `switches-cache.json`, `bookmarks-cache.json`)
-  to `Recovery\<date-time>` in the data folder and says so once it has opened, so a profile that crashes Ardia
-  at every start opens again on its own. Chromium's profile (bookmarks, history, passwords, cookies) isn't touched.
+  to `Recovery\<date-time>` in the data folder, deletes Chromium's graphics caches (`GrShaderCache`,
+  `GraphiteDawnCache`, `ShaderCache`, `GPUPersistentCache` and the profile's `GPUCache`, `DawnGraphiteCache`,
+  `DawnWebGPUCache`: a relaunch differs from a first run in what the first session wrote there), and says so once it
+  has opened, so a profile that crashes Ardia at every start opens again on its own. Chromium's profile (bookmarks,
+  history, passwords, cookies) isn't touched. #2097's recording (the app gone about 4 s after its window appears, at
+  every launch after onboarding) is that shape; the launch log now kept in `Logs` says what ended it.
 - A window closed while minimized keeps its restored place and size for the next launch; it used to save the
   minimized frame and come back as a 480 x 360 window in the corner.
 - `scripts/windows/relaunch-check.ps1` (CI, after the installer check) installs the build and closes and reopens
