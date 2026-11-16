@@ -38,7 +38,12 @@ class MotionCurveRecord : Record {
 
 class MotionView(context: Context, appContext: AppContext) : ExpoView(context, appContext), MotionSurface {
     private val onMotionEnd by EventDispatcher()
-    private val runner = MotionRunner(this).apply { onEnd = { finished -> onMotionEnd(mapOf("finished" to finished)) } }
+    private val runner = MotionRunner(this).apply {
+        onEnd = { finished -> onMotionEnd(mapOf("finished" to finished)) }
+        if (PhoneLab.isOn) trace = { line -> lab(line) }
+    }
+    private var shownAt = 0L
+    private var drawsToLog = 0
     private val density = resources.displayMetrics.density
     private var radius: Float? = null
     private var pendingTarget: MotionValues? = null
@@ -65,6 +70,10 @@ class MotionView(context: Context, appContext: AppContext) : ExpoView(context, a
 
     fun applyProps() {
         val next = pendingTarget ?: return
+        if (PhoneLab.isOn && next != runner.shown) {
+            shownAt = android.os.SystemClock.uptimeMillis()
+            drawsToLog = LOGGED_DRAWS
+        }
         runner.show(next, pendingCurve, pendingStart)
     }
 
@@ -137,12 +146,35 @@ class MotionView(context: Context, appContext: AppContext) : ExpoView(context, a
     }
 
     override fun onDetachedFromWindow() {
+        if (PhoneLab.isOn) {
+            if (runner.shown != null) lab("detached")
+            viewTreeObserver.removeOnPreDrawListener(framesLogged)
+        }
         runner.interrupt()
         super.onDetachedFromWindow()
     }
 
+    private val framesLogged = android.view.ViewTreeObserver.OnPreDrawListener {
+        if (drawsToLog > 0) {
+            drawsToLog -= 1
+            lab("frame ${android.os.SystemClock.uptimeMillis() - shownAt} ms after its props: ${width}x$height at scale ${"%.4f".format(scaleX)}, translation ${translationX.toInt()},${translationY.toInt()}, pivot ${pivotX.toInt()},${pivotY.toInt()}, alpha ${"%.2f".format(alpha)}${if (isAttachedToWindow) "" else ", not attached"}")
+        }
+        true
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (PhoneLab.isOn) {
+            lab("attached ${android.os.SystemClock.uptimeMillis() - shownAt} ms after its props, ${width}x$height")
+            viewTreeObserver.addOnPreDrawListener(framesLogged)
+        }
+    }
+
+    private fun lab(line: String) = android.util.Log.i("PAGELAB", "PAGELAB motion view $id: $line")
+
     private companion object {
         const val OPACITY_STEPS = 255f
+        const val LOGGED_DRAWS = 8
     }
 }
 

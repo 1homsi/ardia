@@ -127,6 +127,7 @@ interface MotionClock {
 
 class MotionRunner(private val surface: MotionSurface) {
     var onEnd: ((Boolean) -> Unit)? = null
+    var trace: ((String) -> Unit)? = null
     var shown: MotionValues? = null
         private set
     var move = 0
@@ -156,6 +157,7 @@ class MotionRunner(private val surface: MotionSurface) {
         if (next == shown) return
         val mounting = shown == null && start != null && start != next
         val before = if (mounting) start else presentation()
+        trace?.invoke("show #${move + 1} ${if (mounting) "mount from $start" else if (shown == null) "first, no motion" else "from where it is $before${if (clock != null) ", interrupting #$move" else ""}"} to $next")
         move += 1
         val mine = move
         stopRunning()
@@ -173,6 +175,7 @@ class MotionRunner(private val surface: MotionSurface) {
         }
         val travel = changed.maxOf { channel -> surface.pixels(channel, abs(next.value(channel)!! - before!!.value(channel)!!)) }
         val fitted = nextCurve.overPixels(travel)
+        trace?.invoke("move #$mine ${changed.joinToString(",")} over ${travel.toInt()} px, ${fitted.durationMillis} ms")
         from = before
         curve = fitted
         moving = changed
@@ -185,8 +188,12 @@ class MotionRunner(private val surface: MotionSurface) {
                 surface.set(next.copy(cornerRadius = a + (b - a) * fitted.interpolator.getInterpolation(fraction)), setOf(MotionChannel.CornerRadius))
             }
         }) { finished ->
-            if (mine != move || reported == mine) return@startClock
+            if (mine != move || reported == mine) {
+                trace?.invoke("move #$mine stopped, finished $finished, not reported (now #$move)")
+                return@startClock
+            }
             reported = mine
+            trace?.invoke("move #$mine ended, finished $finished")
             clock = null
             moving = emptySet()
             surface.set(next, MotionChannel.entries.toSet())
