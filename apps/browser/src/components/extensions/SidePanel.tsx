@@ -31,17 +31,21 @@ export function ExtensionSidePanel() {
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const gap = useCardFrame().splitGap;
-  const [leaving, setLeaving] = useState<SidePanel | null>(null);
   const lastShown = useRef<SidePanel | undefined>(panel);
   const lastSeen = useRef<{ state: string; tab?: string }>({ state: "closed" });
-
-  useEffect(() => {
+  const [exit, setExit] = useState<{ state: string; card: SidePanel | null; instant: boolean }>({ state, card: null, instant: false });
+  let { card: leaving, instant } = exit;
+  if (exit.state !== state) {
     const tab = shownReadyTab(windowId);
     const before = lastSeen.current;
-    const tabSwitch = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
-    setLeaving(!panel && !tabSwitch ? (lastShown.current ?? null) : null);
-    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: tabSwitch ? 0 : duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
-      if (finished) setLeaving(null);
+    instant = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
+    leaving = !panel && !instant ? (lastShown.current ?? null) : null;
+    setExit({ state, card: leaving, instant });
+  }
+
+  useEffect(() => {
+    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: instant ? 0 : duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
+      if (finished) setExit((now) => (now.state === state ? { ...now, card: null } : now));
     });
   }, [state]);
   useEffect(() => {
