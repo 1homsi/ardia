@@ -165,7 +165,7 @@ export type PageSelection = { text: string; rect: { x: number; y: number; width:
 export type ScrollState = "down" | "up" | "top";
 export type ProtectedMediaRequest = { keySystem: string; main: boolean };
 export type FairPlayReport = {
-  event: "played" | "failed" | "mirrored" | "mirrorResync" | "pip" | "choppy";
+  event: "played" | "failed" | "mirrored" | "mirrorResync" | "pip" | "pipReopen" | "choppy";
   step?: "license" | "playback" | "player";
   video?: boolean;
   site?: "youtube";

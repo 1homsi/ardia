@@ -73,6 +73,7 @@ using namespace ardia_protected_video;
   _started = NO;
   _stalled = NO;
   _pendingTarget = NAN;
+  _sizeChangeAt = NAN;
   _endedSent = NO;
 }
 
@@ -236,6 +237,10 @@ using namespace ardia_protected_video;
   if (!format || (lane->_format && CMFormatDescriptionEqual(format, lane->_format))) return;
   const CMVideoDimensions size = CMVideoFormatDescriptionGetDimensions(format);
   Trace(@"video format %dx%d from %.3f decode %.3f", size.width, size.height, StartOf(sample), CMTimeGetSeconds(CMSampleBufferGetDecodeTimeStamp(sample)));
+  if (lane->_format) {
+    const CMVideoDimensions was = CMVideoFormatDescriptionGetDimensions(lane->_format);
+    if (was.width != size.width || was.height != size.height) _sizeChangeAt = std::isfinite(_sizeChangeAt) ? MIN(_sizeChangeAt, StartOf(sample)) : StartOf(sample);
+  }
   CFRetain(format);
   if (lane->_format) CFRelease(lane->_format);
   lane->_format = format;
@@ -338,6 +343,10 @@ using namespace ardia_protected_video;
   if (video.status == AVQueuedSampleBufferRenderingStatusFailed) return [self failAt:@"playback" reason:video.error.description ?: @"video renderer failed"];
   if (_audio.status == AVQueuedSampleBufferRenderingStatusFailed) return [self failAt:@"playback" reason:_audio.error.description ?: @"audio renderer failed"];
   const double now = [self position];
+  if (std::isfinite(_sizeChangeAt) && now >= _sizeChangeAt) {
+    _sizeChangeAt = NAN;
+    if (_inPip) [self reconnectPictureInPicture];
+  }
   if (video.requiresFlushToResumeDecoding) {
     Trace(@"video decoder needs a flush at %.3f", now);
     [self restart:_videoLane at:now];

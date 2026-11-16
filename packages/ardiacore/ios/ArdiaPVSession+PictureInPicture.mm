@@ -33,6 +33,14 @@ void HideEmptyMirror(NSView *view) {
   Trace(@"pip controller ready: possible=%d", _pip.pictureInPicturePossible);
 }
 
+- (void)reconnectPictureInPicture {
+  if (!_pip.pictureInPictureActive || _pipReopening) return;
+  Trace(@"pip reopens after a video size change");
+  _pipReopening = YES;
+  [self report:@{@"event" : @"pipReopen", @"video" : @YES}];
+  [_pip stopPictureInPicture];
+}
+
 - (void)fitPictureInPicture {
   NSView *panel = _pipPanel;
   if (!_inPip || !panel) return;
@@ -47,7 +55,7 @@ void HideEmptyMirror(NSView *view) {
   [self unwatchPictureInPicturePanel];
   NSView *panel = PictureInPicturePanelContent();
   Trace(@"pip panel %@", panel ? NSStringFromSize(panel.bounds.size) : @"missing");
-  [self report:@{@"event" : @"pip", @"video" : @YES, @"fitted" : @(panel != nil)}];
+  if (!_pipReopening) [self report:@{@"event" : @"pip", @"video" : @YES, @"fitted" : @(panel != nil)}];
   if (!panel) return;
   _pipPanel = panel;
   panel.postsFrameChangedNotifications = YES;
@@ -75,6 +83,7 @@ void HideEmptyMirror(NSView *view) {
   _pip.delegate = nil;
   _pip = nil;
   _pipWanted = NO;
+  _pipReopening = NO;
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
@@ -103,6 +112,7 @@ void HideEmptyMirror(NSView *view) {
     if (!session || session->_pipRequest != request || !session->_pipWanted || session->_pip.pictureInPictureActive) return;
     Trace(@"pip never became possible");
     session->_pipWanted = NO;
+    session->_pipReopening = NO;
     [session deliverPictureInPicture];
   });
   return YES;
@@ -114,6 +124,7 @@ void HideEmptyMirror(NSView *view) {
 
 - (void)exitPictureInPicture {
   _pipWanted = NO;
+  _pipReopening = NO;
   const NSInteger request = ++_pipRequest;
   Trace(@"pip stop requested: active=%d", _pip.pictureInPictureActive);
   if (_pip.pictureInPictureActive) {
@@ -145,6 +156,7 @@ void HideEmptyMirror(NSView *view) {
   _inPip = YES;
   [self place];
   [self watchPictureInPicturePanel];
+  _pipReopening = NO;
   [self deliverPictureInPicture];
 }
 
@@ -153,12 +165,21 @@ void HideEmptyMirror(NSView *view) {
   _inPip = NO;
   [self unwatchPictureInPicturePanel];
   [self place];
+  if (_pipReopening) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (self->_inPip || [self startPictureInPicture]) return;
+      self->_pipReopening = NO;
+      [self deliverPictureInPicture];
+    });
+    return;
+  }
   [self deliverPictureInPicture];
 }
 
 - (void)pictureInPictureController:(AVPictureInPictureController *)controller failedToStartPictureInPictureWithError:(NSError *)error {
   Trace(@"pip failed: %@", error.localizedDescription);
   _pipWanted = NO;
+  _pipReopening = NO;
   _inPip = NO;
   [self unwatchPictureInPicturePanel];
   [self deliverPictureInPicture];

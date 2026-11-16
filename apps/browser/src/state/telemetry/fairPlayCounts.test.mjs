@@ -28,6 +28,7 @@ async function sentUsageCounts() {
       mirrorResyncs: e.properties.fairplay_video_mirror_resyncs,
       pip: e.properties.fairplay_video_pip,
       pipUnfitted: e.properties.fairplay_video_pip_unfitted,
+      pipReopens: e.properties.fairplay_video_pip_reopens,
       choppy: e.properties.fairplay_video_choppy,
       youtubePlayed: e.properties.fairplay_youtube_played,
       youtubeLicense: e.properties.fairplay_youtube_failed_license,
@@ -36,7 +37,7 @@ async function sentUsageCounts() {
     }));
 }
 
-test("FairPlay bridge plays, failures per step, Picture in Picture sessions and choppy videos are counted, unknown reports are ignored, sent on their own, then start again from zero", async () => {
+test("FairPlay bridge plays, failures per step, Picture in Picture sessions and reopens and choppy videos are counted, unknown reports are ignored, sent on their own, then start again from zero", async () => {
   client.loadChoice();
   client.setSharing(true, "onboarding");
 
@@ -58,6 +59,9 @@ test("FairPlay bridge plays, failures per step, Picture in Picture sessions and 
   fairPlay.noteFairPlay({ event: "pip", video: true, fitted: true });
   fairPlay.noteFairPlay({ event: "pip", video: true, fitted: false });
   fairPlay.noteFairPlay({ event: "pip", fitted: false });
+  fairPlay.noteFairPlay({ event: "pipReopen", video: true });
+  fairPlay.noteFairPlay({ event: "pipReopen", video: true });
+  fairPlay.noteFairPlay({ event: "pipReopen" });
   fairPlay.noteFairPlay({ event: "choppy", video: true });
   fairPlay.noteFairPlay({ event: "choppy" });
   fairPlay.noteFairPlay({ event: "played", video: true, site: "youtube" });
@@ -79,6 +83,7 @@ test("FairPlay bridge plays, failures per step, Picture in Picture sessions and 
       mirrorResyncs: 2,
       pip: 3,
       pipUnfitted: 1,
+      pipReopens: 2,
       choppy: 1,
       youtubePlayed: 2,
       youtubeLicense: 1,

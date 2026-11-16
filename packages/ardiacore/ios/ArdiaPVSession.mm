@@ -20,6 +20,7 @@ using namespace ardia_protected_video;
     _keyBatch = [NSMutableArray array];
     _tracks = [NSMutableDictionary dictionary];
     _pendingTarget = NAN;
+    _sizeChangeAt = NAN;
     _boundaryTime = NAN;
     _tracedRange = kCMTimeRangeInvalid;
     _rate = 1;
