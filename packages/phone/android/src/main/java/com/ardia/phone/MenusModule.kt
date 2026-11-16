@@ -78,7 +78,7 @@ class ActionSheetRecord : Record {
 }
 
 internal object NativeMenuRules {
-    const val ARGUMENT = "ArdiaNativeMenus"
+    const val DRAWN_ARGUMENT = "ArdiaDrawnMenus"
 
     data class Item(val id: String, val title: String, val subtitle: String?, val destructive: Boolean, val disabled: Boolean, val checked: Boolean, val children: List<Row>?)
 
@@ -123,7 +123,7 @@ internal object NativeMenuRules {
         return if (choices.size <= 2) Sheet(choices, emptyList(), cancelTitle) else Sheet(emptyList(), choices, cancelTitle)
     }
 
-    fun asked(arguments: Map<String, Any>): Boolean = arguments[ARGUMENT] == true
+    fun nativeMenus(arguments: Map<String, Any>): Boolean = arguments[DRAWN_ARGUMENT] != true
 
     fun estimatedHeight(rows: List<Row>, rowPx: Int, dividerPx: Int, paddingPx: Int): Int {
         val groups = rows.map { it.group }.distinct().size
@@ -309,14 +309,14 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
 }
 
 class MenusModule : Module() {
-    private fun nativeMenusAsked(): Boolean = NativeMenuRules.asked(LaunchExtras.arguments(LaunchExtras.of(appContext.currentActivity?.intent)))
+    private fun nativeMenusShown(): Boolean = NativeMenuRules.nativeMenus(LaunchExtras.arguments(LaunchExtras.of(appContext.currentActivity?.intent)))
 
     override fun definition() = ModuleDefinition {
         Name("ArdiaPhoneMenus")
 
         Constants {
-            val asked = nativeMenusAsked()
-            mapOf("hasContextMenu" to asked, "hasActionSheet" to asked)
+            val shown = nativeMenusShown()
+            mapOf("hasContextMenu" to shown, "hasActionSheet" to shown)
         }
 
         AsyncFunction("actionSheet") { options: ActionSheetRecord, promise: Promise ->

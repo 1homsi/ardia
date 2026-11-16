@@ -88,9 +88,9 @@ class NativeMenuRulesTest {
     }
 
     @Test
-    fun androidsOwnMenusAreOnlyAskedForByTheLabArgument() {
-        assertTrue(NativeMenuRules.asked(mapOf("ArdiaNativeMenus" to true)))
-        assertFalse(NativeMenuRules.asked(emptyMap()))
-        assertFalse(NativeMenuRules.asked(LaunchExtras.arguments(mapOf("ArdiaNativeMenus" to true), allowed = false)))
+    fun androidsOwnMenusAreTheDefaultAndOnlyTheLabArgumentBringsBackTheDrawnOnes() {
+        assertTrue(NativeMenuRules.nativeMenus(emptyMap()))
+        assertFalse(NativeMenuRules.nativeMenus(mapOf("ArdiaDrawnMenus" to true)))
+        assertTrue("a store build ignores launch arguments", NativeMenuRules.nativeMenus(LaunchExtras.arguments(mapOf("ArdiaDrawnMenus" to true), allowed = false)))
     }
 }
