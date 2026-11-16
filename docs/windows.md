@@ -570,6 +570,9 @@ is plain Chromium.
   New Tab (or closes a tab a link opened) instead of leaving a blank page on the download's address, which the
   session then saved and downloaded again at every launch. A tab asked for `about:blank` by address keeps it, and a
   tab the engine opened itself keeps its blank page until a download.
+  The engine reports these itself (`TabState::CommittedPageURL`): a download from a tab asked for `about:blank`
+  names `about:blank` as its committed page, and one from a tab opened with no address names none. The `engine blank:`
+  self-checks (`selfCheck/engineBlank.ts`, #2127) hold both against the engine as it ships.
 - The engine's download list (`ac_downloads_list`) includes Chromium's history of earlier launches under their own
   ids, while the app restores its own list from `downloads.json`. Announcing the whole list at launch made each
   earlier download a new one: the panel opened by itself and listed it twice. The launch replay
@@ -818,7 +821,9 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
 
 Deleting a profile's data: native (`ArdiaEngineHost.removeProfileFolder`) works out Chromium's data folder itself, as
 the engine does (`<ARDIA_DATA_DIR>\Chromium` in an instance with its own data folder, `%LOCALAPPDATA%\Ardia\User Data`
-otherwise), and acts only where that folder holds `Local State` and agrees with `host.info`'s `userDataDir`. A profile
+otherwise), and acts only where that folder holds the `Default` profile folder or `Local State` and agrees with `host.info`'s
+`userDataDir`. The folder counts first: Chromium saves `Local State` with `ReplaceFile`, and while it does a reader can
+find the file missing, which made a removal answer "refused" and leave a deleted profile's data on disk (#2120). A profile
 is deleted by its folder only when its id is one Ardia makes: lowercase `a-z`, `0-9` and `-`, at most 238 characters,
 so that `Ardia <id> (removing)` fits one 255-character NTFS name. Its folder is then exactly `Ardia <id>`. Any other id
 (hand-edited state, a sync from something else, a bug) could share its folder with another profile, so on purpose
