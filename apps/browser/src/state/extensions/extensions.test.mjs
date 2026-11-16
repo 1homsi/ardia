@@ -177,3 +177,35 @@ test("with several profiles, a private window lists and opens only its own profi
   assert.deepEqual(urls(work).slice(1), [shared.optionsUrl], "Work's regular window, though Personal's was used last");
   assert.ok(!urls(personal).includes(shared.optionsUrl) && !urls(privWork).includes(shared.optionsUrl));
 });
+
+test("Add on an install prompt the engine no longer holds says so in the dialog, and Cancel on one rejects nothing", async () => {
+  const { showInstallPrompt, confirmInstall, cancelInstall } = await import("./actions.ts");
+  const { ArdiaError } = await import("@ardia/core");
+  const { w } = setup();
+  const unhandled = [];
+  const noteUnhandled = (reason) => unhandled.push(reason);
+  process.on("unhandledRejection", noteUnhandled);
+  const answers = [];
+  native.extensionAnswers.resolveInstallPrompt = async (requestId, accepted) => {
+    answers.push([requestId, accepted]);
+    throw new ArdiaError("ERR_EXTENSION_PROMPT_STALE", "The prompt belongs to another window");
+  };
+  const prompt = { requestId: "install1", profile: "", id: "abc", name: "Ext", version: "1", type: "install", icon: null, permissions: [], tabId: null };
+  try {
+    showInstallPrompt(w, prompt);
+    await confirmInstall();
+    const install = E().install;
+    assert.equal(install?.status, "error");
+    assert.match(install.error, /install request has closed/);
+    showInstallPrompt(w, { ...prompt, requestId: "install2" });
+    showInstallPrompt(w, { ...prompt, requestId: "install3" });
+    cancelInstall();
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(answers, [["install1", true], ["install2", false], ["install3", false]]);
+    assert.equal(E().install, null);
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off("unhandledRejection", noteUnhandled);
+    native.extensionAnswers.resolveInstallPrompt = async () => null;
+  }
+});
