@@ -26,13 +26,13 @@ class SyncVault(val storage: SyncStorage, val keys: SyncKeys) {
         if (chainExists()) storage.removeTree(listOf(chain))
     }
 
-    fun write(scope: String, payload: ByteArray): String {
-        val id = SyncKeys.newFileId()
-        val sealed = keys.seal(payload, keys.scopeTag(scope), id)
+    fun write(scope: String, payload: ByteArray): String = SyncKeys.newFileId().also { write(scope, payload, it, SyncKeys.newNonce()) }
+
+    internal fun write(scope: String, payload: ByteArray, id: String, nonce: ByteArray) {
+        val sealed = keys.seal(payload, keys.scopeTag(scope), id, nonce)
         val directory = scopePath(scope)
         storage.makeDirectory(directory)
         storage.write(directory + "$id.$EXTENSION", sealed)
-        return id
     }
 
     fun remove(scope: String, ids: List<String>) {

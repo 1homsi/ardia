@@ -2000,7 +2000,7 @@ Reverting them restores `apps/android`.
 | unit tests of kept code: `browser` (13), `blocking` (12, with 5 sample lists), `browsing`'s `PickedFileRuleTest` | nothing ran them in the Expo build | keep, now run by `corex-test` | `packages/phone/android/src/test/{java,resources}` |
 | `app`'s `ShareSheetTest`, `SystemSnapshotTest`, `WidgetColorsTest`; `design`'s `ColorsTest`, `DrawingTest`, `ProfileLookTest` | nothing ran them | keep, now run by `corex-test` | the app's and `ardia-design`'s `src/test` |
 | device tests of kept code: `browser` (12, with its test activity), `blocking` (1), `shared` (2), `sync` (6, with its documents provider) | `android.yml`'s emulator job | keep, not run anywhere yet | `packages/phone/android/src/androidTest` |
-| `scripts/swift-crosscheck.sh` and `scripts/crosscheck` | the Kotlin and Swift sync vaults read each other's writes (`SwiftCrossCheckTest`) | keep, unsure: it needs Swift and Gradle on one machine | `packages/phone/android/scripts` |
+| `scripts/swift-crosscheck.sh` and `scripts/crosscheck` | the Kotlin and Swift sync vaults read each other's writes (`SwiftCrossCheckTest`) | replaced by committed test vectors: both sides seal the same fixed inputs to the same bytes and open each other's sets, with no Swift and Gradle on one machine | `packages/sync/tests/fixtures/sync-vectors`, `SyncVectorsTests.swift`, `SyncVectorsTest.kt` |
 | everything else: the Compose screens, app shell and model (`app`, `appmodel`, `browsing`, `search`, `settings`, `store`, `tabs`, the rest of `design`), their tests, the Gradle project, wrapper and catalog, `gradle-locked` | the Compose app only | delete | |
 
 **What else named `apps/android`:**

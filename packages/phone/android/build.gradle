@@ -161,12 +161,13 @@ android {
     unitTests.includeAndroidResources = true
     unitTests.all { test ->
       test.systemProperty("ardia.syncFixtures", syncFixtures.absolutePath)
+      test.inputs.dir(syncFixtures).withPropertyName("syncFixtures").withPathSensitivity(PathSensitivity.RELATIVE)
       test.systemProperty("ardia.phoneSchema", phoneSchema.absolutePath)
       findProperty('ardiaBlockingLists')?.with { test.systemProperty("ardia.blockingLists", it) }
-      ["ardia.crossCheck.swiftWrote", "ardia.crossCheck.kotlinWrites"].each { key ->
-        System.getProperty(key)?.with { test.systemProperty(key, it) }
+      System.getenv('ARDIA_SYNC_VECTORS_WRITE')?.with { target ->
+        test.environment('ARDIA_SYNC_VECTORS_WRITE', target)
+        test.outputs.upToDateWhen { false }
       }
-      test.outputs.upToDateWhen { System.getProperty("ardia.crossCheck.swiftWrote") == null }
       test.filter.failOnNoMatchingTests = false
     }
   }

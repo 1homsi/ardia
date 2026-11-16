@@ -26,9 +26,11 @@ class SyncKeys(entropy: ByteArray) {
 
     private fun tag(label: String): String = Base32.encode(hmac(nameKey, label.toByteArray()).copyOf(16))
 
-    fun seal(payload: ByteArray, scopeTag: String, fileId: String): ByteArray {
+    fun seal(payload: ByteArray, scopeTag: String, fileId: String): ByteArray = seal(payload, scopeTag, fileId, newNonce())
+
+    internal fun seal(payload: ByteArray, scopeTag: String, fileId: String, nonce: ByteArray): ByteArray {
+        require(nonce.size == NONCE_BYTES)
         val plain = padded(payload, PADDING)
-        val nonce = ByteArray(NONCE_BYTES).also { random.nextBytes(it) }
         val box = gcm(Cipher.ENCRYPT_MODE, fileKey, nonce, associatedData(chainTag, scopeTag, fileId)).doFinal(plain)
         return MAGIC + nonce + box
     }
@@ -89,6 +91,8 @@ class SyncKeys(entropy: ByteArray) {
         private val random = SecureRandom()
 
         fun newFileId(): String = Base32.encode(ByteArray(16).also { random.nextBytes(it) })
+
+        internal fun newNonce(): ByteArray = ByteArray(NONCE_BYTES).also { random.nextBytes(it) }
 
         private fun hkdf(entropy: ByteArray, info: String): ByteArray {
             val prk = hmac(SALT, entropy)
