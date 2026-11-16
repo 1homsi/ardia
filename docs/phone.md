@@ -1203,7 +1203,7 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 | `sharing_turned_on` | `source` (settings, onboarding) | turning sharing on |
 | `app_launched` | `legacy_import` (imported, started_fresh, none), `legacy_import_failures` (failed tries before the app opened), `look_mode` (full, no_blur, no_motion, neither: the look this launch shows, after the look's budget and the system's Reduce Motion and Reduce Transparency), `interface_style` (match_mac, glass, classic) and `color_scheme` (match_mac, system, light, dark): the redesign's Appearance choices | each launch with sharing on |
 | `perf_launch` | `launch_ms`, `js_ms` | each launch, once the module gives the process start (`ArdiaPhoneSystem.processStartedAt()`, epoch ms) |
-| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `find_opened_system` and `find_opened_bar` (Find on Page opened in WebKit's own panel, or in the app's find bar), `spaces_swiped` (a swipe in Spaces or on the start page that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `search_tabs_opened` (the deck's Search Tabs field focused, in the redesign), `spaces_picked` (a space picked from the start page's or the deck's switcher menu that changed the profile, in the redesign), `tabs_moved_to_space` (a tab moved to another space with the deck card menu's Move to Space, in the redesign), `pages_printed` (a page printed from the page menu's Print, counted when the print sheet opened, in the redesign), `site_permissions_revoked` (a site's camera, microphone or location access revoked from Site Settings, by swipe or by its dialog, on iPhone's Expo UI Settings), `tray_back_swiped` (a search tray closed with Android's predictive back swipe), `card_opens_waited` (a card opened from the deck whose growth landed before its page had laid out and its picture painted, so the page waited up to 250 ms to take over), `native_menus_opened` (a menu opened as the system's own: a deck card's long press, the deck's ···, the space switchers, the + menus, Reader's Text Appearance, the page menu's Send to Device, on iPhone) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
+| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `find_opened_system` and `find_opened_bar` (Find on Page opened in WebKit's own panel, or in the app's find bar), `spaces_swiped` (a swipe in Spaces or on the start page that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `search_tabs_opened` (the deck's Search Tabs field focused, in the redesign), `spaces_picked` (a space picked from the start page's or the deck's switcher menu that changed the profile, in the redesign), `tabs_moved_to_space` (a tab moved to another space with the deck card menu's Move to Space, in the redesign), `pages_printed` (a page printed from the page menu's Print, counted when the print sheet opened, in the redesign), `site_permissions_revoked` (a site's camera, microphone or location access revoked from Site Settings, by swipe or by its dialog, on iPhone's Expo UI Settings), `tray_back_swiped` (a search tray closed with Android's predictive back swipe), `card_opens_waited` (a card opened from the deck whose growth landed before its page had laid out and its picture painted, so the page waited up to 250 ms to take over), `native_menus_opened` (a menu opened as the system's own: a deck card's long press, the deck's ···, the space switchers, the + menus, Reader's Text Appearance, the page menu's Send to Device, the tabs button's recent tabs, on iPhone), `library_opened` (History, Bookmarks or Downloads opened in the system sheet from the page menu, on iPhone) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
 
 On the dashboard they are kept out of every Mac section by source and lib (`PHONE_APP_SOURCE` in `apps/dashboard/src/server/sql.ts`).
 
@@ -1227,6 +1227,7 @@ Every count and timing the phone can send, for the owner to read as one set and 
 | `spaces_swiped` | b9bb6e53e | Whether people find the swipe in Spaces or only use the switcher |
 | `tray_hidden_rows_opened` | f5071fd5f | Whether rows past the keyboard are reached; near the line: zero would argue for a scrolling list, otherwise strike it |
 | `native_menus_opened` | the menus sweep | Whether the system's own menus open where the drawn ones did; a drop against `tabs_opened` after a release means a native menu stopped opening |
+| `library_opened` | the Library sheets on Expo UI | Whether people reach History, Bookmarks and Downloads from the page menu on iPhone; zero across testers after a release means the rows or the sheet stopped opening |
 | `card_opens_waited` | the card open's hand-over | Whether the page mounted at the start of a card's growth is ready when the card lands; a share of card opens that grows after a release means the open is again held at full size before the page takes over |
 | `deck_pictures_late` | the deck-entrance hold | Whether the leaving page's picture paints before the deck shrinks; a share of deck opens that grows after a release means a card may again open on a blank or placeholder face |
 
@@ -1284,7 +1285,7 @@ What main changed, by screen:
 - Page view: the page runs full screen under the bar, with `obscuredContentInsets` (top safe area, bottom 75) so fixed footers sit above the bar (33e8709be, ecdeaefc3). Collapse Bottom Bar shrinks the bar to a 30 pt host pill instead of hiding it; Find and the search panel hide it until the keyboard has gone (`BottomBarVisibility`, 53f7bece6).
 - Page menu: word rows without icons, icon-only Reader, Copy Link and Share capsules, new Print, History, Bookmarks, Downloads and Site Settings rows, Open in Default Browser on its own (`ToolbarSheet.swift`, `Menu/`).
 - Library: one History, Bookmarks and Downloads sheet. History merges this phone's visits with the current space's synced history and remembers deletions per space (`Library/`, `HistoryTimeline.swift`, 68440816a, 6cf89268b).
-- Site permissions: camera, microphone and location answers are saved per site and listed and revocable in Site Settings (`SitePermissions.swift`). On the Expo iPhone they last one launch until that list exists (40c4bff61).
+- Site permissions: camera, microphone and location answers are saved per site and listed and revocable in Site Settings (`SitePermissions.swift`). The Expo iPhone saves and lists them the same way since 942dc45df.
 - Deck: header with the space switcher, an Incognito pill and a `···` menu (Archive, Spaces, New Incognito Tab, Reopen, Close All, Settings); bottom bar of a grid button, Search Tabs and plus; a grid view; a slim Archive capsule under the header; cards about 24 pt lower (`TabSwitcherView.swift`, `DeckChrome.swift`, `TabGridView.swift`, `TabsTokens.swift`, `TabsDeckGeometry.swift`).
 - Start page: no logo; the space switcher at 0.44 of the height, the space's pinned tiles (4 a row, icon only) and page dots; a sideways swipe changes space. In light mode a themed backdrop gets a 34% white veil (`SearchHomeView.swift`, `PinnedTiles.swift`, `ProfileBackdrop.themeVeil`).
 - Tray: a floating glass panel, 8 pt in from the sides and above the keyboard, radius 26; a submitted search lifts it 120 pt and fades it (`SearchTrayHost.swift`).
@@ -1296,23 +1297,81 @@ What main changed, by screen:
 
 Against the old reference, everything was wired and re-checked on the simulator beside the SwiftUI app (2fbd950ca, dd36012eb): the deck bar on `Glass`, `FadeView`, the system Paste, Default Browser, Open in Background, VoiceOver names, Clear Browsing Data by range, the card handover.
 
-The work, most visible first. JS is the screens agent's, native the iPhone agent's. Native wrappers land first, each with a fallback, and the screens agent is told their shape.
-1. Page bar redesign: JS, a day; Classic through `Glass` is native (item 7). In (0043d844e); on the simulator beside main its pieces sit within a pixel of SwiftUI's, but its glass is forced dark in dark mode and private tabs where main's follows the page's tone, and its `···` and + glyphs are about 25-35% small.
-2. The page under the bar: native `PageView` inset prop, then JS lays the page full screen. Half a day; ships with item 1. Native in (`obscuredInsets`, `pageObscuresInsets()`, 86b1d53bc); JS in (ccf4e02da).
-3. Search as a floating glass panel: JS, half a day.
-4. Start page (switcher, tiles, dots, no logo): JS, a day. Built as the redesign's `StartPage` and `StartSpaces` with `startLayout`, `startInk` and `startMotion` read from main's `TabsTokens.swift`, `SearchHomeView.swift`, `PinnedTiles.swift` and `SpaceSwitcher.swift`; render tests in both designs. Its moving parts wait for the simulator (below).
-5. Deck header and bar, Search Tabs, the new geometry: JS, a day. Built: `DeckHeader` (switcher, Incognito pill, `···` menu), `DeckBottomBar` (grid button, Search Tabs, plus), the Archive capsule and cards 24 pt lower, with `deckChromeLayout` and `deckChromeMotion` read from main's `TabsTokens`, `DeckChrome`, `TabDeckBar`, `ArchiveIntervalCard` and `TabsDeckGeometry`. Search Tabs filters the deck in place, as main's does. The grid button waits for item 12.
-6. Spaces filtering, switching, Move to Space: JS only, a day (the sync module already carries every field). Built from main's `TabSpaces.swift`, `TabStore.swift`, `TabSwitcherView.showNewSpace` and `DeckChrome.swift`: in the redesign the deck, the tab swipe and Switch to Tab show the current space's tabs (a tab with no space, or a deleted one, belongs to the default space; private tabs show in every space); Close All closes this space's; switching selects that space's latest tab or the start page; the deck card menu has Move to Space. Android keeps Compose's behaviour (Compose has neither). Left for later: the Spaces sheet's switcher and dots (item 14), exporting only the current space, history by space (Library).
-7. Appearance and Match My Mac: native bridges `look` from sync and gives `Glass` Classic and Reduce Transparency; JS adds the page, the two preferences and applies them to every glass surface. A day and a half. Native in: `SyncedView.look` (d2ce70978), `Glass` `surface`, `tinted` and `barShadow` (2f4e947fb). Built: the Appearance page (Color with Match My Mac, Interface Style, Light or Dark) from main's `AppearancePage.swift` and `InterfaceStyle.swift`, resolved in one place (`state/settings/appearance.ts`): `ChromeSurface` takes Glass or Classic from it (Reduce Transparency forces Classic), and the window's scheme is set through `Appearance.setColorScheme` so keyboards, sheets and pages follow, as main's `.preferredColorScheme` does. Android keeps Compose's Settings and never overrides the scheme.
-8. Page menu redesign: JS, a day. Built from main's `ToolbarSheet.swift` (`PageMenuWords`): the navigation capsule, the icon-only Reader, Copy Link and Share capsules, Find, Send, Print (only where `pages.canPrint()`, running once the sheet has gone), the settings group, Site Settings into Settings, and Open in Default Browser on its own. History, Bookmarks and Downloads wait for the Library (item 11). Print: native `print(pageId)` plus a row, a few hours. Native in (`pages.print`, `pages.canPrint()`, f6a5c0613).
-9. Bar collapse to a host pill, waiting for Find and the panel: JS, half a day.
-10. Motion timings and flow: JS, a day.
-11. Library sheet: JS, two to three days. Downloads list, open and delete: native, a day. Sync-cycle flag for history deletions: native, an hour. Native in: `downloads.files`, `preview`, `delete`, `deleteAll` (373ecfb03) and `sync.isCycleRunning()` (58995bf44).
-12. Grid view: JS, a day.
-13. Site Settings' saved permissions, listed and revocable: native and JS, half a day to a day; lifts the one-launch guard. Native in (`pages.sitePermissions`, `revokeSitePermission`, ae9767f78); the guard (`PhonePages.remembersSitePermissions`, false) is flipped when the JS list and revoke land.
-14. Archive capsule, Spaces sheet, card details, toasts: JS, a day together.
-15. Onboarding and Settings words, fonts and icons: JS, half a day.
-16. The light-mode veil in the JS backdrop fallback and the status-bar ink choice: JS, an hour.
+**Audit against main, 2026-11-16** (the iPhone agent, one iPhone 17 Pro lease). Main's SwiftUI app (the ad hoc
+Release build of `apps/ios`, which matches `main`) beside a build of head (6cbc6e048), in light and dark, with demo
+data. Screens were reached through each app's own UI and the `-ArdiaDemo` / `Browse*` switches. Main reads
+`-ArdiaOpenSheet` and `-ArdiaOpenSettings` only in Debug builds, so its sheets were opened by hand. Inventory of
+main's screens: an Explore pass over `apps/ios/App`. Pairs (Expo left, main right):
+`/tmp/ardia-phone-shots/iphone-audit/pairs/`.
+
+Status:
+- **match**: seen side by side today, light and dark, no difference worth a line.
+- **different**: with what.
+- **missing**: in main, not in Expo.
+- **deliberate**: different on purpose, with whose decision.
+- **not seen**: not compared in frames today.
+
+Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
+
+| Area | Screen or state | Status | What | Owner |
+| --- | --- | --- | --- | --- |
+| Onboarding | Welcome | different | Expo's title is larger (about 34 pt against main's 28) and its button a rounded rectangle where main's is a capsule | screens |
+| Onboarding | Blocking | different | Expo's rows have icons and a shadowed card higher up; its title wraps on two lines; rectangle button | screens |
+| Onboarding | Sync step | different | Expo's illustration sits lower and smaller | screens |
+| Onboarding | All set | different | Expo's tips have icons, main's don't | screens |
+| Onboarding | All set: usage-stats toggle | deliberate | Expo only; consent is asked where sharing is described (telemetry rule) | owner's rule |
+| Onboarding | Default browser step | not seen | Hidden in both without the entitlement | |
+| Start page | Header, switcher, dots, bar | match | | |
+| Start page | Pinned tiles | different | Expo's icons are smaller, and one tile shows a cloud favicon where main shows a calendar symbol | screens |
+| Start page | No spaces, sync off (invitation) | not seen | | |
+| Search panel | Empty, recent searches | different | Main also lists the open tab (SwiftUI…, Switch to Tab); Expo doesn't | screens |
+| Search panel | Typing | different | Main completes inline (app to apple.com) and its rows are taller; Expo shows no completion when the text is set by `-BrowseQuery`, though the native field completes. Check by typing. Expo prefixes Switch to Tab with a glyph main doesn't have | screens |
+| Search panel | Incognito | different | Same panel; main's keyboard turns dark. The field now takes `keyboardAppearance` (6f1653513); the panel has to pass dark | screens |
+| Search panel | Voice | not seen | | |
+| Page | Page with bar, secure | match | | |
+| Page | Not secure, private, loading, failure, page dialogs | not seen | | |
+| Page | Collapsed bar (host pill) | missing | Expo's bar slides away instead | screens |
+| Page | Tabs button menu | different | Main: Previous, Next, Close Tab. Expo: recent tabs and Close Tab (being changed) | screens |
+| Page | Find on Page | match by decision | The system find navigator by default since ec6f9bc52 | |
+| Page menu | Rows and groups | different | Same rows and groups except Library; Expo's sheet opens lower (a smaller detent) where main's fills to the top | screens |
+| Page menu | History, Bookmarks, Downloads rows | missing | With the Library sheet (being built) | screens |
+| Reader | Article | match | | |
+| Reader | Top buttons | different | Expo's AA and Done are plain text; main's are a glass circle and a glass capsule | screens |
+| Deck | Cards, Archive capsule, tab strip | match | | |
+| Deck | `···` and bottom bar (grid, Search Tabs, plus) | different | Main's are glass circles and a glass capsule; Expo's are plain | screens |
+| Deck | `···` menu | different | No Reopen Closed Tab; a solid panel below the button where main's is glass over the header | screens |
+| Deck | Grid view | missing | The button only dismisses the keyboard | screens |
+| Deck | Card menus, close and poof, Search Tabs, Incognito pill | not seen | | |
+| Spaces | Sheet | different | Expo still has a Bookmarks section main dropped; the rest matches | screens |
+| Archive | Sheet | match | Light and dark | |
+| Library | History, Bookmarks, Downloads sheet | missing | Being built | screens |
+| Settings | Root, Sync With Mac, Appearance, Search Engine, Clear Browsing Data | match | | |
+| Settings | Site Settings | match | Permissions now persist (942dc45df); main's rows carry favicons, Expo's don't | screens |
+| Settings | Filter lists, My Filters, Trusted Sites, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
+| Toasts | All kinds | not seen | | |
+| Extensions, widgets, intents | | match by construction | The Expo project compiles main's own sources for these | |
+| iPhone in landscape, Duo layouts | | decision | Main allows landscape and has Duo layouts; Expo is portrait only | decision |
+
+**Motions from main's pass (d199b885c)**:
+
+| Motion | Status | Where it stands |
+| --- | --- | --- |
+| Deck open (`arrive`, 190 ms) | timed | 137 against 237 ms, faster |
+| Card open (`expand`) | timed | 177 against 172.5 ms, level (383c8517d) |
+| Search panel rise (360 ms) | timed | 418 against 578 ms, faster |
+| Panel departure on Go (`depart`, 120 pt, 200 ms) | timed | The screens agent's strips (`lift-sim-58`) |
+| Tab swipe settle (`smooth`) | timed | 800 against 848 ms, level |
+| Onboarding step | seen today | Neither app slides visibly; both cross-fade in about 0.3 s. Main shows the new step at once and fades the old out more slowly; Expo fades both together. Expo's code still carries the pre-d199b885c spring and 60 pt (main: `Motion.step`, 72 pt) |
+| Welcome appear (`rise`, 50 ms delay) | not seen | Expo's code: 0.7/0.7 spring after 100 ms |
+| Pager background in the space's colour | not seen | Expo's code: black (`TabPager.tsx`); main: `look.surface` |
+| Loading line (0.15/0.3/0.15/0.2 s, 100 ms delay) | not seen on iPhone | Seen on Android |
+| Close poof (0.3 s), fly away (0.16 s), settle (0.28 s) | not seen | |
+| Placeholder fade-out (0.12 s) | not seen | |
+| Archive capsule yielding, grid cross-fade | not seen | No grid in Expo |
+| Search panel dim, dismiss, settle, results-in, surface swap and fade | not seen | |
+| Press scale (`press`, 0.16) | not seen | |
+| Spaces backdrop (`smooth`) | not seen | Native `spaceBackdrop` uses `Motion.smooth` |
+
 Telemetry the redesign adds: space switches, Search Tabs, the grid, the appearance choice.
 
 #### Moving parts not yet seen in frames
