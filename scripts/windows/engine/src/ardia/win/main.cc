@@ -59,7 +59,6 @@ struct App {
   ArdiaAppPreTranslateFunction pre_translate = nullptr;
   ArdiaAppStopFunction stop = nullptr;
   bool started = false;
-  bool start_failed = false;
 };
 
 App& TheApp() {
@@ -430,7 +429,7 @@ void ShowStartFailureAndQuit(const std::wstring& reason) {
 }
 
 void FailStart(const std::wstring& reason) {
-  TheApp().start_failed = true;
+  MarkStartSettled();
   LOG(ERROR) << "Ardia: the app did not start: " << base::WideToUTF8(reason);
   WriteLaunchLog("app start failed: " + base::WideToUTF8(reason));
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -457,6 +456,16 @@ void ShowRecoveryNotice(const std::wstring& folder) {
       folder + L".";
   ::MessageBoxW(nullptr, text.c_str(), L"Ardia",
                 MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+}
+
+void ClaimGuardUntilOwned(int attempts_left) {
+  ClaimGuard();
+  if (OwnsGuard() || attempts_left <= 0) {
+    return;
+  }
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, base::BindOnce(&ClaimGuardUntilOwned, attempts_left - 1),
+      base::Milliseconds(kClaimRetryMs));
 }
 
 bool StartApp() {
@@ -526,6 +535,7 @@ class MainParts : public ChromeBrowserMainExtraParts {
   void PostBrowserStart() override {
     NoteTestGate();
     NoteLaunchGuard();
+    ClaimGuardUntilOwned(kClaimAttempts);
     Host::Get()->Start();
     WatchEngineEvents();
     if (!StartApp()) {
@@ -620,9 +630,7 @@ const char* TestGateDecision() {
 
 void QuitApp() {
   MarkExiting();
-  if (!TheApp().start_failed) {
-    MarkStartSettled();
-  }
+  MarkStartSettled();
   KeepAlive().reset();
   ChromeDevToolsManagerDelegate::AllowBrowserToClose();
   chrome::CloseAllBrowsersAndQuit();

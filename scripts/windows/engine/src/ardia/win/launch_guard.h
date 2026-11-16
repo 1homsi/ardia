@@ -13,6 +13,8 @@ inline constexpr int kUnfinishedStartsBeforeRecovery = 2;
 inline constexpr int kStartSettlesAfterSeconds = 15;
 inline constexpr int kPredecessorWaitSeconds = 45;
 inline constexpr int kPredecessorPollMs = 200;
+inline constexpr int kClaimRetryMs = 250;
+inline constexpr int kClaimAttempts = 240;
 
 struct LaunchGuardFacts {
   int predecessor_wait_ms = -1;
@@ -34,6 +36,10 @@ void MarkExiting();
 void ClearExiting();
 
 void MarkStartSettled();
+
+void ClaimGuard();
+
+bool OwnsGuard();
 
 const LaunchGuardFacts& GuardFacts();
 
