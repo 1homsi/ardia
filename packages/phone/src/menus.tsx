@@ -1,5 +1,5 @@
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
-import { createElement, type ComponentType, type ReactNode } from "react";
+import { createElement, type ComponentType, type ReactNode, type Ref } from "react";
 import { View, type NativeSyntheticEvent, type ViewProps } from "react-native";
 import type { LookColors } from "./look";
 
@@ -17,7 +17,10 @@ export type MenuItem = {
 
 export type MenuAppearance = LookColors & { dark?: boolean };
 
+export type ContextMenuHandle = { show(): Promise<void> };
+
 export type ContextMenuProps = ViewProps & {
+  ref?: Ref<ContextMenuHandle>;
   items: MenuItem[];
   onSelect: (id: string) => void;
   trigger?: "longPress" | "tap";
@@ -54,10 +57,11 @@ export const nativeMenusAvailable = (): { contextMenu: boolean; actionSheet: boo
   actionSheet: native?.hasActionSheet === true && typeof native.actionSheet === "function",
 });
 
-export function ContextMenuView({ onSelect, onOpen, onClose, trigger = "longPress", ...rest }: ContextMenuProps) {
+export function ContextMenuView({ ref, onSelect, onOpen, onClose, trigger = "longPress", ...rest }: ContextMenuProps) {
   if (!nativeMenusAvailable().contextMenu) return createElement(View, rest);
   return createElement(view(), {
     ...rest,
+    ref,
     trigger,
     onSelect: (event: NativeSyntheticEvent<{ id: string }>) => onSelect(event.nativeEvent.id),
     onOpen: onOpen ? () => onOpen() : undefined,

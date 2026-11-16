@@ -1,6 +1,6 @@
-import { actionSheet, ContextMenuView, nativeMenusAvailable, settingsUI, type MenuItem as NativeMenuItem } from "@ardia/phone-native";
+import { actionSheet, ContextMenuView, nativeMenusAvailable, settingsUI, type ContextMenuHandle, type MenuItem as NativeMenuItem } from "@ardia/phone-native";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { View, type StyleProp, type ViewInstance, type ViewStyle } from "react-native";
+import { Platform, View, type StyleProp, type ViewInstance, type ViewStyle } from "react-native";
 import { sfName } from "../../lib/sfSymbols";
 import type { Confirmation } from "./Dialog";
 import { FloatingMenu, isSubmenu, Menu, type MenuAction, type MenuItem, type MenuSubmenu } from "./Menu";
@@ -83,9 +83,12 @@ function NativeTrigger({ items, trigger = "longPress", fixedOrder, onOpen, onClo
     nativeMenuOpened();
     onOpen?.();
   }, [onOpen]);
+  const native = useRef<ContextMenuHandle>(null);
+  const show = useCallback(() => void native.current?.show(), []);
+  const handlers: MenuHandlers = Platform.OS !== "android" || disabled ? {} : trigger === "tap" ? { onPress: show } : { onLongPress: show };
   return (
-    <ContextMenuView testID={testID} style={style} collapsable={false} items={disabled ? [] : menu.items} trigger={trigger} fixedOrder={fixedOrder} onSelect={select} onOpen={opened} onClose={onClose} appearance={{ dark: dark ?? theme.dark }}>
-      {children({})}
+    <ContextMenuView ref={native} testID={testID} style={style} collapsable={false} items={disabled ? [] : menu.items} trigger={trigger} fixedOrder={fixedOrder} onSelect={select} onOpen={opened} onClose={onClose} appearance={{ dark: dark ?? theme.dark }}>
+      {children(handlers)}
     </ContextMenuView>
   );
 }

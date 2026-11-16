@@ -185,9 +185,14 @@ class NativeContextMenuView(context: Context, appContext: AppContext) : ExpoView
         return super.dispatchTouchEvent(event)
     }
 
-    private fun show(event: MotionEvent) {
+    fun showFromCode() = show(null)
+
+    private fun show(event: MotionEvent?) {
         if (items.isEmpty() || showing != null) return
-        NativeGestureUtil.notifyNativeGestureStarted(this, event)
+        if (event != null) {
+            NativeGestureUtil.notifyNativeGestureStarted(this, event)
+            parent?.requestDisallowInterceptTouchEvent(true)
+        }
         val darkMenu = NativeMenuStyle.isDark(context, dark)
         val popup = PopupMenu(NativeMenuStyle.themed(context, dark), this, Gravity.NO_GRAVITY)
         val ids = HashMap<Int, String>()
@@ -309,6 +314,8 @@ class MenusModule : Module() {
             Prop("fixedOrder") { _: NativeContextMenuView, _: Boolean? -> }
 
             Prop("appearance") { view: NativeContextMenuView, value: MenuAppearanceRecord? -> view.dark = value?.dark }
+
+            AsyncFunction("show") { view: NativeContextMenuView -> view.showFromCode() }.runOnQueue(Queues.MAIN)
         }
     }
 }

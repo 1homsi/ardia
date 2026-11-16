@@ -1,21 +1,25 @@
-import { createElement, type ReactNode } from "react";
+import { createElement, useImperativeHandle, type ReactNode, type Ref } from "react";
 
 export type SheetAnswer = string | null;
 
-export const mockNative = { contextMenu: false, actionSheet: false, answer: null as SheetAnswer, sheets: [] as unknown[] };
+export const mockNative = { contextMenu: false, actionSheet: false, answer: null as SheetAnswer, sheets: [] as unknown[], shown: 0 };
 
 export function resetNativeMenus(available = false) {
   mockNative.contextMenu = available;
   mockNative.actionSheet = available;
   mockNative.answer = null;
   mockNative.sheets.length = 0;
+  mockNative.shown = 0;
 }
 
 export function nativeMenusModule(actual: { settingsUI: object }) {
   return {
     ...actual,
     nativeMenusAvailable: () => ({ contextMenu: mockNative.contextMenu, actionSheet: mockNative.actionSheet }),
-    ContextMenuView: ({ children, ...props }: { children?: ReactNode }) => createElement("ContextMenuView", props, children),
+    ContextMenuView: function ContextMenuView({ children, ref, ...props }: { children?: ReactNode; ref?: Ref<{ show(): Promise<void> }> }) {
+      useImperativeHandle(ref, () => ({ show: async () => void (mockNative.shown += 1) }), []);
+      return createElement("ContextMenuView", props, children);
+    },
     actionSheet: (options: unknown) => {
       mockNative.sheets.push(options);
       return Promise.resolve(mockNative.answer);

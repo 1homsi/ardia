@@ -1,4 +1,4 @@
-import { Pressable, Text } from "react-native";
+import { Platform, Pressable, Text } from "react-native";
 import { act } from "react-test-renderer";
 import { renderSurface, unmount } from "../../test/render/harness";
 import { mockNative, resetNativeMenus } from "./nativeMenusMock";
@@ -85,7 +85,13 @@ test("with the system's menus the trigger is a native context menu, by tap or lo
     expect(menu.props.fixedOrder).toBe(true);
     expect(menu.props.items.map((item: { title: string }) => item.title)).toEqual(["Copy Link", "Send to Device", "Theme", ""]);
     const pressable = root.root.findAll((node) => node.props.accessibilityLabel === "Trigger" && "onPress" in node.props)[0]!;
-    expect(pressable.props.onLongPress).toBeUndefined();
+    if (Platform.OS === "android") {
+      act(() => (kind === "tap" ? pressable.props.onPress() : pressable.props.onLongPress()));
+      expect(mockNative.shown).toBe(1);
+      mockNative.shown = 0;
+    } else {
+      expect(pressable.props.onLongPress).toBeUndefined();
+    }
     act(() => menu.props.onSelect("1.1"));
     expect(ran).toEqual(["pixel"]);
     ran.length = 0;
