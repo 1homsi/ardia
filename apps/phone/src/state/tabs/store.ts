@@ -187,6 +187,19 @@ export const archivedTabById = (id: string): BrowserTab | null => readArchivedTa
 
 export const loadArchive = () => useTabs.setState(withArchive(data(), readArchivedTabs(tabDatabase(), ARCHIVE_LIMIT)));
 
+const PREPARED_ARCHIVE_FRESH_MS = 2_000;
+let archivePreparedAt = 0;
+
+export function prepareArchive() {
+  loadArchive();
+  archivePreparedAt = now();
+}
+
+export function loadArchiveUnlessPrepared() {
+  if (data().archive !== null && now() - archivePreparedAt < PREPARED_ARCHIVE_FRESH_MS) return;
+  loadArchive();
+}
+
 export function searchArchive(text: string): BrowserTab[] {
   const query = text.trim();
   const archive = data().archive;

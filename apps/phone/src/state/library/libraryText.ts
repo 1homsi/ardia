@@ -19,7 +19,16 @@ export function fileSizeText(bytes: number): string {
   return `${shown.toLocaleString("en-US", { maximumFractionDigits: unit.digits })} ${unit.name}`;
 }
 
-export const clockTime = (at: number, locale?: string) => new Date(at).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+const clockFormats = new Map<string, Intl.DateTimeFormat>();
+
+function clockFormat(locale?: string): Intl.DateTimeFormat {
+  const key = locale ?? "";
+  let format = clockFormats.get(key);
+  if (!format) clockFormats.set(key, (format = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" })));
+  return format;
+}
+
+export const clockTime = (at: number, locale?: string) => clockFormat(locale).format(at);
 
 export const abbreviatedDateTime = (at: number, locale?: string) => `${new Date(at).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" })} at ${clockTime(at, locale)}`;
 

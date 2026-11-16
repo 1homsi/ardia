@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { withSpring } from "react-native-reanimated";
 import { haptics } from "../../state/app/haptics";
 import { newIncognitoTab, openArchive, openSpaces, reopenLastClosed } from "../../state/browse/store";
@@ -7,6 +7,7 @@ import { openSettings } from "../../state/settings/hooks";
 import { selectProfile } from "../../state/sync/actions";
 import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { useCanReopen, useIncognito } from "../../state/tabs/hooks";
+import { prepareArchive } from "../../state/tabs/store";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { browseLayout, capsule, deckChromeInk, deckChromeLayout, deckChromeMotion, font, Symbol, tabsInk, tabsLayout, useTheme, type MenuItem } from "../ui";
 import { MenuTrigger, spaceSystemImage } from "../ui/MenuTrigger";
@@ -55,6 +56,10 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIn
   const below = safeTop + deckHeaderBottom() + deckChromeLayout.menuGap;
   const opened = () => onMenu?.(true);
   const closed = () => onMenu?.(false);
+  const openedMore = () => {
+    opened();
+    prepareArchive();
+  };
   const menu = { trigger: "tap" as const, fixedOrder: true, haptic: menuOpenedHaptic, disabled: !menusShown, onOpen: opened, onClose: closed };
   const choose = (id: string) => {
     if (id === current?.syncId) return;
@@ -97,7 +102,7 @@ export function DeckHeader({ safeTop, safeSide, privateCount, hasTabs, onCloseIn
         </Animated.View>
       ) : null}
       {showsMore ? (
-        <MenuTrigger items={moreItems} {...menu} place={{ top: below, right: side, width: tabsLayout.menuWidth }}>
+        <MenuTrigger items={moreItems} {...menu} onOpen={Platform.OS === "ios" ? openedMore : opened} place={{ top: below, right: side, width: tabsLayout.menuWidth }}>
           {({ onPress }) => <GlassCircleButton icon="ellipsis" label="More" testID="deckHeaderMore" diameter={deckChromeLayout.headerCircle} dark={theme.dark} glassShown={glassShown} glassShownMs={glassShownMs} glyphFade={glyphFade} onPress={onPress ?? noop} />}
         </MenuTrigger>
       ) : null}

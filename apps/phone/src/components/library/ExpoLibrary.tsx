@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PlatformColor, StyleSheet, useWindowDimensions, View } from "react-native";
 import { BottomSheet, Button, ConfirmationDialog, ContentUnavailableView, ContextMenu, HStack, Host, Image, Label, List, Menu, NavigationDestination, NavigationLink, NavigationStack, Picker, RNHostView, ShareLink, Spacer, SwipeActions, Text, Toolbar, ToolbarItem, VStack, useNativeState } from "@expo/ui/swift-ui";
 import {
@@ -19,6 +19,7 @@ import {
   listStyle,
   navigationBarTitleDisplayMode,
   navigationTitle,
+  onAppear,
   padding,
   pickerStyle,
   refreshable,
@@ -35,6 +36,8 @@ import { copyLink } from "../../state/browse/tabMenus";
 import { bookmarkMatches, bookmarkSections } from "../../state/library/bookmarkSearch";
 import { filterHistory, historyDays, historyDayTitle, historyHost, type HistoryEntry } from "../../state/library/historyTimeline";
 import { clockTime, downloadSubtitle, FILE_SYMBOLS } from "../../state/library/libraryText";
+import { eagerSections, sectionOverscan, sheetWasSlow } from "../../lib/sectionWindow";
+import { countUsage } from "../../state/telemetry/telemetry";
 import {
   closeLibrary,
   deleteAllDownloads,
@@ -193,6 +196,18 @@ function HistoryContent({ query, page }: { query: string; page: PageModifiers })
   }, [open, syncRevision, space]);
   const shown = useMemo(() => filterHistory(entries, query), [entries, query]);
   const days = useMemo(() => historyDays(shown), [shown]);
+  const eager = useMemo(() => eagerSections(days.map((day) => day.entries.length)), [days]);
+  const requestedAt = useRef<number | null>(null);
+  if (!open) requestedAt.current = null;
+  else requestedAt.current ??= Date.now();
+  useEffect(() => {
+    if (!loaded) return;
+    const frame = requestAnimationFrame(() => {
+      if (sheetWasSlow(requestedAt.current, Date.now())) countUsage("list_sheets_late");
+      requestedAt.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [loaded]);
   const iconSize = useRowIcon();
   const now = Date.now();
   if (!loaded) return <List modifiers={page}>{null}</List>;
@@ -200,27 +215,30 @@ function HistoryContent({ query, page }: { query: string; page: PageModifiers })
   if (!shown.length) return noResults(query, page);
   return (
     <List modifiers={listModifiers(page)}>
-      {days.map((day) => (
-        <HistoryDaySection key={day.day} title={historyDayTitle(day.day, now)} entries={day.entries} iconSize={iconSize} />
+      {days.map((day, index) => (
+        <HistoryDaySection key={day.day} title={historyDayTitle(day.day, now)} entries={day.entries} iconSize={iconSize} eager={eager[index] ?? false} />
       ))}
     </List>
   );
 }
 
-function HistoryDaySection({ title, entries, iconSize }: { title: string; entries: HistoryEntry[]; iconSize: number }) {
+function HistoryDaySection({ title, entries, iconSize, eager }: { title: string; entries: HistoryEntry[]; iconSize: number; eager: boolean }) {
   const row = useCallback(({ item }: { item: HistoryEntry }) => <HistoryRow entry={item} iconSize={iconSize} />, [iconSize]);
+  const [seen, setSeen] = useState(false);
+  const near = eager || seen;
+  const wake = useCallback(() => setSeen(true), []);
   return (
     <>
-      <LibrarySectionHeader title={title} />
-      <List.ForEach data={entries} keyExtractor={(entry) => entry.url} onDelete={(indices) => indices.forEach((index) => entries[index] && deleteHistoryEntry(entries[index]))} estimatedItemSize={64}>
+      <LibrarySectionHeader title={title} onAppear={near ? undefined : wake} />
+      <List.ForEach data={entries} keyExtractor={(entry) => entry.url} onDelete={(indices) => indices.forEach((index) => entries[index] && deleteHistoryEntry(entries[index]))} estimatedItemSize={64} overscanCount={sectionOverscan(near)}>
         {row}
       </List.ForEach>
     </>
   );
 }
 
-function LibrarySectionHeader({ title }: { title: string }) {
-  return <Text modifiers={[font({ textStyle: "headline" }), foregroundStyle(SECONDARY), frame({ maxWidth: FILL, alignment: "leading" }), padding({ top: 24, bottom: TIGHT }), ...HEADER_ROW]}>{title}</Text>;
+function LibrarySectionHeader({ title, onAppear: appeared }: { title: string; onAppear?: () => void }) {
+  return <Text modifiers={[font({ textStyle: "headline" }), foregroundStyle(SECONDARY), frame({ maxWidth: FILL, alignment: "leading" }), padding({ top: 24, bottom: TIGHT }), ...HEADER_ROW, ...(appeared ? [onAppear(appeared)] : [])]}>{title}</Text>;
 }
 
 function HistoryRow({ entry, iconSize }: { entry: HistoryEntry; iconSize: number }) {
