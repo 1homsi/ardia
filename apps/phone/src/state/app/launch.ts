@@ -12,9 +12,12 @@ import { setPreference } from "../settings/store";
 import { closeEveryTab, closeTabById, currentTabs, openNewTab, receiveSentTabs, setIncognito, updateTabById } from "../tabs/store";
 import { deckOrder } from "../tabs/tabsState";
 import { showToast } from "../toasts/store";
+import { pages } from "../../platform/pages";
 import { launchArguments } from "./launchFlags";
 import { DEMO_PRIVATE_URLS, manyTabTitle, sampleToast } from "./launchRules";
 
+
+const DEMO_WARM_BATCH = 3;
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
@@ -36,7 +39,23 @@ export function runLaunchScenario() {
   if (args.deckScript) void runDeckScript(args.deckScript);
 }
 
+let demoWarming: Promise<void> | null = null;
+
+async function warmDemoPictures() {
+  const pending = currentTabs().open.filter((tab) => !tab.snapshotFileName && !tab.isPrivate && /^https?:\/\//i.test(tab.url));
+  for (let at = 0; at < pending.length; at += DEMO_WARM_BATCH) {
+    await Promise.all(
+      pending.slice(at, at + DEMO_WARM_BATCH).map(async (tab) => {
+        const picture = await pages.captureOffscreen(tab.url, tab.id);
+        if (!picture) return;
+        updateTabById(tab.id, { snapshotFileName: picture.fileName, ...(picture.title ? { title: picture.title } : {}), ...(picture.themeColorHex ? { themeColorHex: picture.themeColorHex } : {}) });
+      }),
+    );
+  }
+}
+
 async function runDemoScenario(args: LaunchArguments) {
+  demoWarming = warmDemoPictures();
   if (args.browseIncognito) setIncognito(true);
   if (args.browseOpen) openPage(args.browseOpen, "typed");
   if (args.browseQuery !== null) presentSearch("home", args.browseQuery);
@@ -108,6 +127,7 @@ async function deckStep({ kind, argument }: DeckStep) {
       await snapshotTabs(deckOrder(currentTabs()).slice(-(Number(argument) || 6)).map((tab) => tab.id));
       return;
     case "warm":
+      await demoWarming;
       await snapshotTabs(currentTabs().open.filter((tab) => !tab.snapshotFileName).map((tab) => tab.id));
       return;
     case "scroll":
