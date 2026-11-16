@@ -1166,7 +1166,7 @@ function Start-Hogs([string]$Folder) {
   return $jobs
 }
 
-$script:SuggestPort = 41793
+$script:SuggestPort = 0
 $script:LateQuery = "example.com"
 $script:LateRows = @("example.com tour one", "example.com tour two", "example.com tour three")
 $script:LateMs = 500
@@ -1177,7 +1177,11 @@ function Start-SuggestServer([string]$Log) {
   Remove-Item -Force -ErrorAction SilentlyContinue $Log
   $script:SuggestRelease = "$Log.release"
   Remove-Item -Force -ErrorAction SilentlyContinue $script:SuggestRelease
-  return Start-Job -ArgumentList $script:SuggestPort, $script:LateQuery, $script:LateRows, $script:LateMs, $Log, $script:SuggestRelease {
+  $free = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  $free.Start()
+  $script:SuggestPort = $free.LocalEndpoint.Port
+  $free.Stop()
+  $job = Start-Job -ArgumentList $script:SuggestPort, $script:LateQuery, $script:LateRows, $script:LateMs, $Log, $script:SuggestRelease {
     param($port, $lateQuery, $lateRows, $lateMs, $log, $release)
     $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
     $listener.Start()
@@ -1213,6 +1217,17 @@ function Start-SuggestServer([string]$Log) {
       }
     }
   }
+  $ready = $false
+  $deadline = (Get-Date).AddSeconds(15)
+  while (-not $ready -and (Get-Date) -lt $deadline) {
+    try {
+      $ready = (Invoke-WebRequest -Uri "http://127.0.0.1:$($script:SuggestPort)/suggest?q=ready" -TimeoutSec 2 -UseBasicParsing).Content -eq '["ready",[]]'
+    } catch {
+      Start-Sleep -Milliseconds 200
+    }
+  }
+  if (-not $ready) { $script:Required.Add("the tour's suggest server never answered on port $($script:SuggestPort)") }
+  return $job
 }
 
 function Get-SuggestSettings {
