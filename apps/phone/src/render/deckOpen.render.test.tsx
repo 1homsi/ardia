@@ -29,12 +29,15 @@ test("opening a card makes its page under the deck two frames after the card sta
   registered.mockRestore();
 });
 
-test("the opening card is one view on top of the deck that grows from the card's place to full screen with the display's corners, and the deck card under it hides once it starts", () => {
+test("the opening card is one view on top of the deck's cards that grows from the card's place to full screen with the display's corners while the deck's header and bar fade over it on the same spring, as main's do, and the deck card under it hides once it starts", () => {
   withTabs(3);
   useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
   const root = renderSurface(<Surfaces />);
   const opening = (id: string) => root.root.findAll((node) => node.props.testID === id && typeof node.type !== "string" && node.props.to !== undefined)[0];
   act(() => sendDeckCommand({ kind: "openFocused" }));
+  const chrome = () => root.root.findAll((node) => node.props.testID === "deckChromeFade" && typeof node.type !== "string" && node.props.to !== undefined)[0]!;
+  expect(chrome().props.to.opacity).toBe(0);
+  expect(chrome().props.motion).toMatchObject({ type: "spring" });
   const start = opening("openingCard")!.props.to;
   expect(start.scale).toBe(1);
   expect(start.cornerRadius).toBe(DECK.cardRadius);

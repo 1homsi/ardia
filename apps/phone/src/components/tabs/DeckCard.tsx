@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     ...Platform.select({ android: { elevation: CARD_ELEVATION, shadowColor: tabsInk.cardShadow }, default: { boxShadow: `-2px 4px ${CARD_SHADOW_BLUR}px ${tabsInk.cardShadow}` } }),
   },
   band: { position: "absolute", left: 0, right: 0, bottom: 0, transformOrigin: "bottom" },
-  opening: { position: "absolute", zIndex: 1_000_000, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
+  opening: { position: "absolute", overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
   openingBand: { position: "absolute", left: 0, right: 0, bottom: 0 },
   badge: {
     position: "absolute",

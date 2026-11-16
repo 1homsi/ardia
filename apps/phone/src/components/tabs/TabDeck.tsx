@@ -63,7 +63,8 @@ import { pinToMac, sendTab, sendTargetsFor, spaceMoveTargets } from "../../state
 import { currentTabs, moveTabToSpace } from "../../state/tabs/store";
 import { tabMatchesQuery } from "../../state/tabs/tabModels";
 import { DeckBar } from "./DeckBar";
-import { DECK_PHASE, DeckCard, OPENING_CARD_RESPONSE, OpeningCard, type DeckMotion } from "./DeckCard";
+import { DECK_PHASE, DeckCard, OPENING_CARD_MOTION, OPENING_CARD_RESPONSE, OpeningCard, type DeckMotion } from "./DeckCard";
+import { MotionView, type MotionCurve } from "../ui";
 import { hideArchiveCard, offerArchiveCard, showArchiveCardNow, useArchiveCardShowing } from "../../state/browse/archiveCard";
 import { takeDeckCommand, useDeckCommand } from "../../state/browse/deckCommands";
 import { ArchiveCapsule, ArchiveIntervalCard } from "./ArchiveIntervalCard";
@@ -457,10 +458,9 @@ export const TabDeck = memo(function TabDeck() {
   );
 
   const prepared = useRef<{ id: string; ready: boolean; landed: boolean } | null>(null);
-  const finishOpen = (id: string) =>
-    requestAnimationFrame(() => {
-      if (openingId.current === id) settledOpen(id);
-    });
+  const finishOpen = (id: string) => {
+    if (openingId.current === id) settledOpen(id);
+  };
   const prepareHandOver = (id: string) => {
     if (openingId.current !== id || prepared.current?.id === id) return;
     const state = { id, ready: false, landed: false };
@@ -763,6 +763,8 @@ export const TabDeck = memo(function TabDeck() {
             <ArchiveIntervalCard edgeY={archiveCardEdgeY(g, archiveCardLayout.aboveBarCenter)} />
           )
         ) : null}
+        {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} onGrowing={() => openingCardGrowing(openingCard.id)} /> : null}
+        <MotionView testID="deckChromeFade" style={StyleSheet.absoluteFill} pointerEvents="box-none" to={{ opacity: openingCard ? 0 : 1 }} motion={openingCard ? OPENING_CARD_MOTION : CHROME_BACK}>
         {redesigned ? (
           <Animated.View style={[StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
             <DeckHeader
@@ -808,10 +810,10 @@ export const TabDeck = memo(function TabDeck() {
             />
           </Animated.View>
         )}
+        </MotionView>
         {poofs.map((spec) => (
           <PoofBurst key={spec.id} spec={spec} />
         ))}
-        {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} onGrowing={() => openingCardGrowing(openingCard.id)} /> : null}
       </Shade>
       <DeckLookProbe
         busy={phase.kind !== "settled" || menu !== null || headerMenu !== null || cardMenu !== null || confirmation !== null || deckSheet !== null || trayOpen || deckSurface !== "deck" || archiveCard}
@@ -867,6 +869,7 @@ const flickTick = () => haptics.tap();
 const DECK_FROST = "deck";
 const HANDOVER_CAP_MS = 250;
 const CARD_LANDED = 0.02;
+const CHROME_BACK: MotionCurve = { type: "timing", durationMs: 0 };
 const PAGE_MOUNT_AFTER_GROWTH_MS = 34;
 
 const criticalSpringLandsMs = (response: number, within: number) => {
