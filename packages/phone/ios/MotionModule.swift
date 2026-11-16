@@ -31,6 +31,7 @@ struct MotionCurveRecord: Record {
 final class MotionView: ExpoView {
   let onMotionEnd = EventDispatcher()
   var target = MotionTargetRecord()
+  var start: MotionTargetRecord?
   var curve = MotionCurveRecord()
   private lazy var runner: MotionRunner = {
     let made = MotionRunner(layer: layer)
@@ -39,7 +40,7 @@ final class MotionView: ExpoView {
   }()
 
   func apply() {
-    runner.show(target.values, curve: curve.motion, animates: window != nil && !UIAccessibility.isReduceMotionEnabled)
+    runner.show(target.values, curve: curve.motion, animates: !UIAccessibility.isReduceMotionEnabled && (window != nil || start != nil), startingAt: start?.values)
   }
 }
 
@@ -54,6 +55,10 @@ public final class MotionModule: Module {
 
       Prop("to") { (view: MotionView, target: MotionTargetRecord?) in
         view.target = target ?? MotionTargetRecord()
+      }
+
+      Prop("from") { (view: MotionView, start: MotionTargetRecord?) in
+        view.start = start
       }
 
       Prop("motion") { (view: MotionView, curve: MotionCurveRecord?) in

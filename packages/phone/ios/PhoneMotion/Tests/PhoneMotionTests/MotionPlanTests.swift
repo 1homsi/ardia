@@ -110,6 +110,36 @@ struct MotionPlanTests {
     }
   }
 
+  @Test func aStartPoseMovesToTheTargetInTheSameMount() throws {
+    try held {
+      let ends = Ends()
+      let motion = runner(ends)
+      motion.show(MotionValues(scale: 1, cornerRadius: 55), curve: expand, animates: true, startingAt: MotionValues(translateY: 240, scale: 0.4, cornerRadius: 28))
+      let growth = try #require(motion.layer.animation(forKey: MotionChannel.scale.key) as? CASpringAnimation)
+      let lift = try #require(motion.layer.animation(forKey: MotionChannel.translateY.key) as? CASpringAnimation)
+      let corners = try #require(motion.layer.animation(forKey: MotionChannel.cornerRadius.key) as? CASpringAnimation)
+      #expect(growth.fromValue as? CGFloat == 0.4)
+      #expect(growth.toValue as? CGFloat == 1)
+      #expect(lift.fromValue as? CGFloat == 240)
+      #expect(corners.fromValue as? CGFloat == 28)
+      #expect(motion.layer.value(forKeyPath: "transform.scale.x") as? CGFloat == 1, "the model layer holds the end state")
+      stopAll(motion)
+      #expect(ends.seen == [true], "a move started from a start pose reports its end")
+    }
+  }
+
+  @Test func aStartPoseCountsOnlyAtTheFirstMount() {
+    held {
+      let motion = runner(Ends())
+      motion.show(MotionValues(scale: 1), curve: expand, animates: true)
+      motion.show(MotionValues(scale: 1), curve: expand, animates: true, startingAt: MotionValues(scale: 0.4))
+      #expect(motion.layer.animationKeys() == nil, "a mounted view ignores a later start pose")
+      let still = runner(Ends())
+      still.show(MotionValues(scale: 1), curve: expand, animates: true, startingAt: MotionValues(scale: 1))
+      #expect(still.layer.animationKeys() == nil, "a start pose equal to the target is shown without motion")
+    }
+  }
+
   @Test func theEndFiresOnceWhenEveryChannelHasStopped() {
     held {
       let ends = Ends()

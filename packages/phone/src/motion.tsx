@@ -10,6 +10,7 @@ export type MotionCurve =
 
 export type MotionViewProps = ViewProps & {
   to: MotionTarget;
+  from?: MotionTarget;
   motion: MotionCurve;
   onMotionEnd?: (finished: boolean) => void;
   children?: ReactNode;
@@ -26,11 +27,11 @@ export const motionRunsInRenderServer = () => native?.runsInRenderServer === tru
 
 const filled = (to: MotionTarget) => ({ opacity: to.opacity ?? 1, translateX: to.translateX ?? 0, translateY: to.translateY ?? 0, scale: to.scale ?? 1, cornerRadius: to.cornerRadius });
 
-export function MotionView({ to, motion, onMotionEnd, ...rest }: MotionViewProps) {
+export function MotionView({ to, from, motion, onMotionEnd, ...rest }: MotionViewProps) {
   if (motionRunsInRenderServer()) {
-    return createElement(view(), { ...rest, to: filled(to), motion, onMotionEnd: onMotionEnd ? (event: NativeSyntheticEvent<{ finished: boolean }>) => onMotionEnd(event.nativeEvent.finished) : undefined });
+    return createElement(view(), { ...rest, to: filled(to), from: from ? filled(from) : undefined, motion, onMotionEnd: onMotionEnd ? (event: NativeSyntheticEvent<{ finished: boolean }>) => onMotionEnd(event.nativeEvent.finished) : undefined });
   }
-  return createElement(AnimatedMotionView, { to, motion, onMotionEnd, ...rest });
+  return createElement(AnimatedMotionView, { to, from, motion, onMotionEnd, ...rest });
 }
 
 function animation(value: Animated.Value, toValue: number, motion: MotionCurve) {
@@ -44,10 +45,11 @@ function animation(value: Animated.Value, toValue: number, motion: MotionCurve) 
   return Animated.timing(value, { toValue, duration: motion.durationMs, easing: Easing.bezier(x1, y1, x2, y2), useNativeDriver: true });
 }
 
-function AnimatedMotionView({ to, motion, onMotionEnd, style, ...rest }: MotionViewProps) {
+function AnimatedMotionView({ to, from, motion, onMotionEnd, style, ...rest }: MotionViewProps) {
   const { cornerRadius, ...target } = filled(to);
-  const values = useRef({ opacity: new Animated.Value(target.opacity), translateX: new Animated.Value(target.translateX), translateY: new Animated.Value(target.translateY), scale: new Animated.Value(target.scale) }).current;
-  const shown = useRef(target);
+  const { cornerRadius: _startRadius, ...start } = filled(from ?? to);
+  const values = useRef({ opacity: new Animated.Value(start.opacity), translateX: new Animated.Value(start.translateX), translateY: new Animated.Value(start.translateY), scale: new Animated.Value(start.scale) }).current;
+  const shown = useRef(start);
   useEffect(() => {
     const before = shown.current;
     shown.current = target;

@@ -108,9 +108,32 @@ final class MotionRunner {
     self.layer = layer
   }
 
-  func show(_ next: MotionValues, curve: MotionCurve, animates: Bool) {
+  func show(_ next: MotionValues, curve: MotionCurve, animates: Bool, startingAt start: MotionValues? = nil) {
+    if shown == nil, let start, start != next {
+      shown = start
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      apply(start)
+      CATransaction.commit()
+      animateMove(to: next, from: start, curve: curve, animates: animates)
+      return
+    }
     guard next != shown else { return }
     let from = shown.map { before in MotionValues(showing: layer.presentation() ?? layer, withCorners: before.cornerRadius != nil) }
+    animateMove(to: next, from: from, curve: curve, animates: animates)
+  }
+
+  private func apply(_ values: MotionValues) {
+    layer.opacity = Float(values.opacity)
+    layer.transform = values.transform
+    if let radius = values.cornerRadius {
+      layer.cornerCurve = .continuous
+      layer.masksToBounds = true
+      layer.cornerRadius = radius
+    }
+  }
+
+  private func animateMove(to next: MotionValues, from: MotionValues?, curve: MotionCurve, animates: Bool) {
     shown = next
     move += 1
     waiting = 0
@@ -129,13 +152,7 @@ final class MotionRunner {
       waiting += 1
       layer.add(animation, forKey: channel.key)
     }
-    layer.opacity = Float(next.opacity)
-    layer.transform = next.transform
-    if let radius = next.cornerRadius {
-      layer.cornerCurve = .continuous
-      layer.masksToBounds = true
-      layer.cornerRadius = radius
-    }
+    apply(next)
     CATransaction.commit()
     if from != nil, waiting == 0 { onEnd?(true) }
   }
