@@ -535,26 +535,29 @@ is plain Chromium.
   app text field is focused while the keyboard is in a page of the field's own window (the command bar, the find bar,
   an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates that window. A page that hides or
   closes leaves full screen, as the Mac's does.
-- Win+Up, Win+Down, Win+Left, Win+Right and Win+Z (with or without Shift) work while a page has the keyboard (#2148).
-  The shell takes the arrow's key-down for itself and acts on the foreground window, which is then the page's own
-  window, so nothing moved. `MenuKeyboard`'s thread hook still sees the arrow's key-up; when that key-up comes with
-  the Windows key down (or just released), its key-down never reached the hook and a page window owned by an app
-  window is in front, the hook activates that app window (same thread, so nothing is taken from another app) and, only
-  if it is still the foreground window 100 ms later (the shell needs to see the activation first), sends the same
-  arrow or Z again with `SendInput`, inside a Windows key press when the user has already let go of it, and always for
-  Z, so it can never arrive as a plain letter (the Windows key's down and up always go in one batch). It sends nothing
-  else, and nothing while Ctrl or Alt is held (Win+Ctrl+arrows switch desktops). The sent keys carry a tag, so their
-  own key-ups never start another round. A mark for the sent key lasts 500 ms and drops on any other key or when the
-  app window is no longer in front; arrows the hook saw go down are forgotten at the next Windows key press once they
-  are physically up. When the sent key's up arrives, 500 ms later the app asks the window's Peek page, or else its
-  shown tab, to follow (`snapKeyHandedBack` to `followHandedBack`, the rule above), unless the window is minimized,
-  lost the foreground or another key came first. After Win+Left or Win+Right the shell's Snap Assist takes the
-  foreground, so the keyboard then stays in the app window. Win+Z leaves the keyboard in the app window, for the snap
-  layouts. A background instance only logs it. Unlike a native press, it acts on the arrow's key-up, a held arrow
-  doesn't repeat, and the page sees one blur and focus. Every other Windows key chord (Win+V, Win+., Win+H) is left
-  alone and the page keeps the keyboard. The launch log counts the keys sent and handed back ("snap keys: … so far");
-  the launch check's snap pass presses each key with the sidebar and then a page focused, then Win+Up from a page with
-  the Windows key still held, and a page field keeps the keyboard through Win+V and Win+. and Escape.
+- Win+Up, Win+Down, Win+Left, Win+Right, Win+Z and their chains work while a page has the keyboard, as natively as
+  with the sidebar (#2148). The shell acts on the window that was in front when the Windows key went down (CI showed
+  an arrow sent later, with the app window in front, still ignored), and a page's own window can't be snapped, so
+  nothing moved. `MenuKeyboard`'s thread hook sees the Windows key go down over a page; when the foreground window is
+  then a page window owned by one of the app's windows (and the instance isn't a background one), the app window takes
+  the foreground at once (same thread, so nothing is taken from another app) and the hook remembers the page. The
+  user's own keys then reach the shell with the app window as its target; nothing is ever sent with `SendInput`, so
+  the shell acts on the arrow's key-down, a held arrow repeats, Win+Left then Up in one press works, and Snap Assist
+  and the snap layouts are the system's. The keyboard goes back to the remembered page through the follow path
+  (`snapKeyHandedBack` to `followHandedBack`, which asks the window's Peek page, or else its shown tab, to follow): at
+  once on the key-up of any other key pressed with the Windows key (V, the period, H, a letter, a digit), so clipboard
+  history, the emoji panel and dictation still type into the page; 150 ms after the Windows key is let go if the app
+  window is still in front and not minimized; or, when Start, Snap Assist or another program came to the front, as
+  soon as the app window is in front again. The shell eats the Windows key's own key-up when a tap opens Start, so the
+  key counts as let go once it is no longer physically down. The page is let go if it or its window goes away, another
+  window of the app comes to the front, the window is minimized, or 5 s pass; if another program is still in front
+  then, the page is asked to follow anyway, and the follow path gives it the keyboard when the window is activated
+  again, as Windows gives it back to the last active window today. The page sees one blur and focus. The launch log
+  counts the pages held and given back ("snap keys: … so far"). The launch check presses the five keys with the
+  sidebar and with a page focused, quickly and with the Windows key held 300 ms around the arrow, presses Win+Left
+  then Up in one press and compares it with the sidebar's, presses Win+V, Win+. and a Windows key tap from a page's
+  text box, each dismissed with Escape, and checks after each where the keyboard is and that typing still reaches the
+  box. Win+Shift+Left and Right need a second monitor and aren't checked.
 - Find in page is the app's bar, as on the Mac. Ctrl+F in a page reaches the app's `findInPage` through `MenuKeyboard`'s
   thread keyboard hook, which sees keys meant for the page windows (the hosted windows have no Chromium shortcuts), so
   Chromium's own find bar never shows. React Native for Windows fires both `onKeyDown` and `onSubmitEditing` for one

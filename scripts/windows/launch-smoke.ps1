@@ -975,7 +975,9 @@ public static class ArdiaSnapKeys {
         [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 400
       }
-      Write-Host "Snap keys ($Label): after $($step.Name) the keyboard is in $(Get-KeyboardPlace $handle)."
+      $place = Get-KeyboardPlace $handle
+      Write-Host "Snap keys ($Label): after $($step.Name) the keyboard is in $place."
+      if ($Held -and $Where -eq "page" -and $step.Want -ne "minimized" -and $place -ne "the page") { $failures += "snap keys ($Label): after $($step.Name) the keyboard was not back in the page (it is in $place)" }
     }
     Set-SnapHome $handle $work
     return $failures
@@ -1047,45 +1049,6 @@ public static class ArdiaSnapKeys {
     return $failures
   }
 
-  function Send-WindowsChord([byte]$Key) {
-    [ArdiaInput]::keybd_event(0x5B, 0, 1, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 80
-    [ArdiaInput]::keybd_event($Key, 0, 0, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 60
-    [ArdiaInput]::keybd_event($Key, 0, 2, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 80
-    [ArdiaInput]::keybd_event(0x5B, 0, 3, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 1500
-  }
-
-  function Test-FieldKeepsKeyboard([System.Diagnostics.Process]$Process) {
-    $handle = $Process.MainWindowHandle
-    if ($handle -eq [IntPtr]::Zero) { return @("page field keys: the window never showed") }
-    $failures = @()
-    Set-SnapHome $handle ([System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea)
-    Set-SnapFocus $Process "page"
-    $typed = ""
-    foreach ($chord in @(@{ Name = "Win+V"; Key = 0x56; Letter = "k" }, @{ Name = "Win+."; Key = 0xBE; Letter = "j" })) {
-      $before = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
-      Send-WindowsChord ([byte]$chord.Key)
-      $shown = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
-      [ArdiaInput]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
-      [ArdiaInput]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
-      Start-Sleep -Milliseconds 800
-      $back = Get-SnapDescription ([ArdiaSnapKeys]::GetForegroundWindow())
-      $held = Test-SnapFocusHeld $handle "page"
-      $typed += $chord.Letter
-      Send-Text $chord.Letter
-      Start-Sleep -Milliseconds 800
-      $reached = (Test-Path $httpPagesLog) -and @(Select-String -Path $httpPagesLog -SimpleMatch "/event/typed?$typed").Count -gt 0
-      $opened = $shown -ne $before
-      $verdict = if ($opened) { "its flyout opened" } else { "no flyout took the foreground on this machine, so only the field's keyboard is checked" }
-      Write-Host "Page field keys: before $($chord.Name) the foreground window was $before; with it pressed, $shown ($verdict); after Escape, $back (the page: $held); typing reached the field: $reached."
-      if (-not ($held -and $reached)) { $failures += "page field keys: after $($chord.Name) and Escape the page field lost the keyboard (the foreground window was $back; typing reached the field: $reached)" }
-    }
-    return $failures
-  }
-
   Enable-WindowSnapping
   $snapLog = Join-Path $Out "snap-keys.log"
   $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-data"
@@ -1100,8 +1063,7 @@ public static class ArdiaSnapKeys {
     else {
       $snapApp.Refresh()
       Test-SnapKeys $snapApp "sidebar" | ForEach-Object { $failures += $_ }
-      Test-SnapKeys $snapApp "sidebar" "sidebar, Windows key held" -Held | ForEach-Object { $failures += $_ }
-      $chainControl = Get-SnapChain $snapApp "sidebar" "sidebar, Windows key held"
+      Test-SnapKeys $snapApp "page" | ForEach-Object { $failures += $_ }
       if (Test-Path $snapLog) { Select-String -Path $snapLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log: $($_.Line)" } }
     }
   } finally {
@@ -1110,55 +1072,31 @@ public static class ArdiaSnapKeys {
       $snapApp.WaitForExit(10000) | Out-Null
     }
   }
-  $fieldLog = Join-Path $Out "field-keys.log"
-  $env:ARDIA_DATA_DIR = New-DataDirectory "field-keys-data"
+  $heldLog = Join-Path $Out "snap-keys-held.log"
+  $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-held-data"
   $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
   Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
   Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
-  $fieldApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$fieldLog`"", "http://127.0.0.1:$httpPagesPort/field" -PassThru
+  $heldApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$heldLog`"", "http://127.0.0.1:$httpPagesPort/field" -PassThru
   $env:ARDIA_CONFIG_DIR = ""
   try {
     Start-Sleep -Seconds 12
-    if ($fieldApp.HasExited) { $failures += "page field keys: the app exited on its own (exit code $($fieldApp.ExitCode))" }
+    if ($heldApp.HasExited) { $failures += "snap keys (Windows key held): the app exited on its own (exit code $($heldApp.ExitCode))" }
     else {
-      $fieldApp.Refresh()
-      Test-FieldKeepsKeyboard $fieldApp | ForEach-Object { $failures += $_ }
-      if (Test-Path $fieldLog) { Select-String -Path $fieldLog -Pattern "snap keys" | ForEach-Object { Write-Host "Page field keys log: $($_.Line)" } }
+      $heldApp.Refresh()
+      Test-SnapKeys $heldApp "sidebar" "sidebar, Windows key held" -Held | ForEach-Object { $failures += $_ }
+      $chainControl = Get-SnapChain $heldApp "sidebar" "sidebar, Windows key held"
+      Test-SnapKeys $heldApp "page" "page, Windows key held" -Held | ForEach-Object { $failures += $_ }
+      $chain = Get-SnapChain $heldApp "page" "page, Windows key held"
+      Test-SnapChainLike $chain $chainControl "page, Windows key held" | ForEach-Object { $failures += $_ }
+      if ($chain.Place -ne "the page") { $failures += "snap keys (page, Windows key held): after Win+Left then Up and Escape the keyboard was not back in the page (it is in $($chain.Place))" }
+      Test-HeldFieldKeys $heldApp "page, Windows key held" @("k", "j", "q") | ForEach-Object { $failures += $_ }
+      if (Test-Path $heldLog) { Select-String -Path $heldLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log (Windows key held): $($_.Line)" } }
     }
   } finally {
-    if (-not $fieldApp.HasExited) {
-      Stop-Process -Id $fieldApp.Id -Force
-      $fieldApp.WaitForExit(10000) | Out-Null
-    }
-  }
-  foreach ($strategy in @(@{ Name = "early"; Letters = @("k", "j", "q") }, @{ Name = "late"; Letters = @("m", "n", "p") })) {
-    $snapStrategy = $strategy.Name
-    $strategyLog = Join-Path $Out "snap-keys-$snapStrategy.log"
-    $env:ARDIA_DATA_DIR = New-DataDirectory "snap-keys-$snapStrategy-data"
-    $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
-    $env:ARDIA_TEST = "snapKeys=$snapStrategy"
-    Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
-    Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "config.json") -Value '{"settings":{"openLinksInLittleArdia":false}}' -Encoding utf8NoBOM
-    $strategyApp = Start-Process -FilePath $App -ArgumentList "--log-file=`"$strategyLog`"", "http://127.0.0.1:$httpPagesPort/field" -PassThru
-    $env:ARDIA_CONFIG_DIR = ""
-    $env:ARDIA_TEST = ""
-    try {
-      Start-Sleep -Seconds 12
-      if ($strategyApp.HasExited) { $failures += "snap keys ($snapStrategy): the app exited on its own (exit code $($strategyApp.ExitCode))" }
-      else {
-        $strategyApp.Refresh()
-        Test-SnapKeys $strategyApp "page" "$snapStrategy, page" | ForEach-Object { $failures += $_ }
-        Test-SnapKeys $strategyApp "page" "$snapStrategy, page, Windows key held" -Held | ForEach-Object { $failures += $_ }
-        $chain = Get-SnapChain $strategyApp "page" "$snapStrategy, page, Windows key held"
-        Test-SnapChainLike $chain $chainControl "$snapStrategy, page, Windows key held" | ForEach-Object { $failures += $_ }
-        Test-HeldFieldKeys $strategyApp "$snapStrategy, page, Windows key held" $strategy.Letters | ForEach-Object { $failures += $_ }
-        if (Test-Path $strategyLog) { Select-String -Path $strategyLog -Pattern "snap keys" | ForEach-Object { Write-Host "Snap keys log ($snapStrategy): $($_.Line)" } }
-      }
-    } finally {
-      if (-not $strategyApp.HasExited) {
-        Stop-Process -Id $strategyApp.Id -Force
-        $strategyApp.WaitForExit(10000) | Out-Null
-      }
+    if (-not $heldApp.HasExited) {
+      Stop-Process -Id $heldApp.Id -Force
+      $heldApp.WaitForExit(10000) | Out-Null
     }
   }
   $env:ARDIA_CONFIG_DIR = ""

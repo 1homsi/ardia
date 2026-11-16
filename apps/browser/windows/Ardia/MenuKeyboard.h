@@ -40,15 +40,7 @@ inline HWND MenuOwnerWindow() noexcept {
   return WindowManager::Shared().ActiveHwnd();
 }
 
-struct SnapKeyMark {
-  HWND app = nullptr;
-  std::string windowId;
-  UINT key = 0;
-  ULONGLONG until = 0;
-  bool shift = false;
-};
-
-struct EarlyKeyboard {
+struct WindowsKeyHold {
   HWND page = nullptr;
   HWND app = nullptr;
   std::string windowId;
@@ -57,15 +49,8 @@ struct EarlyKeyboard {
 };
 
 struct MenuKeyboard {
-  static constexpr ULONGLONG EarlyKeyboardMs = 5000;
-  static constexpr int EarlyCheckDelayMs = 150;
-
-  static constexpr ULONGLONG SnapKeyMarkMs = 500;
-  static constexpr ULONGLONG SnapKeyAfterWindowsKeyMs = 1000;
-  static constexpr int SnapKeyHandBackDelayMs = 500;
-  static constexpr int SnapKeySendDelayMs = 100;
-  static constexpr ULONGLONG SnapKeyWindowsReleaseMs = 2000;
-  static constexpr ULONG_PTR SnapKeyTag = 0x41534B59;
+  static constexpr ULONGLONG WindowsKeyHoldMs = 5000;
+  static constexpr int WindowsKeyCheckDelayMs = 150;
 
   winrt::Microsoft::ReactNative::ReactContext context{nullptr};
   HHOOK keyboardHook = nullptr;
@@ -78,22 +63,12 @@ struct MenuKeyboard {
   bool capturedWHeld = false;
   std::atomic<bool> textInputFocused{false};
   std::set<UINT> swallowedKeyUps;
-  std::set<UINT> snapKeysSeenDown;
-  std::optional<SnapKeyMark> snapKeyMark;
-  std::optional<SnapKeyMark> snapKeyHandBack;
-  std::optional<SnapKeyMark> snapKeySend;
-  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer snapKeyTimer{nullptr};
-  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer snapKeySendTimer{nullptr};
-  ULONGLONG windowsKeyReleasedAt = 0;
-  bool windowsChordUsedControlOrAlt = false;
-  std::optional<EarlyKeyboard> earlyKeyboard;
+  std::optional<WindowsKeyHold> windowsKeyHold;
   HWINEVENTHOOK foregroundHook = nullptr;
-  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer earlyCheckTimer{nullptr};
-  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer earlyDeadlineTimer{nullptr};
-  unsigned earlyHandedOver = 0;
-  unsigned earlyHandedBack = 0;
-  unsigned snapKeysHandedOver = 0;
-  unsigned snapKeysHandedBack = 0;
+  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer windowsKeyCheckTimer{nullptr};
+  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer windowsKeyDeadlineTimer{nullptr};
+  unsigned pagesHeldForWindowsKey = 0;
+  unsigned pagesGivenBack = 0;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
 
   static MenuKeyboard &Shared() noexcept {
@@ -338,53 +313,31 @@ struct MenuKeyboard {
     return key == VK_LWIN || key == VK_RWIN;
   }
 
-  static bool IsShiftKey(UINT key) noexcept {
-    return key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT;
-  }
-
-  static bool WindowsKeyHeldNow() noexcept {
-    return (GetKeyState(VK_LWIN) & 0x8000) != 0 || (GetKeyState(VK_RWIN) & 0x8000) != 0;
+  static bool IsHeldModifierKey(UINT key) noexcept {
+    switch (key) {
+      case VK_SHIFT:
+      case VK_LSHIFT:
+      case VK_RSHIFT:
+      case VK_CONTROL:
+      case VK_LCONTROL:
+      case VK_RCONTROL:
+      case VK_MENU:
+      case VK_LMENU:
+      case VK_RMENU:
+        return true;
+      default:
+        return false;
+    }
   }
 
   static bool WindowsKeyPhysicallyHeld() noexcept {
     return (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
   }
 
-  static bool ControlOrAltHeldNow() noexcept {
-    return (GetKeyState(VK_CONTROL) & 0x8000) != 0 || (GetKeyState(VK_MENU) & 0x8000) != 0;
-  }
-
-  static bool IsControlOrAltKey(UINT key) noexcept {
-    return key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL || key == VK_MENU || key == VK_LMENU || key == VK_RMENU;
-  }
-
-  static bool ShiftHeldNow() noexcept {
-    return (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-  }
-
-  static bool ShiftPhysicallyHeld() noexcept {
-    return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-  }
-
-  static bool ControlOrAltPhysicallyHeld() noexcept {
-    return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-  }
-
-  void ForgetReleasedSnapKeys() noexcept {
-    for (auto it = snapKeysSeenDown.begin(); it != snapKeysSeenDown.end();) {
-      if (GetAsyncKeyState(static_cast<int>(*it)) & 0x8000) ++it;
-      else it = snapKeysSeenDown.erase(it);
-    }
-  }
-
-  static std::wstring SnapKeyName(UINT key) {
-    switch (key) {
-      case VK_UP: return L"Win+Up";
-      case VK_DOWN: return L"Win+Down";
-      case VK_LEFT: return L"Win+Left";
-      case VK_RIGHT: return L"Win+Right";
-      default: return L"Win+Z";
-    }
+  static bool OurWindow(HWND hwnd) noexcept {
+    DWORD process = 0;
+    if (hwnd) GetWindowThreadProcessId(hwnd, &process);
+    return hwnd && process == GetCurrentProcessId();
   }
 
   static ActiveWindow HostOfPage(HWND page) noexcept {
@@ -399,75 +352,16 @@ struct MenuKeyboard {
     return {};
   }
 
-  void WatchSnapKey(UINT key, bool keyUp, bool repeat) noexcept {
-    ULONGLONG now = GetTickCount64();
-    bool sentHere = static_cast<ULONG_PTR>(GetMessageExtraInfo()) == SnapKeyTag;
-    if (IsWindowsKey(key)) {
-      if (sentHere) return;
-      if (keyUp) {
-        windowsKeyReleasedAt = now;
-        if (snapKeySend && snapKeySend->until) RestartSnapKeySend();
-      } else if (!repeat) {
-        windowsChordUsedControlOrAlt = false;
-        ForgetReleasedSnapKeys();
-      }
-      return;
-    }
-    if (IsShiftKey(key)) return;
-    if (!keyUp && !sentHere && IsControlOrAltKey(key) && WindowsKeyHeldNow()) windowsChordUsedControlOrAlt = true;
-    if (snapKeyHandBack) {
-      snapKeyHandBack.reset();
-      LaunchLog::Write(L"keys", L"snap keys: another key came before the hand-back, so the keyboard stays in the app window");
-    }
-    if (snapKeySend && !sentHere) {
-      snapKeySend.reset();
-      LaunchLog::Write(L"keys", L"snap keys: another key came before the send, so nothing was sent");
-    }
-    if (snapKeyMark && SettleSnapKeyMark(key, keyUp, now, sentHere)) return;
-    if (sentHere || !IsSnapKey(key)) return;
-    if (!keyUp) {
-      snapKeysSeenDown.insert(key);
-      return;
-    }
-    if (snapKeysSeenDown.erase(key)) return;
-    if (ControlOrAltHeldNow() || windowsChordUsedControlOrAlt) return;
-    if (!WindowsKeyHeldNow() && now - windowsKeyReleasedAt > SnapKeyAfterWindowsKeyMs) return;
-    HandOverSnapKey(key);
-  }
-
-  void HandOverSnapKey(UINT key) noexcept {
-    HWND page = GetForegroundWindow();
-    ActiveWindow host = HostOfPage(page);
-    if (!host.hwnd || !context) return;
-    if (Background()) {
-      LaunchLog::Write(L"keys", L"snap keys: " + SnapKeyName(key) + L" with a page focused (acted out)");
-      return;
-    }
-    bool shift = ShiftHeldNow();
-    RunOnUI(context, [page, host, key, shift]() noexcept { Shared().SendSnapKey(page, host, key, shift); });
-  }
-
-  static std::string const &SnapStrategy() noexcept {
-    static const std::string strategy = AppLaunch::TestValue("snapKeys").value_or(std::string{});
-    return strategy;
-  }
-
-  void WatchWindowsChord(UINT key, bool keyUp, bool repeat) noexcept {
-    std::string const &strategy = SnapStrategy();
-    if (strategy == "early") WatchEarlyKey(key, keyUp, repeat);
-    else if (strategy == "late") WatchSnapKey(key, keyUp, repeat);
-  }
-
-  static bool OurWindow(HWND hwnd) noexcept {
-    DWORD process = 0;
-    GetWindowThreadProcessId(hwnd, &process);
-    return hwnd && process == GetCurrentProcessId();
-  }
-
   void RestartTimer(winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer &timer, int delayMs, void (MenuKeyboard::*fire)() noexcept) noexcept {
     try {
-      if (!timer) timer = OneShotTimer(delayMs, fire);
-      if (!timer) return;
+      if (!timer) {
+        auto queue = winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread();
+        if (!queue) return;
+        timer = queue.CreateTimer();
+        timer.Interval(std::chrono::milliseconds(delayMs));
+        timer.IsRepeating(false);
+        timer.Tick([fire](auto const &, auto const &) noexcept { (Shared().*fire)(); });
+      }
       timer.Stop();
       timer.Start();
     } catch (...) {
@@ -475,29 +369,38 @@ struct MenuKeyboard {
     }
   }
 
-  void WatchEarlyKey(UINT key, bool keyUp, bool repeat) noexcept {
+  void WatchWindowsKey(UINT key, bool keyUp, bool repeat) noexcept {
     if (IsWindowsKey(key)) {
       if (!keyUp) {
-        if (!repeat) HoldKeyboardForWindowsKey();
-      } else if (earlyKeyboard) {
-        earlyKeyboard->windowsUp = true;
-        RestartTimer(earlyCheckTimer, EarlyCheckDelayMs, &MenuKeyboard::CheckEarlyKeyboard);
+        if (!repeat) HoldPageForWindowsKey();
+      } else {
+        WindowsKeyReleased();
       }
       return;
     }
-    if (!earlyKeyboard || !keyUp || earlyKeyboard->windowsUp) return;
-    if (IsSnapKey(key) || IsShiftKey(key) || IsControlOrAltKey(key)) return;
-    HandEarlyKeyboardBack(L"at the key-up of another key pressed with the Windows key");
+    if (!windowsKeyHold || windowsKeyHold->windowsUp) return;
+    if (!WindowsKeyPhysicallyHeld()) {
+      WindowsKeyReleased();
+      return;
+    }
+    if (!keyUp || IsSnapKey(key) || IsHeldModifierKey(key)) return;
+    GivePageBack(L"at the key-up of another key pressed with the Windows key");
   }
 
-  void HoldKeyboardForWindowsKey() noexcept {
+  void WindowsKeyReleased() noexcept {
+    if (!windowsKeyHold) return;
+    windowsKeyHold->windowsUp = true;
+    RestartTimer(windowsKeyCheckTimer, WindowsKeyCheckDelayMs, &MenuKeyboard::CheckWindowsKeyHold);
+  }
+
+  void HoldPageForWindowsKey() noexcept {
     HWND foreground = GetForegroundWindow();
     ActiveWindow host = HostOfPage(foreground);
     if (!host.hwnd) {
-      if (earlyKeyboard) {
-        earlyKeyboard->windowsUp = false;
-        earlyKeyboard->until = GetTickCount64() + EarlyKeyboardMs;
-        RestartTimer(earlyDeadlineTimer, static_cast<int>(EarlyKeyboardMs), &MenuKeyboard::EarlyKeyboardLapsed);
+      if (windowsKeyHold) {
+        windowsKeyHold->windowsUp = false;
+        windowsKeyHold->until = GetTickCount64() + WindowsKeyHoldMs;
+        RestartTimer(windowsKeyDeadlineTimer, static_cast<int>(WindowsKeyHoldMs), &MenuKeyboard::WindowsKeyHoldLapsed);
       }
       return;
     }
@@ -506,81 +409,81 @@ struct MenuKeyboard {
       LaunchLog::Write(L"keys", L"snap keys: the Windows key went down over a page (acted out)");
       return;
     }
-    if (earlyKeyboard) DropEarlyKeyboard(L"a new Windows key press over a page replaced it");
-    earlyKeyboard = EarlyKeyboard{foreground, host.hwnd, host.id, GetTickCount64() + EarlyKeyboardMs, false};
-    RunOnUI(context, []() noexcept { Shared().TakeKeyboardForWindowsKey(); });
+    if (windowsKeyHold) LetPageGo(L"a new Windows key press over a page replaced it");
+    windowsKeyHold = WindowsKeyHold{foreground, host.hwnd, host.id, GetTickCount64() + WindowsKeyHoldMs, false};
+    RunOnUI(context, []() noexcept { Shared().GiveAppWindowTheKeyboard(); });
   }
 
-  void TakeKeyboardForWindowsKey() noexcept {
-    if (!earlyKeyboard) return;
-    EarlyKeyboard hold = *earlyKeyboard;
+  void GiveAppWindowTheKeyboard() noexcept {
+    if (!windowsKeyHold) return;
+    WindowsKeyHold hold = *windowsKeyHold;
     if (GetForegroundWindow() != hold.page || !IsWindow(hold.app)) {
-      DropEarlyKeyboard(L"the page lost the foreground before the app window could take it");
+      LetPageGo(L"the page lost the foreground before its app window could take it");
       return;
     }
     SetForegroundWindow(hold.app);
     if (GetForegroundWindow() != hold.app) {
-      DropEarlyKeyboard(L"the app window did not take the foreground");
+      LetPageGo(L"the app window did not take the foreground");
       return;
     }
-    ++earlyHandedOver;
-    LaunchLog::Write(L"keys", L"snap keys: the Windows key went down over a page, so its app window took the keyboard (" + std::to_wstring(earlyHandedOver) + L" so far)");
+    ++pagesHeldForWindowsKey;
+    LaunchLog::Write(L"keys", L"snap keys: the Windows key went down over a page, so its app window took the keyboard (" + std::to_wstring(pagesHeldForWindowsKey) + L" so far)");
     if (!foregroundHook) foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, &MenuKeyboard::ForegroundChanged, 0, 0, WINEVENT_OUTOFCONTEXT);
-    RestartTimer(earlyDeadlineTimer, static_cast<int>(EarlyKeyboardMs), &MenuKeyboard::EarlyKeyboardLapsed);
-    if (earlyKeyboard->windowsUp) RestartTimer(earlyCheckTimer, EarlyCheckDelayMs, &MenuKeyboard::CheckEarlyKeyboard);
+    RestartTimer(windowsKeyDeadlineTimer, static_cast<int>(WindowsKeyHoldMs), &MenuKeyboard::WindowsKeyHoldLapsed);
+    if (windowsKeyHold && (windowsKeyHold->windowsUp || !WindowsKeyPhysicallyHeld())) WindowsKeyReleased();
   }
 
   static void CALLBACK ForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) noexcept {
     MenuKeyboard &keyboard = Shared();
-    if (keyboard.earlyKeyboard && keyboard.earlyKeyboard->windowsUp) keyboard.RestartTimer(keyboard.earlyCheckTimer, EarlyCheckDelayMs, &MenuKeyboard::CheckEarlyKeyboard);
+    if (!keyboard.windowsKeyHold) return;
+    if (keyboard.windowsKeyHold->windowsUp || !WindowsKeyPhysicallyHeld()) keyboard.WindowsKeyReleased();
   }
 
-  void CheckEarlyKeyboard() noexcept {
-    if (!earlyKeyboard || !earlyKeyboard->windowsUp) return;
-    EarlyKeyboard hold = *earlyKeyboard;
+  void CheckWindowsKeyHold() noexcept {
+    if (!windowsKeyHold || !windowsKeyHold->windowsUp) return;
+    WindowsKeyHold hold = *windowsKeyHold;
     if (!IsWindow(hold.page) || !IsWindow(hold.app)) {
-      DropEarlyKeyboard(L"the page or its window went away");
-      return;
-    }
-    if (GetTickCount64() > hold.until) {
-      DropEarlyKeyboard(L"its deadline passed");
+      LetPageGo(L"the page or its window went away");
       return;
     }
     HWND foreground = GetForegroundWindow();
     if (foreground == hold.app) {
-      if (IsIconic(hold.app)) DropEarlyKeyboard(L"the window is minimized");
-      else HandEarlyKeyboardBack(L"after the Windows key");
+      if (IsIconic(hold.app)) LetPageGo(L"the window is minimized");
+      else GivePageBack(L"after the Windows key");
       return;
     }
     if (foreground == hold.page) {
-      DropEarlyKeyboard(L"the page has the keyboard already");
+      LetPageGo(L"the page has the keyboard already");
       return;
     }
     if (OurWindow(foreground)) {
-      DropEarlyKeyboard(L"another window of the app is in front");
+      LetPageGo(L"another window of the app is in front");
       return;
     }
     LaunchLog::Write(L"keys", L"snap keys: another program is in front, so the page waits for its window to come back");
   }
 
-  void EarlyKeyboardLapsed() noexcept {
-    if (earlyKeyboard) DropEarlyKeyboard(L"its deadline passed");
+  void WindowsKeyHoldLapsed() noexcept {
+    if (!windowsKeyHold) return;
+    HWND foreground = GetForegroundWindow();
+    if (windowsKeyHold->windowsUp && IsWindow(windowsKeyHold->page) && foreground && !OurWindow(foreground)) GivePageBack(L"for when its window comes back, as another program is still in front");
+    else LetPageGo(L"its deadline passed");
   }
 
-  void HandEarlyKeyboardBack(std::wstring_view reason) noexcept {
-    if (!earlyKeyboard) return;
-    std::string windowId = earlyKeyboard->windowId;
-    DropEarlyKeyboard({});
-    ++earlyHandedBack;
+  void GivePageBack(std::wstring_view when) noexcept {
+    if (!windowsKeyHold) return;
+    std::string windowId = windowsKeyHold->windowId;
+    LetPageGo({});
+    ++pagesGivenBack;
     EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "snapKeyHandedBack"}, {"windowId", windowId}});
-    LaunchLog::Write(L"keys", L"snap keys: the keyboard went back to the page " + std::wstring{reason} + L" (" + std::to_wstring(earlyHandedBack) + L" so far)");
+    LaunchLog::Write(L"keys", L"snap keys: the keyboard went back to the page " + std::wstring{when} + L" (" + std::to_wstring(pagesGivenBack) + L" so far)");
   }
 
-  void DropEarlyKeyboard(std::wstring_view reason) noexcept {
-    earlyKeyboard.reset();
+  void LetPageGo(std::wstring_view reason) noexcept {
+    windowsKeyHold.reset();
     try {
-      if (earlyCheckTimer) earlyCheckTimer.Stop();
-      if (earlyDeadlineTimer) earlyDeadlineTimer.Stop();
+      if (windowsKeyCheckTimer) windowsKeyCheckTimer.Stop();
+      if (windowsKeyDeadlineTimer) windowsKeyDeadlineTimer.Stop();
     } catch (...) {
       LaunchLog::Write(L"error", L"snap keys: a timer could not stop");
     }
@@ -588,195 +491,12 @@ struct MenuKeyboard {
       UnhookWinEvent(foregroundHook);
       foregroundHook = nullptr;
     }
-    if (!reason.empty()) LaunchLog::Write(L"keys", L"snap keys: the page's keyboard is let go: " + std::wstring{reason});
-  }
-
-  static winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer OneShotTimer(int delayMs, void (MenuKeyboard::*fire)() noexcept) {
-    auto queue = winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread();
-    if (!queue) return nullptr;
-    auto timer = queue.CreateTimer();
-    timer.Interval(std::chrono::milliseconds(delayMs));
-    timer.IsRepeating(false);
-    timer.Tick([fire](auto const &, auto const &) noexcept { (Shared().*fire)(); });
-    return timer;
-  }
-
-  void SendSnapKey(HWND page, ActiveWindow const &host, UINT key, bool shift) noexcept {
-    std::wstring name = SnapKeyName(key);
-    if (GetForegroundWindow() != page || !IsWindow(host.hwnd)) {
-      LaunchLog::Write(L"keys", L"snap keys: " + name + L": the page lost the foreground first, so nothing was sent");
-      return;
-    }
-    if (ControlOrAltPhysicallyHeld()) {
-      LaunchLog::Write(L"keys", L"snap keys: " + name + L": Ctrl or Alt is held, so nothing was sent");
-      return;
-    }
-    SetForegroundWindow(host.hwnd);
-    snapKeySend = SnapKeyMark{host.hwnd, host.id, key, 0, shift};
-    RestartSnapKeySend();
-  }
-
-  void RestartSnapKeySend() noexcept {
-    try {
-      if (!snapKeySendTimer) snapKeySendTimer = OneShotTimer(SnapKeySendDelayMs, &MenuKeyboard::SendPendingSnapKey);
-      if (!snapKeySendTimer) {
-        snapKeySend.reset();
-        return;
-      }
-      snapKeySendTimer.Stop();
-      snapKeySendTimer.Start();
-    } catch (...) {
-      snapKeySend.reset();
-      LaunchLog::Write(L"error", L"snap keys: the send could not be timed");
-    }
-  }
-
-  void SendPendingSnapKey() noexcept {
-    if (!snapKeySend) return;
-    SnapKeyMark pending = *snapKeySend;
-    UINT key = pending.key;
-    std::wstring name = SnapKeyName(key);
-    if (WindowsKeyPhysicallyHeld()) {
-      ULONGLONG now = GetTickCount64();
-      if (!pending.until) {
-        snapKeySend->until = now + SnapKeyWindowsReleaseMs;
-        LaunchLog::Write(L"keys", L"snap keys: " + name + L" waits for the Windows key to be let go");
-        return;
-      }
-      snapKeySend.reset();
-      LaunchLog::Write(L"keys", L"snap keys: " + name + L": a Windows key is still held, so nothing was sent");
-      return;
-    }
-    snapKeySend.reset();
-    if (pending.until && GetTickCount64() > pending.until) {
-      LaunchLog::Write(L"keys", L"snap keys: " + name + L": the Windows key was held too long, so nothing was sent");
-      return;
-    }
-    if (ControlOrAltPhysicallyHeld()) {
-      LaunchLog::Write(L"keys", L"snap keys: " + name + L": Ctrl or Alt is held, so nothing was sent");
-      return;
-    }
-    bool shiftHeld = ShiftPhysicallyHeld();
-    if (shiftHeld && !pending.shift) {
-      LaunchLog::Write(L"keys", L"snap keys: " + name + L": Shift went down after the key, so nothing was sent");
-      return;
-    }
-    bool addShift = pending.shift && !shiftHeld;
-    INPUT inputs[6] = {};
-    UINT count = 0;
-    auto add = [&inputs, &count](WORD virtualKey, bool up) noexcept {
-      INPUT &input = inputs[count++];
-      input.type = INPUT_KEYBOARD;
-      input.ki.wVk = virtualKey;
-      input.ki.wScan = static_cast<WORD>(MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC));
-      input.ki.dwFlags = (up ? KEYEVENTF_KEYUP : 0) | (virtualKey == 'Z' || virtualKey == VK_LSHIFT ? 0 : KEYEVENTF_EXTENDEDKEY);
-      input.ki.dwExtraInfo = SnapKeyTag;
-    };
-    add(VK_LWIN, false);
-    if (addShift) add(VK_LSHIFT, false);
-    add(static_cast<WORD>(key), false);
-    add(static_cast<WORD>(key), true);
-    if (addShift) add(VK_LSHIFT, true);
-    add(VK_LWIN, true);
-    if (!IsWindow(pending.app) || GetForegroundWindow() != pending.app) {
-      snapKeyMark.reset();
-      LaunchLog::Write(L"keys", L"snap keys: " + name + L": the app window did not hold the foreground, so nothing was sent");
-      return;
-    }
-    snapKeyMark = SnapKeyMark{pending.app, pending.windowId, key, GetTickCount64() + SnapKeyMarkMs};
-    UINT sent = SendInput(count, inputs, sizeof(INPUT));
-    if (sent != count) {
-      snapKeyMark.reset();
-      ReleaseUnmatchedDowns(inputs, sent);
-      LaunchLog::Write(L"error", L"snap keys: " + name + L" could not be sent to the app window");
-      return;
-    }
-    ++snapKeysHandedOver;
-    LaunchLog::Write(L"keys", L"snap keys: " + name + L" with a page focused went to the app window inside a Windows key press (" + std::to_wstring(snapKeysHandedOver) + L" so far)");
-  }
-
-  static void ReleaseUnmatchedDowns(INPUT const *inputs, UINT sent) noexcept {
-    INPUT releases[3] = {};
-    UINT count = 0;
-    for (UINT i = sent; i-- > 0;) {
-      if (inputs[i].ki.dwFlags & KEYEVENTF_KEYUP) continue;
-      bool released = false;
-      for (UINT j = i + 1; j < sent; ++j) released = released || (inputs[j].ki.wVk == inputs[i].ki.wVk && (inputs[j].ki.dwFlags & KEYEVENTF_KEYUP));
-      if (released || count == 3) continue;
-      releases[count] = inputs[i];
-      releases[count].ki.dwFlags |= KEYEVENTF_KEYUP;
-      ++count;
-    }
-    if (count) SendInput(count, releases, sizeof(INPUT));
-  }
-
-  bool SettleSnapKeyMark(UINT key, bool keyUp, ULONGLONG now, bool sentHere) noexcept {
-    SnapKeyMark mark = *snapKeyMark;
-    bool inTime = now <= mark.until;
-    bool ours = key == mark.key && (sentHere || inTime);
-    if (!ours) {
-      snapKeyMark.reset();
-      LaunchLog::Write(L"keys", inTime ? L"snap keys: another key came first, so the keyboard stays in the app window" : L"snap keys: the hand-back mark lapsed, so the keyboard stays where it is");
-      return false;
-    }
-    if (!inTime || !IsWindow(mark.app) || GetForegroundWindow() != mark.app) {
-      if (keyUp) snapKeyMark.reset();
-      LaunchLog::Write(L"keys", L"snap keys: the app window lost the foreground before the sent key came back, so the keyboard stays where it is");
-      return true;
-    }
-    if (!keyUp) {
-      LaunchLog::Write(L"keys", L"snap keys: the shell let the sent key through to the app window");
-      return true;
-    }
-    snapKeyMark.reset();
-    snapKeysSeenDown.erase(key);
-    if (key == 'Z') {
-      LaunchLog::Write(L"keys", L"snap keys: Win+Z keeps the keyboard in the app window for the snap layouts");
-      return true;
-    }
-    ScheduleSnapKeyHandBack(mark);
-    return true;
-  }
-
-  void ScheduleSnapKeyHandBack(SnapKeyMark const &mark) noexcept {
-    snapKeyHandBack = mark;
-    try {
-      if (!snapKeyTimer) snapKeyTimer = OneShotTimer(SnapKeyHandBackDelayMs, &MenuKeyboard::HandSnapKeyBack);
-      if (!snapKeyTimer) {
-        snapKeyHandBack.reset();
-        return;
-      }
-      snapKeyTimer.Stop();
-      snapKeyTimer.Start();
-    } catch (...) {
-      snapKeyHandBack.reset();
-      LaunchLog::Write(L"error", L"snap keys: the hand-back could not be timed");
-    }
-  }
-
-  void HandSnapKeyBack() noexcept {
-    if (!snapKeyHandBack) return;
-    SnapKeyMark mark = *snapKeyHandBack;
-    snapKeyHandBack.reset();
-    RECT rect{};
-    GetWindowRect(mark.app, &rect);
-    LaunchLog::Write(L"keys", L"snap keys: at the hand-back the window is at " + std::to_wstring(rect.left) + L"," + std::to_wstring(rect.top) + L"," + std::to_wstring(rect.right) + L"," + std::to_wstring(rect.bottom) + L" (maximized " + (IsZoomed(mark.app) ? L"yes" : L"no") + L", minimized " + (IsIconic(mark.app) ? L"yes" : L"no") + L", in front " + (GetForegroundWindow() == mark.app ? L"yes" : L"no") + L")");
-    if (!IsWindow(mark.app) || GetForegroundWindow() != mark.app) {
-      LaunchLog::Write(L"keys", L"snap keys: the app window lost the foreground, so the keyboard is not handed back");
-      return;
-    }
-    if (IsIconic(mark.app)) {
-      LaunchLog::Write(L"keys", L"snap keys: the window is minimized, so the keyboard is not handed back");
-      return;
-    }
-    ++snapKeysHandedBack;
-    EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "snapKeyHandedBack"}, {"windowId", mark.windowId}});
-    LaunchLog::Write(L"keys", L"snap keys: " + SnapKeyName(mark.key) + L" handed the keyboard back to the page (" + std::to_wstring(snapKeysHandedBack) + L" so far)");
+    if (!reason.empty()) LaunchLog::Write(L"keys", L"snap keys: the page is let go: " + std::wstring{reason});
   }
 
   bool HandleKey(UINT virtualKey, LPARAM flags) noexcept {
     bool keyUp = (flags & (1u << 31)) != 0;
-    WatchWindowsChord(virtualKey, keyUp, (flags & (1u << 30)) != 0);
+    WatchWindowsKey(virtualKey, keyUp, (flags & (1u << 30)) != 0);
     if (keyUp) {
       if (virtualKey == 'W') capturedWHeld = false;
       if (unsigned released = ModifierOfKey(virtualKey)) ModifiersChanged(static_cast<unsigned>(HeldModifiers() & ~released));
