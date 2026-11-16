@@ -195,6 +195,17 @@ public final class CompletingFieldModule: Module {
         MainActor.assumeIsolated { view.field.keyboardType = CompletingFieldView.keyboard(value) }
       }
 
+      Prop("keyboardAppearance") { (view: CompletingFieldView, value: String?) in
+        MainActor.assumeIsolated {
+          view.field.keyboardAppearance = switch value {
+          case "dark": .dark
+          case "light": .light
+          default: .default
+          }
+          if view.field.isFirstResponder { view.field.reloadInputViews() }
+        }
+      }
+
       Prop("returnKeyType") { (view: CompletingFieldView, value: String?) in
         MainActor.assumeIsolated { view.field.returnKeyType = CompletingFieldView.returnKey(value) }
       }

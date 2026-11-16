@@ -18,6 +18,7 @@ type SharedInputProps = Pick<
   | "cursorColor"
   | "selectionColor"
   | "keyboardType"
+  | "keyboardAppearance"
   | "returnKeyType"
   | "autoCapitalize"
   | "autoCorrect"
