@@ -1354,7 +1354,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Settings | Root, Sync With Mac, Appearance, Search Engine, Clear Browsing Data | match | | |
 | Settings | Site Settings | match | Permissions persist (942dc45df); the permission rows carry main's 22 pt favicons, d09343dba | |
 | Settings | Trusted Sites | match | Empty state the same | |
-| Settings | Filter Lists | different | Same page; on a fresh install Expo downloads and recompiles every list (0 rules and Compiling… for over two minutes under load, then 296,065 rules, "Updated 1 minute ago"), where main keeps the bundled lists' counts and dates (271,481). Blocking works in Expo from about 10 s after launch | iPhone |
+| Settings | Filter Lists | match | The demo now uses main's demo lists (`FilterLists.demo`, as main's AppModel does): a fresh demo install shows 11 lists and 271,481 rules at once, no downloads. Neither app bundles list files: a real install downloads them, and the built-in seed rules block from the first page, network or not (`PhoneBlockingTests`); on the simulator 46 requests were blocked within 5 s of a fresh launch | |
 | Settings | My Filters, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
 | Toasts | All kinds | not seen | | |
 | Extensions, widgets, intents | | match by construction | The Expo project compiles main's own sources for these | |

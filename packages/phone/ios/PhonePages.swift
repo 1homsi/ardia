@@ -51,10 +51,7 @@ final class PhonePages {
     container = (try? BrowserStore.makeContainer(.inMemory)) ?? (try! BrowserStore.makeContainer(.inMemory))
     let tabs = TabStore(context: container.mainContext, defaults: defaults)
     tabs.autoArchiveInterval = .never
-    let blocker = ContentBlocker(
-      settings: BlockingSettings(defaults: defaults),
-      directory: URL.cachesDirectory.appending(path: "Blocking", directoryHint: .isDirectory)
-    )
+    let blocker = PhoneBlocking.blocker(isDemo: PhoneTestBuild.isDemo, defaults: defaults)
     let permissions = SitePermissions(defaults: Self.remembersSitePermissions ? defaults : Self.launchPermissionDefaults())
     if PhoneTestBuild.isDemo, !PhoneTestBuild.flag("ArdiaNoSitePermissions"), permissions.grants.isEmpty {
       permissions.allow([.location], origin: "https://maps.apple.com", host: "maps.apple.com")
