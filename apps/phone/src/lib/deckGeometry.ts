@@ -5,6 +5,7 @@ export type DeckGeometry = {
   height: number;
   safeTop: number;
   safeBottom: number;
+  safeSide: number;
   cardWidth: number;
   cardHeight: number;
   focusLeading: number;
@@ -65,6 +66,7 @@ export function deckGeometry(width: number, height: number, safeTop: number, saf
     height: h,
     safeTop,
     safeBottom,
+    safeSide,
     cardWidth,
     cardHeight: cardWidth * aspect,
     focusLeading,

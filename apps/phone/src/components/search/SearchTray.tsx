@@ -325,7 +325,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
           testID="trayPanel"
           style={[
             styles.panel,
-            { height: trayHeight, boxShadow: incognito ? floatingPanelLayout.incognitoShadow : floatingPanelLayout.shadow },
+            { left: insets.left + floatingPanelLayout.inset, right: insets.right + floatingPanelLayout.inset, height: trayHeight, boxShadow: incognito ? floatingPanelLayout.incognitoShadow : floatingPanelLayout.shadow },
             trayStyle,
           ]}
         >

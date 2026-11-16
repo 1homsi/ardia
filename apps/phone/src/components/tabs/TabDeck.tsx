@@ -109,10 +109,11 @@ export const TabDeck = memo(function TabDeck() {
   const gridAvailable = redesigned && DECK_GRID_ON_PLATFORM;
   const gridChosen = useDeckGrid();
   const grid = gridAvailable && gridChosen;
-  const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS, design, deckHeaderBottom()), [width, height, insets.top, insets.bottom, design]);
+  const safeSide = Math.max(insets.left, insets.right);
+  const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckHeaderBottom()), [width, height, insets.top, insets.bottom, safeSide, design]);
   useEffect(() => labTrace(`PAGELAB deck frame ${Math.round(width)}x${Math.round(height)} window ${Math.round(window.width)}x${Math.round(window.height)} insets ${insets.top}/${insets.bottom}`), [width, height, window.width, window.height, insets.top, insets.bottom]);
   const archiveShift = useMemo(
-    () => (redesigned ? deckGeometry(width, height, insets.top, insets.bottom, 0, Platform.OS, design, deckArchiveBottom()).cardCenterY - g.cardCenterY : 0),
+    () => (redesigned ? deckGeometry(width, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckArchiveBottom()).cardCenterY - g.cardCenterY : 0),
     [g, redesigned],
   );
   const [deckHeight, setDeckHeight] = useState(height);
@@ -859,7 +860,7 @@ export const TabDeck = memo(function TabDeck() {
         {!count && phase.kind === "settled" ? <DeckEmpty centerY={g.cardCenterY} showsArchive={hasArchive} onArchive={openArchive} searching={needle !== ""} /> : null}
         {archiveCard && phase.kind === "settled" && !grid ? (
           redesigned ? (
-            <ArchiveCapsule centerY={g.safeTop + deckChromeLayout.archiveCenter} safeSide={0} />
+            <ArchiveCapsule centerY={g.safeTop + deckChromeLayout.archiveCenter} safeSide={g.safeSide} />
           ) : (
             <ArchiveIntervalCard edgeY={archiveCardEdgeY(g, archiveCardLayout.aboveBarCenter)} />
           )
@@ -873,7 +874,7 @@ export const TabDeck = memo(function TabDeck() {
                 <>
                   <DeckHeader
                     safeTop={g.safeTop}
-                    safeSide={0}
+                    safeSide={g.safeSide}
                     privateCount={privateCount}
                     hasTabs={allTabs.length > 0}
                     menusShown={shown && phase.kind === "settled"}
@@ -888,7 +889,7 @@ export const TabDeck = memo(function TabDeck() {
                     shown={shown}
                     barCenterY={g.barCenterY}
                     deckHeight={deckHeight}
-                    safeSide={0}
+                    safeSide={g.safeSide}
                     incognito={incognito}
                     grid={grid}
                     onGrid={toggleGrid}

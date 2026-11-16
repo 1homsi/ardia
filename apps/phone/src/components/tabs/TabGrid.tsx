@@ -23,7 +23,7 @@ type Props = {
 };
 
 export function TabGrid({ tabs, selectedId, geometry: g, reduceMotion, onOpen, onClose }: Props) {
-  const insets = tabGridInsets(g.safeTop, deckHeaderBottom(), g.height, g.barCenterY, deckChromeLayout.barCircle, deckChromeLayout.headerSide);
+  const insets = tabGridInsets(g.safeTop, deckHeaderBottom(), g.height, g.barCenterY, deckChromeLayout.barCircle, g.safeSide + deckChromeLayout.headerSide);
   const columns = tabGridColumns(g.width - insets.side * 2);
   const aspect = g.width / Math.max(g.height, 1);
   const viewportTop = insets.top - tabGridLayout.topFade;

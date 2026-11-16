@@ -60,6 +60,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const design = useDesign();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const safeSide = Math.max(insets.left, insets.right);
   const menuOpen = useMenuOpen();
   const finding = useFindOpen();
   const readerId = useReaderTabId();
@@ -135,7 +136,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
               style={[styles.bar, { height: barHeight(insets.bottom, design) }, underBar ? null : barStyle, collapse.style]}
             >
               {design === "redesigned" ? (
-                <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - floatingBarLayout.control / 2 }]} pointerEvents="box-none">
+                <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - floatingBarLayout.control / 2, paddingHorizontal: safeSide }]} pointerEvents="box-none">
                   <Animated.View
                     testID="floatingBarFold"
                     collapsable={false}
@@ -174,7 +175,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
               ) : (
                 <>
                   <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
-                  <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - browseLayout.hitTarget / 2 }]}>
+                  <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom, design) - browseLayout.hitTarget / 2, paddingHorizontal: safeSide }]}>
                     <BottomBar order={order} roles={rolesFor(barDark)} showsPlus={!searching} onTabs={showDeck} onTabsMenu={openTabsMenu} onStep={stepTab} onPlus={newTab} onMore={openPageMenu} />
                   </View>
                 </>

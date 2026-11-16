@@ -1,7 +1,7 @@
 import { startTransition, useEffect, useState, type ReactNode } from "react";
 import { FrameProbe } from "./components/perf/FrameProbe";
 import { countRender, interactionPerfEnabled } from "./state/app/interactionPerf";
-import { AppState, BackHandler, Platform, StyleSheet, View } from "react-native";
+import { AppState, BackHandler, Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BrowsingScreen } from "./components/browsing/BrowsingScreen";
@@ -34,6 +34,7 @@ import { useSearchOpen } from "./state/search/hooks";
 import { useLeavingTab, useOpeningTab, useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser, type Surface } from "./state/browse/store";
 import { refreshHiddenDeck } from "./state/browse/deckHold";
+import { noteWindowShape } from "./state/app/landscapeCount";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { VoiceSearchView } from "./components/search/VoiceSearchView";
 import { useVoicePresented } from "./state/voice/store";
@@ -122,6 +123,7 @@ export function Surfaces() {
   const deckMounted = useDeckStandby(surface, surface === "browsing" && tab !== null && opening === null && leaving === null && !searching && !voice && !onboarding && front === null, tab?.id ?? null);
   return (
     <>
+      <LandscapeCount />
       <SheetBackground progress={sheetProgress}>
         <Layer covered={onboarding || voice} muted={front !== null || systemSheet}>
           <Shade shaded={searching}>
@@ -151,6 +153,12 @@ export function Surfaces() {
       {lightIcons !== null ? <LayerInk key={layer} light={lightIcons} /> : null}
     </>
   );
+}
+
+function LandscapeCount() {
+  const { width, height } = useWindowDimensions();
+  useEffect(() => noteWindowShape(width, height), [width, height]);
+  return null;
 }
 
 function useDeckStandby(surface: Surface, pageSettled: boolean, pageId: string | null) {
