@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BAR_SHOWN, barShown, followScroll, pageInsets } from "./barCollapse.ts";
+import { BAR_SHOWN, barShown, followScroll, obscuredBottom, pageInsets } from "./barCollapse.ts";
 
 test("the bar hides when the page scrolls down and comes back when it scrolls up", () => {
   const opened = followScroll(BAR_SHOWN, "a", "p", "up", true);
@@ -48,4 +48,17 @@ test("a new page in the same tab, Back included, starts with the bar shown", () 
   assert.equal(back.hidden, false);
   assert.equal(followScroll(back, "a", "https://zero/", "down", true).hidden, false);
   assert.equal(followScroll(followScroll(back, "a", "https://zero/", "up", true), "a", "https://zero/", "down", true).hidden, true);
+});
+
+test("where the page's bottom follows the bar, it is the bar's height, the pill's when collapsed, and nothing under full-screen video, Find or the search tray", () => {
+  const cover = { follows: true, bar: 75, pill: 51.5, collapsed: false, cleared: false };
+  assert.equal(obscuredBottom(cover), 75);
+  assert.equal(obscuredBottom({ ...cover, collapsed: true }), 51.5);
+  assert.equal(obscuredBottom({ ...cover, cleared: true }), 0);
+  assert.equal(obscuredBottom({ ...cover, collapsed: true, cleared: true }), 0);
+});
+
+test("where it doesn't follow, as on iPhone where SwiftUI keeps the bar's height, the bottom stays the bar's height", () => {
+  const cover = { follows: false, bar: 75, pill: 51.5, collapsed: true, cleared: true };
+  assert.equal(obscuredBottom(cover), 75);
 });

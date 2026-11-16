@@ -20,3 +20,7 @@ export type PageInsets = { pageBottom: number; toneBottom: number };
 export function pageInsets(collapses: boolean, barHeight: number, overlap: number): PageInsets {
   return collapses ? { pageBottom: 0, toneBottom: barHeight } : { pageBottom: barHeight - overlap, toneBottom: overlap };
 }
+
+export type BarCover = { follows: boolean; bar: number; pill: number; collapsed: boolean; cleared: boolean };
+
+export const obscuredBottom = ({ follows, bar, pill, collapsed, cleared }: BarCover) => (!follows ? bar : cleared ? 0 : collapsed ? pill : bar);

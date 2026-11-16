@@ -4,7 +4,10 @@ import { BottomBar } from "../components/browsing/BottomBar";
 import { BrowsingScreen } from "../components/browsing/BrowsingScreen";
 import { barAddress, FloatingBar } from "../components/browsing/FloatingBar";
 import { appDesign, DesignProvider, Symbol } from "../components/ui";
-import { storeTone, usePages } from "../state/pages/store";
+import { storeFullscreen, storeNavigation, storeTone, usePages, type PageState } from "../state/pages/store";
+import { usePageUi } from "../state/page/store";
+import { setPreference } from "../state/settings/store";
+import { useSearch } from "../state/search/store";
 import { DESIGNS, designFor, type Design } from "../lib/design";
 import * as pageActions from "../state/page/actions";
 import { useBrowse } from "../state/browse/store";
@@ -115,6 +118,33 @@ test("the bands under the bars take the colours the bars use: the page's sampled
   const view = toned.root.findAll((node) => node.props.pageId !== undefined && node.props.obscuredColors !== undefined)[0]!;
   expect(view.props.obscuredColors).toEqual({ top: "#F2F4F6", bottom: "#101418" });
   unmount(toned);
+});
+
+test("on Android the page's obscured bottom is the bar's current height: the pill's when the bar collapses, and nothing under full-screen video, Find or the search tray; iPhone keeps SwiftUI's 75", () => {
+  jest.spyOn(pageViewModule, "pageObscuresInsets").mockImplementation(() => true);
+  const follows = Platform.OS === "android";
+  const tab = currentTabs().open[0]!;
+  const bottom = (root: ReturnType<typeof renderSurface>) => root.root.findAll((node) => node.props.pageId !== undefined && node.props.obscuredInsets !== undefined)[0]!.props.obscuredInsets.bottom as number;
+  const scrolled = (scrollDirection: "up" | "down") => act(() => storeNavigation(tab.id, { url: "https://site0.example/", title: "Site", isLive: true, isLoading: false, progress: 1, failure: null, canGoBack: false, canGoForward: false, scrollDirection } as unknown as PageState));
+  setPreference("collapsesBottomBar", true);
+  scrolled("up");
+  const root = page("redesigned", tab);
+  expect(bottom(root)).toBe(75);
+  scrolled("down");
+  expect(bottom(root)).toBe(follows ? 51.5 : 75);
+  scrolled("up");
+  act(() => storeFullscreen(tab.id, true));
+  expect(bottom(root)).toBe(follows ? 0 : 75);
+  act(() => storeFullscreen(tab.id, false));
+  act(() => usePageUi.setState({ findOpen: true }));
+  expect(bottom(root)).toBe(follows ? 0 : 75);
+  act(() => usePageUi.setState({ findOpen: false }));
+  act(() => useSearch.setState({ open: true }));
+  expect(bottom(root)).toBe(follows ? 0 : 75);
+  act(() => useSearch.setState({ open: false }));
+  expect(bottom(root)).toBe(75);
+  setPreference("collapsesBottomBar", false);
+  unmount(root);
 });
 
 test("where the page view can't take obscured insets, and in the original design, the page stops above the bar as before", () => {

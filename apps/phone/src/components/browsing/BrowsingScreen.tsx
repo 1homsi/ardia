@@ -1,10 +1,10 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { countRender } from "../../state/app/interactionPerf";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BAR_SHOWN, barShown, followScroll, pageInsets } from "../../lib/barCollapse";
+import { BAR_SHOWN, barShown, followScroll, obscuredBottom, pageInsets } from "../../lib/barCollapse";
 import { neighbours } from "../../lib/pagerPhysics";
 import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone, watchPageLoad } from "../../state/browse/hooks";
@@ -12,6 +12,7 @@ import { closePageMenu, editPageQuery, openPageMenu } from "../../state/page/act
 import { useFindOpen, useMenuOpen, usePressOpen, useReaderTabId } from "../../state/page/hooks";
 import { captureCurrentCover, newTab, pageLaidOut, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
+import { usePages } from "../../state/pages/store";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeFrontTab, menuOpenedHaptic, recentTabs, switchToTab, tabTitle } from "../../state/browse/tabMenus";
 import { useDeckOrder } from "../../state/tabs/hooks";
@@ -100,7 +101,9 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
   const collapse = useBarCollapse(tab.id, finding, design === "redesigned");
   const underBar = usePageUnderBars();
   const layout = column ? COLUMN_PAGE : underBar ? { pageBottom: 0, toneBottom: barHeight(insets.bottom, design) } : pageInsets(collapse.collapses, barHeight(insets.bottom, design), browseLayout.pageOverlap);
-  const obscured = column ? COLUMN_OBSCURED : underBar ? { top: insets.top, bottom: barHeight(insets.bottom, design) } : undefined;
+  const fullscreen = usePages((s) => s.fullscreen[tab.id] ?? false);
+  const coveredBottom = obscuredBottom({ follows: Platform.OS === "android", bar: barHeight(insets.bottom, design), pill: barCenterFromBottom(insets.bottom, design) - floatingBarLayout.control / 2 + hostPillLayout.height, collapsed: collapse.collapsed, cleared: fullscreen || finding || searching });
+  const obscured = column ? COLUMN_OBSCURED : underBar ? { top: insets.top, bottom: coveredBottom } : undefined;
   const painted = useSharedValue(false);
   useEffect(() => {
     painted.value = true;
