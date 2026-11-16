@@ -14,8 +14,10 @@ export function useSteadyRows<T, V extends { items: T[] }>(value: V, key: string
   const shown = useRef<SteadyList<V> | null>(null);
   const counted = useRef<string | null>(null);
   const freed = useRef<string | null>(null);
+  const lastKey = useRef(key);
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  if (!pointerOver) freed.current = null;
+  if (!pointerOver || lastKey.current !== key) freed.current = null;
+  lastKey.current = key;
   shown.current = steadyRows(shown.current, value, key, pointerOver && freed.current !== key, rowKey);
   const held = shown.current.value !== value;
   if (held && counted.current !== key) {
