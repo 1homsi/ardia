@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS } from "../../state/settings/settings";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeKeptPanel, closeSidePanelOnTab, dropSidePanelCard, findExtension, panelKey, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closePanelCard, closeSidePanelOnTab, dropSidePanelCard, findExtension, panelKey, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 import { useResizeDrag } from "../sidebar/useResizeDrag";
@@ -78,7 +78,7 @@ export function ExtensionSidePanel() {
               windowId={windowId}
               panel={p}
               current={current}
-              onWindowClose={() => p !== fading && closeKeptPanel(windowId, p, current)}
+              onWindowClose={() => p !== fading && closePanelCard(windowId, p)}
               onHiddenCrash={() => dropSidePanelCard(windowId, p)}
             />
           );

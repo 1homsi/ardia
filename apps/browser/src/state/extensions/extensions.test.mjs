@@ -527,7 +527,7 @@ test("kept panels: the X drops that tab's page at once, even when a tab switch c
 test("kept panels: a hidden page that closes itself is dropped and stays closed when you go back to its tab", async () => {
   const { w, a, b, asked } = await twoTabsWithPanels();
   const cardA = panels.sidePanelCards(w).find((c) => c.tabId === a);
-  panels.closeKeptPanel(w, cardA, false);
+  panels.closePanelCard(w, cardA);
   assert.deepEqual(cardTabs(w), [`ext@${b}`]);
   assert.equal(E().sidePanels[w].hidden, undefined, "B's panel still shows");
   S().activate(a);
@@ -584,4 +584,167 @@ test("kept panels: closing a tab drops its page, and closing the window's panel 
   panels.closeSidePanel(w);
   assert.deepEqual(cardTabs(w), []);
   stop();
+});
+
+const { moveTabToWindow } = await import("../browser/actions.ts");
+const EXT2 = { ...EXT, id: "ext2", name: "Ext 2" };
+const settle = () => new Promise((r) => setImmediate(r));
+
+async function panelWorld(state) {
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  const a = S().windows[w].tabIds[0];
+  const b = S().newTab(w, { url: "b.com", background: true });
+  const c = S().newTab(w, { url: "c.com", background: true });
+  usePages.setState({ ready: { [a]: 1, [b]: 2 } });
+  useExtensions.setState({ lists: { "": [EXT, EXT2] }, actions: {}, popup: null, sidePanels: {}, sidePanelCards: {} });
+  const off = new Set();
+  const held = [];
+  let hold = false;
+  const urlFor = (tabId, ext) => (off.has(`${ext}@${tabId}`) ? null : `chrome-extension://${ext}/panel.html?tabId=${tabId}`);
+  native.extensionAnswers.actionStates = async () => ({});
+  native.extensionAnswers.sidePanelUrl = (tabId, ext) => (hold ? new Promise((r) => held.push(() => r(urlFor(tabId, ext)))) : Promise.resolve(urlFor(tabId, ext)));
+  const show = async (tab) => {
+    S().activate(tab);
+    await panels.syncSidePanel(w);
+  };
+  await panels.openSidePanel(w, "ext");
+  await show(b);
+  await show(a);
+  const cardA = panels.sidePanelCards(w).find((card) => card.tabId === a);
+  if (state === "hidden") await show(b);
+  if (state === "notReady") {
+    S().activate(c);
+    await panels.syncSidePanel(w);
+  }
+  if (state === "closing") panels.closeSidePanelOnTab(w);
+  const name = { [a]: "a", [b]: "b", [c]: "c" };
+  const label = (p) => `${p.extensionId}@${p.tabId === undefined ? "-" : (name[p.tabId] ?? "?")}`;
+  return {
+    w, a, b, c, cardA, off,
+    show,
+    hold: () => (hold = true),
+    release: async () => {
+      hold = false;
+      for (const go of held.splice(0)) go();
+      await settle();
+    },
+    cards: () => panels.sidePanelCards(w).map(label).sort(),
+    entry: () => {
+      const e = E().sidePanels[w];
+      return !e ? "closed" : e.hidden ? "hidden" : `shown ${label(e)}`;
+    },
+    wanted: () => new Map(panels.wantedSidePanels()).get(w) ?? null,
+  };
+}
+
+const ACTIONS = {
+  pageClose: async (x) => panels.closePanelCard(x.w, x.cardA),
+  replace: async (x) => panels.openSidePanel(x.w, "ext2"),
+  replacePendingThenPageClose: async (x) => {
+    x.hold();
+    const opening = panels.openSidePanel(x.w, "ext2");
+    panels.closePanelCard(x.w, x.cardA);
+    await x.release();
+    await opening;
+  },
+  disable: async (x) => {
+    x.off.add(`ext@${x.a}`);
+    await x.show(x.a);
+  },
+  crash: async (x) => panels.dropSidePanelCard(x.w, x.cardA),
+  tabClose: async (x) => S().closeTab(x.a),
+  move: async (x) => moveTabToWindow(x.a, null),
+};
+
+const NOT_ON_A = /^(hidden|closed|shown ext@[bc-])$/;
+const EXPECT = {
+  shown: {
+    pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
+    replacePendingThenPageClose: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
+    disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    tabClose: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
+    move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
+  },
+  hidden: {
+    pageClose: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
+    replace: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
+    replacePendingThenPageClose: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
+    disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    crash: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
+    tabClose: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
+    move: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
+  },
+  notReady: {
+    pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    replace: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
+    replacePendingThenPageClose: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
+    disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    tabClose: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
+    move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
+  },
+  closing: {
+    pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
+    replacePendingThenPageClose: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
+    disable: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    crash: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
+    tabClose: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
+    move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
+  },
+};
+
+function checkInvariants(x, where) {
+  const s = S();
+  const e = E().sidePanels[x.w];
+  const visible = e && !e.hidden ? e : null;
+  const want = x.wanted();
+  const seen = new Set();
+  for (const card of panels.sidePanelCards(x.w)) {
+    const key = `${panels.panelKey(card)}|${card.tabId}`;
+    assert.ok(!seen.has(key), `${where}: a card is listed twice`);
+    seen.add(key);
+    const isVisible = visible && panels.panelKey(visible) === panels.panelKey(card) && visible.tabId === card.tabId;
+    if (isVisible) continue;
+    assert.equal(card.extensionId, want, `${where}: a kept card belongs to the window's extension`);
+    assert.ok(card.tabId && s.tabs[card.tabId]?.windowId === x.w, `${where}: a kept card's tab is in the window`);
+    assert.ok(!panels.panelDroppedOnTab(x.w, card.tabId), `${where}: a kept card's tab hasn't dropped its panel`);
+  }
+  if (visible?.tabId) {
+    assert.equal(s.tabs[visible.tabId]?.windowId, x.w, `${where}: the panel shown belongs to a tab in the window`);
+    assert.ok(!panels.panelDroppedOnTab(x.w, visible.tabId), `${where}: the panel shown wasn't closed or taken away`);
+  }
+}
+
+test("kept panels, every action in every state: the right pages stay, the rest go, and the window's extension is never cancelled by another one", async () => {
+  const stop = panels.watchSidePanelCards();
+  const failed = [];
+  let cells = 0;
+  try {
+    for (const [state, row] of Object.entries(EXPECT)) {
+      for (const [action, want] of Object.entries(row)) {
+        const where = `${state} × ${action}`;
+        cells++;
+        try {
+          const x = await panelWorld(state);
+          await ACTIONS[action](x);
+          await settle();
+          await panels.syncSidePanel(x.w);
+          await settle();
+          assert.deepEqual(x.cards(), want.cards, `${where}: cards`);
+          if (want.entry instanceof RegExp) assert.match(x.entry(), want.entry, `${where}: entry`);
+          else assert.equal(x.entry(), want.entry, `${where}: entry`);
+          assert.equal(x.wanted(), want.wanted, `${where}: the window's extension`);
+          checkInvariants(x, where);
+        } catch (error) {
+          failed.push(error.message.split("\n")[0]);
+        }
+      }
+    }
+  } finally {
+    stop();
+  }
+  assert.equal(cells, 26);
+  assert.deepEqual(failed, []);
 });

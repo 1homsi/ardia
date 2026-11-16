@@ -110,6 +110,11 @@ export function closeSidePanelOnTab(windowId: string, ownerTabId?: string): bool
   shownTabs.get(windowId)?.delete(tabId);
   tabsOf(closedTabs, windowId).add(tabId);
   if (tabId !== shownTab) {
+    const entry = useExtensions.getState().sidePanels[windowId];
+    if (entry && !entry.hidden && entry.tabId === tabId) {
+      hideSidePanel(windowId);
+      return false;
+    }
     refreshSidePanelCards(windowId);
     return false;
   }
@@ -206,19 +211,36 @@ export function refreshSidePanelCards(windowId: string) {
   if (next.length !== before.length || next.some((card, i) => card !== before[i])) setCards(windowId, next);
 }
 
+export function settleSidePanelTabs(windowId: string) {
+  const entry = useExtensions.getState().sidePanels[windowId];
+  if (entry && !entry.hidden && entry.tabId && !panelTabOpen(windowId, entry.tabId)) return hideSidePanel(windowId);
+  refreshSidePanelCards(windowId);
+}
+
 export function watchSidePanelCards(): () => void {
   return useBrowser.subscribe((s, prev) => {
     if (s.tabs === prev.tabs && s.windows === prev.windows) return;
-    for (const windowId of Object.keys(useExtensions.getState().sidePanelCards)) refreshSidePanelCards(windowId);
+    const { sidePanels, sidePanelCards: cards } = useExtensions.getState();
+    for (const windowId of new Set([...Object.keys(cards), ...Object.keys(sidePanels)])) settleSidePanelTabs(windowId);
   });
 }
 
-export function closeKeptPanel(windowId: string, card: SidePanel, current: boolean) {
-  if (current || card.tabId) closeSidePanelOnTab(windowId, card.tabId);
-  else dropSidePanelCard(windowId, card);
+const sameTabCard = (a: SidePanel, b: SidePanel) => panelKey(a) === panelKey(b) && a.tabId === b.tabId;
+
+export function closePanelCard(windowId: string, card: SidePanel) {
+  const live = sidePanelCards(windowId).find((c) => sameTabCard(c, card));
+  if (!live) return;
+  if (wanted.get(windowId) !== card.extensionId) {
+    const entry = useExtensions.getState().sidePanels[windowId];
+    if (entry && !entry.hidden && sameTabCard(entry, card)) hideSidePanel(windowId);
+    return dropSidePanelCard(windowId, live);
+  }
+  if (!card.tabId) return closeSidePanel(windowId, card.extensionId);
+  closeSidePanelOnTab(windowId, card.tabId);
 }
 
 export function dropSidePanelCard(windowId: string, card: SidePanel) {
   const before = sidePanelCards(windowId);
-  if (before.includes(card)) setCards(windowId, before.filter((c) => c !== card));
+  const after = before.filter((c) => !sameTabCard(c, card));
+  if (after.length !== before.length) setCards(windowId, after);
 }
