@@ -221,7 +221,8 @@ onIPhone("once the selected cell, the viewport and the content are measured, the
   toggle(root);
   const scroll = hosts(root, "tabGridScroll")[0]!;
   const scrollTo = jest.fn();
-  const instance = root.root.findAll((node) => node.props.testID === "tabGridScroll" && node.instance && typeof node.instance === "object")[0]?.instance as { scrollTo?: unknown } | undefined;
+  const withInstance = (node: ReactTestInstance) => (node as ReactTestInstance & { instance?: unknown }).instance;
+  const instance = withInstance(root.root.findAll((node) => node.props.testID === "tabGridScroll" && typeof withInstance(node) === "object" && withInstance(node) !== null)[0]!) as { scrollTo?: unknown } | undefined;
   expect(instance).toBeDefined();
   instance!.scrollTo = scrollTo;
   const selectedId = tabStore.currentTabs().selectedId;
