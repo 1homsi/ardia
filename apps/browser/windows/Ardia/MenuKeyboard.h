@@ -287,32 +287,6 @@ struct MenuKeyboard {
     return true;
   }
 
-  static bool IsSnapArrow(UINT virtualKey) noexcept {
-    return virtualKey == VK_UP || virtualKey == VK_DOWN || virtualKey == VK_LEFT || virtualKey == VK_RIGHT;
-  }
-
-  static std::wstring ClassOf(HWND hwnd) noexcept {
-    wchar_t name[64]{};
-    if (hwnd) GetClassNameW(hwnd, name, 64);
-    return name;
-  }
-
-  bool HandOverSnapKey(UINT virtualKey, LPARAM flags, KeyPress const &press) noexcept {
-    if (!press.windowsKey || !IsSnapArrow(virtualKey) || (press.modifiers & (ModifierControl | ModifierOption)) != 0) return false;
-    ActiveWindow window = ActiveArdiaWindow();
-    HWND focus = GetFocus();
-    HWND root = focus ? GetAncestor(focus, GA_ROOT) : nullptr;
-    if (!window.hwnd || !root) return false;
-    if (root == window.hwnd) {
-      LaunchLog::Write(L"keys", L"snap keys: a Windows-key arrow with the keyboard in the app window is left to Windows");
-      return false;
-    }
-    LaunchLog::Write(L"keys", std::wstring{L"snap keys: a Windows-key arrow with the keyboard in "}.append(ClassOf(root)).append(L" goes to the app window"));
-    DefWindowProcW(window.hwnd, WM_KEYDOWN, virtualKey, flags);
-    swallowedKeyUps.insert(virtualKey);
-    return true;
-  }
-
   bool HandleKey(UINT virtualKey, LPARAM flags) noexcept {
     bool keyUp = (flags & (1u << 31)) != 0;
     if (keyUp) {
@@ -332,7 +306,6 @@ struct MenuKeyboard {
     }
     if (trackingMenu) return false;
     KeyPress press = ReadKeyPress(virtualKey, flags);
-    if (HandOverSnapKey(virtualKey, flags, press)) return true;
     if (press.windowsKey || press.altGraph) return false;
     bool handled = false;
     if (recording) {
