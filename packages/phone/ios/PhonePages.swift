@@ -38,7 +38,7 @@ final class PhonePages {
   }
 
   static let launchPermissionSuite = "ardia.phone.pages.launchPermissions"
-  static let remembersSitePermissions = false
+  static let remembersSitePermissions = true
 
   static func launchPermissionDefaults() -> UserDefaults {
     let launch = UserDefaults(suiteName: launchPermissionSuite) ?? UserDefaults()
@@ -56,6 +56,11 @@ final class PhonePages {
       directory: URL.cachesDirectory.appending(path: "Blocking", directoryHint: .isDirectory)
     )
     let permissions = SitePermissions(defaults: Self.remembersSitePermissions ? defaults : Self.launchPermissionDefaults())
+    if PhoneTestBuild.isDemo, !PhoneTestBuild.flag("ArdiaNoSitePermissions"), permissions.grants.isEmpty {
+      permissions.allow([.location], origin: "https://maps.apple.com", host: "maps.apple.com")
+      permissions.allow([.camera, .microphone], origin: "https://meet.google.com", host: "meet.google.com")
+      permissions.allow([.microphone], origin: "https://music.youtube.com", host: "music.youtube.com")
+    }
     engine = WebEngine(tabs: tabs, blocker: blocker, preferences: BrowsingPreferences(defaults: defaults, sitePermissions: permissions))
     engine.openExternalURL = { url in UIApplication.shared.open(url) }
     engine.openUniversalLink = { url in await UIApplication.shared.open(url, options: [.universalLinksOnly: true]) }
