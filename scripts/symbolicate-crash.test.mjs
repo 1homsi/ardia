@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { after, before, test } from "node:test";
 
 const scripts = new URL(".", import.meta.url).pathname;
@@ -55,21 +55,38 @@ const writeImage = (dir, rel, uuid) => {
   const path = join(dir, rel);
   mkdirSync(join(path, ".."), { recursive: true });
   writeFileSync(path, `uuid:${uuid}\nnot a real binary\n`);
+  chmodSync(path, 0o755);
+};
+
+const dwarfOf = (rel) => `${basename(rel)}.dSYM/Contents/Resources/DWARF/${basename(rel)}`;
+
+const makeBuild = (name, images, dsymUuids = images) => {
+  const out = join(work, `out-${name}`);
+  const framework = join(out, "Chromium Framework.framework");
+  for (const [rel, uuid] of Object.entries(images)) writeImage(join(framework, "Versions/A"), rel, uuid);
+  writeFileSync(join(framework, "Versions/A/install.sh"), "#!/bin/sh\n");
+  chmodSync(join(framework, "Versions/A/install.sh"), 0o755);
+  symlinkSync("A", join(framework, "Versions/Current"));
+  for (const [rel, uuid] of Object.entries(dsymUuids)) {
+    if (uuid) writeImage(out, dwarfOf(rel), uuid);
+  }
+  return { framework, dsyms: out };
 };
 
 const run = (script, args, extra = {}) =>
   spawnSync(script, args, { encoding: "utf8", env: { ...env, ...extra } });
 
 const publish = (tag, images) => {
-  const symbols = join(work, `symbols-${tag}`);
-  for (const [rel, uuid] of Object.entries(images)) writeImage(symbols, rel, uuid);
+  const { framework, dsyms } = makeBuild(tag, images);
   const short = tag.replace(/^engine-/, "");
   const dir = join(assets, tag);
   mkdirSync(dir, { recursive: true });
-  const packed = run(packSymbols, [symbols, join(dir, `ArdiaCore-${short}-symbols.tar.xz`), join(dir, `ArdiaCore-${short}-uuids.txt`)]);
+  const packed = run(packSymbols, [framework, dsyms, join(dir, `ArdiaCore-${short}-symbols.tar.xz`), join(dir, `ArdiaCore-${short}-uuids.txt`)]);
   assert.equal(packed.status, 0, packed.stderr);
   return dir;
 };
+
+const FRAMEWORK_DWARF = dwarfOf("Chromium Framework");
 
 const downloads = (pattern) =>
   readFileSync(env.STUB_LOG, "utf8").split("\n").filter((line) => line.startsWith("gh release download") && line.includes(pattern));
@@ -105,33 +122,37 @@ before(() => {
 
 after(() => rmSync(work, { recursive: true, force: true }));
 
-test("pack-symbols lists every image's UUID and packs the unstripped files", () => {
+test("pack-symbols names each image's dSYM by UUID and packs those dSYMs", () => {
   const dir = join(assets, "engine-aaaaaaaaaaaa");
   const rows = readFileSync(join(dir, "ArdiaCore-aaaaaaaaaaaa-uuids.txt"), "utf8").trimEnd().split("\n");
   assert.deepEqual(rows, [
-    `${FRAMEWORK_UUID}\tarm64\tChromium Framework`,
-    "99999999-8888-7777-6666-555555555555\tarm64\tHelpers/chrome_crashpad_handler",
-    `${LIBRARY_UUID}\tarm64\tLibraries/libfoo.dylib`,
+    `${FRAMEWORK_UUID}\tarm64\t${FRAMEWORK_DWARF}`,
+    `99999999-8888-7777-6666-555555555555\tarm64\t${dwarfOf("Helpers/chrome_crashpad_handler")}`,
+    `${LIBRARY_UUID}\tarm64\t${dwarfOf("Libraries/libfoo.dylib")}`,
   ]);
   const members = execFileSync("tar", ["-tJf", join(dir, "ArdiaCore-aaaaaaaaaaaa-symbols.tar.xz")], { encoding: "utf8" }).trimEnd().split("\n");
-  assert.deepEqual(members, ["Chromium Framework", "Helpers/chrome_crashpad_handler", "Libraries/libfoo.dylib"]);
+  for (const rel of ["Chromium Framework", "Helpers/chrome_crashpad_handler", "Libraries/libfoo.dylib"]) assert.ok(members.includes(dwarfOf(rel)), members.join("\n"));
+  assert.ok(members.every((m) => m.split("/")[0].endsWith(".dSYM")), members.join("\n"));
 });
 
-test("pack-symbols refuses a folder with no Chromium Framework, or an image with no UUID", () => {
-  const empty = join(work, "symbols-empty");
-  writeImage(empty, "Libraries/libfoo.dylib", LIBRARY_UUID);
-  const missing = run(packSymbols, [empty, join(work, "e.tar.xz"), join(work, "e.txt")]);
-  assert.notEqual(missing.status, 0);
-  assert.match(missing.stderr, /holds no Chromium Framework/);
-  assert.equal(existsSync(join(work, "e.txt")), false);
+test("pack-symbols refuses a framework whose own dSYM is missing or from another build, and warns about a helper's", () => {
+  const images = { "Chromium Framework": FRAMEWORK_UUID, "Helpers/chrome_crashpad_handler": "99999999-8888-7777-6666-555555555555" };
+  const stale = makeBuild("stale", images, { "Chromium Framework": NEWER_UUID, "Helpers/chrome_crashpad_handler": images["Helpers/chrome_crashpad_handler"] });
+  const refused = run(packSymbols, [stale.framework, stale.dsyms, join(work, "s.tar.xz"), join(work, "s.txt")]);
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, new RegExp(`no dSYM in .* holds Chromium Framework's UUID ${FRAMEWORK_UUID} \\(arm64\\)`));
+  assert.equal(existsSync(join(work, "s.txt")), false);
+  assert.equal(existsSync(join(work, "s.tar.xz")), false);
 
-  const broken = join(work, "symbols-broken");
-  writeImage(broken, "Chromium Framework", FRAMEWORK_UUID);
-  writeFileSync(join(broken, "Libraries.txt"), "not an image\n");
-  const bad = run(packSymbols, [broken, join(work, "b.tar.xz"), join(work, "b.txt")]);
-  assert.notEqual(bad.status, 0);
-  assert.match(bad.stderr, /dwarfdump --uuid failed on Libraries\.txt/);
-  assert.equal(existsSync(join(work, "b.txt")), false);
+  const partial = makeBuild("partial", images, { "Chromium Framework": FRAMEWORK_UUID });
+  const packed = run(packSymbols, [partial.framework, partial.dsyms, join(work, "p.tar.xz"), join(work, "p.txt")]);
+  assert.equal(packed.status, 0, packed.stderr);
+  assert.match(packed.stderr, /no dSYM for Helpers\/chrome_crashpad_handler/);
+  assert.equal(readFileSync(join(work, "p.txt"), "utf8"), `${FRAMEWORK_UUID}\tarm64\t${FRAMEWORK_DWARF}\n`);
+
+  const nothing = run(packSymbols, [join(work, "nowhere.framework"), partial.dsyms, join(work, "n.tar.xz"), join(work, "n.txt")]);
+  assert.notEqual(nothing.status, 0);
+  assert.match(nothing.stderr, /no framework at/);
 });
 
 test("a crash's image UUID and offsets resolve through the engine release that holds them", () => {
@@ -141,9 +162,9 @@ test("a crash's image UUID and offsets resolve through the engine release that h
     result.stdout,
     "0x2e2334\tframe_0x2e2334 (in Chromium Framework) (stub.cc:1)\n0x3cae9d8\tframe_0x3cae9d8 (in Chromium Framework) (stub.cc:1)\n",
   );
-  assert.match(result.stderr, new RegExp(`Chromium Framework \\(${FRAMEWORK_UUID}, arm64\\) from engine-aaaaaaaaaaaa`));
+  assert.match(result.stderr, new RegExp(`DWARF/Chromium Framework \\(${FRAMEWORK_UUID}, arm64\\) from engine-aaaaaaaaaaaa`));
   const log = readFileSync(env.STUB_LOG, "utf8");
-  assert.ok(log.includes(`atos -arch arm64 -o ${join(cache, "engine-aaaaaaaaaaaa/symbols/Chromium Framework")} -l 0x0 0x2e2334 0x3cae9d8\n`), log);
+  assert.ok(log.includes(`atos -arch arm64 -o ${join(cache, "engine-aaaaaaaaaaaa/symbols", FRAMEWORK_DWARF)} -l 0x0 0x2e2334 0x3cae9d8\n`), log);
   assert.equal(downloads("-symbols.tar.xz").length, 1);
 });
 
@@ -155,7 +176,7 @@ test("a second run reuses the downloaded symbols, and finds other images of the 
 
   const library = run(symbolicate, ["--cache", cache, LIBRARY_UUID, "0x10"]);
   assert.equal(library.status, 0, library.stderr);
-  assert.match(library.stderr, /Libraries\/libfoo\.dylib .* from engine-aaaaaaaaaaaa/);
+  assert.match(library.stderr, /DWARF\/libfoo\.dylib .* from engine-aaaaaaaaaaaa/);
   assert.equal(downloads("-symbols.tar.xz").length, before + 1);
 });
 
@@ -192,11 +213,11 @@ test("an image no engine release lists is an error that says so", () => {
 test("symbols that don't hold the UUID their release lists are refused", () => {
   writeFileSync(
     join(assets, "engine-dddddddddddd/ArdiaCore-dddddddddddd-uuids.txt"),
-    `dddddddd-dddd-dddd-dddd-dddddddddddd\tarm64\tChromium Framework\n`,
+    `dddddddd-dddd-dddd-dddd-dddddddddddd\tarm64\t${FRAMEWORK_DWARF}\n`,
   );
   const result = run(symbolicate, ["--tag", "engine-dddddddddddd", "--cache", join(work, "cache-mismatch"), "dddddddd-dddd-dddd-dddd-dddddddddddd", "0x1"]);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, new RegExp(`Chromium Framework in engine-dddddddddddd has UUID ${FRAMEWORK_UUID}, not dddddddd-dddd-dddd-dddd-dddddddddddd`));
+  assert.match(result.stderr, new RegExp(`DWARF/Chromium Framework in engine-dddddddddddd has UUID ${FRAMEWORK_UUID}, not dddddddd-dddd-dddd-dddd-dddddddddddd`));
 });
 
 test("it rejects a malformed UUID or offset before calling anything", () => {
@@ -220,11 +241,14 @@ test("--help prints the header", () => {
   assert.match(result.stdout, /scripts\/symbolicate-crash\.sh \[--tag <engine-tag>\]/);
 });
 
-test("publish-engine.sh packs the symbols after stripping and uploads them with the engine", () => {
+test("publish-engine.sh copies the dSYMs with the framework, packs them before stripping and uploads them", () => {
   const source = readFileSync(join(scripts, "publish-engine.sh"), "utf8");
+  const copy = source.indexOf('"$framework" "$work/Ardia.app/Contents/Frameworks/" "$(dirname "$framework")" "$out/dsyms")');
+  const locked = source.indexOf('locked" chromium --wait 500 -- "${copy[@]}"');
+  const pack = source.indexOf('pack-symbols.sh" "$work/Ardia.app/Contents/Frameworks/Chromium Framework.framework" "$out/dsyms" "$symbols_archive" "$uuids_file"');
   const strip = source.indexOf('strip-engine.sh" "$work/Ardia.app" "$out/symbols"');
-  const pack = source.indexOf('pack-symbols.sh" "$out/symbols" "$symbols_archive" "$uuids_file"');
-  assert.ok(strip > 0 && pack > strip, "pack-symbols.sh runs on the folder strip-engine.sh filled");
+  assert.ok(copy > 0 && locked > copy, "the dSYMs are copied in the same locked command as the framework");
+  assert.ok(pack > locked && strip > pack, "pack-symbols.sh runs on the copies, before strip-engine.sh");
   assert.match(source, /^symbols_archive="\$out\/\$\(engine_symbols_name "\$tag"\)"$/m);
   assert.match(source, /^uuids_file="\$out\/\$\(engine_uuids_name "\$tag"\)"$/m);
   assert.match(source, /^assets=\("\$archive" "\$archive\.sha256" "\$symbols_archive" "\$uuids_file" "\$source_archive"\)$/m);

@@ -7,7 +7,7 @@
 #
 # The UUID and the offsets are what the crash records for the image: "Chromium Framework + 0x2e2334" is the offset
 # 0x2e2334, and a leading + is accepted. scripts/publish-engine.sh uploads ArdiaCore-<tree:12>-uuids.txt (one
-# "<uuid> <arch> <path>" row per image) and ArdiaCore-<tree:12>-symbols.tar.xz (the unstripped images) to each
+# "<uuid> <arch> <DWARF file>" row per image) and ArdiaCore-<tree:12>-symbols.tar.xz (the build's dSYMs) to each
 # engine-<tree:12> prerelease; the releases are searched newest first, or --tag names one. Downloads are kept in --cache
 # (default dist/engine-symbols). Prints "<offset> <frame>" per offset and warns about any atos could not name.
 set -euo pipefail

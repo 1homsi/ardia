@@ -352,12 +352,16 @@ latest, so the feed and the download links never move to it) and appends `<tree>
 `packages/ardiacore/prebuilt-engines.tsv`: commit and push that line before dispatching. A release whose `engine/`
 tree has no engine fails its build at once, saying which script to run.
 
-The same script uploads the engine's unstripped images (`ArdiaCore-<tree:12>-symbols.tar.xz`, the copies
-`strip-engine.sh` keeps) and `ArdiaCore-<tree:12>-uuids.txt`, a `<uuid> <arch> <path>` row per image. A crash's
+The same script uploads the engine's symbols: `ArdiaCore-<tree:12>-symbols.tar.xz`, the dSYMs the official build writes
+beside the framework in `out/Release_GN_arm64` (`Chromium Framework.dSYM` and the helpers'; function names only, as
+`symbol_level=0` builds no line tables), and `ArdiaCore-<tree:12>-uuids.txt`, a `<uuid> <arch> <DWARF file>` row per
+image. It copies them with the framework under the chromium lock and refuses a framework whose own dSYM doesn't carry its
+UUID. The framework itself is already stripped, so strip-engine.sh's copies in `symbols/` name almost nothing. A crash's
 "Chromium Framework + 0x2e2334" is named with `scripts/symbolicate-crash.sh <Chromium Framework UUID> 0x2e2334 …`: it
-finds the engine release whose rows hold that UUID, downloads that image into `dist/engine-symbols` and runs
-`atos -arch arm64 -l 0x0` on the offsets. Engines published before the symbols were uploaded have none; to backfill
-one, run `scripts/lib/pack-symbols.sh <its dist/…/symbols folder> <archive> <uuids file>` and upload both with
+finds the engine release whose rows hold that UUID, downloads that dSYM into `dist/engine-symbols` and runs
+`atos -arch arm64 -l 0x0` on the offsets. Engines published before the symbols were uploaded have none: the next build
+overwrites `out/`'s dSYMs. To backfill one, rebuild its engine key, and if the framework comes back with the published
+UUID, run `scripts/lib/pack-symbols.sh <framework> <its dSYM dir> <archive> <uuids file>` and upload both with
 `gh release upload engine-<tree:12> --clobber`, under the names `engine_symbols_name` and `engine_uuids_name` give in
 `scripts/lib/releases.sh`.
 
