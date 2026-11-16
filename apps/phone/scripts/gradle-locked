@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-cd "$(dirname "$0")/../android"
+cd "${ARDIA_BUILD_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}/apps/phone/android"
 lab=()
 if [ "${ARDIA_LAB:-1}" = "1" ]; then
   export EXPO_PUBLIC_ARDIA_LAB=true
@@ -21,4 +21,11 @@ for task in "$@"; do
       ;;
   esac
 done
-exec /usr/bin/lockf -t "${ARDIA_GRADLE_WAIT:-540}" /tmp/ardia-android-gradle.lock ./gradlew ${lab[@]+"${lab[@]}"} "$@"
+resident=()
+if [ "${ARDIA_GRADLE_EPHEMERAL:-0}" = "1" ]; then
+  resident=(--no-daemon -Pkotlin.compiler.execution.strategy=in-process)
+fi
+if [ -x /usr/bin/lockf ]; then
+  exec /usr/bin/lockf -t "${ARDIA_GRADLE_WAIT:-540}" /tmp/ardia-android-gradle.lock ./gradlew ${lab[@]+"${lab[@]}"} ${resident[@]+"${resident[@]}"} "$@"
+fi
+exec flock -w "${ARDIA_GRADLE_WAIT:-540}" /tmp/ardia-android-gradle.lock ./gradlew ${lab[@]+"${lab[@]}"} ${resident[@]+"${resident[@]}"} "$@"

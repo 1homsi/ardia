@@ -17,9 +17,11 @@
 # --compress stores the native libraries, the dex or both compressed, for a smaller direct download; the JS
 # bundle stays uncompressed. --bundle builds <name>.aab for the Play Store instead, and checks its stamp and
 # names on the universal APK made from it, kept as <name>-universal.apk.
+# ARDIA_BUILD_ROOT builds another checkout with these scripts (corex-build's build-only clone); --compose-key is
+# Mac-only, since only the Mac holds the Compose app's key.
 set -euo pipefail
 if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -ge 1 ] && exit 0 || exit 64
 fi
 name="$1"
@@ -47,6 +49,10 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+if [ "$composeKey" = "1" ] && [ "$(uname)" != "Darwin" ]; then
+  echo "--compose-key signs with the Compose app's key, which only the Mac holds: build the upgrade pair there" >&2
+  exit 64
+fi
 case ",$compress," in
   ,,|,libs,|,dex,|,libs,dex,|,dex,libs,) ;;
   *) echo "--compress takes libs, dex or libs,dex" >&2; exit 64 ;;
@@ -56,10 +62,10 @@ if [ "$bundle" = "1" ] && { [ -n "$compress" ] || [ "$composeKey" = "1" ]; }; th
   exit 64
 fi
 here="$(cd "$(dirname "$0")" && pwd)"
-root="$(cd "$here/../../.." && pwd)"
+root="${ARDIA_BUILD_ROOT:-$(cd "$here/../../.." && pwd)}"
 out="${ARDIA_APK_DIR:-/tmp/ardia-phone}"
 tools="$(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/build-tools/* | sort -V | tail -1)"
-free=$(df -g /System/Volumes/Data | awk 'NR==2 {print $4}')
+free=$(df -Pk "$root" | awk 'NR==2 {print int($4 / 1048576)}')
 if [ "$free" -lt 10 ]; then
   echo "only ${free} GB free on the data volume: not building" >&2
   exit 1
@@ -152,7 +158,7 @@ signer="$("$tools/apksigner" verify --print-certs "$apk" | sed -n 's/.*SHA-256 d
 sum="$(shasum -a 256 "$apk" | cut -d' ' -f1)"
 {
   if [ "$bundle" = "1" ]; then
-    echo "aab: $name.aab ($(stat -f %z "$out/$name.aab") bytes, sha256 $(shasum -a 256 "$out/$name.aab" | cut -d' ' -f1))"
+    echo "aab: $name.aab ($(wc -c < "$out/$name.aab" | tr -d ' ') bytes, sha256 $(shasum -a 256 "$out/$name.aab" | cut -d' ' -f1))"
     echo "checked on: $name-universal.apk, made from it"
   else
     echo "apk: $name.apk"
@@ -170,6 +176,6 @@ sum="$(shasum -a 256 "$apk" | cut -d' ' -f1)"
   echo "versionCode: $version"
   echo "signer sha256: $signer"
   echo "sha256: $sum"
-  echo "size: $(stat -f %z "$apk")"
+  echo "size: $(wc -c < "$apk" | tr -d ' ')"
 } > "$out/$name.txt"
 cat "$out/$name.txt"
