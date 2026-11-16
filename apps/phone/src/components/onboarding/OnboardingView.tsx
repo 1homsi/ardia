@@ -19,6 +19,7 @@ import { useSyncConnected } from "../../state/sync/hooks";
 
 const ONBOARDING_MIN_PAGE = 560;
 const LARGE_TEXT = 1.35;
+export const ONBOARDING_LAYERS = { stepsBackdrop: 0, welcomeBackdrop: 1, step: 2 } as const;
 const smooth = spring(0.42, 0.9);
 
 export const stepIn = (direction: 1 | -1, reduced: boolean) => () => {
@@ -85,7 +86,7 @@ export function OnboardingView() {
   const content = step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : step === "defaultBrowser" ? <DefaultBrowserStep /> : <AllSet />;
   return (
     <Animated.View exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <Animated.View key={welcome ? "welcomeBackdrop" : "stepsBackdrop"} entering={backdropIn(reduceMotion)} exiting={backdropOut(reduceMotion)} style={StyleSheet.absoluteFill}>
+      <Animated.View key={welcome ? "welcomeBackdrop" : "stepsBackdrop"} entering={backdropIn(reduceMotion)} exiting={backdropOut(reduceMotion)} style={[StyleSheet.absoluteFill, { zIndex: welcome ? ONBOARDING_LAYERS.welcomeBackdrop : ONBOARDING_LAYERS.stepsBackdrop }]}>
         <LookBackdrop softened={!welcome} fadesOut={!welcome} />
       </Animated.View>
       <Animated.View
@@ -93,7 +94,7 @@ export function OnboardingView() {
         testID="onboardingStep"
         entering={stepIn(forward ? 1 : -1, reduceMotion)}
         exiting={stepOut(forward ? 1 : -1, reduceMotion)}
-        style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        style={[StyleSheet.absoluteFill, { zIndex: ONBOARDING_LAYERS.step, paddingTop: insets.top, paddingBottom: insets.bottom }]}
       >
         {fontScale > LARGE_TEXT ? (
           <ScrollView contentContainerStyle={styles.scrolled} keyboardShouldPersistTaps="handled">
