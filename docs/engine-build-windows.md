@@ -107,6 +107,15 @@ minute, step 5 at `JOBS=16` about 85 min for x64 (78,800 steps) and 2 h 40 min f
 1024 open files, which `01-sync.sh` and `05-build.sh` now raise. Load stayed at 17 with 13 GB of 32 GB in use, so
 `JOBS=20` would fit. Disk: about 85 GB per VM with one out dir.
 
+**ARM64 from a Linux host is broken (2026-11-16).** The arm64 engines built on the Linux VM (`windows-engine-20261116-10`
+to `-13`) crash at start on CI's `windows-11-arm` runner, while the Mac-built `-4` runs: plain `chrome.exe --headless=new
+--dump-dom` of a `data:` page hangs and Crashpad writes two dumps, every one an access violation reading `<cage>+0x80808083`
+at `chrome.dll+0x2013db0`, with or without the sandbox, `--jitless` or the GPU. x64 from the same VM is fine. The likely
+cause is V8's snapshot: an x64 Linux host builds `mksnapshot` for arm64 under V8's simulator (`clang_x64_v8_arm64`,
+`snapshot_toolchain.gni`), where an arm64 Mac builds it natively; the two `snapshot_blob.bin` differ in 9,898 bytes.
+Until that is fixed, build the arm64 engine where `mksnapshot` runs natively on arm64, and run any new arm64 engine on
+the `windows-11-arm` runner before pinning it.
+
 `06-package.sh` on Linux: Chromium's archive config says `D3DCompiler_47.dll`, the build writes `d3dcompiler_47.dll`,
 and `make_zip.py`'s glob only ignores case on a Mac, so `package_win.py` rewrites each plain name to the built one
 first (252 files, as from a Mac).
