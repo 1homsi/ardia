@@ -1,5 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
+import { isLabBuild } from "../../platform/lab";
+import { launchArguments } from "../../state/app/launchFlags";
+import { tabFaceDecodesAtDrawnSize } from "../../lib/launchTray";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { placeholderIndex } from "../../lib/tabFace";
 import { forgetPicturePainted, notePicturePainted, noteSnapshotAspect, noteSnapshotShown, pictureKey, snapshotAspect, snapshotWasShown } from "../../lib/shownSnapshots";
@@ -8,6 +11,8 @@ import { isDarkColor } from "../../lib/color";
 import { Favicon } from "./Favicon";
 import { Symbol } from "./Symbol";
 import { font, space, tabsInk, type ColorRoles } from "./tokens";
+
+const DECODES_AT_DRAWN_SIZE = tabFaceDecodesAtDrawnSize(Platform.OS, isLabBuild, launchArguments().tabFaceResize);
 
 export type TabFaceTab = { url: string; title: string; isPrivate: boolean; snapshotFileName: string | null; themeColorHex: string | null; faviconUrl: string | null };
 
@@ -86,7 +91,7 @@ function Snapshot({ uri, fill, under, paintedAs }: { uri: string; fill: string; 
       {covered ? under : null}
       <Animated.Image
         source={{ uri }}
-        resizeMethod="scale"
+        resizeMethod={DECODES_AT_DRAWN_SIZE ? "resize" : "scale"}
         onLoad={(event) => {
           const { width, height } = event.nativeEvent.source;
           if (width > 0 && height > 0) {

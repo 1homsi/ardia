@@ -72,3 +72,10 @@ test("the lab's demo seed scale is read only in a demo session, and never below 
   assert.equal(parseLaunchArguments({ ArdiaDemoScale: "1000" }).demoScale, 0);
   assert.equal(parseLaunchArguments({ ArdiaDemo: "YES", ArdiaDemoScale: "-5" }).demoScale, 0);
 });
+
+test("the lab's Android launch-tray deferral and drawn-size deck pictures are off unless asked for", () => {
+  assert.equal(NO_LAUNCH_ARGUMENTS.deferLaunchTray, false);
+  assert.equal(NO_LAUNCH_ARGUMENTS.tabFaceResize, false);
+  assert.equal(parseLaunchArguments({ ArdiaDeferLaunchTray: "YES" }).deferLaunchTray, true);
+  assert.equal(parseLaunchArguments({ ArdiaTabFaceResize: "1" }).tabFaceResize, true);
+});
