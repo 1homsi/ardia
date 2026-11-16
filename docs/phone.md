@@ -3206,7 +3206,7 @@ This was `docs/ios.md`'s, for main's SwiftUI app; since the clean-up the workflo
   artifact, pack it with the key into a .p12 with macOS's `/usr/bin/openssl`, and set both secrets. Distribution
   signing is Apple's cloud-managed certificate.
 - **Public testers, once the owner says so.** `mode=public-link -f build=<number>` puts a build in the Public Testers
-  group, sets its What to Test text from `apps/phone/ios/Config/TestFlight-WhatToTest.txt`, submits it for Beta App
+  group (kept off Apple silicon Macs, where the iPhone-only build crashes on open), sets its What to Test text from `apps/phone/ios/Config/TestFlight-WhatToTest.txt`, submits it for Beta App
   Review and prints the link, which stays the same for every build. Only one build of a version can wait in review.
   `mode=expire -f build=<number>` ends testing of an older build for good (never the newest), and `mode=add-tester -f
   email=<address>` invites someone to Public Testers.
