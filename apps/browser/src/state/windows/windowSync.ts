@@ -1,9 +1,15 @@
 import type { LightsPlace, OpenWindowOptions, WindowEvent } from "../../platform/windows";
 import type { BrowserState } from "../browser/store";
+import type { Frame } from "../browser/types";
 import { engineProfile, windowTitle } from "../browser/model";
 import { windowOpens } from "./windowOpenOrder";
 import { focusedWindowOf } from "./ui";
 import { adoptOf } from "../tabs/pageSession";
+import { noteLittleArdiaFitBelowSaved } from "../telemetry/littleArdiaEscapes";
+import { isSmallWindow } from "./small";
+
+const fitsBelowSaved = (frame: Frame, was: Frame | null, [width, height]: [number, number]) =>
+  (!was || was[2] !== frame[2] || was[3] !== frame[3]) && (Math.round(frame[2]) < width || Math.round(frame[3]) < height);
 
 export type LightsCenter = LightsPlace | null;
 
@@ -42,7 +48,11 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
     port.onEvent((e) => {
       const s = getState();
       if (e.type === "focus") s.setFocusedWindow(e.id);
-      if (e.type === "frame") s.setWindowFrame(e.id, e.frame, e.fitted);
+      if (e.type === "frame") {
+        const w = s.windows[e.id];
+        if (e.fitted && w && isSmallWindow(w) && fitsBelowSaved(e.frame, w.frame, s.settings.littleArdiaSize)) noteLittleArdiaFitBelowSaved();
+        s.setWindowFrame(e.id, e.frame, e.fitted);
+      }
       if (e.type === "fullScreen" && !isQuitting()) s.setWindowFullScreen(e.id, e.on);
       if (e.type === "close") {
         if (isQuitting()) return;
