@@ -1,6 +1,7 @@
 package com.ardia.phone
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
@@ -10,10 +11,15 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.ardia.browser.FullscreenVideo
 
+internal object FullscreenRotation {
+    fun whileShowing(held: Int): Int? = if (held == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) ActivityInfo.SCREEN_ORIENTATION_FULL_USER else null
+}
+
 class FullscreenHost {
     private var shown: FullscreenVideo? = null
     private var frame: FrameLayout? = null
     private var activity: Activity? = null
+    private var heldOrientation: Int? = null
 
     val isShowing: Boolean get() = shown != null
 
@@ -34,15 +40,22 @@ class FullscreenHost {
         shown = video
         frame = holder
         this.activity = activity
+        FullscreenRotation.whileShowing(activity.requestedOrientation)?.let { turning ->
+            heldOrientation = activity.requestedOrientation
+            activity.requestedOrientation = turning
+        }
         if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB fullscreen starts, in ${if (activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"}")
     }
 
     fun hide(reason: String = "replaced") {
         val holder = frame
         val activity = activity
+        val held = heldOrientation
         shown = null
         frame = null
         this.activity = null
+        heldOrientation = null
+        if (activity != null && held != null) activity.requestedOrientation = held
         holder ?: return
         if (PhoneLab.isOn) {
             val turned = activity?.resources?.configuration?.orientation?.let { if (it == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait" } ?: "unknown"

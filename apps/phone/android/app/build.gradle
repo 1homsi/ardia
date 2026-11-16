@@ -98,7 +98,7 @@ android {
         resValue "string", "ardia_build_source", ardiaBundleSource
         resValue "string", "ardia_build_native", ardiaNative
         resValue "bool", "ardia_sync_offered", ardiaLab ? "true" : "false"
-        manifestPlaceholders += [ardiaProfileable: ardiaLab ? "true" : "false"]
+        manifestPlaceholders += [ardiaProfileable: ardiaLab ? "true" : "false", ardiaScreenOrientation: ardiaLab ? "unspecified" : "portrait"]
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {

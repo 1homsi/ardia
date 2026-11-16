@@ -33,6 +33,7 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|fontScale|assetsPaths"
             android:exported="true"
             android:launchMode="singleTask"
+            android:screenOrientation="${ardiaScreenOrientation}"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
