@@ -64,6 +64,10 @@ test("nothing is restored after JS wrote the field, as a completion, a reset or 
   assert.equal(run([["e"], "js write", ["ex"], ["ea"]])[2].text, "ea");
 });
 
+test("a JS write while letters are being restored ends the restoring", () => {
+  assert.deepEqual(texts(run([["e"], ["ex"], ["ea"], "js write", ["eam"]])), ["e", "ex", "exa", "eam"]);
+});
+
 test("the erased letter typed again is proven by the text not changing, so it is restored", () => {
   assert.deepEqual(texts(run([["g"], ["go"], ["go"], ["gog"], ["gogl"]])), ["g", "go", "goo", "goog", "googl"]);
 });

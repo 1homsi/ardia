@@ -990,6 +990,7 @@ function Close-Bar {
 
 function Invoke-TypingTour {
   $session = Start-Ardia "typing-sidebar" -Onboarded
+  if (-not (Test-Usable $session)) { $script:Required.Add("Typing (typing-sidebar): no usable window") }
   if (Test-Usable $session) {
     $opened = Invoke-Stop $session "typing-page" "Not a first run: open Example Domain to type over" {
       param($stop)
@@ -1004,6 +1005,7 @@ function Invoke-TypingTour {
   Stop-Ardia $session
 
   $session = Start-Ardia "typing-top" -Onboarded -Settings @{ tabLayout = "top" }
+  if (-not (Test-Usable $session)) { $script:Required.Add("Typing (typing-top): no usable window") }
   if (Test-Usable $session) {
     $opened = Invoke-Stop $session "typing-top-page" "Not a first run, tabs on top: open Example Domain to type over" {
       param($stop)
@@ -1017,6 +1019,7 @@ function Invoke-TypingTour {
   Stop-Ardia $session
 
   $session = Start-Ardia "typing-floating" -Onboarded -Settings @{ newTabOpens = "commandBar" }
+  if (-not (Test-Usable $session)) { $script:Required.Add("Typing (typing-floating): no usable window") }
   if (Test-Usable $session) {
     Invoke-BarTypingStop $session "typing-floating" "Not a first run, new tabs open the command bar: Ctrl+T into the floating bar, typing at 80 ms a key, ten tries" "With newTabOpens = commandBar, pressed Ctrl+T, typed example.com from 100 ms after it at 80 ms a key, reading the field after every key, then closed the floating bar with Escape; ten times." { Send-QuickChord @(0x11) 0x54 } { Close-Bar } 100 80 10
   }

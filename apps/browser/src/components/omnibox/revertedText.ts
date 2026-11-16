@@ -16,7 +16,7 @@ export type RevertRead = { text: string; watch: RevertWatch; caret: number | nul
 
 export const freshRevertWatch = (): RevertWatch => ({ first: null, firstAt: 0, heard: "", typedOnly: true, lost: null, shown: "", spent: false });
 
-export const wroteOverField = (watch: RevertWatch): RevertWatch => (watch.lost ? watch : { ...watch, typedOnly: false });
+export const wroteOverField = (watch: RevertWatch): RevertWatch => ({ ...watch, lost: null, typedOnly: false });
 
 const typedOneMore = (from: string, to: string) => to.length === from.length + 1 && to.startsWith(from);
 

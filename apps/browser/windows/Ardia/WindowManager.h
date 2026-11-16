@@ -234,8 +234,8 @@ struct WindowManager {
       m_order.push_back(entry.id);
       auto placed = m_windows.emplace(entry.id, std::move(entry)).first;
       if (!InstanceLoad::Shared().loaded) {
-        InstanceLoad::Shared().WhenLoaded(std::wstring(L"window ").append(Paths::Wide(placed->first)), [this, id = placed->first]() {
-          if (ManagedWindow *found = Find(id)) Mount(*found);
+        InstanceLoad::Shared().WhenLoaded(std::wstring(L"window ").append(Paths::Wide(placed->first)), [this, id = placed->first, window = placed->second.window]() {
+          if (ManagedWindow *found = Find(id); found && found->window == window) Mount(*found);
         });
       }
       if (fades) BeginEntrance(placed->second);
