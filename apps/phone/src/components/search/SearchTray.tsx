@@ -829,7 +829,7 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
         />
         )}
         {hasText ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => setSearchText("")}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => input.current?.clearsInPlace() || setSearchText("")}>
             <Symbol name="xmarkCircleFill" size={panelField ? PANEL_GLYPHS.clear : 18} color={theme.foregroundTertiary} />
           </Pressable>
         ) : (

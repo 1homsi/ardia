@@ -1,12 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { TextInput, type StyleProp, type TextStyle, type TextInputInstance } from "react-native";
+import { Platform, TextInput, type StyleProp, type TextStyle, type TextInputInstance } from "react-native";
 import { withAlpha } from "../../lib/color";
 import { inlineOffer } from "../../lib/inlineOffer";
 import { CompletingField, completingFieldIsNative, type CompletingFieldHandle } from "../../platform/completingField";
 import { useSearchCompletedFor, useSearchCompletion } from "../../state/search/hooks";
 import { font } from "../ui";
 
-export type TrayInputHandle = { focus(): void; blur(): void };
+export type TrayInputHandle = { focus(): void; blur(): void; clearsInPlace(): boolean };
 
 type Props = {
   start: string;
@@ -40,7 +40,23 @@ const CompletingInput = forwardRef<TrayInputHandle, Props>(function CompletingIn
   const [typed, setTyped] = useState(start);
   const completion = useSearchCompletion();
   const completedFor = useSearchCompletedFor();
-  useImperativeHandle(ref, () => ({ focus: () => field.current?.focus(), blur: () => field.current?.blur() }), []);
+  const typedNow = useRef(onTyped);
+  typedNow.current = onTyped;
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => field.current?.focus(),
+      blur: () => field.current?.blur(),
+      clearsInPlace: () => {
+        if (Platform.OS !== "ios") return false;
+        field.current?.setText("", false);
+        setTyped("");
+        typedNow.current("");
+        return true;
+      },
+    }),
+    [],
+  );
   useEffect(() => {
     if (selectsStart && start) field.current?.setText(start, true);
   }, []);
@@ -76,7 +92,7 @@ const PlainInput = forwardRef<TrayInputHandle, Props>(function PlainInput({ star
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(
     selectsStart && start ? { start: 0, end: start.length } : { start: start.length, end: start.length },
   );
-  useImperativeHandle(ref, () => ({ focus: () => input.current?.focus(), blur: () => input.current?.blur() }), []);
+  useImperativeHandle(ref, () => ({ focus: () => input.current?.focus(), blur: () => input.current?.blur(), clearsInPlace: () => false }), []);
   return (
     <TextInput
       ref={input}

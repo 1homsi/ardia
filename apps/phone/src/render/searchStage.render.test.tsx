@@ -9,7 +9,7 @@ import { DesignProvider } from "../components/ui";
 import * as browse from "../state/browse/store";
 import { usePageUi } from "../state/page/store";
 import { storeNavigation, usePages, type PageState } from "../state/pages/store";
-import { presentSearch } from "../state/search/store";
+import { presentSearch, useSearch } from "../state/search/store";
 import { useStageBar } from "../state/search/stageBar";
 import { currentTabs, useTabs } from "../state/tabs/store";
 import * as telemetry from "../state/telemetry/telemetry";
@@ -34,6 +34,7 @@ const mockFaceTaken = { then: (taken: () => void) => taken() };
 const mockStage = { present: jest.fn(() => mockFaceTaken), holdLift: jest.fn(), releaseLift: jest.fn(), close: jest.fn(), finish: jest.fn() };
 const mockSeen: { props: StageProps | null } = { props: null };
 const mockFocus = jest.fn();
+const mockSetText = jest.fn();
 
 jest.mock("@ardia/phone-native", () => {
   const actual = jest.requireActual("@ardia/phone-native");
@@ -47,7 +48,7 @@ jest.mock("@ardia/phone-native", () => {
     return React.createElement(native.View, rest);
   });
   const CompletingField = React.forwardRef((props: Record<string, unknown>, ref) => {
-    React.useImperativeHandle(ref, () => ({ focus: () => mockFocus(), blur: () => undefined, setText: () => undefined }), []);
+    React.useImperativeHandle(ref, () => ({ focus: () => mockFocus(), blur: () => undefined, setText: (...args: unknown[]) => mockSetText(...args) }), []);
     return React.createElement(native.View, { testID: "completingField", holdsScroll: props.holdsScroll, selectsAllOnFocus: props.selectsAllOnFocus, fieldNativeID: props.nativeID } as object);
   });
   return {
@@ -73,6 +74,7 @@ beforeEach(() => {
   useStageBar.setState({ onScreen: false, presented: false, morphs: false, landed: false, pills: 0 });
   Object.values(mockStage).forEach((call) => call.mockClear());
   mockFocus.mockClear();
+  mockSetText.mockClear();
   mockSeen.props = null;
   act(() => storeNavigation(currentTabs().open[0]!.id, { url: "https://site0.example/", title: "Site", isLive: true, isLoading: false, progress: 1, failure: null, canGoBack: false, canGoForward: false, scrollDirection: "up" } as unknown as PageState));
 });
@@ -181,6 +183,19 @@ onIPhone("the stage is told which native view is the field, so it focuses the fi
   open();
   expect(stage().focusNativeId).toBe("searchStageField");
   expect(field(root)!.props.fieldNativeID).toBe("searchStageField");
+});
+
+onIPhone("Clear empties the field where it stands, as main's does, so the field keeps the keyboard: no new field is mounted", () => {
+  const root = page();
+  act(() => presentSearch("page", "https://en.wikipedia.org/wiki/Pastel_de_nata"));
+  const before = field(root);
+  const version = useSearch.getState().fieldVersion;
+  const clear = root.root.findAll((node) => node.props.accessibilityLabel === "Clear Text" && typeof node.props.onPress === "function")[0]!;
+  act(() => clear.props.onPress());
+  expect(mockSetText).toHaveBeenLastCalledWith("", false);
+  expect(useSearch.getState().fieldVersion).toBe(version);
+  expect(field(root)).toBe(before);
+  expect(root.root.findAll((node) => node.props.accessibilityLabel === "Clear Text")).toHaveLength(0);
 });
 
 onIPhone("opening again while the panel closes presents again with the stage still shown, never flipping it off and on", () => {
