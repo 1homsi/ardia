@@ -46,7 +46,7 @@ macOS and react-native-macos stops at 0.83):
 
 `PageView` (`packages/phone/src`) is the page. Android backs it with `PageEngine` from `apps/android/browser`
 (`DevelopmentWebViewEngine` over the system WebView today). The iPhone backs it with `WebEngine` and `WebTab` from
-`apps/ios/Packages/ArdiaKit` (WKWebView with the SwiftUI app's content blocking, popups, downloads and page requests),
+`packages/phone/ios/ArdiaKit` (WKWebView with the SwiftUI app's content blocking, popups, downloads and page requests),
 in an in-memory tab store until this app takes over the SwiftUI app's data. Its tone is `PageTone.resolve` and
 `ToneSampler` in ArdiaBrowser, the code the SwiftUI app's bar uses. The page takes iOS's edge swipes for back and
 forward.
@@ -2242,14 +2242,14 @@ agent-device install com.ardia.browser.ios <dir>/Build/Products/Release-iphonesi
 
 The ad hoc identity signs locally for the simulator with each target's entitlements (the app group, so the app and
 its extensions share the SwiftUI app's container) and needs no account or profile. The Podfile adds
-`apps/ios/Packages/ArdiaKit` to the `ArdiaPhoneNative` pod as a local Swift package (ArdiaBrowser and ArdiaDesign);
+`packages/phone/ios/ArdiaKit` to the `ArdiaPhoneNative` pod as a local Swift package (ArdiaBrowser and ArdiaDesign);
 Xcode links ArdiaKit into the pod's library and copies its resource bundles into the app. The app target must not
 link ArdiaKit itself, or every symbol is linked twice; it finds ArdiaDesign's module for its intents through
 `SWIFT_INCLUDE_PATHS`. iOS 27 refuses to launch an app without the scene lifecycle, which Expo 54's template lacks, so
 `SceneDelegate` starts React Native in the scene's window and hands links, quick actions and Handoff to the module.
 
-The project carries the SwiftUI app's extensions, compiled from `apps/ios/Share`, `Action` and `Widgets` in place with
-that project's Info.plists and entitlement files: the Share extension, Open in Ardia and the widgets, under the same
+The project carries the SwiftUI app's extensions, compiled from `apps/phone/ios/Share`, `Action` and `Widgets`, with
+the Info.plists and entitlement files in `apps/phone/ios/Config`: the Share extension, Open in Ardia and the widgets, under the same
 bundle ids. The SwiftUI app's intents need its `AppModel`, so the app target has its own copies with the same names,
 titles and phrases that post links instead.
 
@@ -2299,10 +2299,10 @@ Watch your own frames before you hand a change on. The loop, for any agent:
 6. **Main's SwiftUI app,** the reference for the iPhone redesign.
    - It has the same bundle id, so uninstall one app before installing the other
      (`xcrun simctl --set ~/.simlock/devices/ios uninstall <udid> com.ardia.browser.ios`).
-   - A staged Release build is `/tmp/ardia-phone/swiftui-main.app`, with `swiftui-main.txt` saying from which commit.
-     To make a fresh one (about 50 s), build `apps/ios/Ardia.xcodeproj` and copy out its `Ardia.app`:
-     `scripts/agent/locked xcodebuild -- xcodebuild -project apps/ios/Ardia.xcodeproj -scheme Ardia -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath <your dir> ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= build`.
-     Sign it ad hoc like this, never with `CODE_SIGNING_ALLOWED=NO`. The ad hoc build carries simulated entitlements
+   - The pinned Release build is `~/Developer/ardia-phone-references/swiftui-main.app` (linked from
+     `/tmp/ardia-phone/swiftui-main.app`), with `swiftui-main.txt` saying from which commit. To make a fresh one from
+     any commit of main (about 50 s), run `apps/phone/scripts/rebuild-swiftui-reference <commit>`: it builds that
+     commit's `apps/ios` from a `git archive` export and signs it ad hoc, never with `CODE_SIGNING_ALLOWED=NO`. The ad hoc build carries simulated entitlements
      (`application-identifier` `FAKETEAMID.com.ardia.browser.ios` and the app group), the same as `build-sim-app`'s
      Expo builds. Without them the app has no Keychain: Sync With Mac stops at "Couldn't save the sync key in your
      Keychain", and an upgrade can't carry the key over. Check with
@@ -2606,9 +2606,8 @@ app ships with the default browser off, and one build setting turns all of it on
   `apps/phone/ios/Ardia.xcodeproj/project.pbxproj`. Flip both to `YES` (or pass `ARDIA_DEFAULT_BROWSER=YES` to
   `xcodebuild`) for a build that should offer it.
 - **The entitlement.** `CODE_SIGN_ENTITLEMENTS = $(ARDIA_ENTITLEMENTS_$(ARDIA_DEFAULT_BROWSER))`, so `NO` signs with
-  `apps/ios/Config/Ardia.entitlements` and `YES` with `apps/ios/Config/Ardia-DefaultBrowser.entitlements`, the same
-  file plus `com.apple.developer.web-browser`. The SwiftUI app's `apps/ios/project.yml` does the same, so both apps
-  share the two files.
+  `apps/phone/ios/Config/Ardia.entitlements` and `YES` with `apps/phone/ios/Config/Ardia-DefaultBrowser.entitlements`,
+  the same file plus `com.apple.developer.web-browser`. Main's SwiftUI app signs with the same two files.
 - **Info.plist.** `ArdiaDefaultBrowser` is `$(ARDIA_DEFAULT_BROWSER)`, which ArdiaKit's
   `DefaultBrowserStatus.isOffered` reads. The http and https `CFBundleURLTypes` iOS requires of a default browser are
   already declared and do nothing until the system lists Ardia.
@@ -2761,7 +2760,7 @@ d5fbaabc1). After a hand edit to the project, run `pod install` and commit what 
 **What the build is.**
 - **App record:** the same as the SwiftUI app: "Ardia", bundle id `com.ardia.browser.ios`, team `U5L5T3NGVV`, and the
   extensions `.share`, `.widgets` and `.open`. The Expo project (`apps/phone/ios/Ardia.xcodeproj`) already uses these
-  ids and the same entitlement files in `apps/ios/Config`: the app group `group.com.ardia.browser.ios`, and the default
+  ids and the same entitlement files, now in `apps/phone/ios/Config`: the app group `group.com.ardia.browser.ios`, and the default
   browser off (`ARDIA_DEFAULT_BROWSER = NO`).
 - **Version and build number:**
   - The Apple version is the Mac's release version, as `docs/ios.md` › Releasing to TestFlight has it.

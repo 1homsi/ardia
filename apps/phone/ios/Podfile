@@ -15,7 +15,7 @@ platform :ios, deployment_target
 
 prepare_react_native_project!
 
-ardia_kit = Pathname.new(File.join(__dir__, '..', '..', 'ios', 'Packages', 'ArdiaKit')).cleanpath
+ardia_kit = Pathname.new(File.join(__dir__, '..', '..', '..', 'packages', 'phone', 'ios', 'ArdiaKit')).cleanpath
 phone_sync = Pathname.new(File.join(__dir__, '..', '..', '..', 'packages', 'phone', 'ios', 'PhoneSync')).cleanpath
 
 publish_changed = '"${PODS_ROOT}/../publish-changed.sh"'

@@ -8,7 +8,7 @@ let package = Package(
     .library(name: "PhoneSync", targets: ["PhoneSync"]),
   ],
   dependencies: [
-    .package(name: "ArdiaKit", path: "../../../../apps/ios/Packages/ArdiaKit"),
+    .package(name: "ArdiaKit", path: "../ArdiaKit"),
     .package(name: "ArdiaSyncCore", path: "../../../sync"),
   ],
   targets: [

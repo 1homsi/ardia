@@ -5,7 +5,7 @@ import { test } from "node:test";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const project = read("../../ios/Ardia.xcodeproj/project.pbxproj");
 const info = read("../../ios/Ardia/Info.plist");
-const entitlements = (name: string) => read(`../../../ios/Config/${name}`);
+const entitlements = (name: string) => read(`../../ios/Config/${name}`);
 const WEB_BROWSER = "com.apple.developer.web-browser";
 
 test("the iPhone app ships with the default browser off until Apple grants the web-browser entitlement", () => {
@@ -16,8 +16,8 @@ test("the iPhone app ships with the default browser off until Apple grants the w
 });
 
 test("one build setting turns on the entitlement and the Info.plist key together, so the app is never half on", () => {
-  assert.match(project, /ARDIA_ENTITLEMENTS_NO = \.\.\/\.\.\/ios\/Config\/Ardia\.entitlements;/);
-  assert.match(project, /ARDIA_ENTITLEMENTS_YES = "\.\.\/\.\.\/ios\/Config\/Ardia-DefaultBrowser\.entitlements";/);
+  assert.match(project, /ARDIA_ENTITLEMENTS_NO = Config\/Ardia\.entitlements;/);
+  assert.match(project, /ARDIA_ENTITLEMENTS_YES = "Config\/Ardia-DefaultBrowser\.entitlements";/);
   const signing = [...project.matchAll(/CODE_SIGN_ENTITLEMENTS = (.+);/g)].map((match) => match[1]!.replaceAll('"', ""));
   assert.ok(signing.includes("$(ARDIA_ENTITLEMENTS_$(ARDIA_DEFAULT_BROWSER))"), "the app target picks its entitlements from ARDIA_DEFAULT_BROWSER");
   assert.match(info, /<key>ArdiaDefaultBrowser<\/key>\s*<string>\$\(ARDIA_DEFAULT_BROWSER\)<\/string>/, "DefaultBrowserStatus.isOffered reads the same setting");

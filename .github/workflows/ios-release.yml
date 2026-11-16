@@ -89,7 +89,7 @@ jobs:
           key="$RUNNER_TEMP/AuthKey.p8"
           (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
           trap 'rm -f "$key"' EXIT
-          ASC_KEY="$key" node apps/ios/scripts/asc.mjs status | tee -a "$GITHUB_STEP_SUMMARY"
+          ASC_KEY="$key" node apps/phone/scripts/asc.mjs status | tee -a "$GITHUB_STEP_SUMMARY"
 
   public-link:
     if: inputs.mode == 'public-link'
@@ -114,8 +114,8 @@ jobs:
           key="$RUNNER_TEMP/AuthKey.p8"
           (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
           trap 'rm -f "$key"' EXIT
-          ASC_KEY="$key" node apps/ios/scripts/asc.mjs public-link --build "$BUILD" \
-            --what-to-test apps/ios/Config/TestFlight-WhatToTest.txt --privacy-policy https://ardia.dev/privacy | tee -a "$GITHUB_STEP_SUMMARY"
+          ASC_KEY="$key" node apps/phone/scripts/asc.mjs public-link --build "$BUILD" \
+            --what-to-test apps/phone/ios/Config/TestFlight-WhatToTest.txt --privacy-policy https://ardia.dev/privacy | tee -a "$GITHUB_STEP_SUMMARY"
 
   add-tester:
     if: inputs.mode == 'add-tester'
@@ -141,7 +141,7 @@ jobs:
           key="$RUNNER_TEMP/AuthKey.p8"
           (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
           trap 'rm -f "$key"' EXIT
-          ASC_KEY="$key" node apps/ios/scripts/asc.mjs add-tester --email "$EMAIL" | tee -a "$GITHUB_STEP_SUMMARY"
+          ASC_KEY="$key" node apps/phone/scripts/asc.mjs add-tester --email "$EMAIL" | tee -a "$GITHUB_STEP_SUMMARY"
 
   expire:
     if: inputs.mode == 'expire'
@@ -166,7 +166,7 @@ jobs:
           key="$RUNNER_TEMP/AuthKey.p8"
           (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
           trap 'rm -f "$key"' EXIT
-          ASC_KEY="$key" node apps/ios/scripts/asc.mjs expire --build "$BUILD" | tee -a "$GITHUB_STEP_SUMMARY"
+          ASC_KEY="$key" node apps/phone/scripts/asc.mjs expire --build "$BUILD" | tee -a "$GITHUB_STEP_SUMMARY"
 
   certificate:
     if: inputs.mode == 'certificate'
@@ -193,7 +193,7 @@ jobs:
           trap 'rm -f "$key"' EXIT
           printf '%s' "$SIGNING_REQUEST" | base64 -d > "$RUNNER_TEMP/request.csr"
           mkdir -p "$RUNNER_TEMP/certificate"
-          ASC_KEY="$key" node apps/ios/scripts/asc.mjs certificates --create "$RUNNER_TEMP/request.csr" --out "$RUNNER_TEMP/certificate/development.cer"
+          ASC_KEY="$key" node apps/phone/scripts/asc.mjs certificates --create "$RUNNER_TEMP/request.csr" --out "$RUNNER_TEMP/certificate/development.cer"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ios-development-certificate
@@ -251,7 +251,7 @@ jobs:
           mkdir -p "$(dirname "$ASC_KEY")" && chmod 700 "$(dirname "$ASC_KEY")"
           (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -D > "$ASC_KEY")
           grep -q 'BEGIN PRIVATE KEY' "$ASC_KEY" || { echo "::error::NOTARY_KEY_P8 isn't a base64 .p8 key"; exit 1; }
-          node apps/ios/scripts/asc.mjs certificates --save "$(dirname "$ASC_KEY")/certificates.json"
+          node apps/phone/scripts/asc.mjs certificates --save "$(dirname "$ASC_KEY")/certificates.json"
       - name: Development certificate
         env:
           IOS_DEVELOPMENT_P12: ${{ secrets.IOS_DEVELOPMENT_P12 }}
@@ -280,7 +280,7 @@ jobs:
         run: |
           set -euo pipefail
           build="$BUILD_INPUT"
-          [ -n "$build" ] || build="$(node apps/ios/scripts/asc.mjs next-build)"
+          [ -n "$build" ] || build="$(node apps/phone/scripts/asc.mjs next-build)"
           echo "build=$build" >> "$GITHUB_OUTPUT"
           echo "### Ardia for iPhone ${RELEASE_VERSION:-from MARKETING_VERSION}, build $build ($MODE)" >> "$GITHUB_STEP_SUMMARY"
       - name: Archive, sign${{ inputs.mode == 'upload' && ', upload' || '' }}
@@ -301,20 +301,20 @@ jobs:
         name: Wait for App Store Connect to process the build
         env:
           BUILD: ${{ steps.plan.outputs.build }}
-        run: node apps/ios/scripts/asc.mjs wait --build "$BUILD" --timeout 2400 | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node apps/phone/scripts/asc.mjs wait --build "$BUILD" --timeout 2400 | tee -a "$GITHUB_STEP_SUMMARY"
       - if: inputs.mode == 'upload' && inputs.public_testers && inputs.app != 'expo'
         name: Send the build to public testers
         env:
           BUILD: ${{ steps.plan.outputs.build }}
         run: |
           set -euo pipefail
-          node apps/ios/scripts/asc.mjs public-link --build "$BUILD" \
-            --what-to-test apps/ios/Config/TestFlight-WhatToTest.txt --privacy-policy https://ardia.dev/privacy | tee -a "$GITHUB_STEP_SUMMARY"
+          node apps/phone/scripts/asc.mjs public-link --build "$BUILD" \
+            --what-to-test apps/phone/ios/Config/TestFlight-WhatToTest.txt --privacy-policy https://ardia.dev/privacy | tee -a "$GITHUB_STEP_SUMMARY"
       - if: always()
         name: No certificate was made
         run: |
           snapshot="$(dirname "$ASC_KEY")/certificates.json"
-          [ ! -f "$snapshot" ] || node apps/ios/scripts/asc.mjs certificates --new-since "$snapshot" \
+          [ ! -f "$snapshot" ] || node apps/phone/scripts/asc.mjs certificates --new-since "$snapshot" \
             || echo "::error::this run made a development certificate instead of signing with the stored one; it is still on the team"
       - if: always()
         name: Remove the key

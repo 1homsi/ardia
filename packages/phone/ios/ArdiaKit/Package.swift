@@ -11,7 +11,7 @@ let package = Package(
     .library(name: "ArdiaDesign", targets: ["ArdiaDesign"]),
   ],
   dependencies: [
-    .package(name: "ArdiaSyncCore", path: "../../../../packages/sync"),
+    .package(name: "ArdiaSyncCore", path: "../../../sync"),
   ],
   targets: [
     .target(name: "ArdiaShared", resources: [.copy("Scripts")]),

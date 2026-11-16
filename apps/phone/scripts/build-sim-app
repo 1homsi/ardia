@@ -44,7 +44,7 @@ if [ "$free" -lt 10 ]; then
   exit 1
 fi
 started=$(date +%s)
-nativePaths=(apps/phone/ios packages/phone/ios apps/ios/Packages/ArdiaKit apps/phone/app.json packages/phone/expo-module.config.json apps/phone/pnpm-lock.yaml apps/phone/pnpm-workspace.yaml patches)
+nativePaths=(apps/phone/ios packages/phone/ios apps/phone/app.json packages/phone/expo-module.config.json apps/phone/pnpm-lock.yaml apps/phone/pnpm-workspace.yaml patches)
 nativeHash() {
   (cd "$root" && git ls-files -z -co --exclude-standard -- "${nativePaths[@]}" | sort -z | while IFS= read -r -d '' file; do
     [ -f "$file" ] && printf '%s %s\n' "$(git hash-object -- "$file")" "$file"

@@ -72,7 +72,7 @@
 		09CE5C51DF5E57B4681F6F1E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		1E2787D929803092B234BAE9 /* libPods-Ardia.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Ardia.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F4DDAC9D3853A29800877EF /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
-		44BF920C59AC742FE06653E7 /* ArdiaKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ArdiaKit; path = ../../ios/Packages/ArdiaKit; sourceTree = SOURCE_ROOT; };
+		44BF920C59AC742FE06653E7 /* ArdiaKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ArdiaKit; path = ../../../packages/phone/ios/ArdiaKit; sourceTree = SOURCE_ROOT; };
 		4A50E468EDC930AAC33080CE /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Ardia/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		4CB1152D27B6DB022221EC1B /* Expo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Expo.plist; sourceTree = "<group>"; };
 		4FD90E245DFB5335ACF4F908 /* Pods-Ardia.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ardia.debug.xcconfig"; path = "Target Support Files/Pods-Ardia/Pods-Ardia.debug.xcconfig"; sourceTree = "<group>"; };
@@ -166,26 +166,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		02FB3211357F11E6C9CB111D /* ios */ = {
-			isa = PBXGroup;
-			children = (
-				B6838BB2DAD53AEA560C0E56 /* Action */,
-				E5D3BCCC73C5C2AE0D9D57F9 /* App */,
-				85F597FD9DA819E9827E9DA5 /* Share */,
-				BDB45B039CE72773F193594D /* Widgets */,
-			);
-			path = ios;
-			sourceTree = "<group>";
-		};
-		156B1225DB7F25EA69EF17D6 /* apps */ = {
-			isa = PBXGroup;
-			children = (
-				02FB3211357F11E6C9CB111D /* ios */,
-			);
-			name = apps;
-			path = ../..;
-			sourceTree = "<group>";
-		};
 		4CF68B70FCED3A93A01F77BA /* Packages */ = {
 			isa = PBXGroup;
 			children = (
@@ -236,13 +216,16 @@
 		A7333FB8D37A78466BEEBDE0 = {
 			isa = PBXGroup;
 			children = (
-				156B1225DB7F25EA69EF17D6 /* apps */,
+				B6838BB2DAD53AEA560C0E56 /* Action */,
+				E5D3BCCC73C5C2AE0D9D57F9 /* App */,
 				92BAAB3973651DBF28BC5E2E /* Ardia */,
 				4CF68B70FCED3A93A01F77BA /* Packages */,
 				F79F208BB74F1D58D05F5B6D /* Frameworks */,
 				B09FAA87FD6285383A2BCD2E /* Products */,
 				8AD6ED66562F8651295DCF3F /* Pods */,
 				D6BB62497409B8D7FEFA07E4 /* ExpoModulesProviders */,
+				85F597FD9DA819E9827E9DA5 /* Share */,
+				BDB45B039CE72773F193594D /* Widgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -653,9 +636,9 @@
 		0AE21C58634201F9FF33F20E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Share.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Config/Share.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../../ios/Config/Share-Info.plist";
+				INFOPLIST_FILE = "Config/Share-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -759,9 +742,9 @@
 		577AF5FA563D1CF1711188F3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Share.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Config/Share.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../../ios/Config/Share-Info.plist";
+				INFOPLIST_FILE = "Config/Share-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -785,9 +768,9 @@
 		637D5F3EC61773CC7143A50F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Widgets.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../../ios/Config/Widgets-Info.plist";
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -813,8 +796,8 @@
 			baseConfigurationReference = 4FD90E245DFB5335ACF4F908 /* Pods-Ardia.debug.xcconfig */;
 			buildSettings = {
 				ARDIA_DEFAULT_BROWSER = NO;
-				ARDIA_ENTITLEMENTS_NO = ../../ios/Config/Ardia.entitlements;
-				ARDIA_ENTITLEMENTS_YES = "../../ios/Config/Ardia-DefaultBrowser.entitlements";
+				ARDIA_ENTITLEMENTS_NO = Config/Ardia.entitlements;
+				ARDIA_ENTITLEMENTS_YES = "Config/Ardia-DefaultBrowser.entitlements";
 				ARDIA_RELEASE_VERSION = "";
 				ARDIA_TEST_BUILD = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -847,9 +830,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Open.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Config/Open.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../../ios/Config/Open-Info.plist";
+				INFOPLIST_FILE = "Config/Open-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Open in Ardia";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -946,9 +929,9 @@
 		AE6A4CAC24E1FC803F3A6748 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Widgets.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../../ios/Config/Widgets-Info.plist";
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -974,8 +957,8 @@
 			baseConfigurationReference = AE704818C60C688ED50FBD96 /* Pods-Ardia.release.xcconfig */;
 			buildSettings = {
 				ARDIA_DEFAULT_BROWSER = NO;
-				ARDIA_ENTITLEMENTS_NO = ../../ios/Config/Ardia.entitlements;
-				ARDIA_ENTITLEMENTS_YES = "../../ios/Config/Ardia-DefaultBrowser.entitlements";
+				ARDIA_ENTITLEMENTS_NO = Config/Ardia.entitlements;
+				ARDIA_ENTITLEMENTS_YES = "Config/Ardia-DefaultBrowser.entitlements";
 				ARDIA_RELEASE_VERSION = "";
 				ARDIA_TEST_BUILD = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1008,9 +991,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Open.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Config/Open.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../../ios/Config/Open-Info.plist";
+				INFOPLIST_FILE = "Config/Open-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Open in Ardia";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1084,7 +1067,7 @@
 /* Begin XCLocalSwiftPackageReference section */
 		42A796895FF5B0184146C8DE /* XCLocalSwiftPackageReference "ArdiaKit" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../ios/Packages/ArdiaKit;
+			relativePath = ../../../packages/phone/ios/ArdiaKit;
 		};
 /* End XCLocalSwiftPackageReference section */
 

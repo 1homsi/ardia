@@ -512,7 +512,7 @@ bookmark, settings, profile or group edit, and on Sync Now. A cycle:
       version or other permissions; pending installs (retried, changed, cancelled by a removal); older Macs keep the
       records through their snapshots; on a framework without the engine calls nothing is published or applied.
     - `companion/companion.test.ts`: the iPhone's adapters and cycle.
-  - `apps/ios/scripts/bundle-shared.mjs --check`: the iPhone's bundle of this code is up to date.
+  - `apps/phone/scripts/bundle-shared.mjs --check`: the iPhone's bundle of this code is up to date.
   - `scripts/legacy-migration-e2e.mjs`: the migration tool run end to end on a scratch install.
 - `pnpm --filter @ardia/browser test` runs `src/state/sync/adapters.test.mjs` (4 tests against the real
   store: delete versus add, concurrent moves that would make a cycle, parked pinned tabs, passwords

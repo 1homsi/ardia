@@ -3,14 +3,16 @@ name: iOS
 on:
   pull_request:
     paths:
-      - "apps/ios/**"
+      - "packages/phone/ios/**"
+      - "apps/phone/scripts/bundle-shared.mjs"
       - "packages/sync/**"
       - "packages/core/**"
       - ".github/workflows/ios.yml"
   push:
     branches: [main]
     paths:
-      - "apps/ios/**"
+      - "packages/phone/ios/**"
+      - "apps/phone/scripts/bundle-shared.mjs"
       - "packages/sync/**"
       - "packages/core/**"
       - ".github/workflows/ios.yml"
@@ -91,9 +93,9 @@ jobs:
           key: swiftpm-xcode-27.1-${{ github.sha }}
           restore-keys: swiftpm-xcode-27.1-
       - name: The JavaScriptCore bundles match their TypeScript
-        run: node apps/ios/scripts/bundle-shared.mjs --check
+        run: node apps/phone/scripts/bundle-shared.mjs --check
       - name: ArdiaKit tests
-        run: swift test --package-path apps/ios/Packages/ArdiaKit --scratch-path "$SCRATCH/ardiakit"
+        run: swift test --package-path packages/phone/ios/ArdiaKit --scratch-path "$SCRATCH/ardiakit"
       - name: Sync core tests
         run: swift test --package-path packages/sync --scratch-path "$SCRATCH/sync"
       - if: github.event_name == 'push'

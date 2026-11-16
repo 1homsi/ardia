@@ -12,7 +12,7 @@ let package = Package(
     .library(name: "PhoneScreenLayout", targets: ["PhoneScreenLayout"]),
   ],
   dependencies: [
-    .package(name: "ArdiaKit", path: "../../../../apps/ios/Packages/ArdiaKit"),
+    .package(name: "ArdiaKit", path: "../ArdiaKit"),
   ],
   targets: [
     .target(name: "PhoneMotion", swiftSettings: [.swiftLanguageMode(.v5)]),

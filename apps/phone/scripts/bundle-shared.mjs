@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Usage: node apps/ios/scripts/bundle-shared.mjs [--check] [--help]
+// Usage: node apps/phone/scripts/bundle-shared.mjs [--check] [--help]
 // Bundles the TypeScript the iPhone app shares with the Mac (packages/sync, packages/core) into plain scripts
 // for JavaScriptCore, with no dependencies. --check exits 1 when a checked-in bundle is out of date.
 
@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { stripTypeScriptTypes } from "node:module";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const out = join(root, "apps/ios/Packages/ArdiaKit/Sources/ArdiaShared/Scripts");
+const out = join(root, "packages/phone/ios/ArdiaKit/Sources/ArdiaShared/Scripts");
 
 const BUNDLES = [
   { file: "ardia-sync.js", global: "ArdiaSync", entry: "packages/sync/src/companion/index.ts" },
@@ -119,7 +119,7 @@ for (const b of BUNDLES) {
   const path = join(out, b.file);
   if (check) {
     if (!existsSync(path) || readFileSync(path, "utf8") !== text) {
-      console.error(`${relative(root, path)} is out of date: run node apps/ios/scripts/bundle-shared.mjs`);
+      console.error(`${relative(root, path)} is out of date: run node apps/phone/scripts/bundle-shared.mjs`);
       stale = true;
     }
   } else {

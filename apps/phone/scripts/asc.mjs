@@ -4,16 +4,16 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const HELP = `App Store Connect, for the iPhone app's TestFlight builds.
 
-  node apps/ios/scripts/asc.mjs status
-  node apps/ios/scripts/asc.mjs builds [--build <number>]
-  node apps/ios/scripts/asc.mjs next-build
-  node apps/ios/scripts/asc.mjs wait --build <number> [--timeout <seconds>]
-  node apps/ios/scripts/asc.mjs certificates --save <file>
-  node apps/ios/scripts/asc.mjs certificates --new-since <file>
-  node apps/ios/scripts/asc.mjs certificates --create <request.csr> --out <file.cer>
-  node apps/ios/scripts/asc.mjs public-link --build <number> [--what-to-test <file>] [--privacy-policy <url>]
-  node apps/ios/scripts/asc.mjs add-tester --email <address> [--group <name>]
-  node apps/ios/scripts/asc.mjs expire --build <number>
+  node apps/phone/scripts/asc.mjs status
+  node apps/phone/scripts/asc.mjs builds [--build <number>]
+  node apps/phone/scripts/asc.mjs next-build
+  node apps/phone/scripts/asc.mjs wait --build <number> [--timeout <seconds>]
+  node apps/phone/scripts/asc.mjs certificates --save <file>
+  node apps/phone/scripts/asc.mjs certificates --new-since <file>
+  node apps/phone/scripts/asc.mjs certificates --create <request.csr> --out <file.cer>
+  node apps/phone/scripts/asc.mjs public-link --build <number> [--what-to-test <file>] [--privacy-policy <url>]
+  node apps/phone/scripts/asc.mjs add-tester --email <address> [--group <name>]
+  node apps/phone/scripts/asc.mjs expire --build <number>
 
 Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISSUER.
 status lists what the key can see: the app record, the App IDs and their capabilities,
