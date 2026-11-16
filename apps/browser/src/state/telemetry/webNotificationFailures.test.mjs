@@ -35,9 +35,9 @@ async function failures() {
   return JSON.parse(stub.docs.get("telemetry-queue.json") ?? "{}").events?.filter((e) => e.event === WEB_NOTIFICATION_FAILED) ?? [];
 }
 
-async function untilPosted(count) {
-  for (let i = 0; i < 200 && posted.length < count; i++) await new Promise((resolve) => setTimeout(resolve, 5));
-  assert.equal(posted.length, count);
+async function untilPosted(base) {
+  for (let i = 0; i < 200 && posted.length < base + 1; i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(posted.length, base + 1);
   await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
@@ -102,12 +102,13 @@ test("a rejected post records one event and the rejection still reaches the call
 
 test("a website notification macOS refuses writes one record with lengths and no text", async () => {
   const before = (await failures()).length;
+  const base = posted.length;
   S().hydrate({});
   const windowId = S().createWindow({ url: "https://chat.example/" });
   const tabId = model.activeTabId(S(), windowId);
   outcome = () => Promise.resolve({ icon: "none", errorDomain: "UNErrorDomain", errorCode: 1 });
   showWebNotification(tabId, { id: "n1", ...TEXT, icon: null, tag: "", silent: false, requireInteraction: false, origin: "https://chat.example", tabId, isMainFrame: true });
-  await untilPosted(1);
+  await untilPosted(base);
   const events = (await failures()).slice(before);
   assert.equal(events.length, 1);
   const { properties } = events[0];
@@ -123,15 +124,23 @@ test("a website notification macOS refuses writes one record with lengths and no
 
 test("a website notification macOS accepts writes no failure record", async () => {
   const before = (await failures()).length;
+  const base = posted.length;
   const windowId = S().createWindow({ url: "https://other.example/" });
   const tabId = model.activeTabId(S(), windowId);
   outcome = (options) => Promise.resolve({ id: options.id, icon: "none" });
   showWebNotification(tabId, { id: "n2", ...TEXT, icon: null, tag: "", silent: false, requireInteraction: false, origin: "https://other.example", tabId, isMainFrame: true });
-  await untilPosted(2);
+  await untilPosted(base);
   assert.equal((await failures()).length, before);
 });
 
-test("every website notification that reached the page script is counted once, then the count resets", () => {
-  assert.equal(takeFocusFeatureCounts().web_notifications_from_shim, 2);
+test("every website notification that reached the page script is counted once, then the count resets", async () => {
+  takeFocusFeatureCounts();
+  const base = posted.length;
+  const windowId = S().createWindow({ url: "https://count.example/" });
+  const tabId = model.activeTabId(S(), windowId);
+  outcome = (options) => Promise.resolve({ id: options.id, icon: "none" });
+  showWebNotification(tabId, { id: "n3", ...TEXT, icon: null, tag: "", silent: false, requireInteraction: false, origin: "https://count.example", tabId, isMainFrame: true });
+  await untilPosted(base);
+  assert.equal(takeFocusFeatureCounts().web_notifications_from_shim, 1);
   assert.equal(takeFocusFeatureCounts().web_notifications_from_shim, 0);
 });

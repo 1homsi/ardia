@@ -216,10 +216,14 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     #1074, where it started at a Top Apps tile and took every pinned tab), `page_refused` (presses on the sidebar or anything else drawn over a
     WebKit page that the page turned away, `WebKitPagePresses.swift`).
   - `usage_counts` adds `web_notifications_from_shim` (website notifications that reached the page script this
-    period; a notification that never reaches the page script doesn't count, so a gap shows up as missing counts).
+    period; a notification that never reaches the page script doesn't count, so a gap shows up as missing counts),
+    `web_notification_clicks` (clicks on Ardia's website notifications) and `worker_notification_responses` (clicks or
+    dismissals of a service worker's notifications that the app handed to Chrome). These three count only while
+    sharing is on, and a pending count is dropped whenever sharing is turned on or off.
   - `web_notification_failed` (a website notification macOS refused or the app couldn't post): `title_length`,
     `body_length` (never the text), `icon_requested`, `icon_sent`, `icon_status` (`none`, `attached`, `invalid_url`,
-    `download_failed`, `empty`, `write_failed`, `attachment_rejected`, or `unknown` when the call threw),
+    `download_failed`, `empty`, `write_failed`, `attachment_rejected`, or `unknown` when the call threw; `none` also
+    covers an icon the page script failed to fetch, which reads as `icon_requested` true with `icon_sent` false),
     `icon_error_code`, `error_domain`, `error_code` (macOS's own), `threw`, `error_type` (when it threw), and
     `via_shim` (always true: only notifications that came through the page script are posted by the app).
   - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.

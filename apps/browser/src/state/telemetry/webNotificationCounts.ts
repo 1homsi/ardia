@@ -1,9 +1,9 @@
-let fromShim = 0;
+import { consentedCount } from "./consentedCount";
 
-export const noteWebNotificationFromShim = () => void fromShim++;
+const fromShim = consentedCount();
+
+export const noteWebNotificationFromShim = fromShim.note;
 
 export function takeWebNotificationCounts() {
-  const taken = { web_notifications_from_shim: fromShim };
-  fromShim = 0;
-  return taken;
+  return { web_notifications_from_shim: fromShim.take() };
 }

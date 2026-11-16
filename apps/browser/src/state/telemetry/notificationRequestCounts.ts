@@ -1,21 +1,18 @@
+import { consentedCount } from "./consentedCount";
+
 let autoDenied = 0;
-let webClicks = 0;
-let engineResponses = 0;
+const webClicks = consentedCount();
+const engineResponses = consentedCount();
 
 export function noteNotificationRequestAutoDenied() {
   autoDenied++;
 }
 
-export function noteWebNotificationClicked() {
-  webClicks++;
-}
-
-export function noteEngineNotificationResponse() {
-  engineResponses++;
-}
+export const noteWebNotificationClicked = webClicks.note;
+export const noteEngineNotificationResponse = engineResponses.note;
 
 export function takeNotificationRequestCounts() {
-  const taken = { notification_requests_auto_denied: autoDenied, web_notification_clicks: webClicks, worker_notification_responses: engineResponses };
-  autoDenied = webClicks = engineResponses = 0;
+  const taken = { notification_requests_auto_denied: autoDenied, web_notification_clicks: webClicks.take(), worker_notification_responses: engineResponses.take() };
+  autoDenied = 0;
   return taken;
 }
