@@ -41,6 +41,7 @@ export const EVENT_FIELDS = {
   },
   perf_launch: { launch_ms: { kind: "ms" }, js_ms: { kind: "ms" } },
   perf_backdrop: { backdrop_ms: { kind: "ms" } },
+  perf_launch_tray: { tray_ms: { kind: "ms" } },
   usage_counts: {
     tabs_opened: { kind: "count" },
     searches: { kind: "count" },
@@ -229,6 +230,12 @@ export function backdropProps(processStart: number | null, backdropShownAt: numb
   if (processStart === null || backdropShownAt === null) return null;
   const backdrop = Math.round(backdropShownAt - processStart);
   return backdrop >= 0 && backdrop <= MAX_MS ? { backdrop_ms: backdrop } : null;
+}
+
+export function launchTrayProps(processStart: number | null, trayUpAt: number): EventProps<"perf_launch_tray"> | null {
+  if (processStart === null) return null;
+  const tray = Math.round(trayUpAt - processStart);
+  return tray >= 0 && tray <= MAX_MS ? { tray_ms: tray } : null;
 }
 
 export const legacyImportOutcome = (outcome: "imported" | "startedFresh" | "none" | null): EventProps<"app_launched">["legacy_import"] =>
