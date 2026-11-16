@@ -4,7 +4,8 @@
 # On a Mac host, only the Windows target's deps (target_os_only) and, of the CIPD packages, only the ones a build uses
 # (cipd.ensure, versions from this Chromium's DEPS): the rest are tests, other platforms and prebuilt tools.
 # On a Linux host (Chromium's supported one for Windows cross builds), the standard checkout: gclient adds the host,
-# so the Linux sysroot and host tools come with it, and every CIPD package DEPS lists.
+# so the Linux sysroot and host tools come with it, and every CIPD package DEPS lists. The sysroots hard-link a few
+# files, which the tree guard (pathguard.py) refuses in a tree other than ~/chromium-build: each gets its own copy.
 # The hooks that need the Windows toolchain fail until toolchain.sh has run: run this again after it.
 # Usage: scripts/windows/engine/01-sync.sh --apply | --help (under the chromium lock)
 set -euo pipefail
@@ -41,3 +42,8 @@ else
   timeout 7200 gclient sync --no-history --nohooks --reset --force -D -j 16 < /dev/null
 fi
 gclient runhooks < /dev/null
+if [[ $trimmed_cipd == 0 ]]; then
+  find src/build/linux -type f -links +1 -print0 | while IFS= read -r -d '' linked; do
+    cp -p "$linked" "$linked.own" && mv -f "$linked.own" "$linked"
+  done
+fi
