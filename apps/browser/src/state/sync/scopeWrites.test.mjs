@@ -21,7 +21,7 @@ test("a sync record or base is written only through putRecord, dropRecord, putBa
       if (DIRECT_WRITE.test(line)) found.push(`${file.split("/").slice(-2).join("/")}:${i + 1}: ${line.trim()}`);
     });
   }
-  const helpers = found.filter((at) => at.startsWith("src/scope.ts:"));
-  assert.equal(helpers.length, 4, `the four helpers in scope.ts:\n${helpers.join("\n")}`);
+  const helpers = found.filter((at) => at.startsWith("src/scopeKeys.ts:"));
+  assert.equal(helpers.length, 4, `the four helpers in scopeKeys.ts:\n${helpers.join("\n")}`);
   assert.deepEqual(found.filter((at) => !helpers.includes(at)), []);
 });

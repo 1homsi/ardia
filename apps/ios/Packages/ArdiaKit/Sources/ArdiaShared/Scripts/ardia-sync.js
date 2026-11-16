@@ -175,13 +175,6 @@ function assignPositions(existing                        )           {
 __define("packages/sync/src/scope.ts", function (exports, __require) {
   __export(exports, "covered", () => covered);
   __export(exports, "ingestSnapshot", () => ingestSnapshot);
-  __export(exports, "visible", () => visible);
-  __export(exports, "recordsWith", () => recordsWith);
-  __export(exports, "trackTouchedKeys", () => trackTouchedKeys);
-  __export(exports, "putRecord", () => putRecord);
-  __export(exports, "dropRecord", () => dropRecord);
-  __export(exports, "putBase", () => putBase);
-  __export(exports, "dropBase", () => dropBase);
   __export(exports, "flush", () => flush);
   __export(exports, "restoreJournal", () => restoreJournal);
   __export(exports, "writtenSeq", () => writtenSeq);
@@ -189,9 +182,12 @@ __define("packages/sync/src/scope.ts", function (exports, __require) {
   __export(exports, "compactionDue", () => compactionDue);
   __export(exports, "compact", () => compact);
   __export(exports, "syncScope", () => syncScope);
+  __exportAll(exports, __require("packages/sync/src/scopeKeys.ts"));
 const { canonical } = __require("packages/sync/src/canon.ts");
 const { hlcWall } = __require("packages/sync/src/hlc.ts");
 const { holdsBack, noteFileHealth } = __require("packages/sync/src/fileHealth.ts");
+const { baseKeysWith, dropBase, dropRecord, putBase, putRecord, visible, withBaseIndex } = __require("packages/sync/src/scopeKeys.ts");
+
                                                                                                                                          
 
 const DEFAULTS                                                        = {
@@ -290,93 +286,7 @@ function ingestSnapshot(state            , file              , clock       , cha
   }
 }
 
-function visible(state            , prefix        )                       {
-  const out = new Map                 ();
-  const { records } = state;
-  for (const key in records) {
-    if (!key.startsWith(prefix)) continue;
-    const value = records[key] .v;
-    if (value !== null) out.set(key, value);
-  }
-  return out;
-}
-
-function recordsWith(state            , prefix        )                         {
-  const out                         = [];
-  const { records } = state;
-  for (const key in records) if (key.startsWith(prefix)) out.push([key, records[key] ]);
-  return out;
-}
-
-                                                                      
-const touching = new WeakMap                              ();
-
-function trackTouchedKeys(state            )                                             {
-  const touched              = { records: new Set(), base: new Set() };
-  let all = touching.get(state);
-  if (!all) touching.set(state, (all = new Set()));
-  all.add(touched);
-  return {
-    touched,
-    stop: () => {
-      all.delete(touched);
-      if (!all.size && touching.get(state) === all) touching.delete(state);
-    },
-  };
-}
-
-function touch(state            , kind                   , key        ) {
-  const all = touching.get(state);
-  if (all) for (const touched of all) touched[kind].add(key);
-}
-
-function putRecord(state            , key        , record            ) {
-  state.records[key] = record;
-  touch(state, "records", key);
-}
-
-function dropRecord(state            , key        ) {
-  if (!(key in state.records)) return;
-  delete state.records[key];
-  touch(state, "records", key);
-}
-
 const parseBase = (json                    ) => (json === undefined ? undefined : (JSON.parse(json)           ));
-
-                                                                     
-const baseIndexes = new WeakMap                       ();
-
-function baseKeysWith(state            , prefix        )                    {
-  const index = baseIndexes.get(state);
-  if (!index) return Object.keys(state.base).filter((key) => key.startsWith(prefix));
-  let keys = index.byPrefix.get(prefix);
-  if (!keys) {
-    keys = [];
-    const all = index.keys;
-    for (let i = 0; i < all.length; i++) if (all[i] .startsWith(prefix)) keys.push(all[i] );
-    index.byPrefix.set(prefix, keys);
-  }
-  return keys;
-}
-
-function putBase(state            , key        , json        ) {
-  const known = state.base[key];
-  if (known === json) return;
-  const index = known === undefined ? baseIndexes.get(state) : undefined;
-  state.base[key] = json;
-  touch(state, "base", key);
-  if (!index) return;
-  index.keys.push(key);
-  index.byPrefix.forEach((keys, prefix) => {
-    if (key.startsWith(prefix)) keys.push(key);
-  });
-}
-
-function dropBase(state            , key        ) {
-  if (!(key in state.base)) return;
-  delete state.base[key];
-  touch(state, "base", key);
-}
 
 const settling = new WeakMap                            ();
 
@@ -400,15 +310,7 @@ async function changesOf(state            , adapter         , now        ) {
   if (adapter.adoptRemoteOnJoin && !state.joined) return null;
   let pending                     = null;
   const queued = (key        ) => (pending ??= new Set([...state.outbox, ...(state.journal ?? []).flatMap((f) => f.ops)].map((op) => op.k))).has(key);
-  const extraction = await adapter.extract(
-    (key) => parseBase(state.base[key]),
-    queued,
-    now,
-    (key) => key in state.records,
-    (key) => state.records[key]?.v,
-    (key) => state.records[key]?.h,
-    (key) => state.base[key],
-  );
+  const extraction = await adapter.extract((key) => parseBase(state.base[key]), queued, now, (key) => key in state.records, (key) => state.records[key]?.v, (key) => state.records[key]?.h, (key) => state.base[key]);
   if (!extraction) return null;
   const changes           = [];
   const { values, json: knownJson, republish, ignore } = extraction;
@@ -640,12 +542,7 @@ async function syncScope(args
                      
                          
  )                       {
-  baseIndexes.set(args.state, { keys: Object.keys(args.state.base), byPrefix: new Map() });
-  try {
-    return await syncScopeIndexed(args);
-  } finally {
-    baseIndexes.delete(args.state);
-  }
+  return withBaseIndex(args.state, () => syncScopeIndexed(args));
 }
 
 async function syncScopeIndexed(args                                 )                       {
@@ -682,6 +579,114 @@ async function syncScopeIndexed(args                                 )          
   const compacted = await compact(state, transport, scope, device, now(), options);
   const snapshotBytes = compacted ? (newestSnapshot(Object.entries(state.files), device)?.[1].b ?? 0) : 0;
   return { published, changed: changed.size, pending: state.pending, compacted, snapshotBytes };
+}
+
+});
+__define("packages/sync/src/scopeKeys.ts", function (exports, __require) {
+  __export(exports, "visible", () => visible);
+  __export(exports, "recordsWith", () => recordsWith);
+  __export(exports, "trackTouchedKeys", () => trackTouchedKeys);
+  __export(exports, "putRecord", () => putRecord);
+  __export(exports, "dropRecord", () => dropRecord);
+  __export(exports, "baseKeysWith", () => baseKeysWith);
+  __export(exports, "putBase", () => putBase);
+  __export(exports, "dropBase", () => dropBase);
+  __export(exports, "withBaseIndex", () => withBaseIndex);
+                                                              
+
+function visible(state            , prefix        )                       {
+  const out = new Map                 ();
+  const { records } = state;
+  for (const key in records) {
+    if (!key.startsWith(prefix)) continue;
+    const value = records[key] .v;
+    if (value !== null) out.set(key, value);
+  }
+  return out;
+}
+
+function recordsWith(state            , prefix        )                         {
+  const out                         = [];
+  const { records } = state;
+  for (const key in records) if (key.startsWith(prefix)) out.push([key, records[key] ]);
+  return out;
+}
+
+                                                                      
+const touching = new WeakMap                              ();
+
+function trackTouchedKeys(state            )                                             {
+  const touched              = { records: new Set(), base: new Set() };
+  let all = touching.get(state);
+  if (!all) touching.set(state, (all = new Set()));
+  all.add(touched);
+  return {
+    touched,
+    stop: () => {
+      all.delete(touched);
+      if (!all.size && touching.get(state) === all) touching.delete(state);
+    },
+  };
+}
+
+function touch(state            , kind                   , key        ) {
+  const all = touching.get(state);
+  if (all) for (const touched of all) touched[kind].add(key);
+}
+
+function putRecord(state            , key        , record            ) {
+  state.records[key] = record;
+  touch(state, "records", key);
+}
+
+function dropRecord(state            , key        ) {
+  if (!(key in state.records)) return;
+  delete state.records[key];
+  touch(state, "records", key);
+}
+
+                                                                     
+const baseIndexes = new WeakMap                       ();
+
+function baseKeysWith(state            , prefix        )                    {
+  const index = baseIndexes.get(state);
+  if (!index) return Object.keys(state.base).filter((key) => key.startsWith(prefix));
+  let keys = index.byPrefix.get(prefix);
+  if (!keys) {
+    keys = [];
+    const all = index.keys;
+    for (let i = 0; i < all.length; i++) if (all[i] .startsWith(prefix)) keys.push(all[i] );
+    index.byPrefix.set(prefix, keys);
+  }
+  return keys;
+}
+
+function putBase(state            , key        , json        ) {
+  const known = state.base[key];
+  if (known === json) return;
+  const index = known === undefined ? baseIndexes.get(state) : undefined;
+  state.base[key] = json;
+  touch(state, "base", key);
+  if (!index) return;
+  index.keys.push(key);
+  index.byPrefix.forEach((keys, prefix) => {
+    if (key.startsWith(prefix)) keys.push(key);
+  });
+}
+
+function dropBase(state            , key        ) {
+  if (!(key in state.base)) return;
+  delete state.base[key];
+  touch(state, "base", key);
+}
+
+async function withBaseIndex   (state            , run                  )             {
+  baseIndexes.set(state, { keys: Object.keys(state.base), byPrefix: new Map() });
+  try {
+    return await run();
+  } finally {
+    baseIndexes.delete(state);
+  }
 }
 
 });

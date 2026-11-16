@@ -21,6 +21,7 @@ import { settleThemeAdoption, themeChosenHere } from "./syncThemes";
 import { editClock, startEditClock } from "./editClock";
 import { addLinkedProfile, appScopeOf, linkedProfileId, linkProfiles, readyToPair, remoteProfileRecord, sharedDataChain } from "./profileLinks";
 import { summarize } from "./syncSummary";
+import { takeCycleWork, timedCycle } from "./cycleWork";
 import { profileScope } from "./records";
 import { queueSend, sendTargetsIn } from "./sentTabs";
 import { errorText } from "../../lib/errors";
@@ -58,7 +59,6 @@ let again = false;
 let forcePasswordsNext = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let snapshotWrites = { count: 0, bytes: 0 };
-let cycleWork = { cycles: 0, ms: 0, longestMs: 0 };
 const { read, loadState, persistJournal, watchScope, save, startOver, checkpoint } = syncFiles(() => doc);
 
 function noteSnapshot({ snapshotBytes }: { snapshotBytes: number }) {
@@ -68,9 +68,8 @@ function noteSnapshot({ snapshotBytes }: { snapshotBytes: number }) {
 }
 
 export function takeSnapshotWrites() {
-  const taken = { ...snapshotWrites, ...cycleWork };
+  const taken = { ...snapshotWrites, ...takeCycleWork() };
   snapshotWrites = { count: 0, bytes: 0 };
-  cycleWork = { cycles: 0, ms: 0, longestMs: 0 };
   return taken;
 }
 
@@ -121,14 +120,11 @@ async function runCycle({ retiring = false, forcePasswords = false }: CycleOptio
   }
   const options = { retiring, forcePasswords: forcePasswords || forcePasswordsNext };
   forcePasswordsNext = false;
-  const startedAt = Date.now();
-  cycle = cycleOnce(SyncNative, doc.folder, doc.deviceId, options);
+  cycle = timedCycle(Date.now(), cycleOnce(SyncNative, doc.folder, doc.deviceId, options));
   try {
     await cycle;
   } finally {
     cycle = null;
-    const ms = Date.now() - startedAt;
-    cycleWork = { cycles: cycleWork.cycles + 1, ms: cycleWork.ms + ms, longestMs: Math.max(cycleWork.longestMs, ms) };
   }
 }
 
