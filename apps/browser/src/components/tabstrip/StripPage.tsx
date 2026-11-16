@@ -6,7 +6,7 @@ import { useShownTabIdFor, useStripEntries, useStripTitleNeeds } from "../../sta
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
 import { dismissStripHoverIn, stripPageOffstage } from "../../state/tabs/stripHover";
 import { onTabPressEnd, tabPressHeld } from "../../state/sidebar/heldTabPress";
-import { noteTabStripCompact, noteTabStripHeldClose, noteTabStripOverflow, noteTabStripRevealAfterPress, noteTabStripTitledTabs } from "../../state/telemetry/tabStripCounts";
+import { noteTabStripCompact, noteTabStripHeldClose, noteTabStripOverflow, noteTabStripRevealAfterPress, noteTabStripRevealHeldForScroll, noteTabStripScrolled, noteTabStripTitledTabs } from "../../state/telemetry/tabStripCounts";
 import { Offstage } from "../ui/useHover";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
@@ -27,6 +27,10 @@ import { COMPACT_CHIP, EDGE_FADE, FLARE, GAP, NEW_TAB_ROOM, STRIP_SCROLL_ID } fr
 
 type Wide = { tabId: string; slot: number };
 type Hold = { widths: TabWidths; end: number; wide: Wide; lead: boolean; needsTitle: (tabId: string) => boolean };
+
+const USER_SCROLL_QUIET_MS = 200;
+const OWN_SCROLL_MS = 80;
+const OWN_ANIMATED_SCROLL_MS = 600;
 
 const stripEnd = ({ slots, lefts }: DragGeometry) => (slots.length ? lefts.at(-1)! + slots.at(-1)!.width : 0);
 
@@ -86,35 +90,41 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const scrolled = useRef(0);
   const viewport = useRef(pageWidth + flare * 2);
   const content = useRef(0);
+  const ownScrollUntil = useRef(0);
+  const userScrollAt = useRef(-Infinity);
+  const userScrolling = () => performance.now() - userScrollAt.current < USER_SCROLL_QUIET_MS;
+  const scrollStrip = (x: number, animated: boolean) => {
+    scrolled.current = x;
+    ownScrollUntil.current = performance.now() + (animated ? OWN_ANIMATED_SCROLL_MS : OWN_SCROLL_MS);
+    scroll.current?.scrollTo({ x, animated });
+  };
   const keepInRange = () => {
     const end = Math.max(0, content.current - viewport.current);
-    if (scrolled.current > end + 0.5) scroll.current?.scrollTo({ x: end, animated: false });
+    if (scrolled.current > end + 0.5 && !userScrolling()) scrollStrip(end, false);
   };
+  const clipShown = useRef(0);
+  const clipLeft = useRef(new Animated.Value(0)).current;
+  const [clipBack] = useState(() => Animated.multiply(clipLeft, -1));
   const onStage = useRef(current);
   onStage.current = current;
   const [scroller] = useState<StripScroll>(() => ({
     active: () => onStage.current,
     offset: () => scrolled.current,
     max: () => Math.max(0, content.current - viewport.current),
-    scrollTo: (x) => {
-      scrolled.current = x;
-      scroll.current?.scrollTo({ x, animated: false });
-    },
-    measure: (done) => scroll.current?.getNativeScrollRef()?.measureInWindow((x, _y, width) => done(x, width)),
+    scrollTo: (x) => scrollStrip(x, false),
+    measure: (done) => scroll.current?.getNativeScrollRef()?.measureInWindow((x, _y, width) => done(x + clipShown.current, width - clipShown.current)),
   }));
-  const [atStart, setAtStart] = useState(true);
-  const inset = atStart ? flare : 0;
   const scrollX = useRef(new Animated.Value(0)).current;
   const [edgeFade] = useState(() => createEdgeFade(scrollX));
-  const fadeOrigin = inset + (dock ? -dock.left : 0);
-  useLayoutEffect(() => refreshEdgeFade(edgeFade, fadeOrigin));
+  const fadeOrigin = flare + (dock ? -dock.left : 0);
+  useLayoutEffect(() => refreshEdgeFade(edgeFade, fadeOrigin, flare));
   useEffect(
     () =>
       devRegister("topStripPages", `${windowId}|${profileId}`, {
         current: () => current,
         fadeWidth: EDGE_FADE,
         scroll: () => ({ x: scrolled.current, viewport: viewport.current, content: content.current }),
-        chips: () => fadeEntries(edgeFade).map((e) => ({ ...e, opacity: edgeOpacityAt(scrolled.current, e.start, e.end, viewport.current, content.current) })),
+        chips: () => fadeEntries(edgeFade).map((e) => ({ ...e, opacity: edgeOpacityAt(scrolled.current, e.start - flare, e.end, viewport.current, content.current) })),
         scrollTo: (x: number) => scroller.scrollTo(x),
       }),
     [windowId, profileId, current],
@@ -125,35 +135,52 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   };
   const latestScroll = useRef((_: NativeSyntheticEvent<NativeScrollEvent>) => {});
   latestScroll.current = (e) => {
-    if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
+    const now = performance.now();
+    if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) {
+      dismissStripHoverIn(windowId);
+      if (now > ownScrollUntil.current) {
+        userScrollAt.current = now;
+        noteTabStripScrolled(now);
+      }
+    }
     scrolled.current = e.nativeEvent.contentOffset.x;
-    setAtStart(scrolled.current < 0.5);
+    const clip = scrolled.current < 0.5 ? 0 : flare;
+    if (clip !== clipShown.current) {
+      clipShown.current = clip;
+      clipLeft.setValue(clip);
+    }
   };
   const [onScroll] = useState(() => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true, listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => latestScroll.current(e) }));
   const spanOf = (tabId: string): [number, number] | null => {
     const span = spanInStrip(tabId);
-    return span && [inset + span[0], span[1]];
+    return span && [flare + span[0], span[1]];
   };
   const latestSpan = useRef(spanOf);
   latestSpan.current = spanOf;
   const revealed = useRef(activeId);
   const reveal = (tabId: string, animated: boolean) => {
     const span = latestSpan.current(tabId);
-    const x = span && revealOffset(span[0], span[1], scrolled.current, viewport.current, EDGE_FADE + GAP);
-    if (x === null) return;
-    scrolled.current = x;
-    scroll.current?.scrollTo({ x, animated });
+    const x = span && revealOffset(span[0] - flare, span[1], scrolled.current, viewport.current - flare, EDGE_FADE + GAP);
+    if (x !== null) scrollStrip(x, animated);
   };
   const latestReveal = useRef(() => {});
   latestReveal.current = () => {
-    if (current && activeId && !tabDragging()) reveal(activeId, false);
+    if (!current || !activeId || tabDragging()) return;
+    if (userScrolling()) noteTabStripRevealHeldForScroll();
+    else reveal(activeId, false);
   };
   useEffect(() => {
     if (revealed.current === activeId || (held.current && closedTo.current === activeId)) return;
     revealed.current = activeId;
     if (!current || !activeId || tabDragging()) return;
     let frame = 0;
-    const later = () => void (frame = requestAnimationFrame(() => reveal(activeId, true)));
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const now = () => {
+      if (!userScrolling()) return reveal(activeId, true);
+      noteTabStripRevealHeldForScroll();
+      quiet = setTimeout(now, USER_SCROLL_QUIET_MS);
+    };
+    const later = () => void (frame = requestAnimationFrame(now));
     let unsubscribe = () => {};
     if (tabPressHeld(windowId)) {
       noteTabStripRevealAfterPress();
@@ -164,6 +191,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     return () => {
       unsubscribe();
       cancelAnimationFrame(frame);
+      clearTimeout(quiet);
     };
   }, [activeId, current, releases]);
   useEffect(() => {
@@ -200,59 +228,63 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
               <EdgeFadeContext.Provider value={edgeFade}>
               <StripScrollContext.Provider value={scroller}>
               <Offstage.Provider value={!current}>
-                <Animated.ScrollView
-                  ref={scroll}
-                  horizontal
-                  testID={STRIP_SCROLL_ID}
-                  disableScrollViewPanResponder
-                  showsHorizontalScrollIndicator={false}
-                  scrollEventThrottle={16}
-                  onLayout={(e) => {
-                    const narrower = e.nativeEvent.layout.width < viewport.current - 0.5;
-                    viewport.current = e.nativeEvent.layout.width;
-                    fadeRange();
-                    keepInRange();
-                    if (narrower) latestReveal.current();
-                  }}
-                  onContentSizeChange={(width) => {
-                    content.current = width;
-                    fadeRange();
-                    keepInRange();
-                  }}
-                  onScroll={onScroll}
-                  style={{ flex: 1, marginLeft: flare - inset, marginRight: pinned ? flare + NEW_TAB_ROOM : 0 }}
-                  contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: pinned ? Math.max(flare, GAP) : flare }}
-                >
-                  {parsed.flatMap((e) => {
-                    if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
-                    const slot = slotIndex;
-                    const lead = slot === 0 && spare && leadSpare ? <View key="held-lead" style={{ width: spare, marginRight: -GAP }} /> : null;
-                    const before = gap(slotIndex++);
-                    if (e.kind === "group")
-                      return [
-                        before,
-                        <StripGroup
-                          key={e.id}
-                          entry={e}
-                          geometry={top}
-                          from={slotOf(e.members[0] ? tabsOf(e.members[0])[0]! : "")}
-                          chip={selected}
-                          tabWidth={tabWidth}
-                          activeId={activeId}
-                          chipWidth={chipOf(e.id)}
-                          onChipWidth={(width) => setMeasuredWidth(chipKey(e.id), width)}
-                          memberWidth={memberWidth}
-                          folderMeasured={(groupId) => folderChip(groupId) !== undefined}
-                        />,
-                      ];
-                    if (e.kind === "split")
-                      return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={top.slots[slot]!.width} paneWidths={e.tabIds.map(tabWidth)} group={null} />];
-                    return [lead, before, <DraggableChip key={e.id} tabId={e.id} width={top.slots[slot]!.width} group={null} />];
-                  })}
-                  {gap(top.slots.length)}
-                  {pinned ? null : newTab}
-                  {spare && !leadSpare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
-                </Animated.ScrollView>
+                <Animated.View pointerEvents="box-none" style={{ flex: 1, marginLeft: clipLeft, marginRight: pinned ? flare + NEW_TAB_ROOM : 0, overflow: "hidden" }}>
+                  <Animated.View pointerEvents="box-none" style={{ position: "absolute", top: 0, bottom: 0, left: clipBack, right: 0 }}>
+                    <Animated.ScrollView
+                      ref={scroll}
+                      horizontal
+                      testID={STRIP_SCROLL_ID}
+                      disableScrollViewPanResponder
+                      showsHorizontalScrollIndicator={false}
+                      scrollEventThrottle={16}
+                      onLayout={(e) => {
+                        const narrower = e.nativeEvent.layout.width < viewport.current - 0.5;
+                        viewport.current = e.nativeEvent.layout.width;
+                        fadeRange();
+                        keepInRange();
+                        if (narrower) latestReveal.current();
+                      }}
+                      onContentSizeChange={(width) => {
+                        content.current = width;
+                        fadeRange();
+                        keepInRange();
+                      }}
+                      onScroll={onScroll}
+                      style={{ flex: 1 }}
+                      contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: flare, paddingRight: pinned ? Math.max(flare, GAP) : flare }}
+                    >
+                      {parsed.flatMap((e) => {
+                        if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
+                        const slot = slotIndex;
+                        const lead = slot === 0 && spare && leadSpare ? <View key="held-lead" style={{ width: spare, marginRight: -GAP }} /> : null;
+                        const before = gap(slotIndex++);
+                        if (e.kind === "group")
+                          return [
+                            before,
+                            <StripGroup
+                              key={e.id}
+                              entry={e}
+                              geometry={top}
+                              from={slotOf(e.members[0] ? tabsOf(e.members[0])[0]! : "")}
+                              chip={selected}
+                              tabWidth={tabWidth}
+                              activeId={activeId}
+                              chipWidth={chipOf(e.id)}
+                              onChipWidth={(width) => setMeasuredWidth(chipKey(e.id), width)}
+                              memberWidth={memberWidth}
+                              folderMeasured={(groupId) => folderChip(groupId) !== undefined}
+                            />,
+                          ];
+                        if (e.kind === "split")
+                          return [before, <SplitChip key={e.id} tabIds={e.tabIds} width={top.slots[slot]!.width} paneWidths={e.tabIds.map(tabWidth)} group={null} />];
+                        return [lead, before, <DraggableChip key={e.id} tabId={e.id} width={top.slots[slot]!.width} group={null} />];
+                      })}
+                      {gap(top.slots.length)}
+                      {pinned ? null : newTab}
+                      {spare && !leadSpare ? <View style={{ width: spare, marginLeft: -GAP }} /> : null}
+                    </Animated.ScrollView>
+                  </Animated.View>
+                </Animated.View>
                 {pinned ? <View pointerEvents="box-none" style={{ position: "absolute", top: 0, right: flare }}>{newTab}</View> : null}
               </Offstage.Provider>
               </StripScrollContext.Provider>

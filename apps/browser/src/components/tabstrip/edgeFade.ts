@@ -3,7 +3,7 @@ import { Animated } from "react-native";
 import { EDGE_FADE, EDGE_FADE_FLOOR, EDGE_FADE_ONSET } from "./tokens";
 
 export type Place = () => readonly [left: number, width: number] | null;
-type Entry = { id: string; start: Animated.Value; end: Animated.Value; place: Place; last: readonly [number, number] };
+type Entry = { id: string; start: Animated.Value; end: Animated.Value; place: Place; last: readonly [number, number]; inset: number };
 
 export type EdgeFade = {
   scrollX: Animated.Value;
@@ -14,6 +14,7 @@ export type EdgeFade = {
   remaining: Animated.AnimatedInterpolation<number>;
   entries: Set<Entry>;
   origin: number;
+  startInset: number;
 };
 
 const clamp = { extrapolate: "clamp" as const };
@@ -31,6 +32,7 @@ export function createEdgeFade(scrollX: Animated.Value): EdgeFade {
     remaining: Animated.subtract(maxScroll, scrollX).interpolate({ inputRange: [0, EDGE_FADE_ONSET], outputRange: [0, 1], ...clamp }),
     entries: new Set(),
     origin: 0,
+    startInset: 0,
   };
 }
 
@@ -41,14 +43,16 @@ const spanOf = (fade: EdgeFade, place: Place): readonly [number, number] => {
 
 function refreshEntry(fade: EdgeFade, entry: Entry) {
   const span = spanOf(fade, entry.place);
-  if (Math.abs(span[0] - entry.last[0]) < 0.25 && Math.abs(span[1] - entry.last[1]) < 0.25) return;
+  if (Math.abs(span[0] - entry.last[0]) < 0.25 && Math.abs(span[1] - entry.last[1]) < 0.25 && entry.inset === fade.startInset) return;
   entry.last = span;
-  entry.start.setValue(span[0]);
+  entry.inset = fade.startInset;
+  entry.start.setValue(span[0] - fade.startInset);
   entry.end.setValue(span[1]);
 }
 
-export function refreshEdgeFade(fade: EdgeFade, origin: number) {
+export function refreshEdgeFade(fade: EdgeFade, origin: number, startInset: number) {
   fade.origin = origin;
+  fade.startInset = startInset;
   for (const entry of fade.entries) refreshEntry(fade, entry);
 }
 
@@ -69,7 +73,7 @@ export function useEdgeOpacity(id: string, place: Place): Animated.AnimatedInter
   const entry = useMemo<Entry | null>(() => {
     if (!fade) return null;
     const span = spanOf(fade, () => latest.current());
-    return { id, start: new Animated.Value(span[0]), end: new Animated.Value(span[1]), place: () => latest.current(), last: span };
+    return { id, start: new Animated.Value(span[0] - fade.startInset), end: new Animated.Value(span[1]), place: () => latest.current(), last: span, inset: fade.startInset };
   }, [fade, id]);
   const opacity = useMemo(() => {
     if (!fade || !entry) return 1;
