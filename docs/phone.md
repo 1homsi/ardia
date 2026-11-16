@@ -1367,7 +1367,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Search panel | Reopen while closing | not seen | Every open calls the stage's `present()` once its content is mounted, and a reopen mid-close takes the panel back as main's present does; `shown` is only the mounted gate. The bar's capsule hides once `present()` resolves, after the stage has taken its face. Every open starts its ending as a cancel, so a close after an earlier Go no longer departs | screens, iPhone |
 | Bar | Side buttons and capsule around the search panel | match | Seen 2026-11-16 in the cancel strip beside main: the capsule hides as the panel takes it and comes back whole after the landing; the side buttons shrink, slide out and spring back, and their glass draws all the way through, since no ancestor of the glass fades (each Glass takes its own `shown`, the glyphs fade) | |
 | Page | Page with bar, secure | match | | |
-| Page | Not secure | match | Port dropped as main's; "Not Secure" stays for http as main's source shows it (BarControls.swift:119-124). Main's frame lacks it because of a bug in main: a tab opened on an http URL skips the security check (WebTab.swift:103/113, 359-363). Ours shows it on a tab opened directly on an http address too, the state main gets wrong; pageStates.render.test.tsx pins it | |
+| Page | Not secure | deliberate | The owner's decision, 16 Nov 2026: a red open lock in the site icon's slot replaces main's orange "Not Secure" (see "Deliberately different"); the port is dropped as main's, and a screen reader still hears "Not Secure" | owner |
 | Page | Private | match | Same page and bar with the Incognito glasses | |
 | Page | Loading | match | Main's centred placeholder (44 pt icon, 17 pt semibold title, host), its theme-colour and title rules, 250 ms wait then 150 ms fade | |
 | Page | Failure | match | Main's filled Try Again capsule, 50 pt, and the icon at main's size | |
@@ -1720,6 +1720,19 @@ simulator, the list under "The iPhone redesign".
 Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 
 ### Deliberately different
+
+- A page that isn't secure shows a red open lock in the bar, not the words "Not Secure" (the owner's decision,
+  16 Nov 2026: "we can show open lock with red i guess see the arc for that").
+  - **Where:** the redesigned bar's address capsule, the collapsed host pill, and the Duo column and toolbar. The lock
+    takes the site icon's slot at the site icon's size, so the address starts at the same x on a secure and an
+    insecure page, and the stage's face snapshot and the landed pill carry it.
+  - **Glyph:** SF `lock.open.fill` on iPhone; on Android a drawn glyph in Material's `lock_open` shape (filled body
+    with a keyhole, the shackle open on the left). Colour: the destructive red token, `#FF3B30` light and `#FF453A`
+    dark, replacing the bar's orange.
+  - **Words kept:** the address's accessibility label still says "Address, Not Secure" and the pill's value says
+    "Not Secure, <host>". Every place a tap explains a page's security keeps its text.
+  - **Main** shows the words (`BarControls.swift`). Arc's own indicator hasn't been measured here; the capture from
+    Arc Search on the F4 decides whether shape, size, colour or position change.
 
 - The page under the bar (the owner's decision, 2026-11-16).
   - **iPhone:** the page runs full screen under the glass bar, and WebKit gets the covered edges as

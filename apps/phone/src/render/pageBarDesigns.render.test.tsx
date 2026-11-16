@@ -80,7 +80,7 @@ test("the address capsule shows the page's host, and a tap on it searches with t
   unmount(root);
 });
 
-test("a page loaded over plain http reads Not Secure in place of its icon, as SwiftUI's bar does", () => {
+test("a page loaded over plain http shows a red open lock in place of its icon, the owner's choice over SwiftUI's words, and still says Not Secure to a screen reader", () => {
   const tab = { ...currentTabs().open[0]!, url: "http://plain.example/" };
   useTabs.setState((state) => ({ open: state.open.map((t) => (t.id === tab.id ? tab : t)) }));
   expect(barAddress(tab)).toMatchObject({ host: "plain.example", insecure: true });

@@ -7,7 +7,6 @@ export const hostPillLayout = {
   siteIcon: 13,
   hostText: 13.5,
   hostWeight: "500",
-  warningText: 13,
   privateSymbolShare: 28 / 16,
   maxTextScale: 1.35,
   collapsedScale: 0.62,

@@ -144,7 +144,7 @@ test("the bar and the host pill show the host without its port, as main's Browse
   expect(siteHost("http://localhost:9/")).toBe("localhost");
 });
 
-test("on iPhone's design an http page on a port reads Not Secure and the bare host in both the bar and the collapsed pill", () => {
+test("on iPhone's design an http page on a port shows the red open lock and the bare host in both the bar and the collapsed pill, and says Not Secure to a screen reader", () => {
   const tab = withTab({ url: "http://localhost:8766/", title: "Local" });
   setPreference("collapsesBottomBar", true);
   act(() => storeNavigation(tab.id, navigation({ url: tab.url, isLoading: false, progress: 1, scrollDirection: "up" } as Partial<PageState>)));
@@ -154,15 +154,17 @@ test("on iPhone's design an http page on a port reads Not Secure and the bare ho
     </DesignProvider>,
   );
   expect(text(node(root, "floatingBarHost"))).toBe("localhost");
-  expect(text(node(root, "floatingBarNotSecure"))).toBe("Not Secure");
+  expect(node(root, "floatingBarNotSecure")).toBeDefined();
+  expect(root.root.findAll((found) => found.props.accessibilityLabel === "Address, Not Secure")).not.toHaveLength(0);
   act(() => storeNavigation(tab.id, navigation({ url: tab.url, isLoading: false, progress: 1, scrollDirection: "down" } as Partial<PageState>)));
   for (let frame = 0; frame < 90; frame++) act(() => jest.advanceTimersByTime(16));
   expect(text(node(root, "hostPillHost"))).toBe("localhost");
-  expect(text(node(root, "hostPillNotSecure"))).toBe("Not Secure");
+  expect(node(root, "hostPillNotSecure")).toBeDefined();
+  expect(root.root.findAll((found) => found.props.accessibilityLabel === "Show Toolbar" && found.props.accessibilityValue?.text === "Not Secure, localhost")).not.toHaveLength(0);
   unmount(root);
 });
 
-test("a tab opened directly on an http address reads Not Secure from its first frame, before the page reports anything: the state main's app gets wrong, which ours keeps right", () => {
+test("a tab opened directly on an http address shows the red open lock from its first frame, before the page reports anything: the state main's app gets wrong, which ours keeps right", () => {
   act(() => useTabs.setState({ ...launchTabs(someTabs(1), 0), incognito: false, listing: 0 }));
   act(() => openPage("http://neverssl.com/", "typed"));
   const tab = currentTabs().open.find((open) => open.id === currentTabs().selectedId)!;
@@ -173,7 +175,31 @@ test("a tab opened directly on an http address reads Not Secure from its first f
       <BrowsingScreen tab={tab} />
     </DesignProvider>,
   );
-  expect(text(node(root, "floatingBarNotSecure"))).toBe("Not Secure");
+  expect(node(root, "floatingBarNotSecure")).toBeDefined();
   expect(text(node(root, "floatingBarHost"))).toBe("neverssl.com");
   unmount(root);
+});
+
+test("the lock sits in the site icon's own slot at the site icon's size, so the address starts at the same x on a secure and an insecure page, in the bar and in the pill", () => {
+  const { floatingBarLayout } = require("../components/ui") as typeof import("../components/ui");
+  const { hostPillLayout } = require("../components/browsing/hostPillTokens") as typeof import("../components/browsing/hostPillTokens");
+  const box = (found: ReactTestInstance | undefined) => StyleSheet.flatten(found?.props.style) as { width?: number; height?: number };
+  const faviconSizes = (root: Root) => root.root.findAll((found) => typeof found.type !== "string" && "pageUrl" in found.props && typeof found.props.size === "number").map((found) => found.props.size as number);
+  for (const [url, insecure] of [["https://secure.example/", false], ["http://plain.example/", true]] as const) {
+    const tab = withTab({ url, title: "Page" });
+    setPreference("collapsesBottomBar", true);
+    act(() => storeNavigation(tab.id, navigation({ url, isLoading: false, progress: 1, scrollDirection: "up" } as Partial<PageState>)));
+    const root = renderSurface(
+      <DesignProvider design="redesigned">
+        <BrowsingScreen tab={tab} />
+      </DesignProvider>,
+    );
+    if (insecure) expect(box(node(root, "floatingBarNotSecure"))).toMatchObject({ width: floatingBarLayout.siteIcon, height: floatingBarLayout.siteIcon });
+    else expect(faviconSizes(root)).toContain(floatingBarLayout.siteIcon);
+    act(() => storeNavigation(tab.id, navigation({ url, isLoading: false, progress: 1, scrollDirection: "down" } as Partial<PageState>)));
+    for (let frame = 0; frame < 90; frame++) act(() => jest.advanceTimersByTime(16));
+    if (insecure) expect(box(node(root, "hostPillNotSecure"))).toMatchObject({ width: hostPillLayout.siteIcon, height: hostPillLayout.siteIcon });
+    else expect(faviconSizes(root)).toContain(hostPillLayout.siteIcon);
+    unmount(root);
+  }
 });

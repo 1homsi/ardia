@@ -6,6 +6,7 @@ import type { BrowserTab } from "../../state/tabs/tabModels";
 import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, Symbol, tabsMotion, usePresence } from "../ui";
 import { barAddress } from "./FloatingBar";
 import { hostPillLayout } from "./hostPillTokens";
+import { NotSecureLock } from "./NotSecureLock";
 import { useBarReturn } from "./barReturn";
 
 const EASE_OUT = Easing.bezier(0, 0, 0.58, 1);
@@ -25,11 +26,9 @@ export function HostPill({ tab, dark, shown, anchors = false, contentStyle, onEx
     <ChromeSurface testID="hostPill" shape="capsule" cornerRadius={capsule(hostPillLayout.height)} incognito={tab.isPrivate} dark={dark} barShadow shown={shown && back.centreGlass.shown} shownMs={centreFlips ? back.centreGlass.shownMs : hostPillLayout.glassMs} style={styles.pill}>
       <Animated.View testID="hostPillCentreGlyphs" collapsable={false} style={back.centreGlyphs}>
       <Animated.View testID="hostPillContent" nativeID={ids?.face} collapsable={false} style={[styles.content, contentStyle]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Show Toolbar" accessibilityValue={{ text: address.host }} onPress={onExpand} onPressIn={haptics.barPress} style={styles.hit}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Show Toolbar" accessibilityValue={{ text: address.insecure ? `Not Secure, ${address.host}` : address.host }} onPress={onExpand} onPressIn={haptics.barPress} style={styles.hit}>
         {address.insecure ? (
-          <Text testID="hostPillNotSecure" maxFontSizeMultiplier={hostPillLayout.maxTextScale} numberOfLines={1} style={[styles.warning, { color: ink.notSecure }]}>
-            Not Secure
-          </Text>
+          <NotSecureLock testID="hostPillNotSecure" size={hostPillLayout.siteIcon} color={ink.notSecure} />
         ) : address.isPrivate ? (
           <Symbol name="eyeglassesThin" size={hostPillLayout.siteIcon * hostPillLayout.privateSymbolShare} color={ink.secondary} />
         ) : address.pageUrl ? (
@@ -76,5 +75,4 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   hit: { height: hostPillLayout.height, flexDirection: "row", alignItems: "center", gap: hostPillLayout.spacing, paddingHorizontal: hostPillLayout.sideInset },
   host: { flexShrink: 1, fontSize: hostPillLayout.hostText, fontWeight: hostPillLayout.hostWeight },
-  warning: { fontSize: hostPillLayout.warningText, fontWeight: "500" },
 });

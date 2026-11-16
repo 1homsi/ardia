@@ -107,7 +107,7 @@ test("the browsing column: Tabs, the site button, the page menu and Plus, 48 rou
   unmount(root);
 });
 
-test("the column's site button shows a magnifying glass with no page and the glasses for a private tab", () => {
+test("the column's site button shows a magnifying glass with no page, the glasses for a private tab and the red open lock for an http page", () => {
   showBrowsing();
   const blank = { ...currentTabs().open[0]!, url: "" };
   const root = redesigned(<BrowsingScreen tab={blank} />);
@@ -117,7 +117,7 @@ test("the column's site button shows a magnifying glass with no page and the gla
   expect(siteSymbols(secret)).toEqual(["eyeglassesThin"]);
   unmount(secret);
   const http = redesigned(<BrowsingScreen tab={{ ...currentTabs().open[0]!, url: "http://plain.example/" }} />);
-  expect(siteSymbols(http)).toEqual(["exclamationmarkTriangleFill"]);
+  expect(hosts(http, "columnSiteNotSecure")).toHaveLength(1);
   unmount(http);
 });
 

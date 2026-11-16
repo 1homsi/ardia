@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useBarReturn } from "./barReturn";
+import { NotSecureLock } from "./NotSecureLock";
 import { haptics } from "../../state/app/haptics";
 import { TabsMenuTrigger } from "./tabsMenu";
 import { display } from "../../state/search/omnibox";
@@ -73,9 +74,7 @@ export function FloatingBar({ tab, order, roles, dark, showsPlus, anchors = true
           style={styles.addressHit}
         >
           {address.insecure ? (
-            <Text testID="floatingBarNotSecure" maxFontSizeMultiplier={floatingBarLayout.maxTextScale} numberOfLines={1} style={[styles.warning, { color: ink.notSecure }]}>
-              Not Secure
-            </Text>
+            <NotSecureLock testID="floatingBarNotSecure" size={floatingBarLayout.siteIcon} color={ink.notSecure} />
           ) : address.isPrivate ? (
             <Symbol name="eyeglassesThin" size={floatingBarLayout.privateSymbol} color={ink.secondary} />
           ) : address.pageUrl ? (
@@ -161,6 +160,5 @@ const styles = StyleSheet.create({
   addressRow: { flex: 1, alignSelf: "stretch", flexDirection: "row", alignItems: "center" },
   addressHit: { flex: 1, height: floatingBarLayout.control, flexDirection: "row", alignItems: "center", gap: floatingBarLayout.addressSpacing, paddingLeft: floatingBarLayout.addressLead },
   host: { flexShrink: 1, fontSize: floatingBarLayout.hostText },
-  warning: { fontSize: floatingBarLayout.warningText, fontWeight: "500" },
   menu: { width: floatingBarLayout.control, height: floatingBarLayout.control, alignItems: "center", justifyContent: "center" },
 });

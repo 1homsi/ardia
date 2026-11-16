@@ -6,6 +6,7 @@ import type { ScreenColumn } from "../../state/app/screenLayout";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, PressScale, Symbol, tabsMotion, useReduceMotion, type ColorRoles } from "../ui";
 import { barAddress, FloatingPlusButton, FloatingTabsButton, type BarAddress } from "../browsing/FloatingBar";
+import { NotSecureLock } from "../browsing/NotSecureLock";
 import { columnLayout } from "./columnTokens";
 import { SideColumn } from "./SideColumn";
 
@@ -64,7 +65,7 @@ function ColumnSiteButton({ address, isPrivate, dark, onPress }: { address: BarA
           {address.isPrivate ? (
             <Symbol name="eyeglassesThin" size={columnLayout.privateSymbol} color={ink.foreground} />
           ) : address.insecure ? (
-            <Symbol name="exclamationmarkTriangleFill" size={columnLayout.warningSymbol} color={ink.notSecure} />
+            <NotSecureLock testID="columnSiteNotSecure" size={columnLayout.siteIcon} color={ink.notSecure} />
           ) : address.pageUrl ? (
             <Favicon iconUrl={address.iconUrl} pageUrl={address.pageUrl} size={columnLayout.siteIcon} />
           ) : (

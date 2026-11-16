@@ -10,6 +10,7 @@ import { isSyncableUrl, type BrowserTab } from "../../state/tabs/tabModels";
 import { shownTone } from "../../lib/pageTone";
 import { capsule, chromeInk, ChromeSurface, isDarkColor, PressScale, rolesFor, Symbol, useTheme, type SymbolName } from "../ui";
 import { barAddress, type BarAddress } from "../browsing/FloatingBar";
+import { NotSecureLock } from "../browsing/NotSecureLock";
 import { DUO } from "./duoLayout";
 import { SIDEBAR_GLYPH } from "./tokens";
 
@@ -98,9 +99,7 @@ export function HostLabel({ address, dark }: { address: BarAddress | null; dark:
   return (
     <View testID="duoHost" style={styles.host} pointerEvents="none">
       {address?.insecure ? (
-        <Text maxFontSizeMultiplier={DUO.hostMaxTextScale} numberOfLines={1} style={[styles.hostText, { color: ink.notSecure }]}>
-          Not Secure
-        </Text>
+        <NotSecureLock testID="duoHostNotSecure" size={DUO.hostLock} color={ink.notSecure} />
       ) : address?.isPrivate ? (
         <Symbol name="eyeglasses" size={DUO.hostLock} color={roles.foregroundSecondary} />
       ) : address?.pageUrl ? (

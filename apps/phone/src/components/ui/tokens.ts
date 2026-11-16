@@ -244,7 +244,6 @@ export const floatingBarLayout = {
   addressSpacing: 6,
   siteIcon: 16,
   hostText: 15,
-  warningText: 13,
   maxTextScale: 1.35,
 } as const;
 
@@ -344,8 +343,8 @@ export const startInk = {
 export const chromeLayout = { edge: 0.5, shadowRadius: 10, shadowY: 2 } as const;
 
 export const chromeInk = {
-  light: { surface: "#FFFFFF", edge: "rgba(0,0,0,0.12)", shadow: "rgba(0,0,0,0.12)", foreground: "rgba(14,15,16,0.9)", secondary: "rgba(0,0,0,0.5)", notSecure: "#F7931E" },
-  dark: { surface: "#000000", edge: "rgba(255,255,255,0.12)", shadow: "rgba(0,0,0,0.4)", foreground: "rgba(255,255,255,0.8)", secondary: "rgba(255,255,255,0.5)", notSecure: "#FF9F0A" },
+  light: { surface: "#FFFFFF", edge: "rgba(0,0,0,0.12)", shadow: "rgba(0,0,0,0.12)", foreground: "rgba(14,15,16,0.9)", secondary: "rgba(0,0,0,0.5)", notSecure: lightRoles.destructive },
+  dark: { surface: "#000000", edge: "rgba(255,255,255,0.12)", shadow: "rgba(0,0,0,0.4)", foreground: "rgba(255,255,255,0.8)", secondary: "rgba(255,255,255,0.5)", notSecure: darkRoles.destructive },
 } as const;
 
 export const syncSketch = {

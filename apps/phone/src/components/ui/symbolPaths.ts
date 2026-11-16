@@ -218,6 +218,7 @@ export const SYMBOLS = {
   ],
   folderFill: [{ d: "M3 7a2 2 0 0 1 2-2h4.2l2 2.2H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", fill: true }],
   lockFill: [{ d: roundRect(5, 10.5, 14, 10, 2.2), fill: true }, { d: "M8 10.5V7.8a4 4 0 0 1 8 0v2.7", stroke: STROKE }],
+  lockOpenFill: [{ d: roundRect(4.5, 10, 15, 11.5, 2.2) + circle(12, 15.75, 1.7), fill: true, evenOdd: true }, { d: "M16.5 10V6.8a4.5 4.5 0 0 0-9 0", stroke: STROKE }],
   wifiSlash: [{ d: "M2.8 9.2a13.5 13.5 0 0 1 18.4 0M5.8 12.4a9 9 0 0 1 12.4 0M8.9 15.6a4.6 4.6 0 0 1 6.2 0" + line(4, 4, 20, 20) + circle(12, 19, 0.6), stroke: STROKE }],
   printer: [{ d: roundRect(3.5, 8.5, 17, 8.5, 2) + "M7 8.5V4.5h10v4M7 13.5h10v6H7z", stroke: STROKE }],
   squareGrid2x2: [{ d: roundRect(3.5, 3.5, 7.2, 7.2, 1.8) + roundRect(13.3, 3.5, 7.2, 7.2, 1.8) + roundRect(3.5, 13.3, 7.2, 7.2, 1.8) + roundRect(13.3, 13.3, 7.2, 7.2, 1.8), stroke: STROKE }],
