@@ -2,6 +2,7 @@
 #import "ArdiaHoverPage.h"
 #import "ArdiaContentBlockerInternal.h"
 #import "ArdiaWindowController.h"
+#import "ArdiaInterfaceScale.h"
 #import "ArdiaEvents.h"
 
 #import <objc/runtime.h>
@@ -399,7 +400,7 @@ void EndEpisodeIfInactive() {
 NSPoint TopLeftPoint(NSWindow *window, NSString *spec) {
   NSArray<NSString *> *n = [spec componentsSeparatedByString:@","];
   if (n.count < 2) return NSMakePoint(-1, -1);
-  return NSMakePoint(n[0].doubleValue, window.contentView.superview.bounds.size.height - n[1].doubleValue);
+  return [ArdiaInterfaceScale windowPointFromRoot:NSMakePoint(n[0].doubleValue, n[1].doubleValue) inWindow:window];
 }
 
 NSMutableArray<NSView *> *gDevCovers = [NSMutableArray array];
