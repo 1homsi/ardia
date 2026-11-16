@@ -570,6 +570,9 @@ is plain Chromium.
   New Tab (or closes a tab a link opened) instead of leaving a blank page on the download's address, which the
   session then saved and downloaded again at every launch. A tab asked for `about:blank` by address keeps it, and a
   tab the engine opened itself keeps its blank page until a download.
+  The engine reports these itself (`TabState::CommittedPageURL`): a download from a tab asked for `about:blank`
+  names `about:blank` as its committed page, and one from a tab opened with no address names none. The `engine blank:`
+  self-checks (`selfCheck/engineBlank.ts`, #2127) hold both against the engine as it ships.
 - The engine's download list (`ac_downloads_list`) includes Chromium's history of earlier launches under their own
   ids, while the app restores its own list from `downloads.json`. Announcing the whole list at launch made each
   earlier download a new one: the panel opened by itself and listed it twice. The launch replay
