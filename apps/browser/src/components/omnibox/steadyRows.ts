@@ -1,20 +1,24 @@
 import { useRef } from "react";
 import { noteRowsHeldUnderPointer } from "../../state/telemetry/inlineCompletionCounts";
 
-export type SteadyRows<T> = { key: string; items: T[] };
+export type SteadyList<V> = { key: string; value: V };
 
-export function steadyRows<T>(shown: SteadyRows<T> | null, items: T[], key: string, holding: boolean): SteadyRows<T> {
-  if (holding && shown && shown.key === key && shown.items.length > 0) return shown;
-  return shown && shown.key === key && shown.items === items ? shown : { key, items };
+export function steadyRows<V extends { items: unknown[] }>(shown: SteadyList<V> | null, value: V, key: string, holding: boolean): SteadyList<V> {
+  const growing = !!shown && value.items.length > shown.value.items.length;
+  if (holding && growing && shown!.key === key && shown!.value.items.length > 0) return shown!;
+  return { key, value };
 }
 
-export function useSteadyRows<T>(items: T[], key: string, holding: boolean): T[] {
-  const shown = useRef<SteadyRows<T> | null>(null);
+export function useSteadyRows<V extends { items: unknown[] }>(value: V, key: string, pointerOver: boolean, selected: number): V {
+  const shown = useRef<SteadyList<V> | null>(null);
+  const lastSelected = useRef(selected);
   const counted = useRef<string | null>(null);
-  shown.current = steadyRows(shown.current, items, key, holding);
-  if (counted.current !== key && shown.current.items.length !== items.length) {
+  const keyboard = selected !== lastSelected.current;
+  lastSelected.current = selected;
+  shown.current = steadyRows(shown.current, value, key, pointerOver && !keyboard);
+  if (shown.current.value !== value && counted.current !== key) {
     counted.current = key;
     noteRowsHeldUnderPointer();
   }
-  return shown.current.items;
+  return shown.current.value;
 }

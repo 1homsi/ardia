@@ -40,7 +40,7 @@ export function useBarItems({
   currentUrl: string;
 }) {
   const { hovered: overRows, hoverProps: rowsHover } = useHover();
-  const { items: suggested, completion } = useSuggestions({
+  const { items: suggested, completion: suggestedCompletion } = useSuggestions({
     text: typed,
     active: edited || !!scope,
     windowId,
@@ -53,7 +53,8 @@ export function useBarItems({
   const start = useDropdownStart(dropdown && !edited && !scope, tabId, profileId);
   const idle = opensTab && !scope && !typed.trim();
   const openTabs = useOpenTabsStart(idle, windowId, profileId);
-  const items = useSteadyRows(dropdown && !edited && !scope ? start : idle ? openTabs : suggested, `${scope?.kind ?? ""}:${scope?.name ?? ""}:${typed}`, overRows);
+  const listed = { items: dropdown && !edited && !scope ? start : idle ? openTabs : suggested, completion: suggestedCompletion };
+  const { items, completion } = useSteadyRows(listed, `${scope?.kind ?? ""}:${scope?.name ?? ""}:${typed}`, overRows, selected);
   const selectedIndex = Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
   const preview = !idle && selectedIndex > 0 ? (previewText(current) ?? typed) : null;
