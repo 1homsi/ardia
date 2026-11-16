@@ -2194,7 +2194,7 @@ test("profiles that share data: records applied through the owner land once in t
 
   S().importHistory(b, [{ url: "https://out.example/", title: "Out", visits: 1, lastVisit: t + 1000 }]);
   S().addBookmark({ profileId: b, url: "https://out.example/", title: "Out" });
-  const history = adapters.historyAdapter(a).extract(() => undefined, [], Date.now(), () => false);
+  const history = adapters.historyAdapter(a).extract(() => undefined, () => false, Date.now(), () => false, () => undefined, () => undefined, () => undefined);
   const bookmarks = adapters.bookmarksAdapter(a).extract(() => undefined, [], Date.now(), () => false);
   assert.deepEqual([...history.values.keys()].sort(), ["h:https://in.example/", "h:https://out.example/"]);
   assert.deepEqual([...bookmarks.values.values()].map((v) => v.u).sort(), ["https://in.example/", "https://out.example/"]);
