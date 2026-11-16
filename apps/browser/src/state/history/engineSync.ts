@@ -19,6 +19,7 @@ export const GAP_REPORT_MS = 30_000;
 const MAX_GAP_REPORTS = 10;
 
 const store = () => useBrowser.getState();
+const profileLabel = (engine: string) => (engine ? "another profile" : "the default profile");
 
 export type HistoryGap = `${HistoryChange["kind"]}-${"unloaded" | "moving"}` | "modified-unknown" | "visit-untitled";
 export type NoteGap = (gap: HistoryGap, count?: number) => void;
@@ -46,7 +47,7 @@ function reportGaps() {
     if (gapReports >= MAX_GAP_REPORTS) break;
     gapReports++;
     const summary = [...counts].map(([gap, count]) => `${gap}=${count}`).join(" ");
-    console.warn(`[history] changes the list missed for ${engine || "the default profile"}: ${summary}`);
+    console.warn(`[history] changes the list missed for ${profileLabel(engine)}: ${summary}`);
   }
   gaps.clear();
 }
@@ -203,7 +204,7 @@ function load(engine: string): Promise<void> {
       } while (state.again && inApp(engine));
     } catch (error) {
       const failure = ardiaError(error);
-      console.warn(`[history] couldn't read ${engine || "the default profile"}'s history: ${failure.code} ${failure.message}`, error);
+      console.warn(`[history] couldn't read ${profileLabel(engine)}'s history: ${failure.code} ${failure.message}`, error);
     } finally {
       loads.delete(engine);
     }

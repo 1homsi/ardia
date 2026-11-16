@@ -287,7 +287,7 @@ test("changes the list can't take are counted and reported once, with kinds and 
     assert.deepEqual(warned.lines(), [], "or just before it");
     mock.timers.tick(1);
     assert.deepEqual(warned.lines(), [
-      "[history] changes the list missed for elsewhere: visit-unloaded=1 modified-unloaded=1 deleted-unloaded=1",
+      "[history] changes the list missed for another profile: visit-unloaded=1 modified-unloaded=1 deleted-unloaded=1",
       "[history] changes the list missed for the default profile: modified-unknown=1 visit-untitled=1",
     ]);
     assert.ok(warned.calls.every((args) => args.length === 1), "no URL, title or error rides along");
@@ -389,6 +389,41 @@ test("a history read that fails says why: the error's code and message", async (
     assert.equal(S().history[""], undefined, "and no view is shown");
   } finally {
     fake.call = call;
+    warned.restore();
+    stop();
+  }
+});
+
+test("a profile other than the default is never named by its id in a gap report or a failed read", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const profile = S().createProfile({ name: "Work" });
+  S().createWindow({ profileId: profile, url: "https://example.com/" });
+  const engine = model.engineProfile(S(), profile);
+  assert.ok(engine.length > 0, "a non-default profile has an engine id of its own");
+  const fake = stub.ardiaCoreNativeModules.ArdiaHistory;
+  const call = fake.call;
+  let failing = false;
+  fake.call = (verb, id, json) => (verb === "query" && id === engine && failing ? Promise.reject(Object.assign(new Error("database is locked"), { code: "ERR_HISTORY_LOCKED" })) : call(verb, id, json));
+  const warned = captureWarnings();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const stop = startHistory();
+  try {
+    stub.chromeHistoryEvent({ kind: "visit", url: "https://secret.example/private", title: "Private title", ...away, profile: model.newId("p") });
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS);
+    failing = true;
+    await reloadHistory();
+    await settle();
+    assert.deepEqual(warned.lines(), [
+      "[history] changes the list missed for another profile: visit-unloaded=1",
+      "[history] couldn't read another profile's history: ERR_HISTORY_LOCKED database is locked",
+    ]);
+    for (const id of [profile, engine]) assert.equal(JSON.stringify(warned.calls.map((args) => String(args[0]))).includes(id), false, `${id} reached the log`);
+  } finally {
+    fake.call = call;
+    mock.timers.reset();
     warned.restore();
     stop();
   }
