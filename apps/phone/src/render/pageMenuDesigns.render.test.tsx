@@ -1,4 +1,4 @@
-import { Dimensions, StyleSheet } from "react-native";
+import { Dimensions, Platform, StyleSheet } from "react-native";
 import { act, type ReactTestRenderer } from "react-test-renderer";
 import "../platform/copy";
 import { pages } from "../platform/pages";
@@ -10,6 +10,7 @@ import { usePageUi } from "../state/page/store";
 import { usePages } from "../state/pages/store";
 import { useSettingsNav } from "../state/settings/nav";
 import { useBrowse } from "../state/browse/store";
+import { useLibrary } from "../state/library/store";
 import { OFF_STATUS, useSync, type SyncedProfile } from "../state/sync/store";
 import * as telemetry from "../state/telemetry/telemetry";
 import { useTabs } from "../state/tabs/store";
@@ -93,12 +94,28 @@ test("the original menu is unchanged: icon rows and tiles, no glass capsules, no
   unmount(root);
 });
 
-test("the redesign has main's word rows in main's order, without icons, in three groups", async () => {
+const LIBRARY_ROWS = Platform.OS === "ios" ? ["History", "Bookmarks", "Downloads"] : [];
+
+test("the redesign has main's word rows in main's order, without icons, in main's groups, with the Library's rows on iPhone", async () => {
   const root = await openMenu("redesigned");
-  expect(wordRows(root)).toEqual(["Find on Page", "Print", "Night Shade", "Page Zoom", "Desktop Site", "Translate", "Block Ads and Trackers", "Site Settings", "Open in Default Browser"]);
-  expect(hosts(root, (id) => id === "pageMenuGroup")).toHaveLength(3);
+  expect(wordRows(root)).toEqual(["Find on Page", "Print", ...LIBRARY_ROWS, "Night Shade", "Page Zoom", "Desktop Site", "Translate", "Block Ads and Trackers", "Site Settings", "Open in Default Browser"]);
+  expect(hosts(root, (id) => id === "pageMenuGroup")).toHaveLength(LIBRARY_ROWS.length ? 4 : 3);
   for (const row of hosts(root, (id) => id.startsWith("pageMenuRow:") || id.startsWith("menuToggle:"))) expect(symbolsIn(row)).toHaveLength(0);
   unmount(root);
+});
+
+test("on iPhone the page menu's History, Bookmarks and Downloads close the menu and open that Library sheet, as main's do", async () => {
+  if (Platform.OS !== "ios") return;
+  for (const section of ["history", "bookmarks", "downloads"] as const) {
+    useLibrary.setState({ open: false, section: "history", path: [] });
+    const root = await openMenu("redesigned");
+    const title = section === "history" ? "History" : section === "bookmarks" ? "Bookmarks" : "Downloads";
+    await pressButton(root, title);
+    expect(usePageUi.getState().menuOpen).toBe(false);
+    expect(useLibrary.getState()).toMatchObject({ open: true, section });
+    expect(counted).toHaveBeenCalledWith("library_opened");
+    unmount(root);
+  }
 });
 
 test("the redesign puts Send under Find and above Print, as main's first group", async () => {

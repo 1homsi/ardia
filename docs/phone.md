@@ -1331,10 +1331,10 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Page | Page with bar, secure | match | | |
 | Page | Not secure, private, loading, failure, page dialogs | not seen | | |
 | Page | Collapsed bar (host pill) | missing | Expo's bar slides away instead | screens |
-| Page | Tabs button menu | different | Main: Previous, Next, Close Tab. Expo: recent tabs and Close Tab (being changed) | screens |
+| Page | Tabs button menu | match | Main's BarControls: up to eight recent tabs, a divider, Close Tab; Previous and Next Tab are its VoiceOver actions, not menu items. Ours is the system menu with the same items | |
 | Page | Find on Page | match by decision | The system find navigator by default since ec6f9bc52 | |
 | Page menu | Rows and groups | different | Same rows and groups except Library; Expo's sheet opens lower (a smaller detent) where main's fills to the top | screens |
-| Page menu | History, Bookmarks, Downloads rows | missing | With the Library sheet (being built) | screens |
+| Page menu | History, Bookmarks, Downloads rows | match | Main's group after Find, Send and Print, opening the Library sheet | |
 | Reader | Article | match | | |
 | Reader | Top buttons | different | Expo's AA and Done are plain text; main's are a glass circle and a glass capsule | screens |
 | Deck | Cards, Archive capsule, tab strip | match | | |
@@ -1342,9 +1342,9 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Deck | `···` menu | different | No Reopen Closed Tab; a solid panel below the button where main's is glass over the header | screens |
 | Deck | Grid view | missing | The button only dismisses the keyboard | screens |
 | Deck | Card menus, close and poof, Search Tabs, Incognito pill | not seen | | |
-| Spaces | Sheet | different | Expo still has a Bookmarks section main dropped; the rest matches | screens |
+| Spaces | Sheet | match | The Bookmarks section is gone; bookmarks are in the Library sheet | |
 | Archive | Sheet | match | Light and dark | |
-| Library | History, Bookmarks, Downloads sheet | missing | Being built | screens |
+| Library | History, Bookmarks, Downloads sheet | match | History seen beside main's; Bookmarks and Downloads seen, main's not yet captured. Ours uses the system toolbar and search field where main hides the bar and draws its own capsules | screens |
 | Settings | Root, Sync With Mac, Appearance, Search Engine, Clear Browsing Data | match | | |
 | Settings | Site Settings | match | Permissions now persist (942dc45df); main's rows carry favicons, Expo's don't | screens |
 | Settings | Filter lists, My Filters, Trusted Sites, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
@@ -1628,7 +1628,7 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 - Pin to Mac from the page menu: Android keeps Compose's toast, iPhone answers in the menu's title as SwiftUI does (5023ecabd).
 - Paste and Go: Android only; SwiftUI has no such row (`lib/platformCopy.ts` `offersPasteAndGo`).
 - Wording: each phone keeps its native app's words through one copy table per platform (`lib/platformCopy.ts`, 5db9a2263).
-- On iPhone, Settings, the Archive and Spaces are toolkit screens in the system's own sheet (Expo UI's BottomSheet), as main's SwiftUI app shows them; on Android they share one drawn sheet, as Compose's `SheetHost` (3a9ca2f10). Spaces keeps a Bookmarks section until the Library sheet holds bookmarks, so they are never unreachable on iPhone; the Library commit removes it.
+- On iPhone, Settings, the Archive and Spaces are toolkit screens in the system's own sheet (Expo UI's BottomSheet), as main's SwiftUI app shows them; on Android they share one drawn sheet, as Compose's `SheetHost` (3a9ca2f10). Bookmarks live in the Library sheet with History and Downloads, as main's do; Spaces shows none, as main's doesn't.
 - On iPhone, menus are the system's own: `components/ui/MenuTrigger.tsx` shows UIKit's context menu (`ContextMenuView`, by tap or long press) and action sheet (`confirmInSheet`), with each call site's items and order taken from main's SwiftUI app; the toolkit screens use Expo UI's Menu and ContextMenu. On Android, and wherever a native piece is missing, the same items open in the drawn menu (`components/ui/Menu.tsx`), submenus as its second page.
 - Backdrops: native look views where the module has them, CSS gradients elsewhere; no Skia (the owner's decision).
 - The code scanner is the module's own view (`ScanView`); expo-camera and its ML Kit are gone (00b9064e9).

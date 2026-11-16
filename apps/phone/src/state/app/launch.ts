@@ -3,6 +3,7 @@ import { deckSteps, LAUNCH_TIMING, TRUSTED_SITES_SAMPLE, type DeckStep, type Lau
 import { neighbourAt } from "../../lib/pagerPhysics";
 import { sendDeckCommand } from "../browse/deckCommands";
 import { captureSnapshot, newTab, openArchive, openPage, openSpaces, openTab, showDeck, swipeOrder, switchToNeighbour, useBrowse } from "../browse/store";
+import { openLibrary } from "../library/store";
 import { openPageMenu, showReader } from "../page/actions";
 import { presentSearch } from "../search/store";
 import { trustSite } from "../settings/actions";
@@ -94,6 +95,7 @@ async function runLaunchHooks(args: LaunchArguments) {
   if (args.opensSettings || args.openSheet === "settings") openSettings();
   if (args.openSheet === "archive") openArchive();
   if (args.openSheet === "spaces") openSpaces();
+  if (args.openSheet === "history" || args.openSheet === "bookmarks" || args.openSheet === "downloads") openLibrary(args.openSheet);
   if (args.toast === null) return;
   await wait(LAUNCH_TIMING.toastMs - LAUNCH_TIMING.sheetMs);
   const toast = sampleToast(args.toast);

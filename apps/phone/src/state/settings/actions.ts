@@ -7,6 +7,7 @@ import { pages } from "../../platform/pages";
 import { openExternal, shareText } from "../../platform/system";
 import { openPage } from "../browse/store";
 import { history } from "../history/store";
+import { forgetHiddenHistory } from "../library/store";
 import { settled } from "../pages/store";
 import { searchEngines } from "../search/omnibox";
 import { applySearchEngine } from "../search/store";
@@ -134,7 +135,11 @@ export async function applyMyFilters(text: string) {
 }
 
 export async function clearBrowsingData(choice: ClearChoice, range: ClearRange) {
-  if (choice.history) history().clear(clearSince(range, Date.now()));
+  if (choice.history) {
+    const since = clearSince(range, Date.now());
+    history().clear(since);
+    forgetHiddenHistory(since);
+  }
   const kinds = websiteDataKinds(choice);
   if (kinds.length) await settled(() => pages.clearWebsiteData(kinds, clearSince(range, Date.now())), undefined);
   if (choice.archive && range === "allTime") clearArchivedTabs();

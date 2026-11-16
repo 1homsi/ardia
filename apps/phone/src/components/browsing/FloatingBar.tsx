@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { haptics } from "../../state/app/haptics";
+import { TabsMenuTrigger } from "./tabsMenu";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, PressScale, Symbol, type ColorRoles } from "../ui";
@@ -40,26 +41,31 @@ export function FloatingBar({ tab, order, roles, dark, showsPlus, onTabs, onTabs
   const size = floatingBarLayout.control;
   return (
     <View testID="floatingBar" style={styles.row} pointerEvents="box-none">
-      <PressScale
-        label="Tabs"
-        value={`${count} ${count === 1 ? "tab" : "tabs"}`}
-        hint="Touch and hold for recent tabs."
-        longPressLabel="Recent Tabs"
-        actions={[
-          { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
-          { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
-        ]}
-        onPress={onTabs}
-        onPressIn={haptics.barPress}
-        onLongPress={onTabsMenu}
-        style={styles.circleHit}
-      >
-        <ChromeSurface testID="floatingBarTabs" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
-          <View pointerEvents="none">
-            <TabStack tabs={order.slice(-2)} roles={roles} />
-          </View>
-        </ChromeSurface>
-      </PressScale>
+      <TabsMenuTrigger order={order} onTabsMenu={onTabsMenu}>
+        {({ onLongPress, screenReaderActions }) => (
+          <PressScale
+            label="Tabs"
+            value={`${count} ${count === 1 ? "tab" : "tabs"}`}
+            hint="Touch and hold for recent tabs."
+            longPressLabel="Recent Tabs"
+            actions={[
+              ...screenReaderActions,
+              { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
+              { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
+            ]}
+            onPress={onTabs}
+            onPressIn={haptics.barPress}
+            onLongPress={onLongPress}
+            style={styles.circleHit}
+          >
+            <ChromeSurface testID="floatingBarTabs" shape="circle" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.circle}>
+              <View pointerEvents="none">
+                <TabStack tabs={order.slice(-2)} roles={roles} />
+              </View>
+            </ChromeSurface>
+          </PressScale>
+        )}
+      </TabsMenuTrigger>
       <ChromeSurface testID="floatingBarAddress" shape="capsule" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow style={styles.address}>
         <Pressable
           accessibilityRole="button"

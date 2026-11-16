@@ -14,6 +14,8 @@ import { ImportFailedView } from "./components/upgrade/ImportFailedView";
 import { ExpoSettingsSheet } from "./components/settings/ExpoSettingsStack";
 import { ExpoArchiveSheet } from "./components/tabs/ExpoArchive";
 import { ExpoSpacesSheet } from "./components/sync/ExpoSpaces";
+import { ExpoLibrarySheet } from "./components/library/ExpoLibrary";
+import { useLibrary } from "./state/library/store";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
@@ -108,7 +110,8 @@ export function Surfaces() {
   const searching = useSearchOpen();
   const voice = useVoicePresented();
   const sheetProgress = useSharedValue(0);
-  const systemSheet = SYSTEM_SHEETS && (settingsOpen || sheet === "archive" || sheet === "spaces");
+  const libraryOpen = useLibrary((s) => s.open);
+  const systemSheet = SYSTEM_SHEETS && (settingsOpen || libraryOpen || sheet === "archive" || sheet === "spaces");
   const front = frontSheet(settingsOpen && !SYSTEM_SHEETS, SYSTEM_SHEETS && (sheet === "archive" || sheet === "spaces") ? null : sheet);
   const theme = useTheme();
   countRender("Surfaces");
@@ -139,6 +142,7 @@ export function Surfaces() {
       {SYSTEM_SHEETS ? <ExpoSettingsSheet /> : null}
       {SYSTEM_SHEETS ? <ExpoArchiveSheet /> : null}
       {SYSTEM_SHEETS ? <ExpoSpacesSheet /> : null}
+      {SYSTEM_SHEETS ? <ExpoLibrarySheet /> : null}
       <Layer covered={onboarding}>
         <VoiceSearchView />
       </Layer>

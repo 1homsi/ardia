@@ -1,9 +1,10 @@
 import { Children, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { copy } from "../../lib/platformCopy";
 import {
   canPrintPages,
+  closePageMenu,
   copyCurrentLink,
   editPageQuery,
   menuBack,
@@ -27,12 +28,20 @@ import {
 } from "../../state/page/actions";
 import type { MenuModel } from "../../state/page/pageMenu";
 import { useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
+import { openLibrary, type LibrarySection } from "../../state/library/store";
 import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
 import { useTab } from "../../state/tabs/hooks";
 import { capsule, ChromeSurface, font, menuLayout, pageMenuInk, pageMenuLayout, pageMenuMotion, PressScale, space, Symbol, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 import { MenuTrigger } from "../ui/MenuTrigger";
 
 export const usePageMenuInk = () => pageMenuInk[useTheme().dark ? "dark" : "light"];
+
+const LIBRARY_ROWS = Platform.OS === "ios";
+
+function openFromMenu(section: LibrarySection) {
+  closePageMenu();
+  openLibrary(section);
+}
 
 const useAccessibilityText = () => useWindowDimensions().fontScale >= pageMenuLayout.accessibilityTextScale;
 
@@ -55,6 +64,13 @@ export function PageMenuWords({ tabId, model, onTranslate }: { tabId: string; mo
           {model.isWebPage && devices.length ? <SendRow devices={devices} /> : null}
           {canPrintPages() ? <Row title="Print" enabled={model.print} onPress={printCurrentPage} /> : null}
         </Group>
+        {LIBRARY_ROWS ? (
+          <Group>
+            <Row title="History" enabled onPress={() => openFromMenu("history")} />
+            <Row title="Bookmarks" enabled onPress={() => openFromMenu("bookmarks")} />
+            <Row title="Downloads" enabled onPress={() => openFromMenu("downloads")} />
+          </Group>
+        ) : null}
         <Group>
           {model.pageRows ? <ToggleRow title="Night Shade" value={model.nightShadeOn} enabled={model.isWebPage} onChange={setNightShadeOn} /> : null}
           {model.pageRows ? <ZoomRow model={model} large={large} /> : null}

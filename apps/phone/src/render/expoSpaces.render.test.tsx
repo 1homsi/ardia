@@ -115,24 +115,3 @@ onIos("with sync off, Spaces shows main's unavailable view, whose button opens S
   expect(hosts(spacesSheet(root), (props) => props.label === "Sync With Mac")).toHaveLength(1);
   unmount(root);
 });
-
-onIos("bookmarks stay reachable on iPhone: until the Library sheet holds them, Spaces lists a space's bookmarks with their folders", async () => {
-  const work = profile("work", "Work");
-  work.bookmarks = [
-    { key: "b1", title: "Docs", url: "https://docs.example/", added: 1, root: null, children: null },
-    { key: "f1", title: "Reading", url: null, added: 1, root: null, children: [{ key: "b2", title: "Essay", url: "https://essay.example/", added: 1, root: null, children: null }] },
-  ];
-  withProfiles([work, profile("home", "Home")]);
-  const go = jest.spyOn(syncActions, "openRemote").mockImplementation(() => undefined);
-  const root = renderSurface(<Surfaces />);
-  await open();
-  const section = hosts(spacesSheet(root), (props) => props.testID === "spacesBookmarks")[0]!;
-  expect(section).toBeTruthy();
-  expect(hosts(section, (props) => props.text === "Docs")).toHaveLength(1);
-  expect(hosts(section, (props) => props.text === "Reading")).toHaveLength(1);
-  const docs = root.root.findAll((node) => typeof node.type === "string" && typeof node.props.onButtonPress === "function" && node.findAll((inner) => inner.props.text === "Docs").length > 0)[0]!;
-  await act(async () => void docs.props.onButtonPress({ nativeEvent: {} }));
-  expect(go).toHaveBeenCalledWith("https://docs.example/", "Docs", "work");
-  expect(hosts(spacesSheet(root), (props) => props.title === "Nothing Here Yet" && props.description === "Pinned and open tabs from Work show up here.")).toHaveLength(0);
-  unmount(root);
-});

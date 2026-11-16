@@ -1,4 +1,5 @@
 import { haptics } from "../../state/app/haptics";
+import { TabsMenuTrigger } from "./tabsMenu";
 import { StyleSheet, View } from "react-native";
 import type { BrowserTab } from "../../state/tabs/tabModels";
 import { display } from "../../state/search/omnibox";
@@ -21,22 +22,27 @@ export function BottomBar({ order, roles, showsPlus, onTabs, onTabsMenu, onStep,
   return (
     <View style={styles.row}>
       <View style={styles.side}>
-        <PressScale
-          label="Tabs"
-          value={`${count} ${count === 1 ? "tab" : "tabs"}`}
-          hint="Touch and hold for recent tabs."
-          longPressLabel="Recent Tabs"
-          actions={[
-            { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
-            { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
-          ]}
-          onPress={onTabs}
-          onPressIn={haptics.barPress}
-          onLongPress={onTabsMenu}
-          style={styles.tabs}
-        >
-          <TabStack tabs={order.slice(-2)} roles={roles} />
-        </PressScale>
+        <TabsMenuTrigger order={order} onTabsMenu={onTabsMenu}>
+          {({ onLongPress, screenReaderActions }) => (
+            <PressScale
+              label="Tabs"
+              value={`${count} ${count === 1 ? "tab" : "tabs"}`}
+              hint="Touch and hold for recent tabs."
+              longPressLabel="Recent Tabs"
+              actions={[
+                ...screenReaderActions,
+                { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
+                { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
+              ]}
+              onPress={onTabs}
+              onPressIn={haptics.barPress}
+              onLongPress={onLongPress}
+              style={styles.tabs}
+            >
+              <TabStack tabs={order.slice(-2)} roles={roles} />
+            </PressScale>
+          )}
+        </TabsMenuTrigger>
       </View>
       <View style={{ width: plus.width, height: plus.height }}>
         {showsPlus ? (

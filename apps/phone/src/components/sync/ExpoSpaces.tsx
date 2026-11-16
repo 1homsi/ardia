@@ -29,7 +29,7 @@ import {
   tag,
   tint,
 } from "@expo/ui/swift-ui/modifiers";
-import type { BookmarkItem, PinnedSection, PinnedTile, SyncedProfile } from "../../platform/sync";
+import type { PinnedSection, PinnedTile, SyncedProfile } from "../../platform/sync";
 import { spaceTone } from "../../lib/profileLook";
 import { haptics } from "../../state/app/haptics";
 import { closeArchive, openArchive, useBrowse } from "../../state/browse/store";
@@ -162,7 +162,6 @@ function SpacePage({ profile, dotsBelow }: { profile: SyncedProfile; dotsBelow: 
       {profile.pinned.sections.map((section) => (
         <PinnedSectionRow key={section.tab?.key ?? section.group?.key} profileId={profile.syncId} section={section} openGroups={open} open={go} />
       ))}
-      {profile.bookmarks.length ? <BookmarksSection profileId={profile.syncId} items={profile.bookmarks} openFolders={open} open={go} /> : null}
       {devices.map((device) => {
         const all = expanded.has(device.deviceId) || device.tabs.length <= COLLAPSED_LIMIT + 1;
         return (
@@ -181,38 +180,10 @@ function SpacePage({ profile, dotsBelow }: { profile: SyncedProfile; dotsBelow: 
           </Section>
         );
       })}
-      {pinnedEmpty && devices.length === 0 && profile.bookmarks.length === 0 ? (
+      {pinnedEmpty && devices.length === 0 ? (
         <ContentUnavailableView title="Nothing Here Yet" systemImage="square.stack" description={`Pinned and open tabs from ${profile.name} show up here.`} modifiers={[...SPACE_ROW, padding({ top: L.section })]} />
       ) : null}
     </List>
-  );
-}
-
-function BookmarksSection({ profileId, items, openFolders, open }: { profileId: string; items: BookmarkItem[]; openFolders: ReadonlySet<string>; open: (url: string, title: string) => void }) {
-  return (
-    <Section testID="spacesBookmarks" header={<Label title="Bookmarks" systemImage="star" modifiers={[font({ textStyle: "footnote", weight: "semibold" }), foregroundStyle(SECONDARY), padding({ top: L.small })]} />}>
-      {items.map((item) => (
-        <BookmarkRow key={item.key} profileId={profileId} item={item} openFolders={openFolders} open={open} />
-      ))}
-    </Section>
-  );
-}
-
-function BookmarkRow({ profileId, item, openFolders, open }: { profileId: string; item: BookmarkItem; openFolders: ReadonlySet<string>; open: (url: string, title: string) => void }) {
-  if (item.url) return <RemoteRow title={item.title} url={item.url} symbol={null} open={open} />;
-  const key = `folder:${item.key}`;
-  return (
-    <DisclosureGroup isExpanded={openFolders.has(key)} onIsExpandedChange={() => toggleSpaceRow(profileId, key)} modifiers={[tint(PlatformColor("secondaryLabel")), ...SPACE_ROW]}>
-      <DisclosureGroup.Label>
-        <HStack spacing={L.small} modifiers={[frame({ minHeight: L.rowHeight })]}>
-          <Image systemName="folder" color={PlatformColor("secondaryLabel")} modifiers={[font({ textStyle: "body" }), frame({ minWidth: L.icon })]} />
-          <Text modifiers={[font({ textStyle: "body", weight: "medium" }), lineLimit(2)]}>{item.title}</Text>
-        </HStack>
-      </DisclosureGroup.Label>
-      {(item.children ?? []).map((child) => (
-        <BookmarkRow key={child.key} profileId={profileId} item={child} openFolders={openFolders} open={open} />
-      ))}
-    </DisclosureGroup>
   );
 }
 

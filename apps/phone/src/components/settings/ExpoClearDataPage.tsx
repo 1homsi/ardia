@@ -4,11 +4,11 @@ import { Button, ConfirmationDialog, Form, HStack, Picker, ProgressView, Section
 import { contentTransition, disabled, navigationBarTitleDisplayMode, navigationTitle, pickerStyle, tag, tint } from "@expo/ui/swift-ui/modifiers";
 import { haptics } from "../../state/app/haptics";
 import { clearBrowsingData, websiteDataClearsByTime } from "../../state/settings/actions";
-import { popSettings } from "../../state/settings/nav";
+import { popSettings, type SettingsRoute } from "../../state/settings/nav";
 import { CLEAR_RANGES, clearChoice, clearFooter, clearIsEmpty, clearMessage, clearTitle, type ClearRange } from "../../state/settings/settingsRules";
 import { modifierList, settingsChrome, settingsSwitchStyle } from "../ui";
 
-export function ExpoClearDataPage() {
+export function ExpoClearDataPage({ onCleared = popSettings }: { route?: SettingsRoute; onCleared?: () => void }) {
   const [range, setRange] = useState<ClearRange>("today");
   const [history, setHistory] = useState(true);
   const [cache, setCache] = useState(true);
@@ -23,7 +23,7 @@ export function ExpoClearDataPage() {
     setClearing(true);
     await clearBrowsingData(choice, range);
     setClearing(false);
-    popSettings();
+    onCleared();
   };
   const toggle = (title: string, isOn: boolean, onChange: (on: boolean) => void) => (
     <Toggle isOn={isOn} onIsOnChange={onChange} modifiers={modifierList(settingsSwitchStyle())}>
