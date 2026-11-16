@@ -1322,7 +1322,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Onboarding | All set: usage-stats toggle | deliberate | Expo only; consent is asked where sharing is described (telemetry rule) | owner's rule |
 | Onboarding | Default browser step | not seen | Hidden in both without the entitlement | |
 | Start page | Header, switcher, dots, bar | match | | |
-| Start page | Pinned tiles | different | Expo's icons are smaller, and one tile shows a cloud favicon where main shows a calendar symbol | screens |
+| Start page | Pinned tiles | match | Tiles draw main's SF Symbols (Calendar, folders) at main's sizes, d09343dba | |
 | Start page | No spaces, sync off (invitation) | not seen | | |
 | Search panel | Empty, recent searches | different | Main also lists the open tab (SwiftUI…, Switch to Tab); Expo doesn't | screens |
 | Search panel | Typing | different | Main completes inline (app to apple.com) and its rows are taller; Expo shows no completion when the text is set by `-BrowseQuery`, though the native field completes. Check by typing. Expo prefixes Switch to Tab with a glyph main doesn't have | screens |
@@ -1346,7 +1346,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Archive | Sheet | match | Light and dark | |
 | Library | History, Bookmarks, Downloads sheet | match | History seen beside main's; Bookmarks and Downloads seen, main's not yet captured. Ours uses the system toolbar and search field where main hides the bar and draws its own capsules | screens |
 | Settings | Root, Sync With Mac, Appearance, Search Engine, Clear Browsing Data | match | | |
-| Settings | Site Settings | match | Permissions now persist (942dc45df); main's rows carry favicons, Expo's don't | screens |
+| Settings | Site Settings | match | Permissions persist (942dc45df); the permission rows carry main's 22 pt favicons, d09343dba | |
 | Settings | Filter lists, My Filters, Trusted Sites, About, Licenses, connect pages | not seen | The connect flow worked end to end on 2026-11-16 | |
 | Toasts | All kinds | not seen | | |
 | Extensions, widgets, intents | | match by construction | The Expo project compiles main's own sources for these | |
@@ -1363,7 +1363,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Tab swipe settle (`smooth`) | timed | 800 against 848 ms, level |
 | Onboarding step | seen today | Neither app slides visibly; both cross-fade in about 0.3 s. Main shows the new step at once and fades the old out more slowly; Expo fades both together. Expo's code still carries the pre-d199b885c spring and 60 pt (main: `Motion.step`, 72 pt) |
 | Welcome appear (`rise`, 50 ms delay) | not seen | Expo's code: 0.7/0.7 spring after 100 ms |
-| Pager background in the space's colour | not seen | Expo's code: black (`TabPager.tsx`); main: `look.surface` |
+| Pager background in the space's colour | match | iPhone paints the space's surface, as main's look.surface; Android keeps black, d09343dba |
 | Loading line (0.15/0.3/0.15/0.2 s, 100 ms delay) | not seen on iPhone | Seen on Android |
 | Close poof (0.3 s), fly away (0.16 s), settle (0.28 s) | not seen | |
 | Placeholder fade-out (0.12 s) | not seen | |
