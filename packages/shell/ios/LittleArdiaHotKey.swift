@@ -30,6 +30,10 @@ final class LittleArdiaHotKey {
     for name in [NSApplication.didResignActiveNotification, NSApplication.didBecomeActiveNotification] {
       center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.update() }
     }
+    let layoutChanged = NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String)
+    DistributedNotificationCenter.default().addObserver(forName: layoutChanged, object: nil, queue: .main) { [weak self] _ in
+      self?.update()
+    }
     update()
   }
 
@@ -112,12 +116,9 @@ final class LittleArdiaHotKey {
     else { return nil }
     var mods = item.keyEquivalentModifierMask
     if item.keyEquivalent != item.keyEquivalent.lowercased() { mods.insert(.shift) }
-    var carbon: UInt32 = 0
-    if mods.contains(.command) { carbon |= UInt32(cmdKey) }
-    if mods.contains(.option) { carbon |= UInt32(optionKey) }
-    if mods.contains(.control) { carbon |= UInt32(controlKey) }
-    if mods.contains(.shift) { carbon |= UInt32(shiftKey) }
-    guard carbon & UInt32(cmdKey | optionKey | controlKey) != 0 else { return nil }
+    let carbon = GlobalChordRule.modifiers(
+      command: mods.contains(.command), option: mods.contains(.option), control: mods.contains(.control), shift: mods.contains(.shift))
+    guard GlobalChordRule.registrable(key: item.keyEquivalent, modifiers: carbon) else { return nil }
     return Chord(keyCode: keyCode, modifiers: carbon)
   }
 
