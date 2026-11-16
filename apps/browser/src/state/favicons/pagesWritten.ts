@@ -1,20 +1,29 @@
 export type Pages = Record<string, string | null>;
 type Profiles = Record<string, { pages: Pages }>;
-const pagesWritten = new WeakMap<Pages, { base: Pages; pages: string[] }>();
+type PagesWrite = { base: Pages | null; pages: string[] };
+const pagesWritten = new WeakMap<Pages, PagesWrite>();
 const MAX_WRITE_HOPS = 16;
 
 export function withPages(base: Pages, writes: [string, string | null][]): Pages {
   const next = { ...base };
   for (const [page, uri] of writes) next[page] = uri;
   pagesWritten.set(next, { base, pages: writes.map(([page]) => page) });
+  forgetWritesPastHops(next);
   return next;
+}
+
+function forgetWritesPastHops(now: Pages) {
+  let at: Pages | null = now;
+  for (let hops = 0; at && hops < MAX_WRITE_HOPS; hops++) at = pagesWritten.get(at)?.base ?? null;
+  const oldest = at ? pagesWritten.get(at) : undefined;
+  if (oldest) oldest.base = null;
 }
 
 export function pagesWrittenSince(now: Pages, before: Pages): string[] | null {
   const pages: string[] = [];
-  let at = now;
+  let at: Pages | null = now;
   for (let hops = 0; at !== before; hops++) {
-    const write = pagesWritten.get(at);
+    const write: PagesWrite | undefined = at ? pagesWritten.get(at) : undefined;
     if (!write || hops >= MAX_WRITE_HOPS) return null;
     for (const page of write.pages) pages.push(page);
     at = write.base;
