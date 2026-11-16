@@ -31,7 +31,6 @@ export type LaunchArguments = {
   pagerScript: boolean;
   loadFreeze: number | null;
   demoScale: number;
-  tabFaceResize: boolean;
   openingCard: boolean;
   oneContainerScroll: boolean;
   redesign: boolean;
@@ -113,7 +112,6 @@ export function parseLaunchArguments(values: Record<string, LaunchValue>): Launc
     openingCard: flag(values, "ArdiaOpeningCard"),
     oneContainerScroll: flag(values, "ArdiaOneContainerScroll"),
     redesign: flag(values, "ArdiaRedesign"),
-    tabFaceResize: flag(values, "ArdiaTabFaceResize"),
   };
 }
 
