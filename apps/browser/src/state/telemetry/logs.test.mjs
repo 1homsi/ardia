@@ -54,11 +54,21 @@ test("a log line with no Error keeps error_type none and gets no message or code
   assert.ok(!("error_code" in attributes));
 });
 
-test("the same label is still queued once and the distinct labels are still capped at 40", () => {
+test("one label with two different reasons is queued twice, the same reason only once", () => {
   const before = queued().logs.length;
-  recordLog("error", ["[ardia host] release failed", new Error("again")]);
+  recordLog("error", ["[ardia host] release failed", new Error("No owned live tab")]);
+  recordLog("error", ["[ardia host] release failed", new Error("No owned live tab")]);
   client.saveQueueNow();
-  assert.equal(queued().logs.length, before);
+  assert.equal(queued().logs.length, before + 1);
+  recordLog("error", ["[ardia host] release failed", new Error("Tab is closing")]);
+  client.saveQueueNow();
+  const logs = queued().logs;
+  assert.equal(logs.length, before + 2);
+  assert.equal(attributesOf(logs.at(-2)).error_message, "No owned live tab");
+  assert.equal(attributesOf(logs.at(-1)).error_message, "Tab is closing");
+});
+
+test("the distinct log lines are still capped at 40", () => {
   for (let i = 0; i < 60; i++) recordLog("error", [`distinct label ${"abcdefghij"[i % 10]}${"klmnopqrst"[Math.floor(i / 10)]}`, new Error("x")]);
   client.saveQueueNow();
   assert.equal(queued().logs.length, 40);

@@ -8,15 +8,15 @@ export function recordLog(level: "warn" | "error", args: unknown[]) {
   const first = args[0];
   if (typeof first !== "string") return;
   const message = scrubText(first, 160);
-  if (!message || seen.has(message) || seen.size >= MAX_DISTINCT) return;
-  seen.add(message);
+  if (!message) return;
   const error = args.slice(1).find((a) => a instanceof Error);
+  const reason = error ? errorMessage(error) : "";
+  const key = `${message}\n${reason}`;
+  if (seen.has(key) || seen.size >= MAX_DISTINCT) return;
+  seen.add(key);
   const attributes: Record<string, string> = { error_type: error ? errorType(error) : "none" };
-  if (error) {
-    const reason = errorMessage(error);
-    if (reason) attributes.error_message = reason;
-    const code = errorCode(error);
-    if (code) attributes.error_code = code;
-  }
+  if (reason) attributes.error_message = reason;
+  const code = error ? errorCode(error) : null;
+  if (code) attributes.error_code = code;
   queueLog(level, message, attributes);
 }
