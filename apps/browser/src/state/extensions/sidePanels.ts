@@ -181,6 +181,10 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
         : null;
   if (fetches.get(windowId) !== ticket) return;
   if (!shownIn(windowId, extensionId)) return closeSidePanel(windowId);
+  placePanel(windowId, extensionId, readyTab, url);
+}
+
+function placePanel(windowId: string, extensionId: string, readyTab: string | undefined, url: string | null) {
   if (!url && readyTab && shownTabs.get(windowId)?.delete(readyTab)) tabsOf(removedTabs, windowId).add(readyTab);
   if (!url) return readyTab ? hideSidePanel(windowId) : closeSidePanel(windowId);
   const s = useBrowser.getState();
@@ -290,7 +294,7 @@ export async function recheckKeptSidePanels(windowId: string): Promise<void> {
       if (url === live.url) return;
       const entry = useExtensions.getState().sidePanels[windowId];
       const onScreen = !!entry && !entry.hidden && entry.tabId === tabId && panelKey(entry) === panelKey(live);
-      if (url) return onScreen ? undefined : dropOwner(windowId, live, tabId);
+      if (url) return onScreen ? placePanel(windowId, card.extensionId, tabId, url) : dropOwner(windowId, live, tabId);
       shownTabs.get(windowId)?.delete(tabId);
       tabsOf(removedTabs, windowId).add(tabId);
       if (onScreen) hideSidePanel(windowId);

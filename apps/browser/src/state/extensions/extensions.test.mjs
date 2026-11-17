@@ -602,7 +602,13 @@ async function panelWorld(state) {
   const held = [];
   let holding = null;
   const shared = state.startsWith("shared");
-  const urlFor = (tabId, ext) => (off.has(`${ext}@${tabId}`) ? null : shared ? `chrome-extension://${ext}/panel.html` : `chrome-extension://${ext}/panel.html?tabId=${tabId}`);
+  const changed = new Set();
+  const urlFor = (tabId, ext) => {
+    if (off.has(`${ext}@${tabId}`)) return null;
+    const v = changed.has(`${ext}@${tabId}`) ? "v=2" : "";
+    if (shared) return `chrome-extension://${ext}/panel.html${v ? `?${v}` : ""}`;
+    return `chrome-extension://${ext}/panel.html?tabId=${tabId}${v ? `&${v}` : ""}`;
+  };
   native.extensionAnswers.actionStates = async () => ({});
   native.extensionAnswers.sidePanelUrl = (tabId, ext) => {
     const value = urlFor(tabId, ext);
@@ -627,7 +633,7 @@ async function panelWorld(state) {
   const name = { [a]: "a", [b]: "b", [c]: "c" };
   const label = (p) => `${p.extensionId}@${p.tabId === undefined ? "-" : (name[p.tabId] ?? "?")}`;
   return {
-    w, a, b, c, cardA, off, state,
+    w, a, b, c, cardA, off, changed, state,
     show,
     hold: (which = () => true) => (holding = which),
     release: async () => {
@@ -670,6 +676,21 @@ const ACTIONS = {
     await x.show(x.a);
   },
   x: async (x) => panels.closeSidePanelOnTab(x.w),
+  newPageAfterLookup: async (x) => {
+    const onScreen = E().sidePanels[x.w].tabId;
+    x.hold();
+    const syncing = panels.syncSidePanel(x.w);
+    await settle();
+    const lookupAsks = x.heldCount();
+    x.changed.add(`ext@${onScreen}`);
+    const rechecking = panels.recheckKeptSidePanels(x.w);
+    await settle();
+    for (let i = 0; i < lookupAsks; i++) await x.releaseAt([0]);
+    await syncing;
+    x.check("after the tab's own lookup, with the re-check still out");
+    await x.release();
+    await rechecking;
+  },
   disableWhileLookupPending: async (x) => {
     const onScreen = E().sidePanels[x.w].tabId;
     x.hold();
@@ -698,6 +719,7 @@ const ACTIONS = {
 const NOT_ON_A = /^(hidden|closed|shown ext@[bc-])$/;
 const EXPECT = {
   sharedOnA: {
+    newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "closed", wanted: null },
@@ -709,6 +731,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
   sharedOnB: {
+    newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@b", wanted: "ext", url: /v=2/ },
     disableWhileLookupPending: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "closed", wanted: null },
@@ -720,6 +743,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
   },
   sharedNotReady: {
+    newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@a+b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "hidden", wanted: "ext" },
@@ -730,6 +754,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
   shown: {
+    newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
@@ -740,6 +765,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
   hidden: {
+    newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@b", wanted: "ext", url: /v=2/ },
     disableWhileLookupPending: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
     replace: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
@@ -751,6 +777,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
   },
   notReady: {
+    newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     replace: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
@@ -818,6 +845,7 @@ test("kept panels, every action in every state: the right pages stay, the rest g
           if (want.entry instanceof RegExp) assert.match(x.entry(), want.entry, `${where}: entry`);
           else assert.equal(x.entry(), want.entry, `${where}: entry`);
           assert.equal(x.wanted(), want.wanted, `${where}: the window's extension`);
+          if (want.url) assert.match(E().sidePanels[x.w].url, want.url, `${where}: the panel shows its newest page`);
           checkInvariants(x, where);
         } catch (error) {
           failed.push(error.message.split("\n")[0]);
@@ -827,7 +855,7 @@ test("kept panels, every action in every state: the right pages stay, the rest g
   } finally {
     stop();
   }
-  assert.equal(cells, 59);
+  assert.equal(cells, 65);
   assert.deepEqual(failed, []);
 });
 
