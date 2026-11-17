@@ -39,6 +39,8 @@ test("left down and up are recorded by a passive monitor", () => {
 test("the press loops open and close the flag", () => {
   const clickOrDrag = dragRegion.slice(dragRegion.indexOf("private func clickOrDrag"));
   assert.match(clickOrDrag, /ArdiaHost\.beginPressLoop\("windowDragRegion"\)\s*defer \{ ArdiaHost\.endPressLoop\(\) \}/);
+  const press = dragRegion.slice(0, dragRegion.indexOf("private func clickOrDrag"));
+  assert.match(press, /ArdiaHost\.beginPressLoop\("windowDragRegion"\)\s*defer \{ ArdiaHost\.endPressLoop\(\) \}\s*window\.performDrag\(with: event\)/);
   const follow = windowMove.slice(windowMove.indexOf("static func follow"));
   assert.ok(follow.indexOf("following = true") < follow.indexOf('ArdiaHost.beginPressLoop("windowMove")'));
   assert.ok(follow.indexOf('ArdiaHost.beginPressLoop("windowMove")') < follow.indexOf("ArdiaHost.endPressLoop()"));
@@ -47,6 +49,8 @@ test("the press loops open and close the flag", () => {
 
 test("the swallowing monitors report the events they consume", () => {
   assert.equal(dragRegion.match(/ArdiaHost\.notePointer\(event, swallowedBy: "windowDragRegion"\)/g).length, 2);
+  const clickOrDrag = dragRegion.slice(dragRegion.indexOf("private func clickOrDrag"));
+  assert.match(clickOrDrag, /if next\.type == \.leftMouseUp \{\s*ArdiaHost\.notePointer\(next, swallowedBy: "windowDragRegion"\)\s*break/);
   assert.equal(pip.match(/ardia_host::NotePointer\(event, @"pipDrag"\)/g).length, 2);
   assert.match(pipHeader, /NSWindow \*GrabbedWindow\(\);/);
   assert.match(pip, /NSWindow \*GrabbedWindow\(\) \{ return gDragged\.window; \}/);
@@ -60,4 +64,10 @@ test("Swift reaches the trace through ArdiaHost", () => {
     assert.ok(host.includes(`ardia_host::${name}(`), name);
     assert.ok(internal.includes(`${name}(`), name);
   }
+});
+
+test("a press loop that stays open or ends after five seconds is reported as an engine event", () => {
+  assert.match(focusState, /if \(PointerTrace\(\)\.TakeLongLoop\(generation, Uptime\(\), &open\)\) ReportLongPressLoop\(open, true\);/);
+  assert.match(focusState, /if \(PointerTrace\(\)\.EndLoop\(Uptime\(\), &ended\)\) ReportLongPressLoop\(ended, false\);/);
+  assert.match(focusState, /dispatch_async\(dispatch_get_main_queue\(\), \^\{ \[ArdiaEvents emit:@"engine\.pressLoopLong" data:payload\]; \}\);/);
 });

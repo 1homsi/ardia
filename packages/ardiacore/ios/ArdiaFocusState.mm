@@ -2,6 +2,7 @@
 #import "ArdiaContentBlockerInternal.h"
 #import "ArdiaPictureInPicture.h"
 #import "ArdiaPointerTrace.h"
+#import "ArdiaEvents.h"
 #import "ArdiaWindowController.h"
 
 #import <objc/message.h>
@@ -146,18 +147,33 @@ void NotePointer(NSEvent *event, NSString *swallowedBy) {
   trace.Record({event.timestamp, down, (long)window.windowNumber, (long)window.level, hit ? hit.className.UTF8String : "none", by});
 }
 
+namespace {
+
+void ReportLongPressLoop(const std::string &names, bool stillOpen) {
+  const NSUInteger buttons = NSEvent.pressedMouseButtons;
+  NSString *joined = @(names.c_str());
+  NSLog(@"[ardiacore] press loop %@ %@ after %.0fs, pressed buttons 0x%lx", joined, stillOpen ? @"still open" : @"ended",
+        ardia_pointer::kLongLoopSeconds, (unsigned long)buttons);
+  NSArray<NSString *> *loops = [joined componentsSeparatedByString:@">"];
+  NSDictionary *payload = @{@"loop" : loops.firstObject ?: @"", @"inner" : loops.lastObject ?: @"", @"open" : @(stillOpen), @"buttonsHeld" : @(buttons != 0)};
+  dispatch_async(dispatch_get_main_queue(), ^{ [ArdiaEvents emit:@"engine.pressLoopLong" data:payload]; });
+}
+
+}
+
 void BeginPressLoop(NSString *name) {
   const unsigned long generation = PointerTrace().BeginLoop(name.UTF8String ?: "unnamed", Uptime());
   const int64_t delay = (int64_t)((ardia_pointer::kLongLoopSeconds + 0.1) * NSEC_PER_SEC);
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delay), dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
     std::string open;
-    if (!PointerTrace().TakeLongLoop(generation, Uptime(), &open)) return;
-    NSLog(@"[ardiacore] press loop %s still open after %.0fs, pressed buttons 0x%lx", open.c_str(), ardia_pointer::kLongLoopSeconds,
-          (unsigned long)NSEvent.pressedMouseButtons);
+    if (PointerTrace().TakeLongLoop(generation, Uptime(), &open)) ReportLongPressLoop(open, true);
   });
 }
 
-void EndPressLoop() { PointerTrace().EndLoop(Uptime()); }
+void EndPressLoop() {
+  std::string ended;
+  if (PointerTrace().EndLoop(Uptime(), &ended)) ReportLongPressLoop(ended, false);
+}
 
 NSString *FocusState() {
   NSWindow *key = NSApp.keyWindow, *main = NSApp.mainWindow;

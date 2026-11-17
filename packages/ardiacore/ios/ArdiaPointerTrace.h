@@ -37,38 +37,44 @@ class Trace {
 
   unsigned long BeginLoop(const std::string &name, double now) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (depth_++ > 0) return generation_;
-    name_ = name;
+    names_.push_back(name);
+    if (names_.size() > 1) return generation_;
     startedAt_ = now;
     logged_ = false;
     return ++generation_;
   }
 
-  void EndLoop(double now) {
+  bool EndLoop(double now, std::string *longName) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (depth_ == 0 || --depth_ > 0) return;
+    if (names_.empty()) return false;
+    const std::string name = Joined();
+    names_.pop_back();
+    if (!names_.empty()) return false;
     const double length = now - startedAt_;
     finished_++;
-    if (length > longest_) {
+    if (finished_ == 1 || length > longest_) {
       longest_ = length;
-      longestName_ = name_;
+      longestName_ = name;
     }
-    name_.clear();
+    if (logged_ || length < kLongLoopSeconds) return false;
+    logged_ = true;
+    if (longName) *longName = name;
+    return true;
   }
 
   bool TakeLongLoop(unsigned long generation, double now, std::string *name) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (depth_ == 0 || generation != generation_ || logged_ || now - startedAt_ < kLongLoopSeconds) return false;
+    if (names_.empty() || generation != generation_ || logged_ || now - startedAt_ < kLongLoopSeconds) return false;
     logged_ = true;
-    if (name) *name = name_;
+    if (name) *name = Joined();
     return true;
   }
 
   std::string LoopLine(double now) const {
     std::lock_guard<std::mutex> lock(mutex_);
     char text[256];
-    int length = depth_ > 0 ? std::snprintf(text, sizeof text, "press loop open %s for %.1fs%s", name_.c_str(), now - startedAt_,
-                                            logged_ ? " (logged)" : "")
+    int length = !names_.empty() ? std::snprintf(text, sizeof text, "press loop open %s for %.1fs%s", Joined().c_str(), now - startedAt_,
+                                                 logged_ ? " (logged)" : "")
                             : std::snprintf(text, sizeof text, "press loop none");
     if (length < 0) return "press loop unknown";
     std::string line(text);
@@ -93,11 +99,16 @@ class Trace {
   }
 
  private:
+  std::string Joined() const {
+    std::string joined;
+    for (const std::string &name : names_) joined += (joined.empty() ? "" : ">") + name;
+    return joined;
+  }
+
   mutable std::mutex mutex_;
   std::vector<Entry> history_;
-  int depth_ = 0;
+  std::vector<std::string> names_;
   unsigned long generation_ = 0;
-  std::string name_;
   double startedAt_ = 0;
   bool logged_ = false;
   unsigned long finished_ = 0;

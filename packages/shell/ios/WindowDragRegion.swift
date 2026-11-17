@@ -117,8 +117,11 @@ final class WindowDragRegion: ExpoView {
     defer { ArdiaHost.endPressLoop() }
     let until: Date = NSEvent.pressedMouseButtons & 1 == 0 ? Date() : .distantFuture
     let start = down.locationInWindow
-    while let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: until, inMode: .eventTracking, dequeue: true),
-          next.type == .leftMouseDragged {
+    while let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: until, inMode: .eventTracking, dequeue: true) {
+      if next.type == .leftMouseUp {
+        ArdiaHost.notePointer(next, swallowedBy: "windowDragRegion")
+        break
+      }
       if hypot(next.locationInWindow.x - start.x, next.locationInWindow.y - start.y) >= Self.dragDistance { return window.performDrag(with: down) }
     }
     onRegionClick([:])
