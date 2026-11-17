@@ -22,7 +22,17 @@ export type AppEvent =
   | { type: "windowTitleRead"; epoch: string }
   | { type: "keyHoldReplay"; tag: number; count: number }
   | { type: "littleArdiaGlobalShortcut" }
-  | { type: "windowDragLoop"; epoch: string };
+  | { type: "windowDragLoop"; epoch: string }
+  | {
+      type: "pasteRefused";
+      reason: string;
+      epoch: string;
+      gateOpen: boolean;
+      layout?: string;
+      types?: string[];
+      responder?: string;
+      dropped?: number;
+    };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 

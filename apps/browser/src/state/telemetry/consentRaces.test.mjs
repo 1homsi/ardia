@@ -124,27 +124,27 @@ test("F3 main-process work keeps the newest sample as its baseline when two read
   const app = stub.shellNativeModules.ArdiaApp;
   const original = app.diagnosticsSample;
   const pending = [];
+  let answered = 0;
+  const answer = async (read, sample) => {
+    let done = false;
+    read.then(() => (done = true), () => (done = true));
+    for (let i = 0; i < 200 && !done; i++) {
+      while (answered < pending.length) pending[answered++](sample);
+      await turn();
+    }
+    assert.ok(done, "the read never got its sample");
+    return read;
+  };
   app.diagnosticsSample = () => new Promise((resolve) => pending.push(resolve));
   mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
   try {
     const first = diagnostics.takeMainProcessWork();
     const second = diagnostics.takeMainProcessWork();
-    await turn();
-    if (pending.length === 2) {
-      pending[1]({ cpuMs: 200, wakeups: 0 });
-      await turn();
-      pending[0]({ cpuMs: 100, wakeups: 0 });
-    } else {
-      pending[0]({ cpuMs: 100, wakeups: 0 });
-      await turn();
-      pending[1]({ cpuMs: 200, wakeups: 0 });
-    }
-    await Promise.all([first, second]);
+    await answer(first, { cpuMs: 100, wakeups: 0 });
+    await answer(second, { cpuMs: 200, wakeups: 0 });
     mock.timers.tick(120_000);
-    const third = diagnostics.takeMainProcessWork();
-    await turn();
-    pending[2]({ cpuMs: 1400, wakeups: 0 });
-    assert.equal((await third).browser_cpu_pct, 1);
+    const third = await answer(diagnostics.takeMainProcessWork(), { cpuMs: 1400, wakeups: 0 });
+    assert.equal(third.browser_cpu_pct, 1);
   } finally {
     mock.timers.reset();
     app.diagnosticsSample = original;
