@@ -322,9 +322,9 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
               flexDirection: "row",
               alignItems: "center",
               paddingLeft: space.s,
-              backgroundColor: active ? undefined : pressed ? theme.tabPressed : hovered ? theme.rowHover : undefined,
             }}
           >
+            <HoverFill shown={!active && (pressed || hovered)} instant={active} color={pressed ? theme.tabPressed : theme.rowHover} radius={radius.tile} />
             <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact />
             <FadeLabel text={tabTitle(tab)} fontSize={sidebarFont.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} strikethrough={struck} style={{ flex: 1, height: Math.max(ROW_GLYPH.box, sidebarLineHeight.small + 1), marginLeft: space.xs, opacity: struck ? SLEEPING_TITLE_OPACITY : 1 }} />
             <HoverSlot

@@ -46,6 +46,7 @@ export const pressReleaseDelay = (heldMs: number) => Math.max(0, pressMotion.sho
 export const hoverFade = {
   show: { duration: 50, easing: curve.fade },
   hide: { duration: 200, easing: curve.fade },
+  appear: { duration: duration.fast, easing: curve.fade },
 } as const;
 
 export type Fade = { duration: number; easing: EasingFunction; delay?: number };
@@ -145,9 +146,9 @@ export function usePressScaleMotion(enabled = true, pressedScale: number = butto
   };
 }
 
-export function useHoverFill(shown: boolean, instant = false) {
+export function useHoverFill(shown: boolean, instant = false, fromMount = false) {
   const opacity = useRef<Animated.Value | null>(null);
-  if (shown && !opacity.current) opacity.current = new Animated.Value(instant ? 1 : 0);
+  if ((shown || fromMount) && !opacity.current) opacity.current = new Animated.Value(shown && instant ? 1 : 0);
   useEffect(() => {
     const value = opacity.current;
     if (!value) return;
