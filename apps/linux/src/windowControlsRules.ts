@@ -1,7 +1,9 @@
 export type LinuxControlsState = { pageFullScreen: boolean; hidden: boolean; utility: boolean; windowMenu: boolean };
 
+export const windowButtonsRendered = ({ placed, pageFullScreen }: { placed: boolean; pageFullScreen: boolean }): boolean => placed && !pageFullScreen;
+
 export const linuxControlsBehaviour = ({ pageFullScreen, hidden, utility, windowMenu }: LinuxControlsState) => ({
-  rendered: !pageFullScreen,
+  rendered: windowButtonsRendered({ placed: true, pageFullScreen }),
   inert: hidden,
   windowMenuOnRightClick: windowMenu && !utility,
 });

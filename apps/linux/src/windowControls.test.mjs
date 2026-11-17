@@ -87,20 +87,32 @@ test("one click on Close shows one confirmation through Linux's own close coordi
   }
 });
 
-test("never two menu buttons: the … while the window buttons are placed, otherwise the header's hamburger, whose header Linux never collapses", async () => {
+test("never two menu buttons with F11 full screen: the … while the window buttons are placed, otherwise the header's hamburger, whose header Linux never collapses", async () => {
   const { menuBesideWindowButtons, linuxSidebarHeaderCollapsed, linuxDownloadsInSidebarFooter, sidebarHeaderCollapsed } = await import("./sidebarHeaderLayout.ts");
   const layouts = [{}, { compactToolbar: true }, { addressBar: "sidebar" }, { sidebarSide: "right" }, { addressBar: "sidebar", sidebarSide: "right" }, { tabLayout: "top" }, { autoHideTabs: true }, { minimalismMode: true }];
   for (const settings of layouts) {
-    assert.equal(menuBesideWindowButtons(state(settings), "w", windowsChrome), true, JSON.stringify(settings));
-    assert.equal(menuBesideWindowButtons(state(settings, { fullScreen: true }), "w", windowsChrome), false, JSON.stringify(settings));
-    assert.equal(linuxSidebarHeaderCollapsed(state(settings, { fullScreen: true }), "w", windowsChrome), false, JSON.stringify(settings));
+    assert.equal(menuBesideWindowButtons(state(settings), "w", false, windowsChrome), true, JSON.stringify(settings));
+    assert.equal(menuBesideWindowButtons(state(settings, { fullScreen: true }), "w", false, windowsChrome), false, JSON.stringify(settings));
+    assert.equal(linuxSidebarHeaderCollapsed(state(settings, { fullScreen: true }), "w", false, windowsChrome), false, JSON.stringify(settings));
   }
-  assert.equal(menuBesideWindowButtons(state({}, { kind: "small" }), "w", windowsChrome), true, "Little Ardia's bar holds it");
+  assert.equal(menuBesideWindowButtons(state({}, { kind: "small" }), "w", false, windowsChrome), true, "Little Ardia's bar holds it");
   const fullScreen = state({}, { fullScreen: true });
   assert.equal(sidebarHeaderCollapsed(fullScreen, "w", windowsChrome), true, "the Windows rule hides the header in full screen");
-  assert.equal(linuxSidebarHeaderCollapsed(state(), "w", windowsChrome), true, "with the menu beside the buttons the header collapses as on Windows");
-  assert.equal(linuxDownloadsInSidebarFooter(state(), "w", windowsChrome), true);
-  assert.equal(linuxDownloadsInSidebarFooter(fullScreen, "w", windowsChrome), false);
+  assert.equal(linuxSidebarHeaderCollapsed(state(), "w", false, windowsChrome), true, "with the menu beside the buttons the header collapses as on Windows");
+  assert.equal(linuxDownloadsInSidebarFooter(state(), "w", false, windowsChrome), true);
+  assert.equal(linuxDownloadsInSidebarFooter(fullScreen, "w", false, windowsChrome), false);
+});
+
+test("a page in full screen, which leaves the window itself out of full screen, hides the window buttons and brings back the header with its hamburger", async () => {
+  const { menuBesideWindowButtons, linuxSidebarHeaderCollapsed, linuxDownloadsInSidebarFooter, windowControlsPlace, pageFrameIn } = await import("./sidebarHeaderLayout.ts");
+  const { linuxControlsBehaviour } = await import("./windowControlsRules.ts");
+  const s = state();
+  assert.notEqual(windowControlsPlace(s, "w", pageFrameIn(s, "w"), windowsChrome), null, "the shared layout still places the buttons");
+  assert.equal(linuxControlsBehaviour({ pageFullScreen: true, hidden: false, utility: false, windowMenu: true }).rendered, false, "but the wrapper draws none");
+  assert.equal(menuBesideWindowButtons(s, "w", true, windowsChrome), false);
+  assert.equal(linuxSidebarHeaderCollapsed(s, "w", true, windowsChrome), false);
+  assert.equal(linuxDownloadsInSidebarFooter(s, "w", true, windowsChrome), false);
+  for (const settings of [{ addressBar: "sidebar" }, { sidebarSide: "right" }, { tabLayout: "top" }]) assert.equal(menuBesideWindowButtons(state(settings), "w", true, windowsChrome), false, JSON.stringify(settings));
 });
 
 test("the header's profile name makes room for the menu only when the header holds it", async () => {
@@ -131,7 +143,8 @@ function clusterHarness() {
   let open = false;
   const opened = [];
   let dismissed = 0;
-  const menuButton = { name: "…", closest: (selector) => (selector === '[role="button"][aria-label="Menu"]' ? menuButton : null) };
+  const menuButton = { name: "…", isConnected: true, closest: (selector) => (selector === '[role="button"][aria-label="Menu"]' ? menuButton : null) };
+  const detached = { name: "detached …", isConnected: false, closest: (selector) => (selector === '[role="button"][aria-label="Menu"]' ? detached : null) };
   const element = (name) => ({ name, closest: () => null });
   const reload = element("Reload");
   const field = element("address field");
@@ -153,7 +166,7 @@ function clusterHarness() {
     focus: (target) => void (focused = target),
     setOpen: (value) => void (open = value),
     dismissed: () => dismissed,
-    menuButton, reload, field, opened,
+    menuButton, detached, reload, field, opened,
   };
 }
 
@@ -329,4 +342,13 @@ test("a right or middle press on the … neither anchors nor toggles its menu", 
   h.setOpen(false);
   await h.show("w");
   assert.deepEqual(h.opened, ["…", "…"], "a middle press while a menu was open doesn't swallow the next activation");
+});
+
+test("a press on a … that was swapped out before activation, like the toolbar row's copy giving way to the strip's, anchors to the visible …", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.focus(h.field);
+  h.press(h.detached);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
 });

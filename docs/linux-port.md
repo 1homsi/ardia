@@ -667,10 +667,10 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     one, and an activation with neither (assistive technology) to the visible one. Pressing it, or Enter on it, while
     a menu is open closes the menu. The buttons take keyboard focus like any button (`focusable` on the shared
     `ControlButton`), and the `…` counts as a menu surface, so tabbing to it keeps the field Edit › Copy and Paste act
-    on. There are never two menu buttons: the `…` while the window buttons are placed, the header's hamburger
-    otherwise (full screen). Linux keeps the sidebar header the Windows rule would collapse whenever the hamburger has
-    no other home (`sidebarHeaderLayout.ts`). Some full-screen layouts still have none, as before this change: top
-    tabs with minimalism, or a sidebar whose profile part is hidden.
+    on. There are never two menu buttons: the `…` while the window buttons are drawn, the header's hamburger
+    otherwise (window or page full screen). Linux keeps the sidebar header the Windows rule would collapse whenever
+    the hamburger has no other home (`sidebarHeaderLayout.ts`). Some full-screen layouts still have none, as before
+    this change: top tabs with minimalism, or a sidebar whose profile part is hidden.
   - Restore: the engine sends no `maximized` event, so each window reads `ArdiaShell.windowFrame` at start and once
     per animation frame of resizing, and marks itself maximized when the frame fills the work area, feeding the shared
     `useMaximizedWindows` through `captionRegions.ts`'s `noteMaximized` (`windowMaximized.ts`). Settings and Import

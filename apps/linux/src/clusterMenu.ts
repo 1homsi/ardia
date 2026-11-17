@@ -35,7 +35,7 @@ export function createClusterMenu({ target, open, shown, dismiss, focused, visib
   }, true);
   return (windowId: string) => {
     const wasOpen = openAtPress || shown();
-    const anchor = pressed ?? menuButtonOf(focused()) ?? visible();
+    const anchor = (pressed?.isConnected ? pressed : null) ?? menuButtonOf(focused()) ?? visible();
     pressed = null;
     openAtPress = false;
     if (wasOpen) {
