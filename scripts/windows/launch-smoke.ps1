@@ -1285,6 +1285,50 @@ public static class ArdiaSnapKeys {
   $env:ARDIA_CONFIG_DIR = ""
 }
 
+if ($Part -ne "gate" -and $withEngineForEdge -and -not $NoInput -and $httpPagesUp) {
+  $peekLog = Join-Path $Out "self-check-linkPeeks.log"
+  $env:ARDIA_DATA_DIR = New-DataDirectory "link-peeks-data"
+  $env:ARDIA_TEST = "selfCheckStage=linkPeeks,httpPages=$httpPagesPort"
+  $peekRun = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$peekLog`"" -PassThru
+  $env:ARDIA_TEST = ""
+  $clicked = @{}
+  $peekBy = (Get-Date).AddSeconds(150)
+  try {
+    while (-not $peekRun.HasExited -and (Get-Date) -lt $peekBy) {
+      if (Test-Path $peekLog) {
+        foreach ($ready in @(Select-String -Path $peekLog -Pattern "peek stage ready (\w+) (-?\d+),(-?\d+)")) {
+          $case = $ready.Matches[0].Groups[1].Value
+          if ($clicked.ContainsKey($case)) { continue }
+          $clicked[$case] = $true
+          $peekRun.Refresh()
+          if ($peekRun.MainWindowHandle -ne [IntPtr]::Zero) { [ArdiaInput]::SetForegroundWindow($peekRun.MainWindowHandle) | Out-Null }
+          Start-Sleep -Milliseconds 300
+          [ArdiaInput]::keybd_event(0x10, 0, 0, [UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 60
+          Send-Click ([int]$ready.Matches[0].Groups[2].Value) ([int]$ready.Matches[0].Groups[3].Value)
+          [ArdiaInput]::keybd_event(0x10, 0, 2, [UIntPtr]::Zero)
+          Write-Host "Link peeks: a real Shift+click on the $case page."
+        }
+      }
+      Start-Sleep -Milliseconds 200
+    }
+    if (-not $peekRun.HasExited) { $failures += "link peeks (real input): the stage did not finish within 150 s" }
+    elseif (-not (Test-Path $peekLog)) { $failures += "link peeks (real input): the stage wrote no log" }
+    else {
+      Select-String -Path $peekLog -Pattern "self-check" | ForEach-Object { Write-Host $_.Line }
+      $peekDone = Select-String -Path $peekLog -Pattern "self-check done: (\d+) passed, (\d+) failed" | Select-Object -First 1
+      if (-not $peekDone) { $failures += "link peeks (real input): the stage never reported its result" }
+      elseif ([int]$peekDone.Matches[0].Groups[2].Value -gt 0 -or [int]$peekDone.Matches[0].Groups[1].Value -ne 3) { $failures += "link peeks (real input): $($peekDone.Line)" }
+    }
+  } finally {
+    [ArdiaInput]::keybd_event(0x10, 0, 2, [UIntPtr]::Zero)
+    if (-not $peekRun.HasExited) {
+      Stop-Process -Id $peekRun.Id -Force
+      $peekRun.WaitForExit(10000) | Out-Null
+    }
+  }
+}
+
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
 $importFixtures = Join-Path $env:ARDIA_DATA_DIR "import-fixtures"
 $fixtureProfiles = Join-Path $PSScriptRoot "..\..\packages\import\fixtures\home\Library\Application Support"

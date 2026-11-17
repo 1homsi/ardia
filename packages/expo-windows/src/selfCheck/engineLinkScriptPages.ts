@@ -33,12 +33,23 @@ function discardingOpenedTabs(opener: string) {
 
 const framed = (page: string) => evaluate(page, 'requestAnimationFrame(() => requestAnimationFrame(() => post("result", "true")));');
 
-async function takenBy(page: string, point: { x: number; y: number }, modifiers: number, label: string): Promise<boolean> {
+type Report = { kind?: unknown; url?: unknown; outcome?: unknown; seq?: unknown };
+type PeekAsked = { suppressed: boolean; heard: boolean };
+
+const NATIVE_GATE = "The Peek window itself needs a real mouse-up through the host's native gate, which a DevTools click (Input.dispatchMouseEvent) never passes, so it is asserted with real input in the linkPeeks stage (launch-smoke.ps1)";
+
+const reportsOf = async (page: string) => (await hostCall<{ reports?: Report[] }>("tab.links", { key: page })).reports ?? [];
+const newPeek = (reports: Report[], since: number) => reports.filter((report) => Number(report.seq) > since && report.kind === "peek");
+
+async function peekAsked(page: string, point: { x: number; y: number }, modifiers: number, label: string): Promise<PeekAsked> {
   await framed(page);
+  const since = Math.max(0, ...(await reportsOf(page)).map((report) => Number(report.seq) || 0));
   await evaluate(page, 'window.lastClick = null; post("result", "true");');
   await click(page, point.x, point.y, modifiers);
   const last = await until(`the page ${page} saw the mouse-up of ${label}`, CLICK_SETTLES_MS * 5, () => evaluate(page, 'post("result", JSON.stringify(window.lastClick));') as Promise<LastClick>, (seen) => !!seen?.up);
-  return !last?.clicked || last.prevented === true;
+  const reports = await until(`the engine heard a peek report for ${label}`, CLICK_SETTLES_MS * 3, () => reportsOf(page), (all) => newPeek(all, since).length > 0).catch(() => [] as Report[]);
+  const heard = newPeek(reports, since).some((report) => report.outcome === "heard" && String(report.url).endsWith("/a"));
+  return { suppressed: !last?.clicked || last.prevented === true, heard };
 }
 
 const notRestoredReasons = (page: string) =>
@@ -85,7 +96,7 @@ const pageChecks = (port: string): Check[] => [
               await peekConfig({ peek: "alt" });
               await show(page!, windowId, LEFT);
               await painted(page!);
-              expectEqual(await takenBy(page!, SAME_TAB_LINK, ALT, "the Alt+click before caching"), true, "with Peek on Alt, the link script takes an Alt+click on a link before caching (the check's control)");
+              expectEqual(await peekAsked(page!, SAME_TAB_LINK, ALT, "the Alt+click before caching"), { suppressed: true, heard: true }, `with Peek on Alt, the link script takes an Alt+click on a link before caching and the engine hears its peek (the check's control). ${NATIVE_GATE}`);
               await hostCall("tab.call", { key: page, method: "loadUrl", url: `http://127.0.0.1:${port}/b` });
               await until("the next page loads", LOAD_MS, () => listed(page!), (tab) => tab?.title === "loaded b" && tab.loading === false);
               await peekConfig({ peek: "shift" });
@@ -94,7 +105,7 @@ const pageChecks = (port: string): Check[] => [
               const restored = await evaluate(page!, 'post("result", JSON.stringify(window.restored));');
               expectTrue(restored === true, `the links page came back from the back/forward cache (notRestoredReasons ${await notRestoredReasons(page!)})`);
               await pause(CLICK_SETTLES_MS);
-              expectEqual(await takenBy(page!, SAME_TAB_LINK, SHIFT, "the Shift+click after the restore"), true, "with Peek moved to Shift while the page was cached, the restored page's link script takes a Shift+click on a link (it peeks instead of Chromium opening a window)");
+              expectEqual(await peekAsked(page!, SAME_TAB_LINK, SHIFT, "the Shift+click after the restore"), { suppressed: true, heard: true }, `with Peek moved to Shift while the page was cached, the restored page's link script takes a Shift+click on a link and the engine hears its peek. ${NATIVE_GATE}`);
             } finally {
               stopDiscarding();
             }
@@ -123,7 +134,7 @@ const pageChecks = (port: string): Check[] => [
               expectEqual((await opened).fromClick, true, "the link script still saw the click after the engine attached again (fromClick)");
               await peekConfig({ peek: "alt" });
               await pause(CLICK_SETTLES_MS);
-              expectEqual(await takenBy(page!, SAME_TAB_LINK, ALT, "the Alt+click after the engine attached again"), true, "with Peek moved to Alt after the engine attached again, the surviving link script takes an Alt+click");
+              expectEqual(await peekAsked(page!, SAME_TAB_LINK, ALT, "the Alt+click after the engine attached again"), { suppressed: true, heard: true }, `with Peek moved to Alt after the engine attached again, the surviving link script takes an Alt+click and the engine hears its peek. ${NATIVE_GATE}`);
             } finally {
               stopDiscarding();
             }
