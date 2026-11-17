@@ -3,7 +3,7 @@ import { WindowProfile as NativeWindowProfile } from "../ui";
 import { useWindowId } from "../../state/browser/hooks";
 import { useNativeWindowProfile } from "../../state/windows/hooks";
 import { useOpenedEngines } from "../../state/profiles/profileLoading";
-import { noteProfileSwapped } from "../../state/telemetry/profileSwap";
+import { noteProfileSwapped, switchIdOf } from "../../state/telemetry/profileSwap";
 
 export function WindowProfile() {
   const windowId = useWindowId();
@@ -13,6 +13,7 @@ export function WindowProfile() {
     <NativeWindowProfile
       profile={profile}
       selection={selection}
+      switchId={switchIdOf(windowId)}
       neighbours={opened}
       onSwapped={(event) => noteProfileSwapped(windowId, event.nativeEvent)}
       style={{ position: "absolute", width: 0, height: 0 }}

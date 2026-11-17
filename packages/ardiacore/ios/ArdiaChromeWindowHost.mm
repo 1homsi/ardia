@@ -216,8 +216,8 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
       void (^shownFirstFrame)(BOOL) = ^(BOOL heldTimedOut) {
         report(profileLoaded, activeMs, (CACurrentMediaTime() - started) * 1000, heldTimedOut);
       };
-      if (view && shownWindow && view.window == shownWindow) [view reportSwapShown:shownFirstFrame];
-      else shownFirstFrame(NO);
+      if (view && shownWindow && view.window == shownWindow && [[coreWindow tabsForProfile:p] containsObject:tab])
+        [view reportSwapShown:shownFirstFrame];
     }
     if (view && shownWindow && view.window == shownWindow && [[coreWindow tabsForProfile:p] containsObject:tab])
       [view requestFocusRestoreIn:shownWindow];

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 globalThis.requestAnimationFrame = (frame) => {
@@ -13,8 +13,16 @@ globalThis.fetch = async () => ({ status: 200 });
 
 const client = await import("./client.ts");
 const local = await import("./localStore.ts");
-const { SWAP_WAIT_MS, noteProfileSwapped, profileSwapProperties, profileSwitched } = await import("./profileSwap.ts");
+const { useBrowser } = await import("../browser/store.ts");
+const { SWAP_WAIT_MS, noteProfileSwapped, profileSwapProperties, profileSwitched, switchIdOf } = await import("./profileSwap.ts");
+useBrowser.getState().hydrate({});
 client.startClient();
+after(() => client.setSharing(false, "settings"));
+
+const switchTo = (windowId, profile, profiles, via) => {
+  profileSwitched(windowId, "p0", profile, profiles, via);
+  return switchIdOf(windowId);
+};
 
 const switches = () => {
   local.flushLocal();
@@ -24,8 +32,8 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 test("a native swap report adds swap_ms, profile_loaded and held_timed_out beside switch_ms and profiles", async () => {
   const before = switches().length;
-  profileSwitched("w1", "p1", 8, { via_switcher: true });
-  noteProfileSwapped("w1", { selection: "p1", profileLoaded: false, activeMs: 412.4, swapMs: 2841.6, heldTimedOut: true });
+  const switchId = switchTo("w1", "p1", 8, { via_switcher: true });
+  noteProfileSwapped("w1", { switchId, selection: "p1", profileLoaded: false, activeMs: 412.4, swapMs: 2841.6, heldTimedOut: true });
   await settle();
   const [event] = switches().slice(before);
   assert.ok(event);
@@ -40,11 +48,11 @@ test("a native swap report adds swap_ms, profile_loaded and held_timed_out besid
 
 test("a report for another window leaves the event waiting, and a loaded, drawn swap is recorded as such", async () => {
   const before = switches().length;
-  profileSwitched("w2", "p1", 3, {});
-  noteProfileSwapped("w3", { selection: "p1", profileLoaded: true, activeMs: 1, swapMs: 2, heldTimedOut: false });
+  const switchId = switchTo("w2", "p1", 3, {});
+  noteProfileSwapped("w3", { switchId, selection: "p1", profileLoaded: true, activeMs: 1, swapMs: 2, heldTimedOut: false });
   await settle();
   assert.equal(switches().length, before);
-  noteProfileSwapped("w2", { selection: "p1", profileLoaded: true, activeMs: 3, swapMs: 40, heldTimedOut: false });
+  noteProfileSwapped("w2", { switchId, selection: "p1", profileLoaded: true, activeMs: 3, swapMs: 40, heldTimedOut: false });
   await settle();
   const [event] = switches().slice(before);
   assert.equal(event.properties.swap_ms, 40);
@@ -52,53 +60,56 @@ test("a report for another window leaves the event waiting, and a loaded, drawn 
   assert.equal(event.properties.held_timed_out, false);
 });
 
-test("a report with no waiting switch is dropped, not given to the next switch", async () => {
+test("a report from before the switch, or with no switch id, is dropped, not given to the switch", async () => {
   const before = switches().length;
-  noteProfileSwapped("w4", { selection: "p1", profileLoaded: true, activeMs: 1, swapMs: 9, heldTimedOut: false });
-  profileSwitched("w4", "p1", 2, {});
+  const earlier = switchIdOf("w4");
+  const switchId = switchTo("w4", "p1", 2, {});
+  noteProfileSwapped("w4", { switchId: earlier, selection: "p1", profileLoaded: true, activeMs: 1, swapMs: 9, heldTimedOut: false });
+  noteProfileSwapped("w4", { selection: "p1", profileLoaded: true, activeMs: 1, swapMs: 8, heldTimedOut: false });
+  noteProfileSwapped("w4", {});
   await settle();
   assert.equal(switches().length, before);
-  noteProfileSwapped("w4", { selection: "p1", profileLoaded: false, activeMs: 5, swapMs: 77, heldTimedOut: false });
+  noteProfileSwapped("w4", { switchId, selection: "p1", profileLoaded: false, activeMs: 5, swapMs: 77, heldTimedOut: false });
   await settle();
-  const [event] = switches().slice(before);
-  assert.equal(event.properties.swap_ms, 77);
+  assert.equal(switches().slice(before)[0].properties.swap_ms, 77);
 });
 
-test("switches that overlap in one window each get the report for their own profile", async () => {
+test("switches A to B to C in one window each get only their own report, even for the same profile", async () => {
   const before = switches().length;
-  profileSwitched("w6", "p2", 3, { via_switcher: true });
-  profileSwitched("w6", "p3", 3, { via_switcher: false });
-  noteProfileSwapped("w6", { selection: "p3", profileLoaded: true, activeMs: 2, swapMs: 30, heldTimedOut: false });
+  const toB = switchTo("w6", "p2", 3, { via_switcher: true, via_shortcut: false });
+  const toC = switchTo("w6", "p3", 3, { via_switcher: false, via_shortcut: false });
+  const backToB = switchTo("w6", "p2", 3, { via_switcher: false, via_shortcut: true });
+  assert.ok(toB < toC && toC < backToB);
+  noteProfileSwapped("w6", { switchId: toC, selection: "p3", profileLoaded: true, activeMs: 2, swapMs: 30, heldTimedOut: false });
   await settle();
-  const [second] = switches().slice(before);
   assert.equal(switches().length, before + 1);
-  assert.equal(second.properties.via_switcher, false);
-  assert.equal(second.properties.swap_ms, 30);
-  noteProfileSwapped("w6", { selection: "p2", profileLoaded: false, activeMs: 400, swapMs: 2900, heldTimedOut: true });
+  assert.equal(switches()[before].properties.swap_ms, 30);
+  noteProfileSwapped("w6", { switchId: backToB, selection: "p2", profileLoaded: true, activeMs: 1, swapMs: 12, heldTimedOut: false });
+  noteProfileSwapped("w6", { switchId: toB, selection: "p2", profileLoaded: false, activeMs: 400, swapMs: 2900, heldTimedOut: true });
   await settle();
-  const first = switches()[before + 1];
-  assert.equal(first.properties.via_switcher, true);
-  assert.equal(first.properties.swap_ms, 2900);
-  assert.equal(first.properties.profile_loaded, false);
-  assert.equal(first.properties.held_timed_out, true);
+  const which = (e) => (e.properties.via_switcher ? "toB" : e.properties.via_shortcut ? "backToB" : "toC");
+  const got = Object.fromEntries(switches().slice(before).map((e) => [which(e), [e.properties.swap_ms, e.properties.profile_loaded]]));
+  assert.deepEqual(got, { toC: [30, true], backToB: [12, true], toB: [2900, false] });
 });
 
-test("a report for a profile no switch is waiting on is dropped", async () => {
+test("a switch between profiles that share one engine profile goes out without waiting for a native swap", async () => {
   const before = switches().length;
-  profileSwitched("w7", "p2", 3, {});
-  noteProfileSwapped("w7", { selection: "p9", profileLoaded: true, activeMs: 1, swapMs: 5, heldTimedOut: false });
-  noteProfileSwapped("w7", {});
+  const s = useBrowser.getState();
+  const owner = s.createProfile({ name: "Owner" });
+  const sharer = useBrowser.getState().createProfile({ name: "Sharer", shareWith: owner });
+  const was = switchIdOf("w8");
+  profileSwitched("w8", owner, sharer, 3, {});
   await settle();
-  assert.equal(switches().length, before);
-  noteProfileSwapped("w7", { selection: "p2", profileLoaded: true, activeMs: 1, swapMs: 6, heldTimedOut: false });
-  await settle();
-  assert.equal(switches().slice(before)[0].properties.swap_ms, 6);
+  assert.equal(switchIdOf("w8"), was, "no native report is expected");
+  const [event] = switches().slice(before);
+  assert.ok(event);
+  for (const key of ["swap_ms", "swap_active_ms", "profile_loaded", "held_timed_out"]) assert.equal(key in event.properties, false);
 });
 
 test("with no native report the event still goes out after the wait, without the swap fields", async (t) => {
   const before = switches().length;
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  profileSwitched("w5", "p1", 4, {});
+  switchTo("w5", "p1", 4, {});
   await settle();
   t.mock.timers.tick(SWAP_WAIT_MS - 1);
   await settle();

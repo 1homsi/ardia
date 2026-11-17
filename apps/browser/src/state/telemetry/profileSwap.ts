@@ -1,13 +1,19 @@
 import type { WindowProfileSwapped } from "../../platform/profiles";
+import { useBrowser } from "../browser/store";
+import { engineProfile } from "../browser/model";
 import { capture } from "./client";
 
 export const SWAP_WAIT_MS = 12_000;
 
 export type ProfileSwapProperties = { swap_ms?: number; swap_active_ms?: number; profile_loaded?: boolean; held_timed_out?: boolean };
 
-type Waiter = { profile: string; settle: (swap: ProfileSwapProperties) => void };
+type Waiter = { switchId: number; settle: (swap: ProfileSwapProperties) => void };
 
 const waiting = new Map<string, Waiter[]>();
+const latestSwitch = new Map<string, number>();
+let switches = 0;
+
+export const switchIdOf = (windowId: string) => latestSwitch.get(windowId) ?? 0;
 
 const milliseconds = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined);
 
@@ -23,10 +29,12 @@ export function profileSwapProperties(report: WindowProfileSwapped | null | unde
   return out;
 }
 
-function awaitSwap(windowId: string, profile: string): Promise<ProfileSwapProperties> {
+function awaitSwap(windowId: string): Promise<ProfileSwapProperties> {
+  const switchId = ++switches;
+  latestSwitch.set(windowId, switchId);
   return new Promise((resolve) => {
     const waiter: Waiter = {
-      profile,
+      switchId,
       settle: (swap) => {
         clearTimeout(timer);
         const rest = (waiting.get(windowId) ?? []).filter((w) => w !== waiter);
@@ -41,12 +49,15 @@ function awaitSwap(windowId: string, profile: string): Promise<ProfileSwapProper
 }
 
 export function noteProfileSwapped(windowId: string, report: WindowProfileSwapped | null | undefined) {
-  waiting.get(windowId)?.find((waiter) => waiter.profile === report?.selection)?.settle(profileSwapProperties(report));
+  const switchId = report?.switchId;
+  if (typeof switchId !== "number" || switchId <= 0) return;
+  waiting.get(windowId)?.find((waiter) => waiter.switchId === switchId)?.settle(profileSwapProperties(report));
 }
 
-export function profileSwitched(windowId: string, profile: string, profiles: number, via: Record<string, unknown>) {
+export function profileSwitched(windowId: string, from: string, to: string, profiles: number, via: Record<string, unknown>) {
   const start = Date.now();
-  const swapped = awaitSwap(windowId, profile);
+  const s = useBrowser.getState();
+  const swapped = engineProfile(s, from) === engineProfile(s, to) ? Promise.resolve({}) : awaitSwap(windowId);
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       const switchMs = Date.now() - start;
