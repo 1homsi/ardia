@@ -14,7 +14,7 @@ struct SyncMeta: Codable, Equatable, Sendable {
   var visitsSyncedThrough: Date?
   var chainSeen = false
 
-  static let defaultDeviceName = deviceName(forModel: ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? hardwareModel())
+  static let defaultDeviceName = deviceName(forModel: hardwareModel())
 
   static func deviceName(forModel model: String) -> String {
     model.hasPrefix("iPad") ? "iPad" : "iPhone"
