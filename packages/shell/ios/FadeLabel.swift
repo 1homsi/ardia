@@ -32,7 +32,13 @@ final class FadeLabel: ExpoView {
   private var font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
   private var fitting = NSSize.zero
 
-  var text = "" { didSet { if text != oldValue { update() } } }
+  var text = "" {
+    didSet {
+      guard text != oldValue else { return }
+      update()
+      NSAccessibility.post(element: self, notification: .valueChanged)
+    }
+  }
   var fontSize: Double = 13 { didSet { if fontSize != oldValue { update() } } }
   var weight = "regular" { didSet { if weight != oldValue { update() } } }
   var fontFamily = "" { didSet { if fontFamily != oldValue { update() } } }
