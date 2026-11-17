@@ -76,5 +76,5 @@ test("a window's key epoch and paste gate are read from FocusHandoff without cha
 });
 
 test("engineInfo already returns the Focus block that Copy Diagnostics prints", () => {
-  assert.match(host, /ardia_host::FocusState\(\)/);
+  assert.match(body(host, "+ (NSDictionary<NSString *, id> *)engineInfo"), /@"focus" : ardia_host::FocusState\(\)/);
 });
