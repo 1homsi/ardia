@@ -321,6 +321,8 @@ function SidebarDock({
   const layerOpacity = useGated(fade, peek.slide, 1);
   const layerShift = useGated(peeking, peekIn, 0);
   const layer = useMemo(() => ({ opacity: layerOpacity, transform: [{ translateX: layerShift }] }), [layerOpacity, layerShift]);
+  const layerFade = useMemo(() => ({ opacity: layerOpacity }), [layerOpacity]);
+  const panelShift = useMemo(() => Animated.add(fullscreen ? -width * outward : slideOut, layerShift), [fullscreen, width, outward, slideOut, layerShift]);
   noteSidebarDock(windowId, { peek, open, moving, fullscreen, edgeOn, layer });
   useEffect(() => () => forgetSidebarDock(windowId), [windowId]);
   const panelOn = useRef(new Animated.Value(0)).current;
@@ -352,10 +354,10 @@ function SidebarDock({
           top: peeking ? peekAt.top : 0,
           bottom: peeking ? peekAt.bottom : 0,
           width,
-          transform: [{ translateX: fullscreen ? -width * outward : slideOut }],
+          transform: [{ translateX: panelShift }],
         }}
       >
-        <Animated.View style={[StyleSheet.absoluteFill, layer]}>
+        <Animated.View style={[StyleSheet.absoluteFill, layerFade]}>
           {strip.current && (
             <Animated.View
               pointerEvents="none"
