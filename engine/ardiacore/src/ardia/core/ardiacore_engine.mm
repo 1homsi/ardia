@@ -417,7 +417,7 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
 }
 
 - (NSString*)pictureInPictureCloses {
-  return NS(PictureInPictureCloseRecord());
+  return NS(ardiacore::PictureInPictureCloseRecord());
 }
 
 - (NSString*)chromiumVersion {
