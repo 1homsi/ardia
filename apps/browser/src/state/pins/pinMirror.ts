@@ -118,8 +118,15 @@ function pinnedSplitsChanged(s: BrowserState, prev: BrowserState): boolean {
   return [...Object.values(s.splits), ...Object.values(prev.splits)].some((v) => splitTabIds(v).some(pinnedPane));
 }
 
+const windowsAlike = (windows: BrowserState["windows"], was: BrowserState["windows"]) =>
+  changedIds(windows, was).every((id) => {
+    const w = windows[id];
+    const b = was[id];
+    return !!w && !!b && w.tabIds === b.tabIds && w.profileId === b.profileId && w.kind === b.kind;
+  });
+
 export function pinsMayDiffer(s: BrowserState, prev: BrowserState): boolean {
-  if (s.windows !== prev.windows || s.groups !== prev.groups || pinnedSplitsChanged(s, prev)) return true;
+  if (s.groups !== prev.groups || pinnedSplitsChanged(s, prev) || !windowsAlike(s.windows, prev.windows)) return true;
   if (s.tabs === prev.tabs) return false;
   let members: Set<string> | null = null;
   for (const id of changedIds(s.tabs, prev.tabs)) {
