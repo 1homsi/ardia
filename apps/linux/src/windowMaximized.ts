@@ -1,21 +1,21 @@
 import { invokeHost, reportHostError, type ArdiaHost } from "./host.ts";
 import { fillsScreen, isWindowFrame, type WorkArea } from "./windowFrame.ts";
-import { useMaximizedWindows } from "../../browser/src/state/windows/captionRegions.ts";
+import { noteMaximized } from "../../browser/src/state/windows/captionRegions.ts";
 
-type ShellWindow = { screen?: WorkArea; outerWidth: number; outerHeight: number; addEventListener(type: "resize", listener: () => void): void };
-
-export function noteMaximized(windowId: string, on: boolean) {
-  useMaximizedWindows.setState((shown) => {
-    if (!!shown[windowId] === on) return shown;
-    const { [windowId]: _, ...rest } = shown;
-    return on ? { ...shown, [windowId]: true } : rest;
-  }, true);
-}
+type ShellWindow = {
+  screen?: WorkArea;
+  outerWidth: number;
+  outerHeight: number;
+  addEventListener(type: "resize", listener: () => void): void;
+  requestAnimationFrame(callback: () => void): number;
+};
 
 export function followWindowMaximized(host: ArdiaHost, windowId: string, shell: ShellWindow | null = typeof window === "undefined" ? null : window, note = noteMaximized) {
   if (!shell) return;
   let latest = 0;
+  let scheduled = false;
   const read = () => {
+    scheduled = false;
     const asked = ++latest;
     void invokeHost<unknown>("ArdiaShell.windowFrame", { args: [windowId] }, host).then((frame) => {
       if (asked !== latest) return;
@@ -23,5 +23,9 @@ export function followWindowMaximized(host: ArdiaHost, windowId: string, shell: 
     }, reportHostError);
   };
   read();
-  shell.addEventListener("resize", read);
+  shell.addEventListener("resize", () => {
+    if (scheduled) return;
+    scheduled = true;
+    shell.requestAnimationFrame(read);
+  });
 }

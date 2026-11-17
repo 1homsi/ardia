@@ -657,14 +657,24 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   Hyprland; Chrome's own caption buttons are hidden: opacity 0, no input, ignored by accessibility.
   - `lib/platformChrome.linux.ts` takes the Windows `WINDOW_CHROME`. `platform/windowControls.ts` is swapped for
     `hostWindowControls.ts`: minimize and maximize call `ArdiaShell.minimizeWindow` and `toggleMaximizeWindow`, and
-    caption regions are a no-op because the shell's own drag regions move the window.
-  - The `…` opens the Linux app menu (Menu button below) under the button pressed (`clusterAppMenu.ts`, swapped in
-    for `BrowserWindowControls.tsx`'s `showAppMenu`). There is exactly one menu button: the `…` while the window
-    buttons are placed, the header's hamburger otherwise (full screen). Linux keeps the sidebar header the Windows
-    rule would collapse whenever the hamburger has no other home (`sidebarHeaderLayout.ts`).
-  - Restore: the engine sends no `maximized` event, so each window reads `ArdiaShell.windowFrame` at start and on
-    every resize and marks itself maximized when the frame fills the work area (the shell's outer size when the
-    frame is null), feeding the shared `useMaximizedWindows` (`windowMaximized.ts`). Settings and Import too.
+    caption regions are a no-op because the shell's own drag regions move the window. Close goes straight to the
+    shell's close coordinator (`captionControls.ts`, swapped in for `WindowControls.tsx`'s close), so a window with
+    tabs to lose asks once, not first in the shared path and again in the coordinator.
+  - `WindowControls.tsx` wraps the shared one: right-clicking the buttons opens the window menu (`linuxWindowMenu.ts`)
+    except in Settings and Import, and the buttons hide while a page is in full screen.
+  - The `…` opens the Linux app menu (Menu button below) under itself (`clusterAppMenu.ts`, swapped in for
+    `BrowserWindowControls.tsx`'s `showAppMenu`): a pointer press on the `…` anchors it there, any other press or a
+    key activation forgets it, and keyboard activation anchors to the focused `…`. There are never two menu buttons:
+    the `…` while the window buttons are placed, the header's hamburger otherwise (full screen). Linux keeps the
+    sidebar header the Windows rule would collapse whenever the hamburger has no other home
+    (`sidebarHeaderLayout.ts`).
+  - Restore: the engine sends no `maximized` event, so each window reads `ArdiaShell.windowFrame` at start and once
+    per animation frame of resizing, and marks itself maximized when the frame fills the work area, feeding the shared
+    `useMaximizedWindows` through `captionRegions.ts`'s `noteMaximized` (`windowMaximized.ts`). Settings and Import
+    too. Known limit: on Wayland `windowFrame` is null and the work area is the whole output, so the shell compares
+    its outer size with that; with a panel, a bar or gaps a maximized window keeps the maximize glyph, and a lone
+    gapless tiled window may show restore. Clicking still toggles correctly; the glyph needs the engine to report
+    maximized state.
 - **Header drag and double-click.** Dragging the header moves the window (`DispatchHostWindowDragMovement`).
   Double-clicking it runs the desktop's titlebar action.
 - **Outer frame.** The host overlays Chromium's client view and doesn't replace its frame. Without the Wayland

@@ -1,18 +1,22 @@
 import { SidebarHeaderTools as NavigationTools } from "../../browser/src/components/sidebar/AddressBar";
 import { useSidebarCaptionRoom } from "../../browser/src/state/windows/layout";
-import { ProfileIndicator } from "./ProfileIndicator";
+import { HEADER_TOOLS } from "../../browser/src/components/window/dockMotion";
+import { ProfileIndicator, useProfileIndicatorWidth } from "./ProfileIndicator";
+import { INDICATOR_GAP, sidebarHeaderSplit } from "./profileIndicatorLayout";
 
 export { SidebarAddressRow } from "../../browser/src/components/sidebar/AddressBar";
 
+const TOGGLE_ONLY = HEADER_TOOLS.fullScreenToggleX + 16;
+
 export function SidebarHeaderTools({ width }: { width: number }) {
   const captionRoom = useSidebarCaptionRoom();
-  const room = width - captionRoom;
-  const navigationWidth = captionRoom ? Math.min(room, Math.max(114, room - 136)) : Math.max(114, width - 136);
+  const indicator = useProfileIndicatorWidth(Math.max(0, width - captionRoom - TOGGLE_ONLY - INDICATOR_GAP));
+  const { navigation, indicatorRoom } = sidebarHeaderSplit(width, captionRoom, captionRoom ? indicator : 0, TOGGLE_ONLY);
   return (
     <>
-      <NavigationTools width={navigationWidth + captionRoom} />
-      <div style={{ position: "absolute", left: navigationWidth + 2, top: 7 }}>
-        <ProfileIndicator room={Math.max(captionRoom ? 0 : 36, room - navigationWidth - 9)} />
+      <NavigationTools width={navigation + captionRoom} />
+      <div style={{ position: "absolute", left: navigation + 2, top: 7 }}>
+        <ProfileIndicator room={indicatorRoom} />
       </div>
     </>
   );

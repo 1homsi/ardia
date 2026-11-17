@@ -4,8 +4,7 @@ import "./styles.css";
 import { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { unstable_batchedUpdates } from "react-native";
-import { emitAppEvent, emitCommand, menuShown, setWindowCloseDecider, showMenu } from "@ardia/shell";
-import { windowTitle } from "../../browser/src/state/browser/model";
+import { emitAppEvent, emitCommand, menuShown, setWindowCloseDecider } from "@ardia/shell";
 import { WindowRoot } from "../../browser/src/App";
 import { startNativeSync } from "../../browser/src/state/app/nativeSync";
 import { startTabPages } from "../../browser/src/state/tabs/tabPages";
@@ -64,7 +63,7 @@ import { noticeUnsandboxedLaunch } from "./sandboxNotice";
 import { countLoginPasswordChecks } from "./reauthCounts";
 import { startPipPlayer } from "./pipPlayer";
 import { startLinuxShortcuts } from "./shortcutsRuntime";
-import { createWindowMenu } from "./windowMenu";
+import { linuxWindowMenu } from "./linuxWindowMenu";
 import { followWindowMaximized } from "./windowMaximized";
 import { createUtilitySessionSnapshot, initialLinuxSession, isLinuxUtility, setSessionDeparture, setSessionFlush } from "./session";
 import { startUtility } from "./utility";
@@ -77,10 +76,6 @@ import { connectCalendar, refreshCalendar, setCalendarHidden, useCalendar } from
 import { useMeetingAlert } from "../../browser/src/state/live/alerts";
 import { linuxTelemetryHooks, reportRecoverableRender, reportUncaughtRender, startHostTelemetry } from "./hostTelemetry";
 import type { LeaderLocks } from "./telemetryLeader";
-
-const linuxWindowMenu = ardiaHost
-  ? createWindowMenu(ardiaHost, { state: () => useBrowser.getState(), title: windowTitle, utility: isLinuxUtility, show: showMenu, command: emitCommand })
-  : null;
 
 Object.assign(globalThis, { ardiaLinux: { store: useBrowser, pages: usePages, emitCommand, extensions: useExtensions, openExtension: openExtensionFromMenu, webviews, media: useMedia, lifecycle: { state: useLifecycle }, sync: linuxSyncHooks, live: linuxLiveHooks, toolbar: useToolbarAutoHide, windowMenu: linuxWindowMenu, selection: { state: usePageSelection, jump: jumpToSelection, copyQuoteLink: copyLinkToSelection, replaceInField }, calendar: { state: useCalendar, connect: connectCalendar, refresh: refreshCalendar, hide: setCalendarHidden, alert: useMeetingAlert }, inputRegions, telemetry: linuxTelemetryHooks } });
 setHostPageHooks({ reset: resetHostPage, applyTheme: applyHostPageTheme, depart: (tabId) => ardiaHost && forgetDepartedPage(tabId, ardiaHost.bootstrap.windowId) });

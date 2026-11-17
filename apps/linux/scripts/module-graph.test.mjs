@@ -106,6 +106,9 @@ test("production graph uses current Linux adapters and one canonical shared stat
   assert.ok(graph.has(`${browser}lib/platformChrome.windows.ts`), "Linux lays out its window like the Windows build");
   assert.ok(!graph.has(`${browser}platform/windowControls.ts`) && !graph.has(`${browser}platform/windowControls.windows.ts`), "window buttons reach the Linux host, not a native Windows module");
   assert.ok(graph.get(`${browser}state/windows/controls.ts`).importedIds.includes(`${linux}hostWindowControls.ts`));
+  const sharedControls = graph.get(`${browser}components/window/WindowControls.tsx`);
+  assert.deepEqual(sharedControls.importers, [`${linux}WindowControls.tsx`], "the shared window buttons are reached only through the Linux wrapper");
+  assert.ok(sharedControls.importedIds.includes(`${linux}captionControls.ts`) && !sharedControls.importedIds.includes(`${browser}state/windows/controls.ts`), "Close goes to the Linux close coordinator once");
   const controls = graph.get(`${browser}components/window/BrowserWindowControls.tsx`).importedIds;
   assert.ok(controls.includes(`${linux}clusterAppMenu.ts`) && !controls.includes(`${browser}state/app/appMenu.ts`), "the … beside the window buttons opens Linux's full app menu");
   for (const importer of ["components/sidebar/Sidebar.tsx", "components/downloads/Downloads.tsx"]) {

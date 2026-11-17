@@ -13,10 +13,9 @@ function state(settings = {}, window = {}, extra = {}) {
   };
 }
 
-test("Linux lays out its window like the Windows build: buttons on the right, a 32 px title band, nothing on the left", async () => {
+test("Linux lays out its window with the Windows build's chrome", async () => {
   const linux = (await import("../../browser/src/lib/platformChrome.linux.ts")).WINDOW_CHROME;
   assert.equal(linux, windowsChrome);
-  assert.deepEqual(linux, { leadingWidth: 0, trailingWidth: 171, titleBarHeight: 32 });
 });
 
 test("minimize and maximize reach the Linux host's window calls; caption regions are the shell's own drag regions", async () => {
@@ -30,7 +29,50 @@ test("minimize and maximize reach the Linux host's window calls; caption regions
   assert.deepEqual(calls, [["ArdiaShell.minimizeWindow", ["main"]], ["ArdiaShell.toggleMaximizeWindow", ["main"]]]);
 });
 
-test("exactly one menu button in every layout: beside the window buttons while they're placed, in a header that never collapses away otherwise", async () => {
+test("one click on Close asks once: the caption button goes straight to Linux's close coordinator instead of confirming first and again in the coordinator", async () => {
+  const { useBrowser } = await import("../../browser/src/state/browser/store.ts");
+  const { setManagedWindowClose } = await import("../../browser/src/platform/windowClose.ts");
+  const { startWindowCloseGuard } = await import("../../browser/src/state/windows/windowClose.ts");
+  const { decideLinuxWindowClose } = await import("./windowCloseDecider.ts");
+  const shared = await import("../../browser/src/state/windows/controls.ts");
+  const stub = await import("../../browser/src/test-native/index.ts");
+  const asks = [];
+  const ask = async (options) => (asks.push(options.title), { confirmed: true, suppressed: false });
+  stub.shellNativeModules.ArdiaDialogs.confirm = ask;
+  startWindowCloseGuard();
+  const S = () => useBrowser.getState();
+  S().hydrate({ profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, profileOrder: ["default"] });
+  S().updateSettings({ warnBeforeClosingWindow: true });
+  S().createWindow({ url: "https://staying.ardia.test/" });
+  const leaving = S().createWindow({ url: "https://one.ardia.test/" });
+  S().newTab(leaving, { url: "https://two.ardia.test/" });
+  const coordinator = [];
+  setManagedWindowClose((windowId, reason) => {
+    coordinator.push(windowId);
+    void decideLinuxWindowClose(windowId, reason, ask);
+    return true;
+  });
+  try {
+    shared.closeFromWindowControls(leaving);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(asks, ["Close 2 tabs?", "Close 2 tabs?"], "the shared Windows path confirms, then the coordinator confirms again");
+    asks.length = 0;
+    coordinator.length = 0;
+    const closed = stub.windows.closed.length;
+    const linux = await import("./captionControls.ts");
+    linux.closeFromWindowControls(leaving);
+    await settle();
+    assert.deepEqual(stub.windows.closed.slice(closed), [leaving], "Linux hands the close to the shell's coordinator, which asks once");
+    assert.deepEqual(asks, []);
+    assert.deepEqual(coordinator, []);
+    assert.equal(linux.minimizeWindow, shared.minimizeWindow);
+    assert.equal(linux.toggleWindowMaximized, shared.toggleWindowMaximized);
+  } finally {
+    setManagedWindowClose(() => false);
+  }
+});
+
+test("never two menu buttons: the … while the window buttons are placed, otherwise the header's hamburger, whose header Linux never collapses", async () => {
   const { menuBesideWindowButtons, linuxSidebarHeaderCollapsed, linuxDownloadsInSidebarFooter, sidebarHeaderCollapsed } = await import("./sidebarHeaderLayout.ts");
   const layouts = [{}, { compactToolbar: true }, { addressBar: "sidebar" }, { sidebarSide: "right" }, { addressBar: "sidebar", sidebarSide: "right" }, { tabLayout: "top" }, { autoHideTabs: true }, { minimalismMode: true }];
   for (const settings of layouts) {
@@ -57,69 +99,148 @@ test("the header's profile name makes room for the menu only when the header hol
   assert.equal(layout(40, true, false).shown, true);
 });
 
-test("the … button opens Linux's full app menu under the button that was pressed, once, and a second press closes instead of reopening", async () => {
-  const { createClusterMenu } = await import("./clusterMenu.ts");
-  let press;
-  let open = false;
-  const opened = [];
-  const button = { name: "cluster …" };
-  const glyph = { closest: (selector) => (selector === '[role="button"]' ? button : null) };
-  const focused = { name: "focused" };
-  const show = createClusterMenu({ addEventListener: (type, listener, capture) => type === "pointerdown" && capture && (press = listener) }, async (windowId, anchor) => void opened.push([windowId, anchor.name]), () => open, () => focused);
-  press({ target: glyph });
-  await show("w");
-  assert.deepEqual(opened, [["w", "cluster …"]]);
-  open = true;
-  press({ target: glyph });
-  await show("w");
-  assert.equal(opened.length, 1);
-  open = false;
-  await show("w");
-  assert.deepEqual(opened.at(-1), ["w", "focused"], "Enter or Space on the focused button anchors to it");
+test("beside the window buttons in a right sidebar, the profile name comes before back and forward", async () => {
+  const { sidebarHeaderSplit } = await import("./profileIndicatorLayout.ts");
+  assert.deepEqual(sidebarHeaderSplit(190, 0, 0, 45), { navigation: 114, indicatorRoom: 67 }, "without the buttons the header is as before");
+  assert.deepEqual(sidebarHeaderSplit(260, 171, 32, 45), { navigation: 48, indicatorRoom: 32 });
+  assert.deepEqual(sidebarHeaderSplit(320, 171, 75, 45), { navigation: 65, indicatorRoom: 75 });
+  assert.deepEqual(sidebarHeaderSplit(190, 171, 0, 45), { navigation: 45, indicatorRoom: 0 });
+  assert.deepEqual(sidebarHeaderSplit(400, 171, 0, 45), { navigation: 229, indicatorRoom: 0 });
 });
 
-test("maximize turns into restore from the window's frame, read again on every resize, in browser windows and Settings alike", async () => {
+function clusterHarness() {
+  const listeners = {};
+  let open = false;
+  const opened = [];
+  const menuButton = { name: "…" };
+  const reload = { name: "Reload" };
+  const inside = (button) => ({ closest: (selector) => (selector === '[role="button"][aria-label="Menu"]' && button === menuButton ? menuButton : null) });
+  let focused = null;
+  return {
+    async load() {
+      const { createClusterMenu } = await import("./clusterMenu.ts");
+      this.show = createClusterMenu({ addEventListener: (type, listener, capture) => capture && (listeners[type] = listener) }, async (windowId, anchor) => void opened.push(anchor.name), () => open, () => focused);
+    },
+    press: (button) => listeners.pointerdown({ target: inside(button) }),
+    key: (key) => listeners.keydown({ key }),
+    focus: (button) => void (focused = button),
+    setOpen: (value) => void (open = value),
+    menuButton, reload, opened,
+  };
+}
+
+test("the … opens Linux's full app menu under itself, and a second press while it's open closes it instead of reopening", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.press(h.menuButton);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+  h.setOpen(true);
+  h.press(h.menuButton);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+test("a click elsewhere never steers the … menu: after clicking Reload, Tab and Enter on the … anchor it to the …", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.press(h.reload);
+  h.focus(h.menuButton);
+  h.key("Enter");
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+test("after a menu is dismissed by clicking outside, keyboard activation of the … opens it on the first press", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.setOpen(true);
+  h.press(h.reload);
+  h.setOpen(false);
+  h.focus(h.menuButton);
+  h.key(" ");
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+function maximizedHarness(windowId, frameOf) {
+  let resize;
+  const frames = [];
+  const noted = [];
+  const replies = [];
+  const host = { bootstrap: { windowId, profileId: "default" }, invoke: (method, args) => new Promise((resolve) => replies.push(() => resolve(method === "ArdiaShell.windowFrame" && args.args[0] === windowId ? frameOf() : "wrong"))), onEvent: () => () => {} };
+  const shell = {
+    screen: { availWidth: 1440, availHeight: 870 }, outerWidth: 900, outerHeight: 700,
+    addEventListener: (type, listener) => type === "resize" && (resize = listener),
+    requestAnimationFrame: (callback) => frames.push(callback),
+  };
+  return { host, shell, noted, replies, resize: () => resize(), frame: () => frames.splice(0).forEach((callback) => callback()) };
+}
+
+test("maximize turns into restore from the window's frame, read again once per animation frame of resizing, in browser windows and Settings alike", async () => {
   const { followWindowMaximized } = await import("./windowMaximized.ts");
   for (const windowId of ["w", "settings"]) {
     let frame = [80, 60, 900, 700];
-    let resize;
-    const noted = [];
-    const replies = [];
-    const host = { bootstrap: { windowId, profileId: "default" }, invoke: (method, args) => new Promise((resolve) => replies.push(() => resolve(method === "ArdiaShell.windowFrame" && args.args[0] === windowId ? frame : "wrong"))), onEvent: () => () => {} };
-    const shell = { screen: { availWidth: 1440, availHeight: 870 }, outerWidth: 900, outerHeight: 700, addEventListener: (type, listener) => type === "resize" && (resize = listener) };
-    followWindowMaximized(host, windowId, shell, (id, on) => noted.push([id, on]));
+    const h = maximizedHarness(windowId, () => frame);
+    followWindowMaximized(h.host, windowId, h.shell, (id, on) => h.noted.push([id, on]));
     await settle();
-    replies.shift()();
+    h.replies.shift()();
     await settle();
     frame = [0, 30, 1440, 870];
-    resize();
-    resize();
+    h.resize();
+    h.resize();
+    h.resize();
+    h.frame();
     await settle();
-    const stale = replies.shift();
-    replies.shift()();
+    assert.equal(h.replies.length, 1, "three resizes in one frame read the frame once");
+    h.resize();
+    h.frame();
+    await settle();
+    const stale = h.replies.shift();
+    h.replies.shift()();
     await settle();
     stale();
     await settle();
-    assert.deepEqual(noted, [[windowId, false], [windowId, true]], "a resize's older read never overrides a newer one");
-    frame = null;
-    shell.outerWidth = 1440;
-    shell.outerHeight = 870;
-    resize();
-    await settle();
-    replies.shift()();
-    await settle();
-    assert.deepEqual(noted.at(-1), [windowId, true], "without a frame (Wayland) the shell's own outer size decides");
+    assert.deepEqual(h.noted, [[windowId, false], [windowId, true]], "an older read never overrides a newer one");
   }
 });
 
-test("the shared store hears the synthesized maximized state, which is what turns the Windows glyph into restore", async () => {
-  const { noteMaximized } = await import("./windowMaximized.ts");
-  const { useMaximizedWindows } = await import("../../browser/src/state/windows/captionRegions.ts");
-  noteMaximized("w", true);
-  assert.deepEqual(useMaximizedWindows.getState(), { w: true });
-  const before = useMaximizedWindows.getState();
-  noteMaximized("w", true);
-  assert.equal(useMaximizedWindows.getState(), before);
-  noteMaximized("w", false);
-  assert.deepEqual(useMaximizedWindows.getState(), {});
+test("without a frame, as on Wayland, the shell's outer size is compared with the screen; this test's fake screen has no panel, so outer equal to avail reads as maximized", async () => {
+  const { followWindowMaximized } = await import("./windowMaximized.ts");
+  const h = maximizedHarness("w", () => null);
+  followWindowMaximized(h.host, "w", h.shell, (id, on) => h.noted.push([id, on]));
+  await settle();
+  h.replies.shift()();
+  await settle();
+  h.shell.outerWidth = 1440;
+  h.shell.outerHeight = 870;
+  h.resize();
+  h.frame();
+  await settle();
+  h.replies.shift()();
+  await settle();
+  assert.deepEqual(h.noted, [["w", false], ["w", true]]);
+});
+
+test("a press on the … that never activated it, like a drag off the button, doesn't stop the next Enter from opening the menu", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.setOpen(true);
+  h.press(h.menuButton);
+  h.setOpen(false);
+  h.focus(h.menuButton);
+  h.key("Enter");
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+test("a press outside while a menu was open is forgotten even when the … is then activated without a key, as assistive technology does", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.setOpen(true);
+  h.press(h.reload);
+  h.setOpen(false);
+  h.focus(h.menuButton);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
 });

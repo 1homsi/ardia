@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { reachesNativeHostUnchecked, resolveHostModule } from "./hostModules.ts";
 import { linuxShellMethod, sidebarEdgeEvent } from "./shellMethods.ts";
@@ -482,8 +482,6 @@ test("shared code can still place the Mac's traffic lights; Linux has none, so t
   assert.match(read("./shims/shellBase.tsx"), /setTrafficLightsCenter: async \(id: string, center: \[number, number\] \| null, trailing = false\) => setTrafficLightsCenter\(id, center, trailing\)/);
   assert.equal(await setTrafficLightsCenter("main", [215, 30], true), undefined);
   assert.equal(await setTrafficLightsCenter("main", null), undefined);
-  assert.ok(!existsSync(new URL("./TrafficLights.tsx", import.meta.url)));
-  assert.doesNotMatch(read("./styles.css"), /traffic-light|ardia-window-control/);
 });
 
 test("on an engine without the native capture, a tab drag captures a bare Escape in the shell as dragEscape and releases it when the drag ends", async () => {
