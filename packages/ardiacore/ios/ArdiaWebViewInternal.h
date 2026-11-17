@@ -82,6 +82,8 @@ struct ArdiaPageReports {
   BOOL seenByUser{YES};
   BOOL inPictureInPicture{};
   BOOL autoPictureInPictureActive{};
+  BOOL keptByWindowServer{};
+  BOOL playedForAutoPictureInPicture{};
 };
 
 struct ArdiaCommits {
@@ -95,6 +97,7 @@ struct ArdiaCommits {
 struct ArdiaPageFocusState {
   ArdiaPageFocus page{ArdiaPageFocus::Unknown};
   __weak NSView *devTools;
+  __weak NSView *elsewhere;
   BOOL onActivate{};
   BOOL keepsOutgoing{};
   CFTimeInterval activatedAt{};
@@ -108,6 +111,8 @@ struct ArdiaPageFocusState {
   ArdiaSentReports _sent;
   ArdiaLeave _leave;
   ArdiaFrameHold _frameHold;
+  void (^_swapReport)(BOOL heldTimedOut);
+  CFTimeInterval _swapReportAt;
   ArdiaStandIn _standIn;
   ArdiaLittlePage _littlePage;
   ArdiaReveal _reveal;
@@ -139,6 +144,7 @@ struct ArdiaPageFocusState {
   CFTimeInterval _linkDropAt;
   NSMutableArray<NSDictionary<NSString *, id> *> *_newTabLinks;
   id _sightObserver;
+  id _interfaceScaleObserver;
 }
 - (ArdiaWindowController *)controller;
 - (void)emit:(NSString *)name payload:(NSDictionary *)payload;
@@ -160,6 +166,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (BOOL)canTake:(ArdiaCoreTab *)tab;
 - (ArdiaTransfer)takeTransferredTab;
 - (void)bindRestoreKey;
+- (void)forgetRestoreKey;
 @end
 
 @interface ArdiaWebView (TabInternal)
@@ -169,11 +176,15 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (BOOL)holdTransferOf:(ArdiaCoreTab *)tab;
 - (void)attach:(ArdiaCoreTab *)tab;
 - (void)detach;
+@property(nonatomic, readonly) NSString *keptFromUnloadingBy;
+- (BOOL)unloadKeepingHistory;
 - (void)stashPageReports;
 - (void)takePageReports;
 - (void)placeTab;
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
 - (void)openedLinkTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
+- (void)openedPopupTab:(ArdiaCoreTab *)tab;
+- (BOOL)opensPopupsAsTabs;
 - (void)announceOpenedTab:(ArdiaCoreTab *)tab
                   adoptId:(NSString *)adoptId
               disposition:(NSString *)disposition
@@ -192,6 +203,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 + (void)noteShown:(ArdiaCoreTab *)tab;
 + (void)drainPainting;
 - (void)layoutPage;
+- (void)interfaceScaleChanged;
 - (BOOL)paints;
 - (BOOL)neighbourPageAsleep;
 - (void)holdLittlePage;
@@ -203,6 +215,9 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)schedulePainting;
 - (void)leaveScreen;
 - (void)beginFrameHoldIfCold;
+- (void)exposePage;
+- (BOOL)releasePageForOffscreen;
+- (void)reportSwapShown:(void (^)(BOOL heldTimedOut))report;
 - (void)finishFrameHold;
 - (void)stopHolding;
 - (void)takeFocusFromLingeringPane;
@@ -257,6 +272,17 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)traceAutoPictureInPicture:(NSString *)what;
 - (void)awaitPictureInPicture:(int)tries completion:(void (^)(BOOL))completion;
 - (void)updateAutoPictureInPicture;
+- (BOOL)leftAppInPictureInPicture;
+- (BOOL)playsForAutoPictureInPicture;
+- (void)autoPictureInPictureInputsChanged;
+- (void)noteStayedOnAppSwitch;
++ (BOOL)playsForAutoPictureInPictureInWindow:(NSWindow *)window;
+@end
+
+@interface ArdiaWebView (SystemNowPlaying)
+- (void)systemNowPlayingChanged;
+- (void)withdrawSystemNowPlaying;
+- (void)noteSystemNowPlayingCommand;
 @end
 
 @interface ArdiaWebView (NavigationInternal)
@@ -275,6 +301,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)emitZoom;
 - (void)runChromeCommand:(int)command;
 - (void)thawHiddenPage;
+- (BOOL)awaitsFirstDocument;
 @end
 
 @interface ArdiaWebView (InputMonitorsInternal)
@@ -317,6 +344,11 @@ void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
 NSString *PeekConfigJSON(ArdiaWebView *view);
 NSDictionary *_Nullable RecentClickPoint(ArdiaWebView *view);
+
+NSPoint RootPointFromWindow(NSWindow *window, NSPoint inWindow);
+NSRect RootRectFromWindow(NSWindow *window, NSRect inWindow);
+CGFloat RootPointsPerLocalPoint(NSView *view);
+BOOL MayHoldUserActivation(NSWindow *window);
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();

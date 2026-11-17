@@ -7,8 +7,6 @@
 
 namespace ardia_host {
 
-namespace {
-
 NSString *DescribeFocusWindow(NSWindow *window) {
   if (!window) return @"none";
   NSMutableArray<NSString *> *flags = [NSMutableArray array];
@@ -36,6 +34,8 @@ NSString *DescribeFocusWindow(NSWindow *window) {
                                     [flags componentsJoinedByString:@" "]];
 }
 
+namespace {
+
 NSString *DescribeFocusResponder(NSResponder *responder) {
   if (!responder) return @"none";
   NSMutableArray<NSString *> *chain = [NSMutableArray array];
@@ -48,6 +48,8 @@ constexpr NSUInteger kFocusHistoryLength = 40;
 NSMutableArray<NSString *> *FocusHistory() {
   static NSMutableArray<NSString *> *history = [NSMutableArray array];
   return history;
+}
+
 }
 
 void NoteFocusChange(NSString *what, NSWindow *window) {
@@ -138,6 +140,7 @@ void WatchFocusChanges() {
   [center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
     NoteFocusChange(@"app inactive", nil);
   }];
+  WatchHover();
 }
 
 NSString *FocusState() {
@@ -155,6 +158,7 @@ NSString *FocusState() {
       line = [line stringByAppendingFormat:@", responder %@", DescribeFocusResponder(window.firstResponder)];
     [lines addObject:line];
   }
+  [lines addObject:HoverProbeLine()];
   for (NSWindow *window in NSApp.windows)
     if (IsBrowserWindow(window)) [lines addObjectsFromArray:BrowserWindowLines(window)];
   for (NSString *change in FocusHistory()) [lines addObject:[@"was " stringByAppendingString:change]];

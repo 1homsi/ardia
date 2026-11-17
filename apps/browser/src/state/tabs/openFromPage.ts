@@ -9,6 +9,10 @@ import { isSmall, originalProfile, privateWindowProfile } from "../windows/small
 import { openLinkInSplit, openSplitPane } from "../splits/actions";
 import { asAdoptId, isAdoptKind } from "./adoptIds";
 import { gateOpening, isGatedUrl, settleOpening } from "./openingGate";
+import { noteBackgroundTab } from "./newTabNotice";
+import { noteBlockedPageBehind, noteLinkTabWait } from "../telemetry/usage";
+import { isBlockedPage } from "../site/contentBlocking";
+import { notePopupOpenedAsTab } from "../telemetry/popupTabCounts";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
@@ -17,6 +21,7 @@ type PageRef = { windowId: string; profileId: string; tabId?: string };
 const UNGATED = new Set(["current", "peek", "incognito"]);
 
 export function openFromPage(request: OpenWindowRequest, page: PageRef) {
+  if (request.linkWait) noteLinkTabWait(request.linkWait);
   if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
   const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, null);
   settleOpening(gated, null, (verdict) => {
@@ -38,11 +43,15 @@ export function openFromPage(request: OpenWindowRequest, page: PageRef) {
 }
 
 function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
-  const { url, disposition, profile, point } = request;
+  const { url, profile, point } = request;
+  const disposition = opensBehind(request) ? "background" : request.disposition;
+  if (disposition !== request.disposition) noteBlockedPageBehind();
   const adoptId = asAdoptId(request.adoptId);
+  if (request.popup) keepPopupOpener(page);
   const s = useBrowser.getState();
   const w = s.windows[page.windowId];
   if (!w) return;
+  if (request.popup) notePopupOpenedAsTab();
   const peekSource = peekSourceOf(s, page.tabId);
   if (disposition === "current" || (disposition === "peek" && (peekSource || isSmall(s, w.id)))) {
     if (page.tabId) s.navigate(page.tabId, url, { userInitiated: false });
@@ -79,7 +88,16 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
     return void openWindow(w.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: from.profileId, url, adoptId });
   }
   const background = disposition === "background" || from.profileId !== w.profileId;
-  s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background, gated });
+  const opened = s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background, gated });
+  if (background) noteBackgroundTab(w.id, opened, page.tabId);
+}
+
+const opensBehind = (request: OpenWindowRequest) => (request.disposition === "foreground" || request.disposition === "window") && isBlockedPage(request.url);
+
+function keepPopupOpener(page: PageRef) {
+  const s = useBrowser.getState();
+  const sourceId = peekSourceOf(s, page.tabId);
+  if (sourceId) s.peekToTab(page.windowId, { activate: false, sourceId });
 }
 
 export function pageProfileId(windowId: string, pageProfile: string): string {
