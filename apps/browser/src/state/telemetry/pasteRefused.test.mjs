@@ -94,6 +94,19 @@ test("other app events record nothing", () => {
   assert.equal(queued().length, before);
 });
 
+test("only standard pasteboard type names are sent: an app's own type is just other, dynamic ones are dyn whatever their length, and the offered count tells them apart from an empty pasteboard", () => {
+  const longDynamic = `dyn.${"ah62d4rv4gu8y".repeat(10)}`;
+  stub.emitAppEvent({ type: "pasteRefused", reason: "no_text", gateOpen: false, types: ["com.acme.invoice.8f3e2a1c", "com.apple.webarchive", longDynamic, "application/x-acme-account-42", "text/html", "org.chromium.web-custom-data"] });
+  const event = queued().at(-1);
+  assert.equal(event.properties.type_ids, "other,com.apple.webarchive,dyn,text/html,org.chromium.web-custom-data");
+  assert.equal(event.properties.type_count, 6);
+  assert.equal(JSON.stringify(event).includes("acme"), false);
+  stub.emitAppEvent({ type: "pasteRefused", reason: "no_text", gateOpen: false, types: [] });
+  const empty = queued().at(-1);
+  assert.equal(empty.properties.type_ids, "");
+  assert.equal(empty.properties.type_count, 0);
+});
+
 test("nothing is sent while sharing is off", () => {
   client.setSharing(false, "settings");
   const recorded = local().length;

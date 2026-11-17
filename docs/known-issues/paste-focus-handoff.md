@@ -38,13 +38,14 @@ Every beep in `FocusHandoff` goes through `FocusHandoff.refuse(_:_:)` with a `Re
 
 **Properties**
 - `reason`: `deadline`, `cancelled`, `superseded`, `stale_epoch`, `queue_full`, `no_origin`, `late_acknowledgement`, `focus_lost`, `mouse_down`, `window_left`, `no_text` (the address field found no text on the pasteboard), `deferred` (a forwarded Paste the focus gate held back, including one it dropped at once) or `refused` (no responder took a forwarded Paste for a text field).
-- `type_ids`: the pasteboard's type identifiers for `no_text`, names only, at most 24. Dynamic `dyn.` types collapse to `dyn`, and any name that is not a type identifier (a reverse-DNS or legacy pasteboard type name, or a MIME type) is recorded as `other`.
+- `type_ids`: the pasteboard's type names for `no_text`, at most 24. Only standard names are kept: `public.*`, `com.apple.*`, `org.chromium.*`, `org.webkit.*`, the legacy `Apple …`/`NeXT … pasteboard type` and `CorePasteboardFlavorType` names, and `text/`, `image/`, `audio/`, `video/`, `font/` and a few `application/` MIME types. Dynamic `dyn.` types collapse to `dyn`, and any other name (an app's own type, which could carry a document or account id) is recorded as `other`.
+- `type_count`: how many types the pasteboard offered, so a pasteboard whose types were all collapsed reads differently from an empty one.
 - `responder`: the first responder's class name for `deferred` and `refused`, on the first one of a session only. Later ones are still recorded, without it.
 - `gate_open`: whether the key window had a focus gate open.
 - `keyboard_layout`: the current keyboard layout's input source id.
 - `$os_version`: the macOS version, from the common context.
-- `dropped`: for a gate drop, how many held inputs it took. That can include inputs rejected before they entered a gate.
+- `dropped`: how many inputs were dropped, including ones rejected before they entered a gate.
 
-A gate drop is reported only when an edit action or an edit key (like ⌘V) is among the dropped inputs. Plain keystrokes still beep as before and are not reported.
+A gate drop is reported only when a Paste action (Paste, Paste and Match Style) or ⌘V is among the dropped inputs; Cut, Copy and Select All alone are not reported. Plain keystrokes still beep as before and are not reported.
 
 The telemetry never reads or sends what is on the clipboard: it takes the type names the pasteboard lists and nothing else. At most 50 events are reported per session. The "Usage" list in Settings › Privacy says the same.

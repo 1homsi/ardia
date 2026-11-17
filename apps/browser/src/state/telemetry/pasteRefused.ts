@@ -20,17 +20,19 @@ const REASONS = new Set([
 ]);
 
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
-const TYPE_NAMES = [
-  /^[A-Za-z0-9][A-Za-z0-9._+-]{0,79}$/,
+const STANDARD_TYPES = [
+  /^(public|com\.apple|org\.chromium|org\.webkit)\.[A-Za-z0-9._+-]{1,60}$/,
   /^(Apple|NeXT) [A-Za-z0-9 .-]{1,60} pasteboard type$/,
   /^CorePasteboardFlavorType 0x[0-9A-Fa-f]{1,8}$/,
-  /^[a-z]{1,20}\/[a-z0-9.+-]{1,60}$/,
+  /^(text|image|audio|video|font)\/[a-z0-9.+-]{1,40}$/,
+  /^application\/(pdf|rtf|json|xml|zip|octet-stream)$/,
 ];
 const UNRECOGNISED_TYPE = "other";
 const CLASS_NAME = /^[A-Za-z_][A-Za-z0-9_.]{0,79}$/;
 const DYNAMIC_TYPE = /^dyn\./;
 const MAX_TYPES = 24;
 const MAX_DROPPED = 1000;
+const MAX_TYPE_COUNT = 1000;
 
 function identifier(value: unknown, pattern = IDENTIFIER): string | null {
   return typeof value === "string" && pattern.test(value) ? value : null;
@@ -38,8 +40,8 @@ function identifier(value: unknown, pattern = IDENTIFIER): string | null {
 
 function typeName(type: unknown): string | null {
   if (typeof type !== "string") return null;
-  if (!TYPE_NAMES.some((pattern) => pattern.test(type))) return UNRECOGNISED_TYPE;
-  return DYNAMIC_TYPE.test(type) ? "dyn" : type;
+  if (DYNAMIC_TYPE.test(type)) return "dyn";
+  return STANDARD_TYPES.some((pattern) => pattern.test(type)) ? type : UNRECOGNISED_TYPE;
 }
 
 function typeIds(types: unknown): string | null {
@@ -63,6 +65,7 @@ function capturePasteRefused(e: PasteRefusedEvent) {
   const responder = identifier(e.responder, CLASS_NAME);
   const raw: Record<string, unknown> = {};
   if (ids !== null) raw.type_ids = ids;
+  if (Array.isArray(e.types)) raw.type_count = Math.min(e.types.length, MAX_TYPE_COUNT);
   if (layout) raw.keyboard_layout = layout;
   if (responder) raw.responder = responder;
   capture(

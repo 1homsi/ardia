@@ -22,7 +22,7 @@ enum PasteRefusal {
 
   private static let sessionLimit = 50
   private static let typeLimit = 24
-  private static let pasteActions: Set<Selector> = [#selector(NSText.paste(_:)), Selector(("pasteAndMatchStyle:"))]
+  static let pasteActions: Set<Selector> = [#selector(NSText.paste(_:)), Selector(("pasteAndMatchStyle:"))]
   private static var installed = false
   private static var reported = 0
   private static var reportedResponder = false
