@@ -256,6 +256,14 @@ export function playerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: s
   return bestId;
 }
 
+const sharedPlayerTabs = new Map<string, string | undefined>();
+
+export function sidebarPlayerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: string[], windowId: string, own: string | undefined, acrossProfiles: boolean): string | undefined {
+  const tabId = playerTabFor(m, tabIds, acrossProfiles ? sharedPlayerTabs.get(windowId) : own);
+  if (acrossProfiles) sharedPlayerTabs.set(windowId, tabId);
+  return tabId;
+}
+
 const PIP_STATE = 'post("result", JSON.stringify(!!document.pictureInPictureElement || !!window.documentPictureInPicture?.window))';
 
 async function inPictureInPicture(tabId: string): Promise<boolean> {

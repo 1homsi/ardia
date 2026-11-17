@@ -6,7 +6,7 @@ import { switchToTab, toggleMute } from "../../state/browser/actions";
 import { useTheme } from "../ui/theme";
 import { buttonMotion, curve, usePressScaleMotion } from "../ui/motion";
 import { font, radius, space, weight } from "../ui/tokens";
-import { useTab } from "../../state/browser/hooks";
+import { useSettings, useTab } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
 import { muteTitle } from "../../state/tabs/mute";
 import { Favicon } from "../favicon/Favicon";
@@ -19,9 +19,9 @@ import {
   formatTime,
   isPlaying,
   mediaCommand,
-  playerTabFor,
   positionOf,
   sidebarPlayerCandidates,
+  sidebarPlayerTabFor,
   skipOrTrack,
   transportIcons,
   useHiddenPlayerTabs,
@@ -83,7 +83,8 @@ export function useSidebarPlayerTab(windowId: string, profileId: string, current
   const hidden = useHiddenPlayerTabs(windowId, profileId, sessions);
   const candidates = useMedia(useShallow((m) => sidebarPlayerCandidates(m, hidden)));
   const shown = useRef<string | undefined>(undefined);
-  shown.current = useMedia((m) => playerTabFor(m, candidates, shown.current));
+  const acrossProfiles = useSettings((st) => st.playingNowAcrossProfiles);
+  shown.current = useMedia((m) => sidebarPlayerTabFor(m, candidates, windowId, shown.current, acrossProfiles));
   const tabId = shown.current;
   const fromOtherProfile = useTab(tabId, (tab) => !!tab && tab.profileId !== profileId);
   useEffect(() => {

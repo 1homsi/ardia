@@ -307,6 +307,7 @@ async function playingInAnotherProfile(across) {
   const home = S().windows[w].profileId;
   const music = S().newTab(w, { url: "music.com" });
   media.setNowPlaying(music, report());
+  S().newTab(w, { url: "home.com" });
   const work = S().createProfile({ name: "Work" });
   S().switchProfile(w, work);
   S().newTab(w, { url: "y.com" });
@@ -317,8 +318,8 @@ async function playingInAnotherProfile(across) {
 
 test("off, the Playing now card stays in the profile whose tab plays", async () => {
   const { home, work, music, playerIn } = await playingInAnotherProfile(false);
+  assert.equal(playerIn(home), music, "its own profile's page");
   assert.equal(playerIn(work), undefined, "the profile you switched to");
-  assert.equal(playerIn(home), undefined, "the tab is still its own space's active tab");
 });
 
 test("across profiles, a tab left playing in another profile shows its card in every profile of the window", async () => {
@@ -326,7 +327,38 @@ test("across profiles, a tab left playing in another profile shows its card in e
   assert.equal(playerIn(work), music, "the profile you switched to");
   assert.equal(playerIn(home), music, "the profile you swipe back through");
   S().switchProfile(w, home);
-  assert.equal(playerIn(home), undefined, "back on screen in its own profile");
+  assert.equal(playerIn(home), music, "back in its profile, another tab on screen");
+  S().activate(music);
+  assert.equal(playerIn(home), undefined, "back on screen");
+});
+
+test("across profiles, every profile's page shows the same card, even ones that picked different cards before", async () => {
+  S().hydrate({});
+  S().updateSettings({ playingNowAcrossProfiles: false });
+  const w = S().createWindow({ url: "a.com" });
+  const home = S().windows[w].profileId;
+  const music = S().newTab(w, { url: "music.com" });
+  media.setNowPlaying(music, report());
+  S().newTab(w, { url: "home.com" });
+  const work = S().createProfile({ name: "Work" });
+  S().switchProfile(w, work);
+  const video = S().newTab(w, { url: "video.com" });
+  await tick();
+  media.setNowPlaying(video, report());
+  S().newTab(w, { url: "work.com" });
+  const page = (profileId) => {
+    let own;
+    return () => (own = media.sidebarPlayerTabFor(M(), media.sidebarPlayerCandidates(M(), media.hiddenPlayerTabs(S(), w, profileId, Object.keys(M().sessions))), w, own, S().settings.playingNowAcrossProfiles));
+  };
+  const homePage = page(home);
+  const workPage = page(work);
+  assert.equal(homePage(), music, "off: each profile's own");
+  assert.equal(workPage(), video, "off: each profile's own");
+  S().updateSettings({ playingNowAcrossProfiles: true });
+  assert.equal(homePage(), video, "the newest play");
+  assert.equal(workPage(), video, "the same card");
+  media.setNowPlaying(video, report({ playbackState: "paused" }));
+  assert.equal(homePage(), workPage(), "still the same card after a pause");
 });
 
 test("across profiles, a tab paused before you switch profiles gets no card, and a play in another profile takes the paused card", async () => {
