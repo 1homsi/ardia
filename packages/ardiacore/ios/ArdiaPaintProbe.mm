@@ -39,7 +39,7 @@ namespace ardia_host {
 
 namespace {
 
-constexpr NSTimeInterval kPaintCheckAfter = 1;
+constexpr NSTimeInterval kPaintCheckAfter = 0.5;
 
 NSString *gLastPaintCheck;
 NSString *gLastPaintRecord;
@@ -61,9 +61,17 @@ NSString *ReasonNames(unsigned reasons) {
 }
 
 NSString *DescribePaint(NSDictionary *record) {
-  return [NSString stringWithFormat:@"%@ window, trigger %@, seen %d, occlusion %@, overruled %d, views %@, unpainted %@ (%@)", record[@"window"],
-                                    record[@"trigger"], [record[@"seen"] boolValue], record[@"occlusion"], [record[@"overruled"] boolValue],
-                                    record[@"views"], record[@"unpainted"], ReasonNames([record[@"reasons"] unsignedIntValue])];
+  return [NSString stringWithFormat:@"%@ window of %@, trigger %@, seen %d, occlusion %@, overruled %d, app active %d, views %@, unpainted %@ (%@)",
+                                    record[@"window"], record[@"windows"], record[@"trigger"], [record[@"seen"] boolValue], record[@"occlusion"],
+                                    [record[@"overruled"] boolValue], [record[@"appActive"] boolValue], record[@"views"], record[@"unpainted"],
+                                    ReasonNames([record[@"reasons"] unsignedIntValue])];
+}
+
+NSUInteger OpenWindowCount() {
+  NSUInteger open = 0;
+  for (ArdiaWindowController *controller in [ArdiaWindowController all])
+    if (controller.coreWindow.window.isVisible) open++;
+  return open;
 }
 
 void CheckPainting(NSWindow *window, NSString *trigger) {
@@ -80,6 +88,8 @@ void CheckPainting(NSWindow *window, NSString *trigger) {
     @"seen" : @([ArdiaWindowController userSees:window]),
     @"occlusion" : appKitShows ? @"visible" : @"occluded",
     @"overruled" : @([ArdiaWindowController userSeesOnlyThroughWindowServer:window]),
+    @"appActive" : @(NSApp.isActive),
+    @"windows" : @(OpenWindowCount()),
     @"views" : @(tally.views),
     @"unpainted" : @(tally.unpainted),
     @"reasons" : @(tally.reasons),

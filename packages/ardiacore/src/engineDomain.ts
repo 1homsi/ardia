@@ -88,6 +88,8 @@ export type WindowUnpaintedRecord = {
   seen: boolean;
   occlusion: "visible" | "occluded";
   overruled: boolean;
+  appActive: boolean;
+  windows: number;
   views: number;
   unpainted: number;
   reasons: number;

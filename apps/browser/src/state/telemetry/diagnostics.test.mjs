@@ -317,12 +317,23 @@ test("a lost-hover episode sends only its enums, flags and duration, capped per 
 });
 
 test("an unpainted window sends its enums, flags, counts and reason bits, capped per session", async () => {
-  const record = { window: "private", trigger: "seen", seen: true, occlusion: "visible", overruled: false, views: 3, unpainted: 2, reasons: (1 << 0) | (1 << 4) | (1 << 7) };
+  const { useBrowser } = await import("../browser/store.ts");
+  const record = { window: "private", trigger: "seen", seen: true, occlusion: "visible", overruled: false, appActive: true, windows: 2, views: 3, unpainted: 2, reasons: (1 << 0) | (1 << 4) | (1 << 7) };
   diagnostics.trackWindowUnpainted(record);
-  diagnostics.trackWindowUnpainted({ window: "https://private.example", trigger: "Title of a page", seen: 1, occlusion: 7, overruled: "yes", views: -4, unpainted: 1e9, reasons: "all", url: "https://private.example", title: "Inbox", profile: "Work" });
+  diagnostics.trackWindowUnpainted({ window: "https://private.example", trigger: "Title of a page", seen: 1, occlusion: 7, overruled: "yes", appActive: "yes", windows: 1e9, views: -4, unpainted: 1e9, reasons: "all", url: "https://private.example", title: "Inbox", profile: "Work" });
+  const settings = useBrowser.getState().settings;
+  useBrowser.setState({ settings: { ...settings, shareTabsAcrossWindows: true } });
+  diagnostics.trackWindowUnpainted(record);
+  useBrowser.setState({ settings });
   await new Promise((resolve) => setTimeout(resolve, 1100));
   await client.saveQueueNow();
-  const [first, odd] = events("window_unpainted").map((e) => e.properties);
+  const [first, odd, shared] = events("window_unpainted").map((e) => e.properties);
+  assert.equal(first.app_active, true);
+  assert.equal(first.windows, 2);
+  assert.equal(first.share_tabs, false);
+  assert.equal(shared.share_tabs, true);
+  assert.equal(odd.app_active, false);
+  assert.equal(odd.windows, 1000);
   assert.equal(first.window, "private");
   assert.equal(first.trigger, "seen");
   assert.equal(first.seen, true);
