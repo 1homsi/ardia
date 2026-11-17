@@ -552,15 +552,7 @@ BOOL Above(NSView *a, NSView *b) {
   NSView *lingering = focused ? LingeringPaneOver(self) : nil;
   if (!lingering || ![focused isDescendantOf:lingering]) return;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ takes focus from the lingering New Tab pane", _transferKey);
-  if (![window makeFirstResponder:nil]) return;
-  NSView *page = _tab.view;
-  if (!_visible || _standalone || !page || page.superview != self || page.isHiddenOrHasHiddenAncestor) return;
-  NSView *devTools = _focus.devTools;
-  if (_focus.page == ArdiaPageFocus::DevTools && devTools.window == window && _devtoolsView && [devTools isDescendantOf:_devtoolsView]) {
-    [window makeFirstResponder:devTools];
-  } else {
-    [self focusPage];
-  }
+  if ([window makeFirstResponder:nil]) [self focusAfterLingeringPane];
 }
 
 - (void)sinkLingeringPane {
