@@ -11,7 +11,7 @@ const PRIVATE_PROFILE = "settings-check@";
 
 type Changed = { error?: string; switched?: boolean; restored?: boolean; listed?: boolean; cleared?: boolean; reset?: boolean; noted?: boolean };
 
-const step = (what: string) => console.info(`[ardia windows] settings step: ${what}`);
+const step = (what: string) => console.info(`[ardia windows] self-check note: settings step: ${what}`);
 
 const ASK = `const ask = (target, name, ...args) => new Promise((resolve, reject) => {
   const id = "ardia-check-" + name + "-" + Math.random();
