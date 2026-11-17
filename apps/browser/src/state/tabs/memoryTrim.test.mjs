@@ -4,9 +4,11 @@ import { mock, test } from "node:test";
 let heap = 64_000_000;
 let collectionMs = 0;
 let collections = 0;
-globalThis.HermesInternal = { getInstrumentedStats: () => ({ js_heapSize: heap }) };
+let gcSeconds = 0;
+globalThis.HermesInternal = { getInstrumentedStats: () => ({ js_heapSize: heap, js_numGCs: collections, js_gcTime: gcSeconds }) };
 globalThis.gc = () => {
   collections += 1;
+  gcSeconds += collectionMs / 1000;
   heap -= 1_000_000;
   mock.timers.setTime(Date.now() + collectionMs);
 };
@@ -31,18 +33,29 @@ const trimAfterANewTab = async (ms) => {
   return { collections, counts: takeMemoryTrimCounts() };
 };
 
-test("a heap collection slower than 100 ms ends the compaction and is counted", async () => {
-  const { collections, counts } = await trimAfterANewTab(150);
-  assert.equal(collections, 1);
-  assert.equal(counts.memory_trim_slow_collections, 1);
-  assert.equal(counts.memory_trim_longest_collection_ms, 150);
-  assert.equal(counts.engine_memory_trims, 1);
-});
-
 test("fast heap collections keep compacting while the heap shrinks, up to 8", async () => {
   const { collections, counts } = await trimAfterANewTab(5);
   assert.equal(collections, 8);
   assert.equal(counts.memory_trim_slow_collections, 0);
   assert.equal(counts.memory_trim_longest_collection_ms, 5);
   assert.equal(counts.engine_memory_trims, 1);
+});
+
+test("the hourly counts carry the heap collections and their time since the last take", async () => {
+  const { counts } = await trimAfterANewTab(20);
+  assert.equal(counts.js_collections, 8);
+  assert.equal(counts.js_collection_ms, 160);
+  assert.deepEqual([takeMemoryTrimCounts().js_collections, takeMemoryTrimCounts().js_collection_ms], [0, 0]);
+});
+
+test("a heap collection slower than 100 ms ends the compaction, is counted, and later trims leave the heap alone", async () => {
+  const slow = await trimAfterANewTab(150);
+  assert.equal(slow.collections, 1);
+  assert.equal(slow.counts.memory_trim_slow_collections, 1);
+  assert.equal(slow.counts.memory_trim_longest_collection_ms, 150);
+  assert.equal(slow.counts.engine_memory_trims, 1);
+  const later = await trimAfterANewTab(5);
+  assert.equal(later.collections, 0);
+  assert.equal(later.counts.memory_trim_slow_collections, 0);
+  assert.equal(later.counts.engine_memory_trims, 1);
 });

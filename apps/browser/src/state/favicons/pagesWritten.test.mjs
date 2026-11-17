@@ -23,7 +23,22 @@ test("pagesWrittenSince lists the pages of up to 16 writes back and answers null
   assert.equal(pagesWrittenSince(now, versions.at(-18)), null);
 });
 
-test("the newest pages keep no version alive from more than 16 writes back", async () => {
+test("pagesWrittenSince answers null for pages it never saw and follows each profile's own writes", () => {
+  const unseen = { "https://a.test": "icon-a" };
+  assert.equal(pagesWrittenSince({ ...unseen }, unseen), null);
+  assert.deepEqual(pagesWrittenSince(unseen, unseen), []);
+  let work = {};
+  let home = {};
+  const workStart = work;
+  for (let i = 0; i < 10; i++) {
+    work = withPages(work, [[`https://work.test/${i}`, "w"]]);
+    home = withPages(home, [[`https://home.test/${i}`, "h"]]);
+  }
+  assert.deepEqual(pagesWrittenSince(work, workStart).sort(), Array.from({ length: 10 }, (_, i) => `https://work.test/${i}`).sort());
+  assert.equal(pagesWrittenSince(work, home), null);
+});
+
+test("the newest pages keep no earlier version alive", async () => {
   const writeMany = () => {
     const first = {};
     const versions = writeOneByOne(200, first);

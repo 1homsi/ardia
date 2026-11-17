@@ -26,6 +26,7 @@ export function startMemoryTrim() {
   started = true;
 
   let tabCount = Object.keys(useBrowser.getState().tabs).length;
+  let collectionsSlow = false;
   let lastTrimAt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -60,6 +61,7 @@ export function startMemoryTrim() {
     runtime.gc!();
     const collectionMs = Date.now() - collectedFrom;
     const slow = collectionMs > SLOW_COLLECTION_MS;
+    collectionsSlow ||= slow;
     noteHeapCollection(collectionMs, slow);
     const after = heapSize() ?? before;
     if (!slow && after < before && step + 1 < MAX_COLLECTIONS) later((late) => compact(step + 1, after, postponed, late), STEP_MS);
@@ -76,7 +78,7 @@ export function startMemoryTrim() {
       return;
     }
     lastTrimAt = Date.now();
-    if (compactsHeap) compact(0, heapSize() ?? 0, 0, 0);
+    if (compactsHeap && !collectionsSlow) compact(0, heapSize() ?? 0, 0, 0);
     else finish();
   };
 
