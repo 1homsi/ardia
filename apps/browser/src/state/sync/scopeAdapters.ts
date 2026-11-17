@@ -11,7 +11,7 @@ import { deliverSentTabs, sendLedger } from "./sentTabs";
 import { PROFILE_OPEN_TABS, profileScope } from "./records";
 import { openTabsAdapters, type OpenTabCloses, type OpenTabsMode } from "./openTabs";
 import { PLATFORM_TERMS } from "../../lib/platformTerms";
-import { removedRecordKeys } from "./profileRemoval";
+import { freezeRemovals, removedRecordKeys } from "./profileRemoval";
 import { alsoDeleting, removedDeviceKeys } from "./deviceRemoval";
 
 export const deviceName = () => SyncNative?.deviceName() ?? `This ${PLATFORM_TERMS.computerTitle}`;
@@ -48,6 +48,7 @@ const withSharedOwners = (doc: SyncDoc, links: () => SyncDoc["profiles"]) => ():
 
 export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
   const id = doc.deviceId!;
+  freezeRemovals(doc);
   if (retiring) return [deviceAdapter(id, deviceName, true)];
   const enabledLinks = () => Object.fromEntries(Object.entries(doc.profiles).filter(([, l]) => l.enabled));
   const removed = () => removedRecordKeys(doc);

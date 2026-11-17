@@ -202,6 +202,12 @@ async function crashAfterTheTombstone(mac, engine, remove) {
   });
 }
 
+async function startedUp(engine) {
+  engine.startSync();
+  for (let i = 0; i < 500 && !engine.useSync.getState().devices?.length; i++) await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(engine.useSync.getState().devices?.length, "the saved state loaded");
+}
+
 function restarted(name, docs) {
   const mac = new Mac(name);
   mac.docs = new Map(docs);
@@ -224,7 +230,7 @@ test("a device removal survives a crash after its tombstone was written, and set
   a.browser = null;
   const engineAgain = await import("./engine.ts?crashAgainA");
   await again.with(async () => {
-    engineAgain.startSync();
+    await startedUp(engineAgain);
     assert.ok(!engineAgain.useSync.getState().devices.some((d) => d.id === bId), "B is still hidden after the restart");
     await engineAgain.syncNow();
     await engineAgain.syncNow();
@@ -254,7 +260,7 @@ test("a device that came back while the Mac that removed it was down is left alo
   const again = restarted("A again", onDisk);
   const engineAgain = await import("./engine.ts?downAgainA");
   await again.with(async () => {
-    engineAgain.startSync();
+    await startedUp(engineAgain);
     await engineAgain.syncNow();
     await engineAgain.syncNow();
   });
@@ -265,4 +271,119 @@ test("a device that came back while the Mac that removed it was down is left alo
   assert.equal(syncDoc(again).removingDevices, undefined);
   await again.with(() => assert.ok(engineAgain.useSync.getState().devices.some((d) => d.id === bId), "A lists B again"));
   assert.equal(writes - written, 0, "the folder stops growing");
+});
+
+function withSavedRemoval(mac, field, value) {
+  const saved = JSON.parse(mac.docs.get("sync.json"));
+  saved[field] = value;
+  return restarted(`${mac.name} restarted`, new Map([...mac.docs, ["sync.json", JSON.stringify(saved)]]));
+}
+
+test("a device removal saved as a list by an earlier version still deletes once when the device comes back during it, and an already finished one settles", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?legacyDevA");
+  const engineB = await import("./engine.ts?legacyDevB");
+  await turnOn(a, engineA);
+  await join(b, engineB);
+  const bId = await b.with(() => engineB.useSync.getState().devices.find((d) => d.current).id);
+  await a.with(() => engineA.syncNow());
+  const again = withSavedRemoval(a, "removingDevices", [bId]);
+  const engineAgain = await import("./engine.ts?legacyDevAgain");
+  await again.with(() => startedUp(engineAgain));
+  await removeWhileItComesBack(again, engineAgain, b, engineB, () => true);
+  await rounds(4, [again, engineAgain], [b, engineB]);
+  const written = writes;
+  await rounds(10, [again, engineAgain], [b, engineB]);
+  assert.equal(tombstones(`dev:${bId}`), 1, "the saved removal deleted B once");
+  assert.equal(syncDoc(again).removingDevices, undefined);
+  await again.with(() => assert.ok(engineAgain.useSync.getState().devices.some((d) => d.id === bId), "and lists B again"));
+  assert.equal(writes - written, 0, "the folder stops growing");
+});
+
+test("a device removal saved as a list after its tombstone already went out settles without deleting again", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?doneDevA");
+  const engineB = await import("./engine.ts?doneDevB");
+  await turnOn(a, engineA);
+  await join(b, engineB);
+  const bId = await b.with(() => engineB.useSync.getState().devices.find((d) => d.current).id);
+  await a.with(async () => {
+    await engineA.syncNow();
+    assert.equal(engineA.removeSyncedDevice(bId), true);
+    await engineA.syncNow();
+    await engineA.syncNow();
+  });
+  const again = withSavedRemoval(a, "removingDevices", [bId]);
+  const engineAgain = await import("./engine.ts?doneDevAgain");
+  await again.with(async () => {
+    await startedUp(engineAgain);
+    await engineAgain.syncNow();
+    await engineAgain.syncNow();
+  });
+  assert.equal(tombstones(`dev:${bId}`), 1);
+  assert.equal(syncDoc(again).removingDevices, undefined, "a finished removal doesn't stay queued");
+});
+
+test("a profile removal saved as a list by an earlier version still deletes once when another Mac publishes the profile again during it", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const c = new Mac("C");
+  const engineA = await import("./engine.ts?legacyProfA");
+  const engineC = await import("./engine.ts?legacyProfC");
+  const work = await a.with(() => S().createProfile({ name: "Work", shareWith: "default" }));
+  await turnOn(a, engineA);
+  await join(c, engineC);
+  await c.with(async () => {
+    const offered = engineC.useSync.getState().remoteProfiles.find((p) => p.name === "Work");
+    engineC.addRemoteProfile(offered.syncId);
+    await engineC.syncNow();
+  });
+  const syncId = await a.with(async () => {
+    S().deleteProfile(work);
+    await engineA.syncNow();
+    await engineA.syncNow();
+    return engineA.useSync.getState().remoteProfiles.find((p) => p.name === "Work").syncId;
+  });
+  const again = withSavedRemoval(a, "removing", [syncId]);
+  const engineAgain = await import("./engine.ts?legacyProfAgain");
+  await again.with(() => startedUp(engineAgain));
+  await removeWhileItComesBack(again, engineAgain, c, engineC, () => true);
+  await rounds(4, [again, engineAgain], [c, engineC]);
+  const written = writes;
+  await rounds(10, [again, engineAgain], [c, engineC]);
+  assert.equal(tombstones(`prof:${syncId}`), 1, "the saved removal deleted the profile once");
+  assert.equal(syncDoc(again).removing, undefined);
+  await again.with(() => assert.ok(engineAgain.useSync.getState().remoteProfiles.some((p) => p.syncId === syncId), "and offers it again"));
+  assert.equal(writes - written, 0, "the folder stops growing");
+});
+
+test("a removal saved as a list targets the records present when the cycle starts, so one that comes back during that cycle isn't targeted again", async () => {
+  const { appAdapters } = await import("./scopeAdapters.ts");
+  const { removedDeviceKeys } = await import("./deviceRemoval.ts");
+  const { removedRecordKeys, settleRemovals } = await import("./profileRemoval.ts");
+  const device = { n: "B", k: "mac" };
+  const profile = { n: "Work", c: "blue", i: null };
+  const app = {
+    records: { "dev:B": { h: "1", v: device }, "prof:W": { h: "1", v: profile } },
+    base: { "dev:B": JSON.stringify(device), "prof:W": JSON.stringify(profile) },
+    joined: true,
+    unapplied: [],
+  };
+  const doc = { deviceId: "A", profiles: {}, types: {}, scopes: { app }, removingDevices: ["B"], removing: ["W"] };
+  appAdapters(doc, false);
+  assert.ok(removedDeviceKeys(doc).has("dev:B"));
+  assert.ok(removedRecordKeys(doc).has("prof:W"));
+  app.records["dev:B"] = { h: "2", v: null };
+  app.records["prof:W"] = { h: "2", v: null };
+  app.records["dev:B"] = { h: "3", v: device };
+  app.records["prof:W"] = { h: "3", v: profile };
+  settleRemovals(doc, app);
+  assert.equal(doc.removingDevices, undefined, "the device that came back isn't removed again");
+  assert.equal(doc.removing, undefined, "nor the profile");
+  assert.equal(removedDeviceKeys(doc).size, 0);
+  assert.equal(removedRecordKeys(doc).size, 0);
 });

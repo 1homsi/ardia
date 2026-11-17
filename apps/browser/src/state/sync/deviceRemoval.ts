@@ -9,15 +9,27 @@ let returned = 0;
 
 const keyOf = (id: string) => `${DEVICE}${id}`;
 
+const liveTargets = (app: ScopeState | undefined, ids: string[]): [string, HLC][] =>
+  ids.flatMap((id) => {
+    const record = app?.records[keyOf(id)];
+    return record && record.v !== null ? [[id, record.h]] : [];
+  });
+
 function removalTargets(doc: SyncDoc): Record<string, HLC> {
   const saved = doc.removingDevices;
-  const app = doc.scopes[APP_SCOPE];
   const entries = isStringList(saved)
-    ? saved.map((id) => [id, app?.records[keyOf(id)]?.h ?? ""] as const)
+    ? liveTargets(doc.scopes[APP_SCOPE], saved)
     : isFields(saved)
       ? Object.entries(saved).filter((entry): entry is [string, HLC] => typeof entry[1] === "string")
       : [];
   return Object.fromEntries(entries.filter(([id]) => id !== doc.deviceId));
+}
+
+export function freezeDeviceRemovals(doc: SyncDoc) {
+  if (!isStringList(doc.removingDevices) || !doc.scopes[APP_SCOPE]?.joined) return;
+  const targets = removalTargets(doc);
+  if (Object.keys(targets).length) doc.removingDevices = targets;
+  else delete doc.removingDevices;
 }
 
 const stillTargeted = (app: ScopeState | undefined, key: string, h: HLC) => app?.records[key]?.h === h;

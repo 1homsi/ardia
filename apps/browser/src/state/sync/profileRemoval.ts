@@ -4,7 +4,7 @@ import { PROFILE, PROFILE_OPEN_TABS, PROFILE_THEME, PROFILE_TOP_APPS, SHARE, rec
 import { themeAngleKey } from "./profileAdapters";
 import { linkedProfileId, remoteProfileRecord } from "./profileLinks";
 import { APP_SCOPE, type ProfileRemoval, type SyncDoc } from "./syncDoc";
-import { settleDeviceRemovals } from "./deviceRemoval";
+import { freezeDeviceRemovals, settleDeviceRemovals } from "./deviceRemoval";
 
 export { markDeviceRemoved, takeReturnedDeviceRemovals, takeSyncedDeviceRemovals } from "./deviceRemoval";
 
@@ -21,11 +21,22 @@ const isRemoval = (value: unknown): value is ProfileRemoval => isFields(value) &
 function removalTargets(doc: SyncDoc): Record<string, ProfileRemoval> {
   const saved = doc.removing;
   const entries = isStringList(saved)
-    ? saved.map((syncId) => [syncId, { keys: liveKeys(doc.scopes[APP_SCOPE], syncId) }] as const)
+    ? saved.flatMap((syncId) => {
+        const keys = liveKeys(doc.scopes[APP_SCOPE], syncId);
+        return Object.keys(keys).length ? [[syncId, { keys }] as const] : [];
+      })
     : isFields(saved)
       ? Object.entries(saved).filter((entry): entry is [string, ProfileRemoval] => isRemoval(entry[1]))
       : [];
   return Object.fromEntries(entries.filter(([syncId]) => !linkedProfileId(doc, syncId)));
+}
+
+export function freezeRemovals(doc: SyncDoc) {
+  freezeDeviceRemovals(doc);
+  if (!isStringList(doc.removing) || !doc.scopes[APP_SCOPE]?.joined) return;
+  const targets = removalTargets(doc);
+  if (Object.keys(targets).length) doc.removing = targets;
+  else delete doc.removing;
 }
 
 export const removedRecordKeys = (doc: SyncDoc): ReadonlySet<string> => {
