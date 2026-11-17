@@ -170,8 +170,8 @@ void RecordPageCursors() {
   SEL update = NSSelectorFromString(@"updateCursor:");
   ardia_runtime::ReplaceMethod(PageViewClass(), update, ^id(IMP original) {
     return ^(NSView *page, NSCursor *cursor) {
-      if (cursor) gLastPageCursor = cursor;
       ((void (*)(id, SEL, NSCursor *))original)(page, update, cursor);
+      if (cursor && NSCursor.currentCursor == cursor) gLastPageCursor = cursor;
     };
   });
 }
