@@ -20,6 +20,7 @@ test("a pop-up button looks like its platform's: the Mac's accent box with two c
   const windowsChrome = await import("./platformChrome.windows.ts");
   assert.deepEqual(macChrome.POP_UP_CHROME, { indicator: "accentUpDown", growsToItsTitle: false });
   assert.deepEqual(windowsChrome.POP_UP_CHROME, { indicator: "chevronDown", growsToItsTitle: true });
+  assert.deepEqual((await import("./platformChrome.linux.ts")).POP_UP_CHROME, macChrome.POP_UP_CHROME);
   const { vectorIcon } = await import("../../../../packages/expo-windows/src/symbol/layers.ts");
   assert.ok(vectorIcon("chevron.down", 8, "bold"), "Windows can draw the chevron");
 });
