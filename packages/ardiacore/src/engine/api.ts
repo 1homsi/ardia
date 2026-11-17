@@ -213,6 +213,7 @@ export type EngineEvents = {
   "engine.cliControl": CliControlStatus;
   "engine.hoverLost": HoverLostEpisode;
   "engine.devToolsKeyKept": Record<string, never>;
+  "engine.cursorRestored": { hidden: boolean };
   "tabs.strips": TabStripTransaction;
   "downloads.changed": Download;
   "permissions.requested": PermissionRequest;
