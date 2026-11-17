@@ -21,8 +21,8 @@ export function headerIndicatorLayout({ room, textWidth, named, menuInHeader }: 
 
 export const INDICATOR_GAP = 9;
 
-export function sidebarHeaderSplit(width: number, captionRoom: number, indicator: number, toggleOnly: number) {
-  if (!captionRoom) {
+export function sidebarHeaderSplit({ width, captionRoom, indicator, toggleOnly, menuInHeader }: { width: number; captionRoom: number; indicator: number; toggleOnly: number; menuInHeader: boolean }) {
+  if (menuInHeader) {
     const navigation = Math.max(114, width - 136);
     return { navigation, indicatorRoom: Math.max(36, width - navigation - INDICATOR_GAP) };
   }

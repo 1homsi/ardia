@@ -8,13 +8,24 @@ type ActivationTarget = {
 
 export const CLUSTER_MENU_BUTTON = '[role="button"][aria-label="Menu"]';
 
-export function createClusterMenu(target: ActivationTarget | null, open: (windowId: string, anchor: HTMLElement) => Promise<unknown>, shown: () => boolean, focused: () => Element | null) {
+export type ClusterMenuHooks = {
+  target: ActivationTarget | null;
+  open(windowId: string, anchor: HTMLElement): Promise<unknown>;
+  shown(): boolean;
+  dismiss(): void;
+  focused(): Element | null;
+  visible(): Element | null;
+};
+
+const menuButtonOf = (element: unknown): Element | null =>
+  element && typeof element === "object" && "closest" in element ? (element as Anchor).closest(CLUSTER_MENU_BUTTON) : null;
+
+export function createClusterMenu({ target, open, shown, dismiss, focused, visible }: ClusterMenuHooks) {
   let pressed: Element | null = null;
   let openAtPress = false;
   target?.addEventListener("pointerdown", (event) => {
-    const hit = event.target && "closest" in event.target ? (event.target as Anchor).closest(CLUSTER_MENU_BUTTON) : null;
-    pressed = hit;
-    openAtPress = !!hit && shown();
+    pressed = menuButtonOf(event.target);
+    openAtPress = !!pressed && shown();
   }, true);
   target?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -22,11 +33,23 @@ export function createClusterMenu(target: ActivationTarget | null, open: (window
     openAtPress = false;
   }, true);
   return (windowId: string) => {
-    const anchor = pressed ?? focused();
-    const wasOpen = openAtPress;
+    const wasOpen = openAtPress || shown();
+    const anchor = pressed ?? menuButtonOf(focused()) ?? visible();
     pressed = null;
     openAtPress = false;
-    if (wasOpen || !anchor) return Promise.resolve();
+    if (wasOpen) {
+      dismiss();
+      return Promise.resolve();
+    }
+    if (!anchor) return Promise.resolve();
     return open(windowId, anchor as HTMLElement).catch(reportHostError);
   };
 }
+
+type Visibility = Element & { checkVisibility?(options: { checkOpacity: boolean; checkVisibilityCSS: boolean }): boolean };
+
+export const visibleClusterMenuButton = (root: Pick<Document, "querySelectorAll">): Element | null =>
+  [...root.querySelectorAll<Visibility>(CLUSTER_MENU_BUTTON)].find((button) => {
+    const box = button.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && (button.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) ?? true);
+  }) ?? null;

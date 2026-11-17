@@ -29,46 +29,61 @@ test("minimize and maximize reach the Linux host's window calls; caption regions
   assert.deepEqual(calls, [["ArdiaShell.minimizeWindow", ["main"]], ["ArdiaShell.toggleMaximizeWindow", ["main"]]]);
 });
 
-test("one click on Close asks once: the caption button goes straight to Linux's close coordinator instead of confirming first and again in the coordinator", async () => {
+test("one click on Close shows one confirmation through Linux's own close coordinator, and Cancel keeps the window open", async () => {
   const { useBrowser } = await import("../../browser/src/state/browser/store.ts");
-  const { setManagedWindowClose } = await import("../../browser/src/platform/windowClose.ts");
-  const { startWindowCloseGuard } = await import("../../browser/src/state/windows/windowClose.ts");
+  const { createWindowCloseBarrier } = await import("./utilityClose.ts");
+  const { createWindowCloseCoordinator } = await import("./windowCloseCoordinator.ts");
   const { decideLinuxWindowClose } = await import("./windowCloseDecider.ts");
-  const shared = await import("../../browser/src/state/windows/controls.ts");
   const stub = await import("../../browser/src/test-native/index.ts");
-  const asks = [];
-  const ask = async (options) => (asks.push(options.title), { confirmed: true, suppressed: false });
-  stub.shellNativeModules.ArdiaDialogs.confirm = ask;
-  startWindowCloseGuard();
   const S = () => useBrowser.getState();
   S().hydrate({ profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, profileOrder: ["default"] });
   S().updateSettings({ warnBeforeClosingWindow: true });
   S().createWindow({ url: "https://staying.ardia.test/" });
   const leaving = S().createWindow({ url: "https://one.ardia.test/" });
   S().newTab(leaving, { url: "https://two.ardia.test/" });
-  const coordinator = [];
-  setManagedWindowClose((windowId, reason) => {
-    coordinator.push(windowId);
-    void decideLinuxWindowClose(windowId, reason, ask);
-    return true;
+  const asked = [];
+  const drained = [];
+  let answer = { confirmed: false, suppressed: false };
+  let generation = 0;
+  let coordinator;
+  const barrier = createWindowCloseBarrier({
+    quiesce: () => {},
+    drain: async () => 0,
+    acknowledge: async (value) => void drained.push(value.closeGeneration),
+    reject: async () => {},
+    resume: (value) => coordinator.producersResumed(value),
   });
+  coordinator = createWindowCloseCoordinator({
+    windowId: leaving,
+    utility: false,
+    decide: decideLinuxWindowClose,
+    ask: async (options) => (asked.push(options.title), answer),
+    suppress: () => {},
+    flush: async () => {},
+    request: async () => ({ windowId: leaving, rendererGeneration: "1", closeGeneration: String(++generation) }),
+    beginDrain: async () => ({ accepted: true, endsSession: false }),
+    reject: async () => {},
+    barrier,
+    cancelled: barrier.cancelled,
+  });
+  const previous = stub.shellNativeModules.ArdiaAppWindows.closeWindow;
+  stub.shellNativeModules.ArdiaAppWindows.closeWindow = (id) => coordinator.closeWindow(id);
+  const until = async (done) => { for (let i = 0; i < 50 && !done(); i++) await settle(); };
   try {
-    shared.closeFromWindowControls(leaving);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.deepEqual(asks, ["Close 2 tabs?", "Close 2 tabs?"], "the shared Windows path confirms, then the coordinator confirms again");
-    asks.length = 0;
-    coordinator.length = 0;
-    const closed = stub.windows.closed.length;
-    const linux = await import("./captionControls.ts");
-    linux.closeFromWindowControls(leaving);
+    const { closeFromWindowControls } = await import("./captionControls.ts");
+    closeFromWindowControls(leaving);
+    await until(() => asked.length === 1);
     await settle();
-    assert.deepEqual(stub.windows.closed.slice(closed), [leaving], "Linux hands the close to the shell's coordinator, which asks once");
-    assert.deepEqual(asks, []);
-    assert.deepEqual(coordinator, []);
-    assert.equal(linux.minimizeWindow, shared.minimizeWindow);
-    assert.equal(linux.toggleWindowMaximized, shared.toggleWindowMaximized);
+    assert.deepEqual(asked, ["Close 2 tabs?"]);
+    assert.deepEqual(drained, [], "Cancel drains nothing");
+    assert.ok(S().windows[leaving], "and the window stays");
+    answer = { confirmed: true, suppressed: false };
+    closeFromWindowControls(leaving);
+    await until(() => drained.length === 1);
+    assert.deepEqual(asked, ["Close 2 tabs?", "Close 2 tabs?"], "one confirmation per click");
+    assert.equal(drained.length, 1);
   } finally {
-    setManagedWindowClose(() => false);
+    stub.shellNativeModules.ArdiaAppWindows.closeWindow = previous;
   }
 });
 
@@ -99,33 +114,45 @@ test("the header's profile name makes room for the menu only when the header hol
   assert.equal(layout(40, true, false).shown, true);
 });
 
-test("beside the window buttons in a right sidebar, the profile name comes before back and forward", async () => {
+test("the sidebar's header tools: the profile name comes before back and forward beside the window buttons, and with no name they take the whole width", async () => {
   const { sidebarHeaderSplit } = await import("./profileIndicatorLayout.ts");
-  assert.deepEqual(sidebarHeaderSplit(190, 0, 0, 45), { navigation: 114, indicatorRoom: 67 }, "without the buttons the header is as before");
-  assert.deepEqual(sidebarHeaderSplit(260, 171, 32, 45), { navigation: 48, indicatorRoom: 32 });
-  assert.deepEqual(sidebarHeaderSplit(320, 171, 75, 45), { navigation: 65, indicatorRoom: 75 });
-  assert.deepEqual(sidebarHeaderSplit(190, 171, 0, 45), { navigation: 45, indicatorRoom: 0 });
-  assert.deepEqual(sidebarHeaderSplit(400, 171, 0, 45), { navigation: 229, indicatorRoom: 0 });
+  const split = (width, captionRoom, indicator, menuInHeader = false) => sidebarHeaderSplit({ width, captionRoom, indicator, toggleOnly: 45, menuInHeader });
+  assert.deepEqual(split(190, 0, 34, true), { navigation: 114, indicatorRoom: 67 }, "with the hamburger in the header (full screen) it is as before");
+  assert.deepEqual(split(190, 0, 0), { navigation: 190, indicatorRoom: 0 }, "a left sidebar with the address bar and one profile: toggle, back, forward and reload fit");
+  assert.deepEqual(split(190, 0, 70), { navigation: 111, indicatorRoom: 70 });
+  assert.deepEqual(split(260, 171, 32), { navigation: 48, indicatorRoom: 32 });
+  assert.deepEqual(split(320, 171, 75), { navigation: 65, indicatorRoom: 75 });
+  assert.deepEqual(split(190, 171, 0), { navigation: 45, indicatorRoom: 0 });
 });
 
 function clusterHarness() {
   const listeners = {};
   let open = false;
   const opened = [];
-  const menuButton = { name: "…" };
-  const reload = { name: "Reload" };
-  const inside = (button) => ({ closest: (selector) => (selector === '[role="button"][aria-label="Menu"]' && button === menuButton ? menuButton : null) });
+  let dismissed = 0;
+  const menuButton = { name: "…", closest: (selector) => (selector === '[role="button"][aria-label="Menu"]' ? menuButton : null) };
+  const element = (name) => ({ name, closest: () => null });
+  const reload = element("Reload");
+  const field = element("address field");
   let focused = null;
   return {
     async load() {
       const { createClusterMenu } = await import("./clusterMenu.ts");
-      this.show = createClusterMenu({ addEventListener: (type, listener, capture) => capture && (listeners[type] = listener) }, async (windowId, anchor) => void opened.push(anchor.name), () => open, () => focused);
+      this.show = createClusterMenu({
+        target: { addEventListener: (type, listener, capture) => capture && (listeners[type] = listener) },
+        open: async (windowId, anchor) => void opened.push(anchor.name),
+        shown: () => open,
+        dismiss: () => { dismissed++; open = false; },
+        focused: () => focused,
+        visible: () => menuButton,
+      });
     },
-    press: (button) => listeners.pointerdown({ target: inside(button) }),
+    press: (target) => listeners.pointerdown({ target }),
     key: (key) => listeners.keydown({ key }),
-    focus: (button) => void (focused = button),
+    focus: (target) => void (focused = target),
     setOpen: (value) => void (open = value),
-    menuButton, reload, opened,
+    dismissed: () => dismissed,
+    menuButton, reload, field, opened,
   };
 }
 
@@ -137,6 +164,21 @@ test("the … opens Linux's full app menu under itself, and a second press while
   assert.deepEqual(h.opened, ["…"]);
   h.setOpen(true);
   h.press(h.menuButton);
+  h.setOpen(false);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+test("Enter on the focused … while its menu is open closes the menu, as the header's hamburger does", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.setOpen(true);
+  h.focus(h.menuButton);
+  h.key("Enter");
+  await h.show("w");
+  assert.deepEqual(h.opened, []);
+  assert.equal(h.dismissed(), 1);
+  h.key("Enter");
   await h.show("w");
   assert.deepEqual(h.opened, ["…"]);
 });
@@ -151,6 +193,14 @@ test("a click elsewhere never steers the … menu: after clicking Reload, Tab an
   assert.deepEqual(h.opened, ["…"]);
 });
 
+test("activated with no press or key, as assistive technology does, the menu anchors to the visible …, not to whatever has focus", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.focus(h.field);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
 test("after a menu is dismissed by clicking outside, keyboard activation of the … opens it on the first press", async () => {
   const h = clusterHarness();
   await h.load();
@@ -159,6 +209,28 @@ test("after a menu is dismissed by clicking outside, keyboard activation of the 
   h.setOpen(false);
   h.focus(h.menuButton);
   h.key(" ");
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+test("a press on the … that never activated it, like a drag off the button, doesn't stop the next Enter from opening the menu", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.setOpen(true);
+  h.press(h.menuButton);
+  h.setOpen(false);
+  h.focus(h.menuButton);
+  h.key("Enter");
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+test("a press outside while a menu was open is forgotten even when the … is then activated without a key", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.setOpen(true);
+  h.press(h.reload);
+  h.setOpen(false);
   await h.show("w");
   assert.deepEqual(h.opened, ["…"]);
 });
@@ -220,27 +292,4 @@ test("without a frame, as on Wayland, the shell's outer size is compared with th
   h.replies.shift()();
   await settle();
   assert.deepEqual(h.noted, [["w", false], ["w", true]]);
-});
-
-test("a press on the … that never activated it, like a drag off the button, doesn't stop the next Enter from opening the menu", async () => {
-  const h = clusterHarness();
-  await h.load();
-  h.setOpen(true);
-  h.press(h.menuButton);
-  h.setOpen(false);
-  h.focus(h.menuButton);
-  h.key("Enter");
-  await h.show("w");
-  assert.deepEqual(h.opened, ["…"]);
-});
-
-test("a press outside while a menu was open is forgotten even when the … is then activated without a key, as assistive technology does", async () => {
-  const h = clusterHarness();
-  await h.load();
-  h.setOpen(true);
-  h.press(h.reload);
-  h.setOpen(false);
-  h.focus(h.menuButton);
-  await h.show("w");
-  assert.deepEqual(h.opened, ["…"]);
 });

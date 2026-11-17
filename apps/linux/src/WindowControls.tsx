@@ -13,6 +13,7 @@ export const WindowControls = memo(function WindowControls(props: WindowControls
   return (
     <div
       style={{ display: "contents" }}
+      inert={props.hidden || undefined}
       onContextMenu={(event) => {
         if (!linuxWindowMenu || isLinuxUtility(props.windowId)) return;
         event.preventDefault();

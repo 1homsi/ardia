@@ -1,5 +1,6 @@
 import { SidebarHeaderTools as NavigationTools } from "../../browser/src/components/sidebar/AddressBar";
 import { useSidebarCaptionRoom } from "../../browser/src/state/windows/layout";
+import { useMenuBesideWindowButtons } from "./sidebarHeaderLayout";
 import { HEADER_TOOLS } from "../../browser/src/components/window/dockMotion";
 import { ProfileIndicator, useProfileIndicatorWidth } from "./ProfileIndicator";
 import { INDICATOR_GAP, sidebarHeaderSplit } from "./profileIndicatorLayout";
@@ -11,7 +12,8 @@ const TOGGLE_ONLY = HEADER_TOOLS.fullScreenToggleX + 16;
 export function SidebarHeaderTools({ width }: { width: number }) {
   const captionRoom = useSidebarCaptionRoom();
   const indicator = useProfileIndicatorWidth(Math.max(0, width - captionRoom - TOGGLE_ONLY - INDICATOR_GAP));
-  const { navigation, indicatorRoom } = sidebarHeaderSplit(width, captionRoom, captionRoom ? indicator : 0, TOGGLE_ONLY);
+  const menuInHeader = !useMenuBesideWindowButtons();
+  const { navigation, indicatorRoom } = sidebarHeaderSplit({ width, captionRoom, indicator, toggleOnly: TOGGLE_ONLY, menuInHeader });
   return (
     <>
       <NavigationTools width={navigation + captionRoom} />

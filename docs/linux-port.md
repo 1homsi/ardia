@@ -663,18 +663,21 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   - `WindowControls.tsx` wraps the shared one: right-clicking the buttons opens the window menu (`linuxWindowMenu.ts`)
     except in Settings and Import, and the buttons hide while a page is in full screen.
   - The `…` opens the Linux app menu (Menu button below) under itself (`clusterAppMenu.ts`, swapped in for
-    `BrowserWindowControls.tsx`'s `showAppMenu`): a pointer press on the `…` anchors it there, any other press or a
-    key activation forgets it, and keyboard activation anchors to the focused `…`. There are never two menu buttons:
-    the `…` while the window buttons are placed, the header's hamburger otherwise (full screen). Linux keeps the
-    sidebar header the Windows rule would collapse whenever the hamburger has no other home
-    (`sidebarHeaderLayout.ts`).
+    `BrowserWindowControls.tsx`'s `showAppMenu`): a pointer press anchors it to the pressed `…`, a key to the focused
+    one, and an activation with neither (assistive technology) to the visible one. Pressing it, or Enter on it, while
+    a menu is open closes the menu. The buttons take keyboard focus like any button (`focusable` on the shared
+    `ControlButton`), and the `…` counts as a menu surface, so tabbing to it keeps the field Edit › Copy and Paste act
+    on. There are never two menu buttons: the `…` while the window buttons are placed, the header's hamburger
+    otherwise (full screen). Linux keeps the sidebar header the Windows rule would collapse whenever the hamburger has
+    no other home (`sidebarHeaderLayout.ts`). Some full-screen layouts still have none, as before this change: top
+    tabs with minimalism, or a sidebar whose profile part is hidden.
   - Restore: the engine sends no `maximized` event, so each window reads `ArdiaShell.windowFrame` at start and once
     per animation frame of resizing, and marks itself maximized when the frame fills the work area, feeding the shared
     `useMaximizedWindows` through `captionRegions.ts`'s `noteMaximized` (`windowMaximized.ts`). Settings and Import
-    too. Known limit: on Wayland `windowFrame` is null and the work area is the whole output, so the shell compares
-    its outer size with that; with a panel, a bar or gaps a maximized window keeps the maximize glyph, and a lone
-    gapless tiled window may show restore. Clicking still toggles correctly; the glyph needs the engine to report
-    maximized state.
+    too. Known limits: a window that fills the work area without being maximized, such as a lone tiled window on a
+    tiling window manager (X11 or Wayland), shows restore. On Wayland `windowFrame` is null and the work area is the
+    whole output, so the shell compares its outer size with that, and with a panel, a bar or gaps a maximized window
+    keeps the maximize glyph. Clicking still toggles correctly; the glyph needs the engine to report maximized state.
 - **Header drag and double-click.** Dragging the header moves the window (`DispatchHostWindowDragMovement`).
   Double-clicking it runs the desktop's titlebar action.
 - **Outer frame.** The host overlays Chromium's client view and doesn't replace its frame. Without the Wayland
