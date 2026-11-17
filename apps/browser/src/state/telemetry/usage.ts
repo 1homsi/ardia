@@ -209,7 +209,6 @@ export const noteSettingsSearchReveal = (via: "keyboard" | "click", rank: number
 export const noteSettingsSearch = (event: "started" | "empty") => void counts[event === "started" ? "settingsSearches" : "settingsSearchesEmpty"]++;
 
 export const noteTabStripPeek = () => void (counts.tabStripPeeks++, !useBrowser.getState().settings.autoHideTabs && counts.tabPeeksWithAutoHideOff++);
-
 export const noteTabStripMenu = (menu: "tabs" | "overflow") => void counts[menu === "tabs" ? "tabStripMenuOpens" : "tabStripOverflowOpens"]++;
 const size = (o: object) => Object.keys(o).length;
 
