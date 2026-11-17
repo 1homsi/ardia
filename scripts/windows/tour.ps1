@@ -42,6 +42,9 @@ public static class ArdiaTour {
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr window, StringBuilder text, int max);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr window, StringBuilder text, int max);
   [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
+  [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumWindowsCallback callback, IntPtr data);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, StringBuilder lParam, uint flags, uint timeout, out IntPtr result);
+  [DllImport("user32.dll")] private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
@@ -96,6 +99,23 @@ public static class ArdiaTour {
     uint processId;
     GetWindowThreadProcessId(window, out processId);
     return processId;
+  }
+
+  public static string[] EditTextsOf(IntPtr parent) {
+    List<string> found = new List<string>();
+    EnumWindowsCallback callback = delegate (IntPtr window, IntPtr data) {
+      if (ClassOf(window).IndexOf("Edit", StringComparison.OrdinalIgnoreCase) < 0) return true;
+      IntPtr length;
+      if (SendMessageTimeoutW(window, 0x000E, IntPtr.Zero, IntPtr.Zero, 0x0002, 1000, out length) == IntPtr.Zero) return true;
+      StringBuilder text = new StringBuilder(length.ToInt32() + 1);
+      IntPtr copied;
+      if (SendMessageTimeoutW(window, 0x000D, (IntPtr)text.Capacity, text, 0x0002, 1000, out copied) == IntPtr.Zero) return true;
+      found.Add(text.ToString());
+      return true;
+    };
+    EnumChildWindows(parent, callback, IntPtr.Zero);
+    GC.KeepAlive(callback);
+    return found.ToArray();
   }
 
   public static TopWindow[] VisibleWindowsOf(uint processId) {
@@ -955,6 +975,7 @@ function Get-BarGaps($Session, [int]$Mark) {
 }
 
 $script:FocusBoundMs = 90
+$script:FirstLetters = [System.Collections.Generic.List[object]]::new()
 
 function Format-BarMarks($Session, [int]$Mark) {
   $lines = @(Get-LinesSince $Session $Mark "\[ardia windows\] (bar |js stall|new tab bar |new tab pane )" | ForEach-Object { $_ -replace '\[ardia windows\] ', '' } | Select-Object -First 60)
@@ -1037,9 +1058,259 @@ function Invoke-TypingTour {
     Invoke-BarTypingStop $session "typing-floating" "Not a first run, new tabs open the command bar: Ctrl+T into the floating bar, typing at 80 ms a key, ten tries" "With newTabOpens = commandBar, pressed Ctrl+T, typed example.com from 100 ms after it at 80 ms a key, reading the field after every key, then closed the floating bar with Escape; ten times." { Send-QuickChord @(0x11) 0x54 } { Close-Bar } 100 80 10
   }
   Stop-Ardia $session
+
+  Invoke-HoldTour
 }
 
-function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$RequireGoHold) {
+function Read-EditTexts([IntPtr]$Window) {
+  if (-not (Initialize-Uia)) { return @() }
+  $texts = @()
+  try {
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle($Window)
+    $edit = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+    $document = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
+    $either = [System.Windows.Automation.OrCondition]::new($edit, $document)
+    foreach ($element in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $either)) {
+      try {
+        $pattern = $null
+        if ($element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) { $texts += [string]$pattern.Current.Value; continue }
+        if ($element.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$pattern)) { $texts += [string]$pattern.DocumentRange.GetText(-1) }
+      } catch { }
+    }
+  } catch { }
+  return @($texts)
+}
+
+function Send-Char([char]$Character) {
+  $key = [byte][char]([string]$Character).ToUpperInvariant()
+  if ($Character -eq '.') { $key = 0xBE }
+  Send-Key $key 0
+  Send-Key $key 2
+}
+
+function Send-Typed([string]$Text, [int]$KeyMs = 30) {
+  foreach ($character in $Text.ToCharArray()) {
+    Send-Char $character
+    Start-Sleep -Milliseconds $KeyMs
+  }
+}
+
+function Get-HoldLines($Session, [int]$Mark) {
+  return @(Get-LinesSince $Session $Mark "^keys \d+ hold ")
+}
+
+function Get-HoldEnd($Session, [int]$Mark, [string]$Reason) {
+  $lines = @(Get-HoldLines $Session $Mark)
+  if (@($lines | Where-Object { $_ -match "dropped: $Reason with [1-9]\d* held" }).Count -ge 1) { return "dropped" }
+  if (@($lines | Where-Object { $_ -match " dropped: " }).Count -ge 1) { return "dropped otherwise" }
+  if (@($lines | Where-Object { $_ -match " ready after \d+ ms, replayed " }).Count -ge 1) { return "ready" }
+  return "none"
+}
+
+$script:HoldReadyMs = 400
+
+function Invoke-HoldStop($Session, [string]$Slug, [string]$Title, [string]$Did, [string]$Expected, [scriptblock]$Act, [scriptblock]$Judge) {
+  $stop = Invoke-Stop $Session $Slug $Title {
+    param($stop)
+    $stop.Did = "$Did The bar's readiness is held to $($script:HoldReadyMs) ms after the command (ARDIA_TEST keyHoldReadyMs), as on a slow launch, so the keys arrive while the hold runs."
+    $stop.Expected = $Expected
+    if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
+    Focus-Window $Session $Session.Main $stop | Out-Null
+    $mark = Get-LogCount $Session
+    $chord = Send-QuickChord @(0x11) 0x54
+    $left = 15 - $chord.ElapsedMilliseconds
+    if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+    $acted = & $Act $stop
+    Start-Sleep -Milliseconds 1500
+    $field = Read-FocusedText
+    $stop.Facts.Add("the focused field: '$field'")
+    $stop.Facts.Add("key hold lines: $((Get-HoldLines $Session $mark) -join ' / ')")
+    $stop.Facts.Add("bar marks: $(Format-BarMarks $Session $mark)")
+    Set-Seen $stop ([bool](& $Judge $stop $field $mark $acted))
+    Save-Shot $stop $Session.Main | Out-Null
+    Send-Escape
+    Start-Sleep -Milliseconds 150
+    Send-Chord @(0x11) 0x57
+    Start-Sleep -Milliseconds 500
+  }
+  if ($stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
+}
+
+function Invoke-WholeTextTries($Session, [string]$Slug, [string]$Title, [string]$How) {
+  $stop = Invoke-Stop $Session $Slug $Title {
+    param($stop)
+    $stop.Did = "Ten times: pressed Ctrl+T, and from 15 ms after it typed example.com, 30 ms a key, $How; read the bar 1.5 s after the last key, then pressed Escape and Ctrl+W. Example Domain is in this profile's history, so the bar's inline completion offers example.com from the first letter."
+    $stop.Expected = "the bar reads 'example.com' in all ten tries (#2099, #2124)."
+    if (-not (Test-Usable $Session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
+    $kept = 0
+    for ($try = 1; $try -le 10; $try++) {
+      Focus-Window $Session $Session.Main $null | Out-Null
+      $mark = Get-LogCount $Session
+      $chord = Send-QuickChord @(0x11) 0x54
+      $left = 15 - $chord.ElapsedMilliseconds
+      if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+      Send-Typed "example.com"
+      Start-Sleep -Milliseconds 1500
+      $field = Read-FocusedText
+      $holds = (Get-HoldLines $Session $mark) -join ' / '
+      if ($field -ceq "example.com") { $kept++; $stop.Facts.Add("try $try`: kept; $holds") }
+      else { $stop.Facts.Add("try $try`: '$field'; $holds; bar marks: $(Format-BarMarks $Session $mark)") }
+      Send-Escape
+      Start-Sleep -Milliseconds 150
+      Send-Chord @(0x11) 0x57
+      Start-Sleep -Milliseconds 600
+    }
+    $stop.Facts.Add("the bar read 'example.com' in $kept of 10")
+    Set-Seen $stop ($kept -eq 10)
+  }
+  if ($stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
+}
+
+function Invoke-HoldTour {
+  $env:ARDIA_TEST = "keyHoldReadyMs=$($script:HoldReadyMs)"
+  $session = Start-Ardia "hold" -Onboarded
+  $env:ARDIA_TEST = ""
+  if (-not (Test-Usable $session)) { $script:Required.Add("Hold (hold): no usable window"); Stop-Ardia $session; return }
+  $opened = Invoke-Stop $session "hold-page" "Key hold: open Example Domain in the first tab" {
+    param($stop)
+    $stop.Did = "Launched onboarded, opened example.com in a tab."
+    $stop.Expected = "the window's title names example.com."
+    Set-Seen $stop (Open-Page $session $stop "example.com" "example\.com")
+  }
+  if ($opened.Seen -ne "yes") { $script:Required.Add("$($opened.Number) Key hold: open Example Domain in the first tab") }
+
+  Invoke-HoldStop $session "hold-capitals" "Key hold: capitals from a held Shift and from Caps Lock, typed 15 ms after Ctrl+T" "Pressed Ctrl+T, and from 15 ms after it typed A with Shift held, then b, then Caps Lock, c, d, Caps Lock, 30 ms a key." "the new tab's bar reads 'AbCD' (#2099)." {
+    param($stop)
+    Send-Key 0x10 0; Send-Char 'a'; Send-Key 0x10 2; Start-Sleep -Milliseconds 30
+    Send-Char 'b'; Start-Sleep -Milliseconds 30
+    Send-Key 0x14 0; Send-Key 0x14 2; Send-Char 'c'; Start-Sleep -Milliseconds 30; Send-Char 'd'; Send-Key 0x14 0; Send-Key 0x14 2
+  } { param($stop, $field, $mark) $field -ceq "AbCD" -and @(Get-HoldLines $session $mark | Where-Object { $_ -match " ready after \d+ ms, replayed 4" }).Count -eq 1 }
+
+  Invoke-WholeTextTries $session "hold-whole" "Key hold: example.com typed from 15 ms after Ctrl+T, all of it before the bar is ready, ten tries" "with readiness held to $($script:HoldReadyMs) ms, so all 11 letters are held and replayed"
+
+  Invoke-Stop $session "hold-pairs" "Key hold: ab typed from 15 ms after Ctrl+T, six tries (report only)" {
+    param($stop)
+    $stop.Did = "Six times: pressed Ctrl+T, and from 15 ms after it typed ab, 10 ms a key, with readiness held to $($script:HoldReadyMs) ms, read the bar after 1.5 s, then pressed Escape and Ctrl+W."
+    $stop.Expected = "report only: how often the bar reads 'ab' once both are replayed, since #2101's first-change revert can take the second letter."
+    if (-not (Test-Usable $session)) { $stop.Seen = "no"; $stop.Facts.Add("no usable window"); return }
+    $kept = 0
+    for ($try = 1; $try -le 6; $try++) {
+      Focus-Window $session $session.Main $null | Out-Null
+      $chord = Send-QuickChord @(0x11) 0x54
+      $left = 15 - $chord.ElapsedMilliseconds
+      if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+      Send-Typed "ab" 10
+      Start-Sleep -Milliseconds 1500
+      $field = Read-FocusedText
+      if ($field -ceq "ab") { $kept++ }
+      $stop.Facts.Add("try $try`: '$field'")
+      Send-Escape
+      Start-Sleep -Milliseconds 150
+      Send-Chord @(0x11) 0x57
+      Start-Sleep -Milliseconds 500
+    }
+    $stop.Facts.Add("the bar read 'ab' in $kept of 6")
+    $stop.Seen = "yes"
+  } | Out-Null
+
+  Invoke-HoldStop $session "hold-backspace" "Key hold: Backspace typed 15 ms after Ctrl+T ends the hold" "Pressed Ctrl+T, and from 15 ms after it typed ab, 10 ms a key, then Backspace." "the hold ends on Backspace with a and b dropped, logged as a drop with keys held, the bar is empty and Example Domain's tab is unchanged (Backspace and Enter end a hold in version 1) (#2099)." {
+    param($stop)
+    Send-Typed "ab" 10
+    Send-Key 0x08 0; Send-Key 0x08 2
+  } { param($stop, $field, $mark) $end = Get-HoldEnd $session $mark "Backspace or Enter"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and $field -eq "" -and ([ArdiaTour]::TitleOf($session.Main)) -match "Tabs" }
+
+  Invoke-HoldStop $session "hold-escape" "Key hold: typing then Escape 15 ms after Ctrl+T leaves nothing anywhere" "With Example Domain in the first tab, pressed Ctrl+T, and from 15 ms after it typed ab, then Escape." "the new tab's bar is empty and Example Domain's tab is unchanged (#2099)." {
+    param($stop)
+    Send-Typed "ab"
+    Send-Escape
+  } { param($stop, $field, $mark) $end = Get-HoldEnd $session $mark "a key without a character"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and $field -eq "" -and ([ArdiaTour]::TitleOf($session.Main)) -match "Tabs" }
+
+  $before = @(Get-TopWindows $session)
+  Send-Chord @(0x11) 0x4E
+  Start-Sleep -Milliseconds 2500
+  $second = @(Get-NewWindows $session $before) | Select-Object -First 1
+  if ($second) {
+    [ArdiaTour]::SetWindowPos($second.Handle, [IntPtr](-1), 500, 400, 520, 360, 0x0040) | Out-Null
+    Start-Sleep -Milliseconds 700
+    $secondBox = @(Find-Edits $second.Handle) | Select-Object -First 1
+    Focus-Window $session $session.Main $null | Out-Null
+    Invoke-HoldStop $session "hold-click-ours" "Key hold: typing, then a click into another window of ours before the bar is ready" "Opened a second window, went back to the first, pressed Ctrl+T, and from 15 ms after it typed ab, then clicked the second window's bar." "the hold ends on the click, logged as a drop with keys held, and the second window's bar gets none of it (#2099)." {
+      param($stop)
+      Send-Typed "ab" 10
+      if ($secondBox) { Send-Click $secondBox.X $secondBox.Y }
+      Start-Sleep -Milliseconds 500
+      $texts = @(Read-EditTexts $second.Handle)
+      $script:HoldReadCount = $texts.Count
+      $stop.Facts.Add("the second window's fields: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
+      Focus-Window $session $session.Main $null | Out-Null
+      return $texts
+    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $stop.Facts.Add("the second window's field to click: $(if ($secondBox) { "$($secondBox.X),$($secondBox.Y)" } else { 'not found' })"); $end -eq "dropped" -and $secondBox -and $script:HoldReadCount -ge 1 -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+    [ArdiaTour]::SetWindowPos($second.Handle, [IntPtr](-2), 0, 0, 0, 0, 0x0013) | Out-Null
+    [ArdiaTour]::PostMessageW($second.Handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    Start-Sleep -Milliseconds 800
+  } else {
+    $script:Required.Add("Key hold: Ctrl+N opened no second window")
+  }
+
+  $padsBefore = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "^notepad$" } | ForEach-Object { $_.Id })
+  $notepad = $null
+  try { $notepad = Start-Process -FilePath "notepad.exe" -PassThru -ErrorAction Stop } catch { $notepad = $null }
+  $pad = [IntPtr]::Zero
+  $ours = @()
+  if ($notepad) {
+    $deadline = (Get-Date).AddSeconds(10)
+    while ($pad -eq [IntPtr]::Zero -and (Get-Date) -lt $deadline) {
+      Start-Sleep -Milliseconds 250
+      $ours = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "^notepad$" -and $padsBefore -notcontains $_.Id })
+      $found = @($ours | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) | Select-Object -First 1
+      if ($found) { $pad = $found.MainWindowHandle }
+    }
+  }
+  if ($pad -ne [IntPtr]::Zero) {
+    [ArdiaTour]::SetWindowPos($pad, [IntPtr](-1), 640, 420, 360, 260, 0x0040) | Out-Null
+    Focus-Window $session $session.Main $null | Out-Null
+    Invoke-HoldStop $session "hold-click-other" "Key hold: typing, then a click into another program before the bar is ready" "With Notepad open beside Ardia, pressed Ctrl+T, and from 15 ms after it typed ab, then clicked into Notepad." "the hold ends when Notepad takes the keyboard, logged as a drop with keys held, and Notepad gets none of it (#2099)." {
+      param($stop)
+      $client = Get-Client $pad
+      Send-Typed "ab" 10
+      if ($client) { Send-Click ([int]($client.X + $client.Width / 2)) ([int]($client.Y + $client.Height / 2)) }
+      Start-Sleep -Milliseconds 500
+      $texts = @([ArdiaTour]::EditTextsOf($pad)) + @(Read-EditTexts $pad)
+      $script:HoldReadCount = $texts.Count
+      $stop.Facts.Add("Notepad's text, from $($texts.Count) field(s) read: $(($texts | ForEach-Object { "'$_'" }) -join ', ')")
+      Focus-Window $session $session.Main $null | Out-Null
+      return $texts
+    } { param($stop, $field, $mark, $acted) $end = Get-HoldEnd $session $mark "(a mouse button|the window lost the keyboard)"; $stop.Facts.Add("the hold ended: $end"); $end -eq "dropped" -and $script:HoldReadCount -ge 1 -and @($acted | Where-Object { $_ -match "[ab]" }).Count -eq 0 }
+  } else {
+    Invoke-Stop $session "hold-click-other" "Key hold: typing, then a click into another program" { param($stop) $stop.Did = "Tried to open Notepad."; $stop.Expected = "a Notepad window to click into."; $stop.Seen = "unverified"; $stop.Facts.Add("Notepad didn't open on this runner") } | Out-Null
+  }
+  $padIds = @()
+  if ($notepad) { $padIds += $notepad.Id }
+  if ($pad -ne [IntPtr]::Zero) { $padIds += [int][ArdiaTour]::ProcessOf($pad) }
+  foreach ($id in ($padIds | Select-Object -Unique)) { if ($padsBefore -notcontains $id) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue } }
+
+  try { Set-Clipboard -Value "pasted" } catch { }
+  Invoke-HoldStop $session "hold-ctrl-v" "Key hold: Ctrl+V right after Ctrl+T passes through as today" "Put 'pasted' on the clipboard, pressed Ctrl+T, and 15 ms after it pressed Ctrl+V." "the hold ends on the modified key and the paste goes where it does today (a documented limit) (#2099)." {
+    param($stop)
+    Send-QuickChord @(0x11) 0x56 | Out-Null
+  } { param($stop, $field, $mark) @(Get-LinesSince $session $mark "^keys \d+ hold \d+ dropped: a key with Ctrl, Alt or Win").Count -ge 1 }
+
+  Stop-Ardia $session
+
+  $live = Start-Ardia "hold-live" -Onboarded
+  if (-not (Test-Usable $live)) { $script:Required.Add("Hold (hold-live): no usable window"); Stop-Ardia $live; return }
+  $page = Invoke-Stop $live "hold-live-page" "Key hold, runner's own timing: open Example Domain in the first tab" {
+    param($stop)
+    $stop.Did = "Launched onboarded without a readiness floor, opened example.com in a tab."
+    $stop.Expected = "the window's title names example.com."
+    Set-Seen $stop (Open-Page $live $stop "example.com" "example\.com")
+  }
+  if ($page.Seen -ne "yes") { $script:Required.Add("$($page.Number) Key hold, runner's own timing: open Example Domain") }
+  Invoke-WholeTextTries $live "hold-whole-live" "Key hold, runner's own timing: example.com typed from 15 ms after Ctrl+T, ten tries" "at the runner's own timing, so the first letters are held and the rest arrive live"
+  Stop-Ardia $live
+}
+
+function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, [scriptblock]$Before, [string]$Into, [string]$Submit, [string]$Issues, [switch]$Required, [int]$FirstKeyMs = 100, [int]$KeyMs = 30, [switch]$ReadEachKey, [switch]$JudgeWholeText, [switch]$RequireGoHold, [switch]$JudgeLaterLetters) {
   $stop = Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = $Did
@@ -1050,6 +1321,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
     Focus-Window $Session $Session.Main $stop | Out-Null
     $mark = Get-LogCount $Session
     $reads = [System.Collections.Generic.List[string]]::new()
+    $firstKeyAt = $null
     $keyReads = $null
     if ($ReadEachKey) { $keyReads = [System.Collections.Generic.List[string]]::new() }
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
@@ -1059,6 +1331,7 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       $chord = Send-QuickChord @(0x11) 0x54
       $left = $FirstKeyMs - $chord.ElapsedMilliseconds
       if ($left -gt 0) { Start-Sleep -Milliseconds $left }
+      $firstKeyAt = $chord.ElapsedMilliseconds
       $stop.Facts.Add("Ctrl+T sent $($clock.ElapsedMilliseconds - $chord.ElapsedMilliseconds) ms after the step began; first key $($chord.ElapsedMilliseconds) ms after its T key went down")
     } elseif ($Into -eq "box") {
       $box = $null
@@ -1141,7 +1414,16 @@ function Invoke-TypeStop($Session, [string]$Slug, [string]$Title, [string]$Did, 
       if (Test-Path -LiteralPath $served) { $stop.Facts.Add("the tour's suggest server: $((Get-Content -LiteralPath $served | Select-Object -Last 4) -join ' / ')") }
       $stop.Facts.Add("required (#2102): the mouse rested on Go, the bar held the late rows under it after Go's position was noted, and Go stayed put: $heldUnderPointer; $Submit opened Example Domain: $([bool]$loaded)")
     }
-    Set-Seen $stop ($(if ($JudgeWholeText) { $whole } elseif ($RequireGoHold) { $firstKeyOk -and [bool]$loaded -and $heldUnderPointer } else { $firstKeyOk }))
+    $laterKept = $false
+    if ($JudgeLaterLetters) {
+      $laterKept = $typed -eq "example.com" -or $typed -eq "xample.com"
+      $firstKept = Test-FirstKeyKept ([string]$typed) "example.com"
+      $focusFirst = [bool]($null -ne $gaps.FocusedMs -and $null -ne $firstKeyAt -and $gaps.FocusedMs -lt $firstKeyAt)
+      $firstRead = if ($null -ne $keyReads -and $keyReads.Count) { $keyReads[0] } else { "" }
+      $script:FirstLetters.Add([pscustomobject]@{ Number = $stop.Number; Slug = $Slug; Kept = $firstKept; FocusFirst = $focusFirst; FirstRead = $firstRead; Field = [string]$typed; Mounts = $gaps.Mounts })
+      $stop.Facts.Add("required (#2101): no letter lost after the first: $laterKept; counted for the first-letter stop (#2124): first letter kept $firstKept, the bar had focus before it $focusFirst")
+    }
+    Set-Seen $stop ($(if ($JudgeLaterLetters) { $laterKept } elseif ($JudgeWholeText) { $whole } elseif ($RequireGoHold) { $firstKeyOk -and [bool]$loaded -and $heldUnderPointer } else { $firstKeyOk }))
   }
   if ($Required -and $stop.Seen -ne "yes") { $script:Required.Add("$($stop.Number) $Title") }
   return $stop
@@ -1337,7 +1619,7 @@ function Invoke-FirstRunTour {
   Invoke-FirstRunLaunch "faster-than-a-person" "" {
     param($session)
     $walk = Walk-OnboardingToOutro $session -SkipEach
-    Invoke-TypeStop $session "faster-than-a-person" "Report only (#2099): Ctrl+T with the first key 15 ms after it" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 15 ms after it, 30 ms a key, then pressed Enter. Faster than a person types; this stop never fails the run and shows how much of the window the bar still misses." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "keys before focus: #2099; the whole text: #2101" -FirstKeyMs 15 | Out-Null
+    Invoke-TypeStop $session "faster-than-a-person" "First run: Ctrl+T with the first key 15 ms after it (#2099)" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 15 ms after it, 30 ms a key, then pressed Enter. Faster than a person types, so the keys arrive before the new bar has focus; every key has to land (#2099)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "keys typed before the new bar has focus: #2099" -FirstKeyMs 15 -JudgeWholeText -Required | Out-Null
   }
 
   foreach ($keyMs in 80, 120) {
@@ -1345,10 +1627,22 @@ function Invoke-FirstRunTour {
       Invoke-FirstRunLaunch "cadence-$keyMs-$repeat" "" {
         param($session)
         $walk = Walk-OnboardingToOutro $session -SkipEach
-        Invoke-TypeStop $session "cadence-$keyMs-$repeat" "First run: Ctrl+T after Get Started, then typing at $keyMs ms a key, try $repeat of 10" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, $keyMs ms a key, reading the field after every key, then pressed Enter. A person's pace: every letter has to land." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101; a first letter lost before the bar had focus is #2099, with the page mounted twice #2115" -KeyMs $keyMs -ReadEachKey -JudgeWholeText -Required | Out-Null
+        Invoke-TypeStop $session "cadence-$keyMs-$repeat" "First run: Ctrl+T after Get Started, then typing at $keyMs ms a key, try $repeat of 10" "Skipped every onboarding step to the last screen ($($walk.Screens)), clicked Get Started, pressed Ctrl+T about 400 ms after the click (the click waits 300 ms after the mouse button comes up, then 100 ms more) and typed example.com from 100 ms after it, $keyMs ms a key, reading the field after every key, then pressed Enter. A person's pace: no letter after the first may go missing (#2101); the first letter is counted by the first-letter stop after these launches (#2124)." { param($stop) $clicked = Click-Named $session "Get Started"; $stop.Facts.Add("Get Started clicked: $clicked"); Start-Sleep -Milliseconds 100 } "ctrl+t" "Enter" "#2101; the first letter is counted by the first-letter stop (#2124)" -KeyMs $keyMs -ReadEachKey -JudgeLaterLetters -Required | Out-Null
       }
     }
   }
+  Invoke-Stop $null "first-letter" "First run: the first letter typed 100 ms after Ctrl+T, at 80 and 120 ms a key, in all $($script:FirstLetters.Count) launches" {
+    param($stop)
+    $stop.Did = "Counted, over the 80 and 120 ms launches above, whether the first letter typed 100 ms after Ctrl+T reached the new tab's bar."
+    $stop.Expected = "the first letter lands in every launch (#2124)."
+    $lost = @($script:FirstLetters | Where-Object { -not $_.Kept })
+    $inTime = @($script:FirstLetters | Where-Object { $_.FocusFirst })
+    $lostInTime = @($lost | Where-Object { $_.FocusFirst })
+    $stop.Facts.Add("first letter lost in $($lost.Count) of $($script:FirstLetters.Count); with the bar focused before it: lost in $($lostInTime.Count) of $($inTime.Count)")
+    foreach ($try in $lost) { $stop.Facts.Add("stop $($try.Number) $($try.Slug): '$($try.Field)', focus first $($try.FocusFirst), page mounted $($try.Mounts) time(s), first read $($try.FirstRead)") }
+    Set-Seen $stop ($lost.Count -eq 0 -and $script:FirstLetters.Count -gt 0)
+  } | ForEach-Object { if ($_.Seen -ne "yes") { $script:Required.Add("$($_.Number) the first letter after Ctrl+T (#2124)") } }
+
 }
 
 function Invoke-ContextMenuStop($Session, [string]$Slug, [string]$Title, [string]$Where, [scriptblock]$Point, [switch]$NoArea) {

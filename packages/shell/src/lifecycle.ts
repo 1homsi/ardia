@@ -18,7 +18,8 @@ export type AppEvent =
   | { type: "centeredResize" }
   | { type: "appLinkOpened"; windowId: string | null }
   | { type: "littleArdiaReturnedToApp" }
-  | { type: "windowTitleRead" };
+  | { type: "windowTitleRead" }
+  | { type: "keyHoldReplay"; tag: number; count: number };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 
