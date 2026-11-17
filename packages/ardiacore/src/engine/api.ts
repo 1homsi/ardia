@@ -23,7 +23,7 @@ import type { DisplayMediaSource } from "../pageTypes";
 
 type Profile = { profile: string };
 type Done = Record<string, never> | null;
-type VideoUpscalingState = { enabled: boolean; lowPower: boolean; thermalPressure: boolean; appActive: boolean; tabs: { tabId: number; allowed: boolean }[] };
+type VideoUpscalingState = { enabled: boolean; lowPower: boolean; thermalPressure: boolean; appActive: boolean; tabs: { tabId: number; allowed: boolean; capturing: boolean }[] };
 
 export type EngineCalls = {
   "engine.info": [{}, EngineInfo];
@@ -120,9 +120,9 @@ export type EngineCalls = {
   "extensions.reload": [Profile & { id: string }, { ok: true }];
   "extensions.configure": [Profile & { id: string; options: Record<string, unknown> }, { ok: true }];
   "extensions.chooseFolder": [{}, string | null];
-  "extensions.resolveInstallPrompt": [{ requestId: string; accepted: boolean }, null];
-  "extensions.actionStates": [{ tabId: string; ids: string[] }, Record<string, ActionState>];
-  "extensions.sidePanelUrl": [{ tabId: string; extensionId: string }, string | null];
+  "extensions.resolveInstallPrompt": [Profile & { requestId: string; accepted: boolean }, null];
+  "extensions.actionStates": [Profile & { tabId: string; ids: string[] }, Record<string, ActionState>];
+  "extensions.sidePanelUrl": [Profile & { tabId: string; extensionId: string }, string | null];
   "extensions.watchActions": [Profile, Done];
   "extensions.syncState": [Profile, ExtensionsSyncState];
   "extensions.syncApply": [Profile & ExtensionsSyncApply, ExtensionsSyncApplied];
@@ -191,7 +191,7 @@ export type EngineCalls = {
   "webView.setPopupsOpenAsTabs": [{ enabled: boolean }, null];
   "webView.setAutoPictureInPicture": [{ enabled: boolean }, null];
   "webView.setVideoUpscaling": [{ enabled: boolean }, null];
-  "webView.setVideoUpscalingTestConditions": [{ lowPower?: boolean; thermalPressure?: boolean }, null];
+  "webView.setVideoUpscalingTestConditions": [{ lowPower?: boolean; thermalPressure?: boolean; capturing?: boolean }, null];
   "webView.videoUpscalingState": [{}, VideoUpscalingState | null];
   "webView.takeContentDrift": [{}, { layouts: number; fits: number; maxPoints: number }];
 
@@ -212,6 +212,7 @@ export type EngineEvents = {
   "engine.systemState": SystemState;
   "engine.cliControl": CliControlStatus;
   "engine.hoverLost": HoverLostEpisode;
+  "engine.cursorRestored": { hidden: boolean };
   "tabs.strips": TabStripTransaction;
   "downloads.changed": Download;
   "permissions.requested": PermissionRequest;
@@ -236,4 +237,8 @@ export type EngineEvents = {
 
 export type WindowsHostEvents = {
   "tabs.windowRequest": WindowRequest;
+};
+
+export type LinuxHostEvents = {
+  "reauth.requested": { purpose: string; granted: boolean; result: string; method?: "polkit" | "loginPassword" };
 };

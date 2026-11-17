@@ -33,6 +33,8 @@ export const docs = new Map<string, string>();
 export const heldSaves = { on: false, queue: [] as (() => void)[] };
 export const bangListServer: { reply: ((etag: string | null) => Promise<BangListReply>) | null } = { reply: null };
 export const appInfo: Partial<SystemInfo> = { appVersion: "1.0" };
+export const interfaceScaleNative = { scale: 1, applied: [] as number[], refuses: false, asked: [] as number[] };
+const clampedScale = (scale: number) => Math.min(1.5, Math.max(0.8, Math.round(scale * 100) / 100));
 export const diagnostics: { crashReports: CrashReport[]; hardware: HardwareInfo; sample: DiagnosticsSample } = {
   crashReports: [],
   hardware: { chip: "Apple M1", gpu: "Apple M1", memoryGB: 16, displays: 1, maxScale: 2, hardwareDecode: { av1: false, vp9: true, hevc: true, h264: true } },
@@ -123,6 +125,14 @@ const windowsModule: Modules["ArdiaAppWindows"] & { requestClose(id: string): Pr
 };
 
 export const pressesWithoutRelease = { count: 0 };
+export const focusHandoffCounts = {
+  pending: {} as Record<string, number>,
+  take() {
+    const taken = this.pending;
+    this.pending = {};
+    return taken;
+  },
+};
 export const pressRepeated: { earlier: { landedOn: string; ms: number } | null } = { earlier: null };
 
 const focus: Modules["ArdiaFocus"] = {
@@ -131,10 +141,12 @@ const focus: Modules["ArdiaFocus"] = {
   saveKeyResponder: () => Promise.resolve(0),
   restoreKeyResponder: () => Promise.resolve(false),
   discardKeyResponder: () => Promise.resolve(),
+  takeEditKeyAcks: () => editKeyAcks.take(),
   switcherPointerMoved: () => true,
   cancelFocusMove: () => Promise.resolve(),
   claimFocus: () => Promise.resolve(),
   pressesWithoutRelease: () => pressesWithoutRelease.count,
+  takeFocusHandoffCounts: () => focusHandoffCounts.take(),
   pressRepeated: () => Promise.resolve(pressRepeated.earlier),
 };
 
@@ -170,6 +182,15 @@ const documents: Modules["ArdiaDocuments"] = {
 };
 
 const app: Modules["ArdiaApp"] = {
+  interfaceScale: () => interfaceScaleNative.scale,
+  interfaceScaleRange: () => [0.8, 1.5],
+  setInterfaceScale: (scale) => {
+    interfaceScaleNative.asked.push(scale);
+    if (interfaceScaleNative.refuses) return Promise.reject(new Error("refused"));
+    interfaceScaleNative.scale = clampedScale(scale);
+    interfaceScaleNative.applied.push(interfaceScaleNative.scale);
+    return Promise.resolve(interfaceScaleNative.scale);
+  },
   setWindowActivity: () => Promise.resolve(),
   share: () => Promise.resolve(),
   shareText: () => Promise.resolve(),
@@ -420,4 +441,13 @@ export const shellNativeModules: Modules = {
   ArdiaSystemSignals: systemSignalsModule,
   ArdiaTelemetryLocal: telemetryLocalModule,
   ArdiaReport: reportModule,
+};
+
+export const editKeyAcks = {
+  pending: {} as Record<string, number>,
+  take() {
+    const taken = this.pending;
+    this.pending = {};
+    return taken;
+  },
 };

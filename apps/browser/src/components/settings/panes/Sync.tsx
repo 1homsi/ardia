@@ -11,6 +11,7 @@ import { useProfiles } from "../../../state/browser/hooks";
 import {
   chooseSyncFolder,
   folderInfo,
+  setOpenTabsSynced,
   setProfileSynced,
   setTypeSynced,
   syncNow,
@@ -18,10 +19,10 @@ import {
   useSync,
 } from "../../../state/sync/engine";
 import { DATA_TYPES, SYNCED_KINDS, type SyncStatus } from "../../../state/sync/syncDoc";
-import { deviceSymbol } from "../../../state/sync/devices";
+import { deviceDetail, deviceSymbol } from "../../../state/sync/devices";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
-import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
+import { addAllRemoteProfiles, confirmRemoveDevice, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { ago } from "../../../lib/time";
 import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import { perLook } from "../../ui/tokens";
@@ -255,6 +256,21 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
         ))}
       </Group>
 
+      <SectionHeader
+        anchor="sync.allOpenTabs"
+        title="All Open Tabs"
+        description={`Every open tab syncs, not just pinned ones. Closing a tab closes it on your other ${PLATFORM_TERMS.syncedComputer}s too.`}
+      />
+      <Group>
+        {profiles
+          .filter((p) => links[p.id]?.enabled)
+          .map((p) => (
+            <Row key={p.id} icon={<ProfileBadge profile={p} size={24} />} title={p.name} description={types.tabs ? undefined : "Needs Open Tabs, under What Syncs."}>
+              <Toggle value={!!p.syncTabs} disabled={!types.tabs} accessibilityLabel={`Sync All Open Tabs in ${p.name}`} onChange={(on) => setOpenTabsSynced(p.id, on)} />
+            </Row>
+          ))}
+      </Group>
+
       <SectionHeader title="What Syncs" />
       <Group>
         {DATA_TYPES.map((t) => (
@@ -271,9 +287,11 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
             <Row
               key={d.id}
               icon={<Symbol name={deviceSymbol(d.kind, d.name)} size={15} color={theme.icon} style={{ width: 24, height: 20 }} />}
-              title={d.current ? `${d.name} (This ${PLATFORM_TERMS.computer})` : d.name}
-              description={d.current ? statusLine(status, lastSyncedAt, 0) : d.lastSeen ? `last synced ${ago(d.lastSeen)}` : "hasn’t synced yet"}
-            />
+              title={d.current ? `${d.name} (This ${PLATFORM_TERMS.computerTitle})` : d.name}
+              description={d.current ? statusLine(status, lastSyncedAt, 0) : deviceDetail(d, ago)}
+            >
+              {d.current ? null : <Button title="Remove…" onPress={() => void confirmRemoveDevice(d)} />}
+            </Row>
           ))
         ) : (
           <Row title={`Just this ${PLATFORM_TERMS.computer} so far`} description="Other devices show here once they sync." />

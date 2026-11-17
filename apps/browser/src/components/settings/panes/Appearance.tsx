@@ -12,6 +12,7 @@ import { AmountSlider } from "../ThemeControls";
 import { PAGE_FRAME } from "../../../lib/windowLayout";
 import { FrameSlider, TabCornersSlider } from "./FrameSlider";
 import { BookmarksBarSection } from "./BookmarksBarSection";
+import { InterfaceSizePicker } from "./InterfaceSize";
 import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
 import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
@@ -52,6 +53,7 @@ export function AppearancePane() {
           </Row>
         </Group>
       </Box>
+      <InterfaceSizePicker />
       <SidebarTextPicker />
       <InterfaceStylePicker />
       <SectionHeader title="Minimalism" description={null} />
@@ -166,8 +168,8 @@ function AddressBarPicker() {
             value={placement}
             options={[
               { value: "field", title: "At the address" },
-              { value: "centred", title: "In the centre" },
-              { value: "centredOnClick", title: "In the centre, also on click" },
+              { value: "centred", title: "In the center" },
+              { value: "centredOnClick", title: "In the center, also on click" },
             ]}
             onChange={(v) => updateSettings({ commandBarPlacement: v })}
             minWidth={220}
