@@ -670,6 +670,21 @@ const ACTIONS = {
     await x.show(x.a);
   },
   x: async (x) => panels.closeSidePanelOnTab(x.w),
+  disableWhileLookupPending: async (x) => {
+    const onScreen = E().sidePanels[x.w].tabId;
+    x.hold();
+    const syncing = panels.syncSidePanel(x.w);
+    await settle();
+    const lookupAsks = x.heldCount();
+    x.off.add(`ext@${onScreen}`);
+    const rechecking = panels.recheckKeptSidePanels(x.w);
+    await settle();
+    const recheckAsks = x.heldCount() - lookupAsks;
+    for (let i = 0; i < recheckAsks; i++) await x.releaseAt([lookupAsks]);
+    x.check("after the re-check, with the older lookup still out");
+    await x.release();
+    await Promise.all([syncing, rechecking]);
+  },
   disableOther: async (x) => {
     const other = x.state === "hidden" || x.state === "sharedOnB" ? x.a : x.b;
     x.off.add(`ext@${other}`);
@@ -683,6 +698,7 @@ const ACTIONS = {
 const NOT_ON_A = /^(hidden|closed|shown ext@[bc-])$/;
 const EXPECT = {
   sharedOnA: {
+    disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "closed", wanted: null },
     replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
@@ -693,6 +709,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
   sharedOnB: {
+    disableWhileLookupPending: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "closed", wanted: null },
     replace: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
@@ -703,6 +720,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
   },
   sharedNotReady: {
+    disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@a+b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "hidden", wanted: "ext" },
     replace: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
@@ -712,6 +730,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
   shown: {
+    disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
     replacePendingThenPageClose: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
@@ -721,6 +740,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: NOT_ON_A, wanted: "ext" },
   },
   hidden: {
+    disableWhileLookupPending: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
     replace: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
     replacePendingThenPageClose: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
@@ -731,6 +751,7 @@ const EXPECT = {
     move: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
   },
   notReady: {
+    disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     replace: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
     replacePendingThenPageClose: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
@@ -806,7 +827,7 @@ test("kept panels, every action in every state: the right pages stay, the rest g
   } finally {
     stop();
   }
-  assert.equal(cells, 53);
+  assert.equal(cells, 59);
   assert.deepEqual(failed, []);
 });
 
@@ -966,4 +987,29 @@ test("kept panels: two tabs sharing one panel page keep it when one of them clos
   assert.equal(x.entry(), "shown ext@a");
   assert.deepEqual(x.cards(), ["ext@a"]);
   checkInvariants(x, "back on A");
+});
+
+test("the panel's own lookup answering after a newer answer for the same tab uses the newer one, both ways", async () => {
+  for (const newerSays of ["no panel", "the same panel"]) {
+    const x = await panelWorld("shown");
+    if (newerSays === "the same panel") x.off.add(`ext@${x.a}`);
+    x.hold();
+    const syncing = panels.syncSidePanel(x.w);
+    await settle();
+    if (newerSays === "no panel") x.off.add(`ext@${x.a}`);
+    else x.off.delete(`ext@${x.a}`);
+    const rechecking = panels.recheckKeptSidePanels(x.w);
+    await settle();
+    await x.releaseAt([1, 2]);
+    await x.release();
+    await Promise.all([syncing, rechecking]);
+    if (newerSays === "no panel") {
+      assert.equal(x.entry(), "hidden", "the older lookup doesn't bring back a panel turned off since");
+      assert.deepEqual(x.cards(), ["ext@b"]);
+    } else {
+      assert.equal(x.entry(), "shown ext@a", "the older \"no panel\" doesn't hide a panel the extension turned back on");
+      assert.deepEqual(x.cards(), ["ext@a", "ext@b"]);
+    }
+    checkInvariants(x, newerSays);
+  }
 });

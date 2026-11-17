@@ -7,18 +7,19 @@ import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfi
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
 const rechecks = new Map<string, number>();
-const answered = new Map<string, Map<string, number>>();
+const answered = new Map<string, Map<string, { asked: number; url: string | null }>>();
 let lookups = 0;
 
-async function askPanel(windowId: string, tabId: string, extensionId: string): Promise<{ url: string | null; stale: boolean }> {
+async function askPanel(windowId: string, tabId: string, extensionId: string): Promise<{ url: string | null; stale: boolean; newest: string | null }> {
   const asked = ++lookups;
   const url = await extensionSidePanelUrl(tabId, extensionId);
   const key = `${extensionId}|${tabId}`;
   let seen = answered.get(windowId);
   if (!seen) answered.set(windowId, (seen = new Map()));
-  const stale = (seen.get(key) ?? 0) > asked;
-  if (!stale) seen.set(key, asked);
-  return { url, stale };
+  const newer = seen.get(key);
+  if (newer && newer.asked > asked) return { url, stale: true, newest: newer.url };
+  seen.set(key, { asked, url });
+  return { url, stale: false, newest: url };
 }
 const openings = new Map<string, number>();
 const focusOwed = new Map<string, { opened: number; page: string | undefined }>();
@@ -174,7 +175,7 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
   const url = !ext
     ? null
     : readyTab
-      ? (await askPanel(windowId, readyTab, extensionId)).url
+      ? (await askPanel(windowId, readyTab, extensionId)).newest
       : !isPrivate(useBrowser.getState(), windowId) && ext.sidePanel
         ? extensionPageUrl(extensionId, ext.sidePanel)
         : null;
@@ -283,7 +284,7 @@ export async function recheckKeptSidePanels(windowId: string): Promise<void> {
     .flatMap((card) => card.owners.map((tabId) => ({ card, tabId })));
   await Promise.all(
     asks.map(async ({ card, tabId }) => {
-      const { url, stale } = await askPanel(windowId, tabId, card.extensionId).catch(() => ({ url: card.url, stale: true }));
+      const { url, stale } = await askPanel(windowId, tabId, card.extensionId).catch(() => ({ url: card.url, stale: true, newest: card.url }));
       const live = listedCard(windowId, card);
       if (stale || rechecks.get(windowId) !== generation || wanted.get(windowId) !== card.extensionId || !live?.owners.includes(tabId)) return;
       if (url === live.url) return;
