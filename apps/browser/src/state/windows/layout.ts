@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { autoHidesTabsIn, sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
-import { onWindowEvent, type LightsPlace } from "../../platform/windows";
+import { frameCornerRadius, onWindowEvent, windowFrame, type LightsPlace } from "../../platform/windows";
+import { rootSizeOfFrame } from "../settings/interfaceScale";
 import { DEFAULT_SIDEBAR_WIDTH, pageFrameInsetOf } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
@@ -12,8 +13,13 @@ import { toolbarRowOf } from "../../lib/toolbarRow";
 import { SMALL_BAR_HEIGHT } from "./small";
 import type { CaptionRegion } from "../../platform/windowControls";
 import { sidebarWidthIn } from "../sidebar/shownWidth";
+import { onWindowRootSizes, windowRootWidth } from "./rootSize";
 
 export { frameCornerRadius, windowCornerRadius, windowFrame } from "../../platform/windows";
+export { onInterfaceScaleChange } from "../settings/interfaceScale";
+
+export const windowRootShape = (windowId: string): Promise<{ width: number; height: number; radius: number } | null> =>
+  Promise.all([windowFrame(windowId), frameCornerRadius(windowId)]).then(([frame, radius]) => (frame ? { ...rootSizeOfFrame(frame), radius } : null));
 
 export function onFullScreenLeft(windowId: string, run: () => void): () => void {
   const subscription = onWindowEvent((e) => {
@@ -244,6 +250,22 @@ export function watchSidebarControlsRow(windowId: string, listener: (row: number
     last = row;
     listener(row);
   });
+}
+
+export function watchSidebarFieldPlace(windowId: string, listener: () => void, chrome: WindowChrome = WINDOW_CHROME): () => void {
+  const place = (s: BrowserState) => {
+    const side = sidebarSideOf(s, windowId);
+    return [side, sidebarControlsRow(s, windowId, chrome), side === "right" ? windowRootWidth(s, windowId) : undefined] as const;
+  };
+  let last = place(useBrowser.getState());
+  const check = () => {
+    const now = place(useBrowser.getState());
+    if (now.every((part, i) => part === last[i])) return;
+    last = now;
+    listener();
+  };
+  const stops = [useBrowser.subscribe(check), onWindowRootSizes(check)];
+  return () => stops.forEach((stop) => stop());
 }
 
 export function useWindowControlsHost(): WindowControlsHost | null {

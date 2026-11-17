@@ -3,11 +3,13 @@ import { onHoverLost, onWindowUnpainted, systemState, type HoverLostEpisode, typ
 import { cliControlStatus } from "../../platform/cli";
 import { call } from "../../platform/engine";
 import { withDeadline } from "../../lib/deadline";
+import { hermesHeapMegabytes } from "../../lib/hermesHeap";
 import { activeTab } from "../browser/model";
 import { useBrowser } from "../browser/store";
 import { capture, isSharing, saveContext, useTelemetry } from "./client";
 import type { SavedContext } from "./savedContext";
 import { noteDragsEnded } from "./stuckDrags";
+import { noteWindowlessPages } from "./cliCounts";
 import { mainProcessWork } from "./mainProcessWork";
 import { appInfo } from "./transport";
 
@@ -70,7 +72,10 @@ export const noteAppMemory = (totalMb: number) => (appMemoryMb = totalMb);
 
 export async function recordContext(): Promise<SavedContext | null> {
   if (!isSharing()) return null;
-  void cliControlStatus().then((status) => noteDragsEnded(status.dragsEnded), () => {});
+  void cliControlStatus().then((status) => {
+    noteDragsEnded(status.dragsEnded);
+    noteWindowlessPages(status.windowlessPages);
+  }, () => {});
   const [sample, pressure] = await Promise.all([diagnosticsSample().catch(() => ({ footprintMB: undefined, freeDiskGB: undefined })), memoryPressure()]);
   const now = Date.now();
   const context: SavedContext = {
@@ -83,6 +88,7 @@ export async function recordContext(): Promise<SavedContext | null> {
     memory_pressure: pressure,
     page_processes_gone: pageProcessesGone,
     webui_page: activeWebuiPage(),
+    hermes_heap_mb: hermesHeapMegabytes(),
   };
   if (!isSharing()) return null;
   samples = keepRecent([...samples, context], now);
@@ -155,7 +161,7 @@ export function stopContextSamples() {
   firstSample = everySample = webuiRecord = unwatchWebuiPage = undefined;
 }
 
-const CONTEXT_FIELDS = ["tabs", "windows", "profiles", "footprint_mb", "app_memory_mb", "free_disk_gb", "memory_pressure", "page_processes_gone", "webui_page"] as const;
+const CONTEXT_FIELDS = ["tabs", "windows", "profiles", "footprint_mb", "app_memory_mb", "free_disk_gb", "memory_pressure", "page_processes_gone", "webui_page", "hermes_heap_mb"] as const;
 
 export function contextProperties(context: SavedContext | null, prefix: string, at: number): Record<string, unknown> {
   if (!context || typeof context.at !== "number") return {};
