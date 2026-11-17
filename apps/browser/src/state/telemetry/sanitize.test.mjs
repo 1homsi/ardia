@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cleanProperties, errorCode, errorMessage, errorType, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
-import { customColorProfiles, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
+import { cleanProperties, errorCode, errorMessage, errorType, JS_FATAL_KINDS, jsFatalKind, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
+import { customColorProfiles, narrowWindows, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
 const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
 const leaks = (text, ...secrets) => secrets.filter((s) => text.includes(s));
@@ -286,6 +286,22 @@ test("the snapshot says whether text adjusts to the colour, and how many profile
   assert.deepEqual(cleanProperties(counted), counted);
 });
 
+test("the snapshot counts browser windows narrower than the old 720 point minimum and those that narrow the sidebar, never their size", () => {
+  const frame = (width) => [10, 20, width, 600];
+  const counted = narrowWindows({
+    a: { kind: "main", frame: frame(500) },
+    b: { kind: "private", frame: frame(719) },
+    c: { kind: "main", frame: frame(720) },
+    d: { kind: "small", frame: frame(400) },
+    e: { kind: "main", frame: null },
+    f: { kind: "main", frame: frame(600), fullScreen: 1700000000000 },
+    g: { kind: "main", frame: frame(640) },
+  }, 400);
+  assert.deepEqual(counted, { narrow_windows: "3", sidebar_narrowed_windows: "2" });
+  assert.deepEqual(cleanProperties(counted), counted);
+  assert.deepEqual(narrowWindows({ a: { kind: "main", frame: frame(500) } }, 190), { narrow_windows: "1", sidebar_narrowed_windows: "0" });
+});
+
 test("a value the spec doesn't allow is left out rather than sent", () => {
   const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, interfaceStyle: "https://not-an-option.example" });
   assert.equal(snap.setting_interfaceStyle, undefined);
@@ -316,4 +332,47 @@ test("the theme file snapshot is flags and counts only, and survives sanitizing"
   });
   assert.equal(JSON.stringify(snap).includes("nord") || JSON.stringify(snap).includes("Avenir"), false);
   assert.deepEqual(cleanProperties(snap), snap);
+});
+
+test("jsFatalKind sends only a kind from a fixed list, never the message, and null when there's nothing", () => {
+  const cases = [
+    ["hermes", "OOM: error_code(value = 1, category = vm_allocate_category, message = Max heap size was exceeded)", "hermes_heap_limit"],
+    ["hermes", "OOM: error_code(value = 12, category = generic, message = Cannot allocate memory)", "hermes_out_of_memory"],
+    ["hermes", "Native stack overflow in Hermes", "hermes_stack_overflow"],
+    ["hermes", "failed at https://example.com/a?token=abc and ~/Library/x/y.json", "hermes_other"],
+    ["reactNative", "Unhandled JS Exception: TypeError: undefined is not a function", "rn_js_type_error"],
+    ["reactNative", "Unhandled JS Exception: ReferenceError: x is not defined", "rn_js_reference_error"],
+    ["reactNative", "Unhandled JS Exception: RangeError: Maximum call stack size exceeded", "rn_js_stack_overflow"],
+    ["reactNative", "Unhandled JS Exception: RangeError: Invalid array length", "rn_js_range_error"],
+    ["reactNative", "Unhandled JS Exception: SyntaxError: bad JSON", "rn_js_syntax_error"],
+    ["reactNative", "Unhandled JS Exception: something thrown at https://example.com", "rn_js_error"],
+    ["reactNative", "Exception in HostFunction: Unknown native module at https://example.com/x?token=secret", "rn_host_function"],
+    ["reactNative", "Exception in HostObject::get for prop 'x'", "rn_host_object"],
+    ["reactNative", "non-std ObjC Exception", "rn_objc_exception"],
+    ["reactNative", "non-std C++ exception", "rn_cpp_exception"],
+    ["reactNative", "vector::_M_range_check: __n (which is 7)", "rn_other"],
+    [undefined, "anything", "unknown"],
+  ];
+  for (const [source, text, kind] of cases) {
+    assert.equal(jsFatalKind(source, text), kind, text);
+    assert.ok(JS_FATAL_KINDS.includes(kind), kind);
+  }
+  for (const empty of ["", "   ", undefined, null, 7, {}, ["x"]]) assert.equal(jsFatalKind("hermes", empty), null, String(empty));
+});
+
+test("the snapshot reports the interface size in whole percent with its default, and counts narrow windows in root points", async () => {
+  const { useInterfaceScale } = await import("../settings/interfaceScale.ts");
+  useInterfaceScale.setState({ scale: 1.25 });
+  try {
+    const snap = settingsSnapshot(DEFAULT_SETTINGS);
+    assert.equal(snap.setting_interfaceScale, "125");
+    assert.equal(snap.default_interfaceScale, "100");
+    assert.deepEqual(cleanProperties(snap), snap);
+    const wide = { kind: "main", frame: [0, 0, 800, 700] };
+    assert.deepEqual(narrowWindows({ a: wide }, 190), { narrow_windows: "1", sidebar_narrowed_windows: "0" }, "800 window points are 640 root points at 125%");
+    assert.deepEqual(narrowWindows({ a: wide }, 400), { narrow_windows: "1", sidebar_narrowed_windows: "1" });
+  } finally {
+    useInterfaceScale.setState({ scale: 1 });
+  }
+  assert.equal(settingsSnapshot(DEFAULT_SETTINGS).setting_interfaceScale, "100");
 });

@@ -10,6 +10,7 @@ enum CommandTable {
     case reopenClosedTab
     case reopenClosedWindow
     case restoreClosed
+    case clearRecentlyClosed
     case focusCommandBar
     case closeTab
     case closeAllTabs
@@ -123,6 +124,7 @@ enum CommandTable {
     "toggleOpenLinksInLittleArdia": "Open Links from Other Apps in Main Window",
     "reopenClosedTab": "Reopen Closed Tab",
     "reopenClosedWindow": "Reopen Closed Window",
+    "clearRecentlyClosed": "Clear Recently Closed",
     "focusCommandBar": "Open Command Bar",
     "closeTab": "Close Tab",
     "closeAllTabs": "Close All Tabs",
@@ -273,8 +275,8 @@ enum CommandTable {
     "viewSource": [("u", [.option, .command])],
     "back": [("[", [.command]), ("\u{F702}", [.command])],
     "forward": [("]", [.command]), ("\u{F703}", [.command])],
-    "nextTab": [("]", [.shift, .command]), ("}", [.command]), ("\u{F72D}", [.control]), ("\u{F701}", [.option, .command])],
-    "previousTab": [("[", [.shift, .command]), ("{", [.command]), ("\u{F72C}", [.control]), ("\u{F700}", [.option, .command])],
+    "nextTab": [("]", [.shift, .command]), ("}", [.command]), ("\u{9}", [.control]), ("\u{F72D}", [.control]), ("\u{F701}", [.option, .command])],
+    "previousTab": [("[", [.shift, .command]), ("{", [.command]), ("\u{9}", [.control, .shift]), ("\u{F72C}", [.control]), ("\u{F700}", [.option, .command])],
     "selectTab:1": [("1", [.command])],
     "selectTab:2": [("2", [.command])],
     "selectTab:3": [("3", [.command])],
@@ -301,8 +303,6 @@ enum CommandTable {
     "cleanUpTabs": [("k", [.option, .command])],
     "searchTabs": [("a", [.shift, .command])],
     "returnToPinnedUrl": [("\u{D}", [.command])],
-    "tabSwitcher:forward": [("\u{9}", [.control])],
-    "tabSwitcher:backward": [("\u{9}", [.control, .shift])],
     "share": [("s", [.option, .command])],
     "reportProblem": [("i", [.option, .shift, .command])],
     "openFile": [("o", [.command])],
