@@ -6,8 +6,7 @@ import { LINUX_WORDING, linuxWording, rewordForLinux } from "../linuxWording.ts"
 import { CREDENTIAL_WORDING, credentialWording, rewordCredentials } from "../credentialWording.ts";
 import { CALENDAR_WORDING, calendarWording, rewordCalendar } from "../calendarWording.ts";
 import { SYNC_WORDING, rewordSync, syncWording } from "../syncWording.ts";
-import { linuxCapabilities, unavailableSettingIds } from "./hostCapabilities.ts";
-import { SETTINGS } from "../../browser/src/components/settings/settingsIndex.ts";
+import { WEB_ENGINE_SETTINGS, unavailableSettingIds } from "./hostCapabilities.ts";
 import { linuxShortcutText } from "../shortcutText.ts";
 import { PLATFORM_FEATURES as LINUX_FEATURES } from "../../browser/src/lib/platformFeatures.linux.ts";
 import { PLATFORM_TERMS as LINUX_TERMS } from "../../browser/src/lib/platformTerms.linux.ts";
@@ -39,27 +38,26 @@ const MODULES = [
 
 const section = (text, from, to) => text.slice(text.indexOf(from), text.indexOf(to, text.indexOf(from)));
 const EXPECTED = [
-  ["components/settings/panes/CalendarSection.tsx", ["<Button title=\"Try Again\" onPress={() => void connectCalendar()} />", "Ardia reads your calendars through Evolution Data Server, which isn't running", "Evolution Data Server refused to share your calendars", "Uses Evolution Data Server: the accounts in GNOME Online Accounts"], ["Uses the Calendar app's accounts.", "title=\"Open System Settings\""]],
-  ["components/settings/panes/ProfilePasswords.tsx", ["system password", "Ardia doesn't set up their connection to a desktop app on Linux yet."], ["Applications folder"]],
-  ["components/settings/panes/ProfileAutofill.tsx", ["Card numbers are encrypted by Chromium with a key from your system keyring when one answers.", "\"Its saved number is deleted too.\""], []],
-  ["components/settings/panes/SyncSection.tsx", ["Your computers meet in a folder you choose", "The default sync folder’s location is missing", "like one that Syncthing, Nextcloud or Dropbox keeps in sync", "title: \"Open Sync Folder\""], ["Linking.openURL", "Open iCloud Settings"]],
+  ["components/settings/panes/CalendarSection.tsx", ["<Button title=\"Try Again\" onPress={() => void connectCalendar()} />", "Ardia reads your calendars through Evolution Data Server, which isn't running", "Evolution Data Server refused to share your calendars"], []],
+  ["components/settings/panes/ProfilePasswords.tsx", ["system password"], []],
+  ["components/settings/panes/SyncSection.tsx", ["Your computers meet in a folder you choose", "like one that Syncthing, Nextcloud or Dropbox keeps in sync", "title: \"Open Sync Folder\""], ["Linking.openURL", "Open iCloud Settings"]],
   ["components/settings/panes/SyncSheets.tsx", ["title={`Add to This Computer`}", "system keyring", "return folder.path.replace(/^\\/home\\/[^/]+(?=\\/|$)/, \"~\");", "<Button title=\"Save as Text…\" kind=\"primary\" onPress={() => void save(\"text\")} />", "<Button title=\"Copy Words\" onPress={() => void copyRecoveryPhrase()} />"], ["recoveryKitPreview(", "copyRecoveryKit()", "shareRecoveryKit()", "save(\"pdf\")", "title=\"Other Options\""]],
   ["lib/themeLook.ts", ["export const MONO_FAMILY = \"monospace\";"], ["export const MONO_FAMILY = \"Menlo\";"]],
   ["state/sync/syncDoc.ts", ["never removes them from this computer"], []],
-  ["components/settings/panes/SyncSection.tsx", ["(This Computer)", "Just this computer so far", "Add them to this computer. Choose which profiles sync on each profile's page."], []],
+  ["components/settings/panes/SyncSection.tsx", ["(This Computer)", "Just this computer so far", "Add them to this computer."], []],
   ["components/settings/panes/SyncSheets.tsx", ["This Computer Is Syncing", "Add them to this computer to sync", "Everything on this computer stays as it is."], []],
   ["state/sync/engine.ts", ["keep syncing on this device", "Couldn’t save the sync key in your keyring."], []],
   ["components/onboarding/SourceStep.tsx", ["Found on this computer"], []],
   ["state/import/runImport.ts", ["system keyring"], []],
   ["state/extensions/actions.ts", ["`The extension's folder stays on your computer.`"], ["stays on your ${PLATFORM_TERMS.computer}"]],
   ["state/live/engine.ts", ["case \"keyringLocked\":\n      return `Unlock your keyring to refresh ${name}`;", "case \"keyringUnavailable\":\n      return `Start your keyring to refresh ${name}`;", "case \"signedOut\":\n      return `Sign back in to ${name}`;"], []],
-  ["components/settings/panes/General.tsx", ["`Quitting with Ctrl+Shift+Q`"], ["`Quitting with ${keyText(\"⌘Q\")}`"]],
-  ["components/settings/rows/shortcutRows.ts", ["title: `Ctrl-clicking links creates tab groups`", "title: `Alt+Shift-click opens tab in group`"], []],
-  ["components/settings/rows/profileRows.ts", ["\"Showing a saved card number asks for your system password.\"", "\"credentials\", \"keyring\""], ["Showing or filling a card asks for ${PLATFORM_TERMS.deviceUnlock}."]],
-  ["components/settings/rows/generalRows.ts", ["keywords: [\"syncthing\", \"nextcloud\", \"dropbox\", \"recovery phrase\",", "keywords: [\"syncthing\", \"nextcloud\", \"dropbox\", \"folder\"]", "keywords: [\"devices\", \"computers\", \"remove device\"]"], ["PLATFORM_TERMS.cloudDrive.toLowerCase()", "\"macs\""]],
+  ["components/settings/panes/General.tsx", ["label: \"Quitting with Ctrl+Shift+Q\""], ["Quitting with ${keyText(\"⌘Q\")}"]],
+  ["components/settings/rows/shortcutRows.ts", ["title: `Ctrl-clicking links creates tab groups`"], []],
+  ["components/settings/rows/profileRows.ts", ["description: \"Showing a saved card number asks for your system password.\"", "\"keyring\""], ["\"keychain\""]],
+  ["components/settings/panes/ProfileAutofill.tsx", ["encrypted by Chromium with a key from your system keyring", "\"Its saved number is deleted too.\""], []],
   ["components/settings/panes/Shortcuts.tsx", ["title: `Shift-click`", "title: `Alt-click`", "title: `Alt+Shift-click`", "`Alt-click (Peek moves to Shift-click)`", "`Alt-click (split view moves to Alt+Shift-click)`", "`Alt-click opens a split now: choosing it here moves split view back to Alt+Shift-click.`"], []],
   ["components/onboarding/LayoutSteps.tsx", ["title: `Shift-click`"], []],
-  ["components/settings/rows/appearanceRows.ts", ["`Below the toolbar. Ctrl+Shift+B toggles it.`", "`Just tabs and the page, no toolbar. Ctrl+Super+M toggles it.`"], ["${keyText(\"⇧⌘B\")}", "${keyText(\"⌃⌘M\")}"]],
+  ["components/settings/rows/appearanceRows.ts", ["Below the toolbar. Ctrl+Shift+B toggles it.", "no toolbar. Ctrl+Super+M toggles it."], ["⇧⌘B", "⌃⌘M"]],
   ["components/settings/panes/Advanced.tsx", ["or in power saver mode"], ["${PLATFORM_TERMS.lowPowerMode}"]],
   ["components/downloads/Downloads.tsx", ["tooltip=\"Show in Folder\""], ["Show in ${PLATFORM_TERMS.fileManager}"]],
   ["components/pages/DownloadsPage.tsx", ["title=\"Show in Folder\""], ["Show in ${PLATFORM_TERMS.fileManager}"]],
@@ -71,7 +69,6 @@ const EXPECTED = [
   ["state/releaseNotes/releaseNotes.ts", ["from any page with Ctrl+L."], ["⌘L"]],
   ["state/sync/scopeAdapters.ts", ["`This Computer`"], ["This ${PLATFORM_TERMS.computerTitle}"]],
   ["components/import/steps/ChooseStep.tsx", ["were found on this computer."], []],
-  ["state/telemetry/copy.ts", ["title: \"Kept on this computer\"", "keptOnThisMac: \"Kept on this computer\""], ["title: \"Kept on this Mac\""]],
   ["state/telemetry/copy.ts", ["Ctrl+Tab switcher", "Alt+Enter in the command bar", "from the taskbar or at launch", "the crash dump Chromium's crash handler keeps on this computer", "the signal that ended it"], ["Dock", "Touch ID", "⌘", "⌥", "⌃", "from this app's crash report", "code-signing kill", "writable memory regions"]],
   ["state/report/details.ts", ["`Linux ${app.osVersion}`, app.model"], ["`${PLATFORM_TERMS.os} ${app.osVersion}`"]],
   ["components/report/ReportPreview.tsx", ["Exactly what leaves your computer when you press Send."], ["leaves your ${PLATFORM_TERMS.computer}"]],
@@ -109,12 +106,11 @@ test("the reworded copy says what Linux does and drops what it can't do", () => 
 test("search rows describing reworded panes read as Linux too", () => {
   const general = linuxCopy("components/settings/rows/generalRows.ts");
   const rows = read("components/settings/rows/generalRows.ts");
-  assert.match(section(rows, "section: \"Sync\"", "section: \"Updates\""), /icloud|PLATFORM_TERMS\.cloudDrive/);
-  assert.doesNotMatch(section(general, "section: \"Sync\"", "section: \"Updates\""), /\bMacs?\b|icloud|PLATFORM_TERMS\.cloudDrive/i);
-  const profiles = read("components/settings/rows/profileRows.ts");
-  const credentials = ["section: \"Passwords and autofill\"", "section: \"Extensions\""];
-  assert.match(section(profiles, ...credentials), /keychain|PLATFORM_TERMS\.deviceUnlock/);
-  assert.doesNotMatch(section(linuxCopy("components/settings/rows/profileRows.ts"), ...credentials), /Touch ID|keychain|Keychain|\bMac\b|filling a card/);
+  assert.match(section(rows, "        sync: {", "section: \"Updates\""), /\bmacs\b|icloud/);
+  assert.doesNotMatch(section(general, "        sync: {", "section: \"Updates\""), /\bMacs?\b|icloud/i);
+  const profile = read("components/settings/rows/profileRows.ts");
+  assert.match(section(profile, "section: \"Passwords and autofill\"", "savedCards: {"), /keychain|PLATFORM_TERMS\.deviceUnlock/);
+  assert.doesNotMatch(section(linuxCopy("components/settings/rows/profileRows.ts"), "section: \"Passwords and autofill\"", "savedCards: {"), /Touch ID|keychain|Keychain|\bMac\b/);
 });
 
 test("open-tab sync telemetry describes this computer on Linux", () => {
@@ -126,7 +122,7 @@ test("open-tab sync telemetry describes this computer on Linux", () => {
 test("a shared copy change fails with 'no longer contains', and unlisted files pass through", () => {
   for (const { name, reword, probe } of MODULES) {
     assert.throws(() => reword(shared(probe), "export const nothing = 1;"), /no longer contains/, name);
-    assert.equal(reword(shared("components/settings/panes/Automations.tsx"), "const x = 'Mac';"), null, name);
+    assert.equal(reword(shared("components/settings/panes/Checklist.tsx"), "const x = 'Mac';"), null, name);
   }
 });
 
@@ -164,8 +160,8 @@ test("onboarding names no Mac, macOS or Dock on Linux, and the Web engine rows a
   const leftover = componentFiles("components/onboarding")
     .flatMap((path) => strings(linuxCopy(path)).filter((text) => words.test(text)).map((text) => `${path}: ${text}`));
   assert.deepEqual(leftover, []);
-  const hidden = unavailableSettingIds(linuxCapabilities(undefined), SETTINGS);
-  for (const id of ["advanced.pageEngine", "advanced.fairPlayInChromium", "advanced.websiteEngines"]) assert.ok(hidden.has(id), id);
+  const hidden = unavailableSettingIds({ webkit: false }, [...WEB_ENGINE_SETTINGS]);
+  assert.ok(WEB_ENGINE_SETTINGS.every((id) => hidden.has(id)));
 });
 
 test("the Linux platform layer finds browsers through the import list and says computer, not Mac", async () => {

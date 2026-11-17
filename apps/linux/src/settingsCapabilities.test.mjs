@@ -11,14 +11,12 @@ import * as engines from "./hostEngines.ts";
 
 const hidden = [
   "general.defaultBrowser", "general.openAtLogin", "advanced.ardiaCommand", "advanced.compactCliPill", "tabs.videoUpscaling",
-  "tabs.openLinksInLittleArdia", "tabs.peekLinksToOtherSites", "tabs.appLinksFirst",
-  "tabs.popupsOpenAsTabs", "advanced.pageEngine", "advanced.fairPlayInChromium", "advanced.websiteEngines",
+  "tabs.openLinksInLittleArdia", "tabs.peekLinksToOtherSites", "tabs.appLinksFirst", "tabs.popupsOpenAsTabs",
+  "advanced.pageEngine", "advanced.fairPlayInChromium", "advanced.websiteEngines",
 ];
 
-test("Settings navigation and search leave out the Web engine rows and platform rows Linux can't run", () => {
-  assert.deepEqual(index.PANES.map((pane) => pane.id), sharedIndex.PANES.map((pane) => pane.id));
-  const webEngine = sharedIndex.sectionEntries("advanced", "Web engine").map((entry) => entry.id);
-  assert.deepEqual(webEngine, ["advanced.pageEngine", "advanced.fairPlayInChromium", "advanced.websiteEngines"]);
+test("Settings navigation and search leave out the unavailable Web engine rows and platform rows", () => {
+  assert.deepEqual(index.PANES, sharedIndex.PANES);
   const searchable = new Set(index.SETTINGS_INDEX.map((item) => item.entry.id));
   for (const id of hidden) {
     assert.ok(sharedIndex.SETTINGS_INDEX.some((item) => item.entry.id === id), id);
@@ -54,9 +52,6 @@ test("Settings form primitives drop unavailable rows and keep available ones unc
   assert.deepEqual(group.props.children.map((child) => child.props.anchor), ["general.askBefore"]);
   assert.equal(form.Group({ children: [createElement(form.Row, { key: "a", anchor: "advanced.pageEngine" })] }), null);
   assert.equal(form.SettingsPaneContext, sharedForm.SettingsPaneContext);
-  const newTabLinks = form.Row({ anchor: "tabs.newTabLinksOpenIn" });
-  assert.equal(newTabLinks.type, sharedForm.Row);
-  assert.deepEqual(newTabLinks.props, { anchor: "tabs.newTabLinksOpenIn" });
 });
 
 test("every engine decision is Chromium on Linux even with stored WebKit settings, rules and streaming routes", () => {

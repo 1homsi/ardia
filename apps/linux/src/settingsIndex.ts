@@ -1,13 +1,11 @@
 import * as shared from "../../browser/src/components/settings/settingsIndex.ts";
 import { linuxCapabilities, unavailableSettingIds } from "./hostCapabilities.ts";
 import { hostSupports } from "./host.ts";
-import { telemetryLocalAvailable } from "./hostTelemetryLocal.ts";
 
 export * from "../../browser/src/components/settings/settingsIndex.ts";
 
 const capabilities = linuxCapabilities();
-const hiddenSettings = unavailableSettingIds(capabilities, shared.SETTINGS);
-if (!hostSupports("ArdiaTelemetryLocal.exportToDownloads") && !telemetryLocalAvailable()) hiddenSettings.add("general.crashDetails");
+const hiddenSettings = unavailableSettingIds(capabilities, shared.SETTINGS.map((entry) => entry.id));
 if (!hostSupports("ArdiaApp.postNotification")) hiddenSettings.add("automations.meetingAlertCondition");
 if (!hostSupports("ArdiaApp.setInterfaceScale")) hiddenSettings.add("appearance.interfaceScale");
 

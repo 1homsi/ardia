@@ -78,21 +78,18 @@ export function linuxCapabilities(host: ArdiaHost | undefined = ardiaHost): Linu
   };
 }
 
-export type SettingPlace = { id: string; pane: string; section: string };
+export const WEB_ENGINE_SETTINGS = ["advanced.pageEngine", "advanced.fairPlayInChromium", "advanced.websiteEngines"] as const;
 
-export const WEB_ENGINE_SECTION = { pane: "advanced", section: "Web engine" } as const;
-
-export function unavailableSettingIds(capabilities: LinuxCapabilities, settings: readonly SettingPlace[]): Set<string> {
+export function unavailableSettingIds(capabilities: LinuxCapabilities, settingIds: readonly string[]): Set<string> {
   const ids = new Set<string>(["general.autoUpdate"]);
   if (!capabilities.defaultBrowser) ids.add("general.defaultBrowser");
   if (!capabilities.launchAtLogin) ids.add("general.openAtLogin");
   if (!capabilities.videoUpscaling) ids.add("tabs.videoUpscaling");
   if (!capabilities.cliControl) for (const id of ["advanced.ardiaCommand", "advanced.compactCliPill"]) ids.add(id);
-  if (!capabilities.cliInstall) ids.add("advanced.ardiaCommand");
   if (!capabilities.peekOtherSites) ids.add("tabs.peekLinksToOtherSites");
   if (!capabilities.popupsOpenAsTabs) ids.add("tabs.popupsOpenAsTabs");
   if (!capabilities.linksFromOtherApps) for (const id of ["tabs.openLinksInLittleArdia", "tabs.appLinksFirst"]) ids.add(id);
-  if (!capabilities.webkit) for (const entry of settings) if (entry.pane === WEB_ENGINE_SECTION.pane && entry.section === WEB_ENGINE_SECTION.section) ids.add(entry.id);
+  if (!capabilities.webkit) for (const id of WEB_ENGINE_SETTINGS) if (settingIds.includes(id)) ids.add(id);
   return ids;
 }
 
@@ -104,5 +101,6 @@ export const unavailableCommands = (capabilities: LinuxCapabilities): Set<string
     ...(capabilities.fullScreen ? [] : [FULL_SCREEN_ITEM]),
     ...(capabilities.hiddenElements ? [] : ["hideElement", "showHiddenElements"]),
   ]);
+
 
 export const unavailableError = (feature: string) => Object.assign(new Error(`${feature} is unavailable on Linux`), { code: "ERR_UNAVAILABLE" });

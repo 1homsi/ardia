@@ -30,8 +30,8 @@ export const CREDENTIAL_WORDING: readonly Wording[] = [
   {
     file: "components/settings/rows/profileRows.ts",
     replacements: [
-      [`keywords: ["password manager", "logins", "credentials", "keychain",`, `keywords: ["password manager", "logins", "credentials", "keyring",`],
-      ["`Showing or filling a card asks for ${PLATFORM_TERMS.deviceUnlock}.`", `"Showing a saved card number asks for your system password."`],
+      [`keywords: ["password manager", "logins", "credentials", "keychain", "offer to save and fill passwords"]`, `keywords: ["password manager", "logins", "credentials", "keyring", "offer to save and fill passwords"]`],
+      ["description: `Showing or filling a card asks for ${PLATFORM_TERMS.deviceUnlock}.`", `description: "Showing a saved card number asks for your system password."`],
     ],
   },
 ];

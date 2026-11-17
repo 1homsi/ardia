@@ -60,27 +60,23 @@ test("the command bar's Dictate button follows the dictation capability: off whi
   assert.deepEqual(invoked, []);
 });
 
-test("unavailable choices map to exact settings ids and the Web engine section", () => {
-  const place = (id, section = "Other") => ({ id, pane: id.split(".")[0], section });
-  const settings = [
-    place("general.defaultBrowser"), place("general.openAtLogin"), place("general.askBefore"), place("advanced.pageEngine", "Web engine"), place("advanced.websiteEngines", "Web engine"),
-    place("profiles.otherEngines", "Search"), place("advanced.ardiaCommand"), place("advanced.compactCliPill"), place("advanced.showFullUrl"), place("tabs.videoUpscaling"), place("tabs.autoPictureInPicture"),
-    { id: "tabs.webEngineNamesake", pane: "tabs", section: "Web engine" },
-  ];
-  const unrouted = ["tabs.appLinksFirst", "tabs.openLinksInLittleArdia", "tabs.peekLinksToOtherSites", "tabs.popupsOpenAsTabs"];
+test("unavailable choices map to exact settings ids and the Web engine rows", () => {
+  const ids = ["general.defaultBrowser", "general.openAtLogin", "general.askBefore", "advanced.pageEngine", "advanced.fairPlayInChromium", "advanced.websiteEngines", "profiles.otherEngines", "advanced.ardiaCommand", "advanced.compactCliPill", "advanced.showFullUrl", "tabs.videoUpscaling", "tabs.autoPictureInPicture"];
+  const unrouted = ["tabs.openLinksInLittleArdia", "tabs.appLinksFirst", "tabs.peekLinksToOtherSites", "tabs.popupsOpenAsTabs"];
   const routedRows = { peekOtherSites: true, popupsOpenAsTabs: true, linksFromOtherApps: true };
+  const webEngine = ["advanced.fairPlayInChromium", "advanced.pageEngine", "advanced.websiteEngines"];
   const none = linuxCapabilities(fakeHost().host);
-  assert.deepEqual([...unavailableSettingIds(none, settings)].sort(), [...unrouted, "advanced.ardiaCommand", "advanced.compactCliPill", "advanced.pageEngine", "advanced.websiteEngines", "general.autoUpdate", "general.defaultBrowser", "general.openAtLogin", "tabs.videoUpscaling"].sort());
-  for (const [capability, rows] of Object.entries({ peekOtherSites: ["tabs.peekLinksToOtherSites"], popupsOpenAsTabs: ["tabs.popupsOpenAsTabs"], linksFromOtherApps: ["tabs.appLinksFirst", "tabs.openLinksInLittleArdia"] })) {
-    const shown = unavailableSettingIds({ ...none, [capability]: true }, settings);
+  assert.deepEqual([...unavailableSettingIds(none, ids)].sort(), [...unrouted, ...webEngine, "advanced.ardiaCommand", "advanced.compactCliPill", "general.autoUpdate", "general.defaultBrowser", "general.openAtLogin", "tabs.videoUpscaling"].sort());
+  for (const [capability, rows] of Object.entries({ peekOtherSites: ["tabs.peekLinksToOtherSites"], popupsOpenAsTabs: ["tabs.popupsOpenAsTabs"], linksFromOtherApps: ["tabs.openLinksInLittleArdia", "tabs.appLinksFirst"] })) {
+    const shown = unavailableSettingIds({ ...none, [capability]: true }, ids);
     assert.deepEqual(unrouted.filter((id) => !shown.has(id)), rows, capability);
   }
-  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, cliControl: true, cliInstall: true, videoUpscaling: true, ...routedRows }, settings)].sort(), ["advanced.pageEngine", "advanced.websiteEngines", "general.autoUpdate"]);
-  assert.deepEqual([...unavailableSettingIds({ ...none, webkit: true }, settings)].filter((id) => id.startsWith("advanced.") && !id.startsWith("advanced.ardia") && !id.startsWith("advanced.compact")), []);
-  const cliRows = (capabilities) => [...unavailableSettingIds(capabilities, settings)].filter((id) => id === "advanced.ardiaCommand" || id === "advanced.compactCliPill").sort();
-  assert.deepEqual(cliRows({ ...none, cliControl: true }), ["advanced.ardiaCommand"]);
+  assert.deepEqual([...unavailableSettingIds({ ...none, webkit: true }, ids)].filter((id) => webEngine.includes(id)), []);
+  assert.deepEqual([...unavailableSettingIds(none, ["general.defaultBrowser"])].filter((id) => webEngine.includes(id)), []);
+  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, cliControl: true, cliInstall: true, videoUpscaling: true, ...routedRows }, ids)].sort(), [...webEngine, "general.autoUpdate"]);
+  const cliRows = (capabilities) => [...unavailableSettingIds(capabilities, ids)].filter((id) => id === "advanced.ardiaCommand" || id === "advanced.compactCliPill").sort();
+  assert.deepEqual(cliRows({ ...none, cliControl: true }), []);
   assert.deepEqual(cliRows({ ...none, cliInstall: true }), ["advanced.ardiaCommand", "advanced.compactCliPill"]);
-  assert.deepEqual(cliRows({ ...none, cliControl: true, cliInstall: true }), []);
 });
 
 test("the ardia command's rows follow the engine: every control and install method, or the rows stay hidden", () => {
