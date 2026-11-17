@@ -1,4 +1,3 @@
-import "./src/platform/jsStart";
 import { registerRootComponent } from "expo";
 
 if (process.env.EXPO_PUBLIC_ARDIA_LAB === "true") {

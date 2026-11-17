@@ -7,7 +7,7 @@ import { system } from "@ardia/phone-native";
 
 const LOGS_URL = "https://ardia.dev/otel/v1/logs";
 
-export { JS_STARTED_AT } from "./jsStart";
+export const JS_STARTED_AT = Date.now();
 
 const isLab = process.env.EXPO_PUBLIC_ARDIA_LAB === "true";
 
