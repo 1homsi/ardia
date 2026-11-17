@@ -1,6 +1,9 @@
 #import "ArdiaWebViewInternal.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaFairPlay.h"
+#import "ArdiaProtectedVideo.h"
+#import "ArdiaHLSVideo.h"
+#import "ArdiaVideoMirror.h"
 
 #import <objc/runtime.h>
 
@@ -127,6 +130,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   if (_tabIndex >= 0) [self placeTab];
   if (ArdiaWindowController *controller = self.controller)
     [ArdiaTabStrip changedInWindow:controller profile:tab.profile cause:NSNull.null];
+  [self settleFirstShowFocus];
 }
 
 - (void)detach {
@@ -371,6 +375,9 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
 - (void)tabWillClose:(ArdiaCoreTab *)tab {
   [ArdiaEarlyWindow dropPage:tab];
   [ArdiaFairPlay pageGoneFromTab:tab];
+  [ArdiaProtectedVideo pageGoneFromTab:tab];
+  [ArdiaHLSVideo pageGoneFromTab:tab];
+  [ArdiaVideoMirror pageGoneFromTab:tab];
   if (_life.closed() || tab != _tab) return;
   [self detach];
   [self emit:@"windowClose" payload:@{}];
@@ -424,6 +431,9 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
 }
 
 - (void)tabDidChangeDiscarded:(ArdiaCoreTab *)tab {
+  if (tab.discarded) [ArdiaProtectedVideo pageGoneFromTab:tab];
+  if (tab.discarded) [ArdiaHLSVideo pageGoneFromTab:tab];
+  if (tab.discarded) [ArdiaVideoMirror pageGoneFromTab:tab];
   if (tab.discarded) [self emit:@"discarded" payload:@{@"url" : tab.url ?: @"", @"reason" : tab.discardReason ?: @""}];
   else [self emit:@"ready" payload:@{}];
 }

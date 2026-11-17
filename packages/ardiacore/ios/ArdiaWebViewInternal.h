@@ -111,6 +111,8 @@ struct ArdiaPageFocusState {
   ArdiaSentReports _sent;
   ArdiaLeave _leave;
   ArdiaFrameHold _frameHold;
+  void (^_swapReport)(BOOL heldTimedOut);
+  CFTimeInterval _swapReportAt;
   ArdiaStandIn _standIn;
   ArdiaLittlePage _littlePage;
   ArdiaReveal _reveal;
@@ -215,6 +217,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)beginFrameHoldIfCold;
 - (void)exposePage;
 - (BOOL)releasePageForOffscreen;
+- (void)reportSwapShown:(void (^)(BOOL heldTimedOut))report;
 - (void)finishFrameHold;
 - (void)stopHolding;
 - (void)takeFocusFromLingeringPane;
@@ -235,6 +238,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)requestFocusRestore;
 - (void)requestFocusRestoreIn:(NSWindow *)window;
 - (void)restoreFocusIfDue;
+- (void)settleFirstShowFocus;
 - (void)focusAfterLoad;
 @end
 
@@ -274,6 +278,12 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)autoPictureInPictureInputsChanged;
 - (void)noteStayedOnAppSwitch;
 + (BOOL)playsForAutoPictureInPictureInWindow:(NSWindow *)window;
+@end
+
+@interface ArdiaWebView (SystemNowPlaying)
+- (void)systemNowPlayingChanged;
+- (void)withdrawSystemNowPlaying;
+- (void)noteSystemNowPlayingCommand;
 @end
 
 @interface ArdiaWebView (NavigationInternal)
