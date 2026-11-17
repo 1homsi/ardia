@@ -15,6 +15,7 @@ import { isWebPageUrl } from "../../lib/url";
 import { BOOKMARK, DEVICE, DEVICE_TABS, HISTORY, RECEIVES_TABS, SHARE, bookmarkValue, historyValue, passwordValue, recordId, type BookmarkValue, type DeviceRecord, type DeviceTabs, type HistoryValue, type PasswordValue, type ShareRecord } from "./records";
 import { isAsleep } from "../tabs/pageSession";
 import { withSyncWorkCounts } from "../telemetry/workCounts";
+import { historyExtractsOf } from "./historyExtracts";
 
 const store = () => useBrowser.getState();
 
@@ -178,17 +179,6 @@ const sameVisits = (a: number[], b: number[]) => a.length === b.length && a.ever
 export function historyExpired(key: string, value: unknown, now: number) {
   const v = key.startsWith(HISTORY) ? historyValue(value) : null;
   return !!v && lastVisitOf(v) < now - HISTORY_WINDOW_MS;
-}
-
-type ExtractedVisit = { key: string | null; json: string | undefined; value: HistoryValue | null };
-type HistoryExtracts = { parsed: Map<string, { json: string; known: HistoryValue | null }>; knownJson: WeakMap<HistoryValue, string>; visits: WeakMap<HistoryEntry, ExtractedVisit> };
-
-const historyExtracts = new Map<string, HistoryExtracts>();
-
-function historyExtractsOf(profileId: string): HistoryExtracts {
-  let extracts = historyExtracts.get(profileId);
-  if (!extracts) historyExtracts.set(profileId, (extracts = { parsed: new Map(), knownJson: new WeakMap(), visits: new WeakMap() }));
-  return extracts;
 }
 
 export function historyAdapter(profileId: string): Adapter {
