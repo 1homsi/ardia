@@ -20,6 +20,7 @@ import { activated, apply } from "../tabs/tabs";
 import { createTabsSlice, type TabsSlice } from "../tabs/tabsSlice";
 import { settle, SettleDidNotConverge } from "./settle";
 import { transactional } from "./transaction";
+import { actionsApart } from "./actionsApart";
 import type { BrowserWindow, Tab } from "./types";
 import { createUiSlice, type UiSlice } from "../windows/ui";
 import { createDownloadsSlice, type DownloadsSlice } from "../downloads/downloadsSlice";
@@ -102,7 +103,7 @@ const transactions = transactional<BrowserState>(pageMoved, settled);
 export const storeTransaction = transactions.transaction;
 setHeldReportsTransaction(storeTransaction);
 
-export const useBrowser = create<BrowserState>()(transactions.middleware(batched((...a) => ({
+export const useBrowser = create<BrowserState>()(actionsApart(transactions.middleware(batched((...a) => ({
   ...createProfilesSlice(...a),
   ...createWindowsSlice(...a),
   ...createTabsSlice(...a),
@@ -203,7 +204,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
     for (const id of next.ui.focusOrder) next = apply(next, activated(next, windows[id]!.activeTabIds[windows[id]!.profileId]!));
     set(next);
   },
-}))));
+})))));
 
 export type { CreateWindowOptions } from "../windows/windows";
 
