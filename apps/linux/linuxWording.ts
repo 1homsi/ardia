@@ -42,7 +42,7 @@ export const LINUX_WORDING: readonly Wording[] = [
   },
   {
     file: "components/settings/panes/General.tsx",
-    replacements: [["`Quitting with ${keyText(\"⌘Q\")}`", "`Quitting with Ctrl+Shift+Q`"]],
+    replacements: [["label: PLATFORM_FEATURES.quitsWithLastWindow ? `Quitting when you close the last window` : `Quitting with ${keyText(\"⌘Q\")}`", `label: "Quitting with Ctrl+Shift+Q"`]],
   },
   {
     file: "state/telemetry/copy.ts",

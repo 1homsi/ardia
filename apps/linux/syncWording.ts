@@ -6,7 +6,12 @@ export const SYNC_WORDING: readonly Wording[] = [
     file: "components/settings/panes/SyncSection.tsx",
     replacements: [
       [
-        "            icon={<Symbol name=\"exclamationmark.icloud\" size={14} color={theme.warning} style={WARNING_ICON} />}\n            title={`${PLATFORM_TERMS.cloudDrive} is off on this ${PLATFORM_TERMS.computer}`}\n            description={`${PLATFORM_TERMS.turnOnCloudDrive}, or pick any folder that syncs, like Dropbox.`}\n          >\n            {PLATFORM_TERMS.cloudDriveSettingsUrl ? <Button title=\"Open iCloud Settings\" onPress={() => void Linking.openURL(PLATFORM_TERMS.cloudDriveSettingsUrl)} /> : null}\n",
+        `            icon={<Symbol name="exclamationmark.icloud" size={14} color={theme.warning} style={WARNING_ICON} />}
+            title={\`\${PLATFORM_TERMS.cloudDrive} is off on this \${PLATFORM_TERMS.computer}\`}
+            description={\`\${PLATFORM_TERMS.turnOnCloudDrive}, or pick any folder that syncs, like Dropbox.\`}
+          >
+            {PLATFORM_TERMS.cloudDriveSettingsUrl ? <Button title="Open iCloud Settings" onPress={() => void Linking.openURL(PLATFORM_TERMS.cloudDriveSettingsUrl)} /> : null}
+`,
         `            icon={<Symbol name="exclamationmark.triangle.fill" size={13} color={theme.warning} style={WARNING_ICON} />}
             title="The default sync folder’s location is missing"
             description="Choose a folder that syncs between your computers, like one that Syncthing, Nextcloud or Dropbox keeps in sync, or one on a NAS or a USB drive."
@@ -67,7 +72,6 @@ export const SYNC_WORDING: readonly Wording[] = [
   {
     file: "components/settings/rows/generalRows.ts",
     replacements: [
-      [`keywords: [PLATFORM_TERMS.cloudDrive.toLowerCase(), "recovery phrase",`, `keywords: ["syncthing", "nextcloud", "dropbox", "recovery phrase",`],
       [`keywords: ["icloud drive", "dropbox", "folder"]`, `keywords: ["syncthing", "nextcloud", "dropbox", "folder"]`],
       [`keywords: ["devices", "computers", "macs", "remove device"]`, `keywords: ["devices", "computers", "remove device"]`],
     ],

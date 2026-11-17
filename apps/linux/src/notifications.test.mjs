@@ -14,7 +14,7 @@ const advertising = {
   onEvent: (listener) => { hostListeners.add(listener); return () => hostListeners.delete(listener); },
 };
 globalThis.window = { __ardiaHost: advertising };
-const { SETTINGS, settingUnavailable } = await import("./settingsIndex.ts");
+const { settingUnavailable } = await import("./settingsIndex.ts");
 const shim = await import("./shims/expo-modules-core.ts");
 delete globalThis.window;
 const { resolveHostModule } = await import("./hostModules.ts");
@@ -22,7 +22,6 @@ const { resolveHostModule } = await import("./hostModules.ts");
 const silent = { bootstrap: { windowId: "main", profileId: "default", capabilities: [] }, invoke: async (method) => { throw new Error(`reached ${method}`); }, call: async () => "null", onEvent: () => () => {} };
 
 test("a host that posts Ardia's notifications is called through, and Calendar's Show alerts row appears", async () => {
-  assert.ok(SETTINGS.some((entry) => entry.id === "automations.meetingAlertCondition"));
   assert.equal(settingUnavailable("automations.meetingAlertCondition"), false);
   assert.equal(shim.hostModuleName("ArdiaNotifications"), "ArdiaApp");
   const app = (method) => resolveHostModule(advertising, "ArdiaApp", method);

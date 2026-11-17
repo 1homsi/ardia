@@ -11,7 +11,7 @@ export const CALENDAR_WORDING: readonly Wording[] = [
       ["Uses the Calendar app's accounts.", "Uses Evolution Data Server: the accounts in GNOME Online Accounts and the calendars in GNOME Calendar or Evolution."],
       [
         `"Ardia isn't allowed to read your calendars. Allow it in System Settings › Privacy & Security › Calendars."`,
-        `access === "restricted" ? ${JSON.stringify(UNAVAILABLE)} : ${JSON.stringify(REFUSED)}`,
+        `(access === "restricted" ? ${JSON.stringify(UNAVAILABLE)} : ${JSON.stringify(REFUSED)})`,
       ],
       [
         `{blocked ? (
