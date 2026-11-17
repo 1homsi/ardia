@@ -23,4 +23,5 @@ export const discardKeyResponder = (token: number): void => {
 };
 export const pressRepeated = (): Promise<{ landedOn: string; ms: number } | null> => Focus.pressRepeated();
 export const pressesWithoutRelease = (): number => Focus.pressesWithoutRelease();
+export const takeFocusHandoffCounts = (): Record<string, number> => Focus.takeFocusHandoffCounts?.() ?? {};
 export const switcherPointerMoved = () => Focus.switcherPointerMoved();
