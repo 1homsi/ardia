@@ -63,3 +63,18 @@ test("Copy Diagnostics lists the engine's recent Picture in Picture closes, one 
     delete globalThis.acTestEngineInfo;
   }
 });
+
+test("closes while sharing is off are never counted, and a pending count is dropped when sharing changes", async () => {
+  client.setSharing(false, "settings");
+  setPictureInPictureState("h", { kind: "video", active: false, closedBy: "chrome", auto: true });
+  client.setSharing(true, "onboarding");
+  setPictureInPictureState("i", { kind: "video", active: false, closedBy: "app", auto: false });
+  client.setSharing(false, "settings");
+  client.setSharing(true, "onboarding");
+  setPictureInPictureState("j", { kind: "document", active: false, closedBy: "chrome", auto: false });
+  const before = (await sentUsageCounts()).length;
+  usage.sessionEnding();
+  const sent = await sentUsageCounts();
+  assert.equal(sent.length, before + 1);
+  assert.deepEqual(sent.at(-1), { pip_closed_auto_by_app: 0, pip_closed_auto_by_chrome: 0, pip_closed_manual_by_app: 0, pip_closed_manual_by_chrome: 1 });
+});

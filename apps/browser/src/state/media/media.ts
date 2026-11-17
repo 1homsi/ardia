@@ -13,7 +13,7 @@ import { hostOf } from "@ardia/core";
 import { capture } from "../telemetry/client";
 import { noteMediaPositionReport, noteNowPlayingLoopRestart } from "../telemetry/mediaCardCounts";
 import { isSleeping } from "../tabs/sleepingTabs";
-import { notePictureInPictureClosed } from "../telemetry/pictureInPictureCounts";
+import { notePictureInPictureClosed } from "../telemetry/pictureInPictureCloses";
 
 export type Session = NowPlaying & {
   playedAt: number;
