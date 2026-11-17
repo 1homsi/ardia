@@ -46,6 +46,7 @@ struct MenusModule {
         }
         std::shared_ptr<Menus::Popup> popup = Menus::PreparePopup(*parsed, Menus::MenuOwnerWindow());
         if (!popup) return promise.Resolve(JSValue{nullptr});
+        popup->pageLeft = Menus::MenuKeyboard::Shared().PageTheMenuPressLeft(popup->owner);
         bool started = DialogParts::RunModal(popup->owner, [context, popup, promise](bool usable) noexcept {
           if (usable) Menus::TrackOnThisThread(*popup, true);
           if (DialogParts::Stopping()) return;
@@ -53,6 +54,7 @@ struct MenusModule {
             if (DialogParts::ModalRegistry::Shared().withheldResign.exchange(false) && !Menus::ForegroundIsOurs()) EmitEvent(context, L"ArdiaShell", L"onAppEvent", JSValueObject{{"type", "resignActive"}});
             Menus::MenuKeyboard::Shared().ReconcileAfterMenu();
             std::optional<std::string> chosen = Menus::ChoiceOf(*popup);
+            if (popup->pageLeft) Menus::MenuKeyboard::Shared().GivePageBackAfterMenu(*popup->pageLeft, chosen.has_value());
             promise.Resolve(chosen ? JSValue{std::string{*chosen}} : JSValue{nullptr});
           });
         });

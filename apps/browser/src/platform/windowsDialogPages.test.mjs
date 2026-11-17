@@ -158,6 +158,35 @@ test("a switcher whose key was let go while a menu was open commits when the men
   assert.match(readFileSync(new URL("../state/sidebar/effects.ts", import.meta.url), "utf8"), /e\.type === "switcherReleased" && e\.afterMenu && sidebarUi\(\)\.switcher\) noteTabSwitcherReleasedInMenu\(\);/);
 });
 
+test("a right-click that took the keyboard from a page gives it back when its menu is dismissed, on the UI thread, never to a window that is not in front", () => {
+  const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
+  const manager = native("WindowManager.h");
+  const activated = manager.slice(manager.indexOf("void Activated(HWND hwnd, HWND previous)"), manager.indexOf("static bool LeftButtonDown()"));
+  assert.match(activated, /ClearPageLeftBySecondaryPress\(\);\n\s+if \(fromPage && SecondaryButtonDown\(\)\)/, "only a right press from its own page is remembered, and any other activation forgets it");
+  const module = native("MenusModule.h");
+  const shown = module.slice(module.indexOf("REACT_METHOD(showMenu)"), module.indexOf("REACT_SYNC_METHOD(openCount)"));
+  assert.match(shown, /if \(!popup\) return promise\.Resolve\(JSValue\{nullptr\}\);\n\s+popup->pageLeft = Menus::MenuKeyboard::Shared\(\)\.PageTheMenuPressLeft\(popup->owner\);\n\s+bool started = DialogParts::RunModal\(/, "the page is read on the UI thread before the menu's thread starts");
+  const done = shown.slice(shown.indexOf("RunOnUI(context, [context, popup, promise]"));
+  const worker = shown.slice(shown.indexOf("Menus::TrackOnThisThread"), shown.indexOf("RunOnUI(context, [context, popup, promise]"));
+  assert.doesNotMatch(worker, /pageLeft/, "the menu's thread never reads the remembered page");
+  assert.match(done, /ReconcileAfterMenu\(\);\n\s+std::optional<std::string> chosen = Menus::ChoiceOf\(\*popup\);\n\s+if \(popup->pageLeft\) Menus::MenuKeyboard::Shared\(\)\.GivePageBackAfterMenu\(\*popup->pageLeft, chosen\.has_value\(\)\);\n\s+promise\.Resolve/, "the keyboard goes back on the UI thread, after the switcher's release is read and before the menu answers");
+  const keyboard = native("MenuKeyboard.h");
+  const keeps = keyboard.slice(keyboard.indexOf("std::wstring_view WhyTheAppKeepsTheKeyboard("), keyboard.indexOf("void GivePageBackAfterMenu("));
+  for (const rule of [
+    /if \(chosen\) return/,
+    /if \(!IsWindow\(left\.app\) \|\| !IsWindow\(left\.page\)\) return/,
+    /WindowManager::Shared\(\)\.Hwnd\(left\.windowId\) != left\.app \|\| HostOfPage\(left\.page\)\.hwnd != left\.app\) return/,
+    /if \(foreground != left\.app\) return/,
+    /DialogParts::ModalDialogOf\(left\.app\)\) return/,
+    /if \(switcherCaptured \|\| switcherHeld \|\| escapeCaptured\) return/,
+    /if \(windowsKeyHold \|\| FocusHold::Shared\(\)\.active \|\| recording\) return/,
+  ]) assert.match(keeps, rule);
+  const gives = keyboard.slice(keyboard.indexOf("void GivePageBackAfterMenu("), keyboard.indexOf("bool HandleKey("));
+  assert.match(gives, /\{"type", "snapKeyHandedBack"\}, \{"windowId", left\.windowId\}/, "it uses the follow path the Windows key gives a page back through");
+  assert.doesNotMatch(gives, /SetForegroundWindow|SetFocus|SetActiveWindow/, "the shell never forces the foreground itself");
+  assert.match(readFileSync(new URL("../state/app/nativeSync.ts", import.meta.url), "utf8"), /if \(e\.type === "snapKeyHandedBack" && e\.afterMenu\) notePageFocusReturnRequestAfterMenu\(\);/);
+});
+
 test("a pop-up menu tracks on a RunModal thread, owned by that thread's own window, so pages keep loading while it is open (#1687)", () => {
   const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
   const module = native("MenusModule.h");

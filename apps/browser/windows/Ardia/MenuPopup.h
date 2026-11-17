@@ -310,6 +310,12 @@ inline std::string HandleText(HWND hwnd) {
   return text;
 }
 
+struct MenuPageReturn {
+  HWND page = nullptr;
+  HWND app = nullptr;
+  std::string windowId;
+};
+
 struct Popup {
   HWND owner = nullptr;
   HMENU menu = nullptr;
@@ -318,6 +324,7 @@ struct Popup {
   UINT flags = 0;
   BOOL chosen = 0;
   DWORD error = 0;
+  std::optional<MenuPageReturn> pageLeft;
 };
 
 inline std::atomic<int> &OpenMenus() noexcept {
