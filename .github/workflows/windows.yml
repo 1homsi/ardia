@@ -490,6 +490,13 @@ jobs:
         run: |
           scripts/windows/tour.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/tour-engine" -Only pages
           if (Test-Path "${{ runner.temp }}/tour-engine/tour.md") { Get-Content "${{ runner.temp }}/tour-engine/tour.md" >> $env:GITHUB_STEP_SUMMARY }
+      - name: Tour the first run
+        if: ${{ !cancelled() && env.SLUG == 'x64' && env.PART == 'launch' && env.FULL == 'true' && steps.engine.outcome == 'success' }}
+        timeout-minutes: 35
+        shell: pwsh
+        run: |
+          scripts/windows/tour.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/tour-first-run" -Only first-run
+          if (Test-Path "${{ runner.temp }}/tour-first-run/tour.md") { Get-Content "${{ runner.temp }}/tour-first-run/tour.md" >> $env:GITHUB_STEP_SUMMARY }
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -506,6 +513,8 @@ jobs:
           path: |
             ${{ runner.temp }}/tour-engine
             !${{ runner.temp }}/tour-engine/data
+            ${{ runner.temp }}/tour-first-run
+            !${{ runner.temp }}/tour-first-run/data
           if-no-files-found: ignore
           retention-days: 14
       - name: Remove the test marker

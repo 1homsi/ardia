@@ -4,6 +4,7 @@ import type { ArdiaHost } from "./host";
 import { hostModuleMethod, invokeHost } from "./host.ts";
 import { linuxCapabilities, unavailableError } from "./hostCapabilities.ts";
 import type { BangListReply } from "../../../packages/shell/src/documents";
+import { fillsScreen, isWindowFrame } from "./windowFrame.ts";
 
 type ShellMethod = (...args: never[]) => unknown;
 
@@ -79,15 +80,6 @@ const unavailable = (feature: string) => (..._args: unknown[]): Promise<never> =
 export const fetchBangList: (etag: string | null) => Promise<BangListReply> = unavailable("Bang list fetching");
 
 export const LINUX_WINDOW_CORNER_RADIUS = 19;
-
-type WindowFrame = [number, number, number, number];
-
-const isWindowFrame = (value: unknown): value is WindowFrame => Array.isArray(value) && value.length === 4 && value.every(Number.isFinite);
-
-function fillsScreen([, , width, height]: WindowFrame) {
-  const screen = typeof window === "undefined" ? undefined : window.screen;
-  return !!screen && width >= screen.availWidth && height >= screen.availHeight;
-}
 
 const frameCornerRadius = (host?: ArdiaHost) => (id: string): Promise<number> =>
   invokeHost<unknown>("ArdiaShell.windowFrame", { args: [id] }, host).then(
