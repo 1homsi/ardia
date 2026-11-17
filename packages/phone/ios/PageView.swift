@@ -227,8 +227,10 @@ final class PageView: ExpoView {
     if hostedWebView.obscuredContentInsets != insets { hostedWebView.obscuredContentInsets = insets }
     let scrollView = hostedWebView.scrollView
     if scrollView.contentInset.top != topClearance {
+      let restsAtTop = scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 0.5
       scrollView.contentInset.top = topClearance
       scrollView.verticalScrollIndicatorInsets.top = topClearance
+      if restsAtTop { scrollView.contentOffset.y = -scrollView.adjustedContentInset.top }
     }
   }
 

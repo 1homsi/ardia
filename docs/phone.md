@@ -1469,7 +1469,12 @@ extensions, no `UIRequiresFullScreen`). In Expo that is `UISupportedInterfaceOri
 add upside down on iPhone; `supportsTablet` there only records the choice). An iPad window at least 600 pt both ways
 gets the open Duo's `wide` layout; a narrower one (a Split View third, Slide Over) gets `phone`, from the same probe
 as the Duo, never the device model. A new device joining sync on an iPad is named "iPad" (`SyncMeta.deviceName`).
-From @mantrakp04's #2263 on the SwiftUI app. Android rotates too, as
+From @mantrakp04's #2263 on the SwiftUI app. In a window (Windowed Apps, Split View, Slide Over) iPadOS draws its
+window controls over the window's top-left corner; `WindowControlsClearance` (SceneDelegate.swift) adds the extra the
+corner-adapted safe area asks for (43 pt on an iPad Pro 11-inch) to the root view controller's top safe area, so
+every top inset in the app clears them, measured on the window so it never reads its own addition. A page resting at
+its top stays there when its top clearance changes, so a window growing from `phone` to `wide` keeps the page under
+the toolbar (`PageView.applyObscuredInsets`). Android rotates too, as
 the Compose app does: see "Android's half" below.
 
 **Choosing a layout** (main's `ScreenLayout.resolve`). It reads the safe-area size, the safe-area insets, the
