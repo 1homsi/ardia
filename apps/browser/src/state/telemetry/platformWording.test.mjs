@@ -81,7 +81,7 @@ test("the branch's own sentences come last in Usage, after main's", () => {
   assert.ok(usage.items.at(-3).startsWith("On Windows, how many times the command bar put back a letter"));
   assert.ok(usage.items.at(-4).startsWith("On Windows, how many times a tab you switched to had no page yet"));
   assert.ok(usage.items.at(-5).startsWith("On Windows, how many sync files waited"));
-  assert.ok(usage.items.at(-19).startsWith("How many times the first-launch intro was shown"));
+  assert.ok(usage.items.at(-20).startsWith("How many times the first-launch intro was shown"));
 });
 
 test("WATCH_COPY, which the platform pass skips, has nothing the rules would change", () => {
