@@ -14,7 +14,7 @@ export const profileRows = {
         profiles: {
           title: "Profiles",
           explained: true,
-          description: `Drag to reorder. ${keyText("⌃1")}–${keyText("⌃9")} switch between them.`,
+          description: `Pick a profile in the bar to change its settings. Drag to reorder. ${keyText("⌃1")}–${keyText("⌃9")} switch between them.`,
           keywords: ["create profile", "new profile", "delete profile", "reorder", "work", "personal"],
         },
       },

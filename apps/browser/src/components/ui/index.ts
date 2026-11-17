@@ -23,6 +23,7 @@ export { reduceMotion, reduceMotionKnown } from "./reduceMotion";
 export { PANEL, PanelCloseButton, PanelHeader, Popover, POPOVER_MARGIN, POPOVER_MOTION, PopoverSurface, PopoverValue, usePopoverMotion, usePopoverMotionStyle, usePopoverPresence } from "./Popover";
 export { Radio } from "./Radio";
 export { Segmented, type SegmentOption } from "./Segmented";
+export { SlidingThumb, useSlidingThumb } from "./SlidingThumb";
 export { Group, Row } from "./Row";
 export { NativeFormContext, useNativeForm } from "./nativeForm";
 export { Swatch } from "./Swatch";

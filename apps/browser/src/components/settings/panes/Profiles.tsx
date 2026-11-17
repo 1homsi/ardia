@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { deleteProfile } from "../../../state/browser/actions";
-import { requestCreateProfile } from "../../../state/profiles/createProfileRequest";
 import { profileAccent } from "../../ui/theme";
 import { useDataSharingProfileIds, useProfileDataStats, useProfileOrder, useProfileRecords, useTopAppSiblingNames } from "../../../state/profiles/hooks";
 import { currentEngineProfile, currentProfiles } from "../../../state/browser/current";
@@ -12,7 +11,7 @@ import { openProfileIconPicker } from "../../../state/profiles/iconPicker";
 import { updateSettings } from "../../../state/settings/actions";
 import { useProfile, useProfiles, useSettings } from "../../../state/browser/hooks";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
-import { Group, PaneIntro, Row, SectionHeader, SettingToggle, useHiddenSetting } from "../Form";
+import { Anchor, Group, Row, SectionHeader, SettingToggle, useHiddenSetting } from "../Form";
 import { ColorStack } from "../../profiles/CreateProfile";
 import { PROFILE_SYMBOLS, ProfileBadge } from "../../profiles/ProfileIcons";
 import { iconSymbol } from "../../../lib/customIcon";
@@ -26,7 +25,7 @@ import { downloadSettings, setDownloadsFor } from "../../../state/settings/paneD
 import { useResource } from "../../../state/settings/resources";
 import { findSetting, setting } from "../settingsIndex";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
-import { listOf, ProfileSwitcher, useSharedWith } from "./ProfileSwitcher";
+import { listOf, ProfileBar, useSharedWith } from "./ProfileSwitcher";
 import { useSelectedProfile } from "./ProfileSubPage";
 import { OtherEnginesPage, SearchSection } from "./ProfileSearch";
 import { PasswordsPage, PasswordsSection } from "./ProfilePasswords";
@@ -63,20 +62,17 @@ export function ProfilesPane({ profileId: chosen, detail }: SettingsPlace) {
 function ProfileOverview({ profileId }: { profileId: string }) {
   return (
     <View>
-      <PaneIntro>
-        Profiles keep your browsing organized. Each keeps its own history, logins, cookies, and extensions, unless you turn on Share data
-        when you create it: then it uses another profile's, and only the tabs are its own.
-      </PaneIntro>
-
-      <SectionHeader anchor="profiles.profiles" action={<Button title="Create Profile" icon="plus" onPress={() => void requestCreateProfile()} />} />
-      <ProfileSwitcher selectedId={profileId} />
-
       <AllProfilesSection />
-      <ThisProfileSection key={profileId} profileId={profileId} />
-      <SearchSection profileId={profileId} />
-      <PasswordsSection profileId={profileId} />
-      <ExtensionsSection profileId={profileId} />
-      <DataSection profileId={profileId} />
+      <Anchor id="profiles.profiles" keep shape="card">
+        <ProfileBar selectedId={profileId} />
+      </Anchor>
+      <View key={profileId}>
+        <ThisProfileSection profileId={profileId} />
+        <SearchSection profileId={profileId} />
+        <PasswordsSection profileId={profileId} />
+        <ExtensionsSection profileId={profileId} />
+        <DataSection profileId={profileId} />
+      </View>
     </View>
   );
 }
@@ -89,7 +85,10 @@ function AllProfilesSection() {
 
   return (
     <>
-      <SectionHeader title="For all profiles" />
+      <SectionHeader
+        title="All profiles"
+        description="Each profile keeps its own history, logins, cookies and extensions, unless it was created to share another's data."
+      />
       <Group>
         <Row anchor="profiles.defaultProfile">
           <PopUp
@@ -196,12 +195,17 @@ function ThisProfileSection({ profileId }: { profileId: string }) {
             <ProfileBadge profile={profile} size={64} />
           </View>
         </Pressable>
-        <Text size="small" tone="textSecondary">
-          {stats}
-        </Text>
+        <Box center gap="xxs">
+          <Text size="title" weight="semibold">
+            {profile.name}
+          </Text>
+          <Text size="small" tone="textSecondary">
+            {stats}
+          </Text>
+        </Box>
       </Box>
 
-      <SectionHeader title="This profile" description={`Everything below applies to ${profile.name}.`} />
+      <SectionHeader title="This profile" />
       <Group>
         <Row title="Name">
           <TextField value={name} onChangeText={editName} onSubmit={commitName} onBlur={commitName} width={220} />
@@ -276,4 +280,4 @@ function DataSection({ profileId }: { profileId: string }) {
   );
 }
 
-const DETAILS_HEAD = { alignItems: "center", marginTop: space.xxxl } as const;
+const DETAILS_HEAD = { alignItems: "center", marginTop: space.xxl } as const;

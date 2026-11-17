@@ -41,6 +41,7 @@ const HOLD_CAP_MS = 250;
 const REVEAL_MARGIN = 16;
 
 const shownKey = (s: SettingsPlace) => `${s.pane}:${s.profileId ?? ""}:${s.detail ?? ""}`;
+const pageKey = (s: SettingsPlace) => (s.pane === "profiles" && !s.detail ? "profiles::" : shownKey(s));
 
 function useShownPane(): SettingsPlace | null {
   const nav = useSettingsNav();
@@ -82,7 +83,8 @@ export function SettingsWindow() {
   useEffect(() => void setTrafficLightsCenter(SETTINGS_WINDOW_ID, [LIGHTS_CENTER[0], TOOLBAR / 2]), []);
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
-  useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);
+  const page = shown ? pageKey(shown) : "";
+  useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [page]);
   useEffect(() => closeProfileIconPickerIn(SETTINGS_WINDOW_ID), [key]);
   const content = useRef<View>(null);
   const scrollTop = useRef(0);
@@ -148,7 +150,7 @@ export function SettingsWindow() {
           onScroll={(e) => void (scrollTop.current = e.nativeEvent.contentOffset.y)}
           onLayout={(e) => void (viewport.current = e.nativeEvent.layout.height)}
           contentContainerStyle={PANE_SCROLL}>
-          <View key={key} ref={content} collapsable={false} style={PANE_COLUMN}>
+          <View key={page} ref={content} collapsable={false} style={PANE_COLUMN}>
             {shown ? (
               <NativeFormContext.Provider value>
                 <SettingsPaneContext.Provider value={shown.pane}>

@@ -1,17 +1,17 @@
-import { Box, ContextMenuArea, Divider, radius, space, Symbol, Text, useHover } from "../../ui";
+import { Box, Button, capsule, ContextMenuArea, SlidingThumb, space, Text, useHover, useSlidingThumb } from "../../ui";
 import { hapticTick } from "../../../state/app/system";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, PanResponder, Pressable, StyleSheet, View } from "react-native";
-import { useShallow } from "zustand/react/shallow";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { hex, useTheme } from "../../ui/theme";
 import { useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
 import { currentProfileOrder } from "../../../state/browser/current";
 import { reorderProfiles } from "../../../state/profiles/actions";
-import { useProfile, useSettings } from "../../../state/browser/hooks";
+import { useProfile } from "../../../state/browser/hooks";
 import { sharingProfiles } from "../../../state/profiles/profiles";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { replaceSettingsPlace, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
 import { openProfileItemMenu } from "../../profiles/profileMenu";
+import { requestCreateProfile } from "../../../state/profiles/createProfileRequest";
 import { curve } from "../../ui/motion";
 import { settingsMotion } from "../tokens";
 
@@ -26,13 +26,17 @@ export function useSharedWith(profileId: string): string[] {
   }, [order, profiles, profileId]);
 }
 
-const ROW_HEIGHT = 46;
 const settle = (value: Animated.Value, toValue: number) =>
   Animated.timing(value, { toValue, duration: settingsMotion.profileRowSettle, easing: curve.enter, useNativeDriver: true });
 
-export function ProfileSwitcher({ selectedId }: { selectedId: string }) {
+export function ProfileBar({ selectedId }: { selectedId: string }) {
+  const theme = useTheme();
   const order = useProfileOrder();
   const offsets = useRef(new Map<string, Animated.Value>()).current;
+  const thumb = useSlidingThumb(selectedId);
+  const slots = thumb.slots;
+  const scroller = useRef<ScrollView>(null);
+  const view = useRef({ x: 0, width: 0 });
   const offsetOf = (id: string) => {
     let v = offsets.get(id);
     if (!v) offsets.set(id, (v = new Animated.Value(0)));
@@ -47,25 +51,43 @@ export function ProfileSwitcher({ selectedId }: { selectedId: string }) {
     offsets.forEach((v) => v.setValue(0));
   }, [order]);
 
+  useEffect(() => {
+    const slot = slots.get(selectedId);
+    const { x, width } = view.current;
+    if (!slot || !width) return;
+    const left = slot.x + TRAY_PAD;
+    const right = left + slot.width + TRAY_PAD;
+    if (left - TRAY_PAD < x) scroller.current?.scrollTo({ x: Math.max(0, left - TRAY_PAD * 2), animated: true });
+    else if (right > x + width) scroller.current?.scrollTo({ x: right - width + TRAY_PAD, animated: true });
+  }, [selectedId]);
+
   const controller = useRef({
     start(id: string) {
-      const ids = currentProfileOrder();
-      const from = ids.indexOf(id);
+      const from = currentProfileOrder().indexOf(id);
       drag.current = { id, from, to: from, reorderPending: false };
       setDragging(id);
     },
-    move(dy: number) {
+    move(dx: number) {
       const { id, from } = drag.current;
       const ids = currentProfileOrder();
-      const max = ids.length - 1;
-      offsetOf(id).setValue(Math.max(-from * ROW_HEIGHT - 6, Math.min((max - from) * ROW_HEIGHT + 6, dy)));
-      const to = Math.max(0, Math.min(max, Math.round(from + dy / ROW_HEIGHT)));
+      const slot = slots.get(id);
+      const first = slots.get(ids[0] ?? "");
+      const last = slots.get(ids.at(-1) ?? "");
+      if (!slot || !first || !last) return;
+      const shift = Math.max(first.x - slot.x, Math.min(last.x + last.width - slot.x - slot.width, dx));
+      offsetOf(id).setValue(shift);
+      const center = slot.x + slot.width / 2 + shift;
+      const to = ids.filter((other) => {
+        const s = slots.get(other);
+        return other !== id && !!s && s.x + s.width / 2 < center;
+      }).length;
       if (to === drag.current.to) return;
       drag.current.to = to;
       hapticTick();
+      const gap = slot.width + PILL_GAP;
       ids.forEach((other, j) => {
         if (other === id) return;
-        settle(offsetOf(other), from < j && j <= to ? -ROW_HEIGHT : to <= j && j < from ? ROW_HEIGHT : 0).start();
+        settle(offsetOf(other), from < j && j <= to ? -gap : to <= j && j < from ? gap : 0).start();
       });
     },
     end(commit: boolean) {
@@ -83,112 +105,91 @@ export function ProfileSwitcher({ selectedId }: { selectedId: string }) {
   }).current;
 
   return (
-    <Box fill="groupFill" border="groupBorder" radius="panel">
-      {order.map((id, i) => (
-        <ProfileRow
-          key={id}
-          profileId={id}
-          selected={id === selectedId}
-          first={i === 0}
-          last={i === order.length - 1}
-          offset={offsetOf(id)}
-          lifted={dragging === id}
-          controller={controller}
-        />
-      ))}
+    <Box row center gap="s" style={BAR}>
+      <View style={[TRAY, { backgroundColor: theme.groupFill, borderColor: theme.groupBorder }]}>
+        <ScrollView
+          ref={scroller}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(e) => void (view.current.x = e.nativeEvent.contentOffset.x)}
+          onLayout={(e) => void (view.current.width = e.nativeEvent.layout.width)}
+          contentContainerStyle={TRAY_SCROLL}
+        >
+          <View style={TRAY_CONTENT}>
+            <SlidingThumb x={thumb.x} width={thumb.width} shift={offsetOf(selectedId)} style={[THUMB, { backgroundColor: theme.formAccent }]} />
+            {order.map((id) => (
+              <ProfilePill
+                key={id}
+                profileId={id}
+                selected={id === selectedId}
+                offset={offsetOf(id)}
+                lifted={dragging === id}
+                controller={controller}
+                onLayout={(e) => thumb.measure(id, e)}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+      <Button variant="icon" icon="plus" box={PILL_HEIGHT} glyph={PILL_PLUS_GLYPH} capsule tooltip="Create Profile" onPress={() => void requestCreateProfile()} />
     </Box>
   );
 }
 
-type DragController = { start(id: string): void; move(dy: number): void; end(commit: boolean): void };
+type DragController = { start(id: string): void; move(dx: number): void; end(commit: boolean): void };
 
-function ProfileRow({
+function ProfilePill({
   profileId,
   selected,
-  first,
-  last,
   offset,
   lifted,
   controller,
+  onLayout,
 }: {
   profileId: string;
   selected: boolean;
-  first: boolean;
-  last: boolean;
   offset: Animated.Value;
   lifted: boolean;
   controller: DragController;
+  onLayout: (e: LayoutChangeEvent) => void;
 }) {
   const theme = useTheme();
   const profile = useProfile(profileId, (p) => p);
-  const isDefault = useSettings((s) => s.defaultProfileId === profileId);
-  const shared = useSharedWith(profileId);
-  const names = useProfileRecords(useShallow((profiles) => shared.filter((id) => id !== profileId).map((id) => profiles[id]?.name ?? "")));
   const { hovered, hoverProps } = useHover();
-  const badge = useRef<View>(null);
+  const anchor = useRef<View>(null);
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 3,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 3,
       onPanResponderGrant: () => controller.start(profileId),
-      onPanResponderMove: (_, g) => controller.move(g.dy),
+      onPanResponderMove: (_, g) => controller.move(g.dx),
       onPanResponderRelease: () => controller.end(true),
       onPanResponderTerminate: () => controller.end(false),
       onPanResponderTerminationRequest: () => false,
     }),
   ).current;
   if (!profile) return null;
-
-  const cardInnerRadius = radius.panel - StyleSheet.hairlineWidth * 2;
-  const description = [isDefault ? "Default" : null, names.length ? `Shares data with ${listOf(names)}` : null].filter(Boolean).join(" · ");
-  const openMenu = () => openProfileItemMenu(profileId, "settings", SETTINGS_WINDOW_ID, badge.current);
+  const fill = selected ? undefined : lifted ? hex(theme.panel) : hovered ? theme.rowHover : undefined;
 
   return (
     <Animated.View
       {...pan.panHandlers}
-      style={{
-        zIndex: lifted ? 1 : 0,
-        transform: [{ translateY: offset }],
-        borderRadius: lifted ? radius.tile : 0,
-        backgroundColor: lifted ? hex(theme.panel) : undefined,
-        borderWidth: lifted ? StyleSheet.hairlineWidth * 2 : 0,
-        borderColor: theme.groupBorder,
-      }}
+      onLayout={onLayout}
+      style={{ zIndex: lifted ? 1 : 0, transform: [{ translateX: offset }] }}
     >
-      {!first && !lifted && <Divider inset="l" thick />}
-      <ContextMenuArea onContextMenu={() => void openMenu()}>
-        <View {...hoverProps}>
-          <Pressable onPress={() => !selected && replaceSettingsPlace(profileId)} accessibilityRole="button" accessibilityState={{ selected }}>
-            <View
-              style={{
-                height: ROW_HEIGHT - (first ? 0 : StyleSheet.hairlineWidth * 2),
-                paddingLeft: space.m,
-                paddingRight: space.l,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: space.ml,
-                borderTopLeftRadius: first ? cardInnerRadius : 0,
-                borderTopRightRadius: first ? cardInnerRadius : 0,
-                borderBottomLeftRadius: last ? cardInnerRadius : 0,
-                borderBottomRightRadius: last ? cardInnerRadius : 0,
-                backgroundColor: hovered && !lifted && !selected ? theme.rowHover : undefined,
-              }}
-            >
-              <View tooltip="Drag to reorder">
-                <Symbol name="line.3.horizontal" size={11} color={theme.textTertiary} style={GRIP} />
-              </View>
-              <View ref={badge} collapsable={false}>
-                <ProfileBadge profile={profile} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text weight={selected ? "semibold" : undefined}>{profile.name}</Text>
-                {description ? (
-                  <Text size="caption" tone="textSecondary" style={DESCRIPTION}>
-                    {description}
-                  </Text>
-                ) : null}
-              </View>
-              {selected ? <Symbol name="checkmark" size={12} weight="semibold" color={theme.formAccent} style={CHECK} /> : null}
-            </View>
+      <ContextMenuArea onContextMenu={() => void openProfileItemMenu(profileId, "settings", SETTINGS_WINDOW_ID, anchor.current)}>
+        <View {...hoverProps} ref={anchor} collapsable={false}>
+          <Pressable
+            onPress={() => !selected && replaceSettingsPlace(profileId)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            accessibilityLabel={profile.name}
+            style={[PILL, { backgroundColor: fill }]}
+          >
+            <ProfileBadge profile={profile} size={PILL_BADGE} />
+            <Text tone={selected ? "onAccent" : "textPrimary"} numberOfLines={1} style={PILL_NAME}>
+              {profile.name}
+            </Text>
           </Pressable>
         </View>
       </ContextMenuArea>
@@ -196,6 +197,16 @@ function ProfileRow({
   );
 }
 
-const GRIP = { width: 14, height: 14 } as const;
-const CHECK = { width: 14, height: 14 } as const;
-const DESCRIPTION = { marginTop: space.xxs } as const;
+const PILL_HEIGHT = 28;
+const PILL_BADGE = 18;
+const PILL_PLUS_GLYPH = 13;
+const PILL_GAP = space.xxs;
+const PILL_NAME_MAX = 160;
+const TRAY_PAD = space.xxs;
+const BAR = { marginTop: space.xxl } as const;
+const TRAY = { flex: 1, borderRadius: capsule(PILL_HEIGHT + TRAY_PAD * 2), borderWidth: StyleSheet.hairlineWidth * 2, overflow: "hidden" } as const;
+const TRAY_SCROLL = { padding: TRAY_PAD } as const;
+const TRAY_CONTENT = { flexDirection: "row", gap: PILL_GAP } as const;
+const THUMB = { borderRadius: capsule(PILL_HEIGHT) } as const;
+const PILL = { height: PILL_HEIGHT, borderRadius: capsule(PILL_HEIGHT), flexDirection: "row", alignItems: "center", gap: space.s, paddingLeft: space.xs, paddingRight: space.m } as const;
+const PILL_NAME = { maxWidth: PILL_NAME_MAX } as const;
