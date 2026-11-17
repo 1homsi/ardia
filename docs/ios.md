@@ -254,9 +254,9 @@ sizes, copy), on Apple's controls, in the Mac's colours:
     failure (limit reached, not eligible, network, a stream cut short) drops the partial text and Apple Intelligence
     writes the answer, with the reason in the note. Voice stays Apple's: plan usage covers no audio. The voice is the best one installed
     for the phone's language family (`VoiceRanking`: Premium, then Enhanced, the phone's own region first), or the one
-    picked in Settings › Browse for Me › Voice (`ReadingVoices`, `VoicePicker`); iOS has no way for an app to download
-    a voice, so while none is natural the page and settings say where to download one, and the page's tip carries the
-    same picker. A model that lists thinking levels in the catalog (`supported_reasoning_levels`) gets a Thinking
+    picked from the listen bar's voice menu or Settings › Browse for Me › Voice (`ReadingVoices`, `VoicePicker`); iOS
+    has no way for an app to download a voice, so while none is natural the page and settings say where to download
+    one. A model that lists thinking levels in the catalog (`supported_reasoning_levels`) gets a Thinking
     picker, sent as `reasoning.effort`; Automatic sends nothing. Disconnect waits for a refresh in flight, then revokes the latest refresh token and says so when OpenAI doesn't
     confirm it. Debug builds take
     `-ArdiaChatGPTIssuer <url>` and `-ArdiaChatGPTAPI <url>` to point at a fake server.

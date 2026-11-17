@@ -269,15 +269,9 @@ struct ResearchView: View {
       Image(systemName: "waveform")
         .foregroundStyle(.tint)
         .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: Spacing.hairline) {
-        Text(ReadingVoices.downloadTip)
-          .font(.footnote)
-        VoicePicker { readAloud.voiceChanged() }
-          .pickerStyle(.menu)
-          .labelsHidden()
-          .padding(.leading, -12)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      Text(ReadingVoices.downloadTip)
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .leading)
       Button {
         voiceTipDismissed = true
       } label: {
@@ -306,6 +300,17 @@ struct ResearchView: View {
         .font(.subheadline.weight(.medium))
         .lineLimit(2)
         .frame(maxWidth: .infinity, alignment: .leading)
+      Menu {
+        VoicePicker { readAloud.voiceChanged() }
+          .pickerStyle(.inline)
+      } label: {
+        Image(systemName: "person.wave.2.fill")
+          .font(.body.weight(.semibold))
+          .frame(width: 44, height: 44)
+          .contentShape(.circle)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(Text("Voice"))
       Button {
         readAloud.toggleSpeaker()
       } label: {
