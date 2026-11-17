@@ -256,14 +256,16 @@ void PageLinks::FrameCommitted(content::RenderFrameHost* frame) {
   if (!host_) {
     Attach();
   } else if (!script_id_ && !registering_ && !enabling_) {
-    registering_ = true;
-    AddScript(true);
+    Register();
   }
 }
 
 bool PageLinks::Attach() {
   if (host_) {
     return true;
+  }
+  if (GetWebContents().IsBeingDestroyed()) {
+    return false;
   }
   NoteForTest("links attach " + Tag());
   host_ = content::DevToolsAgentHost::GetOrCreateFor(&GetWebContents());
@@ -297,6 +299,11 @@ void PageLinks::Register() {
 void PageLinks::RuntimeEnabled(std::optional<base::DictValue> answer) {
   NoteForTest("links runtime enabled " + Tag() + (answer ? "" : " (error)"));
   enabling_ = false;
+  if (!answer) {
+    stale_.clear();
+    registering_ = false;
+    return;
+  }
   for (int context : stale_) {
     Evaluate(context,
              "globalThis.ardiaPeek && globalThis.ardiaPeek.stop && "

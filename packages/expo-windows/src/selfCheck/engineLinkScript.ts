@@ -1,9 +1,10 @@
 import { engineAvailable, hostCall, onEngineTopic } from "../engine/host";
 import { httpPagesPort } from "./engineBackForward";
-import { expectEqual, type Check } from "./check";
-import { click, evaluate, LEFT, LINKS_TITLE, listed, pause, show, sleepOnce, until, withPages } from "./engineSleep";
+import { expectEqual, expectTrue, type Check } from "./check";
+import { click, evaluate, firstWindow, LEFT, LINKS_TITLE, listed, pause, show, sleepOnce, timedCall, until, withPages } from "./engineSleep";
 
 const WAKES = 20;
+const QUICK_CLOSES = 10;
 const NAVIGATIONS = 10;
 const OPEN_MS = 3000;
 const LOAD_MS = 20000;
@@ -50,6 +51,19 @@ function judge(rounds: Round[], what: string) {
 }
 
 const linkScriptChecks = (port: string): Check[] => [
+  {
+    name: "engine links: a tab closed before its link script finishes registering closes, and the engine keeps answering",
+    run: async () => {
+      const windowId = await firstWindow();
+      for (let i = 0; i < QUICK_CLOSES; i++) {
+        const key = `self-check-links-quick-close-${i}`;
+        await timedCall("tab.create", { key, url: `http://127.0.0.1:${port}/links?quick${i}`, profile: "" }, windowId);
+        await timedCall("tab.close", { key });
+      }
+      const tabs = (await timedCall<{ tabs?: { key: string }[] }>("tabs.list")).tabs ?? [];
+      expectTrue(!tabs.some((tab) => tab.key.startsWith("self-check-links-quick-close-")), `every quickly closed tab is gone (${JSON.stringify(tabs.map((tab) => tab.key))})`);
+    },
+  },
   {
     name: "engine links: the link script sees the first click on a page that just woke from sleep",
     run: () =>
