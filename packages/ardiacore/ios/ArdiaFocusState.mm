@@ -64,6 +64,8 @@ void NoteFocusChange(NSString *what, NSWindow *window) {
   if (history.count > kFocusHistoryLength) [history removeObjectAtIndex:0];
 }
 
+namespace {
+
 bool IsBrowserWindow(NSWindow *window) {
   ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window];
   return controller.root && !ardia_content_blocker::IsHiddenPageWindow(window) &&
