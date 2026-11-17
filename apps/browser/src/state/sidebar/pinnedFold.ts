@@ -6,7 +6,7 @@ import { updateProfile } from "../profiles/actions";
 import { keptEntry } from "./entries";
 import { pinnedSequence } from "./pinnedOrder";
 import { entryKey } from "./entryKey";
-import { notePinnedSectionToggled } from "../telemetry/sidebarResizeCounts";
+import { notePinnedFoldToggled } from "../telemetry/pinnedFoldCounts";
 
 export const PINNED_FOLD_TITLES = { collapse: "Collapse Pinned Tabs", expand: "Expand Pinned Tabs" } as const;
 
@@ -23,7 +23,7 @@ export function togglePinnedFold(profileId: string) {
   if (!s.profiles[profileId]) return;
   const collapsed = !pinnedCollapsed(s, profileId);
   setPinnedCollapsed(profileId, collapsed);
-  notePinnedSectionToggled(collapsed);
+  notePinnedFoldToggled(collapsed);
 }
 
 export function pinnedKept(s: BrowserState, windowId: string, profileId: string, entries: string[]): string | null {

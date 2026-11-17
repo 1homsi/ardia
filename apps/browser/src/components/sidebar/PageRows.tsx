@@ -87,13 +87,13 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush />
           </DragScope>
         ) : null}
-        {pinnedSection ? <PinnedSectionHeader profileId={profileId} collapsed={collapsed} open={pinnedFold.open} /> : null}
+        {pinnedSection ? <PinnedSectionHeader windowId={windowId} profileId={profileId} collapsed={collapsed} open={pinnedFold.open} top={tiles.length ? space.s : 0} bottom={pinnedGap} /> : null}
         <View
           ref={(v) => {
             controller?.regions.set("pinnedGroups", v);
           }}
           onLayout={(e) => void (regions.pinnedGroups = e.nativeEvent.layout.y)}
-          style={{ marginTop: tiles.length && pinnedSection ? space.s : 0, gap: pinnedGap }}
+          style={{ gap: pinnedGap }}
         >
           {pinnedSection ? (
             <Fold
