@@ -18,6 +18,7 @@ import { setUsageSharing, useUsageSharing } from "../../state/telemetry/telemetr
 import { contentMargins, modifierList, PROFILE_COLORS, settingsChrome, settingsLayout, SettingsIconTile, SettingsShortcuts, settingsSwitchStyle, settingsTint, settingsUIAvailable, useWarningInk, type ProfileColor } from "../ui";
 import { ExpoRowLabel } from "./ExpoRowLabel";
 import { syncOffered } from "../../state/sync/offer";
+import { browseForMeOffered, refreshChatGPTConnected, useChatGPTConnected } from "../../state/browseForMe/store";
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
 const APP_LINKS = [
@@ -48,6 +49,10 @@ export function ExpoSettingsRoot() {
   const synced = useSyncView().search;
   const engineName = syncEnabled && synced ? syncedEngineName(synced, engines) : (engines.find((engine) => engine.id === engineId)?.name ?? "");
   const appearance = useAppearanceSummary(colorName);
+  const chatGPT = useChatGPTConnected();
+  useEffect(() => {
+    void refreshChatGPTConnected();
+  }, []);
   return (
     <Toolbar>
       <Form modifiers={modifierList(navigationTitle("Settings"), navigationBarTitleDisplayMode("inline"), tint(PlatformColor("systemBlue")), settingsChrome(), contentMargins({ edges: "top", length: settingsLayout.expoListTop }))}>
@@ -84,6 +89,13 @@ export function ExpoSettingsRoot() {
               <Text>{engineName}</Text>
             </LabeledContent>
           </NavigationLink>
+          {browseForMeOffered() ? (
+            <NavigationLink value={link({ page: "browseForMe" })}>
+              <LabeledContent label={<ExpoRowLabel title="Browse for Me" systemImage="sparkle.magnifyingglass" tint="nightShade" />}>
+                <Text>{chatGPT ? "ChatGPT" : "On iPhone"}</Text>
+              </LabeledContent>
+            </NavigationLink>
+          ) : null}
           <Toggle isOn={suggestions} onIsOnChange={setSearchSuggestions} modifiers={modifierList(settingsSwitchStyle())}>
             <ExpoRowLabel title="Search Suggestions" systemImage="text.magnifyingglass" tint="blue" />
           </Toggle>

@@ -81,7 +81,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   profiles when they help reproduce a bug. Copy what you need into a scratch dir and point a hidden instance's
   `ARDIA_DATA_DIR` at the copy; never write to the live profile or open it in a running app.
 - **No AI features.** This is the owner's decision. Dia's AI rows in `docs/dia-feature-parity.md`
-  stay ⏸.
+  stay ⏸. The one exception is the iPhone's Browse for Me (`docs/phone.md`), which runs on Apple's on-device model,
+  or on the user's own ChatGPT plan when they connect it, with no account and no server of ours.
 
 ## Platforms
 One browser UI (`apps/browser/src` and `packages/*/src`) runs on three platforms, each with its own native layer and

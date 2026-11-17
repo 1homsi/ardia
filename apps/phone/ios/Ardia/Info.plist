@@ -74,7 +74,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Websites you visit may ask for your location.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Ardia uses the microphone when you search with your voice, and for websites that ask to use it.</string>
+	<string>Ardia uses the microphone when you search with your voice, to read answers into your ear when you hold your iPhone up, and for websites that ask to use it.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Ardia saves images you choose to your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
