@@ -238,6 +238,8 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)requestFocusRestore;
 - (void)requestFocusRestoreIn:(NSWindow *)window;
 - (void)restoreFocusIfDue;
+- (BOOL)focusRememberedDevToolsIn:(NSWindow *)window;
+- (void)focusAfterLingeringPane;
 - (void)settleFirstShowFocus;
 - (void)focusAfterLoad;
 @end
