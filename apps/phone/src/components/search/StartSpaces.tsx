@@ -190,7 +190,7 @@ function PinnedTileButton({ tile, width, profileId, dark, incognito, menuPlace }
   const folder = tile.folder?.length ? tile.folder : null;
   const label = remoteTitle(tile.title, tile.url);
   const items: MenuItem[] = folder
-    ? folder.map((tab) => ({ label: remoteTitle(tab.title, tab.url), onPress: () => openRemote(tab.url, tab.title, profileId) }))
+    ? folder.map((tab) => ({ label: remoteTitle(tab.title, tab.url), onPress: () => openRemote(tab.url, tab.title, profileId, tab.key) }))
     : /^https?:\/\//i.test(tile.url)
       ? [
           { label: "Copy Link", onPress: () => copyLink(tile.url) },
@@ -202,7 +202,7 @@ function PinnedTileButton({ tile, width, profileId, dark, incognito, menuPlace }
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={folder ? "Shows the folder’s tabs." : undefined}
-      onPress={folder ? onPress : () => openRemote(tile.url, tile.title, profileId)}
+      onPress={folder ? onPress : () => openRemote(tile.url, tile.title, profileId, tile.key)}
       onLongPress={folder ? undefined : onLongPress}
       onPressIn={haptics.barPress}
       style={({ pressed }) => (pressed && !folder ? styles.pressed : null)}

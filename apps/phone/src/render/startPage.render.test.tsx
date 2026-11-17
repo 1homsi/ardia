@@ -157,12 +157,12 @@ test("a tile opens its page in the space, and a folder tile opens a menu of its 
   withSpaces([profile("work", "Work", [tile(0), tile(1, [{ key: "f0", title: "Inside", url: "https://inside.example/", icon: null }])])]);
   const root = start();
   act(() => root.root.findAll((node) => node.props.accessibilityLabel === "Pin 0" && typeof node.props.onPress === "function")[0]!.props.onPress());
-  expect(open).toHaveBeenCalledWith("https://pin0.example/", "Pin 0", "work");
+  expect(open).toHaveBeenCalledWith("https://pin0.example/", "Pin 0", "work", "k0");
   act(() => root.root.findAll((node) => node.props.accessibilityLabel === "Pin 1" && typeof node.props.onPress === "function")[0]!.props.onPress());
   const menu = root.root.findAll((node) => node.type === FloatingMenu)[0]!;
   expect(menu.props.items.map((item: { label: string }) => item.label)).toEqual(["Inside"]);
   act(() => menu.props.items[0].onPress());
-  expect(open).toHaveBeenLastCalledWith("https://inside.example/", "Inside", "work");
+  expect(open).toHaveBeenLastCalledWith("https://inside.example/", "Inside", "work", "f0");
   unmount(root);
 });
 
