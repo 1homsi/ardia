@@ -100,6 +100,65 @@ test("a rejected post records one event and the rejection still reaches the call
   assert.equal(events.at(-1).properties.error_type, "RangeError");
 });
 
+function pendingPost() {
+  let resolve, reject;
+  const promise = new Promise((ok, fail) => ((resolve = ok), (reject = fail)));
+  return { promise, resolve, reject };
+}
+
+const REFUSED = { icon: "download_failed", iconErrorCode: -1009, errorDomain: "UNErrorDomain", errorCode: 3 };
+
+test("a post that started while sharing was off and fails after it is turned on sends nothing", async () => {
+  client.setSharing(false, "settings");
+  const refused = pendingPost();
+  const thrown = pendingPost();
+  const recorded = recordWebNotificationPost(refused.promise, SENT);
+  const rejected = recordWebNotificationPost(thrown.promise, SENT);
+  client.setSharing(true, "settings");
+  const before = (await failures()).length;
+  refused.resolve(REFUSED);
+  const error = new TypeError("posting failed");
+  thrown.reject(error);
+  await recorded;
+  await assert.rejects(rejected, (caught) => caught === error);
+  assert.equal((await failures()).length, before);
+});
+
+test("a post pending while sharing went off and back on sends nothing", async () => {
+  client.setSharing(true, "settings");
+  const refused = pendingPost();
+  const thrown = pendingPost();
+  const recorded = recordWebNotificationPost(refused.promise, SENT);
+  const rejected = recordWebNotificationPost(thrown.promise, SENT);
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  const before = (await failures()).length;
+  refused.resolve(REFUSED);
+  const error = new TypeError("posting failed");
+  thrown.reject(error);
+  await recorded;
+  await assert.rejects(rejected, (caught) => caught === error);
+  assert.equal((await failures()).length, before);
+});
+
+test("a post that starts and fails with sharing on throughout still sends, and its rejection still reaches the caller", async () => {
+  client.setSharing(true, "settings");
+  const before = (await failures()).length;
+  const refused = pendingPost();
+  const thrown = pendingPost();
+  const recorded = recordWebNotificationPost(refused.promise, SENT);
+  const rejected = recordWebNotificationPost(thrown.promise, SENT);
+  refused.resolve(REFUSED);
+  const error = new TypeError("posting failed");
+  thrown.reject(error);
+  await recorded;
+  await assert.rejects(rejected, (caught) => caught === error);
+  const sent = (await failures()).slice(before);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].properties.error_code, 3);
+  assert.equal(sent[1].properties.threw, true);
+});
+
 test("a website notification macOS refuses writes one record with lengths and no text", async () => {
   const before = (await failures()).length;
   const base = posted.length;
