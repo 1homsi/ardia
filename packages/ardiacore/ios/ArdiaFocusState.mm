@@ -104,17 +104,13 @@ NSArray<NSString *> *BrowserWindowLines(NSWindow *window) {
   [lines addObject:[prefix stringByAppendingFormat:@"page move at centre %@", move.length ? move : @"no page view"]];
   NSString *(^handoff)(NSWindow *) = ArdiaChromeWindowHost.focusHandoffSummaryHandler;
   if (handoff) [lines addObject:[prefix stringByAppendingString:handoff(window)]];
-  ArdiaCoreWindow *core = [ArdiaWindowController forNSWindow:window].coreWindow;
-  if ([core respondsToSelector:@selector(activeSummary)])
-    for (NSString *line in [core.activeSummary componentsSeparatedByString:@"\n"])
-      [lines addObject:[prefix stringByAppendingFormat:@"engine %@", line]];
   return lines;
 }
 
 }
 
 void NoteProfileSwitch(ArdiaCoreProfile *profile, NSWindow *window) {
-  NoteFocusChange([@"profile switch " stringByAppendingString:profile.name ?: @"unknown"], window);
+  NoteFocusChange(profile.offTheRecord ? @"profile switch private" : @"profile switch regular", window);
 }
 
 void WatchFocusChanges() {

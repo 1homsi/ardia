@@ -59,7 +59,7 @@ final class FocusHandoff {
   var afterPendingUI: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) }
 
   func summary(of window: NSWindow) -> String {
-    let epoch = epochs[window.windowNumber] ?? 0
+    let epoch = keyEpochs.epoch(of: window.windowNumber)
     guard let gate = gates[ObjectIdentifier(window)] else { return "key epoch \(epoch), no paste gate" }
     let remaining = Int((gate.deadline - CACurrentMediaTime()) * 1000)
     let state = remaining > 0 ? "open, \(remaining) ms left" : "expired \(-remaining) ms ago, not yet ended"

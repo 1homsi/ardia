@@ -10,11 +10,6 @@ const internal = read("../ios/ArdiaInternal.h");
 const host = read("../ios/ArdiaHost.mm");
 const handoff = read("../../shell/ios/FocusHandoff.swift");
 const chromeWindows = read("../../shell/ios/ChromeWindows.swift");
-const engine = "../../../engine/ardiacore/src/ardia/core/";
-const engineHost = read(`${engine}ac_window_host.mm`);
-const engineHostHeader = read(`${engine}ac_browser.h`);
-const engineWindow = read(`${engine}ardiacore_window.mm`);
-const enginePublic = read(`${engine}public/ArdiaCore.h`);
 
 const body = (text, signature) => {
   const start = text.indexOf(signature);
@@ -34,15 +29,17 @@ test("the focus history keeps the last 40 changes", () => {
 });
 
 test("a profile switch is written to the focus history", () => {
-  assert.match(body(focusState, "void NoteProfileSwitch("), /NoteFocusChange\(\[@"profile switch " stringByAppendingString:profile\.name \?: @"unknown"\], window\)/);
+  const note = body(focusState, "void NoteProfileSwitch(");
+  assert.match(note, /NoteFocusChange\(profile\.offTheRecord \? @"profile switch private" : @"profile switch regular", window\)/);
+  assert.doesNotMatch(note, /profile\.name/);
   assert.match(internal, /void NoteProfileSwitch\(ArdiaCoreProfile \*profile, NSWindow \*_Nullable window\);/);
-  const show = body(windowHost, "+ (void)showProfile:");
+  const show = body(windowHost, "report:(void (^)(BOOL, double, double, BOOL))report");
   const setActive = show.indexOf("coreWindow.activeProfile = p;");
-  const note = show.indexOf("ardia_host::NoteProfileSwitch(p, coreWindow.window);");
-  assert.ok(setActive >= 0 && note > setActive, "showProfile notes the switch right after it sets the active profile");
+  const noted = show.indexOf("ardia_host::NoteProfileSwitch(p, coreWindow.window);");
+  assert.ok(setActive >= 0 && noted > setActive, "showProfile notes the switch right after it sets the active profile");
 });
 
-test("Copy Diagnostics lists, per browser window, its number, the page's mouse-ignore result, the handoff state and the engine's active state", () => {
+test("Copy Diagnostics lists, per browser window, its number, the page's mouse-ignore result and the handoff state", () => {
   const state = body(focusState, "NSString *FocusState()");
   assert.match(state, /if \(IsBrowserWindow\(window\)\) \[lines addObjectsFromArray:BrowserWindowLines\(window\)\]/);
   assert.ok(state.indexOf("BrowserWindowLines(window)") < state.indexOf("for (NSString *change in FocusHistory())"), "the lines come before the history");
@@ -52,9 +49,7 @@ test("Copy Diagnostics lists, per browser window, its number, the page's mouse-i
   assert.match(lines, /@"page move at centre %@", move\.length \? move : @"no page view"/);
   assert.match(lines, /ArdiaChromeWindowHost\.focusHandoffSummaryHandler/);
   assert.match(lines, /handoff\(window\)/);
-  assert.match(lines, /respondsToSelector:@selector\(activeSummary\)/);
-  assert.match(lines, /core\.activeSummary componentsSeparatedByString:@"\\n"/);
-  assert.match(lines, /@"engine %@"/);
+  assert.doesNotMatch(lines, /activeSummary/);
 });
 
 test("the mouse-ignore test shares PageMoveAt's logic and sends no move", () => {
@@ -68,7 +63,7 @@ test("the mouse-ignore test shares PageMoveAt's logic and sends no move", () => 
 
 test("a window's key epoch and paste gate are read from FocusHandoff without changing it, and reach Copy Diagnostics", () => {
   const summary = body(handoff, "func summary(of window: NSWindow) -> String");
-  assert.match(summary, /epochs\[window\.windowNumber\] \?\? 0/);
+  assert.match(summary, /keyEpochs\.epoch\(of: window\.windowNumber\)/);
   assert.match(summary, /gates\[ObjectIdentifier\(window\)\]/);
   assert.match(summary, /key epoch \\\(epoch\), no paste gate/);
   assert.match(summary, /paste gate \\\(state\), \\\(gate\.generations\.count\) generations, \\\(gate\.held\.count\) held/);
@@ -78,22 +73,6 @@ test("a window's key epoch and paste gate are read from FocusHandoff without cha
   assert.match(windowHostHeader, /@property\(class, nonatomic, copy, nullable\) NSString \*\(\^focusHandoffSummaryHandler\)\(NSWindow \*window\);/);
   assert.match(windowHost, /gFocusHandoffSummary = \[handler copy\];/);
   assert.match(windowHost, /return gFocusHandoffSummary;/);
-});
-
-test("the engine's window host reports its active profile and, per browser, its active flag and whether it is the last active browser", () => {
-  assert.match(engineHostHeader, /std::string ActiveSummary\(\) const;/);
-  const summary = body(engineHost, "std::string WindowHost::ActiveSummary() const");
-  assert.match(summary, /GlobalBrowserCollection::GetInstance\(\)->GetLastActiveBrowser\(\)/);
-  assert.match(summary, /std::string\("profile "\)/);
-  assert.match(summary, /active_profile_->GetBaseName\(\)\.value\(\)/);
-  assert.match(summary, /": browser active "/);
-  assert.match(summary, /BrowserActiveStateManager::From\(browser\.get\(\)\)->IsActive\(\)/);
-  assert.match(summary, /", last active browser "/);
-  assert.match(summary, /last_active == browser\.get\(\)/);
-  assert.match(summary, /widget_->IsActive\(\)/);
-  assert.doesNotMatch(summary, /GetTitle|GetURL|GetLastCommittedURL|GetVisibleURL/);
-  assert.match(body(engineWindow, "- (NSString*)activeSummary"), /_host->ActiveSummary\(\)/);
-  assert.match(enginePublic, /- \(NSString\*\)activeSummary;/);
 });
 
 test("engineInfo already returns the Focus block that Copy Diagnostics prints", () => {

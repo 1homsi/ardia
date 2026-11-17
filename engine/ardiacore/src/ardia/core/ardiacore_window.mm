@@ -123,10 +123,6 @@
   return profile ? [ArdiaCoreProfile wrapperFor:profile] : nil;
 }
 
-- (NSString*)activeSummary {
-  return base::SysUTF8ToNSString(_host->ActiveSummary());
-}
-
 - (void)setActiveProfile:(ArdiaCoreProfile*)profile {
   if (profile.chromeProfile) {
     _host->BrowserFor(profile.chromeProfile);

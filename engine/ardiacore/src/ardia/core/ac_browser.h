@@ -6,7 +6,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -98,7 +97,6 @@ class WindowHost : public TabStripModelObserver,
   void RequestActivation(Browser* browser);
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
   bool IsActiveBrowser(const Browser* browser) const;
-  std::string ActiveSummary() const;
   void set_internal(bool internal) { internal_ = internal; }
   bool internal() const { return internal_; }
   void set_automation(bool automation) { automation_ = automation; }
