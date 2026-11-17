@@ -43,8 +43,8 @@ export function blockers(root: Root, target: ReactTestInstance): string[] {
 }
 
 function tabsButton(root: Root) {
-  const found = hosts(root).filter((node) => node.props.accessibilityLabel === "Tabs");
-  if (!found.length) throw new Error("no Tabs button on the page");
+  const found = hosts(root).filter((node) => node.props.accessibilityLabel === "Tabs" || node.props.accessibilityLabel === "Address");
+  if (!found.length) throw new Error("no Tabs button or address on the page");
   return found[0]!;
 }
 

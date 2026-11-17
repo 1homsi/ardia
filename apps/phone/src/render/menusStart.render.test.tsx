@@ -105,7 +105,7 @@ test("the space switcher is a tap menu of the spaces in fixed order, checked and
   expect(switcher.props.fixedOrder).toBe(true);
   expect(items(switcher)).toEqual([
     { id: "0", title: "Work", systemImage: "briefcase", checked: true },
-    { id: "1", title: "Home", systemImage: "h.circle.fill" },
+    { id: "1", title: "Home", systemImage: "h.square.fill" },
   ]);
   choose(switcher, "Home");
   expect(select).toHaveBeenCalledWith("home");

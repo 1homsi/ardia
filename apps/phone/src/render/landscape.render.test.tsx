@@ -68,15 +68,14 @@ test("in landscape the deck's header and bottom bar pad by the wider side inset 
   const sides = header.map(flat).flatMap((style) => [style.paddingHorizontal, style.left, style.right, style.paddingLeft, style.paddingRight]).filter((value) => typeof value === "number");
   expect(sides).toContain(59 + 12);
   if (Platform.OS !== "ios") return unmount(root);
-  const grid = root.root.findAll((node) => typeof node.props.accessibilityLabel === "string" && node.props.accessibilityLabel === "Show as Grid" && typeof node.props.onPress === "function")[0]!;
-  act(() => grid.props.onPress());
+  act(() => deckGrid.setDeckGrid(true));
   act(() => jest.advanceTimersByTime(1000));
   const scroll = hosts(root, "tabGridScroll")[0]!;
   expect(StyleSheet.flatten(scroll.props.contentContainerStyle).paddingHorizontal).toBe(59 + 16);
   unmount(root);
 });
 
-test("in landscape the page bar stays one centred row: the wider side inset on both sides, then the bar's own 12, leaving main's 598-point address capsule on an 852 screen", () => {
+test("in landscape the page bar stays one centred row: the wider side inset on both sides, then the bar's own 12, the address capsule taking what the plus leaves, 654 points on an 852 screen", () => {
   act(() => browse.useBrowse.setState({ surface: "browsing", sheet: null, deckEntrance: null, frozenOrder: null, opening: null }));
   const root = redesigned(<BrowsingScreen tab={currentTabs().open[0]!} />);
   const bar = root.root.findAll((node) => node.type === FloatingBar)[0]!;
@@ -85,7 +84,7 @@ test("in landscape the page bar stays one centred row: the wider side inset on b
   expect(flat(controls!).paddingHorizontal).toBe(59);
   const row = bar.findAll((node) => typeof node.type === "string" && flat(node).flexDirection === "row" && flat(node).paddingHorizontal === 12)[0]!;
   const { gap, height } = flat(row) as { gap: number; height: number };
-  expect(LANDSCAPE.width - 2 * (59 + 12) - 2 * height - 2 * gap).toBe(598);
+  expect(LANDSCAPE.width - 2 * (59 + 12) - height - gap).toBe(654);
   unmount(root);
 });
 

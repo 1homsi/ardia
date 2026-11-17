@@ -7,13 +7,12 @@ import { haptics } from "../../state/app/haptics";
 import { TabsMenuTrigger } from "./tabsMenu";
 import { display } from "../../state/search/omnibox";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, PressScale, Symbol, type ColorRoles } from "../ui";
+import { capsule, chromeInk, ChromeSurface, Favicon, floatingBarLayout, PressScale, screenReaderActions, Symbol, type ColorRoles } from "../ui";
 import { TabStack } from "./BottomBar";
 
 type Props = {
   tab: BrowserTab;
   order: BrowserTab[];
-  roles: ColorRoles;
   dark: boolean;
   showsPlus: boolean;
   anchors?: boolean;
@@ -53,7 +52,9 @@ export function barAddress(tab: BrowserTab): BarAddress {
   };
 }
 
-export function FloatingBar({ tab, order, roles, dark, showsPlus, anchors = true, onTabs, onTabsMenu, onStep, onAddress, onPlus, onMore }: Props) {
+export const ADDRESS_HINT = "Opens search with this page’s address. Swipe up on the bar for your tabs.";
+
+export function FloatingBar({ tab, order, dark, showsPlus, anchors = true, onTabs, onTabsMenu, onStep, onAddress, onPlus, onMore }: Props) {
   const ink = dark ? chromeInk.dark : chromeInk.light;
   const address = barAddress(tab);
   const size = floatingBarLayout.control;
@@ -61,18 +62,24 @@ export function FloatingBar({ tab, order, roles, dark, showsPlus, anchors = true
   const ids = anchors ? back.ids : null;
   return (
     <View testID="floatingBar" style={styles.row} pointerEvents="box-none">
-      <Animated.View testID="floatingBarLeading" collapsable={false} style={back.leading} pointerEvents={back.sidesShown ? "box-none" : "none"} importantForAccessibility={back.sidesShown ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={!back.sidesShown}>
-        <FloatingTabsButton tab={tab} order={order} roles={roles} dark={dark} testID="floatingBarTabs" glass={back.sidesGlass} glyphs={back.leadingGlyphs} onTabs={onTabs} onTabsMenu={onTabsMenu} onStep={onStep} />
-      </Animated.View>
       <Animated.View testID="floatingBarCentre" nativeID={ids?.anchor} collapsable={false} style={styles.addressSlot} pointerEvents={back.centreShown ? "box-none" : "none"} importantForAccessibility={back.centreShown ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={!back.centreShown}>
+      <TabsMenuTrigger order={order} onTabsMenu={onTabsMenu} onShowTabs={onTabs} testID="addressTabsMenu" style={styles.addressMenu}>
+      {({ onLongPress, screenReaderActions: menuActions }) => (
       <ChromeSurface testID="floatingBarAddress" shape="capsule" cornerRadius={capsule(size)} incognito={tab.isPrivate} dark={dark} barShadow shown={back.centreGlass.shown} shownMs={back.centreGlass.shownMs} style={styles.address}>
         <Animated.View testID="floatingBarCentreGlyphs" nativeID={ids?.face} collapsable={false} style={[styles.addressRow, back.centreGlyphs]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Address"
           accessibilityValue={{ text: spokenAddress(address) }}
-          accessibilityHint="Opens search with this page’s address."
+          accessibilityHint={ADDRESS_HINT}
+          {...screenReaderActions([
+            { name: "showTabs", label: "Show Tabs", run: onTabs },
+            ...menuActions,
+            { name: "previousTab", label: "Previous Tab", run: () => onStep(-1) },
+            { name: "nextTab", label: "Next Tab", run: () => onStep(1) },
+          ])}
           onPress={onAddress}
+          onLongPress={onLongPress}
           style={styles.addressHit}
         >
           {address.isPrivate ? <Symbol name="eyeglassesThin" size={floatingBarLayout.privateSymbol} color={ink.secondary} /> : null}
@@ -90,6 +97,8 @@ export function FloatingBar({ tab, order, roles, dark, showsPlus, anchors = true
         </PressScale>
         </Animated.View>
       </ChromeSurface>
+      )}
+      </TabsMenuTrigger>
       </Animated.View>
       <Animated.View testID="floatingBarTrailing" collapsable={false} style={[styles.circleHit, back.trailing]} pointerEvents={back.sidesShown ? "box-none" : "none"} importantForAccessibility={back.sidesShown ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={!back.sidesShown}>
         {showsPlus ? <FloatingPlusButton tab={tab} dark={dark} testID="floatingBarPlus" glass={back.sidesGlass} glyphs={back.trailingGlyphs} onPlus={onPlus} /> : null}
@@ -157,6 +166,7 @@ const styles = StyleSheet.create({
   circleHit: { width: floatingBarLayout.control, height: floatingBarLayout.control },
   circle: { width: floatingBarLayout.control, height: floatingBarLayout.control, alignItems: "center", justifyContent: "center" },
   addressSlot: { flex: 1, height: floatingBarLayout.control },
+  addressMenu: { flex: 1, height: floatingBarLayout.control, flexDirection: "row" },
   address: { flex: 1, height: floatingBarLayout.control, flexDirection: "row", alignItems: "center" },
   addressRow: { flex: 1, alignSelf: "stretch", flexDirection: "row", alignItems: "center" },
   addressHit: { flex: 1, height: floatingBarLayout.control, flexDirection: "row", alignItems: "center", gap: floatingBarLayout.addressSpacing, paddingLeft: floatingBarLayout.addressLead },
