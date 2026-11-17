@@ -28,7 +28,7 @@ import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage, reportLaunchTray } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, stageMotion, barReturnMotion, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, settingsUIAvailable } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, stageMotion, barReturnMotion, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, settingsUIAvailable, SystemGlyph } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
@@ -40,6 +40,8 @@ import { useTrayKeyboard } from "./useTrayKeyboard";
 const SHEET_ABOVE_KEYBOARD = 274;
 
 const PANEL_GLYPHS = { mic: 22, clear: 21 } as const;
+
+const FIELD_SYSTEM_GLYPH = 17;
 
 
 function useTrayTheme() {
@@ -839,7 +841,7 @@ function FieldInput({ first, closing }: { first: boolean; closing: boolean }) {
         )}
         {hasText ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => input.current?.clearsInPlace() || setSearchText("")}>
-            <Symbol name="xmarkCircleFill" size={panelField ? PANEL_GLYPHS.clear : 18} color={theme.foregroundTertiary} />
+            <SystemGlyph testID="trayClearGlyph" systemName="xmark.circle.fill" pointSize={FIELD_SYSTEM_GLYPH} name="xmarkCircleFill" size={panelField ? PANEL_GLYPHS.clear : 18} color={theme.foregroundTertiary} />
           </Pressable>
         ) : (
           <VoiceButton />
@@ -859,7 +861,7 @@ function VoiceButton() {
   if (incognito || fontScale > LARGE_FONT_SCALE || !canSearchByVoice()) return null;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Voice Search" style={styles.accessory} onPress={presentVoiceSearch}>
-      <Symbol name="mic" size={panelField ? PANEL_GLYPHS.mic : 19} color={theme.foregroundTertiary} />
+      <SystemGlyph testID="trayMicGlyph" systemName="mic" pointSize={FIELD_SYSTEM_GLYPH} weight="medium" name="mic" size={panelField ? PANEL_GLYPHS.mic : 19} color={theme.foregroundTertiary} />
     </Pressable>
   );
 }
