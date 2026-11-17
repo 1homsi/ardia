@@ -49,6 +49,8 @@
 //                               prepare    prepare the app copies and exit (see --prepared)
 //     --env K=V               repeatable: extra environment for every instance (DYLD_INSERT_LIBRARIES is appended to
 //                             the marker library). Instances stay muted; don't pass ARDIA_INSTANCE allowAudio.
+//     --control-env K=V       repeatable: extra environment for the control's instances only, so one app can be measured
+//                             against itself with, say, ARDIA_SWITCHES=freezeWatchOff=on
 //     --profile-count <n>     profiles phase: profiles in the session (default 4, at least 2)
 //     --profile-visits <n>    profiles phase: how many of the other profiles to open before idling (default: all; 0
 //                             leaves them as a launch finds them, to measure what launch loads)
@@ -170,6 +172,7 @@ const { values: opt } = parseArgs({
     "control-label": { type: "string" },
     prepared: { type: "boolean" },
     env: { type: "string", multiple: true, default: [] },
+    "control-env": { type: "string", multiple: true, default: [] },
     seed: { type: "string" },
     "profile-count": { type: "string", default: "4" },
     "profile-visits": { type: "string" },
@@ -439,7 +442,7 @@ class Instance {
     const exe = join(realpathSync(this.app), "Contents/MacOS", execFileSync("defaults", ["read", join(this.app, "Contents/Info.plist"), "CFBundleExecutable"], { encoding: "utf8" }).trim());
     const main = `^${exe.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`;
     if (spawnSync("pgrep", ["-f", main]).status === 0) throw new Error("a bench instance is still running");
-    const extra = [...opt.env, ...this.env].filter((e) => !e.startsWith("DYLD_INSERT_LIBRARIES="));
+    const extra = [...opt.env, ...(this.side.role === "control" ? opt["control-env"] : []), ...this.env].filter((e) => !e.startsWith("DYLD_INSERT_LIBRARIES="));
     writeSwitches(this.dataDir, extra.find((e) => e.startsWith("ARDIA_SWITCHES="))?.slice(19));
     const dyld = [markerLibrary(), ...(this.frames ? [framesLibrary(toolDir, here)] : []), ...opt.env.filter((e) => e.startsWith("DYLD_INSERT_LIBRARIES=")).map((e) => e.slice(22))].join(":");
     this.t0 = Date.now();

@@ -16,6 +16,7 @@ import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { commandBarPlacementLabel, takeExternalAppRequests, takeNotificationRequestCounts, takeRecentlyClosedCounts, takeHistoryRemovalCounts, takeOmniboxLatency, takePopupTabCounts, takeSearchSuggests } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, launchGuardProperties, noteAppMemory, recordContext, takeMainProcessWork, takeContentDriftCounts, takeColdTabHoldCounts, startContextSamples, stopContextSamples, watchEngineReports } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
+import { takeFreezeCounts } from "./freezes";
 import { switcherSwitchProperties } from "./switcherPresses";
 import { profileSwitched } from "./profileSwap";
 import type { SavedContext } from "./savedContext";
@@ -298,7 +299,7 @@ async function sampleMemory() {
     }
     if (!total) return;
     noteAppMemory(mb(total));
-    capture("perf_memory", { ...(await takeMainProcessWork()), ...(await takeContentDriftCounts()), ...(await takeColdTabHoldCounts()),
+    capture("perf_memory", { ...(await takeMainProcessWork()), ...(await takeContentDriftCounts()), ...takeFreezeCounts(), ...(await takeColdTabHoldCounts()),
       total_mb: mb(total),
       browser_mb: mb(browser),
       gpu_mb: mb(gpu),
