@@ -397,6 +397,7 @@ export function swipedPastHistory(id: string, direction: "back" | "forward") {
   }
   const closing = findTab(currentTabs(), id);
   const previous = tabBefore(currentTabs(), id);
+  if (previous) selectTabById(previous.id);
   closeTabById(id);
   if (closing && !closing.isPrivate) countUsage("tabs_swiped_closed");
   if (previous) openTab(previous.id);

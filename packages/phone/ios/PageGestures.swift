@@ -259,7 +259,7 @@ final class PageGestures: NSObject, UIGestureRecognizerDelegate {
       container.bringSubviewToFront(state.target)
       state.target.transform = .identity
       state.target.layer.shadowOpacity = 0
-      if state.isPastHistory {
+      if state.direction == .back ? !page.canGoBack : !page.canGoForward {
         self.onSwipedPastHistory?(state.direction)
       } else if state.direction == .back {
         page.goBack()

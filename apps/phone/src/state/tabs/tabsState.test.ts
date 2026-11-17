@@ -92,6 +92,19 @@ test("a back swipe past the history lands on the tab used before the one it clos
   assert.equal(tabBefore(only.change.data, only.tab.id), null);
 });
 
+test("closing back through swipes walks the tabs in the order they were used, never through a neighbour", () => {
+  let { data, a, b, c } = threeTabs();
+  const d = opened(data, "https://d.example/", 4);
+  data = selectTab(d.change.data, a.id, 5).data;
+  data = selectTab(data, b.id, 6).data;
+  const first = tabBefore(data, b.id)!;
+  assert.equal(first.id, a.id);
+  data = closeTab(selectTab(data, first.id, 7).data, b.id, 7).data;
+  assert.equal(data.selectedId, a.id);
+  assert.equal(tabBefore(data, a.id)?.id, d.tab.id);
+  assert.notEqual(tabBefore(data, a.id)?.id, c.id);
+});
+
 test("closing the last tab leaves nothing selected", () => {
   const only = opened(emptyTabs(), "https://a.example/", 1);
   const change = closeTab(only.change.data, only.tab.id, 2);

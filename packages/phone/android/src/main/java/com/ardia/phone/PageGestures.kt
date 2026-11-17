@@ -120,7 +120,6 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
     private var activationY = 0f
     private var tracker: VelocityTracker? = null
     private var direction: SwipeDirection? = null
-    private var pastHistory = false
     private var progress = 0f
     private var pull = 0f
     private var crossed = false
@@ -192,8 +191,7 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
                             decided = waiting
                             activationX = dx
                             activationY = dy
-                            val now = current.state.value
-                            beginSwipe(waiting.direction!!, now.backgroundColor, PageSwipe.isPastHistory(waiting.direction!!, now.canGoBack, now.canGoForward))
+                            beginSwipe(waiting.direction!!, current.state.value.backgroundColor)
                             return true
                         }
                     }
@@ -301,11 +299,10 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         reset()
     }
 
-    private fun beginSwipe(swiped: SwipeDirection, background: Int?, isPastHistory: Boolean) {
+    private fun beginSwipe(swiped: SwipeDirection, background: Int?) {
         settle?.cancel()
         busy = true
         direction = swiped
-        pastHistory = isPastHistory
         val color = background ?: surface()
         backTarget.setColor(color)
         forwardTarget.setColor(color)
@@ -349,11 +346,16 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
                 return@animate
             }
             owner.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-            when {
-                pastHistory -> onSwipedPastHistory?.invoke(swiped)
-                swiped == SwipeDirection.Back -> current.goBack()
-                else -> current.goForward()
+            val now = current.state.value
+            if (PageSwipe.isPastHistory(swiped, now.canGoBack, now.canGoForward)) {
+                onSwipedPastHistory?.invoke(swiped)
+                settle = scope.launch {
+                    delay(PAST_HISTORY_HOLD_MILLIS)
+                    reset()
+                }
+                return@animate
             }
+            if (swiped == SwipeDirection.Back) current.goBack() else current.goForward()
             host.translationX = 0f
             pageShade.visibility = View.GONE
             val target = if (swiped == SwipeDirection.Back) backTarget else forwardTarget
@@ -427,7 +429,6 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
     private fun reset() {
         busy = false
         direction = null
-        pastHistory = false
         progress = 0f
         pull = 0f
         host.translationX = 0f
@@ -547,6 +548,7 @@ internal class PageGestures(private val owner: ViewGroup, private val host: View
         const val SWIPE_MILLIS = 220L
         const val SETTLE_DELAY_MILLIS = 250L
         const val FADE_MILLIS = 200L
+        const val PAST_HISTORY_HOLD_MILLIS = 700L
         val ACCENT_LIGHT = 0xFF6395FC.toInt()
         val ACCENT_DARK = 0xFF4A77D4.toInt()
     }
