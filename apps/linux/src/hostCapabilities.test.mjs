@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PAGE_OPTION_CALLS, resolveHostModule } from "./hostModules.ts";
-import { CLI_CONTROL_METHODS, CLI_INSTALL_METHODS, DICTATION_METHOD, LINKS_FROM_OTHER_APPS, USER_SCRIPTS_METHODS, linuxCapabilities, unavailablePanes, unavailableSettingIds } from "./hostCapabilities.ts";
+import { CLI_CONTROL_METHODS, CLI_INSTALL_METHODS, DICTATION_METHOD, LINKS_FROM_OTHER_APPS, USER_SCRIPTS_METHODS, linuxCapabilities, unavailableSettingIds } from "./hostCapabilities.ts";
 import { CAST_UNAVAILABLE_TITLE, linuxMediaCall } from "./hostCast.ts";
 import { USER_SCRIPTS_LOCK, leadUserScripts } from "./hostUserScripts.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
@@ -60,21 +60,26 @@ test("the command bar's Dictate button follows the dictation capability: off whi
   assert.deepEqual(invoked, []);
 });
 
-test("unavailable choices map to exact settings ids and the Engines pane", () => {
-  const ids = ["general.defaultBrowser", "general.openAtLogin", "general.warnBeforeQuitting", "engines.defaultEngine", "engines.protectedVideo", "search.otherEngines", "advanced.cliControl", "advanced.cliInstall", "advanced.compactCliPill", "advanced.unloadProfilesAfter", "privacy.blockAutoplayEverywhere", "advanced.showFullUrl", "tabs.videoUpscaling", "tabs.autoPictureInPicture"];
-  const unrouted = ["general.openLinksInLittleArdia", "tabs.appLinksFirst", "tabs.peekLinksToOtherSites", "tabs.popupsOpenAsTabs"];
-  const routedRows = { commandScrollZoom: true, littleArdiaNewTabLinks: true, peekOtherSites: true, popupsOpenAsTabs: true, haptics: true, linksFromOtherApps: true };
+test("unavailable choices map to exact settings ids and the Web engine section", () => {
+  const place = (id, section = "Other") => ({ id, pane: id.split(".")[0], section });
+  const settings = [
+    place("general.defaultBrowser"), place("general.openAtLogin"), place("general.askBefore"), place("advanced.pageEngine", "Web engine"), place("advanced.websiteEngines", "Web engine"),
+    place("profiles.otherEngines", "Search"), place("advanced.ardiaCommand"), place("advanced.compactCliPill"), place("advanced.showFullUrl"), place("tabs.videoUpscaling"), place("tabs.autoPictureInPicture"),
+    { id: "tabs.webEngineNamesake", pane: "tabs", section: "Web engine" },
+  ];
+  const unrouted = ["tabs.appLinksFirst", "tabs.openLinksInLittleArdia", "tabs.peekLinksToOtherSites", "tabs.popupsOpenAsTabs"];
+  const routedRows = { peekOtherSites: true, popupsOpenAsTabs: true, linksFromOtherApps: true };
   const none = linuxCapabilities(fakeHost().host);
-  assert.deepEqual([...unavailableSettingIds(none, ids)].sort(), [...unrouted, "advanced.cliControl", "advanced.cliInstall", "advanced.compactCliPill", "advanced.unloadProfilesAfter", "engines.defaultEngine", "engines.protectedVideo", "general.autoUpdate", "general.defaultBrowser", "general.openAtLogin", "privacy.blockAutoplayEverywhere", "tabs.videoUpscaling"].sort());
-  for (const [capability, rows] of Object.entries({ peekOtherSites: ["tabs.peekLinksToOtherSites"], popupsOpenAsTabs: ["tabs.popupsOpenAsTabs"], linksFromOtherApps: ["general.openLinksInLittleArdia", "tabs.appLinksFirst"] })) {
-    const shown = unavailableSettingIds({ ...none, [capability]: true }, ids);
+  assert.deepEqual([...unavailableSettingIds(none, settings)].sort(), [...unrouted, "advanced.ardiaCommand", "advanced.compactCliPill", "advanced.pageEngine", "advanced.websiteEngines", "general.autoUpdate", "general.defaultBrowser", "general.openAtLogin", "tabs.videoUpscaling"].sort());
+  for (const [capability, rows] of Object.entries({ peekOtherSites: ["tabs.peekLinksToOtherSites"], popupsOpenAsTabs: ["tabs.popupsOpenAsTabs"], linksFromOtherApps: ["tabs.appLinksFirst", "tabs.openLinksInLittleArdia"] })) {
+    const shown = unavailableSettingIds({ ...none, [capability]: true }, settings);
     assert.deepEqual(unrouted.filter((id) => !shown.has(id)), rows, capability);
   }
-  assert.deepEqual([...unavailablePanes(none)], ["engines"]);
-  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, cliControl: true, cliInstall: true, videoUpscaling: true, unloadIdleProfiles: true, blockAutoplayEverywhere: true, ...routedRows }, ids)].sort(), ["engines.defaultEngine", "engines.protectedVideo", "general.autoUpdate"]);
-  const cliRows = (capabilities) => [...unavailableSettingIds(capabilities, ids)].filter((id) => id.startsWith("advanced.cli")).sort();
-  assert.deepEqual(cliRows({ ...none, cliControl: true }), ["advanced.cliInstall"]);
-  assert.deepEqual(cliRows({ ...none, cliInstall: true }), ["advanced.cliControl", "advanced.cliInstall"]);
+  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, cliControl: true, cliInstall: true, videoUpscaling: true, ...routedRows }, settings)].sort(), ["advanced.pageEngine", "advanced.websiteEngines", "general.autoUpdate"]);
+  assert.deepEqual([...unavailableSettingIds({ ...none, webkit: true }, settings)].filter((id) => id.startsWith("advanced.") && !id.startsWith("advanced.ardia") && !id.startsWith("advanced.compact")), []);
+  const cliRows = (capabilities) => [...unavailableSettingIds(capabilities, settings)].filter((id) => id === "advanced.ardiaCommand" || id === "advanced.compactCliPill").sort();
+  assert.deepEqual(cliRows({ ...none, cliControl: true }), ["advanced.ardiaCommand"]);
+  assert.deepEqual(cliRows({ ...none, cliInstall: true }), ["advanced.ardiaCommand", "advanced.compactCliPill"]);
   assert.deepEqual(cliRows({ ...none, cliControl: true, cliInstall: true }), []);
 });
 
