@@ -696,6 +696,33 @@ is plain Chromium.
   app text field is focused while the keyboard is in a page of the field's own window (the command bar, the find bar,
   an empty pane's search field), `ArdiaFocus.takeKeyboardFromPage` activates that window. A page that hides or
   closes leaves full screen, as the Mac's does.
+- Win+Up, Win+Down, Win+Left, Win+Right, Win+Z and their chains work while a page has the keyboard, as natively as
+  with the sidebar (#2148). The shell acts on the window that was in front when the Windows key went down (CI showed
+  an arrow sent later, with the app window in front, still ignored), and a page's own window can't be snapped, so
+  nothing moved. `MenuKeyboard`'s thread hook sees the Windows key go down over a page; when the foreground window is
+  then a page window owned by one of the app's browser or Little Ardia windows (and the instance isn't a background
+  one; a pop-up window's page keeps today's behaviour), the app window takes the foreground at once (same thread, so
+  nothing is taken from another app) and the hook remembers the page. The user's own keys then reach the shell with
+  the app window as its target; nothing is ever sent with `SendInput`, so the shell acts on the arrow's key-down, a
+  held arrow repeats, Win+Left then Up in one press works, and Snap Assist and the snap layouts are the system's. The
+  keyboard goes back to the remembered page through the follow path (`snapKeyHandedBack` to `followHandedBack`, which
+  asks the window's Peek page, or else its shown tab, to follow): at once on the key-up of any other key pressed with
+  the Windows key (V, the period, H, a letter, a digit), so clipboard history, the emoji panel and dictation still
+  type into the page; 150 ms after the Windows key is let go if the app window is still in front and not minimized;
+  or, when Start, Snap Assist or another program came to the front, as soon as the app window is in front again. The
+  shell eats the Windows key's own key-up when a tap opens Start, so the key counts as let go once it is no longer
+  physically down. The page is let go if it or its window goes away, another window of the app comes to the front, the
+  window is minimized, or 5 s pass; if the Windows key is up and another program is still in front then, the page is
+  asked to follow anyway, and the follow path gives it the keyboard when the window is activated again, as Windows
+  gives it back to the last active window today. The page sees one blur and focus. The launch log counts the pages
+  held and given back ("snap keys: … so far"). The launch check presses the five keys with the sidebar and with a page
+  focused, quickly and with the Windows key held 300 ms around the arrow, presses Win+Left then Up in one press and
+  compares it with the sidebar's, presses Win+V, Win+. and a Windows key tap from a page's text box, each dismissed
+  with Escape, and checks after each where the keyboard is and that typing still reaches the box; a pop-up window's
+  page must keep the keyboard, and the pop-up its place, through Win+Up. No clipboard or emoji panel opens on the CI
+  runner, so the check proves that the text box keeps the keyboard, not that a panel inserts into it; the keyboard is
+  back in the page at the key-up of V or the period, before a panel item is picked. Win+Shift+Left and Right need a
+  second monitor and aren't checked.
 - Find in page is the app's bar, as on the Mac. Ctrl+F in a page reaches the app's `findInPage` through `MenuKeyboard`'s
   thread keyboard hook, which sees keys meant for the page windows (the hosted windows have no Chromium shortcuts), so
   Chromium's own find bar never shows. React Native for Windows fires both `onKeyDown` and `onSubmitEditing` for one
