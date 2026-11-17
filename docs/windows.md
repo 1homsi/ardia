@@ -333,6 +333,49 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     each typing at 80 and at 120 ms a key that read the field after every key.
   - **Not covered:** a JS thread that stalls for hundreds of ms, as on a slow first launch (#2059). That needs the
     native key hold the Mac has (#2099).
+- The command bar puts back a letter its text field drops (#2101). React Native Windows 0.81's text field applies
+  the state of its first change (event count 0) whenever that state mounts. When JS is busy, as right after Ctrl+T,
+  the state lands after the next letter and wipes it: "example.com" became "eample.com" in 2 of 10 tries at 80 ms a
+  key and 2 of 10 at 120 ms. React Native Windows fixed it with React Native 0.88 (commit 1f59db13f9), not in 0.81.40,
+  and the app uses its prebuilt package, so the bar repairs it instead.
+  - **Where it is lost:** in the control itself. UI Automation reads the RichEdit text live, and it read "ea" while
+    the change events had said "ex" and JS had written nothing.
+  - **The repair:** with `PLATFORM_FEATURES.textInputRevertsFirstChange` (Windows only), `useRevertRepair` acts only
+    when the change events prove which letters went where (`components/omnibox/revertedText.ts`):
+    - every change since the empty field was one letter typed at the end, with the caret there;
+    - JS never wrote the field;
+    - it is within 3 s of the first change;
+    - the field drops back to its first change plus one new letter;
+    - every character involved is printable ASCII, so an IME composition that turns typed letters into か or ê never
+      looks like a revert;
+    - the new text is not a strict prefix of the old one, which Backspace could also make.
+
+    A new text equal to the old one counts: a typed letter has to change the text, so "go" after "go" proves the
+    second "o" came after a revert. It puts the lost letters back where they were and moves the caret after them,
+    since React Native keeps the old caret position. It keeps doing so until native shows the restored text, and
+    stops at any edit that isn't one letter typed at the end. A paste, a selection, Backspace, a completion or any
+    JS write turns it off for that field. It acts at most once per field. The proof comes from the change events
+    alone; it doesn't use key events.
+  - **Launch log:** `bar change <variant> #<count> len <n>`, `bar write <variant> len <n> over native len <m>`,
+    `bar repair <variant> native len <n> to len <m>`, `bar suggestions <ms> ms`, `js stall <ms>` after a New Tab
+    page mounts, `new tab bar gone <tab>` and `new tab pane <tab> mounted|gone|<flags>`
+    (`platform/barMarks.windows.ts`, `platform/newTabMarks.windows.ts`).
+  - **Tour:** these are required to lose no letter:
+    - ten first-run launches each at 80 and 120 ms a key;
+    - in the `typing` part, ten tries each into Ctrl+L's field on a page, a warm Ctrl+T, the top-tabs toolbar field
+      and the floating bar.
+
+    The per-key reads name the focused UI Automation element.
+  - **Telemetry:** `command_bar_letters_restored` in `usage_counts`, counted once per field the repair acted on.
+- A window's views mount only after the React instance finishes loading (#2115, `InstanceLoad.h`). React Native
+  Windows 0.81's `ReactNativeIsland::ShowInstanceLoaded` starts a new surface each time it runs. It runs when a view
+  host attaches to an instance already marked Loaded, and again when the host's `whenLoaded` continuation updates
+  every attached view host. A window that attached between the two got two copies of the app, both alive: every New
+  Tab page mounted twice, and the first letter typed after Ctrl+T went into the copy that then lost focus. It
+  happened in 3 of 27 first-run launches in run 43786493639; each of those logged `Running "main"` twice. `Open` now
+  mounts a window that comes before `ReloadInstance()` completes once it has completed, and logs
+  `window <id> waited <ms> ms for the instance to finish loading`. `window_roots_doubled` in `usage_counts` counts a
+  window whose root mounts while another root for it is still up.
 - "Ctrl+Z reopens closed tabs" works as the Mac's retargeted Undo: with the setting on, the keyboard hook in
   `MenuKeyboard.h` sends `reopenClosedTab` for a plain Ctrl+Z in a browser window (Little Ardia included, Settings and
   Import not) when Reopen isn't disabled, no command is bound to Ctrl+Z, the window itself is the active one (not a

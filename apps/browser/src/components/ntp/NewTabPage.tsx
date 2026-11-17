@@ -66,7 +66,10 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
   const [playIntro] = useState(() => !introPlayed.has(tabId));
   const [restShown, setRestShown] = useState(() => !PLATFORM_FEATURES.newTabBarFirst || !playIntro);
   const showRest = () => void (restShown || requestAnimationFrame(() => setRestShown(true)));
-  useLayoutEffect(() => markNewTabBar("page", tabId), [tabId]);
+  useLayoutEffect(() => {
+    markNewTabBar("page", tabId);
+    return () => markNewTabBar("gone", tabId);
+  }, [tabId]);
   useLayoutEffect(() => {
     if (restShown && PLATFORM_FEATURES.newTabBarFirst) markNewTabBar("rest", tabId);
   }, [restShown]);

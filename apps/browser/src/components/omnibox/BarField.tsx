@@ -1,8 +1,10 @@
 import type { SearchScope } from "@ardia/core";
-import type { ComponentProps, RefObject } from "react";
+import { useLayoutEffect, useRef, type ComponentProps, type RefObject } from "react";
 import { TextInput } from "react-native";
 import { useTheme } from "../ui";
+import { barFieldMarks } from "../../state/omnibox/barMarks";
 import { PASTED_TYPES } from "./omniboxKeys";
+import { useRevertRepair } from "./useRevertRepair";
 import { BAR, BAR_TYPE } from "./tokens";
 
 type InputProps = ComponentProps<typeof TextInput>;
@@ -26,13 +28,25 @@ export function BarField({
   incognito: boolean;
 } & Pick<InputProps, "value" | "onLayout" | "onChangeText" | "onSubmitEditing" | "onFocus" | "onBlur" | "keyDownEvents" | "onKeyDown">) {
   const theme = useTheme();
+  const nativeText = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const native = nativeText.current;
+    if (native !== null && events.value !== undefined && events.value !== native) barFieldMarks.write(variant, events.value.length, native.length);
+  }, [events.value]);
+  const repair = useRevertRepair(inputRef, variant, events.value, events.onChangeText, onSelection);
   const type = variant === "hero" ? BAR_TYPE.heroField : variant === "sidebar" || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
   return (
     <TextInput
       ref={inputRef}
       {...events}
+      onChangeText={repair.changed}
+      onChange={(e) => {
+        nativeText.current = e.nativeEvent.text;
+        barFieldMarks.change(variant, e.nativeEvent.eventCount, e.nativeEvent.text.length);
+      }}
       onSelectionChange={(e) => {
         const next = e.nativeEvent.selection;
+        repair.selected(next);
         const length = events.value?.length ?? 0;
         if (focusEcho.current) {
           const atEnd = next.start === length && next.end === length;
