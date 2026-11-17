@@ -36,7 +36,14 @@ export function topAppsSharingCounts(s: Pick<BrowserState, "profiles">) {
 
 export function topAppsSharingAtLaunch(s: Pick<BrowserState, "profiles" | "topAppsMerged">, updatedFrom: string | null) {
   const saved = savedMerged ?? s.topAppsMerged;
-  return { ...topAppsSharingCounts(s), merge_recorded: saved !== "", merge_recorded_this_launch: saved !== s.topAppsMerged, from_version: updatedFrom };
+  const settled = s.topAppsMerged;
+  return {
+    ...topAppsSharingCounts(s),
+    merge_recorded: saved !== "",
+    merge_recorded_this_launch: settled !== "" && saved !== settled,
+    merge_marker_cleared: saved !== "" && settled === "",
+    from_version: updatedFrom,
+  };
 }
 
 export function noteTopAppsSharingFromSync(s: Pick<BrowserState, "profiles">, path: TopAppsSharingPath, on: boolean) {

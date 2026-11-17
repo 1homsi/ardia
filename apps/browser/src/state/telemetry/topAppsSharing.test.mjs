@@ -195,3 +195,21 @@ test("the launch snapshot reports the merge marker the session saved, before lau
     merge_recorded_this_launch: true,
   });
 });
+
+test("a 0.2.44 session whose profiles never opted in has its old merge marker cleared, which is not a merge this launch", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { startPersistence } = await import("../session/persist.ts");
+  const { topAppsSharingAtLaunch } = await import("./topAppsSharing.ts");
+  const saved = JSON.parse(readFileSync(new URL("../pins/fixtures/topapps-merged-0244.json", import.meta.url), "utf8"));
+  assert.notEqual(saved.topAppsMerged, "", "0.2.44 saved a merge marker");
+  stub.docs.set("session.json", JSON.stringify(saved));
+  S().hydrate({});
+  const stop = startPersistence();
+  stop();
+  assert.equal(S().topAppsMerged, "", "no profile shares, so launch cleared the marker without merging anything");
+  const launch = topAppsSharingAtLaunch(S(), "0.2.44");
+  assert.deepEqual(
+    { merge_recorded: launch.merge_recorded, merge_recorded_this_launch: launch.merge_recorded_this_launch, merge_marker_cleared: launch.merge_marker_cleared },
+    { merge_recorded: true, merge_recorded_this_launch: false, merge_marker_cleared: true },
+  );
+});
