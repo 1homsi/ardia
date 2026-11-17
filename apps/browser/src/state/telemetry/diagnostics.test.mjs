@@ -556,6 +556,58 @@ test("presses Pressable ends without onPress are counted with the window's key s
   assert.ok(!JSON.stringify(props).includes("tab-"), "no tab id goes out with the counts");
 });
 
+test("a press that leaves the tab and comes back before release is one press, and its click counts no lost click", async () => {
+  const held = await import("../sidebar/heldTabPress.ts");
+  const first = held.holdTabPress("win-a", "tab-1", touch(10, 10, 700));
+  held.pressOutTabPress(first, touch(40, 10, 700));
+  const back = held.holdTabPress("win-a", "tab-1", touch(12, 10, 700), first);
+  assert.equal(back, first, "the same gesture keeps its record");
+  held.pressOutTabPress(back, touch(12, 10, 700));
+  held.clickHeldTabPress("win-a", "tab-1", touch(12, 10, 700), back);
+  const early = held.holdTabPress("win-a", "tab-2", touch(10, 10, 710));
+  held.pressOutTabPress(early, touch(40, 10, 710));
+  const again = held.holdTabPress("win-a", "tab-2", touch(10, 10, 710), early);
+  held.clickHeldTabPress("win-a", "tab-2", touch(10, 10, 710), again);
+  held.pressOutTabPress(again, touch(10, 10, 710));
+
+  const props = await sent();
+  assert.equal(props.presses, 2);
+  assert.equal(props.clicks, 2);
+  assert.equal(props.press_out_no_press, 0);
+  assert.deepEqual([props.drift_lt5, props.drift_5_9, props.drift_10_plus, props.drift_unknown], [2, 0, 0, 0], "one drift per gesture, from where it was released");
+});
+
+test("a press released off the tab counts one lost click, at the next press or when the hour's event is built", async () => {
+  const held = await import("../sidebar/heldTabPress.ts");
+  const off = held.holdTabPress("win-a", "tab-1", touch(10, 10, 800));
+  held.pressOutTabPress(off, touch(40, 10, 800));
+  assert.equal(presses.devTabPresses().press_out_no_press, 0, "not counted while Pressable may still answer");
+  const next = held.holdTabPress("win-a", "tab-2", touch(10, 10, 900), off);
+  assert.equal(presses.devTabPresses().press_out_no_press, 1, "the next gesture settles it");
+  held.pressOutTabPress(next, touch(17, 10, 900));
+
+  const props = await sent();
+  assert.equal(props.presses, 2);
+  assert.equal(props.press_out_no_press, 2);
+  assert.deepEqual([props.no_press_drift_lt5, props.no_press_drift_5_9, props.no_press_drift_10_plus, props.no_press_drift_unknown], [0, 1, 1, 0]);
+  assert.equal(presses.devTabPresses().unansweredOut, false);
+});
+
+test("a lost click still waiting when the hour's event is built goes out in that event, even with no press that hour", async () => {
+  const held = await import("../sidebar/heldTabPress.ts");
+  const press = held.holdTabPress("win-a", "tab-1", touch(10, 10, 1000));
+  const before = await sent();
+  assert.equal(before.presses, 1);
+  assert.equal(before.press_out_no_press, 0);
+  held.pressOutTabPress(press, touch(40, 10, 1000));
+  const count = events("tab_presses").length;
+  const props = await sent();
+  assert.equal(events("tab_presses").length, count + 1, "the hour with only the lost click still sends");
+  assert.equal(props.presses, 0);
+  assert.equal(props.press_out_no_press, 1);
+  assert.equal(props.no_press_drift_10_plus, 1);
+});
+
 test("turning sharing off forgets pending presses and samples, so they never go out under the next install id", async () => {
   await diagnostics.recordContext();
   assert.ok(diagnostics.contextSamples().length > 0);

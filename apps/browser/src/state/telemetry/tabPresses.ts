@@ -9,6 +9,8 @@ export type TabPressDrop = "no_release" | "not_dragged" | "no_start" | "start_mi
 
 export type TabPressDrift = "lt5" | "5_9" | "10_plus" | "unknown";
 
+export type PressOut = { drift: TabPressDrift; windowKey: boolean };
+
 const MAX_SAMPLES = 500;
 const PAGE_CLICK_WINDOW_MS = 60_000;
 
@@ -41,6 +43,7 @@ const empty = () => ({
 });
 let tally = empty();
 let pending = false;
+let unansweredOut: PressOut | null = null;
 let shown: { tabId: string; at: number } | null = null;
 let toPageClick: number[] = [];
 let heldMs: number[] = [];
@@ -62,6 +65,7 @@ function takeLostReleases() {
 function forgetPresses() {
   tally = empty();
   pending = false;
+  unansweredOut = null;
   shown = null;
   toPageClick = [];
   heldMs = [];
@@ -116,12 +120,32 @@ export function notePressEnded(end: TabPressEnd, tabId: string | null = null, dr
   shown = tabId ? { tabId, at: Date.now() } : null;
 }
 
-export function notePressOut(drift: TabPressDrift, withoutPress: boolean, windowKey: boolean) {
+function countPressOut({ drift, windowKey }: PressOut, withoutPress: boolean) {
   tally[`drift_${drift}` as const]++;
   if (!withoutPress) return;
   tally.press_out_no_press++;
   tally[`no_press_drift_${drift}` as const]++;
   if (!windowKey) tally.unfocused_no_press++;
+}
+
+export function settleUnansweredPressOut() {
+  const out = unansweredOut;
+  unansweredOut = null;
+  if (out) countPressOut(out, true);
+}
+
+export function notePressOutUnanswered(out: PressOut) {
+  if (unansweredOut !== out) settleUnansweredPressOut();
+  unansweredOut = out;
+}
+
+export function notePressOutAnswered(out: PressOut) {
+  if (unansweredOut === out) unansweredOut = null;
+  countPressOut(out, false);
+}
+
+export function notePressAnswered(out: PressOut) {
+  if (unansweredOut === out) unansweredOut = null;
 }
 
 export function noteRangeSelect(fromShownTab: boolean) {
@@ -142,6 +166,7 @@ export const notePagePressRefused = () => void tally.page_refused++;
 export const noteDragWithoutDrop = () => void tally.drags_without_drop++;
 
 export function emitTabPresses() {
+  settleUnansweredPressOut();
   const counts = tally;
   const samples = toPageClick.sort((a, b) => a - b);
   const held = heldMs.sort((a, b) => a - b);
@@ -154,7 +179,7 @@ export function emitTabPresses() {
   const landedOn = [...repeatsLandedOn].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   forgetRepeats();
   const hoverCards = takeHoverCardCounts();
-  if (!counts.presses && !counts.drags_without_drop && !counts.range_selects && !counts.page_refused && !lostReleases && !repeated.presses && !Object.values(hoverCards).some(Boolean)) return;
+  if (!Object.values(counts).some(Boolean) && !lostReleases && !repeated.presses && !Object.values(hoverCards).some(Boolean)) return;
   const at = (list: number[], p: number) => (list.length ? percentile(list, p) : null);
   capture("tab_presses", {
     ...counts,
@@ -173,4 +198,4 @@ export function emitTabPresses() {
   });
 }
 
-export const devTabPresses = () => ({ ...tally, pending, toPageClick: toPageClick.length, held: heldMs.length });
+export const devTabPresses = () => ({ ...tally, pending, unansweredOut: !!unansweredOut, toPageClick: toPageClick.length, held: heldMs.length });

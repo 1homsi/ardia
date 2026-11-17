@@ -5,7 +5,17 @@ import { useBrowser } from "../browser/store";
 import { focusedWindowOf } from "../windows/ui";
 import { clickTab } from "./actions";
 import { dismissHover } from "./hover";
-import { notePressEnded, notePressOut, notePressStarted, noteRowPress, type TabPressDrift, type TabPressDrop } from "../telemetry/tabPresses";
+import {
+  notePressAnswered,
+  notePressEnded,
+  notePressOutAnswered,
+  notePressOutUnanswered,
+  notePressStarted,
+  noteRowPress,
+  settleUnansweredPressOut,
+  type TabPressDrift,
+  type TabPressDrop,
+} from "../telemetry/tabPresses";
 
 export const TAB_CLICK_SLOP = 10;
 
@@ -20,6 +30,7 @@ export type TabPress = {
   windowKey: boolean;
   answered: boolean;
   out: boolean;
+  drift: TabPressDrift;
 };
 
 let heldPress: TabPress | null = null;
@@ -75,10 +86,20 @@ export function noteRowPressIn(windowId: string) {
   void noteRowPress(!!shown && !s.tabs[shown]?.url);
 }
 
-export function holdTabPress(windowId: string, tabId: string, press: GestureResponderEvent) {
+const sameGesture = (previous: TabPress | null, startedAt: number | undefined, tabId: string): previous is TabPress =>
+  !!previous && previous.tabId === tabId && startedAt !== undefined && previous.startedAt === startedAt;
+
+export function holdTabPress(windowId: string, tabId: string, press: GestureResponderEvent, previous: TabPress | null = null) {
+  const startedAt = pressStart(press);
+  if (sameGesture(previous, startedAt, tabId)) {
+    previous.out = false;
+    if (!previous.answered) heldPress = previous;
+    return previous;
+  }
+  settleUnansweredPressOut();
   noteRowPressIn(windowId);
   const switched = switchesOnPress(windowId, tabId, press);
-  const held: TabPress = { windowId, tabId, startedAt: pressStart(press), switched, at: pointOf(press), windowKey: windowIsKey(windowId), answered: false, out: false };
+  const held: TabPress = { windowId, tabId, startedAt, switched, at: pointOf(press), windowKey: windowIsKey(windowId), answered: false, out: false, drift: "unknown" };
   heldPress = held;
   notePressStarted(switched, held.windowKey);
   if (switched) {
@@ -91,7 +112,11 @@ export function holdTabPress(windowId: string, tabId: string, press: GestureResp
 export function clickHeldTabPress(windowId: string, tabId: string, release: GestureResponderEvent, press: TabPress | null = null) {
   const held = heldPress;
   releasePress();
-  if (press) press.answered = true;
+  if (press && !press.answered) {
+    press.answered = true;
+    if (press.out) notePressOutAnswered(press);
+    else notePressAnswered(press);
+  }
   notePressEnded("click", tabId);
   dismissHover();
   const start = pressStart(release);
@@ -102,8 +127,9 @@ export function clickHeldTabPress(windowId: string, tabId: string, release: Gest
 export function pressOutTabPress(press: TabPress | null, e: GestureResponderEvent) {
   if (!press || press.out) return;
   press.out = true;
-  const drift = driftBetween(press.at, pointOf(e));
-  setTimeout(() => notePressOut(drift, !press.answered, press.windowKey), 0);
+  press.drift = driftBetween(press.at, pointOf(e));
+  if (press.answered) notePressOutAnswered(press);
+  else notePressOutUnanswered(press);
 }
 
 export function endHeldTabPress(tabIds: string[], release: GestureResponderEvent | null) {

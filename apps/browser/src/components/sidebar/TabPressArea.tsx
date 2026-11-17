@@ -40,7 +40,7 @@ export function TabPressArea({
       >
         <Pressable
           onPressIn={(e) => {
-            press.current = holdTabPress(windowId, tab.id, e);
+            press.current = holdTabPress(windowId, tab.id, e, press.current);
           }}
           onPress={(e) => clickHeldTabPress(windowId, tab.id, e, press.current)}
           onPressOut={(e) => pressOutTabPress(press.current, e)}
