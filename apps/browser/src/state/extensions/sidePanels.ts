@@ -2,7 +2,7 @@ import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
 import { shownPageId } from "../peek/peek";
 import { noteSidePanelKept } from "../telemetry/usage";
-import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions, type SidePanel, type SidePanelCard } from "./store";
+import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, tabProfile, useExtensions, type SidePanel, type SidePanelCard } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
@@ -12,7 +12,7 @@ let lookups = 0;
 
 async function askPanel(windowId: string, tabId: string, extensionId: string): Promise<{ url: string | null; stale: boolean; newest: string | null }> {
   const asked = ++lookups;
-  const url = await extensionSidePanelUrl(tabId, extensionId);
+  const url = await extensionSidePanelUrl(tabId, extensionId, tabProfile(tabId));
   const key = `${extensionId}|${tabId}`;
   let seen = answered.get(windowId);
   if (!seen) answered.set(windowId, (seen = new Map()));
