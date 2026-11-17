@@ -6,7 +6,8 @@ import { takeReaderCounts } from "./readerCounts";
 import { takeWebNotificationCounts } from "./webNotificationCounts";
 import { takeWindowOcclusionCounts } from "./windowOcclusionCounts";
 import { takeBarLoadFocusCounts } from "./barLoadFocus";
+import { takePageCursorCounts } from "./pageCursorCounts";
 
 export function takeFocusFeatureCounts() {
-  return { ...takeMinimalismCounts(), ...takeReaderCounts(), ...takeHiddenElementCounts(), ...takeChromeSettingsOpens(), ...takeWindowOcclusionCounts(), ...takePageFocusReturns(), ...takeBarLoadFocusCounts(), ...takeWebNotificationCounts() };
+  return { ...takeMinimalismCounts(), ...takeReaderCounts(), ...takeHiddenElementCounts(), ...takeChromeSettingsOpens(), ...takeWindowOcclusionCounts(), ...takePageFocusReturns(), ...takeBarLoadFocusCounts(), ...takePageCursorCounts(), ...takeWebNotificationCounts() };
 }
