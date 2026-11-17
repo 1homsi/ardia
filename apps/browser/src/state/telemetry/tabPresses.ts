@@ -94,7 +94,7 @@ export function noteRowPress(shownTabEmpty: boolean): Promise<void> {
   });
 }
 
-useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetPresses());
+useTelemetry.subscribe((s, prev) => prev.sharing !== s.sharing && forgetPresses());
 
 export function notePressStarted(switchedOnPress = false, windowKey = true) {
   if (pending) tally.unanswered++;
