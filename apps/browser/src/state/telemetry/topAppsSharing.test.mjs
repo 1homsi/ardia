@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
+globalThis.requestAnimationFrame ??= (callback) => setTimeout(callback, 0);
 const stub = await import("../../test-native/index.ts");
 Object.assign(stub.appInfo, { appVersion: "0.3.0", osVersion: "27.0.1", arch: "arm64", isolatedInstance: false });
 stub.docs.set("telemetry.json", JSON.stringify({ version: 1, sharing: true, decidedAt: 1, askDoneAt: 1, installId: "install", crashCursor: 0, lastVersion: "0.2.44", sessionOpen: false }));
@@ -149,4 +150,48 @@ test("none of the records carry a URL, a title or a profile name", async () => {
     const text = JSON.stringify(event);
     for (const secret of ["mail.com", "a.com", "Work", "Remote", "Personal", "https://"]) assert.ok(!text.includes(secret), `${event.event} must not contain ${secret}`);
   }
+});
+
+test("a copy into a profile open in two windows counts that profile once and only the tiles copied in; a removal counts as removed", async () => {
+  S().hydrate({});
+  S().updateProfile("default", { shareTopApps: true });
+  const w = S().createWindow({ url: "https://mail.com" });
+  const [mail] = S().windows[w].tabIds;
+  S().pinTabs([mail], true);
+  const work = S().createProfile({ shareTopApps: true, name: "Work", shareWith: "default" });
+  for (const url of ["https://b.com", "https://c.com"]) S().switchProfile(S().createWindow({ url }), work);
+  const before = (await recorded("top_apps_mirrored")).length;
+
+  const docs = S().newTab(w, { url: "https://docs.com" });
+  S().pinTabs([docs], true);
+  const added = (await recorded("top_apps_mirrored")).slice(before);
+  assert.equal(added.length, 1);
+  assert.deepEqual(countsOf(added[0], ["profiles_changed", "tiles", "tiles_removed"]), { profiles_changed: 1, tiles: 1, tiles_removed: 0 }, "Work, open in two windows, gained one tile");
+
+  S().togglePin(docs);
+  const removed = (await recorded("top_apps_mirrored")).slice(before + 1);
+  assert.equal(removed.length, 1);
+  assert.deepEqual(countsOf(removed[0], ["profiles_changed", "tiles", "tiles_removed"]), { profiles_changed: 1, tiles: 0, tiles_removed: 1 }, "the unpin reached Work as one removal, not as a copy");
+});
+
+test("the launch snapshot reports the merge marker the session saved, before launch settles it", async () => {
+  const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
+  const { topAppsSharingAtLaunch } = await import("./topAppsSharing.ts");
+  S().hydrate({});
+  let stop = startPersistence();
+  twoSharingProfiles({ sharing: true });
+  assert.notEqual(S().topAppsMerged, "");
+  flushPersistence();
+  stop();
+  const doc = [...stub.docs.keys()].find((name) => stub.docs.get(name).includes('"topAppsMerged"'));
+  stub.docs.set(doc, stub.docs.get(doc).replace(/"topAppsMerged":"[^"]*"/, '"topAppsMerged":""'));
+  assert.equal(loadSession().topAppsMerged, "", "the saved session has no merge marker");
+  S().hydrate({});
+  stop = startPersistence();
+  stop();
+  assert.notEqual(S().topAppsMerged, "", "launch settled the marker");
+  assert.deepEqual(countsOf({ properties: topAppsSharingAtLaunch(S(), null) }, ["merge_recorded", "merge_recorded_this_launch"]), {
+    merge_recorded: false,
+    merge_recorded_this_launch: true,
+  });
 });

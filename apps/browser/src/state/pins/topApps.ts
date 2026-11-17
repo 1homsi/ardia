@@ -151,13 +151,18 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
   const prevGroups = pinnedGroupsOf(prev);
   const hadPlace = (p: string) => shownAnywhere(prev, p);
   let next: BrowserState = kept ?? recorded;
-  let copiedProfiles = 0;
+  const copiedProfiles = new Set<string>();
   let copiedTiles = 0;
+  let removedTiles = 0;
   const copiedCircles = new Set<string>();
-  const copied = (circle: string[], tiles: Item[]) => {
-    copiedProfiles++;
-    copiedTiles += tiles.length;
+  const copied = (circle: string[], profileId: string, own: Item[], tiles: Item[]) => {
     copiedCircles.add(circleKey(circle));
+    if (copiedProfiles.has(profileId)) return;
+    copiedProfiles.add(profileId);
+    const had = new Set(own.map((x) => pinKeyOf(x.tab)));
+    const has = new Set(tiles.map((x) => pinKeyOf(x.tab)));
+    copiedTiles += [...has].filter((key) => !had.has(key)).length;
+    removedTiles += [...had].filter((key) => !has.has(key)).length;
   };
   for (const circle of circles) {
     const turnedOn = joining.has(circleKey(circle));
@@ -202,22 +207,23 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
       if (tiles.map((x) => tileSig(x.tab)).join("\n") === sigs[i]) return;
       if (!w) {
         next = withParkedTiles(next, p, tiles);
-        copied(circle, tiles);
+        copied(circle, p, own, tiles);
         return;
       }
       if (!next.windows[w]) return;
       const section = sectionOf(next, next.windows[w]!, p, pinnedGroupsOf(next));
       next = conform(next, w, p, { ...section, items: [...section.items.filter((x) => x.group || !isTopApp(x.tab)), ...tiles] });
-      copied(circle, tiles);
+      copied(circle, p, own, tiles);
     });
   }
-  if (copiedProfiles) {
+  if (copiedProfiles.size) {
     noteTopAppsSharing("top_apps_mirrored", {
       circles: circles.length,
       joining_circles: joining.size,
       circles_changed: copiedCircles.size,
-      profiles_changed: copiedProfiles,
+      profiles_changed: copiedProfiles.size,
       tiles: copiedTiles,
+      tiles_removed: removedTiles,
       from_sync: writingFromSync(),
     });
   }
