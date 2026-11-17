@@ -2968,6 +2968,13 @@ d5fbaabc1). After a hand edit to the project, run `pod install` and commit what 
   - `.github/workflows/ios-release.yml` builds it, the only iPhone app since the clean-up. It installs the app's
     packages and Pods on the `xcode-27` runner and runs that script. An upload with `public_testers` on is refused,
     so it can only reach the Internal group.
+  - **On a cable** (main's 2c6b7fae4 and 218f50ee4, carried over to the Expo path). `-f mode=device -f udid=<udid>`
+    registers that iPhone on the team (`xcrun devicectl list devices` shows the UDID; `asc.mjs register-device` leaves
+    one already there as it is) and uploads a development-signed `ios-device-build` .ipa, built from the ref the run
+    starts on by `release-ios --development`. It uploads nothing to App Store Connect and takes no build number, so
+    trying a branch on a phone spends no TestFlight build. Install it on the plugged-in iPhone, with Developer Mode
+    on, by `xcrun devicectl device install app --device <udid> Ardia.ipa`. The repository is public, so the job's
+    first step masks the UDID from the event payload, before any step's environment is printed.
 - **Proved without the Apple account** (2026-11-16): `release-ios 10 --version 0.2.47 --unsigned` on this Mac.
   - Every check passed, at 56.5 MB installed.
   - Every target reads 0.2.47 (10). The stamp gives JS 9ac589838, dirty no, native clean.
