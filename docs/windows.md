@@ -397,7 +397,7 @@ is plain Chromium.
 
 - Features the engine turns off at launch (`AddLaunchSwitches` in `scripts/windows/engine/src/ardia/win/main.cc`,
   appended to any `--disable-features` the launcher passed, which a launcher's `--enable-features` can't undo):
-  `CalculateNativeWinOcclusion`, and `SettingsGlowupJourneys` (engine `windows-engine-20261117-1`, #2326). The latter
+  `CalculateNativeWinOcclusion`, and `SettingsGlowupJourneys` (engine `windows-engine-20261117-3`, #2326). The latter
   feeds Chrome's own guided tours, which Ardia never shows, and its chrome://settings handlers CHECK for a tracked
   browser view in the tab's window, which a hidden page window doesn't have. The Mac turns it off too (#2289). The
   `engine settings:` self-checks change a search engine, a site permission, the theme and browsing data through
@@ -571,7 +571,7 @@ is plain Chromium.
   ArdiaCore's page script into an isolated world of every web frame (`page_links.cc`): the page can't see the script
   or its binding. It is registered for each new document (`Page.addScriptToEvaluateOnNewDocument` in that world, with
   the binding scoped to it), so it is in place before a page that just woke from sleep or came by a cross-process
-  navigation takes input (engine `windows-engine-20261117-1`, #2198; the `engine links:` self-checks). A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
+  navigation takes input (engine `windows-engine-20261117-3`, #2198; the `engine links:` self-checks). A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
   (`setSplitLinkModifier`), or a plain click to another site on a tab that peeks those (`setPeekOtherSiteTabs`), is
   cancelled and reported; the host checks it against the last real left mouse-up over that page and sends the Mac's
   `openWindow` (`peek` or `split`), or falls back as the Mac does. A tab the page opens itself carries `fromClick` only
