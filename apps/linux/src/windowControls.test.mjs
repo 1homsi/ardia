@@ -379,3 +379,15 @@ test("a right or middle press forgets an earlier press on the …, so the next a
   await h.show("w");
   assert.deepEqual(h.opened, ["…"]);
 });
+
+test("in a narrow right sidebar the Downloads button leaves the header for the footer instead of sliding under the window buttons", async () => {
+  const { headerFitsDownloads, linuxDownloadsInSidebarFooter } = await import("./sidebarHeaderLayout.ts");
+  const right = (sidebarWidth, window) => state({ sidebarSide: "right", sidebarWidth }, window);
+  assert.equal(headerFitsDownloads(right(160), "w", false, windowsChrome), false, "at 160 px the cluster starts at 19, over the button at 9–43");
+  assert.equal(linuxDownloadsInSidebarFooter(right(160), "w", false, windowsChrome), true);
+  assert.equal(headerFitsDownloads(right(190), "w", false, windowsChrome), true);
+  assert.equal(linuxDownloadsInSidebarFooter(right(190), "w", false, windowsChrome), false, "at 190 px it stays in the header");
+  assert.equal(headerFitsDownloads(right(160), "w", true, windowsChrome), true, "with a page full screen the buttons aren't drawn");
+  assert.equal(headerFitsDownloads(right(160, { fullScreen: true }), "w", false, windowsChrome), true);
+  assert.equal(headerFitsDownloads(state({ sidebarWidth: 160 }), "w", false, windowsChrome), true, "a left sidebar's header has no buttons in it");
+});

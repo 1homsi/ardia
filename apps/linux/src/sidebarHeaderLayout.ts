@@ -1,7 +1,10 @@
 import { useBrowser, type BrowserState } from "../../browser/src/state/browser/store";
 import { useWindowId } from "../../browser/src/state/browser/hooks";
 import { useFullscreenTab } from "../../browser/src/state/tabs/pageState";
-import { WINDOW_CHROME, type WindowChrome } from "../../browser/src/lib/windowChrome";
+import { BROWSER_WINDOW_BUTTONS, WINDOW_CHROME, WINDOW_CONTROLS, windowControlsWidth, type WindowChrome } from "../../browser/src/lib/windowChrome";
+import { CARD_INSET } from "../../browser/src/lib/windowLayout";
+import { sidebarWidthIn } from "../../browser/src/state/sidebar/shownWidth";
+import { SIDEBAR_FOOTER_DOWNLOADS } from "../../browser/src/components/sidebar/geometry";
 import { addressBarInSidebar, pageFrameIn, sidebarCaptionRoom, sidebarHeaderCollapsed, windowControlsPlace } from "../../browser/src/state/windows/layout";
 import { windowButtonsRendered } from "./windowControlsRules";
 
@@ -16,8 +19,16 @@ export const linuxSidebarCaptionRoom = (s: BrowserState, windowId: string, pageF
 export const linuxSidebarHeaderCollapsed = (s: BrowserState, windowId: string, pageFullScreen: boolean, chrome: WindowChrome = WINDOW_CHROME): boolean =>
   sidebarHeaderCollapsed(s, windowId, chrome) && menuBesideWindowButtons(s, windowId, pageFullScreen, chrome);
 
+const CONTROLS_GAP = 3;
+
+export function headerFitsDownloads(s: BrowserState, windowId: string, pageFullScreen: boolean, chrome: WindowChrome = WINDOW_CHROME): boolean {
+  if (!linuxSidebarCaptionRoom(s, windowId, pageFullScreen, chrome)) return true;
+  const controlsLeft = sidebarWidthIn(s, windowId) - WINDOW_CONTROLS.edge - windowControlsWidth(BROWSER_WINDOW_BUTTONS);
+  return Math.max(chrome.leadingWidth + 6, CARD_INSET) + SIDEBAR_FOOTER_DOWNLOADS.size + CONTROLS_GAP <= controlsLeft;
+}
+
 export const linuxDownloadsInSidebarFooter = (s: BrowserState, windowId: string, pageFullScreen: boolean, chrome: WindowChrome = WINDOW_CHROME): boolean =>
-  addressBarInSidebar(s, windowId) || linuxSidebarHeaderCollapsed(s, windowId, pageFullScreen, chrome);
+  addressBarInSidebar(s, windowId) || linuxSidebarHeaderCollapsed(s, windowId, pageFullScreen, chrome) || !headerFitsDownloads(s, windowId, pageFullScreen, chrome);
 
 export function useSidebarHeaderCollapsed(): boolean {
   const windowId = useWindowId();
