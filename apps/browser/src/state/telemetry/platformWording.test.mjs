@@ -51,14 +51,14 @@ test("no Mac name, Mac-only phrase or key glyph is left in Windows's copy except
   const windows = live.map(windowsWords);
   for (const text of windows) {
     assert.doesNotMatch(text, /\b(?:this|the) Mac\b|\bmacOS version\b|\bfrom the Dock\b|\bin Finder\b|[⌃⌥⇧⌘]/u, text);
-    for (const phrase of Object.values(PHRASES_ONLY_WITH)) assert.ok(!text.includes(phrase));
+    for (const phrase of Object.values(PHRASES_ONLY_WITH).flat()) assert.ok(!text.includes(phrase));
   }
   assert.ok(windows.some((text) => text.includes("whether macOS and Ardia agree")));
   assert.ok(windows.some((text) => text.includes("Dock icon clicks")));
 });
 
 test("each phrase a feature removes is still in the copy, so a reworded sentence fails here instead of leaking", () => {
-  for (const phrase of Object.values(PHRASES_ONLY_WITH)) assert.ok(live.some((text) => text.includes(phrase)), phrase);
+  for (const phrase of Object.values(PHRASES_ONLY_WITH).flat()) assert.ok(live.some((text) => text.includes(phrase)), phrase);
 });
 
 test("the rules touch only whole words outside quotes", () => {

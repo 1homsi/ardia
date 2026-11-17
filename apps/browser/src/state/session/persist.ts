@@ -21,6 +21,7 @@ import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import { pageFromDisk, pinFromDisk, splitsChecked, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
+import { beginActivity } from "../app/jobActivity";
 
 const SAVE_DELAY_MS = 800;
 export const SESSION_VERSION = 11;
@@ -320,6 +321,7 @@ export function startPersistence(overrides: LaunchOverrides = {}) {
     timer = undefined;
     if (frozen) return;
     const s = useBrowser.getState();
+    const done = beginActivity("sessionSave");
     for (const doc of DOCS.filter((d) => dirty.has(d))) {
       const json = doc.json(s);
       const saved = lastJson.get(doc.name) === json;
@@ -329,6 +331,7 @@ export function startPersistence(overrides: LaunchOverrides = {}) {
         dirty.delete(doc);
       }
     }
+    done();
     if (dirty.size) timer = setTimeout(save, SAVE_DELAY_MS);
   };
   flush = save;

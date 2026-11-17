@@ -3,6 +3,7 @@ import { inputIdleSeconds, trimEngineMemory } from "../../platform/performance";
 import { useBrowser } from "../browser/store";
 import { isQuitting } from "../app/quit";
 import { noteMemoryTrim, noteMemoryTrimFailure, noteMemoryTrimGivenUp } from "../telemetry/memoryTrimCounts";
+import { during } from "../app/jobActivity";
 
 const QUIET_MS = 5000;
 const MIN_GAP_MS = 30000;
@@ -55,7 +56,7 @@ export function startMemoryTrim() {
       else noteMemoryTrimGivenUp();
       return;
     }
-    runtime.gc!();
+    during("memoryTrim", () => runtime.gc!());
     const after = heapSize() ?? before;
     if (after < before && step + 1 < MAX_COLLECTIONS) later((late) => compact(step + 1, after, postponed, late), STEP_MS);
     else finish();
