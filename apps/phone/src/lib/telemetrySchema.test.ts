@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { appVersionOf, backdropProps, launchProps, legacyImportOutcome, osVersionOf, parseDaily, pendingUsage, rollOver } from "./telemetrySchema.ts";
+import { appVersionOf, backdropProps, launchProps, launchTrayProps, legacyImportOutcome, osVersionOf, parseDaily, pendingUsage, rollOver } from "./telemetrySchema.ts";
 
 test("launch timings are measured from the process start, and dropped when it is unknown or out of range", () => {
   assert.deepEqual(launchProps(1000, 1300, 1900), { launch_ms: 900, js_ms: 300 });
@@ -43,4 +43,10 @@ test("the backdrop's time is the native backdrop's first frame after the process
   assert.equal(backdropProps(null, 2100), null);
   assert.equal(backdropProps(1000, null), null);
   assert.equal(backdropProps(3000, 2100), null);
+});
+
+test("the launch tray's time runs from the process start to the tray being up, and nothing without a start or before it", () => {
+  assert.deepEqual(launchTrayProps(1000, 1900), { tray_ms: 900 });
+  assert.equal(launchTrayProps(null, 1900), null);
+  assert.equal(launchTrayProps(3000, 1900), null);
 });
