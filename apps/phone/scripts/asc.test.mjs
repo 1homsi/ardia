@@ -95,7 +95,7 @@ test("register-device adds an iPhone the team doesn't have, leaves one it has, a
   for (const run of [fresh, there]) assert.doesNotMatch(run.said, /00008140/);
 });
 
-function nextBuild(failures, status = 500) {
+function nextBuild(failures, status = 500, failing = "/v1/apps") {
   const dir = mkdtempSync(join(tmpdir(), "asc-"));
   const key = join(dir, "AuthKey.p8");
   writeFileSync(key, generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey.export({ type: "pkcs8", format: "pem" }));
@@ -104,11 +104,12 @@ function nextBuild(failures, status = 500) {
   const fake = () => {
     let left = Number(process.env.ASC_FAKE_FAILURES);
     const status = Number(process.env.ASC_FAKE_STATUS);
+    const failing = process.env.ASC_FAKE_FAILING;
     globalThis.setTimeout = (resume) => queueMicrotask(resume);
     globalThis.fetch = async (url) => {
       const path = new URL(url).pathname;
       appendFileSync(process.env.ASC_FAKE_LOG, `${path}\n`);
-      if (path === "/v1/apps" && left-- > 0) return new Response(JSON.stringify({ errors: [{ detail: "An unexpected error occurred on the server side." }] }), { status });
+      if (path === failing && left-- > 0) return new Response(JSON.stringify({ errors: [{ detail: "An unexpected error occurred on the server side." }] }), { status });
       if (path === "/v1/apps") return new Response(JSON.stringify({ data: [{ id: "app", attributes: { bundleId: "com.ardia.browser.ios", name: "Ardia" } }] }), { status: 200 });
       if (path === "/v1/builds") return new Response(JSON.stringify({ data: [{ id: "build", attributes: { version: "9" } }] }), { status: 200 });
       if (path === "/v1/apps/app/buildUploads") return new Response(JSON.stringify({ data: [{ id: "upload", attributes: { cfBundleVersion: "11" } }] }), { status: 200 });
@@ -117,10 +118,10 @@ function nextBuild(failures, status = 500) {
   };
   const preload = `import { appendFileSync } from "node:fs";\n(${fake})();`;
   const run = spawnSync(process.execPath, ["--import", `data:text/javascript,${encodeURIComponent(preload)}`, script, "next-build"], {
-    env: { ...process.env, ASC_KEY: key, ASC_KEY_ID: "key", ASC_ISSUER: "issuer", ASC_FAKE_FAILURES: String(failures), ASC_FAKE_STATUS: String(status), ASC_FAKE_LOG: log },
+    env: { ...process.env, ASC_KEY: key, ASC_KEY_ID: "key", ASC_ISSUER: "issuer", ASC_FAKE_FAILURES: String(failures), ASC_FAKE_STATUS: String(status), ASC_FAKE_FAILING: failing, ASC_FAKE_LOG: log },
     encoding: "utf8",
   });
-  const asked = readFileSync(log, "utf8").trim().split("\n").filter((path) => path === "/v1/apps").length;
+  const asked = readFileSync(log, "utf8").trim().split("\n").filter((path) => path === failing).length;
   return { code: run.status, said: run.stdout.trim(), warned: run.stderr, asked };
 }
 
@@ -162,4 +163,12 @@ test("a write Apple answers with a server error is never sent twice", () => {
   });
   assert.notEqual(run.status, 0);
   assert.deepEqual(readFileSync(log, "utf8").trim().split("\n"), ["GET", "POST"]);
+});
+
+test("next-build gives no number when the uploads can't be read, and counts the builds alone only when Apple refuses the list", () => {
+  const down = nextBuild(9, 500, "/v1/apps/app/buildUploads");
+  assert.notEqual(down.code, 0);
+  assert.deepEqual([down.said, down.asked], ["", 4]);
+  const refused = nextBuild(9, 403, "/v1/apps/app/buildUploads");
+  assert.deepEqual([refused.code, refused.said, refused.asked], [0, "10", 1]);
 });

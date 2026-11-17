@@ -379,7 +379,7 @@ async function uploadedBuildNumbers(appId) {
     const { rows } = await get(`/v1/apps/${appId}/buildUploads`, { limit: "200" });
     return rows.map((row) => row.attributes?.cfBundleVersion);
   } catch (error) {
-    if (error instanceof ApiError) return [];
+    if (error instanceof ApiError && error.status < 500 && error.status !== 429) return [];
     throw error;
   }
 }
