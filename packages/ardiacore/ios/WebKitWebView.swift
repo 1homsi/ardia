@@ -77,7 +77,7 @@ final class WebKitWebView: WKWebView {
 
   override func keyDown(with event: NSEvent) {
     keyUpOfReservedKey = nil
-    if InputSourceKeys.consume(event) { return }
+    if InputSourceKeys.consumeInWebKitTab(event) { return }
     super.keyDown(with: event)
   }
 

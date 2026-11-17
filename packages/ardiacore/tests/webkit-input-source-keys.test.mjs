@@ -18,7 +18,7 @@ test("a WebKit tab hands 英数 and かな to the input source before WebKit see
     [
       "override func keyDown(with event: NSEvent) {",
       "keyUpOfReservedKey = nil",
-      "if InputSourceKeys.consume(event) { return }",
+      "if InputSourceKeys.consumeInWebKitTab(event) { return }",
       "super.keyDown(with: event)",
     ].join("\n"),
   );
@@ -40,6 +40,20 @@ test("InputSourceKeys takes exactly 英数 and かな and runs the system's key 
       "return true",
     ].join("\n"),
   );
+});
+
+test("a key a WebKit tab handed to the input source is counted, and the count is taken once", () => {
+  const source = read("../ios/InputSourceKeys.swift");
+  assert.equal(
+    body(source, "static func consumeInWebKitTab(_ event: NSEvent) -> Bool {"),
+    ["static func consumeInWebKitTab(_ event: NSEvent) -> Bool {", "guard consume(event) else { return false }", "lock.lock()", "webKitTabKeys += 1", "lock.unlock()", "return true"].join("\n"),
+  );
+  assert.equal(
+    body(source, "public static func takeWebKitTabKeys() -> Int {"),
+    ["public static func takeWebKitTabKeys() -> Int {", "lock.lock()", "defer { lock.unlock() }", "let taken = webKitTabKeys", "webKitTabKeys = 0", "return taken"].join("\n"),
+  );
+  const focus = read("../../shell/ios/FocusModule.swift");
+  assert.ok(focus.includes('Function("takeInputSourceKeys") { () -> Int in InputSourceKeys.takeWebKitTabKeys() }'));
 });
 
 test("Ardia's own text views use the same helper, so the two engines cannot drift apart", () => {
