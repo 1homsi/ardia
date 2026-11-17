@@ -1,4 +1,5 @@
 import { memo, useRef, useState } from "react";
+import { haptics } from "../../state/app/haptics";
 import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeOut, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import type { DeckGeometry } from "../../lib/deckGeometry";
@@ -126,7 +127,10 @@ const TabGridCell = memo(function TabGridCell({ tab, selected, width, aspect, on
             ])}
             onPress={open}
             onLongPress={onLongPress}
-            onPressIn={() => press(tabGridLayout.pressedScale)}
+            onPressIn={() => {
+              haptics.barPress();
+              press(tabGridLayout.pressedScale);
+            }}
             onPressOut={() => press(1)}
           >
             <Animated.View testID="tabGridFace" style={[styles.card, { width, height: width / aspect, backgroundColor: fill }, pressStyle]}>

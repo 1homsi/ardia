@@ -21,7 +21,7 @@ import { settingsNav } from "../settings/nav";
 import { refreshDefaultBrowser } from "../settings/defaultBrowser";
 import { forgetPosition, saveTabPosition, watchFrontScroll } from "./positions";
 import { noteLocalChange, showSpace } from "../sync/store";
-import { spaceToShow } from "../tabs/spaces";
+import { spaceToShow, tabsInSpace } from "../tabs/spaces";
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { enterTarget, rowTarget, resolve, type TrayRow } from "../search/omnibox";
@@ -363,9 +363,21 @@ export function leaveDeck() {
   else show("start");
 }
 
-export const closeTabFromDeck = (id: string) => closeTabById(id);
+export function leaveDeckIfEmpty() {
+  const tabs = currentTabs();
+  if (useBrowse.getState().surface !== "deck" || tabsInSpace(tabs.open, tabs.spaces).length + tabs.privates.length > 0) return;
+  show("start");
+}
 
-export const closeAllFromDeck = () => closeEveryTab();
+export function closeTabFromDeck(id: string) {
+  closeTabById(id);
+  leaveDeckIfEmpty();
+}
+
+export function closeAllFromDeck() {
+  closeEveryTab();
+  leaveDeckIfEmpty();
+}
 
 export const leaveIncognito = () => closePrivateTabs();
 

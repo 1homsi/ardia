@@ -204,6 +204,7 @@ function PinnedTileButton({ tile, width, profileId, dark, incognito, menuPlace }
       accessibilityHint={folder ? "Shows the folder’s tabs." : undefined}
       onPress={folder ? onPress : () => openRemote(tile.url, tile.title, profileId)}
       onLongPress={folder ? undefined : onLongPress}
+      onPressIn={haptics.barPress}
       style={({ pressed }) => (pressed && !folder ? styles.pressed : null)}
     >
       <ChromeSurface testID="startTile" shape="rounded" cornerRadius={startLayout.tileRadius} incognito={incognito} dark={dark} style={[styles.tile, { width }]}>
