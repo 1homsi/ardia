@@ -218,6 +218,9 @@ jobs:
       DEFAULT_BROWSER: ${{ inputs.default_browser }}
       RELEASE_VERSION: ${{ inputs.version }}
     steps:
+      - if: inputs.mode == 'device'
+        name: Mask the UDID
+        run: jq -r '.inputs.udid // empty' "$GITHUB_EVENT_PATH" | sed 's/^/::add-mask::/'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -273,7 +276,6 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$UDID" ] || { echo "::error::device mode needs udid"; exit 1; }
-          echo "::add-mask::$UDID"
           node apps/ios/scripts/asc.mjs register-device --udid "$UDID"
       - name: Archive, sign${{ inputs.mode == 'upload' && ', upload' || '' }}
         env:
