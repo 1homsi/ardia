@@ -1,6 +1,5 @@
 import { caretAllowsInline, completeInline, selectInlineCompletion } from "../../state/omnibox/textInput";
 import { noteInlineCompletionShown } from "../../state/telemetry/inlineCompletionCounts";
-import { useSettings } from "../../state/browser/hooks";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { findNodeHandle, type TextInput } from "react-native";
 import { acceptsCompletion, completionToWrite, previewFieldChange, settlesInline, withoutFirst, type EditContext, type FieldChange, type Inline, type PendingInline, type Selection } from "./inline";
@@ -11,7 +10,6 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
   const heard = useRef(typed);
   const counted = useRef("");
   const shown = inline?.typed === typed ? inline.completion : "";
-  const searchFirst = useSettings((s) => s.commandBarPreference === "search");
 
   useLayoutEffect(() => {
     if (typed !== heard.current) {
@@ -51,8 +49,8 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
     const key = `${typed}\n${shown}`;
     if (counted.current === key) return;
     counted.current = key;
-    noteInlineCompletionShown(searchFirst);
-  }, [input, typed, shown, preview, searchFirst]);
+    noteInlineCompletionShown();
+  }, [input, typed, shown, preview]);
 
   const accepts = (selection: Selection) => preview === null && acceptsCompletion(typed, shown, selection, pending.current);
 

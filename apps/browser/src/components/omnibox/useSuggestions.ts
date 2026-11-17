@@ -80,7 +80,6 @@ export function useSuggestions({
   const bookmarkEngine = useBookmarkEngine(windowId);
   const engines = useSettings((st) => searchEngines(st));
   const engine = useSettings((st) => defaultSearchEngine(st));
-  const preference = useSettings((st) => st.commandBarPreference);
   const suggestionsOn = useSettings((st) => st.searchSuggestions);
   const extensions = useBarExtensions(windowId);
   const shortcuts = useSettings((st) => st.shortcuts);
@@ -142,7 +141,7 @@ export function useSuggestions({
     if (!active || (!query && scope?.kind !== "provider")) return EMPTY;
     return buildSuggestions(text, source, {
       engine,
-      preference,
+      preference: "website",
       remote: remoteList,
       remoteSites: scope ? NO_SITES : remoteSites,
       actions: currentBarActions(windowId),
@@ -154,7 +153,7 @@ export function useSuggestions({
       bangs,
       providers,
     });
-  }, [active, text, query, source, engine, preference, remoteList, remoteSites, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs, providers]);
+  }, [active, text, query, source, engine, remoteList, remoteSites, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs, providers]);
   const siteListed = !scope && remoteSites.some((site) => result.items.some((i) => i.kind === "page" && i.url === site.url && !i.tabId));
   useEffect(() => {
     if (siteListed) noteSiteSuggestionShown();

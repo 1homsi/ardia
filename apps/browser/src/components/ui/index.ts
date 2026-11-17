@@ -24,6 +24,7 @@ export { PANEL, PanelCloseButton, PanelHeader, Popover, POPOVER_MARGIN, POPOVER_
 export { Radio } from "./Radio";
 export { Segmented, type SegmentOption } from "./Segmented";
 export { Group, Row } from "./Row";
+export { NativeFormContext, useNativeForm } from "./nativeForm";
 export { Swatch } from "./Swatch";
 export { Toggle } from "./Switch";
 export { Text, TextScopeContext, type TextProps, type TextScope } from "./Text";
