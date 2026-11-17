@@ -22,7 +22,6 @@ import {
   type ImportedExtension,
   type ImportKind,
   type ImportResult,
-  type SpaceSuggestion,
 } from "./apply";
 import { diaProfilesFor, diaProfilesWithoutFolder } from "./diaTabs";
 import { planSidebar } from "./sidebarPlan";
@@ -78,20 +77,8 @@ export function skipEncryptedData() {
   void runImport(kinds, true);
 }
 
-async function destination(
-  target: string,
-  index: number,
-  name: string,
-  color?: string,
-  emoji?: string,
-  shareWith?: string | null,
-  shareTopApps?: boolean,
-  adopts?: SpaceSuggestion,
-): Promise<string> {
-  if (index === 0) {
-    if (adopts) adoptSpaceIdentity(target, adopts);
-    return target;
-  }
+async function destination(target: string, index: number, name: string, color?: string, emoji?: string, shareWith?: string | null, shareTopApps?: boolean): Promise<string> {
+  if (index === 0) return target;
   const clash = profileNamed(name);
   if (clash) {
     const { confirmed } = await confirm({
@@ -149,8 +136,8 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const failed = new Map<ImportKind, string[]>();
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
   let destinationIndex = 0;
-  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null, shareTopApps?: boolean, adopts?: SpaceSuggestion) =>
-    destination(target, destinationIndex++, name, color, emoji, shareWith, shareTopApps, adopts);
+  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null, shareTopApps?: boolean) =>
+    destination(target, destinationIndex++, name, color, emoji, shareWith, shareTopApps);
   const found = new Map<string, ImportedExtension>();
   const left: string[] = [];
   let extensionsProfile = "";
@@ -196,11 +183,14 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     if (bySpaces) {
       const plan = planSidebar(source.sidebar!, result, profile.spaces);
       const members: string[][] = [];
+      let startersNamed = 0;
       for (const { space, partition } of plan.spaces) {
         const name = space.name || "Space";
         const head = members[partition]?.[0] ?? null;
         const shared = plan.sharesTopApps && plan.spaces.filter((p) => p.partition === partition).length > 1;
-        const dest = await nextDestination(name, space.color, space.emoji, head, shared, space);
+        const first = destinationIndex === 0;
+        const dest = await nextDestination(name, space.color, space.emoji, head, shared);
+        if (first && adoptSpaceIdentity(dest, space)) startersNamed += 1;
         (members[partition] ??= []).push(dest);
         const r = importArcSpace(dest, space, result.favicons);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
@@ -222,6 +212,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
         containerSpaces: plan.spaces.filter((p) => p.partition !== plan.dataPartition).length,
         dataProfiles: members.filter(Boolean).length,
         essentials,
+        startersNamed,
       });
       extensionsProfile ||= dest;
     } else {

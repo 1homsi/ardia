@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { beforeEach, test } from "node:test";
+import { after, beforeEach, test } from "node:test";
 globalThis.require = createRequire(import.meta.url);
+globalThis.__DEV__ = false;
+globalThis.fetch = async () => ({ status: 200 });
 
 let spaces = [];
 let whenNativeDone = () => {};
@@ -35,6 +37,9 @@ globalThis.acTestNativeModules = {
   },
 };
 
+const stub = await import("../../test-native/index.ts");
+const client = await import("../telemetry/client.ts");
+const usage = await import("../telemetry/usage.ts");
 const { useBrowser } = await import("../browser/store.ts");
 const { cancelImport, patchImport } = await import("./flow.ts");
 const { runImport } = await import("./runImport.ts");
@@ -60,9 +65,26 @@ function begin(imported, target = "default") {
   patchImport({ source, sourceProfiles: ["Default"], spaces: imported.map((s) => s.id), target, kinds: new Set(["spaces"]) });
 }
 
+after(() => client.setSharing(false, "settings"));
+
 beforeEach(() => {
   spaces = [];
   whenNativeDone = () => {};
+});
+
+test("each first space that names the starter profile is counted, and a starter it leaves alone is not", async () => {
+  client.setSharing(true, "onboarding");
+  begin([space("a", "Work", { emoji: "💼" }), space("b", "Home")]);
+  await runImport(new Set(["spaces"]));
+  begin([space("a", "Work")]);
+  S().updateProfile("default", { name: "Me" });
+  await runImport(new Set(["spaces"]));
+  usage.sessionEnding();
+  await client.saveQueueNow();
+  const queue = JSON.parse(stub.docs.get("telemetry-queue.json") ?? '{"events":[]}');
+  const sent = queue.events.filter((e) => e.event === "usage_counts").at(-1)?.properties ?? {};
+  assert.equal(sent.imported_starters_named, 1);
+  assert.equal(sent.imported_spaces, 3);
 });
 
 test("Arc's first space names the untouched starter profile instead of leaving it Personal", async () => {

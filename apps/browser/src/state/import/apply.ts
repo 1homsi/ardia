@@ -329,7 +329,7 @@ export function defaultTarget(): string {
   return w && w.kind !== "private" ? w.profileId : s.settings.defaultProfileId;
 }
 
-export function adoptSpaceIdentity(profileId: string, space: Pick<SpaceSuggestion, "name" | "color" | "emoji">): void {
+export function adoptSpaceIdentity(profileId: string, space: Pick<SpaceSuggestion, "name" | "color" | "emoji">): boolean {
   const s = useBrowser.getState();
   const profile = s.profiles[profileId];
   const name = space.name.trim();
@@ -339,10 +339,11 @@ export function adoptSpaceIdentity(profileId: string, space: Pick<SpaceSuggestio
     profile.color === DEFAULT_PROFILE.color &&
     profile.icon == null &&
     !profile.theme;
-  if (!profile || !untouched || !name || s.profileOrder.length !== 1) return;
+  if (!profile || !untouched || !name || s.profileOrder.length !== 1) return false;
   s.updateProfile(profileId, { name, icon: space.emoji ?? null });
   const color = profileColorFor(space.color);
   if (color) s.setProfileLook(profileId, { color });
+  return true;
 }
 
 export function profileNamed(name: string): string | undefined {
