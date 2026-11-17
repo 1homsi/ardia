@@ -15,3 +15,10 @@ test("an edit key's tag and its check read the same KeyEpochs", () => {
   const reads = focusHandoff.match(/keyEpochs\.epoch\(of: window\.windowNumber\)/g)?.length ?? 0;
   assert.equal(reads, 2, "the tag and the check must both read KeyEpochs");
 });
+
+test("every edit key a page hands back is counted as accepted or refused, the first after a handback apart", () => {
+  const check = focusHandoff.slice(focusHandoff.indexOf("func refusesUnhandledKey"), focusHandoff.indexOf("func takeEditKeyAcks"));
+  assert.ok(check.includes("let afterHandback = keyEpochs.takeHandback(of: window.windowNumber)"));
+  assert.ok(check.indexOf('countEditKeyAck(afterHandback ? "afterHandbackAccepted" : "accepted")') < check.indexOf("acknowledged = event"), "an accepted key is counted before it goes on");
+  assert.ok(check.indexOf('countEditKeyAck(afterHandback ? "afterHandbackRefused" : "refused")') < check.indexOf("NSSound.beep()"), "a refused key is counted where it beeps");
+});

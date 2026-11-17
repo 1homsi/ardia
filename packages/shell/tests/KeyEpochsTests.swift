@@ -41,4 +41,24 @@ final class KeyEpochsTests: XCTestCase {
     }
     XCTAssertEqual(Set(seen).count, seen.count)
   }
+
+  func testTheFirstAcknowledgementAfterTheSameWindowIsHandedKeyBackIsMarkedOnce() {
+    var epochs = KeyEpochs()
+    epochs.becameKey(7)
+    XCTAssertFalse(epochs.takeHandback(of: 7))
+    epochs.becameKey(7)
+    XCTAssertTrue(epochs.takeHandback(of: 7))
+    XCTAssertFalse(epochs.takeHandback(of: 7))
+  }
+
+  func testAnotherWindowTakingKeyIsNoHandback() {
+    var epochs = KeyEpochs()
+    epochs.becameKey(7)
+    epochs.becameKey(7)
+    epochs.becameKey(9)
+    XCTAssertFalse(epochs.takeHandback(of: 7))
+    XCTAssertFalse(epochs.takeHandback(of: 9))
+    epochs.becameKey(7)
+    XCTAssertFalse(epochs.takeHandback(of: 7))
+  }
 }

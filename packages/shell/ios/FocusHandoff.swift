@@ -49,6 +49,8 @@ final class FocusHandoff {
   private var monitor: Any?
   private let editKeys = NSMapTable<NSEvent, NSArray>(keyOptions: .weakMemory, valueOptions: .strongMemory)
   private var keyEpochs = KeyEpochs()
+  private let ackLock = NSLock()
+  private var editKeyAcks: [String: Int] = [:]
   private var releases: [UInt16: Release] = [:]
   private var closedAt: [Int: TimeInterval] = [:]
   private var typedAfterGate: [Int: TimeInterval] = [:]
@@ -146,13 +148,31 @@ final class FocusHandoff {
   func refusesUnhandledKey(_ event: NSEvent, in window: NSWindow) -> Bool {
     guard let tag = editKeys.object(forKey: event) as? [Int], tag.count == 2 else { return false }
     let current = [window.windowNumber, keyEpochs.epoch(of: window.windowNumber)]
+    let afterHandback = keyEpochs.takeHandback(of: window.windowNumber)
     guard tag != current || NSApp.keyWindow !== window else {
+      countEditKeyAck(afterHandback ? "afterHandbackAccepted" : "accepted")
       acknowledged = event
       DispatchQueue.main.async { [weak self] in if self?.acknowledged === event { self?.acknowledged = nil } }
       return false
     }
+    countEditKeyAck(afterHandback ? "afterHandbackRefused" : "refused")
     NSSound.beep()
     return true
+  }
+
+  func takeEditKeyAcks() -> [String: Int] {
+    ackLock.lock()
+    defer {
+      editKeyAcks = [:]
+      ackLock.unlock()
+    }
+    return editKeyAcks
+  }
+
+  private func countEditKeyAck(_ outcome: String) {
+    ackLock.lock()
+    editKeyAcks[outcome, default: 0] += 1
+    ackLock.unlock()
   }
 
   func install() {
