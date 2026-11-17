@@ -150,10 +150,7 @@ void RestoreCursorOverAppView(NSEvent *event) {
   if (!NSPointInRect(point, [content convertRect:content.bounds toView:nil])) return;
   NSView *hit = ViewAt(window, point);
   if (!hit) return;
-  if (EnclosingPageView(hit)) {
-    gLastPageCursor = current;
-    return;
-  }
+  if (EnclosingPageView(hit)) return;
   if (!IsArdiaSurface(window, hit)) return;
   const bool hidden = IsInvisible(current);
   if (!hidden && current != gLastPageCursor) return;
@@ -167,6 +164,16 @@ void RestoreCursorOverAppView(NSEvent *event) {
   if (hidden) gHiddenRestores++;
   gLastRestore = [NSString stringWithFormat:@"%@ -> %@ over %@", CursorName(current), CursorName(wanted), NSStringFromClass(hit.class)];
   [ArdiaEvents emit:@"engine.cursorRestored" data:@{@"hidden" : @(hidden)}];
+}
+
+void RecordPageCursors() {
+  SEL update = NSSelectorFromString(@"updateCursor:");
+  ardia_runtime::ReplaceMethod(PageViewClass(), update, ^id(IMP original) {
+    return ^(NSView *page, NSCursor *cursor) {
+      if (cursor) gLastPageCursor = cursor;
+      ((void (*)(id, SEL, NSCursor *))original)(page, update, cursor);
+    };
+  });
 }
 
 void HoldCursorsOfCoveredPages() {
@@ -193,6 +200,7 @@ NSCursor *InvisibleCursorForTests() {
 
 void WatchPageCursor() {
   if (gCursorMonitor) return;
+  RecordPageCursors();
   HoldCursorsOfCoveredPages();
   gCursorMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskMouseMoved
                                                          handler:^NSEvent *(NSEvent *event) {
