@@ -28,3 +28,35 @@ test("an hour with only sidebar resizes still sends usage_counts, and the count 
   usage.sessionEnding();
   assert.deepEqual(await sentSidebarResizes(), [2]);
 });
+
+test("pinned-section toggles send only aggregate collapse and expand counts while sharing is on", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const { togglePinnedFold } = await import("../sidebar/pinnedFold.ts");
+  useBrowser.getState().hydrate({});
+  client.setSharing(false, "settings");
+  togglePinnedFold("default");
+  client.setSharing(true, "settings");
+  togglePinnedFold("default");
+  togglePinnedFold("default");
+  usage.sessionEnding();
+  await client.saveQueueNow();
+  const saved = JSON.parse(stub.docs.get("telemetry-queue.json"));
+  const fields = saved.events.filter((e) => e.event === "usage_counts").at(-1).properties;
+  assert.equal(fields.pinned_section_collapses, 1);
+  assert.equal(fields.pinned_section_expands, 1);
+  client.setSharing(false, "settings");
+});
+
+test("turning sharing off discards pending pinned-section counts", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const { togglePinnedFold } = await import("../sidebar/pinnedFold.ts");
+  const { takeSidebarResizeCounts } = await import("./sidebarResizeCounts.ts");
+  useBrowser.getState().hydrate({});
+  client.setSharing(true, "settings");
+  togglePinnedFold("default");
+  togglePinnedFold("missing-profile");
+  client.setSharing(false, "settings");
+  const fields = takeSidebarResizeCounts();
+  assert.equal(fields.pinned_section_collapses, 0);
+  assert.equal(fields.pinned_section_expands, 0);
+});
