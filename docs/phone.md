@@ -296,7 +296,8 @@ and again only when that status changes.
     scrolls.
     Past the history (in the app, not the lab): on a tab with no back history, a back swipe closes the tab and
     lands on the tab used before it (the start screen when none is left); right after, a forward swipe on that
-    page reopens the closed tab. With Swipe off neither runs, and with Swipe edges only from the edge.
+    page reopens the closed tab when the page has no forward history (with forward history it goes forward).
+    With Swipe off neither runs, and with Swipe edges only from the edge.
 22. **Online again and favicons:** System › Favicon looks prints three lines with tones and backings; turn
     airplane mode on and off: `network lost`, then `online again` once.
 23. **Accessibility dump:** in the app (not the lab), open the tray, the page menu, a long-press menu, Spaces
