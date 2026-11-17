@@ -219,7 +219,7 @@ export function PopUp<T extends string>({
               <Text numberOfLines={1} style={{ ...typeScale.body, color: theme.textSecondary, flexShrink: 1 }}>
                 {current?.title ?? ""}
               </Text>
-              <Symbol name="chevron.up.chevron.down" size={9} weight="semibold" color={theme.textSecondary} style={PLAIN_POPUP_GLYPH} />
+              <Symbol name={POP_UP_CHROME.indicator === "chevronDown" ? "chevron.down" : "chevron.up.chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={PLAIN_POPUP_GLYPH} />
             </View>
           ) : (
           <Animated.View
