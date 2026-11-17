@@ -70,6 +70,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
 
   bool Attach();
   void Register();
+  std::string Tag();
   void RuntimeEnabled(std::optional<base::DictValue> answer);
   void AddScript(bool run_now);
   void ScriptAdded(std::optional<base::DictValue> added);

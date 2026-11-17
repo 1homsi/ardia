@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "ardia/win/host.h"
+#include "ardia/win/main.h"
 #include "ardia/win/page_links_script.h"
 #include "ardia/win/tab_calls.h"
 #include "ardia/win/tab_state.h"
@@ -264,14 +265,22 @@ bool PageLinks::Attach() {
   if (host_) {
     return true;
   }
+  NoteForTest("links attach " + Tag());
   host_ = content::DevToolsAgentHost::GetOrCreateFor(&GetWebContents());
   if (!host_ || !host_->AttachClient(this)) {
+    NoteForTest("links attach refused " + Tag());
     host_ = nullptr;
     return false;
   }
   UnmarkEngineDevTools(&GetWebContents());
   Register();
+  NoteForTest("links attached " + Tag());
   return true;
+}
+
+std::string PageLinks::Tag() {
+  TabState* tab = TabState::FromWebContents(&GetWebContents());
+  return tab ? tab->key() : std::string("(no tab)");
 }
 
 void PageLinks::Register() {
@@ -286,6 +295,7 @@ void PageLinks::Register() {
 }
 
 void PageLinks::RuntimeEnabled(std::optional<base::DictValue> answer) {
+  NoteForTest("links runtime enabled " + Tag() + (answer ? "" : " (error)"));
   enabling_ = false;
   for (int context : stale_) {
     Evaluate(context,
@@ -310,6 +320,7 @@ void PageLinks::AddScript(bool run_now) {
 }
 
 void PageLinks::ScriptAdded(std::optional<base::DictValue> added) {
+  NoteForTest("links script added " + Tag() + (added ? "" : " (error)"));
   registering_ = false;
   const std::string* id = added ? added->FindString("identifier") : nullptr;
   if (id) {
@@ -448,6 +459,7 @@ void PageLinks::DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
 }
 
 void PageLinks::AgentHostClosed(content::DevToolsAgentHost* agent_host) {
+  NoteForTest("links session closed " + Tag());
   host_ = nullptr;
   contexts_.clear();
   stale_.clear();

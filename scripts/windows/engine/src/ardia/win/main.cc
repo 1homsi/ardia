@@ -592,6 +592,12 @@ bool Relaunched(const base::CommandLine& command_line,
 
 }
 
+void NoteForTest(const std::string& line) {
+  if (ardiacore::TestInstance()) {
+    WriteLaunchLog(line);
+  }
+}
+
 void BeforeChromeMain() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   if (!BrowserProcess(*command_line)) {

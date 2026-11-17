@@ -52,6 +52,22 @@ export async function until<T>(what: string, ms: number, read: () => Promise<T>,
 
 export const painted = (key: string) => until(`the page ${key} has its first contentful paint`, LOAD_MS, async () => evaluate(key, 'post("result", JSON.stringify(performance.getEntriesByName("first-contentful-paint").length));'), (count) => Number(count) > 0);
 
+const CALL_MS = 15000;
+
+export async function timedCall<Result = unknown>(verb: string, args: Record<string, unknown> = {}, windowId = ""): Promise<Result> {
+  const what = `${verb} ${String(args.key ?? "")}`.trim();
+  console.info(`[ardia windows] self-check step: ${what}`);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} gave no answer within ${CALL_MS} ms`)), CALL_MS);
+  });
+  try {
+    return await Promise.race([hostCall<Result>(verb, args, windowId), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const loaded = (key: string, title = TITLE) => until(`the page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.title === title && tab.loading === false && tab.discarded !== true);
 
 function withDeadline<T>(work: Promise<T>, what: string): Promise<T> {
