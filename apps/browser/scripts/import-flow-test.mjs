@@ -6,7 +6,7 @@
 //   <scratch dir>     home/ is a copy of packages/import/fixtures/home (the fake Chrome, Arc, Dia, Firefox, Safari… data)
 //                     and data/ the instance's ARDIA_DATA_DIR; both are wiped first; Dia's fixture windows get a pinned
 //                     tab in "Side project", a Dia profile with no folder on disk
-//   flow              chrome, chromeSkip, chromeBack, arc, zen, firefox, dia, safariDirect, safariExport, safariBadFile
+//   flow              chrome, chromeSkip, chromeBack, arc, zen, firefox, dia, diaOpenOnly, safariDirect, safariExport, safariBadFile
 //                     (default: all of them, in that order)
 //   --record <file>   writes what each flow did (the steps it passed through, counts, failures, notes, extensions and
 //                     what it added to the store) as JSON
@@ -142,6 +142,7 @@ const FLOWS = {
   zen: `${pick("zen")}, () => g().setKinds(g().kinds.filter((k) => k !== "passwords")), () => settle(200), ${next}, ${throughProfilesAndUnlock}, ${done}`,
   firefox: `${pick("firefox")}, () => g().setKinds(g().kinds.filter((k) => k !== "passwords")), () => settle(200), ${next}, ${throughProfilesAndUnlock}, ${done}`,
   dia: `${pick("dia")}, ${next}, ${throughProfilesAndUnlock}, ${done}`,
+  diaOpenOnly: `${pick("dia")}, () => g().setKinds(g().kinds.filter((k) => k !== "pinnedTabs")), () => settle(200), ${next}, ${throughProfilesAndUnlock}, ${done}`,
   safariDirect: `${pick("safari")}, ${next}, ${stepIs("safari")}, () => settle(200), () => g().importSafariDirect(), ${done}`,
   safariExport: `${pick("safari")}, ${next}, ${stepIs("safari")}, () => g().importSafari(${JSON.stringify(join(exportsDir, "Safari Export.zip"))}), ${done}`,
   safariBadFile: `${pick("safari")}, ${next}, ${stepIs("safari")}, () => g().importSafari(${JSON.stringify(join(exportsDir, "not-an-export.zip"))}),
@@ -175,6 +176,11 @@ const CHECKS = {
     assert.equal(r.step, "done");
     assert.ok(r.counts.tabs > 0 && !r.notes.some((n) => n.startsWith("Dia's tabs couldn't be brought over:")), JSON.stringify(r));
     for (const name of ["Work", "Side project"]) assert.ok(r.store.tabs[name]?.pinned > 0, `${name} gets its pinned tabs: ${JSON.stringify(r.store.tabs)}`);
+  },
+  diaOpenOnly: (r) => {
+    assert.equal(r.step, "done");
+    assert.ok(!r.store.newProfiles.some(([name]) => name === "Side project"), `a Dia profile with only pinned tabs gets no profile when only open tabs come over: ${JSON.stringify(r.store.newProfiles)}`);
+    assert.ok(Object.values(r.store.tabs).every((c) => c.pinned === 0), JSON.stringify(r.store.tabs));
   },
   safariDirect: (r) => {
     assert.deepEqual(r.steps.slice(-3), ["safari", "progress", "done"]);

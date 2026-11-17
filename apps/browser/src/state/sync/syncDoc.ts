@@ -88,7 +88,7 @@ export const emptyDoc = (): SyncDoc => ({
 
 export type SyncStatus = "off" | "starting" | "updating" | "updated" | "stalled" | "offline" | "locked" | "reset" | "unavailable";
 
-export type SyncedDevice = { id: string; name: string; kind: DeviceKind; receivesTabs: boolean; lastSeen: number | null; current: boolean };
+export type SyncedDevice = { id: string; name: string; kind: DeviceKind; receivesTabs: boolean; lastSeen: number | null; current: boolean; version?: string; os?: string };
 export type RemoteTabs = { deviceId: string; name: string; kind: DeviceKind; tabs: { url: string; title: string }[] };
 export type SendTarget = { id: string; name: string; kind: DeviceKind };
 export type ReceivedTab = { windowId: string; tabId: string; send: SendRecord; from: { name: string; kind: DeviceKind } };

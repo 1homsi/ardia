@@ -44,6 +44,7 @@ holds the rest.
 | Layout shifts | `node apps/browser/scripts/layout-shift-test.mjs <Release app>` (reads a probe a Debug app's React dev hook replaces) | Nothing already on screen moves when late content arrives |
 | Window toolbar | `node apps/browser/scripts/window-toolbar-test.mjs <Release app>` (31 of 39 checks fail on a Debug app) | The toolbar's buttons and layout in each window kind |
 | Hover layout | `node apps/browser/scripts/hover-shift-test.mjs <Debug app>` | Hovering moves nothing: every hover-tracked view in the sidebar, the tab strip and the downloads popover (below) |
+| Symbol geometry | `node apps/browser/scripts/symbol-geometry-test.mjs <ad hoc Debug app> [cdpPort] [metroPort]` | Live-folder status changes and interface-scale transitions keep every symbol image inside its bounds, including the hidden image used again at window scale |
 | Sidebar clicks | `node apps/browser/scripts/sidebar-click-test.mjs <Debug app>` | One click opens a tab or pinned tile: in the frame its hover card appears, under another tile's appearing card, after a New Tab and after closing a pinned tab (0.2.39-nightly.5: tabs needed two clicks), and when the pointer drifts up to 9 pt between press and release, while a 14 pt press stays a drag (#947) |
 | Menus | `node apps/browser/scripts/menus-test.mjs <Debug app> [--only=<regex>]` | Right-clicks on the sidebar's rows, tiles, split panes, groups, header, footer and background open their menu, and each item does what it says (tab, several-tab, group, sidebar, Top Apps, reload button, profile, bookmark, history, download and extension menus; moves between profiles and windows, private windows refused); the page menu's Copy Link Address, Save Link As… cancelled, Back and Forward. Menus come from `ac.menus` in the dev harness where nothing can be right-clicked |
 | Onboarding | `node apps/browser/scripts/onboarding-test.mjs <Debug app>` | No text field sits behind the onboarding card, a click on the first row's checkbox toggles it, another window keeps its New Tab field meanwhile, and the New Tab field is back and focused once it ends, in a bar of the same height (the hidden New Tab field took the first row's cursor and its checkbox clicks) |
@@ -179,7 +180,10 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
   script times the up itself. AppKit still keeps an inactive app's first click on unselected text or a page to
   itself: `devWindow(n, "fakeActiveClicks")` lets them through, as in the active app. `devWindow(n,
   "responderChanges")` lists the first-responder changes since the last call with their stacks (who took a field's
-  focus).
+  focus). `devWindow(n, "hoverProbe:responderNil:1")` resigns the first responder (`:0` only reads it), and
+  `"hoverProbe:check:<x>,<y>,click"` runs the hover probe as a click there; `"hoverProbe"` lists the episodes it emitted.
+  `"hoverProbe:watch:1"` turns on the click and move watch in a hidden instance (`:0` turns it off), so a `devClick`
+  after `responderNil:1` goes through the same path as a user's click.
 - **Windows:** they stay behind every other app's windows: each window's level is set a band below normal (normal at
   CoreGraphics layer -1000000, floating at -999997…; `-level` answers the one asked for), so no ordering, activation
   attempt or AppKit reshuffle lifts one over the owner's, the app's own keep production's order, and Mission Control

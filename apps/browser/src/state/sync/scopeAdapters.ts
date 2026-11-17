@@ -33,6 +33,19 @@ export function extensionsOf(profileId: string): ExtensionsAdapter {
   return adapter;
 }
 
+const syncedProfileOrder = (links: SyncDoc["profiles"]) =>
+  useBrowser.getState().profileOrder.flatMap((id) => (links[id] ? [links[id].syncId] : []));
+
+const withSharedOwners = (doc: SyncDoc, links: () => SyncDoc["profiles"]) => (): SyncDoc["profiles"] => {
+  const shown = links();
+  const profiles = useBrowser.getState().profiles;
+  const owners = Object.keys(shown).flatMap((id) => {
+    const owner = profiles[id]?.dataId;
+    return owner && owner !== id && doc.profiles[owner] && !shown[owner] ? [[owner, doc.profiles[owner]] as const] : [];
+  });
+  return owners.length ? { ...shown, ...Object.fromEntries(owners) } : shown;
+};
+
 export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
   const id = doc.deviceId!;
   if (retiring) return [deviceAdapter(id, deviceName, true)];
@@ -41,11 +54,11 @@ export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
   return [
     ...(doc.types.settings ? [inTodaysNames(settingsAdapter)] : []),
     sharedDataAdapter(() => doc.profiles, removed),
-    profilesAdapter(enabledLinks, removed),
+    profilesAdapter(withSharedOwners(doc, enabledLinks), removed),
     profileThemesAdapter(enabledLinks, () => doc.scopes[APP_SCOPE]?.records, removed),
     profileTopAppsAdapter(enabledLinks, removed),
     profileOpenTabsAdapter(enabledLinks, removed),
-    alsoDeleting(deviceAdapter(id, deviceName), () => removedDeviceKeys(doc)),
+    alsoDeleting(deviceAdapter(id, deviceName, false, () => syncedProfileOrder(enabledLinks())), () => removedDeviceKeys(doc)),
   ];
 }
 

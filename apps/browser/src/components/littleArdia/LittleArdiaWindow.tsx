@@ -47,7 +47,7 @@ export function LittleArdiaWindow() {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const frame = usePageFrameInset();
   const cardRadius = useCardFrame().radius;
-  const gestures = useSettings((s) => s.littleWindowGestures) && !fullScreen;
+  const gestures = !fullScreen;
   const pinch = useLittleArdiaPinch(windowId);
   const swipe = useLittleArdiaSwipeClose(windowId);
   const windowRadius = windowCornerRadius();
