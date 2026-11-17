@@ -20,6 +20,8 @@ __define("packages/sync/src/companion/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/sync/src/scopeState.ts"));
   __exportAll(exports, __require("packages/sync/src/companion/state.ts"));
   __exportAll(exports, __require("packages/sync/src/companion/cycle.ts"));
+  __export(exports, "buildView", () => __require("packages/sync/src/companion/view.ts")["buildView"]);
+
 
 
 
