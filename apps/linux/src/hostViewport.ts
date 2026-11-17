@@ -34,14 +34,14 @@ function plainViewport(element: HTMLElement, rect: DOMRect, viewport: TabViewpor
   const bottom = Math.min(window.innerHeight, rect.bottom) - insetY;
   const dismiss = document.querySelector<HTMLElement>(EXTENSION_POPUP_DISMISS);
   const points = [[left, top], [right, top], [left, bottom], [right, bottom], [(left + right) / 2, (top + bottom) / 2]] as const;
-  const seen = points.map(([x, y]): "shown" | "page" | "covered" => {
+  const seen = points.map(([x, y]): "shown" | "page" | "covered" | "missed" => {
     if (cover.overlayAt(x, y)) return "shown";
     const hit = document.elementFromPoint(x, y);
-    if (!hit) return "covered";
+    if (!hit) return "missed";
     if (hit === element || element.contains(hit) || !!dismiss?.contains(hit)) return "shown";
     return hit.closest?.(STACKED_PAGE) ? "page" : "covered";
   });
-  return seen.includes("shown") && !seen.includes("covered") ? { viewport, covered: false } : { viewport: { ...viewport, visible: false }, covered: seen.includes("covered") };
+  return seen.includes("shown") && !seen.includes("covered") && !seen.includes("missed") ? { viewport, covered: false } : { viewport: { ...viewport, visible: false }, covered: seen.includes("covered") };
 }
 
 export type OverlayCover = { overlayAt: (x: number, y: number) => boolean; overlayElements: () => readonly Element[] };

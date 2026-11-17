@@ -193,7 +193,7 @@ test("a page rect off the window or not finite is reported hidden", () => {
   assert.equal(tabViewport({ x: 10, y: 10, width: 100, height: 100 }, size, false).visible, false);
 });
 
-test("a page that stops drawing because shell UI covers it is reported once, and a page hidden any other way is not", async () => {
+test("a page that stops drawing because shell UI covers it is reported once, and a page hidden any other way or sampled off the window is not", async () => {
   const { watchPageBelowShell } = await import("./shims/web/HostWebView.tsx");
   const page = { isConnected: true, parentElement: null, getBoundingClientRect: () => box(200, 50, 800, 600), contains: () => false };
   const toolbar = {};
@@ -218,6 +218,10 @@ test("a page that stops drawing because shell UI covers it is reported once, and
     s.events.document.dispatchEvent(new Event("visibilitychange"));
     document.hidden = false;
     s.events.document.dispatchEvent(new Event("visibilitychange"));
+    hit = null;
+    s.mutate();
+    hit = page;
+    s.mutate();
     page.isConnected = false;
     s.mutate();
     assert.equal(covered, 1);
