@@ -213,6 +213,7 @@ export type EngineEvents = {
   "engine.cliControl": CliControlStatus;
   "engine.hoverLost": HoverLostEpisode;
   "engine.popupProtectedMedia": PopupProtectedMedia;
+  "engine.cursorRestored": { hidden: boolean };
   "tabs.strips": TabStripTransaction;
   "downloads.changed": Download;
   "permissions.requested": PermissionRequest;

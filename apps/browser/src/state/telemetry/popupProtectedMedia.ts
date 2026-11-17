@@ -1,29 +1,30 @@
-import type { PopupProtectedMedia } from "../../platform/performance";
+import { onPopupProtectedMedia, type PopupProtectedMedia } from "../../platform/performance";
+import { isSharing, useTelemetry } from "./choice";
 
-const FAMILIES = ["widevine", "playready", "fairplay", "other"] as const;
-type Family = (typeof FAMILIES)[number];
+const REFUSED = ["widevine", "playready", "fairplay", "other"] as const;
+type Outcome = `${(typeof REFUSED)[number]}` | "stalled";
+const OUTCOMES: readonly Outcome[] = [...REFUSED, "stalled"];
 
-const none = () => Object.fromEntries(FAMILIES.flatMap((family) => [[`${family}:listed`, 0], [`${family}:unlisted`, 0]])) as Record<string, number>;
+const none = () => Object.fromEntries(OUTCOMES.flatMap((outcome) => [[`${outcome}:listed`, 0], [`${outcome}:unlisted`, 0]])) as Record<string, number>;
 
 let pending = none();
 
+useTelemetry.subscribe((current, previous) => {
+  if (current.sharing !== previous.sharing) pending = none();
+});
+
 export function notePopupProtectedMedia(media: PopupProtectedMedia | undefined) {
-  const family: Family = FAMILIES.find((candidate) => candidate === media?.family) ?? "other";
-  const key = `${family}:${media?.listed === true ? "listed" : "unlisted"}`;
+  if (!isSharing()) return;
+  const outcome: Outcome = media?.family === "none" ? "stalled" : (REFUSED.find((family) => family === media?.family) ?? "other");
+  const key = `${outcome}:${media?.listed === true ? "listed" : "unlisted"}`;
   pending[key] = (pending[key] ?? 0) + 1;
 }
+
+export const watchPopupProtectedMedia = () => onPopupProtectedMedia(notePopupProtectedMedia);
 
 export function takePopupProtectedMediaCounts() {
   const taken = pending;
   pending = none();
-  return {
-    popup_protected_media_refused_widevine_listed: taken["widevine:listed"],
-    popup_protected_media_refused_widevine_unlisted: taken["widevine:unlisted"],
-    popup_protected_media_refused_playready_listed: taken["playready:listed"],
-    popup_protected_media_refused_playready_unlisted: taken["playready:unlisted"],
-    popup_protected_media_refused_fairplay_listed: taken["fairplay:listed"],
-    popup_protected_media_refused_fairplay_unlisted: taken["fairplay:unlisted"],
-    popup_protected_media_refused_other_listed: taken["other:listed"],
-    popup_protected_media_refused_other_unlisted: taken["other:unlisted"],
-  };
+  const field = (outcome: Outcome) => (outcome === "stalled" ? "popup_protected_media_stalled" : `popup_protected_media_refused_${outcome}`);
+  return Object.fromEntries(OUTCOMES.flatMap((outcome) => [[`${field(outcome)}_listed`, taken[`${outcome}:listed`]], [`${field(outcome)}_unlisted`, taken[`${outcome}:unlisted`]]])) as Record<string, number>;
 }

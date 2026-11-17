@@ -19,10 +19,11 @@ const webKitTab = files(/^WebKitTab.*\.swift$/).map(native);
 const pageScript = native("page_script.js");
 const messageReceivers = ["ArdiaWebView+PageMessages.mm", "ArdiaWebView+Peek.mm"].map(native);
 
-const WEBKIT_ONLY_EVENTS = new Set(["mediaFault"]);
+const WEBKIT_ONLY_EVENTS = new Set(["mediaFault", "focusRestore"]);
+const WINDOWS_ENGINE_ONLY_EVENTS = new Set(["autoplayBlocked"]);
 
-test("the Chromium view emits every page event in PAGE_EVENTS except the WebKit-only ones, and nothing else", () => {
-  const expected = [...PAGE_EVENTS].filter((name) => !WEBKIT_ONLY_EVENTS.has(name));
+test("the Chromium view emits every page event in PAGE_EVENTS except the WebKit-only and Windows-engine-only ones, and nothing else", () => {
+  const expected = [...PAGE_EVENTS].filter((name) => !WEBKIT_ONLY_EVENTS.has(name) && !WINDOWS_ENGINE_ONLY_EVENTS.has(name));
   assert.deepEqual(sorted(collect(chromiumEmitters, /\bemit:@"([A-Za-z]+)"\s+payload:/g)), sorted(expected));
 });
 
@@ -52,7 +53,7 @@ test("a popup window receives page messages and records only a protected-media r
 
 test("the popup's log line names the key-system family and nothing else, and nothing is forwarded", () => {
   const logs = [...popupReceiverBody.matchAll(/NSLog\(([^;]*)\);/g)].map((m) => m[1]);
-  assert.deepEqual(logs, ['@"[ardiacore] popup protected media refused: %@", family']);
+  assert.deepEqual(logs, ['@"[ardiacore] popup protected media %@: %@", [family isEqualToString:@"none"] ? @"stalled" : @"refused", family']);
   assert.deepEqual(popupReceiverBody.match(/tab\.url/g), ["tab.url"]);
   assert.doesNotMatch(popupReceiverBody, /title|HostOf|promptHost|_opener|@selector/);
   assert.doesNotMatch(popupReceiverBody, /(?<!\(NSString \*\))\b(verifiedOrigin|frameId)\b/);
@@ -65,6 +66,7 @@ test("the popup's key-system families are the ones the page script sends `drm` f
   const families = Object.fromEntries([...popupWindow.matchAll(/hasPrefix:@"([^"]+)"\]\) return @"([a-z]+)";/g)].map((m) => [m[1], m[2]]));
   assert.deepEqual(families, { "com.widevine.alpha": "widevine", "com.microsoft.playready": "playready", "com.apple.fps": "fairplay" });
   assert.match(popupWindow, /return @"other";/);
+  assert.match(popupWindow, /if \(!keySystem\.length\) return @"none";/);
 });
 
 test("the popup's streaming-site list is PROTECTED_VIDEO_SITES, https only, subdomains included", () => {

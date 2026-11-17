@@ -8,6 +8,7 @@ export const systemState = () => call("engine.systemState");
 export const onSystemState = (listener: (state: SystemState) => void) => on("engine.systemState", listener);
 export const onHoverLost = (listener: (episode: HoverLostEpisode) => void) => on("engine.hoverLost", listener);
 export const onPopupProtectedMedia = (listener: (media: PopupProtectedMedia) => void) => on("engine.popupProtectedMedia", listener);
+export const onCursorRestored = (listener: (restore: { hidden: boolean }) => void) => on("engine.cursorRestored", listener);
 export const setBatterySaver = (mode: BatterySaverMode) => call("engine.batterySaver", { mode });
 export const setMemorySaver = (request: MemorySaverRequest) => call("engine.memorySaver", request);
 export const isKeepActiveSiteValid = (site: string) => call("engine.validateKeepActiveSite", { site }).then((reply) => reply.valid);

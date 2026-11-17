@@ -59,7 +59,7 @@ export const inputIdleSeconds = () => nativeModule("ArdiaEngine").inputIdleSecon
 
 type CliServer = { connections: number; generation: number; file: string; reason?: string };
 
-export type PopupProtectedMedia = { family: "widevine" | "playready" | "fairplay" | "other"; listed: boolean };
+export type PopupProtectedMedia = { family: "widevine" | "playready" | "fairplay" | "other" | "none"; listed: boolean };
 
 export type HoverLostEpisode = {
   reason: "halfActive" | "staleMenu" | "notKeyOrMain" | "coveredByView" | "responderLost";

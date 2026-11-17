@@ -44,6 +44,7 @@ NSString *HostOf(NSString *url) {
 }
 
 NSString *KeySystemFamily(NSString *keySystem) {
+  if (!keySystem.length) return @"none";
   if ([keySystem hasPrefix:@"com.widevine.alpha"]) return @"widevine";
   if ([keySystem hasPrefix:@"com.microsoft.playready"]) return @"playready";
   if ([keySystem hasPrefix:@"com.apple.fps"]) return @"fairplay";
@@ -364,7 +365,7 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
   if (![data isKindOfClass:NSDictionary.class]) return;
   id keySystem = ((NSDictionary *)data)[@"keySystem"];
   NSString *family = KeySystemFamily([keySystem isKindOfClass:NSString.class] ? keySystem : nil);
-  NSLog(@"[ardiacore] popup protected media refused: %@", family);
+  NSLog(@"[ardiacore] popup protected media %@: %@", [family isEqualToString:@"none"] ? @"stalled" : @"refused", family);
   [ArdiaEvents emit:@"engine.popupProtectedMedia" data:@{@"family" : family, @"listed" : @(OnProtectedVideoSite(tab.url))}];
 }
 
