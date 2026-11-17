@@ -1,29 +1,49 @@
-import type { Adapter, ScopeState } from "../../platform/sync";
-import { isStringList } from "../../lib/decode";
+import type { Adapter, HLC, ScopeState } from "../../platform/sync";
+import { isFields, isStringList } from "../../lib/decode";
 import { DEVICE } from "./records";
 import { deviceRecords } from "./devices";
 import { APP_SCOPE, type SyncDoc } from "./syncDoc";
 
 let removals = 0;
+let returned = 0;
 
-const removingDeviceIds = (doc: SyncDoc) => (isStringList(doc.removingDevices) ? doc.removingDevices.filter((id) => id !== doc.deviceId) : []);
+const keyOf = (id: string) => `${DEVICE}${id}`;
 
-export const removedDeviceKeys = (doc: SyncDoc): ReadonlySet<string> => new Set(removingDeviceIds(doc).map((id) => `${DEVICE}${id}`));
+function removalTargets(doc: SyncDoc): Record<string, HLC> {
+  const saved = doc.removingDevices;
+  const app = doc.scopes[APP_SCOPE];
+  const entries = isStringList(saved)
+    ? saved.map((id) => [id, app?.records[keyOf(id)]?.h ?? ""] as const)
+    : isFields(saved)
+      ? Object.entries(saved).filter((entry): entry is [string, HLC] => typeof entry[1] === "string")
+      : [];
+  return Object.fromEntries(entries.filter(([id]) => id !== doc.deviceId));
+}
 
-export const deviceBeingRemoved = (doc: SyncDoc, id: string) => removingDeviceIds(doc).includes(id);
+const stillTargeted = (app: ScopeState | undefined, key: string, h: HLC) => app?.records[key]?.h === h;
+
+export const removedDeviceKeys = (doc: SyncDoc): ReadonlySet<string> =>
+  new Set(Object.entries(removalTargets(doc)).filter(([id, h]) => stillTargeted(doc.scopes[APP_SCOPE], keyOf(id), h)).map(([id]) => keyOf(id)));
+
+export const deviceBeingRemoved = (doc: SyncDoc, id: string) => id in removalTargets(doc);
 
 export function markDeviceRemoved(doc: SyncDoc, id: string): boolean {
   const app = doc.scopes[APP_SCOPE];
-  if (!app || id === doc.deviceId || !deviceRecords(app).has(id) || deviceBeingRemoved(doc, id)) return false;
-  doc.removingDevices = [...removingDeviceIds(doc), id];
+  const record = app?.records[keyOf(id)];
+  if (!app || !record || id === doc.deviceId || !deviceRecords(app).has(id) || deviceBeingRemoved(doc, id)) return false;
+  doc.removingDevices = { ...removalTargets(doc), [id]: record.h };
   removals++;
   return true;
 }
 
 export function settleDeviceRemovals(doc: SyncDoc, app: ScopeState) {
-  const unapplied = new Set(app.unapplied);
-  const left = removingDeviceIds(doc).filter((id) => `${DEVICE}${id}` in app.base || unapplied.has(`${DEVICE}${id}`));
-  if (left.length) doc.removingDevices = left;
+  const left = Object.entries(removalTargets(doc)).filter(([id, h]) => {
+    const record = app.records[keyOf(id)];
+    if (record?.h === h) return true;
+    if (record && record.v !== null) returned++;
+    return false;
+  });
+  if (left.length) doc.removingDevices = Object.fromEntries(left);
   else delete doc.removingDevices;
 }
 
@@ -38,5 +58,11 @@ export function alsoDeleting(adapter: Adapter, gone: () => ReadonlySet<string>):
 export function takeSyncedDeviceRemovals() {
   const taken = removals;
   removals = 0;
+  return taken;
+}
+
+export function takeReturnedDeviceRemovals() {
+  const taken = returned;
+  returned = 0;
   return taken;
 }
