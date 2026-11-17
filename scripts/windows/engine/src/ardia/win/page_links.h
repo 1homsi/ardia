@@ -121,6 +121,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   bool reattach_spent_ = false;
   std::vector<NewTabLink> new_tab_links_;
   std::vector<base::DictValue> reports_for_test_;
+  int report_seq_ = 0;
   base::WeakPtrFactory<PageLinks> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

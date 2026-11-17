@@ -254,6 +254,7 @@ void PageLinks::NoteReportForTest(const std::string& kind,
   report.Set("kind", kind);
   report.Set("url", url);
   report.Set("outcome", outcome);
+  report.Set("seq", ++report_seq_);
   reports_for_test_.push_back(std::move(report));
   if (reports_for_test_.size() > kReportsKeptForTest) {
     reports_for_test_.erase(reports_for_test_.begin());
