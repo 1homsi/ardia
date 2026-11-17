@@ -1699,10 +1699,10 @@ index 152e76da136756ebc962ece4cc84e84df7cfce0e..4e38bf09796d31dfc63cf79a081e40ea
   * Hide subviews if they are outside the view bounds.
   * This is an optimisation used predominantly with RKScrollViews
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414fc6472aab 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d81366c0c82f 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
-@@ -136,6 +136,90 @@ - (RCTPlatformView *)react_findClipView // [macOS]
+@@ -136,6 +136,95 @@ - (RCTPlatformView *)react_findClipView // [macOS]
    return str;
  }
  
@@ -1738,11 +1738,15 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +  }));
 +}
 +// [Ardia: a scroll holds hover. Each row passing under a still pointer was entered and left, a React commit and a
-+// layout pass per row, which cost the scroll its frames. So a scroll's first step leaves what it moves, a highlight
-+// that rode along with its row looked wrong, and nothing more is left or entered while the scroll moves; once it has
-+// paused, the check runs, as a page's hover does. Ardia]
++// layout pass per row, which cost the scroll its frames. So while a scroll moves nothing in it is entered, and a view
++// in it is left on the step that takes it out from under the pointer: a highlight that rode along with its row
++// looked wrong, and one that went out while its row was still under the pointer blinked. A scroll's first step is
++// checked in full, as any layout change is: a lone wheel notch, a step with no other within ArdiaHoverScrollSettle,
++// moves the highlight to the row now under the pointer at once, and leaves it alone when that is the same row. Once
++// the scroll has paused, the check runs, as a page's hover does. Ardia]
 +static CFTimeInterval ArdiaHoverScrolledAt;
 +static __weak NSView *ArdiaHoverScrolled;
++static BOOL ArdiaHoverRidesScroll;
 +static BOOL ArdiaHoverSettling;
 +static const CFTimeInterval ArdiaHoverScrollSettle = 0.08;
 +// [Ardia: removeClippedSubviews hides, on macOS. AppKit's work on every scroll step grows with the views in the
@@ -1750,8 +1754,8 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +// hides its children that lie further than ArdiaClipMargin outside its scroll view's visible part, and AppKit skips
 +// hidden views. Hidden, not removed as on iOS: a hidden view keeps its place, its frame and its window, so measuring
 +// it still works. A scroll hides and shows, once per ArdiaClipStep; a layout only shows, so a row an animation is
-+// still sliding out stays until the next scroll. With VoiceOver on nothing is hidden: a hidden view is not in the
-+// accessibility tree, and VoiceOver has to reach every row. Ardia]
++// still sliding out stays until the next scroll. With VoiceOver or Switch Control on nothing is hidden: a hidden view
++// is not in the accessibility tree, and both have to reach every row. Ardia]
 +static NSHashTable *ArdiaClippingViews;
 +static BOOL ArdiaClipDirty;
 +static const CGFloat ArdiaClipMargin = 300;
@@ -1785,7 +1789,8 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +  return views;
 +}
 +
-+// [Ardia: VoiceOver that turns on while rows are hidden gets them back at once, not at the next scroll. Ardia]
++// [Ardia: VoiceOver or Switch Control that turns on while rows are hidden gets them back at once, not at the next
++// scroll. Ardia]
 +@interface ArdiaVoiceOverWatcher : NSObject
 +@end
 +#endif // macOS]
@@ -1793,7 +1798,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
  @implementation RCTView {
    RCTUIColor *_backgroundColor; // [macOS]
    id<RCTEventDispatcherProtocol> _eventDispatcher; // [macOS]
-@@ -143,6 +227,13 @@ @implementation RCTView {
+@@ -143,6 +232,13 @@ @implementation RCTView {
    NSTrackingArea *_trackingArea;
    BOOL _hasMouseOver;
    BOOL _mouseDownCanMoveWindow;
@@ -1807,7 +1812,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
  #endif // macOS]
    NSMutableDictionary<NSString *, NSDictionary *> *accessibilityActionsNameMap;
    NSMutableDictionary<NSString *, NSDictionary *> *accessibilityActionsLabelMap;
-@@ -245,6 +336,14 @@ - (RCTPlatformView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event // [macOS
+@@ -245,6 +341,14 @@ - (RCTPlatformView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event // [macOS
    // be outside the bounds of `view` (e.g., if -clipsToBounds is NO).
    RCTPlatformView *hitSubview = nil; // [macOS]
    BOOL isPointInside = [self pointInside:point withEvent:event];
@@ -1822,7 +1827,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
    BOOL needsHitSubview = !(_pointerEvents == RCTPointerEventsNone || _pointerEvents == RCTPointerEventsBoxOnly);
    if (needsHitSubview && (![self clipsToBounds] || isPointInside)) {
      // Take z-index into account when calculating the touch target.
-@@ -784,16 +883,38 @@ - (void)viewDidMoveToWindow
+@@ -784,16 +888,38 @@ - (void)viewDidMoveToWindow
    // scroll event occurs either due to trackpad/gesture based scrolling or a scrollwheel event
    // both of which would not cause the mouseExited to be invoked.
  
@@ -1865,7 +1870,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
    }
  
    [self reactViewDidMoveToWindow]; // [macOS] Github#1412
-@@ -801,41 +922,53 @@ - (void)viewDidMoveToWindow
+@@ -801,41 +927,60 @@ - (void)viewDidMoveToWindow
    [super viewDidMoveToWindow];
  }
  
@@ -1910,10 +1915,16 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 -  {
 -    NSPoint locationInWindow = [[self window] mouseLocationOutsideOfEventStream];
 -    NSPoint locationInView = [self convertPoint:locationInWindow fromView:nil];
--
++}
+ 
 -    if (!NSPointInRect(locationInView, [self bounds]))
 -    {
 -      _hasMouseOver = NO;
++// [Ardia: the parent it leaves is the one that hid it, so a view that moves to another parent is shown there. Ardia]
++- (void)viewWillMoveToSuperview:(NSView *)newSuperview
++{
++  [super viewWillMoveToSuperview:newSuperview];
++  [self ardia_setClipped:NO];
 +}
  
 -      [self sendMouseEventWithBlock:self.onMouseLeave
@@ -1927,7 +1938,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +    return;
 +  }
 +  CGRect bounds = shown.bounds;
-+  BOOL all = NSWorkspace.sharedWorkspace.voiceOverEnabled;
++  BOOL all = NSWorkspace.sharedWorkspace.voiceOverEnabled || NSWorkspace.sharedWorkspace.switchControlEnabled;
 +  if (hiding && !all && _ardiaClippedOnce && CGSizeEqualToSize(bounds.size, _ardiaClippedTo.size) &&
 +      fabs(bounds.origin.x - _ardiaClippedTo.origin.x) < ArdiaClipStep && fabs(bounds.origin.y - _ardiaClippedTo.origin.y) < ArdiaClipStep) {
 +    return;
@@ -1949,7 +1960,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
      }
    }
  }
-@@ -943,28 +1076,62 @@ - (void)react_updateClippedSubviewsWithClipRect:(CGRect)clipRect relativeToView:
+@@ -943,28 +1088,63 @@ - (void)react_updateClippedSubviewsWithClipRect:(CGRect)clipRect relativeToView:
  
  - (void)setRemoveClippedSubviews:(BOOL)removeClippedSubviews
  {
@@ -1965,6 +1976,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +      static ArdiaVoiceOverWatcher *watcher;
 +      watcher = [ArdiaVoiceOverWatcher new];
 +      [NSWorkspace.sharedWorkspace addObserver:watcher forKeyPath:@"voiceOverEnabled" options:0 context:NULL];
++      [NSWorkspace.sharedWorkspace addObserver:watcher forKeyPath:@"switchControlEnabled" options:0 context:NULL];
 +    }
 +    [ArdiaClippingViews addObject:self];
 +    [RCTView ardia_layoutChanged];
@@ -2012,7 +2024,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
  }
  
  - (void)layoutSubviews
-@@ -1196,11 +1363,41 @@ - (void)reactSetFrame:(CGRect)frame
+@@ -1196,11 +1376,41 @@ - (void)reactSetFrame:(CGRect)frame
    // be rendered as a stretchable image, we'll need to re-render.
    // TODO: detect up-front if re-rendering is necessary
    CGSize oldSize = self.bounds.size;
@@ -2054,7 +2066,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
  
  - (void)displayLayer:(CALayer *)layer
  {
-@@ -1248,17 +1445,8 @@ - (void)displayLayer:(CALayer *)layer
+@@ -1248,17 +1458,8 @@ - (void)displayLayer:(CALayer *)layer
    RCTUIColor *backgroundColor = _backgroundColor;
  #endif // macOS]
  
@@ -2074,7 +2086,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
  
    if (useIOSBorderRendering) {
      layer.cornerRadius = cornerRadii.topLeftHorizontal;
-@@ -1293,9 +1481,10 @@ - (void)displayLayer:(CALayer *)layer
+@@ -1293,9 +1494,10 @@ - (void)displayLayer:(CALayer *)layer
    layer.contents = (id)image.CGImage;
    layer.contentsScale = image.scale;
  #else // [macOS
@@ -2086,7 +2098,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
  #endif // macOS]
    layer.needsDisplayOnBoundsChange = YES;
    layer.magnificationFilter = kCAFilterNearest;
-@@ -1514,6 +1703,20 @@ - (BOOL)acceptsFirstResponder
+@@ -1514,6 +1716,20 @@ - (BOOL)acceptsFirstResponder
  	return [self focusable] || [super acceptsFirstResponder];
  }
  
@@ -2107,7 +2119,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,22 +1725,278 @@ - (void)updateTrackingAreas
+@@ -1522,22 +1738,295 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -2136,19 +2148,19 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +      if (_hasMouseOver) {
 +        [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout: the resized view may have left the pointer. Ardia]
 +      }
-     }
-   }
- 
++    }
++  }
++
 +  // [Ardia: hover follows layout: the views the check looks at. Ardia]
 +  if (hasMouseHoverEvent) {
 +    if (ArdiaHoverViews == nil) {
 +      ArdiaHoverViews = [NSHashTable weakObjectsHashTable];
-+    }
+     }
 +    [ArdiaHoverViews addObject:self];
 +  } else {
 +    [ArdiaHoverViews removeObject:self];
-+  }
-+
+   }
+ 
    [super updateTrackingAreas];
  }
  
@@ -2160,31 +2172,42 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +// button is down, as AppKit's do. Ardia]
 ++ (void)ardia_scrolled:(NSView *)moved
 +{
++  for (RCTView *view in ArdiaClippingViews.allObjects) {
++    [view ardia_clipSubviewsHiding:YES];
++  }
 +  CFTimeInterval now = CACurrentMediaTime();
 +  BOOL starts = now - ArdiaHoverScrolledAt >= ArdiaHoverScrollSettle;
++  if (starts) {
++    [self ardia_checkHover];
++  }
++  if (starts || moved != ArdiaHoverScrolled) {
++    ArdiaHoverRidesScroll = YES;
++  }
 +  ArdiaHoverScrolledAt = now;
 +  ArdiaHoverScrolled = moved;
-+  if (starts && moved != nil) {
++  if (!starts && ArdiaHoverRidesScroll && moved != nil) {
++    NSPoint screen = [NSEvent mouseLocation];
++#if DEBUG
++    if (ArdiaPointerOverride != nil) {
++      screen = ArdiaPointerOverride.pointValue;
++    }
++#endif
 +    NSMutableArray<RCTView *> *leaving = [NSMutableArray new];
++    BOOL rides = NO;
 +    for (RCTView *view in ArdiaHoverViews.allObjects) {
-+      if (view->_hasMouseOver && [view isDescendantOf:moved]) {
++      if (!view->_hasMouseOver || ![view isDescendantOf:moved]) {
++        continue;
++      }
++      if ([self ardia_pointer:screen isInside:view]) {
++        rides = YES;
++      } else {
 +        [leaving addObject:view];
 +      }
 +    }
-+    if (leaving.count > 0) {
-+      NSPoint screen = [NSEvent mouseLocation];
-+#if DEBUG
-+      if (ArdiaPointerOverride != nil) {
-+        screen = ArdiaPointerOverride.pointValue;
-+      }
-+#endif
-+      for (RCTView *view in [self ardia_byDepth:leaving deepestFirst:YES]) {
-+        [view ardia_setMouseOver:NO atScreenPoint:screen];
-+      }
++    ArdiaHoverRidesScroll = rides;
++    for (RCTView *view in [self ardia_byDepth:leaving deepestFirst:YES]) {
++      [view ardia_setMouseOver:NO atScreenPoint:screen];
 +    }
-+  }
-+  for (RCTView *view in ArdiaClippingViews.allObjects) {
-+    [view ardia_clipSubviewsHiding:YES];
 +  }
 +  [self ardia_markHoverDirty];
 +}
@@ -2281,6 +2304,16 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +  }];
 +}
 +
+++ (BOOL)ardia_pointer:(NSPoint)screen isInside:(RCTView *)view
++{
++  NSWindow *window = view.window;
++  if (window == nil || view.isHiddenOrHasHiddenAncestor) {
++    return NO;
++  }
++  NSPoint local = [view convertPoint:[window convertPointFromScreen:screen] fromView:nil];
++  return NSPointInRect(local, NSIntersectionRect(view.bounds, view.visibleRect));
++}
++
 ++ (void)ardia_checkHover
 +{
 +#if DEBUG
@@ -2317,11 +2350,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
 +    if (window == nil) {
 +      continue;
 +    }
-+    BOOL over = NO;
-+    if (window == front && !view.isHiddenOrHasHiddenAncestor) {
-+      NSPoint local = [view convertPoint:[window convertPointFromScreen:screen] fromView:nil];
-+      over = NSPointInRect(local, NSIntersectionRect(view.bounds, view.visibleRect));
-+    }
++    BOOL over = window == front && [self ardia_pointer:screen isInside:view];
 +    if (over == view->_hasMouseOver) {
 +      continue;
 +    }
@@ -2387,7 +2416,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
    _hasMouseOver = YES;
    [self sendMouseEventWithBlock:self.onMouseEnter
                     locationInfo:[self locationInfoFromEvent:event]
-@@ -1547,6 +2006,9 @@ - (void)mouseEntered:(NSEvent *)event
+@@ -1547,6 +2036,9 @@ - (void)mouseEntered:(NSEvent *)event
  
  - (void)mouseExited:(NSEvent *)event
  {
@@ -2397,7 +2426,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
    _hasMouseOver = NO;
    [self sendMouseEventWithBlock:self.onMouseLeave
                     locationInfo:[self locationInfoFromEvent:event]
-@@ -1768,7 +2230,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
+@@ -1768,7 +2260,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
    static const char kRCTViewKeyboardEventEmittedKey = 0;
    NSNumber *emitted = objc_getAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey);
    BOOL alreadyEmitted = [emitted boolValue];
@@ -2406,7 +2435,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..d10d56fa099542f9a5c4d38f7636414f
      [_eventDispatcher sendEvent:keyboardEvent];
      objc_setAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
    }
-@@ -1794,3 +2256,19 @@ - (void)keyUp:(NSEvent *)event {
+@@ -1794,3 +2286,19 @@ - (void)keyUp:(NSEvent *)event {
  #endif // macOS]
  
  @end
