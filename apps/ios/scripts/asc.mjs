@@ -13,6 +13,7 @@ const HELP = `App Store Connect, for the iPhone app's TestFlight builds.
   node apps/ios/scripts/asc.mjs certificates --create <request.csr> --out <file.cer>
   node apps/ios/scripts/asc.mjs public-link --build <number> [--what-to-test <file>] [--privacy-policy <url>]
   node apps/ios/scripts/asc.mjs add-tester --email <address> [--group <name>]
+  node apps/ios/scripts/asc.mjs expire --build <number>
 
 Reads the API key from ASC_KEY (path to AuthKey_<id>.p8), ASC_KEY_ID and ASC_ISSUER.
 status lists what the key can see: the app record, the App IDs and their capabilities,
@@ -26,7 +27,8 @@ certificate from a signing request and writes it to --out. public-link puts a bu
 external tester group (made with a public link if it doesn't exist), sets its What to Test
 text, submits it for Beta App Review and prints the link. add-tester invites an email address
 to an external tester group (Public Testers unless --group names another); TestFlight emails
-the invite once the group has an approved build.`;
+the invite once the group has an approved build. expire ends testing of an older build for
+good: nobody can install it again and Apple can't undo it. It refuses the newest build.`;
 
 const BUNDLE_PREFIX = "com.ardia.browser.ios";
 const DEVELOPMENT_CERTIFICATES = new Set(["DEVELOPMENT", "IOS_DEVELOPMENT"]);
@@ -240,7 +242,7 @@ async function status() {
   });
 
   await section("Tester groups", async () => {
-    const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled,publicLink" });
+    const { rows } = await get(`/v1/apps/${app.id}/betaGroups`, { "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled,publicLink,iosBuildsAvailableForAppleSiliconMac" });
     if (rows.length === 0) console.log("none");
     for (const row of rows) {
       const group = row.attributes;
@@ -250,7 +252,7 @@ async function status() {
       const summary = Object.entries(states).map(([state, count]) => `${count} ${state}`).join(", ") || "none";
       console.log(
         `${group.name} ${group.isInternalGroup ? "internal" : "external"} allBuilds=${group.hasAccessToAllBuilds} ` +
-          `publicLink=${group.publicLinkEnabled ? group.publicLink : group.publicLinkEnabled} testers: ${summary}`,
+          `publicLink=${group.publicLinkEnabled ? group.publicLink : group.publicLinkEnabled} mac=${group.iosBuildsAvailableForAppleSiliconMac} testers: ${summary}`,
       );
     }
   });
@@ -454,7 +456,7 @@ async function publicLink(args) {
     console.log("What to Test set");
   }
 
-  const fields = { "fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled,publicLink" };
+  const fields = { "fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled,publicLink,iosBuildsAvailableForAppleSiliconMac" };
   const { rows: groups } = await get(`/v1/apps/${app.id}/betaGroups`, fields);
   let group = groups.find((row) => !row.attributes.isInternalGroup && row.attributes.name === PUBLIC_GROUP);
   if (!group) {
@@ -466,6 +468,10 @@ async function publicLink(args) {
       },
     });
     console.log(`created the ${PUBLIC_GROUP} group`);
+  }
+  if (group.attributes.iosBuildsAvailableForAppleSiliconMac !== false) {
+    await patch(`/v1/betaGroups/${group.id}`, { data: { type: "betaGroups", id: group.id, attributes: { iosBuildsAvailableForAppleSiliconMac: false } } });
+    console.log(`${PUBLIC_GROUP} builds are no longer offered on Apple silicon Macs`);
   }
 
   await unlessAlready(
@@ -513,8 +519,34 @@ async function addTester(args) {
   console.log(`${groupName} now has ${testers.length} testers`);
 }
 
+async function expire(args) {
+  const number = option(args, "--build");
+  if (!number) {
+    console.error("asc: expire needs --build <number>");
+    process.exit(64);
+  }
+  const app = await requireApp();
+  const { rows } = await get("/v1/builds", { "filter[app]": app.id, "fields[builds]": "version,expired", limit: "200" });
+  const build = rows.find((row) => row.attributes.version === number);
+  if (!build) {
+    console.error(`asc: build ${number} is not on App Store Connect`);
+    process.exit(1);
+  }
+  const live = rows.filter((row) => !row.attributes.expired).map((row) => Number(row.attributes.version));
+  if (build.attributes.expired) {
+    console.log(`build ${number} was already expired`);
+  } else if (Number(number) >= Math.max(...live)) {
+    console.error(`asc: build ${number} is the newest one testers have; expire an older build`);
+    process.exit(1);
+  } else {
+    await patch(`/v1/builds/${build.id}`, { data: { type: "builds", id: build.id, attributes: { expired: true } } });
+    console.log(`build ${number} expired`);
+  }
+  printBuilds(await listBuilds(app.id));
+}
+
 const [command, ...args] = process.argv.slice(2);
-const commands = { status, builds, wait, certificates, "next-build": nextBuild, "public-link": publicLink, "add-tester": addTester };
+const commands = { status, builds, wait, certificates, "next-build": nextBuild, "public-link": publicLink, "add-tester": addTester, expire };
 if (!command || command === "-h" || command === "--help" || !commands[command]) {
   console.log(HELP);
   process.exit(command && commands[command] === undefined && command !== "-h" && command !== "--help" ? 64 : 0);

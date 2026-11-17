@@ -49,6 +49,8 @@ NSString *PageMoveAt(NSWindow *window, NSPoint point);
 NSString *HoverProbeDev(NSWindow *window, NSString *_Nullable argument);
 NSString *HoverProbeLine();
 void WatchHover();
+void WatchPageCursor();
+NSString *PageCursorDev(NSWindow *window, NSString *_Nullable argument);
 NSString *DescribeFocusWindow(NSWindow *_Nullable window);
 void NoteFocusChange(NSString *what, NSWindow *_Nullable window);
 void SetAppActive(bool active);
@@ -57,6 +59,7 @@ void InstallTestCrashGuard(NSString *_Nullable dataDir);
 
 void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaWebView *_Nullable opener);
 ArdiaCoreWindow *_Nullable PopupWindowForChromeBrowser(ArdiaCoreProfile *profile);
+void ChromeMakesAppWindow(ArdiaCoreProfile *profile);
 bool IsReservedKeyEvent(NSEvent *event);
 bool IsReservedBinding(NSString *key, NSString *unshiftedKey, NSEventModifierFlags modifiers);
 NSUInteger PopupWindowCount();

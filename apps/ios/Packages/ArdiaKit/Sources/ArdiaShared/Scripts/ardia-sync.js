@@ -152,20 +152,19 @@ function assignPositions(existing                        )           {
 
   const out = new Array        (existing.length);
   for (const i of keep) out[i] = existing[i] ;
+  const nextKept = new Array               (existing.length);
+  let next                = null;
+  for (let i = existing.length - 1; i >= 0; i--) {
+    nextKept[i] = next;
+    if (keep.has(i)) next = out[i] ;
+  }
   let before = "";
   for (let i = 0; i < existing.length; i++) {
     if (keep.has(i)) {
       before = out[i] ;
       continue;
     }
-    let next                = null;
-    for (let j = i + 1; j < existing.length; j++) {
-      if (keep.has(j)) {
-        next = out[j] ;
-        break;
-      }
-    }
-    out[i] = positionBetween(before, next);
+    out[i] = positionBetween(before, nextKept[i] ?? null);
     before = out[i] ;
   }
   return out;
@@ -1217,7 +1216,7 @@ const MAX_DEVICE_TABS = 30;
 const MAX_VISIT_TIMES = 50;
 const SAME_VISIT_MS = 1;
 
-                                                                              
+                                                                                            
 
                                                                                
                                                                                    
@@ -1551,7 +1550,8 @@ const MAX_HISTORY_ITEMS = 2_000;
                          
   
                                                                                                                                                      
-                                                                                                 
+                                                                                                                    
+                                                                                                                        
 
 const str = (v         , fallback = "") => (typeof v === "string" ? v : fallback);
 const optStr = (v         ) => (typeof v === "string" && v ? v : null);
@@ -1824,11 +1824,23 @@ function historyList(scope                        )                {
   return out.sort((a, z) => z.lastVisit - a.lastVisit || (a.url < z.url ? -1 : 1)).slice(0, MAX_HISTORY_ITEMS);
 }
 
+function settingOf(app            , name        )          {
+  const record = app.records[`set:${name}`]?.v                                      ;
+  return record && typeof record === "object" ? fromLegacy(record.v) : undefined;
+}
+
+function oneOf                  (value         , choices              )           {
+  return typeof value === "string" && (choices                     ).includes(value) ? (value     ) : null;
+}
+
+function lookOf(app            )                  {
+  const interfaceStyle = oneOf(settingOf(app, "interfaceStyle"), ["glass", "classic"]         );
+  const appearance = oneOf(settingOf(app, "appearance"), ["auto", "light", "dark"]         );
+  return interfaceStyle === null && appearance === null ? null : { interfaceStyle, appearance };
+}
+
 function searchOf(app            )                    {
-  const setting = (name        ) => {
-    const record = app.records[`set:${name}`]?.v                                      ;
-    return record && typeof record === "object" ? fromLegacy(record.v) : undefined;
-  };
+  const setting = (name        ) => settingOf(app, name);
   const engine = setting("searchEngine");
   const customUrl = setting("customSearchUrl");
   const custom = setting("customSearchEngines");
@@ -1844,9 +1856,23 @@ function searchOf(app            )                    {
   return { engineId: typeof engine === "string" && engine ? engine : "google", customURL: optStr(customUrl), customEngines: engines };
 }
 
+function spaceOrder(app            , me        )           {
+  let newest                                                        = null;
+  for (const [k, v] of visible(app, "dev:")) {
+    const id = k.slice(4);
+    const stamp = app.records[k]?.h;
+    const listed = (v                      )?.o;
+    if (id === me || typeof stamp !== "string" || !Array.isArray(listed)) continue;
+    const order = [...new Set(listed.filter((profile)                    => typeof profile === "string"))];
+    if (!order.length) continue;
+    if (!newest || stamp > newest.stamp || (stamp === newest.stamp && id < newest.id)) newest = { stamp, id, order };
+  }
+  return newest?.order ?? [];
+}
+
 function buildView(scopes                            , me        )       {
   const app = scopes.app;
-  if (!app) return { devices: [], profiles: [], search: null };
+  if (!app) return { devices: [], profiles: [], search: null, look: null };
   const lastSeen = new Map                ();
   for (const scope of Object.values(scopes)) {
     for (const [device, at] of Object.entries(scope.seen)) lastSeen.set(device, Math.max(at, lastSeen.get(device) ?? 0));
@@ -1884,8 +1910,10 @@ function buildView(scopes                            , me        )       {
       history: historyList(data),
     };
   });
-  profileList.sort((a, z) => Number(z.isDefault) - Number(a.isDefault) || a.name.localeCompare(z.name) || (a.syncId < z.syncId ? -1 : 1));
-  return { devices: deviceList, profiles: profileList, search: searchOf(app) };
+  const rank = new Map(spaceOrder(app, me).map((id, i) => [id, i]));
+  const placed = (p             ) => rank.get(p.syncId) ?? rank.size;
+  profileList.sort((a, z) => placed(a) - placed(z) || Number(z.isDefault) - Number(a.isDefault) || a.name.localeCompare(z.name) || (a.syncId < z.syncId ? -1 : 1));
+  return { devices: deviceList, profiles: profileList, search: searchOf(app), look: lookOf(app) };
 }
 
 });

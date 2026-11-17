@@ -4,6 +4,8 @@ import {
   extensionsProfileId,
   loadUnpacked,
   openExtensionDetails,
+  openInExtensionProfile,
+  openWebStoreFor,
   reload,
   removeExtension,
   setEnabled,
@@ -14,8 +16,7 @@ import {
 import type { InstalledExtension } from "../../../state/extensions/store";
 import { useEffect, useState } from "react";
 import { Image, View } from "react-native";
-import { currentEngineProfile, resolvedWindowId } from "../../../state/browser/current";
-import { newTab } from "../../../state/tabs/actions";
+import { currentEngineProfile } from "../../../state/browser/current";
 import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
 import { Box, Button, PopUp, proseLineHeight, space, Text, TextField, Toggle } from "../../ui";
 import { Group, ProfilePicker, Row, SectionHeader } from "../Form";
@@ -23,6 +24,7 @@ import { extensionList } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { replaceSettingsPlace, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
+import { perLook } from "../../ui/tokens";
 
 type SiteAccess = "allSites" | "specificSites" | "onClick";
 const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
@@ -92,10 +94,7 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
         <Row anchor="extensions.webStore">
           <Button
             title="Open Web Store"
-            onPress={() => {
-              const windowId = resolvedWindowId();
-              if (windowId) newTab(windowId, { url: "https://chromewebstore.google.com/category/extensions" });
-            }}
+            onPress={() => openWebStoreFor(profile, profileId)}
           />
         </Row>
         <Row anchor="extensions.addLink">
@@ -116,10 +115,7 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
 }
 
 function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; profile: string; onBack: () => void }) {
-  const openTab = (url: string) => {
-    const windowId = resolvedWindowId();
-    if (windowId) newTab(windowId, { url });
-  };
+  const openTab = (url: string) => openInExtensionProfile(url, profile);
   return (
     <View>
       <Box gap="xl" style={DETAILS_TOP}>
@@ -141,7 +137,7 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
         </Group>
       </Box>
       {ext.description ? (
-        <Text tone="textSecondary" style={DETAILS_DESCRIPTION}>
+        <Text tone="textSecondary" style={DETAILS_DESCRIPTION()}>
           {ext.description}
         </Text>
       ) : null}
@@ -209,5 +205,5 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
 
 const DETAILS_TOP = { marginTop: space.xl } as const;
 const DETAILS_ICON = { width: 48, height: 48 } as const;
-const DETAILS_DESCRIPTION = { marginTop: space.l, lineHeight: proseLineHeight.body } as const;
+const DETAILS_DESCRIPTION = perLook(() => ({ marginTop: space.l, lineHeight: proseLineHeight.body }) as const);
 const REMOVE = { alignItems: "flex-start", marginTop: space.xl } as const;
