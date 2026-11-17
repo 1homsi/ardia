@@ -21,7 +21,7 @@ const attributesOf = (log) => Object.fromEntries(log.attributes.map((a) => [a.ke
 
 test("an Error after the label queues its type and code, and its message only when it is one of Ardia's own", () => {
   const error = Object.assign(new Error("release of tab 1234567 failed for https://example.com/a at /Users/me/host.ts"), { code: "ERR_ENGINE" });
-  recordLog("error", ["[ardia host] release failed", error]);
+  recordLog("error", ["[ardia host] release failed", error], client.consentToken());
   client.saveQueueNow();
   const log = queued().logs.at(-1);
   const attributes = attributesOf(log);
@@ -37,7 +37,7 @@ test("an Error after the label queues its type and code, and its message only wh
 });
 
 test("an Error with no message or no usable code adds only what it has", () => {
-  recordLog("error", ["[ardia host]", Object.assign(new TypeError(""), { code: "not a code!" })]);
+  recordLog("error", ["[ardia host]", Object.assign(new TypeError(""), { code: "not a code!" })], client.consentToken());
   client.saveQueueNow();
   const attributes = attributesOf(queued().logs.at(-1));
   assert.equal(attributes.error_type, "TypeError");
@@ -46,7 +46,7 @@ test("an Error with no message or no usable code adds only what it has", () => {
 });
 
 test("a log line with no Error keeps error_type none and gets no message or code", () => {
-  recordLog("warn", ["a plain warning", { code: "X" }, "detail"]);
+  recordLog("warn", ["a plain warning", { code: "X" }, "detail"], client.consentToken());
   client.saveQueueNow();
   const attributes = attributesOf(queued().logs.at(-1));
   assert.equal(attributes.error_type, "none");
@@ -56,11 +56,11 @@ test("a log line with no Error keeps error_type none and gets no message or code
 
 test("one label with two different reasons is queued twice, the same reason only once", () => {
   const before = queued().logs.length;
-  recordLog("error", ["[ardia host] release failed", new Error("Window close cancelled")]);
-  recordLog("error", ["[ardia host] release failed", new Error("Window close cancelled")]);
+  recordLog("error", ["[ardia host] release failed", new Error("Window close cancelled")], client.consentToken());
+  recordLog("error", ["[ardia host] release failed", new Error("Window close cancelled")], client.consentToken());
   client.saveQueueNow();
   assert.equal(queued().logs.length, before + 1);
-  recordLog("error", ["[ardia host] release failed", new Error("Window close is no longer current")]);
+  recordLog("error", ["[ardia host] release failed", new Error("Window close is no longer current")], client.consentToken());
   client.saveQueueNow();
   const logs = queued().logs;
   assert.equal(logs.length, before + 2);
@@ -69,7 +69,7 @@ test("one label with two different reasons is queued twice, the same reason only
 });
 
 const sentFor = (label, error) => {
-  recordLog("error", [label, error]);
+  recordLog("error", [label, error], client.consentToken());
   client.saveQueueNow();
   const log = queued().logs.at(-1);
   assert.equal(log.body.stringValue, label);
@@ -106,7 +106,7 @@ test("the native call template and Ardia's own message and code are sent", async
 });
 
 test("the distinct log lines are still capped at 40", () => {
-  for (let i = 0; i < 60; i++) recordLog("error", [`distinct label ${"abcdefghij"[i % 10]}${"klmnopqrst"[Math.floor(i / 10)]}`, new Error("x")]);
+  for (let i = 0; i < 60; i++) recordLog("error", [`distinct label ${"abcdefghij"[i % 10]}${"klmnopqrst"[Math.floor(i / 10)]}`, new Error("x")], client.consentToken());
   client.saveQueueNow();
   assert.equal(queued().logs.length, 40);
 });
