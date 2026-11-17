@@ -18,6 +18,7 @@ export type AppEvent =
   | { type: "centeredResize" }
   | { type: "appLinkOpened"; windowId: string | null }
   | { type: "littleArdiaReturnedToApp" }
+  | { type: "windowTitleRead" }
   | { type: "littleArdiaGlobalShortcut" };
 
 export type AppearanceMode = "auto" | "light" | "dark";
