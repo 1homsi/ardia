@@ -129,7 +129,7 @@ test("a folder tile's tap opens a menu of its tabs, a link tile's long press off
   expect(folder.props.trigger).toBe("tap");
   expect(titles(items(folder))).toEqual(["Inside"]);
   choose(folder, "Inside");
-  expect(open).toHaveBeenCalledWith("https://inside.example/", "Inside", "work");
+  expect(open).toHaveBeenCalledWith("https://inside.example/", "Inside", "work", "f0");
   expect(menuAround(root, "Pin 2")).toBeUndefined();
   expect(mockNative.sheets).toHaveLength(0);
   unmount(root);

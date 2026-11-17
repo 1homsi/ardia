@@ -39,6 +39,7 @@ export type OpenRequest = {
   selecting?: boolean;
   profileSyncId?: string | null;
   received?: { key: string; fromDevice: string | null } | null;
+  pinnedKey?: string | null;
 };
 
 export const UNDO_LIMIT = 20;
@@ -178,12 +179,13 @@ export function openTab(data: TabsData, request: OpenRequest, now: number, id: s
     origin: request.origin,
     receivedKey: request.received?.key ?? null,
     receivedFromDevice: request.received?.fromDevice ?? null,
+    pinnedKey: request.pinnedKey ?? null,
     isPrivate: false,
   };
   const selecting = request.selecting ?? true;
   if (request.isPrivate || afterPrivate) {
     const placed = placeAfter(data.privates, request.after);
-    const tab = { ...base, isPrivate: true, profileSyncId: null, position: placed.position };
+    const tab = { ...base, isPrivate: true, profileSyncId: null, pinnedKey: null, position: placed.position };
     const next = { ...data, privates: insertSorted(placed.list, tab) };
     const change = selecting ? selectTab(next, tab.id, now) : unchanged(next);
     return { change: { ...change, put: change.put.filter((t) => !t.isPrivate) }, tab };
