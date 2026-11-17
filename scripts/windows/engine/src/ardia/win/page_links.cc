@@ -9,7 +9,7 @@
 #include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/host.h"
 #include "ardia/win/main.h"
-#include "ardia/win/page_links_script.h"
+#include "ardia/win/page_links_internal.h"
 #include "ardia/win/tab_calls.h"
 #include "ardia/win/tab_state.h"
 #include "base/containers/span.h"
@@ -31,42 +31,7 @@
 
 namespace ardia_win {
 
-namespace {
-
-constexpr char kWorld[] = "ardia-links";
-constexpr char kBinding[] = "ardiaPeekSend";
-constexpr char kOtherSiteKey[] = "site";
-constexpr int kAlt = 1;
-constexpr int kShift = 2;
-constexpr int kControl = 4;
-constexpr int kMeta = 8;
-constexpr base::TimeDelta kGestureLifetime = base::Seconds(10);
-constexpr base::TimeDelta kFallbackLifetime = base::Seconds(60);
-constexpr size_t kLongestUrl = 8192;
-constexpr base::TimeDelta kNewTabLinkLifetime = base::Seconds(2);
-constexpr size_t kNewTabLinksKept = 4;
-constexpr size_t kReportsKeptForTest = 8;
-
-struct LinkKeys {
-  std::string peek = "shift";
-  std::string split = "altShift";
-  std::set<std::string> other_site_pages;
-};
-
-struct MouseUp {
-  int keys = 0;
-  std::optional<base::TimeTicks> at;
-  std::string page;
-  gfx::PointF point;
-  uint64_t seq = 0;
-  uint64_t used_seq = 0;
-  bool pressed_since = false;
-};
-
-LinkKeys& Keys() {
-  static base::NoDestructor<LinkKeys> keys;
-  return *keys;
-}
+namespace links {
 
 int& ConfigGeneration() {
   static int generation = 0;
@@ -76,6 +41,26 @@ int& ConfigGeneration() {
 MouseUp& LastUp() {
   static base::NoDestructor<MouseUp> up;
   return *up;
+}
+
+}
+
+namespace {
+
+using namespace links;
+
+constexpr base::TimeDelta kNewTabLinkLifetime = base::Seconds(2);
+constexpr size_t kNewTabLinksKept = 4;
+
+struct LinkKeys {
+  std::string peek = "shift";
+  std::string split = "altShift";
+  std::set<std::string> other_site_pages;
+};
+
+LinkKeys& Keys() {
+  static base::NoDestructor<LinkKeys> keys;
+  return *keys;
 }
 
 std::set<PageLinks*>& Live() {
@@ -100,6 +85,14 @@ int KeysOf(int flags) {
   return keys;
 }
 
+std::string SplitLinkKey() {
+  return Keys().split == "alt" && Keys().peek != "alt" ? "alt" : "altShift";
+}
+
+}
+
+namespace links {
+
 int LinkKeyFlags(const std::string& key) {
   if (key == "alt") {
     return kAlt;
@@ -114,10 +107,6 @@ int LinkKeyFlags(const std::string& key) {
     return kAlt | kMeta;
   }
   return 0;
-}
-
-std::string SplitLinkKey() {
-  return Keys().split == "alt" && Keys().peek != "alt" ? "alt" : "altShift";
 }
 
 std::string LinkKeyAction(const std::string& key) {
@@ -260,288 +249,6 @@ std::optional<gfx::PointF> PageLinks::RecentClickPoint(
   return up.point;
 }
 
-void PageLinks::FrameCommitted(content::RenderFrameHost* frame,
-                               bool restored) {
-  if (!host_) {
-    Attach();
-  } else if (!script_id_ && !registering_ && !enabling_) {
-    Register();
-  }
-  if (restored) {
-    for (const auto& entry : contexts_) {
-      SendConfig(entry.first);
-    }
-  }
-}
-
-void PageLinks::ReattachForTest() {
-  if (!host_) {
-    Attach();
-    return;
-  }
-  scoped_refptr<content::DevToolsAgentHost> host = host_;
-  host->DetachClient(this);
-  AgentHostClosed(host.get());
-  Attach();
-}
-
-bool PageLinks::Attach() {
-  if (host_) {
-    return true;
-  }
-  if (GetWebContents().IsBeingDestroyed()) {
-    return false;
-  }
-  NoteForTest("links attach " + Tag());
-  host_ = content::DevToolsAgentHost::GetOrCreateFor(&GetWebContents());
-  if (!host_ || !host_->AttachClient(this)) {
-    NoteForTest("links attach refused " + Tag());
-    host_ = nullptr;
-    return false;
-  }
-  UnmarkEngineDevTools(&GetWebContents());
-  contexts_.clear();
-  Register();
-  NoteForTest("links attached " + Tag());
-  return true;
-}
-
-std::string PageLinks::Tag() {
-  TabState* tab = TabState::FromWebContents(&GetWebContents());
-  return tab ? tab->key() : std::string("(no tab)");
-}
-
-void PageLinks::Register() {
-  script_id_.reset();
-  replacing_.reset();
-  enabling_ = true;
-  registering_ = true;
-  Call("Page.enable", base::DictValue(), base::DoNothing());
-  Call("Runtime.enable", base::DictValue(),
-       base::BindOnce(&PageLinks::RuntimeEnabled, weak_factory_.GetWeakPtr()));
-}
-
-void PageLinks::RuntimeEnabled(std::optional<base::DictValue> answer) {
-  NoteForTest("links runtime enabled " + Tag() + (answer ? "" : " (error)"));
-  enabling_ = false;
-  if (!answer) {
-    registering_ = false;
-    return;
-  }
-  base::DictValue binding;
-  binding.Set("name", kBinding);
-  binding.Set("executionContextName", kWorld);
-  Call("Runtime.addBinding", std::move(binding), base::DoNothing());
-  AddScript(true);
-}
-
-void PageLinks::AddScript(bool run_now) {
-  base::DictValue params;
-  params.Set("source", SourceForNewDocuments());
-  params.Set("worldName", kWorld);
-  params.Set("runImmediately", run_now);
-  registered_config_ = ConfigGeneration();
-  Call("Page.addScriptToEvaluateOnNewDocument", std::move(params),
-       base::BindOnce(&PageLinks::ScriptAdded, weak_factory_.GetWeakPtr()));
-}
-
-void PageLinks::ScriptAdded(std::optional<base::DictValue> added) {
-  NoteForTest("links script added " + Tag() + (added ? "" : " (error)"));
-  registering_ = false;
-  const std::string* id = added ? added->FindString("identifier") : nullptr;
-  std::optional<std::string> replaced = std::move(replacing_);
-  replacing_.reset();
-  if (!id) {
-    script_id_ = std::move(replaced);
-    return;
-  }
-  script_id_ = *id;
-  if (replaced) {
-    base::DictValue old;
-    old.Set("identifier", *replaced);
-    Call("Page.removeScriptToEvaluateOnNewDocument", std::move(old),
-         base::DoNothing());
-  }
-  if (registered_config_ != ConfigGeneration()) {
-    PushConfig();
-  }
-}
-
-std::string PageLinks::SourceForNewDocuments() {
-  return std::string(kLinkScript) +
-         "\nglobalThis.ardiaPeek && globalThis.ardiaPeek.config(" +
-         ConfigJson() + ");";
-}
-
-content::RenderFrameHost* PageLinks::FrameWithToken(const std::string& token) {
-  content::RenderFrameHost* found = nullptr;
-  GetWebContents().ForEachRenderFrameHost(
-      [&token, &found](content::RenderFrameHost* frame) {
-        if (!found && frame->GetDevToolsFrameToken().ToString() == token) {
-          found = frame;
-        }
-      });
-  return found;
-}
-
-void PageLinks::ContextCreated(const base::DictValue& params) {
-  const base::DictValue* context = params.FindDict("context");
-  std::optional<int> id = context ? context->FindInt("id") : std::nullopt;
-  const std::string* name = context ? context->FindString("name") : nullptr;
-  if (!id || !name || *name != kWorld) {
-    return;
-  }
-  const base::DictValue* aux = context->FindDict("auxData");
-  const std::string* frame_id = aux ? aux->FindString("frameId") : nullptr;
-  content::RenderFrameHost* frame = frame_id ? FrameWithToken(*frame_id) : nullptr;
-  if (!frame) {
-    NoteReportForTest("context", "", "no frame for its frameId");
-    return;
-  }
-  contexts_[*id] = Context{frame->GetGlobalId(), frame->IsInPrimaryMainFrame()};
-  SendConfig(*id);
-}
-
-void PageLinks::NoteReportForTest(const std::string& kind,
-                                  const std::string& url,
-                                  const std::string& outcome) {
-  if (!ardiacore::TestInstance()) {
-    return;
-  }
-  base::DictValue report;
-  report.Set("kind", kind);
-  report.Set("url", url);
-  report.Set("outcome", outcome);
-  reports_for_test_.push_back(std::move(report));
-  if (reports_for_test_.size() > kReportsKeptForTest) {
-    reports_for_test_.erase(reports_for_test_.begin());
-  }
-}
-
-base::ListValue PageLinks::ReportsForTest() const {
-  base::ListValue reports;
-  for (const base::DictValue& report : reports_for_test_) {
-    reports.Append(report.Clone());
-  }
-  return reports;
-}
-
-void PageLinks::Call(const std::string& method,
-                     base::DictValue params,
-                     Answer answer) {
-  if (!Attach()) {
-    std::move(answer).Run(std::nullopt);
-    return;
-  }
-  const int id = next_id_++;
-  base::DictValue message;
-  message.Set("id", id);
-  message.Set("method", method);
-  message.Set("params", std::move(params));
-  std::optional<std::string> json = base::WriteJson(message);
-  if (!json) {
-    std::move(answer).Run(std::nullopt);
-    return;
-  }
-  pending_[id] = std::move(answer);
-  scoped_refptr<content::DevToolsAgentHost> host = host_;
-  host->DispatchProtocolMessage(this, base::as_byte_span(*json));
-}
-
-void PageLinks::Evaluate(int context, const std::string& expression) {
-  base::DictValue params;
-  params.Set("expression", expression);
-  params.Set("contextId", context);
-  params.Set("silent", true);
-  Call("Runtime.evaluate", std::move(params), base::DoNothing());
-}
-
-void PageLinks::DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
-                                        base::span<const uint8_t> message) {
-  const std::string_view text = base::as_string_view(message);
-  if (text.starts_with("{\"method\":\"Runtime.console") ||
-      text.starts_with("{\"method\":\"Runtime.exception") ||
-      text.starts_with("{\"method\":\"Page.")) {
-    return;
-  }
-  std::optional<base::DictValue> parsed = base::JSONReader::ReadDict(
-      base::as_string_view(message), base::JSON_PARSE_CHROMIUM_EXTENSIONS);
-  if (!parsed) {
-    return;
-  }
-  if (std::optional<int> id = parsed->FindInt("id")) {
-    auto it = pending_.find(*id);
-    if (it == pending_.end()) {
-      return;
-    }
-    Answer answer = std::move(it->second);
-    pending_.erase(it);
-    if (parsed->FindDict("error")) {
-      std::move(answer).Run(std::nullopt);
-      return;
-    }
-    base::DictValue* result = parsed->FindDict("result");
-    std::move(answer).Run(result ? std::move(*result) : base::DictValue());
-    return;
-  }
-  const std::string* method = parsed->FindString("method");
-  const base::DictValue* params = parsed->FindDict("params");
-  if (!method || !params) {
-    return;
-  }
-  if (*method == "Runtime.executionContextCreated") {
-    ContextCreated(*params);
-    return;
-  }
-  if (*method == "Runtime.executionContextDestroyed") {
-    if (std::optional<int> id = params->FindInt("executionContextId")) {
-      contexts_.erase(*id);
-    }
-    return;
-  }
-  if (*method == "Runtime.executionContextsCleared") {
-    contexts_.clear();
-    return;
-  }
-  if (*method != "Runtime.bindingCalled") {
-    return;
-  }
-  const std::string* name = params->FindString("name");
-  const std::string* payload = params->FindString("payload");
-  std::optional<int> context = params->FindInt("executionContextId");
-  if (!name || *name != kBinding || !payload || !context) {
-    return;
-  }
-  Heard(*context, *payload);
-}
-
-void PageLinks::AgentHostClosed(content::DevToolsAgentHost* agent_host) {
-  NoteForTest("links session closed " + Tag());
-  host_ = nullptr;
-  contexts_.clear();
-  script_id_.reset();
-  replacing_.reset();
-  enabling_ = false;
-  registering_ = false;
-  std::map<int, Answer> pending = std::move(pending_);
-  pending_.clear();
-  for (auto& entry : pending) {
-    std::move(entry.second).Run(std::nullopt);
-  }
-}
-
-bool PageLinks::MayAttachToURL(const GURL& url, bool is_webui) {
-  return true;
-}
-
-bool PageLinks::IsTrusted() {
-  return true;
-}
-
-bool PageLinks::MayReadLocalFiles() {
-  return false;
-}
-
 std::string PageLinks::PageKey() {
   TabState* state = TabState::FromWebContents(&GetWebContents());
   return state ? state->key() : std::string();
@@ -560,37 +267,17 @@ std::string PageLinks::ConfigJson() {
   return base::WriteJson(config).value_or("{}");
 }
 
-void PageLinks::SendConfig(int context) {
-  Evaluate(context, "globalThis.ardiaPeek && globalThis.ardiaPeek.config(" +
-                        ConfigJson() + ");");
-}
-
-void PageLinks::PushConfig() {
-  for (const auto& entry : contexts_) {
-    SendConfig(entry.first);
-  }
-  if (!script_id_ || registering_ ||
-      registered_config_ == ConfigGeneration()) {
-    return;
-  }
-  replacing_ = std::move(script_id_);
-  script_id_.reset();
-  registering_ = true;
-  AddScript(false);
-}
-
 void PageLinks::Heard(int context, const std::string& payload) {
   auto found = contexts_.find(context);
   content::RenderFrameHost* frame =
-      found == contexts_.end()
-          ? nullptr
-          : content::RenderFrameHost::FromID(found->second.frame);
+      found == contexts_.end() ? nullptr
+                               : ActiveFrameWithToken(found->second.frame_token);
   std::optional<base::DictValue> message =
       base::JSONReader::ReadDict(payload, base::JSON_PARSE_RFC);
   const std::string* kind = message ? message->FindString("kind") : nullptr;
   const base::DictValue* data = message ? message->FindDict("data") : nullptr;
   const char* outcome = !kind || !data      ? "unreadable"
-                        : !frame            ? "from a context not tracked"
+                        : !frame            ? "from a context with no active frame"
                         : !ScriptableDocument(frame)
                             ? "from a document not on http(s) or file"
                             : "heard";
@@ -601,7 +288,7 @@ void PageLinks::Heard(int context, const std::string& payload) {
     return;
   }
   if (*kind == "peek") {
-    PeekLink(*data, context, found->second.main);
+    PeekLink(*data, context, frame->IsInPrimaryMainFrame());
   } else if (*kind == "newTabLink") {
     NoteNewTabLink(*data);
   }
@@ -635,147 +322,6 @@ bool PageLinks::TakeNewTabLink(const std::vector<GURL>& urls) {
     }
   }
   return false;
-}
-
-void PageLinks::PeekLink(const base::DictValue& data, int context, bool main) {
-  const GURL url(Field(data, "url", kLongestUrl));
-  const std::string key = Field(data, "key", 8);
-  const bool other_site = key == kOtherSiteKey;
-  const std::string action =
-      other_site ? (PeeksOtherSites() ? "peek" : "") : LinkKeyAction(key);
-  const std::string page = PageKey();
-  MouseUp& up = LastUp();
-  const base::TimeTicks now = base::TimeTicks::Now();
-  std::string refused;
-  if (action.empty()) {
-    refused = "that key opens nothing now";
-  } else if (other_site && !main) {
-    refused = "only the page itself peeks links to other sites";
-  } else if (page.empty() || !Host::Get()->Shows(page)) {
-    refused = "page not shown";
-  } else if (!Web(url)) {
-    refused = "not http(s)";
-  } else if (!up.at) {
-    refused = "no left mouse-up yet";
-  } else if (up.seq == up.used_seq) {
-    refused = "that mouse-up already opened a peek";
-  } else if (up.pressed_since) {
-    refused = "the mouse was pressed again since that mouse-up";
-  } else if (now - *up.at > kGestureLifetime) {
-    refused = "the last mouse-up is too old";
-  } else if (up.page != page) {
-    refused = "the mouse-up wasn't over this page";
-  } else if (up.keys != (other_site ? 0 : LinkKeyFlags(key))) {
-    refused = "the mouse-up's keys aren't the page's key alone";
-  }
-  if (!refused.empty()) {
-    LOG(WARNING) << "[ardia links] no peek: " << refused;
-    FallBack(data, url, context, refused);
-    return;
-  }
-  up.used_seq = up.seq;
-  if (action == "split") {
-    base::DictValue payload;
-    payload.Set("url", url.spec());
-    payload.Set("disposition", "split");
-    payload.Set("userGesture", true);
-    OpenWindow(std::move(payload));
-    return;
-  }
-  gfx::PointF point = up.point;
-  double x = 0;
-  double y = 0;
-  if (main && Finite(data, "x", &x) && Finite(data, "y", &y)) {
-    content::RenderWidgetHostView* view =
-        GetWebContents().GetRenderWidgetHostView();
-    const float scale =
-        view && view->GetDeviceScaleFactor() > 0 ? view->GetDeviceScaleFactor()
-                                                 : 1;
-    point = gfx::PointF(x / scale, y / scale);
-  }
-  base::DictValue payload;
-  payload.Set("url", url.spec());
-  payload.Set("disposition", "peek");
-  payload.Set("userGesture", true);
-  payload.Set("site", other_site);
-  payload.Set("point", PointValue(ClampedToPage(point)));
-  OpenWindow(std::move(payload));
-}
-
-void PageLinks::FallBack(const base::DictValue& data,
-                         const GURL& url,
-                         int context,
-                         const std::string& reason) {
-  const std::string key = Field(data, "key", 8);
-  if (key == kOtherSiteKey) {
-    base::DictValue refusal;
-    refusal.Set("url", url.spec());
-    refusal.Set("reason", reason);
-    refusal.Set("follow", true);
-    Refuse(context, std::move(refusal));
-    return;
-  }
-  const int page_flag = LinkKeyFlags(key);
-  const bool split = LinkKeyAction(key) == "split";
-  MouseUp& up = LastUp();
-  const bool fresh = up.at &&
-                     base::TimeTicks::Now() - *up.at <= kFallbackLifetime &&
-                     !up.pressed_since;
-  const bool user_clicked = fresh && up.seq != up.used_seq &&
-                            up.page == PageKey() && up.keys == page_flag;
-  if (split && user_clicked) {
-    up.used_seq = up.seq;
-  }
-  if (split || !page_flag || !Web(url) || !user_clicked) {
-    return;
-  }
-  up.used_seq = up.seq;
-  if (page_flag == kShift) {
-    base::DictValue payload;
-    payload.Set("url", url.spec());
-    payload.Set("disposition", "window");
-    payload.Set("userGesture", true);
-    OpenWindow(std::move(payload));
-    return;
-  }
-  const GURL origin(Field(data, "origin", 1024));
-  if (origin.is_valid() &&
-      url::Origin::Create(origin).IsSameOriginWith(url::Origin::Create(url))) {
-    base::DictValue refusal;
-    refusal.Set("url", url.spec());
-    refusal.Set("reason", reason);
-    refusal.Set("download", true);
-    Refuse(context, std::move(refusal));
-    return;
-  }
-  base::DictValue payload;
-  payload.Set("url", url.spec());
-  payload.Set("disposition", "background");
-  payload.Set("userGesture", true);
-  OpenWindow(std::move(payload));
-}
-
-void PageLinks::Refuse(int context, base::DictValue refusal) {
-  Evaluate(context, "ardiaPeek.refused(" +
-                        base::WriteJson(refusal).value_or("null") + ");");
-}
-
-void PageLinks::OpenWindow(base::DictValue payload) {
-  if (TabState* state = TabState::FromWebContents(&GetWebContents())) {
-    state->Send("openWindow", std::move(payload));
-  }
-}
-
-gfx::PointF PageLinks::ClampedToPage(gfx::PointF point) {
-  content::RenderWidgetHostView* view =
-      GetWebContents().GetRenderWidgetHostView();
-  if (!view) {
-    return point;
-  }
-  const gfx::Size size = view->GetViewBounds().size();
-  return gfx::PointF(
-      std::clamp(point.x(), 0.0f, static_cast<float>(size.width())),
-      std::clamp(point.y(), 0.0f, static_cast<float>(size.height())));
 }
 
 OpenRequest::OpenRequest(content::WebContents* contents)

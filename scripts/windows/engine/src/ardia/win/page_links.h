@@ -4,6 +4,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/functional/callback.h"
@@ -60,8 +61,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   friend class content::WebContentsUserData<PageLinks>;
   using Answer = base::OnceCallback<void(std::optional<base::DictValue>)>;
   struct Context {
-    content::GlobalRenderFrameHostId frame;
-    bool main = false;
+    std::string frame_token;
   };
   struct NewTabLink {
     GURL url;
@@ -71,6 +71,12 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   explicit PageLinks(content::WebContents* contents);
 
   bool Attach();
+  void Note(std::string_view what, bool failed = false);
+  void ResetSession();
+  void Recover();
+  void RecoverNow(int session);
+  void ScheduleReattach();
+  void Reattach();
   void Register();
   std::string Tag();
   void RuntimeEnabled(std::optional<base::DictValue> answer);
@@ -82,7 +88,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   void ScriptAdded(std::optional<base::DictValue> added);
   std::string SourceForNewDocuments();
   void ContextCreated(const base::DictValue& params);
-  content::RenderFrameHost* FrameWithToken(const std::string& token);
+  content::RenderFrameHost* ActiveFrameWithToken(const std::string& token);
   void Call(const std::string& method, base::DictValue params, Answer answer);
   void Evaluate(int context, const std::string& expression);
   void PushConfig();
@@ -110,6 +116,9 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   int registered_config_ = 0;
   bool enabling_ = false;
   bool registering_ = false;
+  int session_ = 0;
+  bool recovering_ = false;
+  bool reattach_spent_ = false;
   std::vector<NewTabLink> new_tab_links_;
   std::vector<base::DictValue> reports_for_test_;
   base::WeakPtrFactory<PageLinks> weak_factory_{this};

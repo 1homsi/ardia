@@ -17,6 +17,7 @@
 #include "ardia/win/page_links.h"
 #include "ardia/win/tab_events.h"
 #include "base/containers/span.h"
+#include "base/functional/barrier_callback.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
@@ -89,6 +90,7 @@ namespace ardia_win {
 namespace {
 
 constexpr size_t kMaxEvaluationResultBytes = 4 * 1024 * 1024;
+constexpr base::TimeDelta kClickAnswerDeadline = base::Seconds(10);
 
 constexpr char kEvaluationStart[] =
     "new Promise((resolve) => {(function(post){'use strict';\n";
@@ -909,10 +911,25 @@ void ClickForTest(content::WebContents* contents,
   const double x = args.FindDouble("x").value_or(0);
   const double y = args.FindDouble("y").value_or(0);
   const int modifiers = Integer(args, "modifiers");
-  double dispatched_at = 0;
+  double* dispatched_at = new double(0);
+  const auto answered = base::BarrierCallback<std::optional<std::string>>(
+      3, base::BindOnce(
+             [](Reply reply, const double* dispatched_at,
+                std::vector<std::optional<std::string>> errors) {
+               for (const std::optional<std::string>& error : errors) {
+                 if (error) {
+                   std::move(reply).Run(Error(*error));
+                   return;
+                 }
+               }
+               base::DictValue answer = Ok();
+               answer.Set("dispatchedAt", *dispatched_at);
+               std::move(reply).Run(std::move(answer));
+             },
+             std::move(reply), base::Owned(dispatched_at)));
   for (const char* type : {"mouseMoved", "mousePressed", "mouseReleased"}) {
     if (std::string_view(type) == "mousePressed") {
-      dispatched_at = base::Time::Now().InMillisecondsFSinceUnixEpoch();
+      *dispatched_at = base::Time::Now().InMillisecondsFSinceUnixEpoch();
     }
     base::DictValue params;
     params.Set("type", type);
@@ -924,24 +941,20 @@ void ClickForTest(content::WebContents* contents,
       params.Set("clickCount", 1);
     }
     CallDevTools(contents, "Input.dispatchMouseEvent", std::move(params),
-                 std::nullopt, base::BindOnce(&Ignore));
+                 kClickAnswerDeadline,
+                 base::BindOnce(
+                     [](std::string_view type,
+                        base::RepeatingCallback<void(std::optional<std::string>)>
+                            done,
+                        std::optional<base::DictValue> result,
+                        std::optional<std::string> error) {
+                       done.Run(
+                           error ? std::optional<std::string>(
+                                       std::string(type) + ": " + *error)
+                                 : std::nullopt);
+                     },
+                     std::string_view(type), answered));
   }
-  base::DictValue last;
-  last.Set("expression", "0");
-  CallDevTools(contents, "Runtime.evaluate", std::move(last), std::nullopt,
-               base::BindOnce(
-                   [](Reply reply, double dispatched_at,
-                      std::optional<base::DictValue> result,
-                      std::optional<std::string> error) {
-                     if (error) {
-                       std::move(reply).Run(Error(*error));
-                       return;
-                     }
-                     base::DictValue answer = Ok();
-                     answer.Set("dispatchedAt", dispatched_at);
-                     std::move(reply).Run(std::move(answer));
-                   },
-                   std::move(reply), dispatched_at));
 }
 
 void ReattachLinksForTest(content::WebContents* contents,
