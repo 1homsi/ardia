@@ -1,4 +1,4 @@
-import { queueLog } from "./client";
+import { consentNow, queueLog } from "./client";
 import { knownErrorCode, knownErrorMessage } from "./knownErrors";
 import { errorType, scrubText } from "./sanitize";
 
@@ -20,5 +20,5 @@ export function recordLog(level: "warn" | "error", args: unknown[]) {
   const attributes: Record<string, string> = { error_type: type };
   if (reason) attributes.error_message = reason;
   if (code) attributes.error_code = code;
-  queueLog(level, message, attributes);
+  queueLog(level, message, attributes, consentNow());
 }
