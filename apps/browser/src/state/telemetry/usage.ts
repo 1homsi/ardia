@@ -95,9 +95,7 @@ function emitCounts(send = true) {
       sync_snapshots_written: snapshots.count, synced_profiles_removed: snapshots.removedProfiles, synced_devices_removed: snapshots.removedDevices, synced_removals_returned: snapshots.removalsReturned, sync_cycles: snapshots.cycles, sync_cycle_ms: snapshots.ms, sync_cycle_longest_ms: snapshots.longestMs,
       sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024), auto_pip_nothing_playing: autoPictureInPictureNothingPlaying, pip_back_to_tab: backToTab.chromium, pip_back_to_tab_webkit: backToTab.webkit, pip_drags: pipDrags.moved, pip_drags_off_cursor: pipDrags.offCursor, pip_drags_slow_move: pipDrags.slowMove, pip_click_skips_back: clickSkips.back, pip_click_skips_ahead: clickSkips.ahead,
       toolbar_scroll_hides: counts.toolbarScrollHides,
-      toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces,
-      toolbar_peeks: counts.toolbarPeeks,
-      toolbar_peek_page_hides: counts.toolbarPeekPageHides,
+      toolbar_scroll_hide_bounces: counts.toolbarScrollHideBounces, toolbar_peeks: counts.toolbarPeeks, toolbar_peek_page_hides: counts.toolbarPeekPageHides,
       card_resize_layouts: counts.cardResizeLayouts,
       card_resize_layouts_applied: counts.cardResizeLayoutsApplied,
       shares_picked_tab: counts.sharesPickedTab,
@@ -189,7 +187,6 @@ export function noteReopenedPage(canGoBack: boolean) {
 }
 
 export const noteToolbarPeekPageHidden = () => void counts.toolbarPeekPageHides++;
-
 export const notePinch = (on: "peek" | "littleArdia", outcome: "open" | "close") => void counts[on === "peek" ? (outcome === "open" ? "peekPinchOpens" : "peekPinchCloses") : outcome === "open" ? "littleArdiaPinchOpens" : "littleArdiaPinchCloses"]++;
 
 export const noteSwipeClose = (closed: boolean) => void counts[closed ? "littleArdiaSwipeCloses" : "littleArdiaSwipeCloseCancels"]++;
