@@ -139,6 +139,7 @@ void WatchFocusChanges() {
     NoteFocusChange(@"app inactive", nil);
   }];
   WatchHover();
+  WatchPageCursor();
 }
 
 NSString *FocusState() {
