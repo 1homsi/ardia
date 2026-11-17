@@ -602,10 +602,10 @@ async function panelWorld(state) {
   const held = [];
   let holding = null;
   const shared = state.startsWith("shared");
-  const changed = new Set();
+  const changed = new Map();
   const urlFor = (tabId, ext) => {
     if (off.has(`${ext}@${tabId}`)) return null;
-    const v = changed.has(`${ext}@${tabId}`) ? "v=2" : "";
+    const v = changed.has(`${ext}@${tabId}`) ? `v=${changed.get(`${ext}@${tabId}`)}` : "";
     if (shared) return `chrome-extension://${ext}/panel.html${v ? `?${v}` : ""}`;
     return `chrome-extension://${ext}/panel.html?tabId=${tabId}${v ? `&${v}` : ""}`;
   };
@@ -682,12 +682,27 @@ const ACTIONS = {
     const syncing = panels.syncSidePanel(x.w);
     await settle();
     const lookupAsks = x.heldCount();
-    x.changed.add(`ext@${onScreen}`);
+    x.changed.set(`ext@${onScreen}`, 2);
     const rechecking = panels.recheckKeptSidePanels(x.w);
     await settle();
     for (let i = 0; i < lookupAsks; i++) await x.releaseAt([0]);
     await syncing;
     x.check("after the tab's own lookup, with the re-check still out");
+    await x.release();
+    await rechecking;
+  },
+  newerPageDuringLookup: async (x) => {
+    const onScreen = E().sidePanels[x.w].tabId;
+    x.changed.set(`ext@${onScreen}`, 2);
+    x.hold();
+    const syncing = panels.syncSidePanel(x.w);
+    await settle();
+    const lookupAsks = x.heldCount();
+    x.changed.set(`ext@${onScreen}`, 3);
+    const rechecking = panels.recheckKeptSidePanels(x.w);
+    await settle();
+    for (let i = 0; i < lookupAsks; i++) await x.releaseAt([0]);
+    await syncing;
     await x.release();
     await rechecking;
   },
@@ -720,6 +735,7 @@ const NOT_ON_A = /^(hidden|closed|shown ext@[bc-])$/;
 const EXPECT = {
   sharedOnA: {
     newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
+    newerPageDuringLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=3/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "closed", wanted: null },
@@ -732,6 +748,7 @@ const EXPECT = {
   },
   sharedOnB: {
     newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@b", wanted: "ext", url: /v=2/ },
+    newerPageDuringLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@b", wanted: "ext", url: /v=3/ },
     disableWhileLookupPending: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "closed", wanted: null },
@@ -744,6 +761,7 @@ const EXPECT = {
   },
   sharedNotReady: {
     newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
+    newerPageDuringLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=3/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     x: { cards: ["ext@a+b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: [], entry: "hidden", wanted: "ext" },
@@ -755,6 +773,7 @@ const EXPECT = {
   },
   shown: {
     newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
+    newerPageDuringLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=3/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     replace: { cards: ["ext2@a"], entry: "shown ext2@a", wanted: "ext2" },
@@ -766,6 +785,7 @@ const EXPECT = {
   },
   hidden: {
     newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@b", wanted: "ext", url: /v=2/ },
+    newerPageDuringLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@b", wanted: "ext", url: /v=3/ },
     disableWhileLookupPending: { cards: ["ext@a"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "shown ext@b", wanted: "ext" },
     replace: { cards: ["ext2@b"], entry: "shown ext2@b", wanted: "ext2" },
@@ -778,6 +798,7 @@ const EXPECT = {
   },
   notReady: {
     newPageAfterLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=2/ },
+    newerPageDuringLookup: { cards: ["ext@a", "ext@b"], entry: "shown ext@a", wanted: "ext", url: /v=3/ },
     disableWhileLookupPending: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     pageClose: { cards: ["ext@b"], entry: "hidden", wanted: "ext" },
     replace: { cards: ["ext2@-"], entry: "shown ext2@-", wanted: "ext2" },
@@ -855,7 +876,7 @@ test("kept panels, every action in every state: the right pages stay, the rest g
   } finally {
     stop();
   }
-  assert.equal(cells, 65);
+  assert.equal(cells, 71);
   assert.deepEqual(failed, []);
 });
 

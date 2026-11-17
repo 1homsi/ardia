@@ -190,7 +190,8 @@ function placePanel(windowId: string, extensionId: string, readyTab: string | un
   const s = useBrowser.getState();
   const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, opened: openings.get(windowId) ?? 0, tabId: readyTab };
   if (readyTab) {
-    if (shownTabs.get(windowId)?.has(readyTab) && useExtensions.getState().sidePanels[windowId]?.tabId !== readyTab) noteSidePanelKept();
+    const pageKept = sidePanelCards(windowId).some((card) => panelKey(card) === panelKey(panel) && card.owners.includes(readyTab));
+    if (pageKept && useExtensions.getState().sidePanels[windowId]?.tabId !== readyTab) noteSidePanelKept();
     tabsOf(shownTabs, windowId).add(readyTab);
     removedTabs.get(windowId)?.delete(readyTab);
   }
@@ -289,7 +290,7 @@ export async function recheckKeptSidePanels(windowId: string): Promise<void> {
   await Promise.all(
     asks.map(async ({ card, tabId }) => {
       const { url, stale } = await askPanel(windowId, tabId, card.extensionId).catch(() => ({ url: card.url, stale: true, newest: card.url }));
-      const live = listedCard(windowId, card);
+      const live = sidePanelCards(windowId).find((c) => c.extensionId === card.extensionId && c.owners.includes(tabId));
       if (stale || rechecks.get(windowId) !== generation || wanted.get(windowId) !== card.extensionId || !live?.owners.includes(tabId)) return;
       if (url === live.url) return;
       const entry = useExtensions.getState().sidePanels[windowId];
