@@ -359,6 +359,15 @@ test("across profiles, every profile's page shows the same card, even ones that 
   assert.equal(workPage(), video, "the same card");
   media.setNowPlaying(video, report({ playbackState: "paused" }));
   assert.equal(homePage(), workPage(), "still the same card after a pause");
+
+  media.setNowPlaying(music, report({ playbackState: "paused" }));
+  S().updateSettings({ playingNowAcrossProfiles: false });
+  homePage();
+  workPage();
+  media.setNowPlaying(music, report());
+  S().updateSettings({ playingNowAcrossProfiles: true });
+  assert.equal(homePage(), music, "turned on again: the tab that played meanwhile, not the old paused pick");
+  assert.equal(workPage(), music);
 });
 
 test("across profiles, a tab paused before you switch profiles gets no card, and a play in another profile takes the paused card", async () => {

@@ -261,6 +261,7 @@ const sharedPlayerTabs = new Map<string, string | undefined>();
 export function sidebarPlayerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: string[], windowId: string, own: string | undefined, acrossProfiles: boolean): string | undefined {
   const tabId = playerTabFor(m, tabIds, acrossProfiles ? sharedPlayerTabs.get(windowId) : own);
   if (acrossProfiles) sharedPlayerTabs.set(windowId, tabId);
+  else sharedPlayerTabs.delete(windowId);
   return tabId;
 }
 
