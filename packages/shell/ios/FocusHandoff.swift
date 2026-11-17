@@ -236,7 +236,7 @@ final class FocusHandoff {
 
   func noteForwarded(_ action: Selector) { note("forward \(action)") }
 
-  func takeOutcomes() -> [String: Int] { outcomes.take() }
+  func takeOutcomes() -> [String: [String: Int]] { outcomes.take() }
 
   func setConsentEpoch(_ epoch: String) { outcomes.epoch = epoch }
 
@@ -426,7 +426,7 @@ final class FocusHandoff {
 
 final class HandoffOutcomes {
   private let lock = NSLock()
-  private var counts: [String: Int] = [:]
+  private var counts: [String: [String: Int]] = [:]
   private var current = ""
 
   var epoch: String {
@@ -436,7 +436,7 @@ final class HandoffOutcomes {
 
   func add(_ outcome: String, _ by: Int = 1, since epoch: String) {
     lock.lock()
-    if !current.isEmpty, epoch == current { counts[outcome, default: 0] += by }
+    counts[epoch, default: [:]][outcome, default: 0] += by
     lock.unlock()
   }
 
@@ -445,7 +445,7 @@ final class HandoffOutcomes {
     add(seconds < 0.4 ? "pickupUnder400ms" : seconds < 1 ? "pickup400To1000ms" : "pickupOver1s", since: epoch)
   }
 
-  func take() -> [String: Int] {
+  func take() -> [String: [String: Int]] {
     lock.lock()
     defer {
       counts = [:]
