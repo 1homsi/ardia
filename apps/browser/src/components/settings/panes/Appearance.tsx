@@ -59,8 +59,8 @@ const ADDRESS_BAR: Option<Settings["addressBar"]>[] = [
 
 const COMMAND_BAR_PLACEMENT: Option<Settings["commandBarPlacement"]>[] = [
   { value: "field", title: "At the address" },
-  { value: "centred", title: "In the centre" },
-  { value: "centredOnClick", title: "In the centre, also on click" },
+  { value: "centred", title: "In the center" },
+  { value: "centredOnClick", title: "In the center, also on click" },
 ];
 
 const ADDRESS_BAR_BUTTONS: Option<Settings["addressBarButtons"]>[] = [

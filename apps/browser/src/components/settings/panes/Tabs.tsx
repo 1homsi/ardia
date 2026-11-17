@@ -14,6 +14,7 @@ import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { useSettingsColors } from "../useSettingsColors";
 import { keyText } from "../../../state/commands/keyText";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 import type { SettingsPlace } from "../../../state/settings/settingsWindows";
 
 const APP = "Ardia";
@@ -216,8 +217,8 @@ function LinksSection() {
           anchor="tabs.openLinksInLittleArdia"
           description={
             littleArdia
-              ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ${keyText("⌘O")} moves it into ${APP}; closing it throws it away.`
-              : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
+              ? `A link from ${PLATFORM_TERMS.linkSourceExamples} opens in Little Ardia, a small window of its own. ${keyText("⌘O")} moves it into ${APP}; closing it throws it away.`
+              : `A link from ${PLATFORM_TERMS.linkSourceExamples} opens as a new tab in the ${APP} window you used last.`
           }
         />
         <Row anchor="tabs.peekLinksToOtherSites">
