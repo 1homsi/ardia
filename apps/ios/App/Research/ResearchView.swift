@@ -10,6 +10,7 @@ struct ResearchView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @AppStorage("ArdiaVoiceTipDismissed") private var voiceTipDismissed = false
+  @AppStorage(ReadingVoices.enabledKey) private var readsAloud = false
 
   private var readAloud: ReadAloud { session.readAloud }
 
@@ -37,7 +38,7 @@ struct ResearchView: View {
       }
       .scrollBounceBehavior(.basedOnSize)
       .safeAreaInset(edge: .bottom) {
-        if session.phase == .done {
+        if readsAloud, session.phase == .done {
           listenBar
             .padding(.horizontal, Spacing.medium)
             .padding(.bottom, Spacing.tight)
@@ -56,7 +57,7 @@ struct ResearchView: View {
     }
     .overlay { simulatedScreenOff }
     .onAppear {
-      readAloud.watch()
+      if readsAloud { readAloud.watch() }
     }
     .onDisappear { session.cancel() }
   }
@@ -261,7 +262,7 @@ struct ResearchView: View {
   }
 
   private var showsVoiceTip: Bool {
-    !voiceTipDismissed && !ReadingVoices.hasNaturalVoice
+    readsAloud && !voiceTipDismissed && !ReadingVoices.hasNaturalVoice
   }
 
   private var voiceTip: some View {

@@ -233,7 +233,9 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   context. Without Apple Intelligence (an older iPhone, turned off, still downloading) or when the model refuses, the
   answer is the pages' most relevant sentences, cited, and the page says why. Nothing is saved to history, and
   Incognito changes nothing. The sources sit in a row above the answer and open as normal tabs.
-  - **Hold to your ear.** While the page is open the proximity sensor is on. Raising the phone to the ear reads the
+  - **Hold to your ear.** Off until Settings › Browse for Me › Read Answers Aloud is on (`ArdiaReadAloud`; the launch
+    argument `-ArdiaReadAloud YES` turns it on for a test), because iOS's built-in voices are too robotic to lead
+    with; off, the page has no listen bar and never starts the sensor. On, while the page is open the proximity sensor is on. Raising the phone to the ear reads the
     answer (citations and markup stripped) through the earpiece, and lowering it pauses;
     raising it again resumes, and after the end starts over. Holding it up before the answer is ready starts it when
     it is. The speaker button plays it out loud, and raising the phone moves that to the earpiece. The rules are

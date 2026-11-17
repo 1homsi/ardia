@@ -3,6 +3,7 @@ import AVFoundation
 import SwiftUI
 
 enum ReadingVoices {
+  static let enabledKey = "ArdiaReadAloud"
   static let chosenKey = "ArdiaReadingVoice"
   static let downloadTip = String(localized: "For a more natural voice, download an Enhanced or Premium one in Settings › Accessibility › Read & Speak › Voices. iOS doesn’t let apps download them for you.")
 
