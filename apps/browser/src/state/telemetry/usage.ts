@@ -17,6 +17,7 @@ import { commandBarPlacementLabel, takeExternalAppRequests, takeNotificationRequ
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, takeMainProcessWork, takeContentDriftCounts, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
+import { profileSwitched } from "./profileSwap";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
@@ -229,7 +230,7 @@ function watchStore() {
         const w = s.windows[id]!;
         const before = prev.windows[id];
         if (before && !before.fullScreen && w.fullScreen) counts.fullScreens++;
-        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles), switcherSwitchProperties(id, w.profileId));
+        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(id, before.profileId, w.profileId, size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
     if (s.groups !== prev.groups) counts.groupTabsKept += keptTabsAdded(s.groups, prev.groups);
@@ -250,11 +251,6 @@ function watchToolbarAutoHide() {
     counts.toolbarScrollHides += seen.hides;
     counts.toolbarScrollHideBounces += seen.bounces;
   });
-}
-
-function profileSwitched(profiles: number, via: ReturnType<typeof switcherSwitchProperties>) {
-  const start = Date.now();
-  requestAnimationFrame(() => requestAnimationFrame(() => capture("profile_switched", { switch_ms: Date.now() - start, profiles, ...via })));
 }
 
 function watchSync() {
