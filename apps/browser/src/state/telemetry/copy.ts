@@ -116,6 +116,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times swiping back or forward and holding opened the list of pages to go to, and how many of those you called off by pulling the swipe back before letting go, summed up once an hour. Never which pages",
       "How many Little Ardia windows you closed with Escape, and whether the page had the keyboard, nothing in the window did, or the window was still blank, summed up once an hour",
       "How many Little Ardia windows closed on their own because their page opened another app, how many times closing a Little Ardia window brought back the app you came from, and how many times Ardia made a Little Ardia window smaller than the size you saved so it fits the display it opened on, summed up once an hour. Never which app or page",
+      "How many Ardia windows a window switcher or another accessibility app read the title of, once per window, summed up once an hour. Never the title",
       "How many times a Peek came back because you returned to the tab it was opened from, summed up once an hour. Never which tab or page",
       "How many links from other apps opened as a tab or in Little Ardia, each with whether Settings › General › Open links from other apps in Little Ardia was on, summed up once an hour. Never which links or which app",
       "How many links from other apps an Air Traffic Control rule routed, how many went by its Everything Else choice, and how many of them went into a tab group, summed up once an hour. Never which links, rules, apps, groups or profiles",
