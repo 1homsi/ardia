@@ -8,6 +8,10 @@ import { PROFILE, PROFILE_OPEN_TABS, PROFILE_THEME, PROFILE_TOP_APPS, SHARE, ope
 
 const store = () => useBrowser.getState();
 
+type Removed = () => ReadonlySet<string>;
+
+const NOTHING_REMOVED: Removed = () => new Set();
+
 export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; d?: true; o?: true; th?: ProfileTheme | null };
 
 export type ProfileThemeRecord = { t: ProfileTheme } | { preset: true };
@@ -42,7 +46,7 @@ export function legacyThemeOf(record: ProfileRecord): Pick<Profile, "theme"> | n
   return theme ? { theme } : null;
 }
 
-export function profilesAdapter(links: () => Record<string, { syncId: string }>): Adapter {
+export function profilesAdapter(links: () => Record<string, { syncId: string }>, removed: Removed = NOTHING_REMOVED): Adapter {
   const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
   return {
     prefix: PROFILE,
@@ -62,7 +66,8 @@ export function profilesAdapter(links: () => Record<string, { syncId: string }>)
         } satisfies ProfileRecord);
       }
       const mine = new Set(values.keys());
-      return { values, ignore: (key) => !mine.has(key) };
+      const gone = removed();
+      return { values, ignore: (key) => !mine.has(key) && !gone.has(key) };
     },
     apply: (visible, changed, _base, records) => {
       for (const [id, { syncId }] of linked()) {
@@ -79,6 +84,7 @@ export function profilesAdapter(links: () => Record<string, { syncId: string }>)
 export function profileThemesAdapter(
   links: () => Record<string, { syncId: string; themeAdopting?: true }>,
   records: () => Record<string, { v: unknown }> | undefined,
+  removed: Removed = NOTHING_REMOVED,
 ): Adapter {
   const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
   const unapplied = (key: string, base: (key: string) => unknown) => {
@@ -100,7 +106,8 @@ export function profileThemesAdapter(
         if (Object.keys(angles).length || known(angleKey)) values.set(angleKey, angles satisfies ThemeAngleRecord);
       }
       const mine = new Set(values.keys());
-      return { values, ignore: (key) => !mine.has(key) };
+      const gone = removed();
+      return { values, ignore: (key) => !mine.has(key) && !gone.has(key) };
     },
     apply: (visible, changed) => {
       for (const [id, { syncId }] of linked()) {
@@ -114,7 +121,7 @@ export function profileThemesAdapter(
   };
 }
 
-export function profileTopAppsAdapter(links: () => Record<string, { syncId: string }>): Adapter {
+export function profileTopAppsAdapter(links: () => Record<string, { syncId: string }>, removed: Removed = NOTHING_REMOVED): Adapter {
   const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
   return {
     prefix: PROFILE_TOP_APPS,
@@ -128,7 +135,8 @@ export function profileTopAppsAdapter(links: () => Record<string, { syncId: stri
         if ((on || known(key)) && !unapplied) values.set(key, { on } satisfies TopAppsRecord);
       }
       const mine = new Set(values.keys());
-      return { values, ignore: (key) => !mine.has(key) };
+      const gone = removed();
+      return { values, ignore: (key) => !mine.has(key) && !gone.has(key) };
     },
     apply: (visible, changed) => {
       for (const [id, { syncId }] of linked()) {
@@ -143,7 +151,7 @@ export function profileTopAppsAdapter(links: () => Record<string, { syncId: stri
   };
 }
 
-export function profileOpenTabsAdapter(links: () => Record<string, { syncId: string }>): Adapter {
+export function profileOpenTabsAdapter(links: () => Record<string, { syncId: string }>, removed: Removed = NOTHING_REMOVED): Adapter {
   const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
   return {
     prefix: PROFILE_OPEN_TABS,
@@ -157,7 +165,8 @@ export function profileOpenTabsAdapter(links: () => Record<string, { syncId: str
         if ((on || known(key)) && !unapplied) values.set(key, { on } satisfies OpenTabsRecord);
       }
       const mine = new Set(values.keys());
-      return { values, ignore: (key) => !mine.has(key) };
+      const gone = removed();
+      return { values, ignore: (key) => !mine.has(key) && !gone.has(key) };
     },
     apply: (visible, changed) => {
       for (const [id, { syncId }] of linked()) {
