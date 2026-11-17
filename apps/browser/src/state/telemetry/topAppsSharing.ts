@@ -27,6 +27,19 @@ export function releaseTopAppsSharing() {
 
 onTelemetryRelay(releaseTopAppsSharing);
 
+let syncStarted = 0;
+
+export function startedBySync<T>(apply: () => T): T {
+  syncStarted++;
+  try {
+    return apply();
+  } finally {
+    syncStarted--;
+  }
+}
+
+export const sharingStartedBySync = () => syncStarted > 0;
+
 export const noteSavedTopAppsMerged = (marker: string) => void (savedMerged = marker);
 
 export function topAppsSharingCounts(s: Pick<BrowserState, "profiles">) {

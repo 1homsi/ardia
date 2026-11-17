@@ -4,7 +4,7 @@ import type { ParkedPins, Tab } from "../browser/types";
 import { dataGroups, dataIdOf, sharingProfiles } from "../profiles/profiles";
 import { isRegularWindow } from "../windows/small";
 import { writingFromSync } from "./syncWrites";
-import { noteTopAppsSharing } from "../telemetry/topAppsSharing";
+import { noteTopAppsSharing, sharingStartedBySync } from "../telemetry/topAppsSharing";
 import { conform, pinnedGroupsOf, pinsMayDiffer, profilesOf, sectionOf, tileSig, union, type Item, type Section } from "./pinMirror";
 
 type Sharing = Pick<BrowserState, "profiles">;
@@ -224,7 +224,7 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
       profiles_changed: copiedProfiles.size,
       tiles: copiedTiles,
       tiles_removed: removedTiles,
-      from_sync: writingFromSync(),
+      from_sync: writingFromSync() || sharingStartedBySync(),
     });
   }
   return next === s ? null : next;

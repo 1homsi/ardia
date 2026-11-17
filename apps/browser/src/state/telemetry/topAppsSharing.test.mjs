@@ -213,3 +213,66 @@ test("a 0.2.44 session whose profiles never opted in has its old merge marker cl
     { merge_recorded: true, merge_recorded_this_launch: false, merge_marker_cleared: true },
   );
 });
+
+function sharerWithTile() {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://mail.com" });
+  S().pinTabs([S().windows[w].tabIds[0]], true);
+  return w;
+}
+
+const lastMirrored = async (before) => (await recorded("top_apps_mirrored")).slice(before);
+
+test("a synced Share Top Apps record that turns sharing on marks the copy it starts as from sync", async () => {
+  sharerWithTile();
+  S().updateProfile("default", { shareTopApps: true });
+  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  const before = (await recorded("top_apps_mirrored")).length;
+  profileTopAppsAdapter(() => ({ [work]: { syncId: "work-sync" } })).apply(new Map([["pta:work-sync", { on: true }]]), new Set(["pta:work-sync"]));
+  const mirrored = await lastMirrored(before);
+  assert.ok(mirrored.length >= 1, "the tile was copied into Work");
+  assert.equal(mirrored[0].properties.from_sync, true);
+});
+
+test("pairing a profile whose synced setting shares Top Apps marks the copy it starts as from sync", async () => {
+  sharerWithTile();
+  S().createProfile({ name: "Work", shareWith: "default", shareTopApps: true });
+  const before = (await recorded("top_apps_mirrored")).length;
+  const doc = syncedDoc();
+  const app = appScopeOf(doc);
+  app.records["prof:remote-default"] = remoteRecord({ n: "Remote Personal", c: "blue", i: null, d: true });
+  app.records["pta:remote-default"] = remoteRecord({ on: true });
+  app.records["prof:remote-work"] = remoteRecord({ n: "Work", c: "red", i: null });
+  app.records["pta:remote-work"] = remoteRecord({ on: true });
+  linkProfiles(doc, app);
+  assert.equal(S().profiles.default.shareTopApps, true);
+  const mirrored = await lastMirrored(before);
+  assert.ok(mirrored.length >= 1, "Personal's tile was shared with Work");
+  assert.equal(mirrored[0].properties.from_sync, true);
+});
+
+test("a profile added from another device with sharing on marks the copy into it as from sync", async () => {
+  sharerWithTile();
+  S().updateProfile("default", { shareTopApps: true });
+  const before = (await recorded("top_apps_mirrored")).length;
+  const doc = syncedDoc();
+  appScopeOf(doc).records["pta:remote-extra"] = remoteRecord({ on: true });
+  addLinkedProfile(doc, "remote-extra", { n: "Remote Extra", c: "red", i: null }, "default");
+  const mirrored = await lastMirrored(before);
+  assert.ok(mirrored.length >= 1, "Personal's tile was copied into the new profile");
+  assert.equal(mirrored[0].properties.from_sync, true);
+});
+
+test("a local sharing change stays local, and marking a sync-started change doesn't turn on sync's mirroring rules", async () => {
+  const { writingFromSync } = await import("../pins/syncWrites.ts");
+  const { startedBySync } = await import("./topAppsSharing.ts");
+  sharerWithTile();
+  const work = S().createProfile({ name: "Work", shareWith: "default", shareTopApps: true });
+  const before = (await recorded("top_apps_mirrored")).length;
+  S().updateProfile("default", { shareTopApps: true });
+  const mirrored = await lastMirrored(before);
+  assert.ok(mirrored.length >= 1);
+  assert.equal(mirrored[0].properties.from_sync, false);
+  assert.equal(startedBySync(() => writingFromSync()), false, "writingFromSync, which picks the mirroring rules, isn't touched");
+  assert.ok(S().profiles[work]);
+});
