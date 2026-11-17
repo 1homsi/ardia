@@ -10,6 +10,7 @@ import type {
   EngineBookmark,
   EngineEvents,
   EngineTask,
+  EventData,
   EventName,
   HistoryChange,
   HistoryChangedBatch,
@@ -58,7 +59,7 @@ const eventsOf = (domain: string) => {
   if (!domainEvents.has(domain)) domainEvents.set(domain, nativeEvents());
   return domainEvents.get(domain)!;
 };
-export const emitEvent = <E extends EventName>(name: E, data: EngineEvents[E]) => {
+export const emitEvent = <E extends EventName>(name: E, data: EventData<E>) => {
   const domain = name.slice(0, name.indexOf("."));
   eventsOf(domain).emit(domain, { name, data });
 };
@@ -87,7 +88,7 @@ function domain<D extends string, Sync extends object>(name: D, handlers: Handle
   return Object.assign(fake, sync);
 }
 
-const laterEvent = <E extends EventName>(name: E, data: EngineEvents[E]) => queueMicrotask(() => emitEvent(name, data));
+const laterEvent = <E extends EventName>(name: E, data: EventData<E>) => queueMicrotask(() => emitEvent(name, data));
 export const emitDownload = (download: EngineEvents["downloads.changed"]) => emitEvent("downloads.changed", download);
 export const emitPermission = (request: EngineEvents["permissions.requested"]) => emitEvent("permissions.requested", request);
 
@@ -290,6 +291,7 @@ export const extensionAnswers = {
   actionStates: async (_tabId: string, _ids: string[]): Promise<Record<string, ActionState>> => ({}),
   sidePanelUrl: async (_tabId: string, _extensionId: string): Promise<string | null> => null,
   change: async (_verb: string, _id: string): Promise<void> => {},
+  resolveInstallPrompt: async (_requestId: string, _accepted: boolean): Promise<null> => null,
 };
 
 const tabStripHost = () => testGlobals.acTestTabStrip!;
@@ -478,7 +480,7 @@ const fakeModules = {
       installedCrx.push({ path: path, profile });
       return { id: "crx" };
     },
-    resolveInstallPrompt: () => null,
+    resolveInstallPrompt: ({ requestId, accepted }) => extensionAnswers.resolveInstallPrompt(requestId, accepted),
     actionStates: ({ tabId, ids }) => extensionAnswers.actionStates(tabId, ids),
     sidePanelUrl: ({ tabId, extensionId }) => extensionAnswers.sidePanelUrl(tabId, extensionId),
     watchActions: () => null,
@@ -541,10 +543,12 @@ const fakeModules = {
     setFairPlayInChromium: () => null,
     setCommandScrollZoom: () => null,
     setLittleArdiaOpensNewTabLinks: () => null,
+    setPopupsOpenAsTabs: () => null,
     setAutoPictureInPicture: () => null,
     setVideoUpscaling: () => null,
     setVideoUpscalingTestConditions: () => null,
     videoUpscalingState: () => null,
+    takeContentDrift: () => ({ layouts: 0, fits: 0, maxPoints: 0 }),
   }),
   ArdiaWebKit: domain("webKit", {
     endPrivateSession: ({ session }) => (endedWebKitSessions.push(session), null),
