@@ -244,7 +244,7 @@ void AddLaunchSwitches(base::CommandLine* command_line) {
   command_line->AppendSwitch(switches::kHideCrashRestoreBubble);
   command_line->AppendSwitch("keep-old-history");
   AddFeatures(command_line, switches::kDisableFeatures,
-              "CalculateNativeWinOcclusion");
+              "CalculateNativeWinOcclusion,SettingsGlowupJourneys");
   AddFeatures(command_line, switches::kEnableFeatures, "WebContentsDiscard");
   std::wstring data_dir = Environment(L"ARDIA_DATA_DIR");
   while (!data_dir.empty() &&
