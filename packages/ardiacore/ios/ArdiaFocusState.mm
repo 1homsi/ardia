@@ -132,6 +132,7 @@ void WatchFocusChanges() {
                                           return event;
                                         }];
   WatchHover();
+  WatchPageCursor();
 }
 
 void NotePointer(NSEvent *event, NSString *swallowedBy) {

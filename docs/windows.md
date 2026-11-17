@@ -58,6 +58,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Engine memory trimmed after tabs close, once input is idle | Works (logged after closes) | #1544 |
 | Memory Saver's loaded-tab budget (the tabs hidden longest sleep past it) | Works (engine `windows-engine-20261116-4`, which also has #2052's page-place guard; seen by the `engine sleep:` self-checks in CI, not walked in the VM): the Mac's budget and sweep, sized from this PC's memory and Windows' memory load (85 % a warning, 95 % critical); the page view's `sleepIfHidden` asks Chromium's discard policy with the proactive reason, so a shown page or split pane, a page hidden within the mode's wait, typed form input, audio, capture and the other protections keep a tab awake. A page the app hid is no longer its page window's active tab, which Chromium would otherwise keep from every discard, and Chromium's DevTools-open state means a DevTools window inspects the page, not the engine's own always-attached page client (before -10 no Windows page could be discarded at all, by this budget, Chrome's Memory Saver timer or memory pressure). A discard is in place (`WebContentsDiscard`, as on the Mac), so the tab keeps its page and back/forward list. A slept tab wakes on show at its address and scroll. A pop-up window's page is not a tab, so the budget never asks it. The engine keeps a page for its own reasons too, in every discard but one the user or one of their extensions asks for (Chrome's Memory Saver timer, its memory-pressure and frozen-with-growing-memory discards as well as the budget, `kept_pages.cc` through `chromium-win-discard-asks-the-host.patch`; a kept page is never taken by an urgent discard either, since Windows' urgent discards skip protected pages; a discard the user or one of their extensions asks for, such as `chrome.tabs.discard()` from a tab-suspender extension, does not ask the host): the opener of a live pop-up or of a pending offer (100), so the pop-up's `window.opener` keeps working; a `beforeunload` handler (content's own handler state; the page graph's flag is never set in Chromium 157) on a page the user has used (101); a held Web Lock (102) or blocking IndexedDB lock (103); a WebSocket, WebTransport, WebRTC or direct-socket connection (104: the same signals that keep a page from freezing; in Chromium 157 an open WebSocket registers only the sticky feature, so a page that has used one stays kept until it navigates or reloads); a DevTools window, or a DevTools client other than the engine's own on the page or tab target: an extension's `chrome.debugger` or a remote CDP tool (105). Chromium's own protections hold as on the Mac (audible, capture, form input, notifications). Not seen yet, so such a page can still sleep (#2050): a Web Lock held by a dedicated worker, a WebSocket held by a SharedWorker, a blocking IndexedDB lock in a shared or service worker, an EventSource or long fetch stream, an upload. A hidden Peek card that stays mounted is not a shown page: after the mode's wait it can sleep, and it reloads at its address and scroll when it shows again. A tab that slept once still opens a new tab its link script saw clicked (the script Peek runs in) and an app-link ask. Pinned tabs sleep like any tab, as on the Mac (#1069). A page window keeps #2052's guard through a sleep and holds its place again once it wakes. Self-checks: `engine sleep:` in `selfCheck/engineSleep.ts`, `engineSleepKept.ts` and `engineSleepPlace.ts` | #1969 |
 | Unload inactive profiles (Settings › Advanced, with Memory Saver) | Not offered; hidden: the engine has no `profiles.unloadIdle` | #1425 |
+| The `ardia` command (the install 8 s after launch, Settings › Advanced › Command line) | Not offered: Windows has no native `ArdiaCli`. `PLATFORM_FEATURES.ardiaCommand` is false, so Command line is hidden in Settings and nothing is installed at launch. Its stand-in (`defaults.ts`) answers `canInstallUnattended` false and `install` with a failed result, and `installCliInBackground` treats a missing result as a failure. (Before, both answered null: the launch install threw `Cannot read property 'ok' of null`, an unhandled rejection 8 s after launch for nearly every Windows user, and Command line stayed on "Installing…".) Tests: `cliControlWindows.test.mjs`, `hiddenOnWindows.test.mjs` | #2135 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome; its command bar lists recent pages | |
 | Search Tabs (Ctrl+Shift+A), Ctrl+Tab | Works (d83398e1f): the new page has the keyboard after Ctrl+Tab and after Next Tab into a tab a restore left unloaded (#1658, #1691). Gap: a new tab opened with an address (Ctrl+T, the address, Enter) doesn't get the keyboard, tracked in #1689 (still so on 72901e27a) | #1658, #1689 |
 | Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
@@ -89,7 +90,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Full-screen (a page element) | Works; Escape leaves it | |
 | Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
 | Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it, including one held for Keep; Ctrl+J opens it and Escape closes it (53d5a2bee, walked 2026-11-14) | #1519, #1610 |
-| History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works; history is kept past 90 days and an import keeps its older pages, as on the Mac (engine `windows-engine-20261115-17` passes `keep-old-history`; seen by the `engine history:` self-check in CI) | #2009 |
+| History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works; history is kept past 90 days and an import keeps its older pages, as on the Mac (engine `windows-engine-20261116-4` passes `keep-old-history`; seen by the `engine history:` self-check in CI) | #2009 |
 | Bookmarks (Ctrl+D, Ctrl+Shift+O) | Works | |
 | mailto and other app links | Works: the app's prompt, then the handler (`mailto` opens the mail app without a prompt, as Chromium and the Mac allow it by default). The engine thread saw the prompt and the handler in the VM on build 347 of #1701; not walked here. The first click on the prompt works after using the page since #1749, and a data: page's prompt stops counting once its document is gone since #1750 (engine `-22`); the engine thread saw the first in the VM and the self-check proves the second on both CPUs. | #1590, #1701, #1749, #1750 |
 | Translate | Not offered | #1520 |
@@ -108,7 +109,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | ardia://extensions | Works | |
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
 | Hide anything (Hide Element) | Not offered; hidden: its rules are kept by the content blocker, which Windows lacks | #1425 |
-| Block autoplay on every site, and Autoplay per site in Site Controls | Not offered; hidden: on the Mac the page script blocks media nobody asked to play, from the global switch and the site's Autoplay choice, and the Windows page script has no such blocking, so the switch (`webView.setBlockAutoplayEverywhere` is missing) and the per-site choice (stored, never read) are hidden behind `blocksAutoplay` | #1425, #1774 |
+| Block autoplay on every site, and Autoplay per site in Site Controls | Works (engine `windows-engine-20261116-9`; seen by the `engine autoplay:` self-checks in CI, not walked in the VM): the Mac's settings and rule, enforced in Blink. A tab whose top-level site is set to Block, or has no Autoplay setting of its own while Block autoplay everywhere is on, plays media only in a document whose user asked: a click, tap or key press that reached that document (not Escape, not a Ctrl or Windows-key chord; Ctrl with Alt is AltGr and counts), Ardia's own play controls for the media they play, or a user action through Chrome's media session; a subframe also plays while it has transient activation, as the Mac's page script allows. The site is the top-level document's origin, or for a `blob:` or `about:blank` page the origin that made it. `chromium-win-autoplay-policy.patch` carries the decision to each new document with its commit (out-of-process iframes included), updates open documents when the setting changes, after a back/forward cache restore and when a prerendered page is shown, and refuses in `AutoplayPolicy` before Chrome's exemptions (media engagement, a Sound allowance, capture) and before muted autoplay: `play()` rejects with NotAllowedError, the autoplay attribute and internal resumptions do nothing, detached elements and shadow roots included. Blocking an open page pauses what its user did not ask to play. Plays refused are counted in the engine (`usage_counts.autoplay_plays_blocked`, at most 20 per page). Not covered, as on the Mac: Web Audio. Ardia's play controls reach media in the page and its same-origin iframes only, as before. Self-checks: `engine autoplay:` in `selfCheck/engineAutoplay.ts` | #1425, #1774, #2125 |
 | Block requests to send notifications (Settings › Privacy & Security) | Not offered; hidden: it turns a notification request down when the app hears one, and on Windows the app hears none and can't answer one (`permissions.resolve`), so Chromium's own prompt still asks | #1425 |
 | Bookmark export | Works: Windows' Save As, then the HTML file is written | #1551 |
 | Password export | Works up to Windows' own sign-in prompt over the app window; the walk cancelled it there (the VM account's password is not typed in a test), so the file was not written | #1551 |
@@ -128,7 +129,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
 | Keep new-tab links inside a Little Ardia window, zoom with Ctrl and the mouse wheel, offer to save and fill passwords | Does nothing (the engine has no call for them yet); hidden | #1783, #1425 |
 | Warn before quitting | Works (#1796's build 1f4d97db1, run 43631924720): with it on, closing the last window (close button, Alt+F4, Ctrl+Shift+W, a lone Little Ardia's Ctrl+W; Ctrl+W on a window's last tab follows the same rule) asks first with the Mac's words; Cancel keeps the app running, Quit exits, Don't ask again turns it off; a hidden instance never asks | #1782, #1803 |
-| The ardia command, Widevine | Not offered (each says so) | |
+| Widevine | Not offered (says so) | |
 | Copy naming the Mac | Works: the walk found three more (a ⌘T, "History › Recently Closed", "File › Close All Tabs"), fixed in #1668's PR | #1522, #1668 |
 
 ## The Windows app
@@ -159,7 +160,9 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
     Pending telemetry and documents are written while stopping (`ShutDown` in `Ardia.cpp`), while their worker
     threads still run. Nothing in the library may wait on another thread from an exit handler or a static destructor:
     those run during `ExitProcess`, after Windows has ended every other thread, so such a wait only ends on its
-    timeout and the process outlives the quit (#1706: 30 s, which made the installer give up with exit 5).
+    timeout and the process outlives the quit (#1706: 30 s, which made the installer give up with exit 5). The
+    engine now ends the browser process as soon as Chromium's shutdown returns (`AfterChromeMain`, as Chrome does for
+    its utility processes), so no exit handler or static destructor runs in it at all.
   - `ArdiaEngineHost` (`EngineHostModule.h`) is the bridge: `available()`, `hostCall`, `engineCall`, and the engine's
     events as `ArdiaEngineHost:event`. Other native code reaches the engine through `Host::Engine()`.
   - What belongs to the app comes from the library (`AppImage.h`: the bundle folder, dialogs, window classes, the
@@ -179,6 +182,20 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
   into its whole frame, and the UI draws minimize, maximize and close itself (`components/window/WindowControls.tsx`),
   as the Mac's lights live inside the UI there. So no band is kept free at the top: the page card starts at the page
   frame, and Settings and Import have no title bar above them.
+  - A browser window comes back where it was left, maximized if it was maximized. Its `frame` event carries the
+    window's real bounds and, while it is maximized, minimized or full screen, the bounds it restores to as
+    `restored`; the store keeps those as `restoredFrame` and the `maximized` flag, saves both with the session and
+    with a closed window, and opens the window at `restoredFrame` with `maximized` (`state/windows/windowPlacement.ts`).
+    A browser window opened without a frame copies the size of the browser window in front, 28 points down and
+    right, maximized if that one is; with none open, it takes the last browser window's placement, which the shell
+    keeps in `window-placement.txt` in the data folder (`WindowPlacement.h`), as the Mac keeps `ArdiaLastWindowFrame`.
+    So closing the last window, which quits, and opening the app again keeps the window's size and place even when
+    the closed window had nothing to reopen. A window that opens maximized shows maximized at once; one that opens
+    behind another takes the foreground for that moment and hands it straight back to the window that had it, as
+    Chrome's session restore does, and a background test instance opens it restored. A maximized window moved to
+    another display (Win+Shift+Arrow) takes its restored bounds along, at the same place in that display's work area. The launch log says
+    `placed <id> like the window in front`, `placed <id> where the last browser window was` and
+    `opened <id> maximized`; `launch-smoke.ps1` maximizes a window, quits, relaunches twice and checks both.
   - Where the buttons sit comes from `windowControlsPlace` in `state/windows/layout.ts`: in the card's toolbar row, in
     a right sidebar's header, at the end of the top tab strip, in Little Ardia's bar. With the address bar in a left
     sidebar they sit at the sidebar's leading end, in their own row above the header (one button and a 3 point gap
@@ -367,8 +384,11 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 - The Windows native API has its own version: `WINDOWS_NATIVE_API_VERSION` in `platform/nativeApi.ts` and
   `windowsApiVersion` in `AppModule.h`. Bump both when the Windows native surface changes. A Mac bump doesn't
   touch it.
-- `--log-file=<path>` makes the app write its launch log, React Native's log and JavaScript errors to a file. Each
-  line is `<level> <ms since process start> <message>`.
+- The app writes its launch log, React Native's log and JavaScript errors to `Logs\launch.log` in the data folder
+  (`%LOCALAPPDATA%\Ardia\Logs`), or to `--log-file=<path>` when given. Each line is `<level> <ms since process start>
+  <message>`; the engine's lines are `engine 0 <message>`, and a crash's stack lands there too. Each start moves the
+  last run's log to `launch.previous.log`, and a run stops writing at 16 MB. A problem report from someone whose Ardia
+  won't open starts with those two files.
 - A background instance (`ARDIA_BACKGROUND=1`) shows its windows without taking focus and answers dialogs and menus
   without showing them, as on the Mac.
 
@@ -462,6 +482,34 @@ is plain Chromium.
   and stall pages while a menu is open (#1687). The self-check holds a real confirm on both threads and checks that a
   page loads only in the first case; `dialog_pages_asked` and `dialog_pages_stalled` count pages asked while a dialog
   was open and how many hadn't loaded 10 s later.
+- A launch while the previous Ardia on the same profile is still closing waits for it to end (up to 45 s) instead of
+  handing its command line to a browser that is shutting down, or starting a second browser on the same profile once
+  that one has let go of Chromium's process singleton (which happens before its shutdown is over: the old process
+  then still writes its profile). The quitting browser signals it from `QuitApp` and from its main parts' end
+  (`launch_guard.cc`, named objects under `Local\ArdiaBrowser.<hash of the user data folder>`); a launch while it runs
+  normally isn't held. Without this, Chromium's own singleton took the closing browser for a hung one and killed it
+  (`RESULT_CODE_HUNG`) before it had written its profile. The launch log says how long a start waited.
+- When the app can't start inside the engine (its library doesn't load, it has no `ArdiaAppStart`, or that refuses),
+  the engine shows why in a message box (none in a hidden instance), writes it to the launch log as
+  `app start failed: <reason>`, and quits from inside the run loop, so the process exits 0. It used to call
+  `QuitApp()` before the run loop and CHECK-crash at `browser_process_impl.cc:1959` with nothing on screen (#2044).
+  The app hands back its reason through `ArdiaAppStartFailure`.
+- A start that crashes or fails before it has run for 15 s counts as unfinished (`launch-starts.txt` in the data
+  folder; a quit before then counts as finished). After two unfinished starts in a row, the next one moves the
+  state Ardia restores at launch (`session.json`, `launch-look.json`, `switches-cache.json`, `bookmarks-cache.json`)
+  to `Recovery\<date-time>` in the data folder, deletes Chromium's graphics caches (`GrShaderCache`,
+  `GraphiteDawnCache`, `ShaderCache`, `GPUPersistentCache` and the profile's `GPUCache`, `DawnGraphiteCache`,
+  `DawnWebGPUCache`: a relaunch differs from a first run in what the first session wrote there), and says so once it
+  has opened, so a profile that crashes Ardia at every start opens again on its own. Chromium's profile (bookmarks,
+  history, passwords, cookies) isn't touched. #2097's recording (the app gone about 4 s after its window appears, at
+  every launch after onboarding) is that shape; the launch log now kept in `Logs` says what ended it.
+- A window closed while minimized keeps its restored place and size for the next launch (the frame event's restored
+  bounds); it used to save the minimized frame and come back as a 480 x 360 window in the corner.
+- `scripts/windows/relaunch-check.ps1` (CI, after the installer check) installs the build and closes and reopens
+  it: twice right away, once after it has exited, once while the previous browser is held at its exit (it must
+  wait, with no second browser), once with two unfinished starts recorded (the session must be set aside), and
+  once with `Microsoft.ReactNative.dll` hidden (it must exit 0 with the reason logged). Every launch must show one
+  window from one browser, and Windows must log no Ardia crash, Crashpad no dump and the launch log no fatal line.
 - A second launch reaches the running app: Chromium's process singleton hands it the command line, and
   `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
   file addresses on it. The app treats them as links from another app (`onOpenURLs`: a Little Ardia window or a tab,
