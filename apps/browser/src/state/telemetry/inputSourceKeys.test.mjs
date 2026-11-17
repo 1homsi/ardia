@@ -15,6 +15,24 @@ async function sentInputSourceKeys() {
   return saved.events.filter((e) => e.event === "usage_counts" && "input_source_keys_webkit" in e.properties).map((e) => e.properties.input_source_keys_webkit);
 }
 
+test("英数 and かな keys pressed while sharing is off are dropped when sharing turns on, and later ones are counted", async () => {
+  client.loadChoice();
+  client.setSharing(false, "settings");
+  stub.inputSourceKeys.pending = 4;
+  client.setSharing(true, "onboarding");
+  usage.sessionEnding();
+  assert.deepEqual(await sentInputSourceKeys(), []);
+  stub.inputSourceKeys.pending = 2;
+  usage.sessionEnding();
+  assert.deepEqual(await sentInputSourceKeys(), [2]);
+  stub.inputSourceKeys.pending = 5;
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  usage.sessionEnding();
+  assert.ok(!(await sentInputSourceKeys()).includes(5));
+  client.setSharing(false, "settings");
+});
+
 test("英数 and かな keys handled in a WebKit tab are sent with the hourly counts only while sharing is on, and taken once", async () => {
   client.loadChoice();
   client.setSharing(false, "settings");
