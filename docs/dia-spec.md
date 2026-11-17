@@ -335,6 +335,25 @@ What it closes (issue #149): the unselected unpinned tabs (`clearOthers`), keepi
 release notes, tabs playing media. Dia's Close All in the sidebar does the same with the selected tab (the issue's
 recording: of three unpinned tabs, the two unselected close and the selected one stays selected).
 
+#### Arc note: press and hover feedback (2026-11-17)
+
+Arc, not Dia, at the owner's request ("copy Arc" for the little interactions). Arc isn't installed on the build Mac, so
+these values are set by hand to Arc's behaviour and not traced from a capture: measure them against an Arc recording
+before calling them a match.
+
+- **Press.** The whole thing under the pointer shrinks while the button is down and springs back with a small bounce:
+  a sidebar row (tab, live item, New Tab, the pinned header) to 0.975, a pinned tile or top-strip pin to 0.94, an icon
+  button's plate with its glyph to 0.9, a pill, push or text button to 0.97. Down: response 0.12 s, critically damped.
+  Back: response 0.28 s, damping 0.55 (about 13 % past rest, over in 0.4 s). A click shorter than 90 ms holds the dip
+  for the rest of the 90 ms, so every click shows it.
+- **Hover.** A row's or an icon button's highlight lights in 50 ms and fades out over 200 ms, so the pointer leaves a
+  short trail down a list. The pressed colour replaces the hover colour at once. A row that becomes selected drops the
+  highlight with no fade (the selected fill is already there).
+- Reduce Motion: no scale, and the highlight switches with no fade.
+- Ours: `components/ui/motion.ts` (`buttonMotion`, `springSpec.press`/`release`, `pressMotion`, `hoverFade`,
+  `usePressScaleMotion`, `useHoverFill`), `ui/HoverFill.tsx`, `sidebar/TabPressArea.tsx` (`squish`);
+  `ui/pressMotion.test.mjs`.
+
 ## New Tab page
 
 - The card is translucent (no black fill). A glass orb (Dia's logo, 68.5pt; see below) sits above the bar.

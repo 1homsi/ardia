@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, type StyleProp, type ViewStyle } from "react-native";
+import { Animated, Pressable, type StyleProp, type ViewStyle } from "react-native";
 import { hostOf } from "@ardia/core";
 import { useSettings } from "../../state/browser/hooks";
 import { tabTitle } from "../../state/browser/model";
@@ -9,6 +9,9 @@ import { dismissHover } from "../../state/sidebar/hover";
 import { openTabMenu } from "../../state/sidebar/menus";
 import { clickHeldTabPress, holdTabPress } from "../../state/sidebar/heldTabPress";
 import { ContextMenuArea, MouseArea } from "../ui";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
+
+const SQUISH = { row: buttonMotion.rowPressScale, tile: buttonMotion.tilePressScale } as const;
 
 export function TabPressArea({
   windowId,
@@ -16,6 +19,7 @@ export function TabPressArea({
   style,
   pressStyle,
   tooltip,
+  squish,
   children,
 }: {
   windowId: string;
@@ -23,9 +27,12 @@ export function TabPressArea({
   style?: StyleProp<ViewStyle>;
   pressStyle?: StyleProp<ViewStyle>;
   tooltip?: string;
+  squish?: keyof typeof SQUISH;
   children: ReactNode | ((state: { pressed: boolean }) => ReactNode);
 }) {
   const plainTooltip = useSettings((s) => !s.showTabHoverMenu);
+  const pressMotion = usePressScaleMotion(!!squish, squish ? SQUISH[squish] : undefined);
+  const scale = pressMotion.scale;
   return (
     <MouseArea onMiddleClick={() => middleClickTab(tab.id)} style={style}>
       <ContextMenuArea
@@ -36,12 +43,16 @@ export function TabPressArea({
         style={style}
       >
         <Pressable
-          onPressIn={(e) => holdTabPress(windowId, tab.id, e)}
+          onPressIn={(e) => {
+            pressMotion.onPressIn?.();
+            holdTabPress(windowId, tab.id, e);
+          }}
+          onPressOut={pressMotion.onPressOut}
           onPress={(e) => clickHeldTabPress(windowId, tab.id, e)}
           style={pressStyle}
           tooltip={tooltip ?? (plainTooltip ? titleTooltip(tab) : undefined)}
         >
-          {children}
+          {scale ? (state) => <Animated.View style={{ transform: [{ scale }] }}>{typeof children === "function" ? children(state) : children}</Animated.View> : children}
         </Pressable>
       </ContextMenuArea>
     </MouseArea>
