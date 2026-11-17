@@ -6,6 +6,7 @@
 #include <string_view>
 #include <utility>
 
+#include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/host.h"
 #include "ardia/win/main.h"
 #include "ardia/win/page_links_script.h"
@@ -44,6 +45,7 @@ constexpr base::TimeDelta kFallbackLifetime = base::Seconds(60);
 constexpr size_t kLongestUrl = 8192;
 constexpr base::TimeDelta kNewTabLinkLifetime = base::Seconds(2);
 constexpr size_t kNewTabLinksKept = 4;
+constexpr size_t kReportsKeptForTest = 8;
 
 struct LinkKeys {
   std::string peek = "shift";
@@ -152,11 +154,6 @@ bool Finite(const base::DictValue& dict, std::string_view key, double* out) {
 
 bool Web(const GURL& url) {
   return url.is_valid() && url.SchemeIsHTTPOrHTTPS();
-}
-
-bool ScriptableOrigin(const std::string& origin) {
-  return origin == "null" || origin.starts_with("http://") ||
-         origin.starts_with("https://") || origin.starts_with("file://");
 }
 
 bool ScriptableDocument(content::RenderFrameHost* frame) {
@@ -394,16 +391,39 @@ void PageLinks::ContextCreated(const base::DictValue& params) {
   if (!id || !name || *name != kWorld) {
     return;
   }
-  const std::string* origin = context->FindString("origin");
   const base::DictValue* aux = context->FindDict("auxData");
   const std::string* frame_id = aux ? aux->FindString("frameId") : nullptr;
-  if (!origin || !ScriptableOrigin(*origin) || !frame_id) {
+  content::RenderFrameHost* frame = frame_id ? FrameWithToken(*frame_id) : nullptr;
+  if (!frame) {
+    NoteReportForTest("context", "", "no frame for its frameId");
     return;
   }
-  if (content::RenderFrameHost* frame = FrameWithToken(*frame_id)) {
-    contexts_[*id] = Context{frame->GetGlobalId(), frame->IsInPrimaryMainFrame()};
-    SendConfig(*id);
+  contexts_[*id] = Context{frame->GetGlobalId(), frame->IsInPrimaryMainFrame()};
+  SendConfig(*id);
+}
+
+void PageLinks::NoteReportForTest(const std::string& kind,
+                                  const std::string& url,
+                                  const std::string& outcome) {
+  if (!ardiacore::TestInstance()) {
+    return;
   }
+  base::DictValue report;
+  report.Set("kind", kind);
+  report.Set("url", url);
+  report.Set("outcome", outcome);
+  reports_for_test_.push_back(std::move(report));
+  if (reports_for_test_.size() > kReportsKeptForTest) {
+    reports_for_test_.erase(reports_for_test_.begin());
+  }
+}
+
+base::ListValue PageLinks::ReportsForTest() const {
+  base::ListValue reports;
+  for (const base::DictValue& report : reports_for_test_) {
+    reports.Append(report.Clone());
+  }
+  return reports;
 }
 
 void PageLinks::Call(const std::string& method,
@@ -565,19 +585,24 @@ void PageLinks::Heard(int context, const std::string& payload) {
       found == contexts_.end()
           ? nullptr
           : content::RenderFrameHost::FromID(found->second.frame);
-  if (!frame || !ScriptableDocument(frame)) {
-    return;
-  }
   std::optional<base::DictValue> message =
       base::JSONReader::ReadDict(payload, base::JSON_PARSE_RFC);
-  if (!message) {
+  const std::string* kind = message ? message->FindString("kind") : nullptr;
+  const base::DictValue* data = message ? message->FindDict("data") : nullptr;
+  const char* outcome = !kind || !data      ? "unreadable"
+                        : !frame            ? "from a context not tracked"
+                        : !ScriptableDocument(frame)
+                            ? "from a document not on http(s) or file"
+                            : "heard";
+  NoteReportForTest(kind ? *kind : std::string(),
+                    data ? Field(*data, "url", kLongestUrl) : std::string(),
+                    outcome);
+  if (std::string_view(outcome) != "heard") {
     return;
   }
-  const std::string* kind = message->FindString("kind");
-  const base::DictValue* data = message->FindDict("data");
-  if (kind && data && *kind == "peek") {
+  if (*kind == "peek") {
     PeekLink(*data, context, found->second.main);
-  } else if (kind && data && *kind == "newTabLink") {
+  } else if (*kind == "newTabLink") {
     NoteNewTabLink(*data);
   }
 }

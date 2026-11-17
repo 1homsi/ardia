@@ -47,6 +47,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   void RendererReady();
   bool TakeNewTabLink(const std::vector<GURL>& urls);
   int ScriptFrames() const { return static_cast<int>(contexts_.size()); }
+  base::ListValue ReportsForTest() const;
 
   void DispatchProtocolMessage(content::DevToolsAgentHost* agent_host,
                                base::span<const uint8_t> message) override;
@@ -75,6 +76,9 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   void RuntimeEnabled(std::optional<base::DictValue> answer);
   void AddScript(bool run_now);
   void SendConfig(int context);
+  void NoteReportForTest(const std::string& kind,
+                         const std::string& url,
+                         const std::string& outcome);
   void ScriptAdded(std::optional<base::DictValue> added);
   std::string SourceForNewDocuments();
   void ContextCreated(const base::DictValue& params);
@@ -107,6 +111,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   bool enabling_ = false;
   bool registering_ = false;
   std::vector<NewTabLink> new_tab_links_;
+  std::vector<base::DictValue> reports_for_test_;
   base::WeakPtrFactory<PageLinks> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

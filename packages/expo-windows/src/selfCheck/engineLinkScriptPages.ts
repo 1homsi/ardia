@@ -62,7 +62,12 @@ const pageChecks = (port: string): Check[] => [
           const tab = await opened;
           if (typeof (tab as { adopt?: unknown }).adopt === "string") await hostCall("tab.discard", { adopt: (tab as { adopt?: unknown }).adopt }).catch(() => null);
           const downs = await evaluate(page!, 'post("result", JSON.stringify(window.downs));');
-          expectEqual({ received: Number(downs) > 0, url: String(tab.url).endsWith("/b"), fromClick: tab.fromClick }, { received: true, url: true, fromClick: true }, "the click reached the sandboxed page and its link script saw it (fromClick)");
+          const links = await hostCall<{ scriptFrames?: unknown; reports?: unknown }>("tab.links", { key: page }).catch((error: unknown) => ({ error: String(error) }));
+          expectEqual(
+            { received: Number(downs) > 0, url: String(tab.url).endsWith("/b"), fromClick: tab.fromClick },
+            { received: true, url: true, fromClick: true },
+            `the click reached the sandboxed page and its link script saw it (fromClick); the opened tab's url ${JSON.stringify(tab.url)}, the engine's link script contexts and recent reports ${JSON.stringify(links)}`,
+          );
         },
         "links",
         LINKS_TITLE,
