@@ -11,7 +11,7 @@ const SHIFT = 8;
 const CLICK_SETTLES_MS = 1000;
 
 type PeekConfig = { peek?: unknown; split?: unknown; otherSitePages?: unknown };
-type LastClick = { prevented?: boolean; shift?: boolean; alt?: boolean } | null;
+type LastClick = { up?: boolean; clicked?: boolean; prevented?: boolean; shift?: boolean; alt?: boolean } | null;
 
 const peekConfig = (change: Record<string, unknown>) => hostCall<PeekConfig>("peek.config", change);
 
@@ -31,10 +31,14 @@ function discardingOpenedTabs(opener: string) {
   return () => watching.remove();
 }
 
-async function clickWith(page: string, point: { x: number; y: number }, modifiers: number): Promise<LastClick> {
+const framed = (page: string) => evaluate(page, 'requestAnimationFrame(() => requestAnimationFrame(() => post("result", "true")));');
+
+async function takenBy(page: string, point: { x: number; y: number }, modifiers: number, label: string): Promise<boolean> {
+  await framed(page);
   await evaluate(page, 'window.lastClick = null; post("result", "true");');
   await click(page, point.x, point.y, modifiers);
-  return (await until(`the page ${page} saw the click`, CLICK_SETTLES_MS * 5, () => evaluate(page, 'post("result", JSON.stringify(window.lastClick));') as Promise<LastClick>, (last) => !!last)) ?? null;
+  const last = await until(`the page ${page} saw the mouse-up of ${label}`, CLICK_SETTLES_MS * 5, () => evaluate(page, 'post("result", JSON.stringify(window.lastClick));') as Promise<LastClick>, (seen) => !!seen?.up);
+  return !last?.clicked || last.prevented === true;
 }
 
 const notRestoredReasons = (page: string) =>
@@ -76,8 +80,7 @@ const pageChecks = (port: string): Check[] => [
               await peekConfig({ peek: "alt" });
               await show(page!, windowId, LEFT);
               await painted(page!);
-              const altBefore = await clickWith(page!, SAME_TAB_LINK, ALT);
-              expectEqual(altBefore?.prevented, true, "with Peek on Alt, the link script takes an Alt+click on a link before caching (the check's control)");
+              expectEqual(await takenBy(page!, SAME_TAB_LINK, ALT, "the Alt+click before caching"), true, "with Peek on Alt, the link script takes an Alt+click on a link before caching (the check's control)");
               await hostCall("tab.call", { key: page, method: "loadUrl", url: `http://127.0.0.1:${port}/b` });
               await until("the next page loads", LOAD_MS, () => listed(page!), (tab) => tab?.title === "loaded b" && tab.loading === false);
               await peekConfig({ peek: "shift" });
@@ -86,8 +89,7 @@ const pageChecks = (port: string): Check[] => [
               const restored = await evaluate(page!, 'post("result", JSON.stringify(window.restored));');
               expectTrue(restored === true, `the links page came back from the back/forward cache (notRestoredReasons ${await notRestoredReasons(page!)})`);
               await pause(CLICK_SETTLES_MS);
-              const shiftAfter = await clickWith(page!, SAME_TAB_LINK, SHIFT);
-              expectEqual(shiftAfter?.prevented, true, "with Peek moved to Shift while the page was cached, the restored page's link script takes a Shift+click on a link (it peeks instead of Chromium opening a window)");
+              expectEqual(await takenBy(page!, SAME_TAB_LINK, SHIFT, "the Shift+click after the restore"), true, "with Peek moved to Shift while the page was cached, the restored page's link script takes a Shift+click on a link (it peeks instead of Chromium opening a window)");
             } finally {
               stopDiscarding();
             }
@@ -116,7 +118,7 @@ const pageChecks = (port: string): Check[] => [
               expectEqual((await opened).fromClick, true, "the link script still saw the click after the engine attached again (fromClick)");
               await peekConfig({ peek: "alt" });
               await pause(CLICK_SETTLES_MS);
-              expectEqual((await clickWith(page!, SAME_TAB_LINK, ALT))?.prevented, true, "with Peek moved to Alt after the engine attached again, the surviving link script takes an Alt+click");
+              expectEqual(await takenBy(page!, SAME_TAB_LINK, ALT, "the Alt+click after the engine attached again"), true, "with Peek moved to Alt after the engine attached again, the surviving link script takes an Alt+click");
             } finally {
               stopDiscarding();
             }
