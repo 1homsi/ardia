@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
@@ -11,6 +11,10 @@ const client = await import("./client.ts");
 const local = await import("./localStore.ts");
 const { recordLog } = await import("./logs.ts");
 client.startClient();
+after(() => {
+  client.setSharing(false, "settings");
+  local.flushLocal();
+});
 
 const queued = () => JSON.parse(stub.docs.get("telemetry-queue.json") ?? '{"events":[],"logs":[]}');
 const attributesOf = (log) => Object.fromEntries(log.attributes.map((a) => [a.key, a.value.stringValue]));
