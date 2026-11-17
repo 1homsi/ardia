@@ -40,6 +40,16 @@ final class ReadAloud: NSObject {
     perform(listening.toggleSpeaker())
   }
 
+  func voiceChanged() {
+    guard currentUtterance != nil else { return }
+    if synthesizer.isPaused {
+      synthesizer.stopSpeaking(at: .immediate)
+      spokenFraction = 0
+    } else if synthesizer.isSpeaking {
+      speakFromStart()
+    }
+  }
+
   func reset() {
     synthesizer.stopSpeaking(at: .immediate)
     currentUtterance = nil
@@ -81,7 +91,7 @@ final class ReadAloud: NSObject {
   private func speakFromStart() {
     synthesizer.stopSpeaking(at: .immediate)
     let utterance = AVSpeechUtterance(string: text)
-    utterance.voice = Self.bestVoice()
+    utterance.voice = ReadingVoices.current()
     utterance.prefersAssistiveTechnologySettings = true
     currentUtterance = utterance
     spokenFraction = 0
@@ -110,12 +120,6 @@ final class ReadAloud: NSObject {
         return false
       }
     }
-  }
-
-  static func bestVoice() -> AVSpeechSynthesisVoice? {
-    let language = AVSpeechSynthesisVoice.currentLanguageCode()
-    let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == language }
-    return voices.first { $0.quality == .premium } ?? voices.first { $0.quality == .enhanced } ?? AVSpeechSynthesisVoice(language: language)
   }
 
   private func utteranceEnded(_ utterance: AVSpeechUtterance) {

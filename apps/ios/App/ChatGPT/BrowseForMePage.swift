@@ -67,6 +67,15 @@ struct BrowseForMePage: View {
           } else if let model = account.model {
             LabeledContent("Model", value: model.displayName)
           }
+          if let model = account.model, !model.efforts.isEmpty {
+            Picker("Thinking", selection: Binding(get: { account.effort ?? "" }, set: { account.chooseEffort($0.isEmpty ? nil : $0) })) {
+              Text(model.defaultEffort.map { String(localized: "Automatic (\(ChatGPTEffort.name($0)))") } ?? String(localized: "Automatic")).tag("")
+              ForEach(model.efforts, id: \.self) { effort in
+                Text(ChatGPTEffort.name(effort)).tag(effort)
+              }
+            }
+            .tint(.secondary)
+          }
           Button("Check Usage") {
             app.sheet = nil
             app.openPage(ChatGPTAccount.usageURL, origin: .typed)
@@ -93,12 +102,13 @@ struct BrowseForMePage: View {
       }
 
       Section {
-        LabeledContent("Voice", value: VoiceChoice.current.name)
+        VoicePicker()
+          .tint(.secondary)
       } header: {
         Text("Reading Aloud")
       } footer: {
-        if !VoiceChoice.current.isNatural {
-          Text(VoiceChoice.downloadTip)
+        if !ReadingVoices.hasNaturalVoice {
+          Text(ReadingVoices.downloadTip)
         }
       }
     }
@@ -113,14 +123,16 @@ struct BrowseForMePage: View {
   }
 }
 
-struct VoiceChoice {
-  var name: String
-  var isNatural: Bool
-
-  static let downloadTip = String(localized: "For a more natural voice, download an Enhanced or Premium voice in Settings › Accessibility › Read & Speak › Voices. Ardia uses the best one you have.")
-
-  static var current: VoiceChoice {
-    guard let voice = ReadAloud.bestVoice() else { return VoiceChoice(name: String(localized: "System"), isNatural: false) }
-    return VoiceChoice(name: voice.name, isNatural: voice.quality != .default)
+enum ChatGPTEffort {
+  static func name(_ effort: String) -> String {
+    switch effort {
+    case "none": String(localized: "None")
+    case "minimal": String(localized: "Minimal")
+    case "low": String(localized: "Low")
+    case "medium": String(localized: "Medium")
+    case "high": String(localized: "High")
+    case "xhigh": String(localized: "Extra High")
+    default: effort.capitalized
+    }
   }
 }

@@ -27,6 +27,7 @@ final class ChatGPTAccount {
   var isConnected: Bool { connection != nil }
   var model: ChatGPTModel? { connection?.model }
   var models: [ChatGPTModel] { connection?.models ?? [] }
+  var effort: String? { connection?.effort }
   var accountLabel: String? { connection.map { $0.identity.email ?? $0.identity.name ?? String(localized: "ChatGPT account") } }
 
   static var issuer: URL {
@@ -46,6 +47,12 @@ final class ChatGPTAccount {
   func choose(_ model: ChatGPTModel) {
     guard var connection else { return }
     connection.chosenModel = model.slug
+    save(connection)
+  }
+
+  func chooseEffort(_ effort: String?) {
+    guard var connection else { return }
+    connection.chosenEffort = effort
     save(connection)
   }
 

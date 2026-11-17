@@ -154,7 +154,9 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   find panel, the search panel and the keyboard have left. Where the screen has a side inset on both sides (a phone
   on its side) the bar keeps the larger inset on both sides, so the address stays in the middle of the screen. The
   closed iPhone Duo puts the bar in a column instead (below).
-  Swipe the bar to switch tabs, swipe anywhere to go back. The bar's `···` button opens the page menu
+  Swipe the bar sideways to switch tabs and up to open the tab deck (`BrowseLayout.barSwipeUp`; the row has no tabs
+  button, the Duo's column keeps one), swipe anywhere to go back. Touching and holding the address lists Show Tabs,
+  the recent tabs and Close Tab (`RecentTabsMenu`), and VoiceOver gets Show Tabs as an action. The bar's `···` button opens the page menu
   (`ToolbarSheet`, parts in `App/Browsing/Menu`) on the system background: one glass capsule with back, forward,
   the title (tap to edit the search), pin and reload; three icon-only capsules for Reader, Copy Link (without
   trackers) and Share; then a plain list of words in groups, no icons: Find on Page, Send to (the Mac's name, or a
@@ -171,18 +173,19 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   Spotlight-style listings of every space use `allOpenTabs`. Switching space selects that space's most recent tab;
   opening a tab from another space (a sent tab, Reopen, the Archive) switches to its space first
   (`AppModel.showSpace(of:)`). With sync off every tab is in the one space. The whole app takes the space's colour
-  through `AppModel.look`. The switcher (`SpaceSwitcher`: the space's initial in a circle, or its symbol or emoji,
-  its name and a chevron) opens a menu of the spaces. `SpaceSwitcher`, `PinnedTiles` and `TabGridView` (in
+  through `AppModel.look`. The switcher (`SpaceSwitcher`: the space's symbol or emoji when it has one, its name and a
+  chevron; a space with no icon shows its name alone) opens a menu of the spaces. `SpaceSwitcher`, `PinnedTiles` and `TabGridView` (in
   `App/Spaces` and `App/Tabs`) take no screen width for granted, for a sidebar to reuse.
-- **Tabs.** An app-switcher deck of live snapshots of the current space; flick a card up to close it. Closing
-  archives; tabs left alone archive after a chosen interval (24 hours by default). Private tabs live in memory with
+- **Tabs.** An app-switcher deck of live snapshots of the current space; flick a card up to close it: the card leaves
+  upward at the flick's speed while the cards beside it close the gap in the same motion (`gaps` in
+  `TabSwitcherView`, `TabsMotion.flyAway`). Closing archives; tabs left alone archive after a chosen interval (24 hours by default). Private tabs live in memory with
   their own website data and show in every space, as dark cards titled Incognito. The header holds the space
   switcher and a round `···` menu (Archive, Spaces From Your Mac, New Incognito Tab, Reopen Closed Tab, Close All
   Tabs, Settings); with Incognito tabs open a black pill with the eyeglasses and their count sits beside it and
   offers Close Incognito Tabs. Under the header, once a space holds eight tabs, the "Archive inactive tabs" card
-  picks the interval until it is dismissed with × or a choice. The bottom bar holds a grid button (the deck as a
-  scrolling grid, remembered), a Search Tabs field that filters the cards by title and address and rises with the
-  keyboard, and a round plus. A tab sent from a Mac carries a From Your Mac badge until it is first opened, and sits
+  picks the interval until it is dismissed with × or a choice. The bottom bar holds a Search Tabs field that filters the cards by title and address and rises with the
+  keyboard, and a round plus. Settings › Appearance › Tabs picks the stack (the default) or a scrolling grid
+  (`TabDeckModel.isGrid`). A tab sent from a Mac carries a From Your Mac badge until it is first opened, and sits
   last in the deck until then. A card's menu has Copy Link, Share, Send to a device, Pin to Mac, Move to Space and
   Close Tab. The Mac's pinned tiles, rows and groups and its open tabs are in Spaces From Your Mac, a sheet with the
   switcher as its title and page dots at the bottom. A sent tab announces itself with a glass toast naming the
@@ -201,7 +204,7 @@ sizes, copy), on Apple's controls, in the Mac's colours:
     are measured from the status items). The page, the deck and the start screen get the whole safe width beside the
     strip. While reading (`BottomBar` `Arrangement.column`) the column is tabs, the site (its favicon, the Incognito
     eyeglasses or a warning for Not Secure; tap to edit the address), `···` (the page menu) and plus; it never
-    collapses. In the deck (`DeckColumn`) it holds the grid button, Search Tabs (the field floats across the cards
+    collapses. In the deck (`DeckColumn`) it holds Search Tabs (the field floats across the cards
     beside it), `···` (the deck's menu, which leaves the header) and plus. On the start screen (`StartBar`) it holds
     tabs, plus and Settings, and the space dots drop to where the bar's row sits on an iPhone. Search, the page menu,
     Settings and onboarding keep the iPhone layout.
@@ -223,15 +226,15 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   converted on device, and a reject-all script for consent platforms; off per site from the page menu.
 - **Browse for Me.** Arc Search's answer page, written on the iPhone (`App/Research`, logic in
   `ArdiaBrowser/Research`). Typing a search (not an address or a bang) adds a Browse for Me row under the typed
-  query, and voice search has a Browse for Me button. It loads DuckDuckGo's HTML results in a hidden web view with a
-  throwaway data store, keeps the first five readable pages (one per site, no video or social sites), reads three at
-  a time with the Reader's extraction (8 s each), then asks Apple Intelligence (`SystemLanguageModel`, Foundation
+  query, and voice search has a Browse for Me button. It fetches DuckDuckGo's HTML results with a plain request (DuckDuckGo
+  shows WebKit a bot check), keeps the first five readable pages (one per site, no video or social sites), reads
+  three at a time in a hidden web view with a throwaway data store and the Reader's extraction (8 s each), then asks Apple Intelligence (`SystemLanguageModel`, Foundation
   Models) for a short answer with `[n]` citations, the pages' most relevant paragraphs cut to fit the model's
   context. Without Apple Intelligence (an older iPhone, turned off, still downloading) or when the model refuses, the
   answer is the pages' most relevant sentences, cited, and the page says why. Nothing is saved to history, and
   Incognito changes nothing. The sources sit in a row above the answer and open as normal tabs.
   - **Hold to your ear.** While the page is open the proximity sensor is on. Raising the phone to the ear reads the
-    answer (citations and markup stripped) through the earpiece with the best installed voice, and lowering it pauses;
+    answer (citations and markup stripped) through the earpiece, and lowering it pauses;
     raising it again resumes, and after the end starts over. Holding it up before the answer is ready starts it when
     it is. The speaker button plays it out loud, and raising the phone moves that to the earpiece. The rules are
     `EarListening` (tested); the earpiece needs the `.playAndRecord` session, so the microphone prompt can appear
@@ -249,8 +252,12 @@ sizes, copy), on Apple's controls, in the Mac's colours:
     time, and a rotated refresh token is saved before anything else. Answers stream from `POST /v1/responses` with exactly
     `model`, `instructions`, `input`, `store: false` and `stream: true`, and count only on `response.completed`. Any
     failure (limit reached, not eligible, network, a stream cut short) drops the partial text and Apple Intelligence
-    writes the answer, with the reason in the note. Voice stays Apple's: plan usage covers no audio, so the page and
-    settings suggest downloading an Enhanced or Premium voice. Disconnect waits for a refresh in flight, then revokes the latest refresh token and says so when OpenAI doesn't
+    writes the answer, with the reason in the note. Voice stays Apple's: plan usage covers no audio. The voice is the best one installed
+    for the phone's language family (`VoiceRanking`: Premium, then Enhanced, the phone's own region first), or the one
+    picked in Settings › Browse for Me › Voice (`ReadingVoices`, `VoicePicker`); iOS has no way for an app to download
+    a voice, so while none is natural the page and settings say where to download one, and the page's tip carries the
+    same picker. A model that lists thinking levels in the catalog (`supported_reasoning_levels`) gets a Thinking
+    picker, sent as `reasoning.effort`; Automatic sends nothing. Disconnect waits for a refresh in flight, then revokes the latest refresh token and says so when OpenAI doesn't
     confirm it. Debug builds take
     `-ArdiaChatGPTIssuer <url>` and `-ArdiaChatGPTAPI <url>` to point at a fake server.
   - **Testing without a sensor.** The simulator has no proximity sensor, so `ProximityFeed` takes fake values two

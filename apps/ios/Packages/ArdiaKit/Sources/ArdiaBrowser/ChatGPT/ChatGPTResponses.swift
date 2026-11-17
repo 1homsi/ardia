@@ -3,12 +3,28 @@ import Foundation
 public struct ChatGPTModel: Equatable, Hashable, Sendable, Codable, Identifiable {
   public var slug: String
   public var displayName: String
+  public var efforts: [String]
+  public var defaultEffort: String?
 
   public var id: String { slug }
 
-  public init(slug: String, displayName: String) {
+  public init(slug: String, displayName: String, efforts: [String] = [], defaultEffort: String? = nil) {
     self.slug = slug
     self.displayName = displayName
+    self.efforts = efforts
+    self.defaultEffort = defaultEffort
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    slug = try container.decode(String.self, forKey: .slug)
+    displayName = try container.decode(String.self, forKey: .displayName)
+    efforts = try container.decodeIfPresent([String].self, forKey: .efforts) ?? []
+    defaultEffort = try container.decodeIfPresent(String.self, forKey: .defaultEffort)
+  }
+
+  static func isEffort(_ value: String) -> Bool {
+    !value.isEmpty && value.count <= 20 && value.allSatisfy { $0.isASCII && ($0.isLowercase || $0 == "_") }
   }
 
   public static func catalog(_ data: Data) throws(ChatGPTFailure) -> [ChatGPTModel] {
@@ -18,7 +34,10 @@ public struct ChatGPTModel: Equatable, Hashable, Sendable, Codable, Identifiable
         guard model["visibility"] as? String == "list",
               let slug = (model["slug"] as? String)?.trimmingCharacters(in: .whitespaces), !slug.isEmpty, slug.count <= 200 else { return nil }
         let name = (model["display_name"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
-        return ChatGPTModel(slug: slug, displayName: name.isEmpty ? slug : String(name.prefix(200)))
+        let levels = (model["supported_reasoning_levels"] as? [[String: Any]] ?? []).compactMap { $0["effort"] as? String }.filter(isEffort)
+        let efforts = Array(levels.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }.prefix(8))
+        let usual = (model["default_reasoning_level"] as? String).flatMap { efforts.contains($0) ? $0 : nil }
+        return ChatGPTModel(slug: slug, displayName: name.isEmpty ? slug : String(name.prefix(200)), efforts: efforts, defaultEffort: usual)
       }
     }
     if let models = object["data"] as? [[String: Any]] {
@@ -32,14 +51,15 @@ public struct ChatGPTModel: Equatable, Hashable, Sendable, Codable, Identifiable
 }
 
 public enum ChatGPTResponses {
-  public static func body(model: String, instructions: String, prompt: String) -> Data {
-    let object: [String: Any] = [
+  public static func body(model: String, instructions: String, prompt: String, effort: String? = nil) -> Data {
+    var object: [String: Any] = [
       "model": model,
       "instructions": instructions,
       "input": [["role": "user", "content": prompt]],
       "store": false,
       "stream": true,
     ]
+    if let effort { object["reasoning"] = ["effort": effort] }
     return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
   }
 

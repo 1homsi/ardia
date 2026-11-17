@@ -28,7 +28,7 @@ extension ChatGPTAccount {
     request.setValue("Bearer \(connection.tokens.accessToken)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-    request.httpBody = ChatGPTResponses.body(model: model.slug, instructions: instructions, prompt: prompt)
+    request.httpBody = ChatGPTResponses.body(model: model.slug, instructions: instructions, prompt: prompt, effort: connection.effort)
     let bytes: URLSession.AsyncBytes
     let status: Int
     do {

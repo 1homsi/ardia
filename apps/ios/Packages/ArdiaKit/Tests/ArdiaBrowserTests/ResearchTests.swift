@@ -167,4 +167,22 @@ import Testing
     let source = ResearchSource(id: 1, url: URL(string: "https://a.test")!, title: "A", siteName: "a.test", paragraphs: ["Short.", "Tiny."])
     #expect(ResearchDigest.extractiveAnswer(query: "anything", sources: [source]) == "- Short. [1]")
   }
+
+  @Test func readingVoicePrefersNaturalVoicesOfTheSameLanguageFamily() {
+    let voices = [
+      VoiceCandidate(id: "samantha", name: "Samantha", language: "en-US", quality: .standard),
+      VoiceCandidate(id: "daniel", name: "Daniel (Enhanced)", language: "en-GB", quality: .enhanced),
+      VoiceCandidate(id: "ava", name: "Ava (Premium)", language: "en-US", quality: .premium),
+      VoiceCandidate(id: "zoe", name: "Zoe (Premium)", language: "en-GB", quality: .premium),
+      VoiceCandidate(id: "karen", name: "Karen", language: "en-AU", quality: .standard),
+      VoiceCandidate(id: "amelie", name: "Amélie (Premium)", language: "fr-CA", quality: .premium),
+    ]
+    let choices = VoiceRanking.choices(from: voices, language: "en-US")
+    #expect(choices.map(\.id) == ["ava", "zoe", "daniel", "samantha", "karen"])
+    #expect(VoiceRanking.best(among: choices)?.id == "ava")
+    let plain = VoiceRanking.choices(from: voices.filter { !$0.isNatural }, language: "en-US")
+    #expect(plain.map(\.id) == ["samantha", "karen"])
+    #expect(VoiceRanking.best(among: plain) == nil)
+    #expect(VoiceRanking.choices(from: voices, language: "en-IN").map(\.id) == ["ava", "zoe", "daniel", "karen", "samantha"])
+  }
 }

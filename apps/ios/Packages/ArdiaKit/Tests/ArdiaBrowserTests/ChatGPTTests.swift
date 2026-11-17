@@ -255,4 +255,15 @@ import Testing
     #expect(try ChatGPTModel.catalog(data) == [ChatGPTModel(slug: "gpt-a", displayName: "GPT A")])
     #expect(try ChatGPTModel.catalog(Data(#"{"data":[{"id":"gpt-b"}]}"#.utf8)) == [ChatGPTModel(slug: "gpt-b", displayName: "gpt-b")])
   }
+
+  @Test func catalogKeepsThinkingLevelsAndTheRequestSendsTheChosenOne() throws {
+    let data = Data(#"{"models":[{"slug":"gpt-a","display_name":"GPT A","visibility":"list","default_reasoning_level":"medium","supported_reasoning_levels":[{"effort":"low"},{"effort":"medium"},{"effort":"medium"},{"effort":"Not One"},{"effort":"high","description":"Slower"}]}]}"#.utf8)
+    let model = try #require(try ChatGPTModel.catalog(data).first)
+    #expect(model.efforts == ["low", "medium", "high"])
+    #expect(model.defaultEffort == "medium")
+    let saved = try JSONDecoder().decode(ChatGPTModel.self, from: Data(#"{"slug":"gpt-a","displayName":"GPT A"}"#.utf8))
+    #expect(saved == ChatGPTModel(slug: "gpt-a", displayName: "GPT A"))
+    let body = try #require(try JSONSerialization.jsonObject(with: ChatGPTResponses.body(model: "gpt-a", instructions: "", prompt: "Q", effort: "high")) as? [String: Any])
+    #expect(body["reasoning"] as? [String: String] == ["effort": "high"])
+  }
 }

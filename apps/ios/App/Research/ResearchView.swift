@@ -261,7 +261,7 @@ struct ResearchView: View {
   }
 
   private var showsVoiceTip: Bool {
-    !voiceTipDismissed && !VoiceChoice.current.isNatural
+    !voiceTipDismissed && !ReadingVoices.hasNaturalVoice
   }
 
   private var voiceTip: some View {
@@ -269,9 +269,15 @@ struct ResearchView: View {
       Image(systemName: "waveform")
         .foregroundStyle(.tint)
         .accessibilityHidden(true)
-      Text(VoiceChoice.downloadTip)
-        .font(.footnote)
-        .frame(maxWidth: .infinity, alignment: .leading)
+      VStack(alignment: .leading, spacing: Spacing.hairline) {
+        Text(ReadingVoices.downloadTip)
+          .font(.footnote)
+        VoicePicker { readAloud.voiceChanged() }
+          .pickerStyle(.menu)
+          .labelsHidden()
+          .padding(.leading, -12)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
       Button {
         voiceTipDismissed = true
       } label: {
