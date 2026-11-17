@@ -192,3 +192,29 @@ test("a page rect off the window or not finite is reported hidden", () => {
   assert.deepEqual(tabViewport({ x: Number.NaN, y: 0, width: 1, height: 1 }, size, true), { rect: { x: 0, y: 0, width: 0, height: 0 }, visible: false });
   assert.equal(tabViewport({ x: 10, y: 10, width: 100, height: 100 }, size, false).visible, false);
 });
+
+test("a page that stops drawing because shell UI covers it is reported once, and a page the app hides is not", async () => {
+  const { watchPageBelowShell } = await import("./shims/web/HostWebView.tsx");
+  const page = { isConnected: true, parentElement: null, getBoundingClientRect: () => box(200, 50, 800, 600), contains: () => false };
+  const toolbar = {};
+  let hit = page;
+  const s = stage({ elementFromPoint: () => hit });
+  try {
+    let wanted = true;
+    let covered = 0;
+    const regions = { setPage() {}, refresh() {}, dropPage() {}, ...cover() };
+    const stop = watchPageBelowShell(page, regions, () => wanted, () => null, undefined, () => covered++);
+    hit = toolbar;
+    s.mutate();
+    s.mutate();
+    assert.equal(covered, 1);
+    hit = page;
+    s.mutate();
+    wanted = false;
+    s.mutate();
+    assert.equal(covered, 1);
+    stop();
+  } finally {
+    s.restore();
+  }
+});
