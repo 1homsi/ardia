@@ -1,6 +1,6 @@
 import { breadcrumb } from "@ardia/core";
 import { Button, WindowBackdrop, ink, PageCoverGate, Panel, PinchArea, pinchFollow, pinchSettle, reduceMotion, reduceMotionKnown, type PinchMotion } from "../ui";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
@@ -40,10 +40,41 @@ function peekButtonList(windowId: string, splitFull: boolean): SmallBarButton[] 
   ];
 }
 
-function expandedCorners(expand: Animated.Value, windowRadius: number, browserRadius: number, grownBy: number) {
-  const grown = expand.interpolate({ inputRange: [0, 1], outputRange: [1, grownBy] });
+type PeekGeometry = {
+  fade: boolean;
+  width: number;
+  height: number;
+  frame: ReturnType<typeof peekFrame>;
+  from: { x: number; y: number };
+  windowRadius: number;
+  browserRadius: number;
+};
+
+function peekMotion(progress: Animated.Value, expand: Animated.Value, { fade, width, height, frame, from, windowRadius, browserRadius }: PeekGeometry) {
+  const dim = Animated.multiply(progress, expand.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
+  if (fade) {
+    const corners = { window: windowRadius, rim: windowRadius + StyleSheet.hairlineWidth, page: browserRadius };
+    return { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, corners, cardOpacity: progress, dim };
+  }
+  const centerX = frame.left + frame.width / 2;
+  const centerY = frame.top + frame.height / 2;
+  const grownX = width / Math.max(frame.width, 1);
+  const grownY = height / Math.max(frame.height, 1);
+  const opened = progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] });
+  const grown = expand.interpolate({ inputRange: [0, 1], outputRange: [1, (grownX + grownY) / 2] });
   const window = Animated.divide(expand.interpolate({ inputRange: [0, 1], outputRange: [windowRadius, browserRadius] }), grown);
-  return { window, rim: Animated.add(window, StyleSheet.hairlineWidth), page: Animated.divide(browserRadius, grown) };
+  return {
+    scaleX: Animated.multiply(opened, expand.interpolate({ inputRange: [0, 1], outputRange: [1, grownX] })),
+    scaleY: Animated.multiply(opened, expand.interpolate({ inputRange: [0, 1], outputRange: [1, grownY] })),
+    translateX: Animated.add(
+      progress.interpolate({ inputRange: [0, 1], outputRange: [from.x - centerX, 0] }),
+      expand.interpolate({ inputRange: [0, 1], outputRange: [0, width / 2 - centerX] }),
+    ),
+    translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [from.y - centerY, 0] }),
+    corners: { window, rim: Animated.add(window, StyleSheet.hairlineWidth), page: Animated.divide(browserRadius, grown) },
+    cardOpacity: progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] }),
+    dim,
+  };
 }
 
 export function PeekOverlay({
@@ -186,28 +217,11 @@ function PeekCard({
     },
   };
 
-  const scaleX = fade
-    ? 1
-    : Animated.multiply(
-        progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }),
-        expand.interpolate({ inputRange: [0, 1], outputRange: [1, width / Math.max(frame.width, 1)] }),
-      );
-  const scaleY = fade
-    ? 1
-    : Animated.multiply(
-        progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }),
-        expand.interpolate({ inputRange: [0, 1], outputRange: [1, height / Math.max(frame.height, 1)] }),
-      );
-  const translateX = fade
-    ? 0
-    : Animated.add(
-        progress.interpolate({ inputRange: [0, 1], outputRange: [fromX - centerX, 0] }),
-        expand.interpolate({ inputRange: [0, 1], outputRange: [0, width / 2 - centerX] }),
-      );
-  const translateY = fade ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [fromY - centerY, 0] });
-  const corners = expandedCorners(expand, smallWindowRadius(), card.radius, (width / Math.max(frame.width, 1) + height / Math.max(frame.height, 1)) / 2);
-  const cardOpacity = fade ? progress : progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] });
-  const dim = Animated.multiply(progress, expand.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }));
+  const windowRadius = smallWindowRadius();
+  const { scaleX, scaleY, translateX, translateY, corners, cardOpacity, dim } = useMemo(
+    () => peekMotion(progress, expand, { fade, width, height, frame, from: { x: fromX, y: fromY }, windowRadius, browserRadius: card.radius }),
+    [fade, width, height, frame.left, frame.top, frame.width, frame.height, fromX, fromY, windowRadius, card.radius],
+  );
 
   const overlay = (
     <View style={[StyleSheet.absoluteFill, !shown && { opacity: 0 }]} pointerEvents={motion && shown ? "box-none" : "none"}>

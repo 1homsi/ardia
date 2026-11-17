@@ -21,7 +21,6 @@ import { closeLittleArdia, openInMainWindow, openLittleArdiaProfileMenu } from "
 import { isWindowClosing } from "../../state/windows/closeAnimated";
 import { notePinch, noteSwipeClose } from "../../state/telemetry/usage";
 import { SwipeCloseContext } from "../window/swipeClose";
-import { CardBottomCorners, zoomedCardCorner } from "../window/cardCorners";
 import { useCardFrame } from "../window/cardFrame";
 import { startLittleArdiaNewTabLinks } from "../../state/littleArdia/newTabLinks";
 import { PageLabel, SMALL_BAR_BUTTON, SmallBar } from "./SmallChrome";
@@ -39,6 +38,7 @@ const NAV_HIT = perLook(() => ({ width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTT
 const BACK_AT = perLook(() => ({ style: { position: "absolute" as const, top: BAR.buttonTop, left: BAR.navLeft }, hit: NAV_HIT() }));
 const FORWARD_AT = perLook(() => ({ style: { position: "absolute" as const, top: BAR.buttonTop, left: BAR.navLeft + BAR.navPitch }, hit: NAV_HIT() }));
 const alreadyFocused = () => {};
+const SPREAD_STARTS = 0.0001;
 
 export function LittleArdiaWindow() {
   const theme = useTheme();
@@ -50,25 +50,30 @@ export function LittleArdiaWindow() {
   const gestures = useSettings((s) => s.littleWindowGestures) && !fullScreen;
   const pinch = useLittleArdiaPinch(windowId);
   const swipe = useLittleArdiaSwipeClose(windowId);
-  const bottomCorners = useMemo(
-    () => zoomedCardCorner(pinch.scale, { ...size, inset: frame, cardRadius, windowRadius: windowCornerRadius() }),
-    [pinch.scale, size.width, size.height, frame, cardRadius],
+  const windowRadius = windowCornerRadius();
+  const headroom = Math.min(BAR.height, windowRadius);
+  const corner = useMemo(
+    () => zoomedCorner(pinch.scale, { ...size, inset: frame, cardRadius, windowRadius }),
+    [pinch.scale, size.width, size.height, frame, cardRadius, windowRadius],
   );
   useEffect(startLittleArdiaNewTabLinks, []);
   return (
-    <View style={{ flex: 1 }} onLayout={(e) => {
+    <View
+      style={{ flex: 1 }}
+      onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
         setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
-      }}>
+      }}
+    >
       <Animated.View style={{ ...StyleSheet.absoluteFillObject, opacity: swipe.opacity, transform: [{ translateX: swipe.x }] }}>
         <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
         <PinchArea enabled={gestures} motion={pinch.motion} style={StyleSheet.absoluteFill}>
           <Animated.View style={{ flex: 1, transform: [{ scale: pinch.scale }] }}>
             <SwipeCloseContext.Provider value={gestures ? swipe.onSwipe : null}>
-              <View style={{ flex: 1, flexDirection: "row", paddingTop: BAR.height, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
-                <CardBottomCorners.Provider value={bottomCorners}>
+              <View style={{ flex: 1, flexDirection: "row", paddingTop: BAR.height - headroom, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
+                <Animated.View pointerEvents="box-none" style={{ flex: 1, flexDirection: "row", paddingTop: headroom, ...(corner ? { borderRadius: corner, overflow: "hidden" } : null) }}>
                   <ContentCard />
-                </CardBottomCorners.Provider>
+                </Animated.View>
               </View>
             </SwipeCloseContext.Provider>
             <View style={{ position: "absolute", left: 0, right: 0, top: 0 }}>
@@ -83,6 +88,13 @@ export function LittleArdiaWindow() {
       <BrowserWindowControls />
     </View>
   );
+}
+
+function zoomedCorner(scale: Animated.Value, { width, height, inset, cardRadius, windowRadius }: { width: number; height: number; inset: number; cardRadius: number; windowRadius: number }) {
+  if (inset <= 0 || width <= 0 || height <= 0) return null;
+  const spreading = 1 + SPREAD_STARTS;
+  const touchesEdge = Math.max(1 + (2 * inset) / Math.max(width, height), spreading + SPREAD_STARTS);
+  return Animated.divide(scale.interpolate({ inputRange: [1, spreading, touchesEdge], outputRange: [0, cardRadius, windowRadius], extrapolate: "clamp" }), scale);
 }
 
 function useLittleArdiaPinch(windowId: string) {
