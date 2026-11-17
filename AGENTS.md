@@ -81,8 +81,7 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   profiles when they help reproduce a bug. Copy what you need into a scratch dir and point a hidden instance's
   `ARDIA_DATA_DIR` at the copy; never write to the live profile or open it in a running app.
 - **No AI features.** This is the owner's decision. Dia's AI rows in `docs/dia-feature-parity.md`
-  stay ⏸. The one exception is the iPhone's Browse for Me (`docs/ios.md`), which runs on Apple's on-device
-  model, or on the user's own ChatGPT plan when they connect it, with no account and no server of ours.
+  stay ⏸.
 
 ## Platforms
 One browser UI (`apps/browser/src` and `packages/*/src`) runs on three platforms, each with its own native layer and
@@ -219,7 +218,7 @@ app (`docs/windows.md`), and `apps/linux` the Linux UI with `scripts/linux` for 
 the Windows packaging, checks and engine build. The native Expo modules are in `packages/{ardiacore,shell,shaders,import,sync}`; `engine/chromium` is our Chrome-services code (the `ac_*` C calls) and `engine/ardiacore` ArdiaCore's window and tab layer
 (`engine/ardiacore-linux` on Linux),
 and `packages/core` holds the omnibox logic and its tests. `packages/demo` is the app on the web (the site's demo).
-`apps/cli` is the `ardia` command, `apps/ios` the iPhone app and `apps/dashboard` the telemetry and triage dashboard.
+`apps/cli` is the `ardia` command, `apps/phone` the Expo app for iPhone and Android (its native module is `packages/phone`; `docs/phone.md`) and `apps/dashboard` the telemetry and triage dashboard.
 `apps/site` is ardia.dev and `apps/videos` holds the Remotion videos. `infra/` holds each service's deploy setup and
 `extras/` the add-ons (the Raycast extension). Ardia's own source files are Apache-2.0; the app as distributed is
 GPL-3.0, because its engine carries Helium's patches (`NOTICE`).
