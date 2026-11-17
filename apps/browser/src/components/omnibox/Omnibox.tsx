@@ -35,6 +35,8 @@ import { ADD_CHIP, BAR } from "./tokens";
 import { useBarItems } from "./useBarItems";
 import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
+import { markNewTabBar } from "../../state/omnibox/newTabMarks";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
 import { usePreviewSelection } from "./usePreviewSelection";
 
 export { PANEL_TEXT_LEFT } from "./tokens";
@@ -220,7 +222,11 @@ export function Omnibox({
     focusField();
   };
 
-  useLayoutEffect(() => journeyBarCommitted(tabId), []);
+  useLayoutEffect(() => {
+    journeyBarCommitted(tabId);
+    if (hero) markNewTabBar("committed", tabId);
+    if (hero && PLATFORM_FEATURES.newTabBarFirst) input.current?.focus();
+  }, []);
   useLayoutEffect(() => {
     if (items.length) journeySuggestions(tabId);
   }, [items]);
@@ -248,6 +254,7 @@ export function Omnibox({
     focusEcho.current = false;
     keyAt.current = Date.now();
     journeyKeystroke(tabId);
+    if (hero) markNewTabBar("typed", tabId);
     const bySpace = scope ? null : keywordBySpace(previewing ? value : typed, next);
     const keyword = bySpace ? keywordScope(bySpace.keyword, windowId) : null;
     if (bySpace && keyword) return dispatch({ kind: "enteredScope", scope: keyword, from: bySpace.from });
@@ -302,15 +309,8 @@ export function Omnibox({
       }}
       onChangeText={onChangeText}
       onSubmitEditing={() => choose(current, "current", true)}
-      onFocus={() => {
-        editing.current = true;
-        setListAway(false);
-      }}
-      onBlur={() => {
-        editing.current = false;
-        focusEcho.current = false;
-        onCancel?.();
-      }}
+      onFocus={() => ((editing.current = true), setListAway(false), hero && markNewTabBar("focused", tabId))}
+      onBlur={() => ((editing.current = false), (focusEcho.current = false), onCancel?.())}
       keyDownEvents={barKeyDownEvents(asksForBackspace(scope), isRemovable(current))}
       onKeyDown={onKeyDown}
     />
