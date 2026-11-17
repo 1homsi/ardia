@@ -13,7 +13,7 @@ import { Favicon } from "../favicon/Favicon";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { useArtwork } from "../../state/media/artwork";
-import { sidebarPlayerOpenCounter } from "../../state/telemetry/mediaCardCounts";
+import { noteSidebarPlayerFromOtherProfile, sidebarPlayerOpenCounter } from "../../state/telemetry/mediaCardCounts";
 import {
   dismissPlayer,
   formatTime,
@@ -78,13 +78,18 @@ export function usePlayerMotion(): PlayerMotion {
   return motion;
 }
 
-export function useSidebarPlayerTab(windowId: string, profileId: string): string | undefined {
+export function useSidebarPlayerTab(windowId: string, profileId: string, current: boolean): string | undefined {
   const sessions = useMedia(useShallow((m) => Object.keys(m.sessions)));
   const hidden = useHiddenPlayerTabs(windowId, profileId, sessions);
   const candidates = useMedia(useShallow((m) => sidebarPlayerCandidates(m, hidden)));
   const shown = useRef<string | undefined>(undefined);
   shown.current = useMedia((m) => playerTabFor(m, candidates, shown.current));
-  return shown.current;
+  const tabId = shown.current;
+  const fromOtherProfile = useTab(tabId, (tab) => !!tab && tab.profileId !== profileId);
+  useEffect(() => {
+    if (current && fromOtherProfile) noteSidebarPlayerFromOtherProfile();
+  }, [current, fromOtherProfile, tabId]);
+  return tabId;
 }
 
 const isLive = (session: Session) => session.duration === null;

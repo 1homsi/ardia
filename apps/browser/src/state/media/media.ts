@@ -83,10 +83,11 @@ function applyNowPlaying(tabId: string, state: NowPlaying | null) {
 }
 
 function pausedPeers(sessions: Store["sessions"], tabId: string): string[] {
-  const tabs = useBrowser.getState().tabs;
-  const tab = tabs[tabId];
+  const s = useBrowser.getState();
+  const tab = s.tabs[tabId];
   if (!tab) return [];
-  return Object.keys(sessions).filter((id) => id !== tabId && !isPlaying(sessions[id]) && tabs[id]?.windowId === tab.windowId && tabs[id]?.profileId === tab.profileId);
+  const across = s.settings.playingNowAcrossProfiles;
+  return Object.keys(sessions).filter((id) => id !== tabId && !isPlaying(sessions[id]) && s.tabs[id]?.windowId === tab.windowId && (across || s.tabs[id]?.profileId === tab.profileId));
 }
 
 const isControllablyPlaying = (state: NowPlaying) => state.controllable && state.playbackState === "playing";
@@ -216,7 +217,8 @@ export function hasPlayer(m: Pick<Store, "sessions" | "dismissed">, tabId: strin
 
 function isHiddenPlayerTab(s: BrowserState, tabId: string): boolean {
   const tab = s.tabs[tabId];
-  return !!tab && !!s.windows[tab.windowId] && !isTabShown(s, tabId, tab.profileId);
+  const w = tab && s.windows[tab.windowId];
+  return !!w && !isTabShown(s, tabId, s.settings.playingNowAcrossProfiles ? w.profileId : tab.profileId);
 }
 
 let hiddenBefore = new Set<string>();
@@ -324,7 +326,8 @@ const NO_HIDDEN: string[] = [];
 export function hiddenPlayerTabs(s: BrowserState, windowId: string, profileId: string, sessions: string[]): string[] {
   const w = s.windows[windowId];
   if (!sessions.length || !w) return NO_HIDDEN;
-  const ids = sessions.filter((id) => s.tabs[id]?.windowId === windowId && s.tabs[id]!.profileId === profileId && isHiddenPlayerTab(s, id));
+  const across = s.settings.playingNowAcrossProfiles;
+  const ids = sessions.filter((id) => s.tabs[id]?.windowId === windowId && (across || s.tabs[id]!.profileId === profileId) && isHiddenPlayerTab(s, id));
   return ids.length > 1 ? ids.sort((a, b) => w.tabIds.indexOf(a) - w.tabIds.indexOf(b)) : ids;
 }
 
