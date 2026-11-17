@@ -51,6 +51,7 @@ import { takeWindowPlacementCounts } from "./windowPlacementCounts";
 import { takeSidebarResizeCounts } from "./sidebarResizeCounts";
 import { takeBookmarkletCounts } from "./bookmarkletCounts";
 import { takeWorkCounts } from "./workCounts";
+import { watchPopupProtectedMedia } from "./popupProtectedMedia";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000, FIRST_SETTINGS_SNAPSHOT_MS = 2 * 60_000;
@@ -368,6 +369,7 @@ export function startUsage(continuing = false) {
   watchTranslate();
   watchExtensions();
   watchHoverLost();
+  watchPopupProtectedMedia();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
