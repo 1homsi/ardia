@@ -64,6 +64,7 @@ const importerReplacements = new Map([
   [`${here("../browser/src/state/app/appMenu.ts")}\0${here("../browser/src/components/window/BrowserWindowControls.tsx")}`, here("./src/clusterAppMenu.ts")],
   [`${here("../browser/src/state/windows/layout.ts")}\0${here("../browser/src/components/sidebar/Sidebar.tsx")}`, here("./src/sidebarHeaderLayout.ts")],
   [`${here("../browser/src/state/windows/layout.ts")}\0${here("../browser/src/components/downloads/Downloads.tsx")}`, here("./src/sidebarHeaderLayout.ts")],
+  [`${here("../browser/src/state/windows/layout.ts")}\0${here("../browser/src/components/sidebar/AddressBar.tsx")}`, here("./src/sidebarHeaderLayout.ts")],
 ]);
 const siteMeadow = here("../site/src/scripts/meadow/");
 const SITE_MEADOW_TSCONFIG = JSON.stringify({ compilerOptions: { target: "ESNext", verbatimModuleSyntax: true, strict: true } });

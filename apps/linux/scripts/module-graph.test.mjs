@@ -111,7 +111,7 @@ test("production graph uses current Linux adapters and one canonical shared stat
   assert.ok(sharedControls.importedIds.includes(`${linux}captionControls.ts`) && !sharedControls.importedIds.includes(`${browser}state/windows/controls.ts`), "Close goes to the Linux close coordinator once");
   const controls = graph.get(`${browser}components/window/BrowserWindowControls.tsx`).importedIds;
   assert.ok(controls.includes(`${linux}clusterAppMenu.ts`) && !controls.includes(`${browser}state/app/appMenu.ts`), "the … beside the window buttons opens Linux's full app menu");
-  for (const importer of ["components/sidebar/Sidebar.tsx", "components/downloads/Downloads.tsx"]) {
+  for (const importer of ["components/sidebar/Sidebar.tsx", "components/downloads/Downloads.tsx", "components/sidebar/AddressBar.tsx"]) {
     const imported = graph.get(`${browser}${importer}`).importedIds;
     assert.ok(imported.includes(`${linux}sidebarHeaderLayout.ts`) && !imported.includes(`${browser}state/windows/layout.ts`), `${importer} keeps the header, and its menu, whenever the window buttons are hidden`);
   }

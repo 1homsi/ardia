@@ -24,7 +24,11 @@ export function createClusterMenu({ target, open, shown, dismiss, focused, visib
   let pressed: Element | null = null;
   let openAtPress = false;
   target?.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0) {
+      pressed = null;
+      openAtPress = false;
+      return;
+    }
     pressed = menuButtonOf(event.target);
     openAtPress = !!pressed && shown();
   }, true);

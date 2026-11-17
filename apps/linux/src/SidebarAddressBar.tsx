@@ -1,6 +1,5 @@
 import { SidebarHeaderTools as NavigationTools } from "../../browser/src/components/sidebar/AddressBar";
-import { useSidebarCaptionRoom } from "../../browser/src/state/windows/layout";
-import { useMenuBesideWindowButtons } from "./sidebarHeaderLayout";
+import { useMenuBesideWindowButtons, useSidebarCaptionRoom } from "./sidebarHeaderLayout";
 import { HEADER_TOOLS } from "../../browser/src/components/window/dockMotion";
 import { BROWSER_WINDOW_BUTTONS, WINDOW_CONTROLS, windowControlsWidth } from "../../browser/src/lib/windowChrome";
 import { ProfileIndicator, useProfileIndicatorWidth } from "./ProfileIndicator";

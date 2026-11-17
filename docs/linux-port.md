@@ -682,8 +682,9 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   Double-clicking it runs the desktop's titlebar action.
 - **Outer frame.** The host overlays Chromium's client view and doesn't replace its frame. Without the Wayland
   decoration protocol, Chromium draws its custom frame.
-- **Menu button.** Linux has no global menu bar, so a hamburger in the header stands in for the Mac one. It lists
-  Ardia, File, Edit, View, Tabs, Bookmarks, History, Extensions, Window and Help as submenus built from the same menu
+- **Menu button.** Linux has no global menu bar, so a menu button stands in for the Mac one: usually the `…` beside the
+  window buttons, and a hamburger in the header only while they're hidden (Window controls above). It lists Ardia,
+  File, Edit, View, Tabs, Bookmarks, History, Extensions, Window and Help as submenus built from the same menu
   state the Mac menu bar uses (checks, disabled commands, dynamic titles, bookmarks, recently closed entries, profiles
   and extensions), labelled with the effective Linux shortcuts (`apps/linux/src/appMenu.ts`). Items run through the
   shared command path; Close Window, Minimize and Maximize call the native window operations. App commands Linux runs

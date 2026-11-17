@@ -115,6 +115,22 @@ test("a page in full screen, which leaves the window itself out of full screen, 
   for (const settings of [{ addressBar: "sidebar" }, { sidebarSide: "right" }, { tabLayout: "top" }]) assert.equal(menuBesideWindowButtons(state(settings), "w", true, windowsChrome), false, JSON.stringify(settings));
 });
 
+test("with a page full screen and the sidebar on the right, the returning hamburger gets the header's room, not 2 px beside buttons that aren't drawn", async () => {
+  const { linuxSidebarCaptionRoom, sidebarCaptionRoom } = await import("./sidebarHeaderLayout.ts");
+  const { headerIndicatorLayout } = await import("./profileIndicatorLayout.ts");
+  const { CARD_INSET } = await import("../../browser/src/lib/windowLayout.ts");
+  const { space } = await import("../../browser/src/components/ui/tokens.ts");
+  const right = state({ sidebarSide: "right" });
+  const headerRoom = (captionRoom) => 190 - Math.max(windowsChrome.leadingWidth + 6, CARD_INSET) - space.m - captionRoom;
+  assert.equal(sidebarCaptionRoom(right, "w", windowsChrome), windowsChrome.trailingWidth, "the shared rule still reserves the buttons' room");
+  assert.ok(headerRoom(sidebarCaptionRoom(right, "w", windowsChrome)) < 32, "which would clip the hamburger");
+  assert.equal(linuxSidebarCaptionRoom(right, "w", true, windowsChrome), 0);
+  const room = headerRoom(linuxSidebarCaptionRoom(right, "w", true, windowsChrome));
+  assert.deepEqual([headerIndicatorLayout({ room, textWidth: undefined, named: false, menuInHeader: true }).width, room >= 32], [32, true]);
+  assert.equal(linuxSidebarCaptionRoom(right, "w", false, windowsChrome), windowsChrome.trailingWidth, "while the buttons are drawn their room stays reserved");
+  assert.equal(linuxSidebarCaptionRoom(state({ sidebarSide: "right" }, { fullScreen: true }), "w", false, windowsChrome), 0);
+});
+
 test("the header's profile name makes room for the menu only when the header holds it", async () => {
   const { headerIndicatorLayout } = await import("./profileIndicatorLayout.ts");
   const layout = (room, named, menuInHeader) => headerIndicatorLayout({ room, textWidth: 60, named, menuInHeader });
@@ -349,6 +365,17 @@ test("a press on a … that was swapped out before activation, like the toolbar 
   await h.load();
   h.focus(h.field);
   h.press(h.detached);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+});
+
+test("a right or middle press forgets an earlier press on the …, so the next activation without a key opens the menu", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.setOpen(true);
+  h.press(h.menuButton);
+  h.setOpen(false);
+  h.press(h.reload, 2);
   await h.show("w");
   assert.deepEqual(h.opened, ["…"]);
 });
