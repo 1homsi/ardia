@@ -402,6 +402,10 @@ is plain Chromium.
   browser view in the tab's window, which a hidden page window doesn't have. The Mac turns it off too (#2289). The
   `engine settings:` self-checks change a search engine, a site permission, the theme and browsing data through
   chrome://settings in shown, private, pop-up and hidden pages and ask the engine for the page after each.
+- A browser-theme change (chrome://settings › Appearance › Reset to default, a theme installed or removed) leaves a
+  hosted page window's frame alone (`chromium-win-hosted-theme-change.patch`, engine `windows-engine-20261117-3`,
+  #2332). Chromium regenerates the frame on Windows for every theme change, which asks the window for a DWM frame
+  transition; a hosted window's frame is custom drawn, so that ended in a failed CHECK that closed the app.
 - The Visual C++ runtime ships inside the folder. React Native's DLLs import the app-container CRT (`vcruntime140_app.dll`,
   `msvcp140_app.dll` and the other `*_app.dll`), whose exports forward to the desktop `VCRUNTIME140.dll`, `MSVCP140.dll`
   and friends. A clean Windows 11 has none of those, and the per-user installer can't run `vc_redist`, so
