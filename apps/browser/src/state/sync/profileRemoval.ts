@@ -31,12 +31,13 @@ function removalTargets(doc: SyncDoc): Record<string, ProfileRemoval> {
   return Object.fromEntries(entries.filter(([syncId]) => !linkedProfileId(doc, syncId)));
 }
 
-export function freezeRemovals(doc: SyncDoc) {
-  freezeDeviceRemovals(doc);
-  if (!isStringList(doc.removing) || !doc.scopes[APP_SCOPE]?.joined) return;
+export function freezeRemovals(doc: SyncDoc): boolean {
+  const devices = freezeDeviceRemovals(doc);
+  if (!isStringList(doc.removing) || !doc.scopes[APP_SCOPE]?.joined) return devices;
   const targets = removalTargets(doc);
   if (Object.keys(targets).length) doc.removing = targets;
   else delete doc.removing;
+  return true;
 }
 
 export const removedRecordKeys = (doc: SyncDoc): ReadonlySet<string> => {

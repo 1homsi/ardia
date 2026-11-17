@@ -25,11 +25,12 @@ function removalTargets(doc: SyncDoc): Record<string, HLC> {
   return Object.fromEntries(entries.filter(([id]) => id !== doc.deviceId));
 }
 
-export function freezeDeviceRemovals(doc: SyncDoc) {
-  if (!isStringList(doc.removingDevices) || !doc.scopes[APP_SCOPE]?.joined) return;
+export function freezeDeviceRemovals(doc: SyncDoc): boolean {
+  if (!isStringList(doc.removingDevices) || !doc.scopes[APP_SCOPE]?.joined) return false;
   const targets = removalTargets(doc);
   if (Object.keys(targets).length) doc.removingDevices = targets;
   else delete doc.removingDevices;
+  return true;
 }
 
 const stillTargeted = (app: ScopeState | undefined, key: string, h: HLC) => app?.records[key]?.h === h;

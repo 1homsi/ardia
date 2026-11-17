@@ -28,7 +28,7 @@ globalThis.acTestNativeModules = {
       return id;
     },
     read: async (_folder, scope, known) => {
-      if (gate && gate.scope === scope) {
+      if (gate && (gate.scope === scope || (gate.scope === "p:" && scope.startsWith("p:")))) {
         const held = gate;
         gate = null;
         held.reached();
@@ -361,10 +361,9 @@ test("a profile removal saved as a list by an earlier version still deletes once
   assert.equal(writes - written, 0, "the folder stops growing");
 });
 
-test("a removal saved as a list targets the records present when the cycle starts, so one that comes back during that cycle isn't targeted again", async () => {
-  const { appAdapters } = await import("./scopeAdapters.ts");
+test("a removal saved as a list targets the records present when it is frozen at the start of a cycle, so one that comes back during that cycle isn't targeted again", async () => {
   const { removedDeviceKeys } = await import("./deviceRemoval.ts");
-  const { removedRecordKeys, settleRemovals } = await import("./profileRemoval.ts");
+  const { freezeRemovals, removedRecordKeys, settleRemovals } = await import("./profileRemoval.ts");
   const device = { n: "B", k: "mac" };
   const profile = { n: "Work", c: "blue", i: null };
   const app = {
@@ -374,7 +373,9 @@ test("a removal saved as a list targets the records present when the cycle start
     unapplied: [],
   };
   const doc = { deviceId: "A", profiles: {}, types: {}, scopes: { app }, removingDevices: ["B"], removing: ["W"] };
-  appAdapters(doc, false);
+  assert.equal(freezeRemovals(doc), true);
+  assert.deepEqual(doc.removingDevices, { B: "1" }, "the list becomes the stamps of the records present");
+  assert.equal(freezeRemovals(doc), false, "and isn't converted twice");
   assert.ok(removedDeviceKeys(doc).has("dev:B"));
   assert.ok(removedRecordKeys(doc).has("prof:W"));
   app.records["dev:B"] = { h: "2", v: null };
@@ -386,4 +387,50 @@ test("a removal saved as a list targets the records present when the cycle start
   assert.equal(doc.removing, undefined, "nor the profile");
   assert.equal(removedDeviceKeys(doc).size, 0);
   assert.equal(removedRecordKeys(doc).size, 0);
+});
+
+test("a removal saved as a list is saved with its stamps before it deletes, so a crash after the record comes back doesn't delete it again", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?frozenA");
+  const engineB = await import("./engine.ts?frozenB");
+  await turnOn(a, engineA);
+  await join(b, engineB);
+  const bId = await b.with(() => engineB.useSync.getState().devices.find((d) => d.current).id);
+  await a.with(() => engineA.syncNow());
+  const again = withSavedRemoval(a, "removingDevices", [bId]);
+  const engineAgain = await import("./engine.ts?frozenAgain");
+  await again.with(() => startedUp(engineAgain));
+  const onDisk = await again.with(async () => {
+    const atPull = pauseRead("app");
+    void engineAgain.syncNow();
+    await atPull.arrived;
+    const browser = S();
+    const docs = new Map(shell.docs);
+    await b.with(async () => {
+      await engineB.syncNow();
+      await engineB.syncNow();
+    });
+    useBrowser.setState(browser, true);
+    shell.docs.clear();
+    for (const [k, v] of docs) shell.docs.set(k, v);
+    const inProfiles = pauseRead("p:");
+    atPull.release();
+    await inProfiles.arrived;
+    return new Map(shell.docs);
+  });
+  assert.equal(tombstones(`dev:${bId}`), 1, "the removal went out before the crash");
+  assert.equal(live(`dev:${bId}`), true, "and B published itself again");
+  const third = restarted("A third", onDisk);
+  const engineThird = await import("./engine.ts?frozenThird");
+  await third.with(async () => {
+    await startedUp(engineThird);
+    await engineThird.syncNow();
+    await engineThird.syncNow();
+  });
+  await rounds(4, [third, engineThird], [b, engineB]);
+  assert.equal(tombstones(`dev:${bId}`), 1, "B isn't deleted again after the restart");
+  assert.equal(syncDoc(third).removingDevices, undefined);
+  await third.with(() => assert.ok(engineThird.useSync.getState().devices.some((d) => d.id === bId), "A lists B"));
 });
