@@ -30,9 +30,12 @@ export type Suggestion =
   | { kind: "extension"; id: string; title: string; icon: string | null; open: "action" | "options" }
   | { kind: "provider"; providerId: string; provider: string; title: string; url: string; subtitle?: string; icon: string | null };
 
+export type SuggestionVia = "literal" | "renamed_tab" | "engine_site" | "search_first_inline";
+
 export type SuggestionResult = {
   items: Suggestion[];
   completion: string;
+  via?: Readonly<Record<string, SuggestionVia>>;
 };
 
 export type SuggestOptions = {

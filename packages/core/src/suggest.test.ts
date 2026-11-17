@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
 import { BUILT_IN_ENGINES, engineById, parseRemoteSuggestions, parseSuggestions } from "./engines.ts";
-import { buildSuggestions, type Suggestion } from "./suggest.ts";
+import { buildSuggestions, suggestionKey, type Suggestion } from "./suggest.ts";
 import { createSuggestFetcher, type FetchLike } from "./suggestFetcher.ts";
 
 const now = Date.UTC(2026, 8, 24);
@@ -547,3 +547,22 @@ test("a typed address that is bookmarked as typed opens as typed with that bookm
   assert.equal(unsaved?.kind === "page" && unsaved.visited, undefined, "nor as history");
 });
 
+
+test("each new path tags its row, so the bar can report which path a pick came from", () => {
+  const viaOf = (r: ReturnType<typeof buildSuggestions>) => Object.fromEntries(Object.entries(r.via ?? {}).map(([key, v]) => [key.split(":")[0] + ":" + v, true]));
+  const saved = [{ url: "https://excalidraw.com/", title: "Excalidraw", favicon: null, visits: 4, lastVisit: now - 1000 }];
+  const literal = buildSuggestions("https://excalidraw.com/#json=a,b", { tabs: [], history: saved }, { now });
+  assert.equal(literal.via?.[suggestionKey(literal.items[0]!)], "literal", "a typed address kept instead of a saved variant");
+  assert.equal(buildSuggestions("https://excalidraw.com/", { tabs: [], history: saved }, { now }).via, undefined, "the exact saved address is no new path");
+  const tab = { id: "t7", url: "https://linear.app/team/board", title: "Linear – Issues", customTitle: "Work board", favicon: null };
+  const renamed = buildSuggestions("work board", { tabs: [tab], history }, { now });
+  assert.deepEqual(viaOf(renamed), { "tab:renamed_tab": true });
+  assert.equal(buildSuggestions("linear", { tabs: [{ ...tab, customTitle: null }], history }, { now }).via, undefined, "a tab with no custom title");
+  const site = buildSuggestions("maps", { tabs: [], history: [] }, { now, remoteSites: [{ url: "https://maps.google.com/", title: "Google Maps" }] });
+  assert.deepEqual(viaOf(site), { "page:engine_site": true });
+  const yt = [{ url: "https://www.youtube.com/", title: "YouTube", favicon: null, visits: 5, lastVisit: now - 1000 }];
+  const searchFirst = buildSuggestions("you", { tabs: [], history: yt }, { now, preference: "search" });
+  assert.equal(searchFirst.via?.[suggestionKey(searchFirst.items[0]!)], "search_first_inline");
+  assert.equal(buildSuggestions("you", { tabs: [], history: yt }, { now }).via, undefined, "website first completes as it always did");
+  for (const r of [literal, renamed, site, searchFirst]) for (const key of Object.keys(r.via ?? {})) assert.ok(r.items.some((x) => suggestionKey(x) === key), key);
+});

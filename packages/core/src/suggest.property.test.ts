@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { bangTable } from "./bangs.ts";
 import { BUILT_IN_ENGINES } from "./engines.ts";
-import { buildSuggestions, prepareSuggestions, type SuggestionSource, type SuggestOptions } from "./suggest.ts";
+import { buildSuggestions, prepareSuggestions, suggestionKey, type SuggestionSource, type SuggestOptions } from "./suggest.ts";
 import * as reference from "./suggest.reference.ts";
 
 const DAY = 86_400_000;
@@ -143,7 +143,8 @@ function compareRun(seed: number, size: number) {
     if (r.int(13) === 0) prepareSuggestions(source, Date.now() + 1);
     const options: SuggestOptions = { ...base, remote: r.int(3) ? [] : [`${q} one`, "two", q.toUpperCase(), `${q} three`, "four", "five"] };
     const want = reference.buildSuggestions(q, source, options);
-    const got = buildSuggestions(q, source, options);
+    const { via, ...got } = buildSuggestions(q, source, options);
+    if (via) assert.ok(Object.keys(via).every((key) => got.items.some((x) => suggestionKey(x) === key)), `via names only shown rows: ${JSON.stringify(via)}`);
     stats.steps++;
     if (want.completion) stats.completions++;
     if (want.items.some((x) => x.kind === "search" && x.bang)) stats.bangs++;

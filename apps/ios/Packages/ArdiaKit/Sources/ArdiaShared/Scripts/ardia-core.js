@@ -2732,10 +2732,10 @@ const { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, withRootSl
 const { globalProviderRows, providerUrl, safeProviderRows } = __require("packages/core/src/providerRows.ts");
 const { matchQuickCreate } = __require("packages/core/src/quickCreate.ts");
 const { scopedSearchUrl } = __require("packages/core/src/siteSearch.ts");
-                                                                                                      
-const { actionRow, createRow, dedupeSuggestions, Output, pageSuggestion } = __require("packages/core/src/suggestionRows.ts");
-
                                                                                                                      
+const { actionRow, createRow, dedupeSuggestions, Output, pageSuggestion, suggestionKey } = __require("packages/core/src/suggestionRows.ts");
+
+                                                                                                                                    
 
 
 
@@ -2766,6 +2766,15 @@ function buildSuggestions(raw        , source                  , options        
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
   const { tabIds, extra, renamed } = tabsOver(pool, source.tabs, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
+  const via                                = {};
+  let tagged = false;
+  const tag = (s            , as                                   )             => {
+    if (as) {
+      via[suggestionKey(s)] = as;
+      tagged = true;
+    }
+    return s;
+  };
   const known = (url        ) => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
@@ -2777,7 +2786,7 @@ function buildSuggestions(raw        , source                  , options        
     const bookmark = savedBookmark(source.bookmarks ?? NO_BOOKMARKS, opened);
     const lent = visit ?? bookmark ?? shown;
     const row          = { url: visit?.url ?? opened, title: lent.title, favicon: lent.favicon, visits: visit?.visits ?? 0, bookmarked: bookmark !== undefined };
-    return pageSuggestion(row, null);
+    return tag(pageSuggestion(row, null), "literal");
   };
 
   const websiteFirst = preference === "website";
@@ -2867,10 +2876,10 @@ function buildSuggestions(raw        , source                  , options        
   let first            ;
   if (creates.length && /^\S+\s+\S/.test(query)) first = createRow(creates[0] );
   else if (actionMatches[0]?.exact) first = actionRow(actionMatches[0].action);
-  else if (target && completion) first = known(target.url) ?? { kind: "page", url: target.url, title: "", favicon: target.favicon };
+  else if (target && completion) first = tag(known(target.url) ?? { kind: "page", url: target.url, title: "", favicon: target.favicon }, !websiteFirst && "search_first_inline");
   else if (typedUrl) first = known(typedUrl) ?? { kind: "page", url: typedUrl, title: "", favicon: null };
   else if (extensionMatches.exact) first = extensionMatches.rows[0] ;
-  else if (websiteFirst && best && best.m >= 40 && (!noInline || typedIsPage(best.c.text, q))) first = pageSuggestion(best.c, best.tabId);
+  else if (websiteFirst && best && best.m >= 40 && (!noInline || typedIsPage(best.c.text, q))) first = tag(pageSuggestion(best.c, best.tabId), best.c.renamed && "renamed_tab");
   else first = search;
 
   out.push(first);
@@ -2879,15 +2888,16 @@ function buildSuggestions(raw        , source                  , options        
   out.push(...actionMatches.map((m) => actionRow(m.action)));
   out.push(...extensionMatches.rows);
   out.push(...creates.map(createRow));
-  const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
+  const pageRows = ranked.map((x) => tag(pageSuggestion(x.c, x.tabId), x.c.renamed && "renamed_tab"));
   out.push(...pageRows.slice(0, 3));
-  out.push(...(options.remoteSites ?? []).slice(0, 2).map((site)             => known(site.url) ?? { kind: "page", url: site.url, title: site.title, favicon: null }));
+  out.push(...(options.remoteSites ?? []).slice(0, 2).map((site)             => known(site.url) ?? tag({ kind: "page", url: site.url, title: site.title, favicon: null }, "engine_site")));
   const providerAt = out.items.length;
   out.push(...remoteRows((text) => searchUrl(engine, text), engine.name));
   out.push(...pageRows.slice(3));
   const providerRows = options.providers?.length ? globalProviderRows(options.providers, out.items) : [];
-  if (!providerRows.length) return { items: out.items, completion };
-  return { items: [...out.items.slice(0, providerAt), ...providerRows, ...out.items.slice(providerAt)], completion };
+  const items = providerRows.length ? [...out.items.slice(0, providerAt), ...providerRows, ...out.items.slice(providerAt)] : out.items;
+  const shownVia = tagged ? viaOf(items, via) : undefined;
+  return shownVia ? { items, completion, via: shownVia } : { items, completion };
 }
 
 function providerScopeSuggestions(query        , scope             , sections                            , limit        )                   {
@@ -2899,6 +2909,15 @@ function providerScopeSuggestions(query        , scope             , sections   
   const seen = new Set(items.map((x) => x.url));
   if (section) for (const row of safeProviderRows({ id, title: scope.name }, section.rows, limit)) if (!seen.has(row.url) && items.length < limit) items.push(row);
   return { items, completion: "" };
+}
+
+function viaOf(items                       , via                               )                                            {
+  let shown                                           ;
+  for (const item of items) {
+    const key = suggestionKey(item);
+    if (via[key]) (shown ??= {})[key] = via[key];
+  }
+  return shown;
 }
 
 function typedIsPage(t          , q        )          {
@@ -2949,6 +2968,7 @@ const { logVisits, pageText, pageTexts, tabPageText, withRootSlash } = __require
               
                 
                      
+                 
                          
                  
                     
@@ -3105,10 +3125,10 @@ function tabsOver(pool      , tabs                   , currentTabId         )   
     const listed = pool.byKey.get(key);
     if (!listed) {
       if (!t.customTitle && chosen.get(key) !== t) continue;
-      extra.push({ url: t.url, title: t.customTitle || t.title, pageTitle: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text: tabPageText(t) });
+      extra.push({ url: t.url, title: t.customTitle || t.title, pageTitle: t.title, ...(t.customTitle ? { renamed: true          } : {}), favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text: tabPageText(t) });
     } else if (t.customTitle) {
       renamed.add(key);
-      extra.push({ url: t.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, logVisits: listed.logVisits, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t, listed.text) });
+      extra.push({ url: t.url, title: t.customTitle, renamed: true, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, logVisits: listed.logVisits, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t, listed.text) });
     }
   }
   const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra, renamed };
