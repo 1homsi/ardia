@@ -255,6 +255,7 @@ for (const design of ["redesigned", "original"] as const) {
     });
     expect(confirmed).toHaveBeenCalledTimes(1);
     expect(loaded).toEqual(["https://translate.google.com/translate?sl=auto&tl=en&u=https%3A%2F%2Fsite0.example%2F"]);
+    expect(counted).toHaveBeenCalledWith("pages_translated");
     expect(usePageUi.getState().menuOpen).toBe(false);
     unmount(first);
     const second = await openMenu(design);
@@ -288,6 +289,7 @@ for (const design of ["redesigned", "original"] as const) {
     });
     expect(loaded).toHaveLength(1);
     expect(confirmed).not.toHaveBeenCalled();
+    expect(counted).not.toHaveBeenCalledWith("pages_translated");
     unmount(root);
     registerPageHandle("t0", null);
   });

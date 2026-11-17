@@ -247,7 +247,10 @@ export function translatePage() {
   if (!isPrivate && translation && !translation.confirmed) usePageUi.setState({ menuTranslation: { ...translation, confirmed: true } });
   void (async () => {
     const remembered = await settled(() => pages.translationUrl(url), null);
-    if (!isPrivate) await settled(() => pages.confirmTranslation(), undefined);
+    if (!isPrivate) {
+      countUsage("pages_translated");
+      await settled(() => pages.confirmTranslation(), undefined);
+    }
     await pageHandle(id)?.loadUrl(remembered ?? translationUrl(url, preferredLanguage()));
   })();
 }
