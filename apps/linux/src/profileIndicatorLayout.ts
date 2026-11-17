@@ -21,12 +21,15 @@ export function headerIndicatorLayout({ room, textWidth, named, menuInHeader }: 
 
 export const INDICATOR_GAP = 9;
 
-export function sidebarHeaderSplit({ width, captionRoom, indicator, toggleOnly, menuInHeader }: { width: number; captionRoom: number; indicator: number; toggleOnly: number; menuInHeader: boolean }) {
+const CONTROLS_GAP = 3;
+
+export function sidebarHeaderSplit({ width, captionRoom, controls, indicator, toggleOnly, menuInHeader }: { width: number; captionRoom: number; controls: number; indicator: number; toggleOnly: number; menuInHeader: boolean }) {
   if (menuInHeader) {
     const navigation = Math.max(114, width - 136);
-    return { navigation, indicatorRoom: Math.max(36, width - navigation - INDICATOR_GAP) };
+    return { tools: true, navigation, indicatorRoom: Math.max(36, width - navigation - INDICATOR_GAP) };
   }
+  if (captionRoom && width - controls - CONTROLS_GAP < toggleOnly) return { tools: false, navigation: 0, indicatorRoom: 0 };
   const room = width - captionRoom;
   const navigation = Math.max(toggleOnly, room - (indicator ? indicator + INDICATOR_GAP : 0));
-  return { navigation, indicatorRoom: Math.max(0, room - navigation - INDICATOR_GAP) };
+  return { tools: true, navigation, indicatorRoom: Math.max(0, room - navigation - INDICATOR_GAP) };
 }

@@ -4,18 +4,23 @@ import { useFullscreenTab } from "../../browser/src/state/tabs/pageState";
 import { reportHostError } from "./host";
 import { isLinuxUtility } from "./session";
 import { linuxWindowMenu } from "./linuxWindowMenu";
+import { linuxControlsBehaviour, pressKeepsFocusWhereItWas } from "./windowControlsRules";
 
 export { controlsShown, type WindowControlsProps };
 
 export const WindowControls = memo(function WindowControls(props: WindowControlsProps) {
-  const pageFullScreen = !!useFullscreenTab(props.windowId);
-  if (pageFullScreen) return null;
+  const behaviour = linuxControlsBehaviour({ pageFullScreen: !!useFullscreenTab(props.windowId), hidden: !!props.hidden, utility: isLinuxUtility(props.windowId), windowMenu: !!linuxWindowMenu });
+  if (!behaviour.rendered) return null;
   return (
     <div
+      className="ardia-window-controls"
       style={{ display: "contents" }}
-      inert={props.hidden || undefined}
+      inert={behaviour.inert || undefined}
+      onMouseDown={(event) => {
+        if (pressKeepsFocusWhereItWas(event)) event.preventDefault();
+      }}
       onContextMenu={(event) => {
-        if (!linuxWindowMenu || isLinuxUtility(props.windowId)) return;
+        if (!behaviour.windowMenuOnRightClick || !linuxWindowMenu) return;
         event.preventDefault();
         void linuxWindowMenu.open(props.windowId).catch(reportHostError);
       }}

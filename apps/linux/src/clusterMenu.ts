@@ -2,7 +2,7 @@ import { reportHostError } from "./host.ts";
 
 type Anchor = { closest(selector: string): Element | null };
 type ActivationTarget = {
-  addEventListener(type: "pointerdown", listener: (event: { target: EventTarget | null }) => void, capture: boolean): void;
+  addEventListener(type: "pointerdown", listener: (event: { button: number; target: EventTarget | null }) => void, capture: boolean): void;
   addEventListener(type: "keydown", listener: (event: { key: string }) => void, capture: boolean): void;
 };
 
@@ -24,6 +24,7 @@ export function createClusterMenu({ target, open, shown, dismiss, focused, visib
   let pressed: Element | null = null;
   let openAtPress = false;
   target?.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
     pressed = menuButtonOf(event.target);
     openAtPress = !!pressed && shown();
   }, true);

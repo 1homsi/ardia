@@ -116,13 +116,14 @@ test("the header's profile name makes room for the menu only when the header hol
 
 test("the sidebar's header tools: the profile name comes before back and forward beside the window buttons, and with no name they take the whole width", async () => {
   const { sidebarHeaderSplit } = await import("./profileIndicatorLayout.ts");
-  const split = (width, captionRoom, indicator, menuInHeader = false) => sidebarHeaderSplit({ width, captionRoom, indicator, toggleOnly: 45, menuInHeader });
-  assert.deepEqual(split(190, 0, 34, true), { navigation: 114, indicatorRoom: 67 }, "with the hamburger in the header (full screen) it is as before");
-  assert.deepEqual(split(190, 0, 0), { navigation: 190, indicatorRoom: 0 }, "a left sidebar with the address bar and one profile: toggle, back, forward and reload fit");
-  assert.deepEqual(split(190, 0, 70), { navigation: 111, indicatorRoom: 70 });
-  assert.deepEqual(split(260, 171, 32), { navigation: 48, indicatorRoom: 32 });
-  assert.deepEqual(split(320, 171, 75), { navigation: 65, indicatorRoom: 75 });
-  assert.deepEqual(split(190, 171, 0), { navigation: 45, indicatorRoom: 0 });
+  const split = (width, captionRoom, indicator, menuInHeader = false) => sidebarHeaderSplit({ width, captionRoom, controls: 141, indicator, toggleOnly: 45, menuInHeader });
+  assert.deepEqual(split(190, 0, 34, true), { tools: true, navigation: 114, indicatorRoom: 67 }, "with the hamburger in the header (full screen) it is as before");
+  assert.deepEqual(split(190, 0, 0), { tools: true, navigation: 190, indicatorRoom: 0 }, "a left sidebar with the address bar and one profile: toggle, back, forward and reload fit");
+  assert.deepEqual(split(190, 0, 70), { tools: true, navigation: 111, indicatorRoom: 70 });
+  assert.deepEqual(split(260, 171, 32), { tools: true, navigation: 48, indicatorRoom: 32 });
+  assert.deepEqual(split(320, 171, 75), { tools: true, navigation: 65, indicatorRoom: 75 });
+  assert.deepEqual(split(190, 171, 0), { tools: true, navigation: 45, indicatorRoom: 0 }, "the toggle still fits left of the window buttons at 190 px");
+  assert.deepEqual(split(160, 171, 32), { tools: false, navigation: 0, indicatorRoom: 0 }, "at the 160 px minimum the toggle would sit under the …, so the header tools give way");
 });
 
 function clusterHarness() {
@@ -147,7 +148,7 @@ function clusterHarness() {
         visible: () => menuButton,
       });
     },
-    press: (target) => listeners.pointerdown({ target }),
+    press: (target, button = 0) => listeners.pointerdown({ button, target }),
     key: (key) => listeners.keydown({ key }),
     focus: (target) => void (focused = target),
     setOpen: (value) => void (open = value),
@@ -292,4 +293,40 @@ test("without a frame, as on Wayland, the shell's outer size is compared with th
   h.replies.shift()();
   await settle();
   assert.deepEqual(h.noted, [["w", false], ["w", true]]);
+});
+
+test("the Linux wrapper hides the buttons over a full-screen page, makes the hidden copy inert, and offers the window menu only in browser windows", async () => {
+  const { linuxControlsBehaviour } = await import("./windowControlsRules.ts");
+  const base = { pageFullScreen: false, hidden: false, utility: false, windowMenu: true };
+  assert.deepEqual(linuxControlsBehaviour(base), { rendered: true, inert: false, windowMenuOnRightClick: true });
+  assert.equal(linuxControlsBehaviour({ ...base, pageFullScreen: true }).rendered, false);
+  assert.equal(linuxControlsBehaviour({ ...base, hidden: true }).inert, true);
+  assert.equal(linuxControlsBehaviour({ ...base, utility: true }).windowMenuOnRightClick, false, "Settings and Import");
+  assert.equal(linuxControlsBehaviour({ ...base, windowMenu: false }).windowMenuOnRightClick, false);
+});
+
+test("a primary-button press on a window button leaves focus where it was; other buttons and other targets are untouched", async () => {
+  const { pressKeepsFocusWhereItWas } = await import("./windowControlsRules.ts");
+  const button = { closest: (selector) => (selector === '[role="button"]' ? {} : null) };
+  const gap = { closest: () => null };
+  assert.equal(pressKeepsFocusWhereItWas({ button: 0, target: button }), true);
+  assert.equal(pressKeepsFocusWhereItWas({ button: 2, target: button }), false);
+  assert.equal(pressKeepsFocusWhereItWas({ button: 0, target: gap }), false);
+  assert.equal(pressKeepsFocusWhereItWas({ button: 0, target: null }), false);
+});
+
+test("a right or middle press on the … neither anchors nor toggles its menu", async () => {
+  const h = clusterHarness();
+  await h.load();
+  h.press(h.menuButton, 2);
+  h.focus(h.field);
+  h.setOpen(true);
+  h.setOpen(false);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…"]);
+  h.setOpen(true);
+  h.press(h.menuButton, 1);
+  h.setOpen(false);
+  await h.show("w");
+  assert.deepEqual(h.opened, ["…", "…"], "a middle press while a menu was open doesn't swallow the next activation");
 });
