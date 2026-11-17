@@ -247,7 +247,7 @@ export const DeckCard = memo(function DeckCard({ tab, index, geometry: g, motion
               style={[font.caption, styles.title, { color: theme.headerText }, titleStyle]}
               numberOfLines={1}
             >
-              {title}
+              {deckHeaderTitle(tab, title)}
             </Animated.Text>
           </Animated.View>
         </FadeView>
@@ -301,6 +301,8 @@ export function DeckCardMenu({ tab, index, onClose, fill, children }: { tab: Bro
     </CardMenu>
   );
 }
+
+export const deckHeaderTitle = (tab: BrowserTab, title: string): string => (tab.isPrivate ? iPhoneOr("Incognito", title) : title);
 
 export function CardIcon({ tab }: { tab: BrowserTab }) {
   return tab.isPrivate ? (

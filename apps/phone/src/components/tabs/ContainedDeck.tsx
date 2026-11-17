@@ -12,7 +12,7 @@ import { barHeight, FadeView, font, screenReaderActions, TabFace, tabsInk, tabsL
 import { nativeMenus } from "../ui/MenuTrigger";
 import { isLabBuild } from "../../platform/lab";
 import { launchArguments } from "../../state/app/launchFlags";
-import { CardIcon, cardPose, DeckCard, DeckCardMenu, deckCardStyles, deckRole, EXPANDED_Z, ReceivedBadge, sameCard, type DeckMotion } from "./DeckCard";
+import { CardIcon, cardPose, deckHeaderTitle, DeckCard, DeckCardMenu, deckCardStyles, deckRole, EXPANDED_Z, ReceivedBadge, sameCard, type DeckMotion } from "./DeckCard";
 
 export const containedDeckScroll = (): boolean => Platform.OS === "android" && isLabBuild && launchArguments().oneContainerScroll;
 
@@ -318,7 +318,7 @@ export const ContainedDeckCard = memo(function ContainedDeckCard({ tab, index, g
               style={[font.caption, deckCardStyles.title, { color: theme.headerText }, titleStyle]}
               numberOfLines={1}
             >
-              {title}
+              {deckHeaderTitle(tab, title)}
             </Animated.Text>
           </Animated.View>
         </FadeView>
