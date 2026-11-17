@@ -122,7 +122,7 @@ test("copying a visited page shown without its scheme copies the page's full add
   assert.equal(fullUrlShown("example.com", { kind: "page", url: "http://www.example.com/" }), "http://www.example.com/");
 });
 
-test("text the user changed is copied as typed, never swapped for a page's address", () => {
+test("text that is not a page row's address, such as a search or a partial edit, is copied as typed", () => {
   const page = { kind: "page", url: "https://example.com/docs" };
   assert.equal(fullUrlShown("example.com/doc", page), null);
   assert.equal(fullUrlShown("example.com/docs", { kind: "search", query: "example.com/docs", url: "https://google.com/search?q=x" }), null);
