@@ -4,8 +4,8 @@ const MAX_HELD = 500;
 const MAX_ANSWERS = 100;
 
 export type Relayed =
-  | { kind: "capture"; event: string; props: Record<string, unknown>; options: Record<string, unknown> }
-  | { kind: "log"; level: "warn" | "error"; message: string; attributes: Record<string, string | number | boolean> };
+  | { kind: "capture"; event: string; props: Record<string, unknown>; options: Record<string, unknown>; consent?: number }
+  | { kind: "log"; level: "warn" | "error"; message: string; attributes: Record<string, string | number | boolean>; consent?: number };
 
 export type TelemetryOp = "reset" | "end" | "reopen" | "choice";
 
@@ -30,6 +30,7 @@ export type TelemetryLeadershipDeps = {
   channel: LeaderChannel | null;
   relay(next: ((message: Relayed) => void) | null): void;
   deliver(message: Relayed): void;
+  consented?(stamp: number | undefined): boolean;
   handle(op: TelemetryOp, arg?: string): Promise<unknown>;
   lead(): Promise<void>;
   changed?(): void;
@@ -37,13 +38,13 @@ export type TelemetryLeadershipDeps = {
   newId?: () => string;
 };
 
-export type TelemetryLeadership = { leading(): boolean; request(op: TelemetryOp, timeoutMs: number, arg?: string): Promise<unknown>; announce(): void };
+export type TelemetryLeadership = { leading(): boolean; request(op: TelemetryOp, timeoutMs: number, arg?: string): Promise<unknown>; announce(): void; forget(): void };
 
 const isFields = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const OPS: readonly string[] = ["reset", "end", "reopen", "choice"];
 
 export function isRelayed(value: unknown): value is Relayed {
-  if (!isFields(value)) return false;
+  if (!isFields(value) || (value.consent !== undefined && typeof value.consent !== "number")) return false;
   if (value.kind === "capture") return typeof value.event === "string" && isFields(value.props) && isFields(value.options);
   if (value.kind === "log") return (value.level === "warn" || value.level === "error") && typeof value.message === "string" && isFields(value.attributes);
   return false;
@@ -73,6 +74,9 @@ export function startTelemetryLeadership(deps: TelemetryLeadershipDeps): Telemet
   const newId = deps.newId ?? (() => crypto.randomUUID());
   const channel = deps.channel;
   const post = (message: Wire) => channel?.postMessage(message);
+  const deliver = (message: Relayed) => {
+    if (!deps.consented || deps.consented(message.consent)) deps.deliver(message);
+  };
   let role: "pending" | "follower" | "becoming" | "leader" = "pending";
   const held: Relayed[] = [];
   const unacked = new Map<string, Relayed>();
@@ -127,7 +131,7 @@ export function startTelemetryLeadership(deps: TelemetryLeadershipDeps): Telemet
     if (!isWire(data)) return;
     if (role === "leader") {
       if (data.kind === "relay") {
-        deps.deliver(data.message);
+        deliver(data.message);
         post({ kind: "ack", id: data.id });
       } else if (data.kind === "request") void answer(data.id, data.op, data.arg);
     } else if (role === "becoming") {
@@ -154,10 +158,10 @@ export function startTelemetryLeadership(deps: TelemetryLeadershipDeps): Telemet
     }
     role = "leader";
     deps.relay(null);
-    for (const message of [...unacked.values(), ...held.splice(0)]) deps.deliver(message);
+    for (const message of [...unacked.values(), ...held.splice(0)]) deliver(message);
     unacked.clear();
     for (const { id, message } of heard.splice(0)) {
-      deps.deliver(message);
+      deliver(message);
       post({ kind: "ack", id });
     }
     for (const { id, op, arg } of asked.splice(0)) void answer(id, op, arg);
@@ -181,6 +185,11 @@ export function startTelemetryLeadership(deps: TelemetryLeadershipDeps): Telemet
     leading: () => role === "leader",
     announce: () => {
       if (role === "leader") post({ kind: "choice" });
+    },
+    forget: () => {
+      held.length = 0;
+      heard.length = 0;
+      unacked.clear();
     },
     request: (op, timeoutMs, arg) => {
       if (role === "leader") return withTimeout(deps.handle(op, arg), timeoutMs);

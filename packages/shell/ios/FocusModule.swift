@@ -42,6 +42,7 @@ public class FocusModule: Module {
 
     Function("pressesWithoutRelease") { () -> Int in PressRelease.pressesWithoutRelease }
     Function("takeFocusHandoffCounts") { () -> [String: Int] in FocusHandoff.shared.takeOutcomes() }
+    Function("setConsentEpoch") { (epoch: Int) in FocusHandoff.shared.setConsentEpoch(epoch) }
     AsyncFunction("pressRepeated") { () -> [String: Any]? in PressRelease.pressRepeated }.runOnQueue(.main)
     Function("takeEditKeyAcks") { () -> [String: Int] in FocusHandoff.shared.takeEditKeyAcks() }
     Function("takeInputSourceKeys") { () -> Int in InputSourceKeys.takeWebKitTabKeys() }

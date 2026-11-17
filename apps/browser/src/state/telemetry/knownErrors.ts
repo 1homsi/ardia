@@ -1,0 +1,77 @@
+import { NATIVE_CALL } from "./sanitize";
+
+export const KNOWN_ERROR_CODES: readonly string[] = [
+  "ERR_ARGUMENT_CAST", "ERR_AUTOFILL_UNAVAILABLE", "ERR_BAD_ARGS", "ERR_BAD_REPLY", "ERR_BANG_LIST", "ERR_CALENDAR_DENIED",
+  "ERR_CALENDAR_FAILED", "ERR_CALENDAR_NOT_CONNECTED", "ERR_CALENDAR_REQUEST", "ERR_CALENDAR_UNAVAILABLE", "ERR_CARD_NUMBER",
+  "ERR_CLEAR_INCOMPLETE", "ERR_CONTENT_BLOCKER", "ERR_CONTENT_BLOCKER_BUSY", "ERR_CONTENT_BLOCKER_REQUEST",
+  "ERR_CONTENT_BLOCKER_UNAVAILABLE", "ERR_CREDENTIAL_REQUEST", "ERR_DIALOG", "ERR_DOCUMENT_AUTH", "ERR_DOCUMENT_BUSY",
+  "ERR_DOCUMENT_CLOSING", "ERR_DOCUMENT_CONFLICT", "ERR_DOCUMENT_DATA", "ERR_DOCUMENT_DELETED", "ERR_DOCUMENT_EPOCH",
+  "ERR_DOCUMENT_FENCE", "ERR_DOCUMENT_LIMIT", "ERR_DOCUMENT_READ", "ERR_DOCUMENT_REJECTED", "ERR_DOCUMENT_REQUEST",
+  "ERR_DOCUMENT_RESERVED", "ERR_DOCUMENT_SCOPE", "ERR_DOCUMENT_STORAGE", "ERR_DOCUMENT_SUBSCRIPTION", "ERR_DOCUMENT_WATERMARK",
+  "ERR_DOWNLOADS_UNAVAILABLE", "ERR_DOWNLOAD_REQUEST", "ERR_DRAG_ACTIVE", "ERR_DRAG_RELEASED", "ERR_ENGINE", "ERR_ENGINE_CLOSED",
+  "ERR_EXPORT_PATH", "ERR_EXTENSION_INVALID", "ERR_EXTENSION_PRIVATE", "ERR_EXTENSION_PROMPT_STALE", "ERR_EXTENSION_REQUEST",
+  "ERR_EXTENSION_UNAVAILABLE", "ERR_EXTENSION_VIEW_LIMIT", "ERR_EXTENSION_VIEW_REQUEST", "ERR_EXTENSION_VIEW_STALE", "ERR_FILE",
+  "ERR_FILES_REQUEST", "ERR_FILE_CHANGED", "ERR_FILE_CHOOSER_DISABLED", "ERR_FILE_DROP", "ERR_FILE_MISSING",
+  "ERR_FILE_NOT_ALLOWED", "ERR_FILE_NOT_CHOSEN", "ERR_FILE_PATH", "ERR_FILE_PICKER_OPEN", "ERR_FILE_PICKER_UNAVAILABLE",
+  "ERR_FILE_TYPE", "ERR_FOLDER", "ERR_FOLDER_MISSING", "ERR_FOLDER_NOT_WRITABLE", "ERR_FOLDER_PICKER_OPEN",
+  "ERR_FOLDER_PICKER_UNAVAILABLE", "ERR_FOLDER_REQUEST", "ERR_FOLDER_TYPE", "ERR_LIVE_ARGUMENT", "ERR_LIVE_BUSY",
+  "ERR_LIVE_CANCELLED", "ERR_LIVE_KEYRING_LOCKED", "ERR_LIVE_KEYRING_UNAVAILABLE", "ERR_LIVE_NETWORK", "ERR_LIVE_NOT_CONNECTED",
+  "ERR_LIVE_RATE_LIMITED", "ERR_LIVE_SERVICE", "ERR_LIVE_SIGNED_OUT", "ERR_LIVE_SSO", "ERR_LOGIN_ITEM",
+  "ERR_NOTIFICATION_REQUEST", "ERR_NOT_FOUND", "ERR_NO_FILE_DROP", "ERR_OPEN", "ERR_OPEN_UNAVAILABLE", "ERR_PAGE_ARGUMENT",
+  "ERR_PAGE_DISPATCH", "ERR_PAGE_EVALUATION_REFUSED", "ERR_PAGE_POLICY", "ERR_PAGE_PROFILE", "ERR_PAGE_STALE_TARGET",
+  "ERR_PAGE_UNAVAILABLE", "ERR_PAGE_UNSUPPORTED", "ERR_PASSWORDS_IMPORT", "ERR_PASSWORDS_UNAVAILABLE", "ERR_PASSWORD_REJECTED",
+  "ERR_PREFERENCE", "ERR_PREFERENCE_MANAGED", "ERR_PRIVATE_SERVICE", "ERR_PROFILE", "ERR_PROFILE_DELETED", "ERR_PROFILE_ENDING",
+  "ERR_PROFILE_INVALID", "ERR_PROFILE_PRIVATE", "ERR_PROFILE_RELEASED", "ERR_PROFILE_UNAVAILABLE", "ERR_PROFILE_WINDOW",
+  "ERR_PROMPT", "ERR_QUIT", "ERR_REAUTH_DENIED", "ERR_REAUTH_UNAVAILABLE", "ERR_REPORT", "ERR_REVEAL_FAILED",
+  "ERR_REVEAL_UNAVAILABLE", "ERR_SAVE_DOCUMENT", "ERR_SECRET_IN_REPLY", "ERR_SECRET_ROUTE", "ERR_SHUTTING_DOWN",
+  "ERR_SITE_REQUEST", "ERR_STORE_WRITE", "ERR_SUGGEST", "ERR_SUGGEST_REFUSED", "ERR_SYNC_ARGUMENT", "ERR_SYNC_FOLDER",
+  "ERR_SYNC_FOLDER_UNREADABLE", "ERR_SYNC_KIT", "ERR_SYNC_LEGACY", "ERR_SYNC_NOT_AUTHORITY", "ERR_SYNC_SEAL",
+  "ERR_SYNC_UNSUPPORTED", "ERR_SYSTEM_REQUEST", "ERR_TAB_UNAVAILABLE", "ERR_TELEMETRY_CHOICE", "ERR_TELEMETRY_OWNER",
+  "ERR_TELEMETRY_REFUSED", "ERR_TELEMETRY_RESET", "ERR_TRASH", "ERR_TRASH_UNAVAILABLE", "ERR_UNAVAILABLE", "ERR_UNKNOWN",
+  "ERR_UNKNOWN_CALL", "ERR_UNKNOWN_COMMAND", "ERR_UNSUPPORTED", "ERR_WINDOW_CLOSED", "ERR_WINDOW_CLOSE_CANCELLED",
+  "ERR_WINDOW_CLOSE_IN_PROGRESS", "ERR_WINDOW_CLOSE_LIMIT", "ERR_WINDOW_CLOSE_STALE", "ERR_WINDOW_CLOSE_UNAVAILABLE",
+  "ERR_WINDOW_IDENTITY", "cancelled", "unsupported",
+];
+
+export const KNOWN_ERROR_MESSAGES: readonly (readonly [code: string, message: string])[] = [
+  ["cancelled", "Import cancelled"],
+  ["ERR_BAD_REPLY", "Invalid file status reply"],
+  ["ERR_BAD_REPLY", "The engine reply is not JSON"],
+  ["ERR_BAD_REPLY", "The engine reply is not JSON text"],
+  ["ERR_BAD_REPLY", "the page's result isn't JSON"],
+  ["ERR_BAD_REPLY", "the reply isn't JSON"],
+  ["ERR_DOCUMENT_REQUEST", "Document arguments require JSON text"],
+  ["ERR_DOCUMENT_RESERVED", "Canonical Live documents cannot be removed generically"],
+  ["ERR_DOCUMENT_RESERVED", "Canonical Live documents require typed operations"],
+  ["ERR_ENGINE", "no bookmarks"],
+  ["ERR_ENGINE", "Profile must be a string"],
+  ["ERR_ENGINE", "the file couldn't be written"],
+  ["ERR_PROFILE_INVALID", "The private window has no state to open"],
+  ["ERR_TELEMETRY_CHOICE", "The telemetry choice isn't one this build knows"],
+  ["ERR_TELEMETRY_OWNER", "No telemetry owner answered"],
+  ["ERR_TELEMETRY_RESET", "The anonymous ID wasn't reset"],
+  ["ERR_UNAVAILABLE", "Quitting needs the Linux host"],
+  ["ERR_UNAVAILABLE", "Sharing is unavailable in this window"],
+  ["ERR_UNKNOWN_CALL", "Unknown document operation"],
+  ["ERR_WINDOW_CLOSE_CANCELLED", "Window close cancelled"],
+  ["ERR_WINDOW_CLOSE_LIMIT", "Too many pending close attempts"],
+  ["ERR_WINDOW_CLOSE_STALE", "Invalid close identity"],
+  ["ERR_WINDOW_CLOSE_STALE", "Window close is no longer current"],
+  ["unsupported", "Password import needs the Linux host"],
+];
+
+const codes = new Set(KNOWN_ERROR_CODES);
+const messages = new Set(KNOWN_ERROR_MESSAGES.map(([, message]) => message));
+
+export function knownErrorMessage(error: unknown): string {
+  const message = error && typeof error === "object" ? (error as { message?: unknown }).message : undefined;
+  if (typeof message !== "string") return "";
+  if (messages.has(message)) return message;
+  const call = NATIVE_CALL.exec(message.split(/\r?\n/, 1)[0]!.trim());
+  return call ? `Calling the '${call[1]}' function has failed` : "";
+}
+
+export function knownErrorCode(error: unknown): string | null {
+  const code = error && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+  return typeof code === "string" && codes.has(code) ? code : null;
+}

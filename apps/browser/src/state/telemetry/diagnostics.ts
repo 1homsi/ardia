@@ -6,7 +6,7 @@ import { withDeadline } from "../../lib/deadline";
 import { hermesHeapMegabytes } from "../../lib/hermesHeap";
 import { activeTab } from "../browser/model";
 import { useBrowser } from "../browser/store";
-import { capture, isSharing, saveContext, useTelemetry } from "./client";
+import { beganBeforeChange, capture, isSharing, saveContext, useTelemetry } from "./client";
 import { formatRecentPages, readRecentPages, type RecentPage, type SavedContext } from "./savedContext";
 import { noteDragsEnded } from "./stuckDrags";
 import { noteWindowlessPages } from "./cliCounts";
@@ -116,13 +116,22 @@ function keepRecent(list: SavedContext[], now: number): SavedContext[] {
   return (recent.length >= MIN_SAMPLES ? recent : list.slice(-MIN_SAMPLES)).slice(-MAX_SAMPLES);
 }
 
-export const takeMainProcessWork = async () => mainProcessWork(await diagnosticsSample().catch(() => ({})), Date.now());
+let reads: Promise<unknown> = Promise.resolve();
 
-export async function takeContentDriftCounts(): Promise<Record<string, number>> {
-  const drift = await call("webView.takeContentDrift", {}).catch(() => null);
-  if (!drift) return {};
-  return { content_layer_layouts: drift.layouts, content_layer_refits: drift.fits, content_layer_drift_max_pt: drift.maxPoints };
+function inTurn<T>(read: () => Promise<T>): Promise<T> {
+  const next = reads.then(read, read);
+  reads = next.catch(() => null);
+  return next;
 }
+
+export const takeMainProcessWork = () => inTurn(async () => mainProcessWork(await diagnosticsSample().catch(() => ({})), Date.now()));
+
+export const takeContentDriftCounts = (): Promise<Record<string, number>> =>
+  inTurn(async (): Promise<Record<string, number>> => {
+    const drift = await call("webView.takeContentDrift", {}).catch(() => null);
+    if (!drift) return {};
+    return { content_layer_layouts: drift.layouts, content_layer_refits: drift.fits, content_layer_drift_max_pt: drift.maxPoints };
+  });
 
 export const contextSamples = () => samples;
 
@@ -135,7 +144,11 @@ function forgetContext() {
   pageProcessesGone = 0;
 }
 
-useTelemetry.subscribe((s, prev) => prev.sharing !== s.sharing && forgetContext());
+useTelemetry.subscribe((s, prev) => {
+  if (prev.sharing === s.sharing) return;
+  forgetContext();
+  windowUnpaintedEvents = 0;
+});
 
 useBrowser.subscribe((s, prev) => {
   if (s.profiles === prev.profiles || size(s.profiles) >= size(prev.profiles)) return;
@@ -326,7 +339,7 @@ export function windowUnpaintedProperties(r: WindowUnpaintedRecord) {
 }
 
 export function trackWindowUnpainted(r: WindowUnpaintedRecord) {
-  if (windowUnpaintedEvents >= MAX_WINDOW_UNPAINTED_EVENTS) return;
+  if (windowUnpaintedEvents >= MAX_WINDOW_UNPAINTED_EVENTS || beganBeforeChange(r.seconds)) return;
   windowUnpaintedEvents++;
   capture("window_unpainted", windowUnpaintedProperties(r));
 }

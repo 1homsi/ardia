@@ -121,6 +121,11 @@ async function refreshState() {
   if (savedChoice().installId) offeredInstallId = null;
 }
 
+const consentStamp = () => {
+  const choice = savedChoice();
+  return choice.sharing && choice.decidedAt !== null ? choice.decidedAt : null;
+};
+
 export function startHostTelemetry(options: { host: ArdiaHost; candidate: boolean; locks?: LeaderLocks; channel?: LeaderChannel | null }) {
   const { host, candidate } = options;
   setTelemetrySettle({ settle: settleHostTelemetry, reopen: reopenHostTelemetry });
@@ -134,8 +139,14 @@ export function startHostTelemetry(options: { host: ArdiaHost; candidate: boolea
     locks: options.locks,
     channel,
     relay: (forward) => setTelemetryRelay(forward && {
-      capture: (event, props, captureOptions) => forward({ kind: "capture", event, props, options: { ...captureOptions } }),
-      log: (level, message, attributes) => forward({ kind: "log", level, message, attributes }),
+      capture: (event, props, captureOptions) => {
+        const consent = consentStamp();
+        if (consent !== null) forward({ kind: "capture", event, props, options: { ...captureOptions }, consent });
+      },
+      log: (level, message, attributes) => {
+        const consent = consentStamp();
+        if (consent !== null) forward({ kind: "log", level, message, attributes, consent });
+      },
       resetId: async () => {
         const installId = await current.request("reset", RESET_TIMEOUT_MS);
         await refreshState();
@@ -156,6 +167,7 @@ export function startHostTelemetry(options: { host: ArdiaHost; candidate: boolea
       },
     }),
     deliver: (message) => message.kind === "capture" ? capture(message.event, message.props, message.options) : queueLog(message.level, message.message, message.attributes),
+    consented: (stamp) => stamp !== undefined && stamp === consentStamp(),
     handle: handleTelemetryOp,
     lead: async () => {
       await Promise.all(TELEMETRY_DOCUMENTS.map((name) => refreshDocument(name).catch(report)));
@@ -171,7 +183,8 @@ export function startHostTelemetry(options: { host: ArdiaHost; candidate: boolea
   });
   leadership = current;
   let announced = shownChoice();
-  useTelemetry.subscribe(() => {
+  useTelemetry.subscribe((shown, previous) => {
+    if (shown.sharing !== previous.sharing) current.forget();
     const next = shownChoice();
     if (next === announced) return;
     announced = next;

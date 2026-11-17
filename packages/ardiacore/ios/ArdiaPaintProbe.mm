@@ -74,7 +74,7 @@ NSUInteger OpenWindowCount() {
   return open;
 }
 
-void CheckPainting(NSWindow *window, NSString *trigger) {
+void CheckPainting(NSWindow *window, NSString *trigger, CFTimeInterval scheduledAt) {
   ArdiaWindowController *owner = [ArdiaWindowController forNSWindow:window];
   ArdiaPaintWatch *watch = [PaintWatches() objectForKey:window];
   if (!owner || owner.coreWindow.window != window || !watch) return;
@@ -93,6 +93,7 @@ void CheckPainting(NSWindow *window, NSString *trigger) {
     @"views" : @(tally.views),
     @"unpainted" : @(tally.unpainted),
     @"reasons" : @(tally.reasons),
+    @"seconds" : @(CACurrentMediaTime() - scheduledAt),
   };
   gLastPaintCheck = DescribePaint(record);
   if (!watch->_episode.ShouldSend(tally)) return;
@@ -109,11 +110,12 @@ void SchedulePaintCheck(NSWindow *window, NSString *trigger) {
     [PaintWatches() setObject:watch forKey:window];
   }
   const NSUInteger generation = ++watch->_generation;
+  const CFTimeInterval scheduledAt = CACurrentMediaTime();
   __weak NSWindow *weakWindow = window;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPaintCheckAfter * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     NSWindow *checked = weakWindow;
     ArdiaPaintWatch *current = checked ? [PaintWatches() objectForKey:checked] : nil;
-    if (current && current->_generation == generation) CheckPainting(checked, trigger);
+    if (current && current->_generation == generation) CheckPainting(checked, trigger, scheduledAt);
   });
 }
 

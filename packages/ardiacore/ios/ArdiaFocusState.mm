@@ -199,13 +199,13 @@ void NotePointer(NSEvent *event, NSString *swallowedBy) {
 
 namespace {
 
-void ReportLongPressLoop(const std::string &names, bool stillOpen) {
+void ReportLongPressLoop(const std::string &names, bool stillOpen, double seconds) {
   const NSUInteger buttons = NSEvent.pressedMouseButtons;
   NSString *joined = @(names.c_str());
   NSLog(@"[ardiacore] press loop %@ %@ after %.0fs, pressed buttons 0x%lx", joined, stillOpen ? @"still open" : @"ended",
         ardia_pointer::kLongLoopSeconds, (unsigned long)buttons);
   NSArray<NSString *> *loops = [joined componentsSeparatedByString:@">"];
-  NSDictionary *payload = @{@"loop" : loops.firstObject ?: @"", @"inner" : loops.lastObject ?: @"", @"open" : @(stillOpen), @"buttonsHeld" : @(buttons != 0)};
+  NSDictionary *payload = @{@"loop" : loops.firstObject ?: @"", @"inner" : loops.lastObject ?: @"", @"open" : @(stillOpen), @"buttonsHeld" : @(buttons != 0), @"seconds" : @(seconds)};
   dispatch_async(dispatch_get_main_queue(), ^{ [ArdiaEvents emit:@"engine.pressLoopLong" data:payload]; });
 }
 
@@ -216,13 +216,15 @@ void BeginPressLoop(NSString *name) {
   const int64_t delay = (int64_t)((ardia_pointer::kLongLoopSeconds + 0.1) * NSEC_PER_SEC);
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delay), dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
     std::string open;
-    if (PointerTrace().TakeLongLoop(generation, Uptime(), &open)) ReportLongPressLoop(open, true);
+    double seconds = 0;
+    if (PointerTrace().TakeLongLoop(generation, Uptime(), &open, &seconds)) ReportLongPressLoop(open, true, seconds);
   });
 }
 
 void EndPressLoop() {
   std::string ended;
-  if (PointerTrace().EndLoop(Uptime(), &ended)) ReportLongPressLoop(ended, false);
+  double seconds = 0;
+  if (PointerTrace().EndLoop(Uptime(), &ended, &seconds)) ReportLongPressLoop(ended, false, seconds);
 }
 
 NSString *FocusState() {

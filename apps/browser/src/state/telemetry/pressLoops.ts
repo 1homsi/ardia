@@ -1,5 +1,5 @@
 import { onPressLoopLong, type PressLoopLongReport } from "../../platform/performance";
-import { capture } from "./client";
+import { beganBeforeChange, capture } from "./client";
 
 const LOOPS = new Set(["windowDragRegion", "windowMove"]);
 const MAX_EVENTS = 10;
@@ -14,7 +14,7 @@ export function pressLoopLongProperties(r: PressLoopLongReport) {
 }
 
 export function trackPressLoopLong(r: PressLoopLongReport) {
-  if (sent >= MAX_EVENTS) return;
+  if (sent >= MAX_EVENTS || beganBeforeChange(r.seconds)) return;
   sent++;
   capture("press_loop_long", pressLoopLongProperties(r));
 }

@@ -1,5 +1,5 @@
 import { crashReports } from "../../platform/app";
-import { advanceCrashCursor, capture, crashCursor, loadChoice, saveQueueNow } from "./client";
+import { advanceCrashCursor, capture, consentToken, crashCursor, loadChoice, saveQueueNow } from "./client";
 import { contextAt, contextProperties, recentWebuiPages, sessionStart } from "./diagnostics";
 import type { SavedContext } from "./savedContext";
 import { recordLog } from "./logs";
@@ -133,10 +133,13 @@ const whole = (value: number | undefined) => (typeof value === "number" && Numbe
 
 export async function reportNativeCrashes(contexts: (SavedContext | null)[] = []) {
   const since = crashCursor();
+  const consent = consentToken();
   const reports = await crashReports(since).catch(() => []);
+  const floor = Math.max(since, crashCursor());
   let latest = since;
   for (const report of reports) {
     latest = Math.max(latest, report.fileTime ?? report.time);
+    if (floor > since && (report.fileTime ?? report.time) <= floor) continue;
     const browser = report.process === "browser";
     const mechanism: Mechanism = browser ? "native_crash" : "helper_crash";
     const { name, signal, subtype, images, exceptions } = nativeCrashExceptions(report);
@@ -164,6 +167,7 @@ export async function reportNativeCrashes(contexts: (SavedContext | null)[] = []
       {
         urgent: true,
         persist: true,
+        consent,
         raw: { ...exceptionProperties(exceptions, mechanism, false), crash_images: images },
       },
     );

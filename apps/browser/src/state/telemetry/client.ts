@@ -11,7 +11,7 @@ import { uuidv4, uuidv7 } from "./ids";
 import { parseSaved, versionedJson } from "../../lib/savedDocument";
 import { withDeadline } from "../../lib/deadline";
 import { isFields, isString } from "../../lib/decode";
-import { dismissAsk, isSharing, loadChoice, NO_WATCH, resumeSession, save, savedChoice as saved, sessionId, startNewSession, useTelemetry } from "./choice";
+import { beganBeforeChange, consentGeneration, consentToken, dismissAsk, isSharing, loadChoice, NO_WATCH, resumeSession, save, savedChoice as saved, sessionId, startNewSession, stillValid, useTelemetry } from "./choice";
 import { flushLocalNow, LOCAL_KEEP_DAYS, recordLocal } from "./localStore";
 
 const QUEUE_DOC = "telemetry-queue.json";
@@ -24,7 +24,7 @@ const FLUSH_DELAY_MS = 30_000;
 const URGENT_FLUSH_DELAY_MS = 3_000;
 const MAX_BACKOFF_MS = 30 * 60_000;
 
-export { dismissAsk, isSharing, loadChoice, useTelemetry };
+export { beganBeforeChange, consentGeneration, consentToken, dismissAsk, isSharing, loadChoice, stillValid, useTelemetry };
 
 let engineVersion: string | null = null;
 
@@ -127,11 +127,15 @@ let droppedWhileOff = 0;
 
 export type { CaptureOptions };
 
+const consented = (consent: CaptureOptions["consent"]) => (consent === undefined ? isSharing() : stillValid(consent));
+
 export function capture(event: string, props: Record<string, unknown> = {}, options: CaptureOptions = {}) {
+  const { consent, ...rest } = options;
   const relay = telemetryRelay();
-  if (relay) return relay.capture(event, props, options);
+  if (relay) return void (consented(consent) && relay.capture(event, props, rest));
   try {
-    const { sharing, installId } = saved();
+    const { installId } = saved();
+    const sharing = consented(consent);
     const at = Date.now();
     const record: QueuedEvent = {
       uuid: uuidv7(),
@@ -155,7 +159,7 @@ export function capture(event: string, props: Record<string, unknown> = {}, opti
 
 export function queueLog(level: "warn" | "error", message: string, attributes: Record<string, string | number | boolean>) {
   const relay = telemetryRelay();
-  if (relay) return relay.log(level, message, attributes);
+  if (relay) return void (isSharing() && relay.log(level, message, attributes));
   try {
     const sharing = saved().sharing;
     const at = Date.now();

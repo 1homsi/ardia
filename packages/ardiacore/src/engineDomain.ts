@@ -97,9 +97,10 @@ export type WindowUnpaintedRecord = {
   views: number;
   unpainted: number;
   reasons: number;
+  seconds?: number;
 };
 
-export type PressLoopLongReport = { loop: string; inner: string; open: boolean; buttonsHeld: boolean };
+export type PressLoopLongReport = { loop: string; inner: string; open: boolean; buttonsHeld: boolean; seconds?: number };
 
 export type CliTabTarget = { targetId: string | null; pageGeneration: number };
 

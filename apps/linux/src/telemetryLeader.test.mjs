@@ -260,3 +260,40 @@ test("a request with no leader to answer it fails after its deadline", async () 
   const settings = window({ locks: fakeLocks(), channel: bus(), candidate: false });
   await assert.rejects(settings.leadership.request("end", 20), { code: "ERR_TELEMETRY_OWNER" });
 });
+
+test("the leader drops relayed telemetry stamped with a sharing period that has ended, and a window clears what it held when sharing changes", async () => {
+  const locks = fakeLocks();
+  const bus = fakeBus();
+  let consent = 2;
+  const delivered = [];
+  startTelemetryLeadership({
+    candidate: true,
+    locks,
+    channel: bus(),
+    relay: () => {},
+    deliver: (message) => delivered.push(message.event),
+    consented: (stamp) => stamp === consent,
+    handle: async (op) => op,
+    lead: async () => {},
+    report: (error) => assert.fail(String(error)),
+    newId: () => `consent-${++ids}`,
+  });
+  await turn();
+  let relay = null;
+  const follower = startTelemetryLeadership({
+    candidate: false,
+    channel: bus(),
+    relay: (next) => (relay = next),
+    deliver: () => assert.fail("a follower never delivers"),
+    handle: async (op) => op,
+    lead: async () => {},
+    report: (error) => assert.fail(String(error)),
+    newId: () => `consent-${++ids}`,
+  });
+  relay({ kind: "capture", event: "stale", props: {}, options: {}, consent: 1 });
+  relay({ kind: "capture", event: "current", props: {}, options: {}, consent: 2 });
+  await turn();
+  await turn();
+  assert.deepEqual(delivered, ["current"]);
+  assert.equal(typeof follower.forget, "function");
+});

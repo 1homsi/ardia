@@ -17,5 +17,6 @@ export type FocusNative = {
   switcherPointerMoved(): boolean;
   pressesWithoutRelease(): number;
   takeFocusHandoffCounts?(): Record<string, number>;
+  setConsentEpoch?(epoch: number): void;
   pressRepeated(): Promise<{ landedOn: string; ms: number } | null>;
 };

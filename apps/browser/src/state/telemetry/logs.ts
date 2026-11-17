@@ -1,5 +1,6 @@
 import { queueLog } from "./client";
-import { errorCode, errorMessage, errorType, scrubText } from "./sanitize";
+import { knownErrorCode, knownErrorMessage } from "./knownErrors";
+import { errorType, scrubText } from "./sanitize";
 
 const MAX_DISTINCT = 40;
 const seen = new Set<string>();
@@ -10,13 +11,14 @@ export function recordLog(level: "warn" | "error", args: unknown[]) {
   const message = scrubText(first, 160);
   if (!message) return;
   const error = args.slice(1).find((a) => a instanceof Error);
-  const reason = error ? errorMessage(error) : "";
-  const key = `${message}\n${reason}`;
+  const type = error ? errorType(error) : "none";
+  const reason = error ? knownErrorMessage(error) : "";
+  const code = error ? knownErrorCode(error) : null;
+  const key = `${message}\n${type}\n${reason}\n${code ?? ""}`;
   if (seen.has(key) || seen.size >= MAX_DISTINCT) return;
   seen.add(key);
-  const attributes: Record<string, string> = { error_type: error ? errorType(error) : "none" };
+  const attributes: Record<string, string> = { error_type: type };
   if (reason) attributes.error_message = reason;
-  const code = error ? errorCode(error) : null;
   if (code) attributes.error_code = code;
   queueLog(level, message, attributes);
 }

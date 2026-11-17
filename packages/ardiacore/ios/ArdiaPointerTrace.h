@@ -44,7 +44,7 @@ class Trace {
     return ++generation_;
   }
 
-  bool EndLoop(double now, std::string *longName) {
+  bool EndLoop(double now, std::string *longName, double *seconds = nullptr) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (names_.empty()) return false;
     const std::string name = Joined();
@@ -59,14 +59,16 @@ class Trace {
     if (logged_ || length < kLongLoopSeconds) return false;
     logged_ = true;
     if (longName) *longName = name;
+    if (seconds) *seconds = length;
     return true;
   }
 
-  bool TakeLongLoop(unsigned long generation, double now, std::string *name) {
+  bool TakeLongLoop(unsigned long generation, double now, std::string *name, double *seconds = nullptr) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (names_.empty() || generation != generation_ || logged_ || now - startedAt_ < kLongLoopSeconds) return false;
     logged_ = true;
     if (name) *name = Joined();
+    if (seconds) *seconds = now - startedAt_;
     return true;
   }
 

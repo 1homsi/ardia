@@ -36,6 +36,7 @@ final class FocusHandoff {
     weak var resigned: NSView?
     var restoresSource = true
     var deadline: CFTimeInterval = 0
+    var epoch = 0
     var timer: DispatchWorkItem?
     var generations: [Generation] = []
     var held: [Held] = []
@@ -81,7 +82,7 @@ final class FocusHandoff {
     let gate = existing ?? open(in: window)
     if existing != nil {
       setDeadline(of: gate, after: Self.pickupLimit)
-      outcomes.add("superseded")
+      outcomes.add("superseded", since: gate.epoch)
     }
     if let page = focused as? NSView, Self.isPage(page) {
       ArdiaWebView.keepOutgoingFocus(from: page)
@@ -90,6 +91,7 @@ final class FocusHandoff {
     }
     generations += 1
     drop(in: gate) { _ in true }
+    gate.epoch = outcomes.epoch
     gate.generations = [Generation(generations)]
     begun = generations
     note("begin \(generations)")
@@ -236,6 +238,8 @@ final class FocusHandoff {
 
   func takeOutcomes() -> [String: Int] { outcomes.take() }
 
+  func setConsentEpoch(_ epoch: Int) { outcomes.epoch = epoch }
+
   private func releases(_ up: NSEvent, in gate: Gate?) -> Bool {
     guard let release = releases.removeValue(forKey: up.keyCode) else { return false }
     if let gate, let index = gate.held.lastIndex(where: {
@@ -281,7 +285,7 @@ final class FocusHandoff {
     let timer = DispatchWorkItem { [weak self, weak gate] in
       guard let self, let gate, let window = gate.window, self.gates[ObjectIdentifier(window)] === gate else { return }
       self.note("deadline")
-      self.outcomes.add("timedOut")
+      self.outcomes.add("timedOut", since: gate.epoch)
       self.end(gate, restoring: true)
     }
     gate.timer = timer
@@ -296,7 +300,7 @@ final class FocusHandoff {
   private func live(_ gate: Gate) -> Bool {
     if CACurrentMediaTime() < gate.deadline { return true }
     note("expired")
-    outcomes.add("timedOut")
+    outcomes.add("timedOut", since: gate.epoch)
     end(gate, restoring: true)
     return false
   }
@@ -314,8 +318,8 @@ final class FocusHandoff {
       self.drop(in: gate) { $0.generation != newest.id }
       gate.held = []
       self.close(gate)
-      self.outcomes.delivered(after: CACurrentMediaTime() - newest.began)
-      if let destination = newest.destination { self.replay(mine, into: destination, in: window) }
+      self.outcomes.delivered(after: CACurrentMediaTime() - newest.began, since: gate.epoch)
+      if let destination = newest.destination { self.replay(mine, into: destination, in: window, since: gate.epoch) }
     }
   }
 
@@ -358,13 +362,13 @@ final class FocusHandoff {
     gates.values.first { $0.generations.contains { $0.id == id } }
   }
 
-  private func replay(_ held: [Held], into destination: NSView, in window: NSWindow) {
+  private func replay(_ held: [Held], into destination: NSView, in window: NSWindow, since epoch: Int) {
     guard !held.isEmpty else { return }
     note("replay \(held.count) into \(type(of: destination))")
     for entry in held { if case .key(let down, _) = entry.input { noteTyped(down, in: window) } }
     for (index, entry) in held.enumerated() {
       guard let responder = window.firstResponder as? NSView, responder === destination || responder.isDescendant(of: destination) else {
-        return beep(Array(held[index...]))
+        return beep(Array(held[index...]), since: epoch)
       }
       switch entry.input {
       case .key(let down, let up):
@@ -388,13 +392,13 @@ final class FocusHandoff {
     let gone = gate.held.filter(dropped)
     guard !gone.isEmpty else { return }
     gate.held.removeAll(where: dropped)
-    beep(gone)
+    beep(gone, since: gate.epoch)
   }
 
-  private func beep(_ held: [Held]) {
+  private func beep(_ held: [Held], since epoch: Int) {
     guard !held.isEmpty else { return }
     note("drop \(held.count)")
-    outcomes.add("dropped", held.count)
+    outcomes.add("dropped", held.count, since: epoch)
     NSSound.beep()
   }
 
@@ -423,16 +427,22 @@ final class FocusHandoff {
 final class HandoffOutcomes {
   private let lock = NSLock()
   private var counts: [String: Int] = [:]
+  private var current = 0
 
-  func add(_ outcome: String, _ by: Int = 1) {
+  var epoch: Int {
+    get { lock.lock(); defer { lock.unlock() }; return current }
+    set { lock.lock(); current = newValue; counts = [:]; lock.unlock() }
+  }
+
+  func add(_ outcome: String, _ by: Int = 1, since epoch: Int) {
     lock.lock()
-    counts[outcome, default: 0] += by
+    if epoch == current { counts[outcome, default: 0] += by }
     lock.unlock()
   }
 
-  func delivered(after seconds: CFTimeInterval) {
-    add("delivered")
-    add(seconds < 0.4 ? "pickupUnder400ms" : seconds < 1 ? "pickup400To1000ms" : "pickupOver1s")
+  func delivered(after seconds: CFTimeInterval, since epoch: Int) {
+    add("delivered", since: epoch)
+    add(seconds < 0.4 ? "pickupUnder400ms" : seconds < 1 ? "pickup400To1000ms" : "pickupOver1s", since: epoch)
   }
 
   func take() -> [String: Int] {

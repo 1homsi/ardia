@@ -128,6 +128,17 @@ int main() {
   }
   {
     Trace trace;
+    const unsigned long open = trace.BeginLoop("windowMove", 10);
+    double seconds = 0;
+    CHECK(trace.TakeLongLoop(open, 15.5, nullptr, &seconds));
+    CHECK(seconds == 5.5);
+    trace.EndLoop(16, nullptr);
+    trace.BeginLoop("windowDragRegion", 20);
+    CHECK(trace.EndLoop(27.25, nullptr, &seconds));
+    CHECK(seconds == 7.25);
+  }
+  {
+    Trace trace;
     trace.BeginLoop("pipDrag", 3);
     trace.EndLoop(3, nullptr);
     CHECK(trace.LoopLine(4) == "press loop none, finished 1, longest pipDrag 0.0s");

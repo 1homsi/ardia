@@ -2,6 +2,7 @@ export type CaptureOptions = {
   raw?: Record<string, unknown>;
   urgent?: boolean;
   persist?: boolean;
+  consent?: number | null;
 };
 
 export type SharingSource = "settings" | "onboarding" | "ask" | "watch" | "watch_ended";

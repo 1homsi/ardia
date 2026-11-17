@@ -130,8 +130,26 @@ const shown = (s: Saved): Shown => ({
   sharingUntil: s.sharingUntil,
 });
 
+let generation = 0;
+let changedAt = 0;
+
+function noteSharing(was: boolean) {
+  if (saved.sharing === was) return;
+  generation++;
+  changedAt = Date.now();
+}
+
+export type ConsentToken = number;
+
+export const consentGeneration = () => generation;
+export const consentToken = (): ConsentToken | null => (saved.sharing ? generation : null);
+export const stillValid = (token: ConsentToken | null | undefined) => typeof token === "number" && saved.sharing && token === generation;
+export const beganBeforeChange = (secondsAgo: unknown) => Date.now() - (typeof secondsAgo === "number" && Number.isFinite(secondsAgo) ? Math.max(0, secondsAgo) : 0) * 1000 <= changedAt;
+
 export function save(patch: Partial<Session> | (Partial<Session> & Sharing)) {
+  const was = saved.sharing;
   saved = { ...saved, ...patch } as Saved;
+  noteSharing(was);
   try {
     writeDocument(STATE_DOC, versionedJson(saved, STATE_VERSION));
   } catch {}
@@ -162,7 +180,9 @@ let loaded = false;
 export function loadChoice() {
   if (loaded) return;
   loaded = true;
+  const was = saved.sharing;
   saved = readSaved(readStateDoc());
+  noteSharing(was);
   useTelemetry.setState(shown(saved));
 }
 

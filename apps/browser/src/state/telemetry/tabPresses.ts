@@ -1,5 +1,5 @@
 import { pressesWithoutRelease, pressRepeated } from "../../platform/focus";
-import { capture, useTelemetry } from "./client";
+import { capture, consentToken, stillValid, useTelemetry } from "./client";
 import { takeHoverCardCounts } from "./hoverCardCounts";
 import { percentile } from "./transport";
 
@@ -51,8 +51,9 @@ export function noteRowPress(shownTabEmpty: boolean): Promise<void> {
   const at = Date.now();
   const rowPressBefore = lastRowPressAt;
   lastRowPressAt = at;
+  const token = consentToken();
   return pressRepeated().then((earlier) => {
-    if (!earlier || rowPressBefore > at - earlier.ms - REPEAT_SLACK_MS) return;
+    if (!earlier || !stillValid(token) || rowPressBefore > at - earlier.ms - REPEAT_SLACK_MS) return;
     repeats.presses++;
     if (shownTabEmpty) repeats.onNewTab++;
     if (repeatGaps.length < MAX_SAMPLES) repeatGaps.push(earlier.ms);
