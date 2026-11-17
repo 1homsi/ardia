@@ -163,6 +163,13 @@ test("a right-click that took the keyboard from a page gives it back when its me
   const manager = native("WindowManager.h");
   const activated = manager.slice(manager.indexOf("void Activated(HWND hwnd, HWND previous)"), manager.indexOf("static bool LeftButtonDown()"));
   assert.match(activated, /ClearPageLeftBySecondaryPress\(\);\n\s+if \(fromPage && SecondaryButtonDown\(\)\)/, "only a right press from its own page is remembered, and any other activation forgets it");
+  assert.match(activated, /PageLeft\{hwnd, previous, GetTickCount64\(\), 0\};\n\s+if \(!StartSecondaryPressWatch\(\)\) ClearPageLeftBySecondaryPress\(\);/, "the press is followed from the moment it took the keyboard, and forgotten if it cannot be");
+  assert.doesNotMatch(activated, /SetWindowsHookExW|WH_MOUSE/, "WinUI's sidebar presses never reach a thread mouse hook, so the release is read from the buttons");
+  const follow = activated.slice(activated.indexOf("void FollowSecondaryPress()"), activated.indexOf("static bool ButtonOtherThanSecondaryDown()"));
+  assert.match(follow, /if \(ButtonOtherThanSecondaryDown\(\) \|\| \(left\.releasedAt && secondary\)\) return ClearPageLeftBySecondaryPress\(\);/, "another button, or a new right press after the release, forgets the page");
+  assert.match(follow, /if \(!secondary\) \{\n\s+left\.releasedAt = now;\n\s+\} else if \(now - left\.pressedAt > kSecondaryHoldLimitMs\) \{\n\s+ClearPageLeftBySecondaryPress\(\);/, "the release is stamped when the button comes up, and a press held past its limit is forgotten");
+  assert.match(follow, /if \(now - left\.releasedAt > kPageLeftKeptAfterReleaseMs\) ClearPageLeftBySecondaryPress\(\);/, "the watch ends once the page could no longer be taken");
+  assert.match(manager, /HWND TakePageLeftBySecondaryPress\(HWND app, ULONGLONG withinMs\) noexcept \{\n\s+FollowSecondaryPress\(\);/, "a release since the last tick counts when the menu asks");
   const module = native("MenusModule.h");
   const shown = module.slice(module.indexOf("REACT_METHOD(showMenu)"), module.indexOf("REACT_SYNC_METHOD(openCount)"));
   assert.match(shown, /if \(!popup\) return promise\.Resolve\(JSValue\{nullptr\}\);\n\s+popup->pageLeft = Menus::MenuKeyboard::Shared\(\)\.PageTheMenuPressLeft\(popup->owner\);\n\s+bool started = DialogParts::RunModal\(/, "the page is read on the UI thread before the menu's thread starts");

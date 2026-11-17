@@ -599,8 +599,11 @@ is plain Chromium.
   (`EndMenu`) when its window goes or the app stops. A right press in the sidebar while a page has the keyboard
   activates the app window first, before any menu, so the page lost the keyboard to the sidebar for good (#2218, seen on
   the CI runner: the field kept its caret but `document.hasFocus()` was false and the keys went nowhere). The app window
-  now remembers the page it was activated from when the secondary button was down (`TakePageLeftBySecondaryPress`), the
-  menu reads it on the UI thread before its thread starts (`PageTheMenuPressLeft`, within 2 s of the button release and only for
+  now remembers the page it was activated from when the secondary button was down (`TakePageLeftBySecondaryPress`). The
+  sidebar's presses reach WinUI without passing the UI thread's mouse messages or a `WH_MOUSE` hook (the CI input trace
+  had none and the hook was never called), so the window reads the physical buttons on a 15 ms timer from that press
+  until 2 s after its release, at most 10 s held (`FollowSecondaryPress`); another button or a new right press forgets
+  the page. The menu reads it on the UI thread before its thread starts (`PageTheMenuPressLeft`, within 2 s of the button release and only for
   the menu's own window), and when the menu is dismissed without a choice it gives the keyboard back through the same
   follow path the Windows key uses (`snapKeyHandedBack` with `afterMenu`), only if that window is still in front,
   enabled, not minimized and holds no dialog, the page is still that window's and shown, and no switcher, popover,

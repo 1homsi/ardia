@@ -512,6 +512,7 @@ struct WindowManager {
   }
 
   HWND TakePageLeftBySecondaryPress(HWND app, ULONGLONG withinMs) noexcept {
+    FollowSecondaryPress();
     PageLeft left = m_pageLeftBySecondaryPress;
     ClearPageLeftBySecondaryPress();
     if (!app || left.app != app || !left.releasedAt || GetTickCount64() - left.releasedAt > withinMs) return nullptr;
@@ -522,6 +523,7 @@ struct WindowManager {
   struct PageLeft {
     HWND app = nullptr;
     HWND page = nullptr;
+    ULONGLONG pressedAt = 0;
     ULONGLONG releasedAt = 0;
   };
 
@@ -532,6 +534,9 @@ struct WindowManager {
   static constexpr double kPopupWidth = 500;
   static constexpr double kPopupPageHeight = 600;
   static constexpr int kEdgePollMs = 40;
+  static constexpr int kSecondaryPressPollMs = 15;
+  static constexpr ULONGLONG kSecondaryHoldLimitMs = 10000;
+  static constexpr ULONGLONG kPageLeftKeptAfterReleaseMs = 2000;
   static constexpr double kEdgeReach = 24.0;
   static constexpr double kCascadeStep = 28.0;
   static constexpr std::chrono::milliseconds kPlacementSaveDelay{400};
@@ -955,9 +960,8 @@ struct WindowManager {
     bool fromPage = OwnPageWindow(hwnd, previous);
     ClearPageLeftBySecondaryPress();
     if (fromPage && SecondaryButtonDown()) {
-      m_pageLeftBySecondaryPress = PageLeft{hwnd, previous, 0};
-      m_secondaryPressHook = SetWindowsHookExW(WH_MOUSE, &WindowManager::SecondaryPressProc, nullptr, GetCurrentThreadId());
-      if (!m_secondaryPressHook) ClearPageLeftBySecondaryPress();
+      m_pageLeftBySecondaryPress = PageLeft{hwnd, previous, GetTickCount64(), 0};
+      if (!StartSecondaryPressWatch()) ClearPageLeftBySecondaryPress();
     }
     winrt::Microsoft::ReactNative::JSValueObject event;
     event["type"] = "focus";
@@ -966,45 +970,60 @@ struct WindowManager {
     EmitWindow(std::move(event));
   }
 
-  void StopSecondaryPressHook() noexcept {
-    if (!m_secondaryPressHook) return;
-    UnhookWindowsHookEx(m_secondaryPressHook);
-    m_secondaryPressHook = nullptr;
+  bool StartSecondaryPressWatch() noexcept {
+    if (m_secondaryPressTimer) return true;
+    try {
+      auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
+      timer.Interval(std::chrono::milliseconds(kSecondaryPressPollMs));
+      timer.IsRepeating(true);
+      m_secondaryPressTick = timer.Tick([this](auto const &, auto const &) noexcept { FollowSecondaryPress(); });
+      m_secondaryPressTimer = timer;
+      timer.Start();
+      return true;
+    } catch (...) {
+      m_secondaryPressTimer = nullptr;
+      return false;
+    }
+  }
+
+  void StopSecondaryPressWatch() noexcept {
+    if (!m_secondaryPressTimer) return;
+    auto timer = m_secondaryPressTimer;
+    m_secondaryPressTimer = nullptr;
+    try {
+      timer.Stop();
+      timer.Tick(m_secondaryPressTick);
+    } catch (...) {
+    }
   }
 
   void ClearPageLeftBySecondaryPress() noexcept {
-    StopSecondaryPressHook();
+    StopSecondaryPressWatch();
     m_pageLeftBySecondaryPress = {};
   }
 
-  static LRESULT CALLBACK SecondaryPressProc(int code, WPARAM message, LPARAM data) noexcept {
-    WindowManager &manager = Shared();
-    if (code == HC_ACTION) {
-      switch (message) {
-        case WM_LBUTTONUP:
-        case WM_RBUTTONUP:
-        case WM_NCLBUTTONUP:
-        case WM_NCRBUTTONUP:
-          if (!SecondaryButtonDown()) {
-            manager.m_pageLeftBySecondaryPress.releasedAt = GetTickCount64();
-            manager.StopSecondaryPressHook();
-          }
-          break;
-        case WM_LBUTTONDOWN:
-        case WM_RBUTTONDOWN:
-        case WM_MBUTTONDOWN:
-        case WM_XBUTTONDOWN:
-        case WM_NCLBUTTONDOWN:
-        case WM_NCRBUTTONDOWN:
-        case WM_NCMBUTTONDOWN:
-        case WM_NCXBUTTONDOWN:
-          manager.ClearPageLeftBySecondaryPress();
-          break;
-        default:
-          break;
+  void FollowSecondaryPress() noexcept {
+    PageLeft &left = m_pageLeftBySecondaryPress;
+    if (!left.app) return StopSecondaryPressWatch();
+    ULONGLONG now = GetTickCount64();
+    bool secondary = SecondaryButtonDown();
+    if (ButtonOtherThanSecondaryDown() || (left.releasedAt && secondary)) return ClearPageLeftBySecondaryPress();
+    if (!left.releasedAt) {
+      if (!secondary) {
+        left.releasedAt = now;
+      } else if (now - left.pressedAt > kSecondaryHoldLimitMs) {
+        ClearPageLeftBySecondaryPress();
       }
+      return;
     }
-    return CallNextHookEx(nullptr, code, message, data);
+    if (now - left.releasedAt > kPageLeftKeptAfterReleaseMs) ClearPageLeftBySecondaryPress();
+  }
+
+  static bool ButtonOtherThanSecondaryDown() noexcept {
+    for (int key : {VK_MBUTTON, VK_XBUTTON1, VK_XBUTTON2}) {
+      if (GetAsyncKeyState(key) & 0x8000) return true;
+    }
+    return LeftButtonDown();
   }
 
   static bool LeftButtonDown() noexcept {
@@ -1768,7 +1787,8 @@ struct WindowManager {
   std::vector<std::string> m_order;
   std::string m_activeId;
   PageLeft m_pageLeftBySecondaryPress;
-  HHOOK m_secondaryPressHook = nullptr;
+  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer m_secondaryPressTimer{nullptr};
+  winrt::event_token m_secondaryPressTick{};
   bool m_quitting{false};
   std::optional<SavedPlacement> m_lastPlacement;
   bool m_placementLoaded{false};
