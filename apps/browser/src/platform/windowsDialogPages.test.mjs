@@ -142,6 +142,22 @@ test("a dialog counts as settled only once its window shows and its thread's las
   assert.match(readFileSync(new URL("./nativeApi.ts", import.meta.url), "utf8"), /export const WINDOWS_NATIVE_API_VERSION = 24;/);
 });
 
+test("a switcher whose key was let go while a menu was open commits when the menu closes, read from the keyboard on the UI thread", () => {
+  const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
+  const module = native("MenusModule.h");
+  const shown = module.slice(module.indexOf("REACT_METHOD(showMenu)"), module.indexOf("REACT_SYNC_METHOD(openCount)"));
+  assert.match(shown, /RunOnUI\(context, \[context, popup, promise\]\(\) noexcept \{\n\s+if \(DialogParts::ModalRegistry::Shared\(\)\.withheldResign[^\n]*\n\s+Menus::MenuKeyboard::Shared\(\)\.ReconcileAfterMenu\(\);/, "the menu's completion reconciles on the UI thread, after the resign it held back");
+  const worker = shown.slice(shown.indexOf("Menus::TrackOnThisThread"), shown.indexOf("RunOnUI(context, [context, popup, promise]"));
+  assert.doesNotMatch(worker, /MenuKeyboard/, "the menu thread never reads or writes the switcher's state");
+  const keyboard = native("MenuKeyboard.h");
+  const reconcile = keyboard.slice(keyboard.indexOf("void ReconcileAfterMenu()"), keyboard.indexOf("void SetEscapeCapture("));
+  assert.match(reconcile, /\(PhysicallyHeldModifiers\(\) & switcherHeld\) == switcherHeld\) return;\n\s+switcherHeld = 0;/, "a modifier still held keeps the switcher open, and a release is sent once");
+  assert.match(reconcile, /EmitSwitcherReleased\(true\);/);
+  assert.doesNotMatch(reconcile, /HeldModifiers\(\)[^;]*GetKeyState|\bHeldModifiers\(\)/, "the thread's key state is stale after the menu took the key-up");
+  assert.match(native("MenuKeys.h"), /inline bool PhysicallyDown\(int virtualKey\) noexcept \{\n\s+return \(GetAsyncKeyState\(virtualKey\) & 0x8000\) != 0;/);
+  assert.match(readFileSync(new URL("../state/sidebar/effects.ts", import.meta.url), "utf8"), /e\.type === "switcherReleased" && e\.afterMenu && sidebarUi\(\)\.switcher\) noteTabSwitcherReleasedInMenu\(\);/);
+});
+
 test("a pop-up menu tracks on a RunModal thread, owned by that thread's own window, so pages keep loading while it is open (#1687)", () => {
   const native = (name) => readFileSync(new URL(`../../windows/Ardia/${name}`, import.meta.url), "utf8");
   const module = native("MenusModule.h");

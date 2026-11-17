@@ -10,7 +10,7 @@ export type AppEvent =
   | { type: "resignActive" }
   | { type: "screenLocked" }
   | { type: "lockedOrAsleep" }
-  | { type: "switcherReleased" }
+  | { type: "switcherReleased"; afterMenu?: boolean }
   | { type: "switcherKey"; key: "escape" | "next" | "previous" | "close" }
   | { type: "switcherMouseUp" }
   | { type: "dragEscape" }

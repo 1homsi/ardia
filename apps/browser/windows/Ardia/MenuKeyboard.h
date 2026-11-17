@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <iterator>
 #include <optional>
 #include <set>
 #include <string>
@@ -79,8 +80,20 @@ struct MenuKeyboard {
     LaunchLog::Write(L"command", Paths::Wide(command));
   }
 
-  void EmitSwitcherReleased() noexcept {
-    EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "switcherReleased"}});
+  void EmitSwitcherReleased(bool afterMenu = false) noexcept {
+    winrt::Microsoft::ReactNative::JSValueObject event{{"type", "switcherReleased"}};
+    if (afterMenu) event["afterMenu"] = winrt::Microsoft::ReactNative::JSValue{true};
+    EmitEvent(context, L"ArdiaShell", L"onAppEvent", std::move(event));
+  }
+
+  void ReconcileAfterMenu() noexcept {
+    for (auto key = swallowedKeyUps.begin(); key != swallowedKeyUps.end();) key = PhysicallyDown(static_cast<int>(*key)) ? std::next(key) : swallowedKeyUps.erase(key);
+    if (capturedWHeld && !PhysicallyDown('W')) capturedWHeld = false;
+    if (consumedWithAlt && !PhysicallyDown(VK_MENU)) consumedWithAlt = false;
+    if (!switcherHeld || (PhysicallyHeldModifiers() & switcherHeld) == switcherHeld) return;
+    switcherHeld = 0;
+    LaunchLog::Write(L"keys", L"switcher modifier let go while a menu was open");
+    EmitSwitcherReleased(true);
   }
 
   void SetEscapeCapture(bool active) noexcept {
