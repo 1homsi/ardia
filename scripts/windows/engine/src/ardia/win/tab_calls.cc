@@ -17,7 +17,7 @@
 #include "ardia/win/page_links.h"
 #include "ardia/win/tab_events.h"
 #include "base/containers/span.h"
-#include "base/functional/barrier_callback.h"
+#include "base/barrier_callback.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
