@@ -42,7 +42,8 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   static void NoteMouse(const ui::MouseEvent& event, const std::string& page);
   static std::optional<gfx::PointF> RecentClickPoint(const std::string& page);
 
-  void FrameCommitted(content::RenderFrameHost* frame);
+  void FrameCommitted(content::RenderFrameHost* frame, bool restored);
+  void ReattachForTest();
   void RendererReady();
   bool TakeNewTabLink(const std::vector<GURL>& urls);
   int ScriptFrames() const { return static_cast<int>(contexts_.size()); }
@@ -73,6 +74,7 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   std::string Tag();
   void RuntimeEnabled(std::optional<base::DictValue> answer);
   void AddScript(bool run_now);
+  void SendConfig(int context);
   void ScriptAdded(std::optional<base::DictValue> added);
   std::string SourceForNewDocuments();
   void ContextCreated(const base::DictValue& params);
@@ -99,8 +101,9 @@ class PageLinks : public content::WebContentsUserData<PageLinks>,
   int next_id_ = 1;
   std::map<int, Answer> pending_;
   std::map<int, Context> contexts_;
-  std::vector<int> stale_;
   std::optional<std::string> script_id_;
+  std::optional<std::string> replacing_;
+  int registered_config_ = 0;
   bool enabling_ = false;
   bool registering_ = false;
   std::vector<NewTabLink> new_tab_links_;

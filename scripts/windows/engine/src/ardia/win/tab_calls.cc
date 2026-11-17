@@ -14,6 +14,7 @@
 #include "ardia/win/autoplay.h"
 #include "ardia/win/external_apps.h"
 #include "ardia/win/kept_pages.h"
+#include "ardia/win/page_links.h"
 #include "ardia/win/tab_events.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
@@ -908,7 +909,11 @@ void ClickForTest(content::WebContents* contents,
   const double x = args.FindDouble("x").value_or(0);
   const double y = args.FindDouble("y").value_or(0);
   const int modifiers = Integer(args, "modifiers");
+  double dispatched_at = 0;
   for (const char* type : {"mouseMoved", "mousePressed", "mouseReleased"}) {
+    if (std::string_view(type) == "mousePressed") {
+      dispatched_at = base::Time::Now().InMillisecondsFSinceUnixEpoch();
+    }
     base::DictValue params;
     params.Set("type", type);
     params.Set("x", x);
@@ -925,11 +930,34 @@ void ClickForTest(content::WebContents* contents,
   last.Set("expression", "0");
   CallDevTools(contents, "Runtime.evaluate", std::move(last), std::nullopt,
                base::BindOnce(
-                   [](Reply reply, std::optional<base::DictValue> result,
+                   [](Reply reply, double dispatched_at,
+                      std::optional<base::DictValue> result,
                       std::optional<std::string> error) {
-                     std::move(reply).Run(error ? Error(*error) : Ok());
+                     if (error) {
+                       std::move(reply).Run(Error(*error));
+                       return;
+                     }
+                     base::DictValue answer = Ok();
+                     answer.Set("dispatchedAt", dispatched_at);
+                     std::move(reply).Run(std::move(answer));
                    },
-                   std::move(reply)));
+                   std::move(reply), dispatched_at));
+}
+
+void ReattachLinksForTest(content::WebContents* contents,
+                          const base::DictValue& args,
+                          Reply reply) {
+  if (!ardiacore::TestInstance()) {
+    std::move(reply).Run(Error("reattachLinksForTest is for test instances"));
+    return;
+  }
+  PageLinks* links = PageLinks::FromWebContents(contents);
+  if (!links) {
+    std::move(reply).Run(Error("the tab has no link script"));
+    return;
+  }
+  links->ReattachForTest();
+  std::move(reply).Run(Ok());
 }
 
 void TouchForTest(content::WebContents* contents,
@@ -1067,6 +1095,7 @@ constexpr NamedMethod kMethods[] = {
     {"insertText", &InsertTextForTest},
     {"clickForTest", &ClickForTest},
     {"touchForTest", &TouchForTest},
+    {"reattachLinksForTest", &ReattachLinksForTest},
     {"mediaSessionActionForTest", &MediaSessionActionForTest},
     {"testClient", &TestClientForTest},
     {"discardEligibilityForTest", &DiscardEligibilityForTest},

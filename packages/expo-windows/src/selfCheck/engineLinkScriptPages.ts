@@ -97,6 +97,35 @@ const pageChecks = (port: string): Check[] => [
         ),
       ),
   },
+  {
+    name: "engine links: a link script that outlives its DevTools session keeps working once the engine attaches again, and takes the new Peek key",
+    run: () =>
+      withPeekConfig(() =>
+        withPages(
+          ["reattach"],
+          async ([page], windowId) => {
+            const stopDiscarding = discardingOpenedTabs(page!);
+            try {
+              await peekConfig({ peek: "shift" });
+              await show(page!, windowId, LEFT);
+              await painted(page!);
+              await hostCall("tab.call", { key: page, method: "reattachLinksForTest" });
+              await until("the engine tracks the surviving link script again", LOAD_MS, async () => (await hostCall<{ scriptFrames?: unknown }>("tab.links", { key: page })).scriptFrames, (frames) => Number(frames) > 0);
+              const opened = heard("tab.opened", (event) => event.opener === page, "a new tab from a target=_blank click after the engine attached again");
+              await click(page!, BLANK_LINK.x, BLANK_LINK.y);
+              expectEqual((await opened).fromClick, true, "the link script still saw the click after the engine attached again (fromClick)");
+              await peekConfig({ peek: "alt" });
+              await pause(CLICK_SETTLES_MS);
+              expectEqual((await clickWith(page!, SAME_TAB_LINK, ALT))?.prevented, true, "with Peek moved to Alt after the engine attached again, the surviving link script takes an Alt+click");
+            } finally {
+              stopDiscarding();
+            }
+          },
+          "links",
+          LINKS_TITLE,
+        ),
+      ),
+  },
 ];
 
 const port = engineAvailable() ? httpPagesPort() : null;

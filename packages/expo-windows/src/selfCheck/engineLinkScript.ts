@@ -21,7 +21,7 @@ const CONTENTFUL_PAINT_AT = 'const paint = performance.getEntriesByName("first-c
 async function clickAtOnce(page: string): Promise<Round> {
   let opened = false;
   let fromClick: unknown = null;
-  let sentBy = 0;
+  let dispatchedAt: unknown = null;
   const watching = onEngineTopic("tab.opened", (event: { opener?: unknown; fromClick?: unknown; adopt?: unknown }) => {
     if (event.opener !== page || opened) return;
     opened = true;
@@ -29,16 +29,16 @@ async function clickAtOnce(page: string): Promise<Round> {
     if (typeof event.adopt === "string") void hostCall("tab.discard", { adopt: event.adopt }).catch(() => null);
   });
   try {
-    await click(page, BLANK_LINK.x, BLANK_LINK.y);
-    sentBy = Date.now();
-    const by = sentBy + OPEN_MS;
+    dispatchedAt = ((await click(page, BLANK_LINK.x, BLANK_LINK.y)) as { dispatchedAt?: unknown } | null)?.dispatchedAt ?? null;
+    const by = Date.now() + OPEN_MS;
     while (!opened && Date.now() < by) await pause(50);
   } finally {
     watching.remove();
   }
   const downs = await evaluate(page, 'post("result", JSON.stringify(window.downs));').catch(() => null);
   const paintedAt = await evaluate(page, CONTENTFUL_PAINT_AT).catch(() => null);
-  const paint: Paint = typeof paintedAt !== "number" ? "unknown" : sentBy < paintedAt ? "before" : "after";
+  expectTrue(typeof dispatchedAt === "number" && Number.isFinite(dispatchedAt), `clickForTest answers when it dispatched the press to the renderer (dispatchedAt): ${JSON.stringify(dispatchedAt)}`);
+  const paint: Paint = typeof paintedAt !== "number" ? "unknown" : dispatchedAt < paintedAt ? "before" : "after";
   return { received: Number(downs) > 0, opened, fromClick, paint, tries: 1 };
 }
 
