@@ -49,6 +49,8 @@ NSString *PageMoveAt(NSWindow *window, NSPoint point);
 NSString *HoverProbeDev(NSWindow *window, NSString *_Nullable argument);
 NSString *HoverProbeLine();
 void WatchHover();
+void WatchPageCursor();
+NSString *PageCursorDev(NSWindow *window, NSString *_Nullable argument);
 NSString *PaintProbeLine();
 void WatchPainting();
 NSString *DescribeFocusWindow(NSWindow *_Nullable window);
