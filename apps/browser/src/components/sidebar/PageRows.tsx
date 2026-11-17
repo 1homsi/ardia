@@ -9,6 +9,7 @@ import { useCapturedSidebarEntries, useOffersTidyTabs, usePinnedCollapsed, usePi
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { useNewTabAtTop } from "../../state/sidebar/chrome";
 import { ClearDivider } from "./ClearDivider";
+import { PinnedSectionHeader } from "./PinnedSectionHeader";
 import { DragScope, useDragController, useDragItem } from "./DragProvider";
 import { Fold, useFold } from "./Fold";
 import { SidebarEntry } from "./GroupBlock";
@@ -86,6 +87,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush />
           </DragScope>
         ) : null}
+        {pinnedSection ? <PinnedSectionHeader profileId={profileId} collapsed={collapsed} open={pinnedFold.open} /> : null}
         <View
           ref={(v) => {
             controller?.regions.set("pinnedGroups", v);
@@ -111,7 +113,6 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             lift={underDockedTiles && !pinnedSection && !isIncognitoProfile(profileId) ? DOCKED_TILES_GAP : 0}
             clear={clearable}
             tidy={tidy}
-            pinned={pinnedSection ? { collapsed, open: pinnedFold.open } : null}
           />
         ) : null}
         <View
