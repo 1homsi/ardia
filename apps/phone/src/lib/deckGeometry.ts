@@ -14,6 +14,7 @@ export type DeckGeometry = {
   cardCenterY: number;
   barCenterY: number;
   tabButtonX: number;
+  screenCorner: number;
 };
 
 export const DECK = {
@@ -55,7 +56,7 @@ function reach(peek: number, spacing: number): number {
   return value;
 }
 
-export function deckGeometry(width: number, height: number, safeTop: number, safeBottom: number, safeSide = 0, os: string = "android", design: Design = "original", chromeHeight = 0): DeckGeometry {
+export function deckGeometry(width: number, height: number, safeTop: number, safeBottom: number, safeSide = 0, os: string = "android", design: Design = "original", chromeHeight = 0, screenCorner: number = DECK.displayCornerRadius): DeckGeometry {
   const w = Math.max(width, 1);
   const h = Math.max(height, 1);
   const redesigned = design === "redesigned";
@@ -81,6 +82,7 @@ export function deckGeometry(width: number, height: number, safeTop: number, saf
     cardCenterY: bandTop + band / 2,
     barCenterY: h - barCenter,
     tabButtonX: safeSide + 16 + 17.5,
+    screenCorner,
   };
 }
 
@@ -281,6 +283,14 @@ export function mergeDeckOrder(shown: readonly string[], live: readonly string[]
 }
 
 export const DECK_CHROME_FROM = 0.6;
+
+export const PAGE_BAR_GONE_AT = 0.85;
+export const PAGE_BAR_WHOLE_AT = 0.35;
+
+export function pageBarGhostOpacity(positionProgress: number): number {
+  "worklet";
+  return Math.min(1, Math.max(0, (PAGE_BAR_GONE_AT - positionProgress) / (PAGE_BAR_GONE_AT - PAGE_BAR_WHOLE_AT)));
+}
 
 export function deckChromeOpacity(positionProgress: number): number {
   "worklet";
