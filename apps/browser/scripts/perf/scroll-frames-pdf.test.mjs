@@ -4,11 +4,13 @@ import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { frameOrigin, frameRates, pdfDocument, pdfFrameTargets, pdfRates, servePdf } from "./scroll-frames-pdf.mjs";
+import { frameRates } from "./frame-rates.mjs";
+import { frameOrigin, pdfDocument, pdfFrameTargets, pdfRates, pdfRep, servePdf } from "./scroll-frames-pdf.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const bench = join(here, "scroll-frames.mjs");
-const EXTENSION = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html?https://127.0.0.1:9571/pdf";
+const PAGE = "http://127.0.0.1:9571/pdf";
+const EXTENSION = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html";
 
 const burst = (pid, name, from, count, everyUs, ph = "X") => Array.from({ length: count }, (_, i) => ({ pid, tid: 1, ph, name, ts: from + i * everyUs, dur: 100 }));
 const mark = (pid, name, ts) => ({ pid, tid: 1, ph: "R", name, ts });
@@ -66,38 +68,56 @@ test("pdf/trackpad is a case, and the bench's --list and --help name it", () => 
   assert.match(help.stdout, /pdf\/trackpad scrolls a generated multi-page PDF/);
 });
 
-test("the bench serves the PDF from its server and reads the frames of the PDF's own processes", async () => {
-  const { readFileSync } = await import("node:fs");
-  const source = readFileSync(bench, "utf8");
-  assert.match(source, /if \(name === "pdf"\) return servePdf\(res\)/);
-  assert.match(source, /\{ id: "pdf\/trackpad", page: "pdf", src: "trackpad", pdf: true \}/);
-  assert.match(source, /c\.pdf \? pdfRates\(events, rep, refreshMs\) : \[analyse\(events, rep, refreshMs\)\]/);
-});
-
-test("the viewer and the content frame are told apart by their targets", () => {
+test("the viewer is the PDF extension's frame under the bench's page, and the content frame sits under the viewer", () => {
   const list = [
-    { id: "page", type: "page", url: "http://127.0.0.1:9571/pdf" },
+    { id: "page", type: "page", url: PAGE },
     { id: "viewer", type: "iframe", parentId: "page", url: EXTENSION },
-    { id: "content", type: "iframe", parentId: "viewer", url: "chrome-untrusted://pdf-content/doc" },
+    { id: "content", type: "iframe", parentId: "viewer", url: PAGE },
     { id: "ad", type: "iframe", parentId: "page", url: "https://ads.example/frame" },
   ];
-  const found = pdfFrameTargets(list);
+  const found = pdfFrameTargets(list, PAGE);
   assert.equal(found.viewer.id, "viewer");
   assert.equal(found.content.id, "content");
   assert.deepEqual(found.seen.map((t) => t.type), ["page", "iframe", "iframe", "iframe"]);
-  assert.ok(found.seen.every((t) => !JSON.stringify(t).includes("?")));
+  assert.ok(found.seen.every((t) => !JSON.stringify(t).includes("/pdf")));
 });
 
 test("a PDF page with no viewer frame has no viewer and no content frame", () => {
-  const found = pdfFrameTargets([{ id: "page", type: "page", url: "http://127.0.0.1:9571/pdf" }]);
+  const found = pdfFrameTargets([{ id: "page", type: "page", url: PAGE }], PAGE);
   assert.equal(found.viewer, undefined);
   assert.equal(found.content, undefined);
 });
 
-test("a viewer with no frame of its own below it has no content frame", () => {
-  const found = pdfFrameTargets([{ id: "page", type: "page", url: "http://x/" }, { id: "viewer", type: "iframe", url: EXTENSION }]);
+test("an unrelated iframe is never taken for the content frame", () => {
+  const found = pdfFrameTargets([
+    { id: "page", type: "page", url: PAGE },
+    { id: "viewer", type: "iframe", parentId: "page", url: EXTENSION },
+    { id: "other-tab", type: "page", url: "https://example.com/" },
+    { id: "ad", type: "iframe", parentId: "other-tab", url: "https://ads.example/frame" },
+  ], PAGE);
   assert.equal(found.viewer.id, "viewer");
   assert.equal(found.content, undefined);
+});
+
+test("another extension's frame, or a PDF viewer in another tab, is not the bench's viewer", () => {
+  const found = pdfFrameTargets([
+    { id: "page", type: "page", url: PAGE },
+    { id: "ext", type: "iframe", parentId: "page", url: "chrome-extension://cjpalhdlnbpafiamejdnhcphjbkeiagm/frame.html" },
+    { id: "elsewhere", type: "page", url: "http://127.0.0.1:9571/other.pdf" },
+    { id: "theirs", type: "iframe", parentId: "elsewhere", url: EXTENSION },
+  ], PAGE);
+  assert.equal(found.viewer, undefined);
+});
+
+test("a PDF gesture that fails before it runs is a row with its error, not a thrown benchmark", async () => {
+  const inst = { targets: async () => [
+    { id: "page", type: "page", url: PAGE },
+    { id: "viewer", type: "iframe", parentId: "page", url: EXTENSION, webSocketDebuggerUrl: "ws://127.0.0.1:9/devtools/page/viewer" },
+    { id: "content", type: "iframe", parentId: "viewer", url: PAGE, webSocketDebuggerUrl: "ws://127.0.0.1:9/devtools/page/content" },
+  ] };
+  const rep = await pdfRep({ inst, pageUrl: PAGE, r: 0, postscroll: { acperf: "/usr/bin/false", args: [] } });
+  assert.match(rep.error, /^the PDF gesture failed: DevTools connection to .* failed$/);
+  assert.deepEqual(pdfRates([], rep, 8.33), [{ error: rep.error }]);
 });
 
 test("only the origin of a frame is recorded", () => {
@@ -126,6 +146,11 @@ test("frameRates counts draws, main frames, late draws and stale draws inside th
 test("a draw gap over one and a half refresh intervals counts as late", () => {
   const events = [...burst(7, "ProxyImpl::ScheduledActionDraw", 0, 4, 8333), ...burst(7, "ProxyImpl::ScheduledActionDraw", 60_000, 4, 8333)];
   assert.equal(frameRates(events, 7, 0, 200_000, 8.33).drawsLate, 1);
+});
+
+test("a stall of 100 ms or more still counts as a late draw", () => {
+  const events = [...burst(7, "ProxyImpl::ScheduledActionDraw", 0, 4, 8333), ...burst(7, "ProxyImpl::ScheduledActionDraw", 225_000, 4, 8333)];
+  assert.equal(frameRates(events, 7, 0, 300_000, 8.33).drawsLate, 1);
 });
 
 const rep = (frames) => ({ start: "pdf-start", end: "pdf-end", frames });
@@ -176,10 +201,26 @@ test("pdfRates lists any other renderer that drew during the gesture", () => {
     ...frameBurst(21, 1_000_000, 10, 16667),
     ...frameBurst(33, 1_000_000, 10, 16667),
     ...frameBurst(44, 9_000_000, 10, 16667),
+    ...burst(55, "ProxyMain::BeginMainFrame", 1_000_000, 10, 16667),
     mark(11, "pdf-end", 1_300_000),
   ];
   const rows = pdfRates(events, rep([viewer, content]), 8.33);
-  assert.deepEqual(rows.map((r) => [r.role, r.pid]), [["viewer", 11], ["content", 21], ["other", 33]]);
+  assert.deepEqual(rows.map((r) => [r.role, r.pid]), [["viewer", 11], ["content", 21], ["other", 33]], "a renderer that only ran main frames didn't draw");
+});
+
+test("pdfRates keeps the frames drawn after the last scroll event until the PDF stops drawing", () => {
+  const events = [
+    mark(21, "pdf-content", 1),
+    mark(11, "pdf-start", 1_000_000),
+    ...frameBurst(11, 1_000_000, 30, 8333),
+    mark(11, "pdf-end", 1_250_000),
+    ...frameBurst(21, 1_250_000, 20, 8333),
+    ...frameBurst(21, 2_500_000, 5, 8333),
+  ];
+  const rows = pdfRates(events, rep([viewer, content]), 8.33);
+  assert.equal(rows[0].ms, 250);
+  assert.equal(rows[1].draws, 20, "the tail after the last event counts, the later burst doesn't");
+  assert.ok(rows[1].tailMs >= 150 && rows[1].tailMs < 200, `tailMs ${rows[1].tailMs}`);
 });
 
 test("pdfRates reports a missing frame mark as that frame's error and keeps the other row", () => {

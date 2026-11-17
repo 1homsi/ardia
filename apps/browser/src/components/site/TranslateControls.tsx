@@ -23,11 +23,12 @@ import { isIncognitoProfile } from "../../state/browser/model";
 import { Button, MenuRow, MenuSeparator, Toggle } from "../ui";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 
-export const TranslateButton = memo(function TranslateButton({ tabId, palette, onFocus }: { tabId: string; palette: ToolbarPalette; onFocus: () => void }) {
+export const TranslateButton = memo(function TranslateButton({ tabId, palette, onFocus, quiet = false }: { tabId: string; palette: ToolbarPalette; onFocus: () => void; quiet?: boolean }) {
   const theme = useTheme();
   const state = useTranslateState(tabId);
-  if (!translation || (!state.source && state.status === "idle")) return null;
+  const shown = useSettings((s) => s.showTranslateButton);
   const translated = state.status !== "idle";
+  if (!shown || !translation || (!state.source && !translated) || (quiet && !translated)) return null;
   return (
     <Button variant="icon" toolbar
       palette={palette}

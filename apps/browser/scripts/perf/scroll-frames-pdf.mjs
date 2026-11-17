@@ -1,10 +1,10 @@
-const DRAW = "ProxyImpl::ScheduledActionDraw";
-const MAIN = "ProxyMain::BeginMainFrame";
-const ACTIVATE = "ProxyImpl::DidActivateSyncTreeOnImplThread";
-const EXTENSION_FRAME = /^chrome-extension:\/\/[a-p]{32}\//;
+import { spawnSync } from "node:child_process";
+import { devtools, sleep } from "../../../../scripts/lib/instance.mjs";
+import { DRAW, eventTimes, frameRates } from "./frame-rates.mjs";
 
-const gaps = (ts) => ts.slice(1).map((t, i) => t - ts[i]).filter((g) => g < 100);
-const rate = (ts) => (ts.length > 1 ? +((1000 * (ts.length - 1)) / (ts.at(-1) - ts[0])).toFixed(1) : null);
+const PDF_VIEWER = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/";
+const TAIL_GAP_MS = 100;
+const TAIL_MAX_MS = 1000;
 
 function pageContent(index) {
   const hue = (index * 37) % 360;
@@ -58,34 +58,52 @@ export function frameOrigin(url) {
   return `${u.protocol}//${u.host}`;
 }
 
-export function pdfFrameTargets(list) {
-  const frames = list.filter((t) => t.type === "iframe");
-  const viewer = frames.find((t) => EXTENSION_FRAME.test(t.url));
-  const others = frames.filter((t) => t !== viewer);
-  const content = viewer && (others.find((t) => t.parentId === viewer.id) ?? others[0]);
+export function pdfFrameTargets(list, pageUrl) {
+  const page = list.find((t) => t.type === "page" && t.url === pageUrl);
+  const viewer = page && list.find((t) => t.type === "iframe" && t.parentId === page.id && t.url.startsWith(PDF_VIEWER));
+  const content = viewer && list.find((t) => t.type === "iframe" && t.parentId === viewer.id);
   return { viewer, content, seen: list.map((t) => ({ type: t.type, origin: frameOrigin(t.url), hasParent: !!t.parentId })) };
 }
 
-export function frameRates(events, pid, t0, t1, refreshMs) {
-  const named = (name, phases = ["X", "B"]) =>
-    events.filter((e) => e.pid === pid && e.name === name && e.ts >= t0 && e.ts <= t1 && phases.includes(e.ph)).map((e) => e.ts / 1000).sort((a, b) => a - b);
-  const draws = named(DRAW);
-  const mains = named(MAIN);
-  const activations = named(ACTIVATE, ["X", "B", "I"]);
-  let stale = 0;
-  for (let i = 1, a = 0; i < draws.length; i++) {
-    let fresh = false;
-    for (; a < activations.length && activations[a] <= draws[i]; a++) if (activations[a] > draws[i - 1]) fresh = true;
-    if (!fresh) stale++;
+export async function pdfRep({ inst, pageUrl, r, postscroll }) {
+  let frames = pdfFrameTargets(await inst.targets(), pageUrl);
+  for (const end = Date.now() + 15000; !(frames.viewer && frames.content) && Date.now() < end; await sleep(150)) frames = pdfFrameTargets(await inst.targets(), pageUrl);
+  if (!frames.viewer) return { error: `no PDF viewer frame under the page among the targets: ${JSON.stringify(frames.seen)}` };
+  const prefix = `scroll-frames-pdf-${r}`;
+  const rep = { start: `${prefix}-start`, end: `${prefix}-end`, frames: [{ role: "viewer", mark: `${prefix}-start`, origin: frameOrigin(frames.viewer.url) }] };
+  let viewer = null;
+  let content = null;
+  try {
+    viewer = await devtools(frames.viewer);
+    content = frames.content ? await devtools(frames.content) : null;
+    const mark = (conn, name) => conn.eval(`(performance.mark(${JSON.stringify(name)}), performance.now())`);
+    await sleep(2000);
+    if (content) {
+      await mark(content, `${prefix}-content`);
+      rep.frames.push({ role: "content", mark: `${prefix}-content`, origin: frameOrigin(frames.content.url) });
+    } else rep.frames.push({ role: "content", error: `the PDF viewer has no content frame of its own among the targets: ${JSON.stringify(frames.seen)}` });
+    await mark(viewer, rep.start);
+    const p = spawnSync(postscroll.acperf, postscroll.args, { encoding: "utf8", timeout: 20000 });
+    if (p.status !== 0) throw new Error(`acperf postscroll: ${p.stderr}`);
+    await mark(viewer, rep.end);
+    await sleep(900);
+    return rep;
+  } catch (error) {
+    return { error: `the PDF gesture failed: ${error?.message ?? error}` };
+  } finally {
+    viewer?.close();
+    content?.close();
   }
-  return {
-    mains: mains.length,
-    draws: draws.length,
-    mainHz: rate(mains),
-    drawHz: rate(draws),
-    drawsLate: gaps(draws).filter((g) => g > refreshMs * 1.5).length,
-    stalePct: draws.length > 1 ? Math.round((100 * stale) / (draws.length - 1)) : null,
-  };
+}
+
+export function scrollTailEnd(events, pids, endTs) {
+  const draws = pids.flatMap((pid) => eventTimes(events, pid, DRAW, endTs, endTs + TAIL_MAX_MS * 1000)).sort((a, b) => a - b);
+  let last = endTs / 1000;
+  for (const at of draws) {
+    if (at - last > TAIL_GAP_MS) break;
+    last = at;
+  }
+  return last * 1000;
 }
 
 export function pdfRates(events, rep, refreshMs) {
@@ -94,17 +112,19 @@ export function pdfRates(events, rep, refreshMs) {
   const start = markOf(rep.start);
   const end = markOf(rep.end);
   if (!start || !end) return [{ role: "viewer", error: `the ${start ? "end" : "start"} mark is missing from the trace` }];
+  const marked = rep.frames.map((f) => ({ ...f, pid: f.error ? undefined : markOf(f.mark)?.pid }));
   const t0 = start.ts;
-  const t1 = end.ts + 30000;
+  const tail = scrollTailEnd(events, marked.flatMap((f) => (f.pid === undefined ? [] : [f.pid])), end.ts);
+  const t1 = tail + 30000;
   const ms = Math.round((end.ts - start.ts) / 1000);
-  const rows = rep.frames.map(({ role, mark, origin, error }) => {
+  const tailMs = Math.round((tail - end.ts) / 1000);
+  const rows = marked.map(({ role, origin, error, pid }) => {
     if (error) return { role, origin, error };
-    const m = markOf(mark);
-    if (!m) return { role, origin, error: `the ${role} mark is missing from the trace` };
-    return { role, origin, pid: m.pid, ms, ...frameRates(events, m.pid, t0, t1, refreshMs) };
+    if (pid === undefined) return { role, origin, error: `the ${role} mark is missing from the trace` };
+    return { role, origin, pid, ms, tailMs, ...frameRates(events, pid, t0, t1, refreshMs) };
   });
   const named = new Set(rows.map((r) => r.pid));
-  const drawing = events.filter((e) => e.ts >= t0 && e.ts <= t1 && (e.name === DRAW || e.name === MAIN)).map((e) => e.pid);
+  const drawing = events.filter((e) => e.ts >= t0 && e.ts <= t1 && e.name === DRAW && ["X", "B"].includes(e.ph)).map((e) => e.pid);
   const others = [...new Set(drawing)].filter((pid) => !named.has(pid)).sort((a, b) => a - b);
-  return [...rows, ...others.map((pid) => ({ role: "other", pid, ms, ...frameRates(events, pid, t0, t1, refreshMs) }))];
+  return [...rows, ...others.map((pid) => ({ role: "other", pid, ms, tailMs, ...frameRates(events, pid, t0, t1, refreshMs) }))];
 }

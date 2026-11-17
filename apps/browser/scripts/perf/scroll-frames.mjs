@@ -37,7 +37,9 @@
 // rows come from the trace alone: per gesture, one row for the PDF viewer's process (role viewer) and one for the process
 // hosting the PDF content frame (role content), each with the draw and main-frame rates and stale draws above plus the
 // frame counts (mains, draws); renderers that drew during the gesture and are neither are listed as role other in
-// results.json. Each frame's process is named by a performance.mark made through its own DevTools target, the page is
+// results.json. A gesture's window runs until the PDF's processes stop drawing after its last event (the first 100 ms
+// with no draw, at most 1 s later; tailMs). Each frame's process is named by a performance.mark made through its own
+// DevTools target, the viewer must sit under the bench's page and the content frame under the viewer, the page is
 // reloaded before each gesture to start from the first page, and --cpu-throttle doesn't apply to it.
 // Writes <out>/results.json and prints a table of medians per case and arm. Run it on a quiet Mac, screen unlocked.
 import { execFileSync, spawnSync } from "node:child_process";
@@ -47,7 +49,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { devtools, launch, sleep } from "../../../../scripts/lib/instance.mjs";
-import { frameOrigin, pdfFrameTargets, pdfRates, servePdf } from "./scroll-frames-pdf.mjs";
+import { frameRates, rate } from "./frame-rates.mjs";
+import { pdfFrameTargets, pdfRates, pdfRep, servePdf } from "./scroll-frames-pdf.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { values: opt } = parseArgs({
@@ -222,7 +225,6 @@ async function keys(d) {
 const sorted = (xs) => [...xs].sort((a, b) => a - b);
 const median = (xs) => { const s = sorted(xs.filter((x) => x !== null && Number.isFinite(x))); return s.length ? s[s.length >> 1] : null; };
 const gaps = (ts) => ts.slice(1).map((t, i) => t - ts[i]).filter((g) => g < 100);
-const rate = (ts) => (ts.length > 1 ? +((1000 * (ts.length - 1)) / (ts.at(-1) - ts[0])).toFixed(1) : null);
 
 function analyse(events, rep, refreshMs) {
   const mark = events.find((e) => e.name === rep.mark);
@@ -232,16 +234,7 @@ function analyse(events, rep, refreshMs) {
   if (!rep.idle) for (let i = 1; i < rep.res.raf.length; i++) if (rep.res.raf[i][1] !== rep.res.raf[i - 1][1]) last = Math.max(last, rep.res.raf[i][0]);
   const t0 = (rep.now0 + offset) * 1000;
   const t1 = (last + offset) * 1000 + 30000;
-  const named = (name, phases = ["X", "B"]) => events.filter((e) => e.pid === mark.pid && e.name === name && e.ts >= t0 && e.ts <= t1 && phases.includes(e.ph)).map((e) => e.ts / 1000).sort((a, b) => a - b);
-  const draws = named("ProxyImpl::ScheduledActionDraw");
-  const mains = named("ProxyMain::BeginMainFrame");
-  const activations = named("ProxyImpl::DidActivateSyncTreeOnImplThread", ["X", "B", "I"]);
-  let stale = 0;
-  for (let i = 1, a = 0; i < draws.length; i++) {
-    let fresh = false;
-    for (; a < activations.length && activations[a] <= draws[i]; a++) if (activations[a] > draws[i - 1]) fresh = true;
-    if (!fresh) stale++;
-  }
+  const frames = frameRates(events, mark.pid, t0, t1, refreshMs);
   const mainTid = events.find((e) => e.ph === "M" && e.name === "thread_name" && e.pid === mark.pid && e.args?.name === "CrRendererMain")?.tid;
   const inGesture = (e) => e.pid === mark.pid && e.tid === mainTid && e.ph === "X" && e.ts >= t0 && e.ts <= (last + offset) * 1000;
   const scriptMs = (test) => {
@@ -260,10 +253,10 @@ function analyse(events, rep, refreshMs) {
   return {
     ms: Math.round(last - rep.now0),
     dy: rep.res.y1 - rep.res.y0,
-    drawHz: rate(draws),
-    drawsLate: gaps(draws).filter((g) => g > refreshMs * 1.5).length,
-    mainHz: rate(mains),
-    stalePct: draws.length > 1 ? Math.round((100 * stale) / (draws.length - 1)) : null,
+    drawHz: frames.drawHz,
+    drawsLate: frames.drawsLate,
+    mainHz: frames.mainHz,
+    stalePct: frames.stalePct,
     rafHz: rafGaps.length ? +(1000 / median(rafGaps)).toFixed(1) : null,
     rafOver12: rafGaps.length ? Math.round((100 * rafGaps.filter((g) => g > 12.5).length) / rafGaps.length) : null,
     scrollHz: rate(scrolls),
@@ -271,37 +264,6 @@ function analyse(events, rep, refreshMs) {
     pageScriptMs: scriptMs((url) => url.startsWith("ardia://page-script")),
     extensionMs: scriptMs((url) => /^chrome-extension:|^extensions::/.test(url)),
   };
-}
-
-async function pdfRep(inst, d, c, r, w, at, acperf) {
-  if (r > 0) {
-    await d.send("Page.navigate", { url: `http://127.0.0.1:${pagePort}/${c.page}` });
-    await sleep(1500);
-  }
-  let frames = pdfFrameTargets(await inst.targets());
-  for (const end = Date.now() + 15000; !(frames.viewer && frames.content) && Date.now() < end; await sleep(150)) frames = pdfFrameTargets(await inst.targets());
-  if (!frames.viewer) return { error: `no PDF viewer frame among the targets: ${JSON.stringify(frames.seen)}` };
-  const prefix = `scroll-frames-pdf-${r}`;
-  const rep = { start: `${prefix}-start`, end: `${prefix}-end`, frames: [{ role: "viewer", mark: `${prefix}-start`, origin: frameOrigin(frames.viewer.url) }] };
-  const viewer = await devtools(frames.viewer);
-  const content = frames.content ? await devtools(frames.content) : null;
-  try {
-    const mark = (conn, name) => conn.eval(`(performance.mark(${JSON.stringify(name)}), performance.now())`);
-    await sleep(2000);
-    if (content) {
-      await mark(content, `${prefix}-content`);
-      rep.frames.push({ role: "content", mark: `${prefix}-content`, origin: frameOrigin(frames.content.url) });
-    } else rep.frames.push({ role: "content", error: `the PDF viewer has no content frame of its own among the targets: ${JSON.stringify(frames.seen)}` });
-    await mark(viewer, rep.start);
-    const p = spawnSync(acperf, ["postscroll", String(inst.pid), String(w.id), String(at.x), String(at.y), String(w.b.X), String(w.b.Y), c.src, String(c.rate ?? 120)], { encoding: "utf8", timeout: 20000 });
-    if (p.status !== 0) throw new Error(`acperf postscroll: ${p.stderr}`);
-    await mark(viewer, rep.end);
-    await sleep(900);
-  } finally {
-    viewer.close();
-    content?.close();
-  }
-  return rep;
 }
 
 const server = createServer((req, res) => {
@@ -343,7 +305,7 @@ try {
         for (const c of cases) {
           await d.send("Page.navigate", { url: `http://127.0.0.1:${pagePort}/${c.page}` });
           const ready = c.pdf
-            ? async () => { const f = pdfFrameTargets(await inst.targets()); return !!(f.viewer && f.content); }
+            ? async () => { const f = pdfFrameTargets(await inst.targets(), `http://127.0.0.1:${pagePort}/${c.page}`); return !!(f.viewer && f.content); }
             : () => d.eval("document.readyState === 'complete' && !!window.__probe").catch(() => false);
           for (const end = Date.now() + 15000; Date.now() < end; await sleep(150)) if (await ready()) break;
           if (+opt["cpu-throttle"] > 1) await d.send("Emulation.setCPUThrottlingRate", { rate: +opt["cpu-throttle"] });
@@ -357,7 +319,10 @@ try {
           const done = [];
           for (let r = 0; r < reps; r++) {
             if (c.pdf) {
-              done.push(await pdfRep(inst, d, c, r, w, at, acperf));
+              const pageUrl = `http://127.0.0.1:${pagePort}/${c.page}`;
+              if (r > 0) await d.send("Page.navigate", { url: pageUrl }).then(() => sleep(1500));
+              const args = ["postscroll", String(inst.pid), String(w.id), String(at.x), String(at.y), String(w.b.X), String(w.b.Y), c.src, String(c.rate ?? 120)];
+              done.push(await pdfRep({ inst, pageUrl, r, postscroll: { acperf, args } }));
               continue;
             }
             await d.eval("__probe.reset()");
