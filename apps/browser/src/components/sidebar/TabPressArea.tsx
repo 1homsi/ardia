@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Animated, Pressable, type StyleProp, type ViewStyle } from "react-native";
+import { Animated, Pressable, type Insets, type StyleProp, type ViewStyle } from "react-native";
 import { hostOf } from "@ardia/core";
 import { useSettings } from "../../state/browser/hooks";
 import { tabTitle } from "../../state/browser/model";
@@ -20,6 +20,7 @@ export function TabPressArea({
   pressStyle,
   tooltip,
   squish,
+  hitSlop,
   children,
 }: {
   windowId: string;
@@ -28,6 +29,7 @@ export function TabPressArea({
   pressStyle?: StyleProp<ViewStyle>;
   tooltip?: string;
   squish?: keyof typeof SQUISH;
+  hitSlop?: Insets;
   children: ReactNode | ((state: { pressed: boolean }) => ReactNode);
 }) {
   const plainTooltip = useSettings((s) => !s.showTabHoverMenu);
@@ -50,6 +52,7 @@ export function TabPressArea({
           onPressOut={pressMotion.onPressOut}
           onPress={(e) => clickHeldTabPress(windowId, tab.id, e)}
           style={pressStyle}
+          hitSlop={hitSlop}
           tooltip={tooltip ?? (plainTooltip ? titleTooltip(tab) : undefined)}
         >
           {scale ? (state) => <Animated.View style={{ transform: [{ scale }] }}>{typeof children === "function" ? children(state) : children}</Animated.View> : children}
