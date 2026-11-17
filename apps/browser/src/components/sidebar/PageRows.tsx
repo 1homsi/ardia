@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState, type RefObject } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type RefObject } from "react";
 import { Animated, View } from "react-native";
 import { radius, space, Symbol, Text } from "../ui";
 import { layout, useTheme } from "../ui/theme";
@@ -75,6 +75,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
   const scope = useMemo(() => ({ slideBelow: motion.slideBelow }), [motion.slideBelow]);
+  const pinnedHeaderRegion = useCallback((view: View | null) => void controller?.regions.set("pinnedHeader", view), [controller]);
   if (geometry) geometry.current.newTabAtTop = newTabButtonAtTop && inlineNewTab;
   return (
     <ListMotionContext.Provider value={scope}>
@@ -87,7 +88,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush />
           </DragScope>
         ) : null}
-        {pinnedSection ? <PinnedSectionHeader windowId={windowId} profileId={profileId} collapsed={collapsed} open={pinnedFold.open} top={tiles.length ? space.s : 0} bottom={pinnedGap} /> : null}
+        {pinnedSection ? <PinnedSectionHeader windowId={windowId} profileId={profileId} collapsed={collapsed} open={pinnedFold.open} top={tiles.length ? space.s : 0} bottom={pinnedGap} dragRegion={pinnedHeaderRegion} /> : null}
         <View
           ref={(v) => {
             controller?.regions.set("pinnedGroups", v);

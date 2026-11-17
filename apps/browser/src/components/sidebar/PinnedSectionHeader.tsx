@@ -8,9 +8,9 @@ import { layout, useTheme } from "../ui/theme";
 import { SidebarRowLabel } from "./SidebarRow";
 import { ROW_GLYPH, TAB_ROW } from "./tokens";
 
-type HeaderProps = { windowId: string; profileId: string; collapsed: boolean; open: Animated.Value; top: number; bottom: number };
+type HeaderProps = { windowId: string; profileId: string; collapsed: boolean; open: Animated.Value; top: number; bottom: number; dragRegion: (view: View | null) => void };
 
-export const PinnedSectionHeader = memo(function PinnedSectionHeader({ windowId, profileId, collapsed, open, top, bottom }: HeaderProps) {
+export const PinnedSectionHeader = memo(function PinnedSectionHeader({ windowId, profileId, collapsed, open, top, bottom, dragRegion }: HeaderProps) {
   const name = useProfile(profileId, (profile) => profile?.name ?? "");
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
@@ -18,7 +18,7 @@ export const PinnedSectionHeader = memo(function PinnedSectionHeader({ windowId,
   const rotate = open.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] });
   const toggle = () => togglePinnedFold(profileId);
   return (
-    <View {...hoverProps} style={{ marginTop: top, marginBottom: bottom }}>
+    <View {...hoverProps} ref={dragRegion} style={{ marginTop: top, marginBottom: bottom }}>
       <ContextMenuArea onContextMenu={() => void openSidebarMenu(windowId)}>
         <Pressable tooltip={label} accessibilityRole="button" accessibilityLabel={`${label}, ${name}`} accessibilityState={{ expanded: !collapsed }} onAccessibilityTap={toggle} onPress={toggle}>
           {({ pressed }) => (
