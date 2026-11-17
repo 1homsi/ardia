@@ -41,7 +41,7 @@ function plainViewport(element: HTMLElement, rect: DOMRect, viewport: TabViewpor
     if (hit === element || element.contains(hit) || !!dismiss?.contains(hit)) return "shown";
     return hit.closest?.(STACKED_PAGE) ? "page" : "covered";
   });
-  return seen.includes("shown") && !seen.includes("covered") ? { viewport, covered: false } : { viewport: { ...viewport, visible: false }, covered: true };
+  return seen.includes("shown") && !seen.includes("covered") ? { viewport, covered: false } : { viewport: { ...viewport, visible: false }, covered: seen.includes("covered") };
 }
 
 export type OverlayCover = { overlayAt: (x: number, y: number) => boolean; overlayElements: () => readonly Element[] };
