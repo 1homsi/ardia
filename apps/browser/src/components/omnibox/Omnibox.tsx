@@ -77,7 +77,7 @@ export function Omnibox({
   useEffect(() => () => bangEnter.cancel(), [bangEnter]);
   useEffect(() => bangEnter.cancel(), [bangEnter, typed, selected, scope]);
   const root = useRef<View>(null);
-  const { items, completion, via, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing } = useBarItems({
+  const { items, completion, via, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, rowsHover, rowsHeld, releaseRows } = useBarItems({
     input,
     caret: () => selection.current,
     typed,
@@ -208,7 +208,7 @@ export function Omnibox({
 
   const onKeyDown = (e: BarKeyEvent) => {
     previewSelection.settle();
-    return barKeyDown(e, { bar, hero, shownCompletion, input: previewing ? value : typed, items, selectedIndex, previewing, current, tabScope, onDone, reset, forceSearch, go, choose, cancelBang: () => bangEnter.cancel(), removeRow: (url) => rowActions.remove(url) });
+    return barKeyDown(e, { bar, hero, shownCompletion, input: previewing ? value : typed, items, selectedIndex, previewing, current, tabScope, onDone, reset, forceSearch, go, choose, cancelBang: () => bangEnter.cancel(), removeRow: (url) => rowActions.remove(url), rowsHeld, releaseRows });
   };
 
   const onContextMenu = async () => {
@@ -300,6 +300,7 @@ export function Omnibox({
       scope={scope}
       incognito={incognito}
       onLayout={focusOnce}
+      claim={{ windowId, destination: hero ? heroBarFocus(tabId) : commandBarFocus }}
       value={value}
       focusEcho={focusEcho}
       onSelection={(next) => {
@@ -316,8 +317,8 @@ export function Omnibox({
     />
   );
 
-  const latest = useRef({ choose, profileId, go, current, onCancel, tabId, windowId });
-  latest.current = { choose, profileId, go, current, onCancel, tabId, windowId };
+  const latest = useRef({ choose, profileId, go, current, onCancel, tabId, windowId, releaseRows });
+  latest.current = { choose, profileId, go, current, onCancel, tabId, windowId, releaseRows };
   const [barActions] = useState(() => ({
     go: (url: string) => latest.current.go(url),
     openTabOrFile: () => void openTabOrFile(latest.current.windowId, latest.current.tabId, (url) => latest.current.go(url)),
@@ -331,10 +332,7 @@ export function Omnibox({
       setPopover(latest.current.tabId, "siteControls");
     },
   }));
-  const [rowActions] = useState<RowActions>(() => ({
-    choose: (s) => latest.current.choose(s),
-    remove: (url) => removeHistory(latest.current.profileId, [url]),
-  }));
+  const [rowActions] = useState<RowActions>(() => ({ choose: (s) => latest.current.choose(s), remove: (url) => (latest.current.releaseRows(), removeHistory(latest.current.profileId, [url])) }));
   const suggestionList = (
     <SuggestionList
       items={items}
@@ -356,6 +354,7 @@ export function Omnibox({
         scope={scope}
         field={field}
         list={suggestionList}
+        rowsHover={rowsHover}
         pulse={pulse}
         onSiteControls={currentUrl ? barActions.siteControls : null}
       />
@@ -368,6 +367,7 @@ export function Omnibox({
       scope={scope}
       field={field}
       list={listAway ? null : suggestionList}
+      rowsHover={rowsHover}
       pulse={pulse}
       hero={hero}
       rowHeight={fieldRowHeight}

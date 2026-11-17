@@ -1,1 +1,1 @@
-export { markNewTabBar } from "../../platform/newTabMarks";
+export { markNewTabBar, markNewTabPane } from "../../platform/newTabMarks";
