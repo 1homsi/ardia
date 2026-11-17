@@ -27,7 +27,7 @@ import { searchState, setSearchText, typeSearch } from "../../state/search/store
 import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../state/search/trayBack";
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
-import { countUsage, reportLaunchTray } from "../../state/telemetry/telemetry";
+import { countUsage } from "../../state/telemetry/telemetry";
 import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, stageMotion, barReturnMotion, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, settingsUIAvailable } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
@@ -87,8 +87,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
   const window = useWindowDimensions();
   const reduceMotion = useReduceMotion();
   const keyboard = useTrayKeyboard();
-  const arrivesAtRest = useRef(searchState().arrival === "atRest").current;
-  const landing = useSharedValue(arrivesAtRest ? 1 : 0);
+  const landing = useSharedValue(0);
   const [departed, setDeparted] = useState(false);
   const back = useSharedValue(0);
   const departing = useRef(false);
@@ -101,7 +100,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
     })();
     setDeparted(true);
   };
-  const hasLanded = useSharedValue(arrivesAtRest);
+  const hasLanded = useSharedValue(false);
   const isClosing = useSharedValue(closing);
   const dim = useSharedValue(0);
   const drag = useSharedValue(0);
@@ -137,7 +136,7 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
     if (closing) return;
     isClosing.value = false;
     const progress = keyboardProgress(keyboard.height.value, keyboard.full.value, 0);
-    const landed = arrivesAtRest || (keyboardIsUp(keyboard.height.value) && progress >= TRAY_LIFT.landedProgress);
+    const landed = keyboardIsUp(keyboard.height.value) && progress >= TRAY_LIFT.landedProgress;
     hasLanded.value = landed;
     landing.value = landed ? 1 : 0;
     const land = setTimeout(() => {
@@ -281,7 +280,6 @@ function TrayLayer({ session, closing, onClosed }: LayerProps) {
     () => !isClosing.value && (keyboardIsUp(keyboard.height.value) || hasLanded.value),
     (up, was) => {
       if (up === was) return;
-      if (up && arrivesAtRest) runOnJS(launchTrayUp)();
       dim.value = withTiming(up ? 1 : 0, { duration: reduceMotion ? trayMotion.reduced : trayMotion.dim, easing: reduceMotion ? tabsCurve.easeOut : trayMotion.dimEasing });
     },
   );
@@ -496,10 +494,8 @@ function StagedTray() {
     live.current.presentation = presentation;
     if (presentation === 0) return;
     setPresented(false);
-    const launch = searchState().arrival === "atRest";
     void stage.current?.present().then(() => {
       if (live.current.presentation !== presentation || live.current.closing) return;
-      if (launch) launchTrayUp();
       setPresented(true);
       stagePresented();
     });
@@ -734,8 +730,6 @@ function useLeavingActions() {
     };
   }, [depart]);
 }
-
-const launchTrayUp = () => void reportLaunchTray(Date.now());
 
 const putKeyboardAway = () => {
   trayInput?.blur();
