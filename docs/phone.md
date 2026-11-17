@@ -1321,7 +1321,7 @@ What main changed, by screen:
 - Library: one History, Bookmarks and Downloads sheet. History merges this phone's visits with the current space's synced history and remembers deletions per space (`Library/`, `HistoryTimeline.swift`, 68440816a, 6cf89268b).
 - Site permissions: camera, microphone and location answers are saved per site and listed and revocable in Site Settings (`SitePermissions.swift`). The Expo iPhone saves and lists them the same way since 942dc45df.
 - Deck: header with the space switcher, an Incognito pill and a `···` menu (Archive, Spaces, New Incognito Tab, Reopen, Close All, Settings); bottom bar of a grid button, Search Tabs and plus; a grid view; a slim Archive capsule under the header; cards about 24 pt lower (`TabSwitcherView.swift`, `DeckChrome.swift`, `TabGridView.swift`, `TabsTokens.swift`, `TabsDeckGeometry.swift`).
-- Start page: no logo; the space's name at 0.44 of the height (a title with no chevron and no menu since #2466, the owner's call: the dots and the swipe are enough), the space's pinned tiles (4 a row, icon only) and page dots; a sideways swipe changes space, and VoiceOver adjusts the dots. In light mode a themed backdrop gets a 34% white veil (`SearchHomeView.swift`, `PinnedTiles.swift`, `ProfileBackdrop.themeVeil`).
+- Start page: no logo; the space switcher at 0.44 of the height, the space's pinned tiles (4 a row, icon only) and page dots; a sideways swipe changes space. In light mode a themed backdrop gets a 34% white veil (`SearchHomeView.swift`, `PinnedTiles.swift`, `ProfileBackdrop.themeVeil`).
 - Tray: a floating glass panel, 8 pt in from the sides and above the keyboard, radius 26; a submitted search lifts it 120 pt and fades it (`SearchTrayHost.swift`).
 - Spaces: tabs belong to one Mac space; the deck, the tab swipe and Switch to Tab show the current space's tabs, and the app takes its colour (`TabSpaces.swift`). The Spaces sheet gets the switcher and page dots.
 - Settings: an Appearance page (colour, Glass or Classic, Light or Dark, each able to match the Mac through the synced `look`); row icons dropped (`AppearancePage.swift`, `InterfaceStyle.swift`, `SyncedLook`).
@@ -1356,7 +1356,8 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Onboarding | All set | match | Plain tip rows on main's card, 911cbb80b | |
 | Onboarding | All set: usage-stats toggle | deliberate | Expo only; consent is asked where sharing is described (telemetry rule) | owner's rule |
 | Onboarding | Default browser step | match | Seen 2026-11-17 with `-ArdiaOnboarding YES` on a fresh install of each: both walk the same four steps (welcome, blocking, sync, tips) into the app, and no step, row or text names a default browser; the code stays off without Apple's entitlement and nothing breaks (`unseen/onboarding-{ours,ref}/`) | |
-| Start page | Header, space name, dots, bar | match | | The name has no menu on either app since #2466 |
+| Start page | Header, dots, bar | match | | |
+| Start page | Space name | deliberate | A title with no chevron and no menu; the dots and the swipe change space, and VoiceOver or TalkBack adjusts the dots. The SwiftUI reference's name opens a menu of the spaces (#2466) | owner's call, 2026-11-18 |
 | Start page | Pinned tiles | match | Tiles draw main's SF Symbols (Calendar, folders) at main's sizes, d09343dba | |
 | Start page | No spaces, sync off (invitation) | match | The Sync With Your Mac capsule alone, same place and size (`r-e-light`/`r-m-light`/invitation) | |
 | Search panel | Empty, recent searches | match | Main's source lists recent searches and the Mac's tabs, no open tab (the audit's SwiftUI row is a Mac tab); rows now refresh live with sync, 2fd28bbe5 | |
