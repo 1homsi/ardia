@@ -5,11 +5,20 @@ export const ROW_PAGE = 100;
 const NEAR_END = 600;
 
 const useScrollEnds = create<{ reached: number }>()(() => ({ reached: 0 }));
-let bumpedAt = -1;
+let armed = true;
+let lastContent = -1;
 
 export function noteSettingsScroll(offset: number, viewport: number, content: number) {
-  if (offset + viewport < content - NEAR_END || content === bumpedAt) return;
-  bumpedAt = content;
+  if (content !== lastContent) {
+    lastContent = content;
+    armed = true;
+  }
+  if (offset + viewport < content - NEAR_END) {
+    armed = true;
+    return;
+  }
+  if (!armed) return;
+  armed = false;
   useScrollEnds.setState((s) => ({ reached: s.reached + 1 }));
 }
 

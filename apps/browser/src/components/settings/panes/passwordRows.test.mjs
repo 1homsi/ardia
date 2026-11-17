@@ -10,7 +10,7 @@ globalThis.require = (id) => (/\.png$/.test(id) ? { uri: id } : nodeRequire(id))
 const native = await import("../../../test-native/ardiacore.ts");
 const { useBrowser } = await import("../../../state/browser/store.ts");
 const { usePasswordUnlocks } = await import("../../../state/site/savedPasswords.ts");
-const { noteSettingsScroll, ROW_PAGE } = await import("../../../state/settings/growingRows.ts");
+const { noteSettingsScroll, ROW_PAGE, useGrowingRows } = await import("../../../state/settings/growingRows.ts");
 const { Row } = await import("../Form.tsx");
 const { takeExportCounts } = await import("../../../state/telemetry/exportCounts.ts");
 const { PasswordsPage } = await import("./ProfilePasswords.tsx");
@@ -63,4 +63,26 @@ test("unlocking thousands of saved passwords puts one page of rows on screen, an
 test("a short list shows every row", async () => {
   const page = await openPasswords(40);
   assert.equal(rowsIn(page.value).length, 40);
+});
+
+test("after a search shrinks the list back to a height it had before, scrolling to its end still adds a page", () => {
+  const rows = mount((p) => useGrowingRows(5000, p.query), { props: { query: "" } });
+  assert.equal(rows.value, ROW_PAGE);
+  noteSettingsScroll(29_000, 800, 30_000);
+  assert.equal(rows.value, 2 * ROW_PAGE);
+  noteSettingsScroll(0, 800, 50_000);
+  rows.rerender({ query: " " });
+  assert.equal(rows.value, ROW_PAGE, "a new search starts from one page");
+  noteSettingsScroll(29_000, 800, 30_000);
+  assert.equal(rows.value, 2 * ROW_PAGE, "the same end height as before grows the list again");
+});
+
+test("staying at the end adds one page, and leaving the end and coming back adds the next", () => {
+  const rows = mount((p) => useGrowingRows(5000, p.query), { props: { query: "x" } });
+  noteSettingsScroll(39_000, 800, 40_000);
+  noteSettingsScroll(39_100, 800, 40_000);
+  assert.equal(rows.value, 2 * ROW_PAGE);
+  noteSettingsScroll(10_000, 800, 40_000);
+  noteSettingsScroll(39_200, 800, 40_000);
+  assert.equal(rows.value, 3 * ROW_PAGE);
 });
