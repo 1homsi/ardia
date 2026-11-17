@@ -650,8 +650,21 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
 
 ### Windows, focus and input
 
-- **Window controls.** Ardia draws close, minimize and maximize in its own header, so they work on decorationless
-  desktops such as Hyprland. Chrome's own caption buttons are hidden: opacity 0, no input, ignored by accessibility.
+- **Window controls.** Linux uses the Windows build's caption buttons on the right: `…`, minimize, maximize (restore
+  while maximized) and close, drawn by the shared `WindowControls.tsx` in the places Windows puts them (the toolbar
+  row, the end of the top strip, a right sidebar's header, atop a left sidebar with the address bar in it, Little
+  Ardia's bar, Settings and Import). There are no traffic lights. They work on decorationless desktops such as
+  Hyprland; Chrome's own caption buttons are hidden: opacity 0, no input, ignored by accessibility.
+  - `lib/platformChrome.linux.ts` takes the Windows `WINDOW_CHROME`. `platform/windowControls.ts` is swapped for
+    `hostWindowControls.ts`: minimize and maximize call `ArdiaShell.minimizeWindow` and `toggleMaximizeWindow`, and
+    caption regions are a no-op because the shell's own drag regions move the window.
+  - The `…` opens the Linux app menu (Menu button below) under the button pressed (`clusterAppMenu.ts`, swapped in
+    for `BrowserWindowControls.tsx`'s `showAppMenu`). There is exactly one menu button: the `…` while the window
+    buttons are placed, the header's hamburger otherwise (full screen). Linux keeps the sidebar header the Windows
+    rule would collapse whenever the hamburger has no other home (`sidebarHeaderLayout.ts`).
+  - Restore: the engine sends no `maximized` event, so each window reads `ArdiaShell.windowFrame` at start and on
+    every resize and marks itself maximized when the frame fills the work area (the shell's outer size when the
+    frame is null), feeding the shared `useMaximizedWindows` (`windowMaximized.ts`). Settings and Import too.
 - **Header drag and double-click.** Dragging the header moves the window (`DispatchHostWindowDragMovement`).
   Double-clicking it runs the desktop's titlebar action.
 - **Outer frame.** The host overlays Chromium's client view and doesn't replace its frame. Without the Wayland
@@ -759,18 +772,17 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     `sidebarEdge`. An engine with neither uses the shell-side watcher on both sides.
 - **Top-strip peek.** With Auto-hide tabs in the top-strip layout, the strip's hover zone and its peeked panel are a
   page overlay region (`TopStripPeekRegion.tsx`, swapped in for `App.tsx`'s import), so the host gives the shell the
-  pointer where they cover a page: 2 px of the panel with the default toolbar, 15 px with the compact one. The window
-  buttons are off screen while the strip is hidden, as on macOS; the peeked strip's menu button reaches Window ›
-  Minimize, Maximize and File › Close Window.
-- **Header.** The menu button always shows. The profile name beside it follows the Mac's rule
+  pointer where they cover a page: 2 px of the panel with the default toolbar, 15 px with the compact one. While the strip
+  is hidden the window buttons and the `…` sit at the end of the toolbar row, as on Windows.
+- **Header.** The menu button shows here whenever the window buttons are hidden (full screen); otherwise it is the
+  `…` beside them. The profile name beside it follows the Mac's rule
   (`ProfileIndicator.tsx`): only in an Incognito window or with two or more profiles, cut when at least 52 px of it
   fit, a person icon below that, and nothing when not even the icon fits (a 190 px sidebar with the Downloads button).
 - **Materials.** `VisualEffect`, `GlassEffect`, popover bubbles and the window's vibrancy take light or dark from the
   theme scope they render in (`useSurfaceDark`), not the app appearance, so an Incognito window is dark in a light
   app and a toast is light there.
-- **Window controls with the sidebar on the right.** They ride the sidebar, as on macOS: `setTrafficLightsCenter`'s
-  `trailing` flag measures the first button's center from the window's right edge, and the Linux buttons are placed
-  from that edge with CSS (`shims/web/windowChrome.tsx`), so a resize moves them with no round trip.
+- **Window controls with the sidebar on the right.** They sit in the right sidebar's header, at its outer edge, as on
+  Windows.
 - **Fullscreen restore.** A window saved fullscreen comes back fullscreen. On Wayland the saved output's name is kept
   in the profile pref `browser.app_window_placement.ArdiaLinuxWindowOutputs`. When exactly one display carries that
   name, the window goes fullscreen there.
