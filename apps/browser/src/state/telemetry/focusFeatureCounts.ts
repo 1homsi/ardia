@@ -1,4 +1,5 @@
 import { takeChromeSettingsOpens } from "./chromeSettingsOpens";
+import { takePreloadPagesCounts } from "./preloadPagesCounts";
 import { takeHiddenElementCounts } from "./hiddenElementCounts";
 import { takeMinimalismCounts } from "./minimalismCounts";
 import { takePageFocusReturns } from "./pageFocusReturns";
@@ -7,5 +8,5 @@ import { takeWindowOcclusionCounts } from "./windowOcclusionCounts";
 import { takeBarLoadFocusCounts } from "./barLoadFocus";
 
 export function takeFocusFeatureCounts() {
-  return { ...takeMinimalismCounts(), ...takeReaderCounts(), ...takeHiddenElementCounts(), ...takeChromeSettingsOpens(), ...takeWindowOcclusionCounts(), ...takePageFocusReturns(), ...takeBarLoadFocusCounts() };
+  return { ...takeMinimalismCounts(), ...takeReaderCounts(), ...takeHiddenElementCounts(), ...takeChromeSettingsOpens(), ...takePreloadPagesCounts(), ...takeWindowOcclusionCounts(), ...takePageFocusReturns(), ...takeBarLoadFocusCounts() };
 }

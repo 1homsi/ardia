@@ -100,7 +100,7 @@ export function PrivacyPane({ profileId, site }: { profileId: string | null; sit
         </Row>
       </Group>
       <ZoomLevels />
-      <PreloadPages />
+      {PLATFORM_FEATURES.preloadPages && <PreloadPages />}
       {PLATFORM_FEATURES.contentBlocker && blocker && (
         <Text size="caption" tone="textTertiary" style={RULES_LOADED}>
           {`${(blocker.stats.networkFilters ?? 0).toLocaleString(UI_LOCALE)} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString(UI_LOCALE)} cosmetic rules loaded.`}

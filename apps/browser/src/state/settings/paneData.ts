@@ -34,6 +34,7 @@ import type { SettingsPane } from "./settingsWindows";
 import { FOLLOW_EVERY_MS, FOLLOW_FOR_MS, switchOutcome, updaterBusy } from "./updateStatus";
 import { noteUpdateChannelSwitch } from "../telemetry/usage";
 import { trackAutofillToggleKept } from "../telemetry/track";
+import { notePreloadPagesTurned } from "../telemetry/preloadPagesCounts";
 import { askedValue, rememberAsked } from "./autofillAsked";
 
 export const APP_ICON_SIZE = 56;
@@ -111,12 +112,13 @@ function noteAsked(profile: string, toggle: AutofillToggle, asked: boolean, now:
   if (now !== asked) trackAutofillToggleKept(toggle);
 }
 
-export async function setPreloadPagesFor(profile: string, on: boolean) {
-  await setPreloadPages(profile, on);
-  store(preloadPages, [profile], on);
-}
-
 const written = (write: Promise<unknown>) => write.then(() => true, orWarn(false));
+
+export async function setPreloadPagesFor(profile: string, on: boolean) {
+  if (!(await written(setPreloadPages(profile, on)))) return;
+  store(preloadPages, [profile], on);
+  notePreloadPagesTurned(on);
+}
 
 export async function setPasswordAutofillFor(profile: string, on: boolean) {
   if (!(await written(setPasswordAutofill(on, profile)))) return;

@@ -62,6 +62,7 @@ export const privacyRows = {
       section: "Speed",
       rows: {
         preloadPages: {
+          shown: () => PLATFORM_FEATURES.preloadPages,
           title: "Preload pages",
           description: "Fetches pages before you open them, and lets a site get one ready ahead of time, so links open faster on a slow connection. It sends requests for pages you might never visit. Set separately for each profile.",
           keywords: ["preload", "prerender", "preconnect", "prefetch", "speed", "faster", "slow connection", "latency", "network predictions"],
