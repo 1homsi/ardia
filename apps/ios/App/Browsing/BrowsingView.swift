@@ -12,6 +12,7 @@ struct BrowsingView: View {
   @State private var pager = PagerModel()
   @State private var barVisibility = BottomBarVisibility()
   @State private var tabSwitchTicks = 0
+  @State private var barSwipeOpenedDeck = false
   @State private var pageSpan = PageSpan(width: 402, safeSide: 0)
   @State private var storedCover: StoredCover?
   @Environment(\.screenLayout) private var screenLayout
@@ -301,7 +302,14 @@ struct BrowsingView: View {
     DragGesture(minimumDistance: 14)
       .onChanged { value in
         if !pager.isTracking {
-          guard abs(value.translation.width) > abs(value.translation.height) else { return }
+          guard abs(value.translation.width) > abs(value.translation.height) else {
+            if !barSwipeOpenedDeck, !pager.isActive, value.translation.height < -BrowseLayout.barSwipeUp {
+              barSwipeOpenedDeck = true
+              openDeck()
+            }
+            return
+          }
+          guard !barSwipeOpenedDeck else { return }
           if pager.isActive {
             pager.catchSettle()
           } else {
@@ -320,6 +328,7 @@ struct BrowsingView: View {
         }
       }
       .onEnded { value in
+        barSwipeOpenedDeck = false
         guard pager.isTracking else { return }
         pager.isTracking = false
         let width = pageWidth

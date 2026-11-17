@@ -33,6 +33,15 @@ struct AppearancePage: View {
       } footer: {
         Text("Match My Mac follows your Mac. System follows this device.")
       }
+
+      Section {
+        CheckmarkRow(title: String(localized: "Stack"), isChecked: !app.deck.isGrid) { app.deck.isGrid = false }
+        CheckmarkRow(title: String(localized: "Grid"), isChecked: app.deck.isGrid) { app.deck.isGrid = true }
+      } header: {
+        Text("Tabs")
+      } footer: {
+        Text("How your open tabs are laid out. Swipe up on the bottom bar to see them.")
+      }
     }
     .contentMargins(.top, Spacing.small, for: .scrollContent)
     .navigationTitle("Appearance")

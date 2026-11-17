@@ -94,8 +94,7 @@ struct TabDeck: View {
   @State private var cover: Image?
   @State private var coverOpacity: Double = 0
   @State private var lifts: [UUID: Double] = [:]
-  @State private var vanishing: Set<UUID> = []
-  @State private var poofs: [PoofBurst.Spec] = []
+  @State private var gaps: [UUID: Double] = [:]
   @State private var isShowingArchiveCard = false
   @State private var archiveCardYields = false
   @State private var isConfirmingCloseAll = false
@@ -175,10 +174,6 @@ struct TabDeck: View {
           .transition(.opacity)
           .zIndex(Self.overlayLayer)
       }
-      ForEach(poofs) { spec in
-        PoofBurst(spec: spec)
-      }
-      .zIndex(Self.overlayLayer)
       if isShowingArchiveCard, !app.deck.isGrid {
         ArchiveIntervalCard(interval: Bindable(app.tabs).autoArchiveInterval) {
           dismissArchiveCard()
@@ -204,11 +199,9 @@ struct TabDeck: View {
         DeckColumn(
           column: column,
           size: fullSize,
-          isGrid: app.deck.isGrid,
           query: $query,
           searchFocus: $isSearchFocused,
           plus: deckPlusActions,
-          toggleGrid: toggleGrid,
           closeAll: { isConfirmingCloseAll = true }
         )
         .frame(width: fullSize.width, height: fullSize.height)
@@ -218,11 +211,9 @@ struct TabDeck: View {
       } else {
         DeckBottomBar(
           geometry: geometry,
-          isGrid: app.deck.isGrid,
           query: $query,
           searchFocus: $isSearchFocused,
-          plus: deckPlusActions,
-          toggleGrid: toggleGrid
+          plus: deckPlusActions
         )
         .frame(width: geometry.container.width)
         .position(x: geometry.container.width / 2, y: barCenterY(geometry))
@@ -320,11 +311,6 @@ struct TabDeck: View {
     )
   }
 
-  private func toggleGrid() {
-    isSearchFocused = false
-    withAnimation(reduceMotion ? TabsMotion.fade : TabsMotion.expand) { app.deck.isGrid.toggle() }
-  }
-
   private func searchChanged() {
     let next = sourceOrder
     let update = {
@@ -342,7 +328,7 @@ struct TabDeck: View {
         let index = range.lowerBound + offset
         let role = role(for: id, at: index)
         let motion = motion(for: id, at: index)
-        let isLast = index == order.count - 1
+        let isLast = id == lastStayingID
         DeckCardHeader(tab: tab, isIncognito: tab.isPrivate)
           .modifier(DeckHeaderPlacement(motion: motion, role: role, geometry: geometry, isLast: isLast))
           .transition(.identity)
@@ -416,12 +402,20 @@ struct TabDeck: View {
 
   private func motion(for id: UUID, at index: Int) -> DeckMotion {
     DeckMotion(
-      relative: Double(index) - currentScroll,
+      relative: Double(index) - gap(before: index) - currentScroll,
       scaleProgress: scaleProgress,
       positionProgress: positionProgress,
-      lift: lifts[id] ?? 0,
-      vanish: vanishing.contains(id) ? 1 : 0
+      lift: lifts[id] ?? 0
     )
+  }
+
+  private func gap(before index: Int) -> Double {
+    guard !gaps.isEmpty else { return 0 }
+    return order[..<index].reduce(0) { $0 + (gaps[$1] ?? 0) }
+  }
+
+  private var lastStayingID: UUID? {
+    order.last { gaps[$0] == nil }
   }
 
   private func appear() {
@@ -493,7 +487,7 @@ struct TabDeck: View {
     dragScroll = nil
     settleOrigin = nil
     lifts = [:]
-    vanishing = []
+    gaps = [:]
     cardsOpacity = 0
     withAnimation(TabsMotion.fade) { cardsOpacity = 1 }
     if !isShowingArchiveCard { offerArchiveCard() }
@@ -554,51 +548,45 @@ struct TabDeck: View {
     }
   }
 
-  private func close(_ id: UUID, animated: Bool) {
-    guard let index = order.firstIndex(of: id) else { return }
-    let remove = {
-      guard let index = order.firstIndex(of: id) else {
-        lifts[id] = nil
-        vanishing.remove(id)
-        return
-      }
-      let remaining = order.count - 1
-      let focus = TabsDeckGeometry.scrollAfterRemoving(index: index, scroll: Int(scroll.rounded()), remaining: remaining)
+  private func close(_ id: UUID, animated: Bool, velocity: CGFloat = 0) {
+    guard let index = order.firstIndex(of: id), gaps[id] == nil else { return }
+    let leaving = order[..<index].filter { gaps[$0] != nil }.count
+    let staying = order.count - gaps.count - 1
+    let focus = TabsDeckGeometry.scrollAfterRemoving(index: index - leaving, scroll: Int(scroll.rounded()), remaining: staying)
+    let forget = {
+      order.removeAll { $0 == id }
+      gaps[id] = nil
+      lifts[id] = nil
+      app.closeTab(id)
+      app.leaveDeckIfEmpty()
+      scroll = min(scroll, Double(max(order.count - 1, 0)))
+    }
+    guard animated, !reduceMotion else {
       let update = {
         order.remove(at: index)
         scroll = Double(focus)
       }
       if reduceMotion { withAnimation(TabsMotion.fade, update) } else { withAnimation(TabsMotion.gapClose, update) }
-      app.closeTab(id)
-      app.leaveDeckIfEmpty()
-      Task { @MainActor in
-        try? await Task.sleep(for: .seconds(0.6))
-        lifts[id] = nil
-        vanishing.remove(id)
-      }
-    }
-    guard animated, !reduceMotion else {
-      remove()
+      forget()
+      archiveCardYields = false
       return
     }
-    let relative = Double(index) - currentScroll
-    let center = geometry.center(at: relative)
-    let lift = (lifts[id] ?? 0) - Double(geometry.cardSize.height) * 0.18
-    let spec = PoofBurst.Spec(center: CGPoint(x: center.x, y: center.y + CGFloat(lift)), size: geometry.cardSize.width * 0.9)
-    poofs.append(spec)
-    withAnimation(.easeOut(duration: TabsMotion.flyAway)) {
-      lifts[id] = lift
-      vanishing.insert(id)
+    let from = lifts[id] ?? 0
+    let center = geometry.center(at: Double(index) - gap(before: index) - currentScroll)
+    let away = -Double(center.y + geometry.cardSize.height)
+    let distance = away - from
+    let push = distance < 0 ? min(max(Double(velocity) / distance, 0), 30) : 0
+    withAnimation(.interpolatingSpring(TabsMotion.flyAway, initialVelocity: push)) {
+      lifts[id] = away
     }
-    Task { @MainActor in
-      try? await Task.sleep(for: .seconds(TabsMotion.flyAway * 0.6))
-      remove()
-      try? await Task.sleep(for: .seconds(TabsMotion.flyAway * 0.4))
+    withAnimation(TabsMotion.gapClose, completionCriteria: .logicallyComplete) {
+      gaps[id] = 1
+      scroll = Double(focus)
+    } completion: {
+      var transaction = Transaction()
+      transaction.disablesAnimations = true
+      withTransaction(transaction, forget)
       archiveCardYields = false
-    }
-    Task { @MainActor in
-      try? await Task.sleep(for: .seconds(TabsMotion.poofDuration + 0.05))
-      poofs.removeAll { $0.id == spec.id }
     }
   }
 
@@ -657,7 +645,7 @@ struct TabDeck: View {
         if axis == nil {
           let dx = value.translation.width
           let dy = value.translation.height
-          if let id, abs(dy) > abs(dx), dy < 0 {
+          if let id, gaps[id] == nil, abs(dy) > abs(dx), dy < 0 {
             axis = .vertical(id)
             archiveCardYields = true
           } else {
@@ -699,7 +687,7 @@ struct TabDeck: View {
         case .vertical(let card):
           if TabsDeckGeometry.shouldClose(translation: value.translation.height, velocity: value.velocity.height, cardHeight: geometry.cardSize.height) {
             flickTicks += 1
-            close(card, animated: true)
+            close(card, animated: true, velocity: value.velocity.height)
           } else {
             withAnimation(TabsMotion.release) { lifts[card] = nil }
             archiveCardYields = false

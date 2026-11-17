@@ -14,17 +14,15 @@ nonisolated struct DeckMotion: VectorArithmetic {
   var scaleProgress: Double
   var positionProgress: Double
   var lift: Double
-  var vanish: Double
 
-  static var zero: DeckMotion { DeckMotion(relative: 0, scaleProgress: 0, positionProgress: 0, lift: 0, vanish: 0) }
+  static var zero: DeckMotion { DeckMotion(relative: 0, scaleProgress: 0, positionProgress: 0, lift: 0) }
 
   static func + (lhs: DeckMotion, rhs: DeckMotion) -> DeckMotion {
     DeckMotion(
       relative: lhs.relative + rhs.relative,
       scaleProgress: lhs.scaleProgress + rhs.scaleProgress,
       positionProgress: lhs.positionProgress + rhs.positionProgress,
-      lift: lhs.lift + rhs.lift,
-      vanish: lhs.vanish + rhs.vanish
+      lift: lhs.lift + rhs.lift
     )
   }
 
@@ -33,8 +31,7 @@ nonisolated struct DeckMotion: VectorArithmetic {
       relative: lhs.relative - rhs.relative,
       scaleProgress: lhs.scaleProgress - rhs.scaleProgress,
       positionProgress: lhs.positionProgress - rhs.positionProgress,
-      lift: lhs.lift - rhs.lift,
-      vanish: lhs.vanish - rhs.vanish
+      lift: lhs.lift - rhs.lift
     )
   }
 
@@ -43,11 +40,10 @@ nonisolated struct DeckMotion: VectorArithmetic {
     scaleProgress *= rhs
     positionProgress *= rhs
     lift *= rhs
-    vanish *= rhs
   }
 
   var magnitudeSquared: Double {
-    relative * relative + scaleProgress * scaleProgress + positionProgress * positionProgress + lift * lift / 10_000 + vanish * vanish
+    relative * relative + scaleProgress * scaleProgress + positionProgress * positionProgress + lift * lift / 10_000
   }
 }
 
@@ -86,10 +82,7 @@ nonisolated struct DeckPose {
     case .slideRight:
       center.x += (1 - positionT) * geometry.container.width
     }
-    let vanish = CGFloat(min(max(motion.vanish, 0), 1))
     center.y += CGFloat(motion.lift)
-    scale *= 1 - 0.28 * vanish
-    opacity *= Double(1 - vanish)
     let settle = role == .stay ? 1 : max(0, (motion.positionProgress - 0.7) / 0.3)
     let liftFade = max(0, 1 + motion.lift / 120)
     return DeckPose(
@@ -97,7 +90,7 @@ nonisolated struct DeckPose {
       scale: scale,
       corner: corner,
       opacity: opacity,
-      headerOpacity: min(1, settle) * min(1, liftFade) * Double(1 - vanish),
+      headerOpacity: min(1, settle) * min(1, liftFade),
       visibleWidth: geometry.visibleWidth(at: motion.relative, isLast: isLast)
     )
   }

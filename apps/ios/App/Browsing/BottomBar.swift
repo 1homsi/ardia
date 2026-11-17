@@ -30,9 +30,7 @@ struct BottomBar: View {
 
   private var expanded: some View {
     HStack(spacing: BrowseLayout.barGap) {
-      BarTabsButton(actions: actions)
-        .barReturn(.leading, isShown: sidesShown)
-      BarAddressField(address: address, onAddress: actions.onAddress, onMore: actions.onMore)
+      BarAddressField(address: address, actions: actions)
         .reportsBarAnchor(.page, face: .address(address))
         .barReturn(.centre, isShown: centreShown)
       BarPlusButton(action: actions.onPlus)

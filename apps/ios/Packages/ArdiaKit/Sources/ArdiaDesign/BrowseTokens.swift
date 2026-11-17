@@ -62,6 +62,7 @@ public enum BrowseLayout {
   public static let tabStackRadius: CGFloat = 5
   public static let tabStackTile = CGSize(width: 20, height: 26)
   public static let barBottomGap: CGFloat = 21.5
+  public static let barSwipeUp: CGFloat = 22
   public static let barReturnScale: CGFloat = 0.8
   public static let barReturnShift: CGFloat = 12
   public static let hitTarget: CGFloat = 44

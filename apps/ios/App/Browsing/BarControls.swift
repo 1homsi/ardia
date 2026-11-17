@@ -53,7 +53,7 @@ struct BarTabsButton: View {
     .buttonStyle(BarButtonStyle())
     .chromeSurface(in: .circle)
     .classicBarShadow()
-    .contextMenu { recentTabsMenu(order) }
+    .contextMenu { RecentTabsMenu(tabs: order, selectedID: app.tabs.selectedTabID, actions: actions) }
     .accessibilityLabel("Tabs")
     .accessibilityValue(Text("^[\(order.count) tab](inflect: true)"))
     .accessibilityHint("Touch and hold for recent tabs.")
@@ -63,13 +63,20 @@ struct BarTabsButton: View {
     }
   }
 
-  @ViewBuilder
-  private func recentTabsMenu(_ order: [BrowserTab]) -> some View {
-    let recent = order.filter { $0.id != app.tabs.selectedTabID }.suffix(8).reversed()
+}
+
+struct RecentTabsMenu: View {
+  let tabs: [BrowserTab]
+  let selectedID: UUID?
+  let actions: BarActions
+
+  var body: some View {
+    let recent = tabs.filter { $0.id != selectedID }.suffix(8).reversed()
+    Button("Show Tabs", systemImage: "square.on.square", action: actions.onTabs)
     ForEach(Array(recent)) { tab in
       Button(TabText.title(for: tab)) { actions.onSelectTab(tab.id) }
     }
-    if !recent.isEmpty { Divider() }
+    Divider()
     Button("Close Tab", systemImage: "xmark", role: .destructive, action: actions.onCloseTab)
   }
 }
@@ -162,12 +169,14 @@ struct BarAddressLabel: View {
 
 struct BarAddressField: View {
   let address: BarAddress
-  let onAddress: () -> Void
-  let onMore: () -> Void
+  let actions: BarActions
+
+  @Environment(AppModel.self) private var app
 
   var body: some View {
+    let order = app.deckOrder
     HStack(spacing: 0) {
-      Button(action: onAddress) {
+      Button(action: actions.onAddress) {
         BarAddressLabel(address: address)
           .padding(.leading, BrowseLayout.barAddressLead)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -176,14 +185,21 @@ struct BarAddressField: View {
       .buttonStyle(BarButtonStyle())
       .accessibilityLabel(address.isInsecure ? Text("Address, Not Secure") : Text("Address"))
       .accessibilityValue(Text(address.host))
-      .accessibilityHint("Opens search with this page’s address.")
-      BarMenuButton(action: onMore)
+      .accessibilityHint("Opens search with this page’s address. Swipe up on the bar for your tabs.")
+      .accessibilityActions {
+        Button("Show Tabs", action: actions.onTabs)
+        Button("Previous Tab") { actions.onStep(-1) }
+        Button("Next Tab") { actions.onStep(1) }
+      }
+      BarMenuButton(action: actions.onMore)
         .padding(.trailing, BrowseLayout.barMenuTrail)
     }
     .frame(height: BrowseLayout.barControl)
     .frame(maxWidth: .infinity)
     .chromeSurface(in: .capsule)
     .classicBarShadow()
+    .contentShape(.contextMenuPreview, .capsule)
+    .contextMenu { RecentTabsMenu(tabs: order, selectedID: app.tabs.selectedTabID, actions: actions) }
   }
 }
 
@@ -204,6 +220,7 @@ struct BarCollapsedPill: View {
     .frame(maxWidth: BrowseLayout.barCollapsedMaxWidth)
     .accessibilityLabel(Text("Show Toolbar"))
     .accessibilityValue(Text(address.host))
+    .accessibilityHint("Swipe up on the bar for your tabs.")
   }
 }
 

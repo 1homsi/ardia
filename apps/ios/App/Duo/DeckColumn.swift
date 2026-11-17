@@ -4,11 +4,9 @@ import SwiftUI
 struct DeckColumn: View {
   let column: ScreenLayout.SideColumn
   let size: CGSize
-  let isGrid: Bool
   @Binding var query: String
   var searchFocus: FocusState<Bool>.Binding
   let plus: PlusActions
-  let toggleGrid: () -> Void
   let closeAll: () -> Void
 
   @Environment(AppModel.self) private var app
@@ -18,7 +16,6 @@ struct DeckColumn: View {
   var body: some View {
     ZStack {
       SideColumnStack(column: column, size: size) {
-        GlassCircleButton(symbol: isGrid ? "square.stack" : "square.grid.2x2", label: isGrid ? "Show as Stack" : "Show as Grid", diameter: DuoLayout.columnButton, action: toggleGrid)
         GlassCircleButton(symbol: "magnifyingglass", label: "Search Tabs", diameter: DuoLayout.columnButton) { searchFocus.wrappedValue = true }
         DuoMoreMenu(hasTabs: !app.deckTabs.isEmpty, closeAll: closeAll, diameter: DuoLayout.columnButton)
         PlusButton(actions: plus, width: DuoLayout.columnButton)

@@ -43,15 +43,12 @@ struct StartBar: View {
 
 struct DeckBottomBar: View {
   let geometry: TabsDeckGeometry
-  let isGrid: Bool
   @Binding var query: String
   var searchFocus: FocusState<Bool>.Binding
   let plus: PlusActions
-  let toggleGrid: () -> Void
 
   var body: some View {
     HStack(spacing: TabsLayout.barGap) {
-      GlassCircleButton(symbol: isGrid ? "square.stack" : "square.grid.2x2", label: isGrid ? "Show as Stack" : "Show as Grid", action: toggleGrid)
       SearchTabsField(query: $query, focus: searchFocus)
       PlusButton(actions: plus, width: TabsLayout.barCircle)
     }

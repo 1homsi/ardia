@@ -87,12 +87,6 @@ struct SpaceGlyph: View {
         Text(emoji)
           .font(.system(size: size * 0.8))
           .frame(width: size, height: size)
-      } else {
-        Text(Self.initial(of: space.name))
-          .font(.system(size: size * 0.55, weight: .bold))
-          .foregroundStyle(TabsPalette.spaceBadgeInk)
-          .frame(width: size, height: size)
-          .background(TabsPalette.spaceBadge, in: .circle)
       }
     }
     .accessibilityHidden(true)
@@ -115,8 +109,8 @@ struct SpaceGlyph: View {
   static func menuSymbol(for space: SyncedProfile) -> String {
     if let symbol = SpaceColors.symbol(space.icon) { return filled(symbol) }
     let letter = initial(of: space.name).lowercased()
-    let circled = "\(letter).circle.fill"
-    return UIImage(systemName: circled) == nil ? "circle.fill" : circled
+    let squared = "\(letter).square.fill"
+    return UIImage(systemName: squared) == nil ? "square.fill" : squared
   }
 }
 
