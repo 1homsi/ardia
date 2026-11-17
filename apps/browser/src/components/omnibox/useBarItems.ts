@@ -41,7 +41,7 @@ export function useBarItems({
   currentUrl: string;
 }) {
   const { hovered: overRows, hoverProps: rowsHover } = useHover();
-  const { items: suggested, completion: suggestedCompletion } = useSuggestions({
+  const { items: suggested, completion: suggestedCompletion, via } = useSuggestions({
     text: typed,
     active: edited || !!scope,
     windowId,
@@ -69,5 +69,5 @@ export function useBarItems({
     () => (!scope && edited && !previewing ? offeredScope(typed, shownCompletion, windowId) : null),
     [scope, edited, previewing, typed, shownCompletion, windowId],
   );
-  return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, rowsHover, rowsHeld: rows.held, releaseRows: rows.release };
+  return { items, completion, via, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, rowsHover, rowsHeld: rows.held, releaseRows: rows.release };
 }
