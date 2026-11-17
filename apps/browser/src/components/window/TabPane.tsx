@@ -29,6 +29,7 @@ import { paneBar, type CardChrome } from "./paneChrome";
 import { PageOverlays } from "./PageOverlays";
 import { useProfileTheme } from "./ThemeScope";
 import { useCardFrame } from "./cardFrame";
+import { useCardBottomCorners } from "./cardCorners";
 import { newTabOpensOf } from "../../state/settings/settings";
 
 const LINGERING_PANE = "ardia.lingeringPane";
@@ -103,6 +104,8 @@ export const TabPane = memo(function TabPane({
   const bookmarksBar = bookmarksBarShown(barMode, own.exists ? own : undefined) && !fullscreen && !inSplit && !small;
   const barHeight = useBookmarksBarHeight();
   const cardRadius = useCardFrame().radius;
+  const bottomCorners = useCardBottomCorners();
+  const Pane = bottomCorners ? Animated.View : View;
   const doc = withoutFragment(own.url);
   const motion = useToolbarMotion({ enabled: autoLayout, mode, extra: bookmarksBar ? barHeight : 0, doc });
   useEffect(() => {
@@ -113,7 +116,7 @@ export const TabPane = memo(function TabPane({
   });
 
   return (
-    <View
+    <Pane
       pointerEvents={visible && !covered && !lingering ? "auto" : "none"}
       nativeID={lingering ? LINGERING_PANE : undefined}
       onTouchStart={() => {
@@ -123,6 +126,7 @@ export const TabPane = memo(function TabPane({
         position: "absolute",
         ...(fills ? { left: 0, top: 0, right: 0, bottom: 0 } : { left: frame.x, top: frame.y, width: frame.width, height: frame.height }),
         borderRadius: fullscreen ? 0 : cardRadius,
+        ...(bottomCorners && !fullscreen ? { borderBottomLeftRadius: bottomCorners, borderBottomRightRadius: bottomCorners } : null),
         overflow: "hidden",
         opacity: covered ? 0 : 1,
         backgroundColor: visible && !fullscreen && !seeThrough ? theme.card : undefined,
@@ -169,7 +173,7 @@ export const TabPane = memo(function TabPane({
       </Animated.View>
       {hideBar && <AutoHideBackdrop tabId={tabId} mode={mode} motion={motion} />}
       {autoLayout && bar.bar === "pane" && <AutoHideToolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={inSplit} focused={focused || !inSplit} mode={mode} motion={motion} />}
-    </View>
+    </Pane>
   );
 });
 

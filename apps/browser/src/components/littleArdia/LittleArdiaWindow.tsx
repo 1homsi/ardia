@@ -13,7 +13,7 @@ import { BrowserWindowControls } from "../window/BrowserWindowControls";
 import { DownloadsPopover } from "../downloads/Downloads";
 import { ExtensionOverlays } from "../extensions/ExtensionOverlays";
 import { ToolbarPopupAnchor } from "../extensions/ToolbarExtensions";
-import { setUrlAnchor, usePageFrameInset } from "../../state/windows/layout";
+import { setUrlAnchor, usePageFrameInset, windowCornerRadius } from "../../state/windows/layout";
 import { showUrlBarMenu } from "../../state/omnibox/paste";
 import { copyPageUrl } from "../../state/site/selection";
 import { ProfileBadge } from "../profiles/ProfileIcons";
@@ -21,6 +21,8 @@ import { closeLittleArdia, openInMainWindow, openLittleArdiaProfileMenu } from "
 import { isWindowClosing } from "../../state/windows/closeAnimated";
 import { notePinch, noteSwipeClose } from "../../state/telemetry/usage";
 import { SwipeCloseContext } from "../window/swipeClose";
+import { CardBottomCorners, zoomedCardCorner } from "../window/cardCorners";
+import { useCardFrame } from "../window/cardFrame";
 import { startLittleArdiaNewTabLinks } from "../../state/littleArdia/newTabLinks";
 import { PageLabel, SMALL_BAR_BUTTON, SmallBar } from "./SmallChrome";
 import { SMALL_LIGHTS_CENTER } from "../../state/windows/small";
@@ -42,21 +44,31 @@ export function LittleArdiaWindow() {
   const theme = useTheme();
   const windowId = useWindowId();
   const fullScreen = useWindowFullScreen(windowId);
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   const frame = usePageFrameInset();
+  const cardRadius = useCardFrame().radius;
   const gestures = useSettings((s) => s.littleWindowGestures) && !fullScreen;
   const pinch = useLittleArdiaPinch(windowId);
   const swipe = useLittleArdiaSwipeClose(windowId);
+  const bottomCorners = useMemo(
+    () => zoomedCardCorner(pinch.scale, { ...size, inset: frame, cardRadius, windowRadius: windowCornerRadius() }),
+    [pinch.scale, size.width, size.height, frame, cardRadius],
+  );
   useEffect(startLittleArdiaNewTabLinks, []);
   return (
-    <View style={{ flex: 1 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View style={{ flex: 1 }} onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+      }}>
       <Animated.View style={{ ...StyleSheet.absoluteFillObject, opacity: swipe.opacity, transform: [{ translateX: swipe.x }] }}>
         <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
         <PinchArea enabled={gestures} motion={pinch.motion} style={StyleSheet.absoluteFill}>
           <Animated.View style={{ flex: 1, transform: [{ scale: pinch.scale }] }}>
             <SwipeCloseContext.Provider value={gestures ? swipe.onSwipe : null}>
               <View style={{ flex: 1, flexDirection: "row", paddingTop: BAR.height, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
-                <ContentCard />
+                <CardBottomCorners.Provider value={bottomCorners}>
+                  <ContentCard />
+                </CardBottomCorners.Provider>
               </View>
             </SwipeCloseContext.Provider>
             <View style={{ position: "absolute", left: 0, right: 0, top: 0 }}>
@@ -65,7 +77,7 @@ export function LittleArdiaWindow() {
           </Animated.View>
         </PinchArea>
       </Animated.View>
-      <CommandPanel windowWidth={width} />
+      <CommandPanel windowWidth={size.width} />
       <DownloadsPopover />
       <ExtensionOverlays />
       <BrowserWindowControls />
