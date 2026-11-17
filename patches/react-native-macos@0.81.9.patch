@@ -652,7 +652,7 @@ diff --git a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm b/Libraries/T
 index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7d9ca530f 100644
 --- a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
 +++ b/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
-@@ -17,8 +17,115 @@
+@@ -17,8 +17,119 @@
  
  #if TARGET_OS_OSX // [macOS
  
@@ -744,6 +744,10 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7
 +    }
 +  }
 +  if (!text) {
++    NSArray<NSPasteboardType> *offered = pasteboard.types ?: @[];
++    [NSNotificationCenter.defaultCenter postNotificationName:@"ArdiaPasteboardTextMissing"
++                                                      object:nil
++                                                    userInfo:@{@"types" : offered}];
 +    NSBeep();
 +    return;
 +  }
@@ -768,7 +772,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7
  @property (nonatomic, assign) UIEdgeInsets textContainerInset;
  @property (nonatomic, getter=isAutomaticTextReplacementEnabled) BOOL automaticTextReplacementEnabled;
  @property (nonatomic, getter=isAutomaticSpellingCorrectionEnabled) BOOL automaticSpellingCorrectionEnabled;
-@@ -29,7 +136,29 @@ @interface RCTUITextFieldCell : NSTextFieldCell
+@@ -29,7 +140,29 @@ @interface RCTUITextFieldCell : NSTextFieldCell
  
  @end
  
@@ -799,7 +803,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7
  
  - (NSRect)titleRectForBounds:(NSRect)rect
  {
-@@ -155,6 +284,11 @@ - (BOOL)hasMarkedText
+@@ -155,6 +288,11 @@ - (BOOL)hasMarkedText
  	return ((NSTextView *)self.currentEditor).validAttributesForMarkedText ?: @[];
  }
  
@@ -811,7 +815,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7
  #endif // macOS]
  
  #pragma mark - Accessibility
-@@ -330,7 +464,9 @@ - (void)setPlaceholder:(NSString *)placeholder
+@@ -330,7 +468,9 @@ - (void)setPlaceholder:(NSString *)placeholder
  #if !TARGET_OS_OSX // [macOS]
    [super setPlaceholder:placeholder];
  #else // [macOS
@@ -821,7 +825,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7
  #endif // macOS]
    [self _updatePlaceholder];
  }
-@@ -385,6 +521,20 @@ - (void)_updatePlaceholder
+@@ -385,6 +525,20 @@ - (void)_updatePlaceholder
    _isUpdatingPlaceholderText = YES;
    self.placeholderAttributedString = [[NSAttributedString alloc] initWithString:self.placeholder ?: @""
  																	 attributes:[self _placeholderTextAttributes]];
@@ -842,7 +846,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7
    _isUpdatingPlaceholderText = NO;
  #endif // macOS]
  }
-@@ -710,6 +860,9 @@ - (void)keyUp:(NSEvent *)event {
+@@ -710,6 +864,9 @@ - (void)keyUp:(NSEvent *)event {
  - (void)setReadablePasteBoardTypes:(NSArray<NSPasteboardType> *)readablePasteboardTypes
  {
    _readablePasteboardTypes = readablePasteboardTypes;
