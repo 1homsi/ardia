@@ -132,8 +132,9 @@ test("hardware comes as chip, GPU, memory, displays and hardware decode flags, n
 
 test("a recorded context is saved for the next launch and holds only counts and sizes", async () => {
   const context = await diagnostics.recordContext();
-  assert.deepEqual(Object.keys(context).sort(), ["app_memory_mb", "at", "footprint_mb", "free_disk_gb", "hermes_heap_mb", "memory_pressure", "page_processes_gone", "profiles", "session_start", "tabs", "webui_page", "windows"]);
+  assert.deepEqual(Object.keys(context).sort(), ["app_memory_mb", "at", "footprint_mb", "free_disk_gb", "hermes_heap_mb", "memory_pressure", "page_processes_gone", "profiles", "session_start", "tabs", "webui_page", "webui_pages", "windows"]);
   assert.equal(context.webui_page, null);
+  assert.equal(context.webui_pages, null);
   assert.equal(context.footprint_mb, 500);
   assert.equal(JSON.parse(stub.docs.get("telemetry.json")).context.footprint_mb, 500);
   assert.equal(context.hermes_heap_mb, null, "an engine that reports no heap size leaves it null");
@@ -258,6 +259,96 @@ test("two samples recorded in the same millisecond: the later one is the context
   assert.equal(diagnostics.contextAt([first, later], 1000, [500])?.webui_page, "settings/cookies");
 });
 
+test("the saved context keeps the last 3 built-in pages, and a native crash sends them with their age in minutes as ctx_webui_pages", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://private.example/" });
+  const tab = S().windows[w].tabIds[0];
+  const realNow = Date.now;
+  let clock = realNow();
+  Date.now = () => clock;
+  try {
+    const visit = async (url, minutesLater) => {
+      clock += minutesLater * 60_000;
+      S().updateTab(tab, { url });
+      return diagnostics.recordContext();
+    };
+    await visit("chrome://history", 0);
+    await visit("chrome://settings/cookies/detail?site=https%3A%2F%2Fprivate.example", 5);
+    await visit("https://private.example/inbox?token=secret", 5);
+    await visit("ardia://downloads", 5);
+    await visit("chrome://flags/?q=secret", 5);
+    const last = await visit("chrome://flags/", 2);
+    assert.equal(last.webui_page, "flags");
+    const saved = JSON.parse(stub.docs.get("telemetry.json")).context;
+    assert.equal(saved.webui_pages, last.webui_pages);
+    assert.equal(last.webui_pages.split(",").length, 3, "the oldest of four pages is dropped and a page seen twice counts once");
+    assert.equal(last.webui_pages.includes("history"), false);
+    assert.equal(last.webui_pages.includes("private"), false);
+
+    const time = clock + 8 * 60_000;
+    stub.diagnostics.crashReports = [{ time, fileTime: time + 500, process: "browser", exceptionType: "EXC_BAD_ACCESS", signal: "SIGSEGV", frames: [{ image: "Chromium Framework", offset: 0xee9858 }] }];
+    await reportNativeCrashes([saved]);
+    const crash = events("$exception").at(-1).properties;
+    assert.equal(crash.crash_process, "browser");
+    assert.equal(crash.ctx_webui_page, "flags");
+    assert.equal(crash.ctx_webui_pages, "flags:8,downloads:15,settings/cookies:25");
+
+    S().updateTab(tab, { url: "https://private.example/" });
+    clock += 60_000;
+    const away = await diagnostics.recordContext();
+    assert.equal(away.webui_page, null);
+    assert.equal(away.webui_pages, last.webui_pages, "leaving to a web page keeps the pages the session was on");
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("a sample that finishes after sharing was turned off keeps no built-in page, so turning sharing back on can't send it", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://private.example/" });
+  const tab = S().windows[w].tabIds[0];
+  assert.equal((await diagnostics.recordContext()).webui_pages, null);
+  S().updateTab(tab, { url: "chrome://history" });
+  const pending = diagnostics.recordContext();
+  client.setSharing(false, "settings");
+  assert.equal(await pending, null);
+  S().updateTab(tab, { url: "https://private.example/" });
+  client.setSharing(true, "settings");
+  const next = await diagnostics.recordContext();
+  assert.equal(next.webui_page, null);
+  assert.equal(next.webui_pages, null, "history was shown only while sharing was off");
+});
+
+test("deleting a profile erases its built-in pages, including the one its window was showing", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const S = () => useBrowser.getState();
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  S().hydrate({});
+  S().createWindow({ url: "https://private.example/" });
+  const work = S().createProfile({ name: "Work" });
+  const w = S().createWindow({ profileId: work, url: "chrome://settings/cookies" });
+  S().setFocusedWindow(w);
+  assert.equal((await diagnostics.recordContext()).webui_page, "settings/cookies");
+  diagnostics.startContextSamples();
+  try {
+    S().deleteProfile(work);
+    const after = await diagnostics.recordContext();
+    assert.equal(after.webui_page, null);
+    assert.equal(after.webui_pages, null, "the deleted profile's settings page came back");
+  } finally {
+    diagnostics.stopContextSamples();
+  }
+});
+
 test("a page process that goes away sends its reason, exit code, visibility and counts, capped per session", async () => {
   diagnostics.trackPageProcessGone({ reason: "oom", code: 9 }, true, { translate: "translating", translate_stage: "model", translating_tabs: 2, translated_tabs: 1 });
   diagnostics.trackPageProcessGone({ reason: "https://private.example", code: 1.5 }, false);
@@ -337,9 +428,11 @@ test("tab presses count clicks, drags turned into clicks, drags and presses that
   presses.noteRangeSelect(true);
   presses.noteRangeSelect(false);
   presses.notePagePressRefused();
+  presses.noteDragWithoutDrop();
   presses.emitTabPresses();
   await client.saveQueueNow();
   const props = events("tab_presses").at(-1).properties;
+  assert.equal(props.drags_without_drop, 1);
   assert.deepEqual([props.range_selects, props.range_from_shown], [2, 1]);
   assert.deepEqual([props.repeat_presses, props.repeat_on_new_tab, props.repeat_gap_ms_p50, props.repeat_landed_on], [1, 1, 600, "RCTView<Surface"]);
   assert.equal(props.lost_releases, 2);
@@ -385,6 +478,15 @@ test("an hour with only refused page presses still sends them", async () => {
   assert.equal(props.held_n, 0);
   assert.equal(props.held_ms_p50, null);
   assert.ok(Object.values(props).every((v) => v !== undefined && !Number.isNaN(v)), JSON.stringify(props));
+});
+
+test("an hour with only a drag let go with no place to drop still sends it", async () => {
+  presses.noteDragWithoutDrop();
+  presses.emitTabPresses();
+  await client.saveQueueNow();
+  assert.equal(events("tab_presses").length, 5);
+  const props = events("tab_presses").at(-1).properties;
+  assert.deepEqual([props.drags_without_drop, props.presses, props.drags], [1, 0, 0]);
 });
 
 const touch = (x, y, startTimeStamp) => ({ nativeEvent: { identifier: "0", pageX: x, pageY: y }, touchHistory: { touchBank: [{ startTimeStamp }] } });
@@ -470,7 +572,7 @@ test("turning sharing off forgets pending presses and samples, so they never go 
   await client.saveQueueNow();
   assert.equal(events("tab_presses").length, 0);
   assert.deepEqual(Object.values(presses.devTabPresses()).filter((n) => n !== 0 && n !== false), []);
-  assert.ok("drop_start_mismatch" in presses.devTabPresses() && "no_press_drift_unknown" in presses.devTabPresses() && "page_refused" in presses.devTabPresses());
+  assert.ok("drop_start_mismatch" in presses.devTabPresses() && "no_press_drift_unknown" in presses.devTabPresses() && "page_refused" in presses.devTabPresses() && "drags_without_drop" in presses.devTabPresses());
 });
 
 test("with sharing off no context is saved, and tab presses stay in the local copy, never queued", async () => {
