@@ -47,6 +47,7 @@ void WatchFocusChanges();
 void NotePointer(NSEvent *event, NSString *_Nullable swallowedBy);
 void BeginPressLoop(NSString *name);
 void EndPressLoop();
+void NoteProfileSwitch(ArdiaCoreProfile *profile, NSWindow *_Nullable window);
 NSString *FocusState();
 NSString *PageMoveAt(NSWindow *window, NSPoint point);
 NSString *HoverProbeDev(NSWindow *window, NSString *_Nullable argument);
