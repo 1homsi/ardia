@@ -159,6 +159,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Bringing your last window back from the Dock or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing",
       "When you turn Offer to save and fill passwords, Save and fill addresses or Save and fill credit cards on or off and an extension keeps it as it was: which of the three it was. Never which extension",
       "When you import passwords from another browser or from a CSV file: how many passwords Ardia tried to save, how many it saved, how many the password store refused (invalid, or already saved), how many it didn't store in time, and how many failed for another reason, once per import. Never which sites, usernames or passwords",
+      "How many times the pointer was hidden by a page, or still showed a page's own pointer (like a text cursor), over Ardia's sidebar, toolbar or panels and Ardia put the arrow back, and how many of those had hidden it, summed up once an hour. Never which page",
     ],
   },
   {
