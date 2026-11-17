@@ -189,6 +189,12 @@ class PageViewModule : Module() {
             PagePrinting.print(activity, page).also { shown -> if (PhoneLab.isOn) android.util.Log.i("PAGELAB", "PAGELAB print ${if (shown) "sheet shown" else "refused"} for page $pageId") }
         }.runOnQueue(Queues.MAIN)
 
+        AsyncFunction("translation") { -> PhonePages.translation(context).state() }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("translationUrl") { pageUrl: String -> PhonePages.translation(context).url(pageUrl) }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("confirmTranslation") { -> PhonePages.translation(context).confirmed = true }.runOnQueue(Queues.MAIN)
+
         AsyncFunction("readableContent") Coroutine { pageId: String ->
             withContext(Dispatchers.Main) {
                 val page = PhonePages.require(pageId)

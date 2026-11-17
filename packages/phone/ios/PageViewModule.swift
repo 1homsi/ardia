@@ -183,6 +183,18 @@ public final class PageViewModule: Module {
       MainActor.assumeIsolated { PhonePages.shared.print(pageID) }
     }.runOnQueue(.main)
 
+    AsyncFunction("translation") { () -> [String: Any?] in
+      MainActor.assumeIsolated { PhonePages.shared.translation() }
+    }.runOnQueue(.main)
+
+    AsyncFunction("translationUrl") { (pageURL: String) -> String? in
+      MainActor.assumeIsolated { PhonePages.shared.translationURL(for: pageURL) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("confirmTranslation") {
+      MainActor.assumeIsolated { PhonePages.shared.confirmTranslation() }
+    }.runOnQueue(.main)
+
     AsyncFunction("readableContent") { (pageID: String, promise: Promise) in
       Self.main(promise) { () -> [String: Any?]? in
         let page = try PhonePages.shared.require(pageID)

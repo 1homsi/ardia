@@ -76,7 +76,7 @@ export function PageMenuWords({ tabId, model, onTranslate }: { tabId: string; mo
           {model.pageRows ? <ToggleRow title="Night Shade" value={model.nightShadeOn} enabled={model.isWebPage} onChange={setNightShadeOn} /> : null}
           {model.pageRows ? <ZoomRow model={model} large={large} /> : null}
           {model.pageRows ? <ToggleRow title="Desktop Site" value={model.desktopSite} enabled={model.isWebPage} onChange={setDesktopSite} /> : null}
-          {model.pageRows ? <Row title="Translate" enabled={model.translate} onPress={onTranslate} /> : null}
+          {model.pageRows ? <Row title={model.translateTitle} enabled={model.translate} onPress={onTranslate} /> : null}
           {model.pageRows ? (
             <ToggleRow title="Block Ads and Trackers" value={model.blockersEnabled} enabled={model.isWebPage} detail={model.blockedCount} onChange={setBlockersOn} />
           ) : null}
