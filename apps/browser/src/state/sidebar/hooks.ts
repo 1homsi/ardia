@@ -21,11 +21,12 @@ import { groupTabIds } from "./groupPanelRows";
 import { capture, type Capture } from "./listCapture";
 import { pinnedCollapsed, pinnedKept } from "./pinnedFold";
 import { useSidebarUi, type Hover } from "./sidebarUi";
+import { useShownSidebarWidth } from "./shownWidth";
 
 export function useSidebarWidth(windowId: string): number {
-  const saved = useBrowser((s) => s.settings.sidebarWidth);
+  const shown = useShownSidebarWidth(windowId);
   const dragging = useSidebarUi((u) => u.dragWidth[windowId]);
-  return dragging ?? saved;
+  return dragging ?? shown;
 }
 
 export const useDragGhostLabel = (folderName: string | undefined, groupId: string | undefined, tab: Tab | undefined) =>
@@ -70,14 +71,6 @@ export const useShowsExtraTabs = (windowId: string, profileId: string, groupId: 
 export const usePinnedCollapsed = (profileId: string) => useBrowser((s) => pinnedCollapsed(s, profileId));
 
 export const usePinnedKept = (windowId: string, profileId: string, entries: string[]) => useBrowser((s) => pinnedKept(s, windowId, profileId, entries));
-
-export const useGroupFirstTabIcon = (groupId: string) =>
-  useBrowser(
-    useShallow((s) => {
-      const t = s.tabs[s.groups[groupId]?.tabIds[0] ?? ""];
-      return t && { url: t.url, favicon: t.favicon, customIcon: t.customIcon, profileId: t.profileId };
-    }),
-  );
 
 export const useHasDownloads = (windowId: string) => useBrowser((s) => downloadsIn(s, windowId).length > 0);
 
@@ -126,7 +119,7 @@ export const useLiveActiveTab = (windowId: string, profileId: string, folderId: 
   });
 
 export const useLiveItemTab = (windowId: string, profileId: string, folderId: string, itemId: string) =>
-  useBrowser((s) => viewTabIds(s, windowId, profileId).find((id) => s.tabs[id]?.liveItem?.itemId === itemId && s.tabs[id]?.liveItem?.folderId === folderId) ?? null);
+  useBrowser((s) => (liveTabOpen(s.tabs, folderId, [itemId]) ? (viewTabIds(s, windowId, profileId).find((id) => s.tabs[id]?.liveItem?.itemId === itemId && s.tabs[id]?.liveItem?.folderId === folderId) ?? null) : null));
 
 export const useLiveTabOpen = (folderId: string, itemIds: string[]) => useBrowser((s) => liveTabOpen(s.tabs, folderId, itemIds));
 

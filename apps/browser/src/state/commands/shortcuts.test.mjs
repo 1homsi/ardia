@@ -71,6 +71,23 @@ test("shortcuts print the way Settings shows them and parse back", () => {
   assert.deepEqual(parseShortcut("⇧⌘C"), { key: "c", modifiers: ["shift", "command"] });
 });
 
+test("Mac glyphs never read Object.prototype names as keys, and every valid Mac shortcut reads and prints as before", async () => {
+  const { formatMacShortcut, parseMacShortcut } = await import("./macGlyphs.ts");
+  for (const name of ["constructor", "toString", "hasOwnProperty", "valueOf", "isPrototypeOf"]) {
+    const parsed = parseMacShortcut(`⌘${name}`);
+    assert.equal(typeof parsed.key, "string", name);
+    assert.equal(typeof formatMacShortcut(parsed), "string", name);
+  }
+  for (let c = 0x21; c < 0x7f; c++) {
+    const ch = String.fromCharCode(c);
+    assert.deepEqual(parseMacShortcut(`⌘${ch}`), { key: ch.toLowerCase(), modifiers: ["command"] });
+    assert.equal(formatMacShortcut(parseMacShortcut(`⇧⌘${ch}`)), `⇧⌘${ch.toUpperCase()}`);
+  }
+  for (const glyph of ["⇥", "↩", "⌤", "⌫", "⌦", "⎋", "Space", "↑", "↓", "←", "→", "↖", "↘", "⇞", "⇟", "F1", "F12", "F20"]) {
+    assert.equal(formatMacShortcut(parseMacShortcut(`⌥⌘${glyph}`)), `⌥⌘${glyph}`);
+  }
+});
+
 test("an arrow shortcut saved as the layout's code with fn binds the arrow itself", () => {
   const tabs = [source("nextTab", "⇧⌘]"), source("previousTab", "⇧⌘["), source("nextProfile", "⌥⌘→"), source("toggleFullScreen", "🌐F")];
   const resolved = resolveShortcuts(tabs, {
@@ -90,5 +107,7 @@ test("telemetry counts custom shortcuts and those on arrow, page and F keys, nev
   const snapshot = settingsSnapshot({ shortcuts });
   assert.equal(snapshot.custom_shortcuts, "3");
   assert.equal(snapshot.custom_shortcuts_navigation_keys, "2");
+  assert.equal(snapshot.custom_shortcuts_option_only, "0");
+  assert.equal(settingsSnapshot({ shortcuts: { copyUrl: ["c", "option"], newTab: ["t", "option", "command"] } }).custom_shortcuts_option_only, "1");
   assert.ok(!JSON.stringify(snapshot).includes("nextTab"));
 });
