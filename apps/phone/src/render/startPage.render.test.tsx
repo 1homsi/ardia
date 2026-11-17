@@ -272,6 +272,20 @@ test("while the search tray is up the spaces fade out and shrink to 0.96, the ba
   unmount(root);
 });
 
+test("on the original start page Android's bar stays in place under the rising tray, as the page's bar does, so no frame has no bar; iPhone fades it", () => {
+  const root = start("original");
+  act(() => presentSearch("home", ""));
+  act(() => jest.advanceTimersByTime(600));
+  const bar = host(root, "startDeckBar")!;
+  expect((getAnimatedStyle(bar) as { opacity: number }).opacity).toBe(Platform.OS === "android" ? 1 : 0);
+  expect(bar.props.pointerEvents).toBe("none");
+  expect(bar.props.accessibilityElementsHidden).toBe(true);
+  act(() => dismissSearch());
+  act(() => jest.advanceTimersByTime(600));
+  expect((getAnimatedStyle(host(root, "startDeckBar")!) as { opacity: number }).opacity).toBe(1);
+  unmount(root);
+});
+
 test("with Reduce Motion the spaces only fade behind the tray, without shrinking", () => {
   mockMotion.reduced = true;
   withSpaces([profile("work", "Work")]);

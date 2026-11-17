@@ -96,7 +96,7 @@ export function cardPose(g: DeckGeometry, role: DeckRole, relative: number, sp: 
     scale = lerp(g.width / Math.max(g.cardWidth, 1), 1, sp);
     x = lerp(g.width / 2, cx, pp);
     y = lerp(g.height / 2, cy, pp);
-    corner = lerp(DECK.displayCornerRadius, DECK.cardRadius, sp);
+    corner = lerp(g.screenCorner, DECK.cardRadius, sp);
   } else if (role === "launcher") {
     scale = lerp(DECK.launcherStartWidth / Math.max(g.cardWidth, 1), 1, sp);
     x = lerp(g.tabButtonX, cx, pp);

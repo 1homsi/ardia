@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { labTrace } from "../../platform/lab";
 import { measuredOr } from "../../state/app/rootSize";
 import {
+  DECK,
   deckCardAt,
   deckGeometry,
   archiveCardEdgeY,
@@ -80,6 +81,8 @@ import { ArchiveCapsule, ArchiveIntervalCard } from "./ArchiveIntervalCard";
 import { DeckBottomBar } from "./DeckBottomBar";
 import { deckArchiveBottom, DeckHeader, deckHeaderBottom } from "./DeckHeader";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
+import { PageBarGhost } from "../browsing/PageBarGhost";
+import { screenCornerRadius } from "../../state/app/displayCorner";
 import { TabGrid } from "./TabGrid";
 import { tabGridMotion } from "./tabGridLayout";
 import { setDeckGrid, useDeckGrid } from "../../state/browse/deckGrid";
@@ -121,8 +124,8 @@ export const TabDeck = memo(function TabDeck() {
   const contentLeft = column ? columnContentLeft(column) : 0;
   const safeSide = column ? 0 : Math.max(insets.left, insets.right);
   const archiveCard = useArchiveCardShowing();
-  const headerGeometry = useMemo(() => deckGeometry(deckWidth, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckHeaderBottom()), [deckWidth, height, insets.top, insets.bottom, safeSide, design]);
-  const archiveGeometry = useMemo(() => deckGeometry(deckWidth, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckArchiveBottom()), [deckWidth, height, insets.top, insets.bottom, safeSide, design]);
+  const headerGeometry = useMemo(() => deckGeometry(deckWidth, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckHeaderBottom(), DECK_SCREEN_CORNER()), [deckWidth, height, insets.top, insets.bottom, safeSide, design]);
+  const archiveGeometry = useMemo(() => deckGeometry(deckWidth, height, insets.top, insets.bottom, safeSide, Platform.OS, design, deckArchiveBottom(), DECK_SCREEN_CORNER()), [deckWidth, height, insets.top, insets.bottom, safeSide, design]);
   const archiveResizes = redesigned && archiveGeometry.cardWidth < headerGeometry.cardWidth - ARCHIVE_RESIZE_SLACK;
   const g = archiveResizes && archiveCard && !grid ? archiveGeometry : headerGeometry;
   useEffect(() => labTrace(`PAGELAB deck frame ${Math.round(width)}x${Math.round(height)} window ${Math.round(window.width)}x${Math.round(window.height)} insets ${insets.top}/${insets.bottom}`), [width, height, window.width, window.height, insets.top, insets.bottom]);
@@ -525,6 +528,8 @@ export const TabDeck = memo(function TabDeck() {
     (landed, was) => {
       if (!landed || was) return;
       landing.value = false;
+      scaleProgress.value = 0;
+      positionProgress.value = 0;
       runOnJS(handOverLanded)();
     },
   );
@@ -909,6 +914,7 @@ export const TabDeck = memo(function TabDeck() {
         ) : null}
         {openingCard && tabs.get(openingCard.id) ? <OpeningCard key={openingCard.id} tab={tabs.get(openingCard.id)!} geometry={g} centerX={openingCard.x} centerY={openingCard.y} growsAtMount={openingCard.path === "coveringCard"} endsSquare={openingCard.path === "coveringCard"} onGrowing={() => openingCardGrowing(openingCard.id)} onLanded={openingCard.path === "coveringCard" ? () => landCoveringCard(openingCard.id) : undefined} /> : null}
         </ColumnContent>
+        {Platform.OS === "android" && !redesigned && !column && phase.id && (phase.kind === "opening" || (phase.kind === "closing" && openPath.current === "deckCard")) && tabs.get(phase.id) ? <PageBarGhost tab={tabs.get(phase.id)!} positionProgress={positionProgress} /> : null}
         <MotionView testID="deckChromeFade" style={StyleSheet.absoluteFill} pointerEvents="box-none" to={{ opacity: openingCard ? 0 : 1 }} motion={openingCard ? OPENING_CARD_MOTION : CHROME_BACK}>
         {redesigned ? (
           <Animated.View testID="deckRedesignedChrome" style={glassChrome ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, chromeStyle]} pointerEvents={phase.kind === "settled" ? "box-none" : "none"} collapsable={false} importantForAccessibility={phase.kind === "settled" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={phase.kind !== "settled"}>
@@ -1085,6 +1091,7 @@ const COVER_LOST_MS = DRAWN_CAP_MS + 300;
 const ARCHIVE_RESIZE_SLACK = 0.5;
 const HANDED_OVER_AWAY = 100_000;
 const CARD_LANDED = 0.02;
+const DECK_SCREEN_CORNER = iPhoneOr(() => DECK.displayCornerRadius, () => screenCornerRadius(DECK.displayCornerRadius));
 const CHROME_BACK: MotionCurve = { type: "timing", durationMs: 0 };
 const CHROME_GLASS_MS = 200;
 const PAGE_MOUNT_AFTER_GROWTH_MS = 34;
