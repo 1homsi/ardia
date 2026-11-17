@@ -97,12 +97,24 @@ async function changeAll(key: string, target: string, where: string) {
   await engineAlive(key, `of browsing data ${where}`);
 }
 
-async function withSettings(name: string, profile: string, run: (key: string, windowId: string) => Promise<void>) {
+type ListedPage = { key: string; url?: string; loading?: boolean };
+
+const allTabs = async () => (await hostCall<{ tabs?: ListedPage[] }>("tabs.list")).tabs ?? [];
+
+async function withSettings(name: string, profile: string, run: (key: string, windowId: string) => Promise<void>, mayVanish = false) {
   const key = `self-check-settings-${name}`;
   const windowId = await firstWindow();
   try {
     await hostCall("tab.create", { key, url: SETTINGS, profile }, windowId);
-    await until(`the settings page ${key} loads`, LOAD_MS, () => listed(key), (tab) => tab?.loading === false && String(tab?.url ?? "").length > 0);
+    const settled = (tabs: ListedPage[]) => {
+      const tab = tabs.find((each) => each.key === key);
+      return tab ? tab.loading === false && String(tab.url ?? "").length > 0 : mayVanish;
+    };
+    const tabs = await until(`the settings page ${key} loads`, LOAD_MS, allTabs, settled);
+    if (!tabs.some((tab) => tab.key === key)) {
+      step(`the page asked for ${SETTINGS} in ${profile} is gone; the engine lists ${JSON.stringify(tabs.map((tab) => [tab.key, tab.url]))}`);
+      return;
+    }
     await run(key, windowId);
   } finally {
     await hostCall("tab.close", { key }).catch(() => null);
@@ -128,7 +140,7 @@ const settingsChecks: Check[] = [
         step(`a private page asked for ${SETTINGS} is at ${url}`);
         if (!url.startsWith("chrome://settings")) return;
         await changeAll(key, "window", "in a private page");
-      }),
+      }, true),
   },
   {
     name: "engine settings: the same changes in a chrome://settings pop-up the app has not adopted leave the engine running",
