@@ -3,7 +3,7 @@ import { after, mock, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
-globalThis.fetch = async () => ({ status: 200 });
+globalThis.fetch = async () => ({ status: 503 });
 
 const client = await import("./client.ts");
 const usage = await import("./usage.ts");
@@ -89,7 +89,7 @@ test("F3 memory and settings snapshots started before sharing went off and on ag
   globalThis.acTestTasks = () => [{ type: "browser", memory: 300 * 1_048_576 }];
   const posted = [];
   const fetch = globalThis.fetch;
-  globalThis.fetch = async (_url, init) => (posted.push(String(init?.body ?? "")), { status: 200 });
+  globalThis.fetch = async (_url, init) => (posted.push(String(init?.body ?? "")), { status: 503 });
   try {
     const hour = usage.devHourly();
     offAndOn();
@@ -98,9 +98,9 @@ test("F3 memory and settings snapshots started before sharing went off and on ag
     globalThis.acTestTasks = undefined;
     globalThis.fetch = fetch;
   }
-  const sent = [...posted, JSON.stringify(await queued("perf_memory")), JSON.stringify(await queued("settings_snapshot"))].join("\n");
-  assert.equal(sent.includes("perf_memory") || sent.includes("total_mb"), false);
-  assert.equal(sent.includes("settings_snapshot"), false);
+  assert.deepEqual(await queued("perf_memory"), []);
+  assert.deepEqual(await queued("settings_snapshot"), []);
+  assert.equal(posted.some((body) => body.includes("perf_memory") || body.includes("settings_snapshot")), false);
 });
 
 test("F3 a crash read started while sharing was off doesn't send crashes from before sharing was turned on", async () => {

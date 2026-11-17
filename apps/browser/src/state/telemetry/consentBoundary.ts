@@ -1,15 +1,16 @@
 import { setConsentEpoch } from "../../platform/focus";
-import { consentEpoch, useTelemetry } from "./choice";
+import { consentEpoch, onConsentPeriodChange } from "./choice";
 import { takeContentDriftCounts, takeMainProcessWork } from "./diagnostics";
 import { resetLocalStoreMeters } from "./localStore";
+import { resetPostStats } from "./transport";
 
 let dropUsage = () => {};
 
-useTelemetry.subscribe((current, previous) => {
-  if (current.sharing === previous.sharing && current.epoch === previous.epoch) return;
+onConsentPeriodChange(() => {
   setConsentEpoch(consentEpoch());
   dropUsage();
   resetLocalStoreMeters();
+  resetPostStats();
   void takeMainProcessWork().catch(() => null);
   void takeContentDriftCounts().catch(() => null);
 });

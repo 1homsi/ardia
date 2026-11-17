@@ -1,5 +1,5 @@
 import { pressesWithoutRelease, pressRepeated } from "../../platform/focus";
-import { capture, consentNow, consentToken, stillValid, useTelemetry, type ConsentToken } from "./client";
+import { capture, consentNow, consentToken, stillValid, onConsentPeriodChange, type ConsentToken } from "./client";
 import { takeHoverCardCounts } from "./hoverCardCounts";
 import { percentile } from "./transport";
 
@@ -61,7 +61,7 @@ export function noteRowPress(shownTabEmpty: boolean): Promise<void> {
   });
 }
 
-useTelemetry.subscribe((s, prev) => (prev.sharing !== s.sharing || prev.epoch !== s.epoch) && (emitTabPresses(null), forgetPresses()));
+onConsentPeriodChange(() => (emitTabPresses(null), forgetPresses()));
 
 export function notePressStarted(switchedOnPress = false) {
   if (pending) tally.unanswered++;

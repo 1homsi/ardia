@@ -6,7 +6,8 @@ import { withDeadline } from "../../lib/deadline";
 import { hermesHeapMegabytes } from "../../lib/hermesHeap";
 import { activeTab } from "../browser/model";
 import { useBrowser } from "../browser/store";
-import { capture, consentNow, consentToken, counted, isSharing, saveContext, stillValid, useTelemetry, type ConsentToken } from "./client";
+import { capture, consentNow, consentToken, counted, isSharing, saveContext, stillValid, onConsentPeriodChange } from "./client";
+import { nativeConsent } from "./nativeConsent";
 import { formatRecentPages, readRecentPages, type RecentPage, type SavedContext } from "./savedContext";
 import { noteDragsEnded } from "./stuckDrags";
 import { noteWindowlessPages } from "./cliCounts";
@@ -145,8 +146,7 @@ function forgetContext() {
   pageProcessesGone = 0;
 }
 
-useTelemetry.subscribe((s, prev) => {
-  if (prev.sharing === s.sharing && prev.epoch === s.epoch) return;
+onConsentPeriodChange(() => {
   forgetContext();
   windowUnpaintedEvents = 0;
 });
@@ -304,9 +304,10 @@ export function hoverLostProperties(e: HoverLostEpisode) {
 }
 
 export function trackHoverLost(e: HoverLostEpisode) {
+  const consent = nativeConsent(e);
   if (hoverLostEvents >= MAX_HOVER_LOST_EVENTS) return;
-  hoverLostEvents++;
-  capture("page_hover_lost", hoverLostProperties(e), consentNow());
+  if (stillValid(consent)) hoverLostEvents++;
+  capture("page_hover_lost", hoverLostProperties(e), consent);
 }
 
 const UNPAINTED_WINDOWS = new Set(["regular", "private"]);
@@ -341,7 +342,7 @@ export function windowUnpaintedProperties(r: WindowUnpaintedRecord) {
 }
 
 export function trackWindowUnpainted(r: WindowUnpaintedRecord) {
-  const consent = (r.epoch ?? null) as ConsentToken | null;
+  const consent = nativeConsent(r);
   if (windowUnpaintedEvents >= MAX_WINDOW_UNPAINTED_EVENTS) return;
   if (stillValid(consent)) windowUnpaintedEvents++;
   capture("window_unpainted", windowUnpaintedProperties(r), consent);
