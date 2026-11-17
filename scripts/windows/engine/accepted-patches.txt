@@ -101,3 +101,4 @@ chromium-win-keep-every-login.patch
 chromium-win-discard-asks-the-host.patch
 chromium-win-devtools-other-clients.patch
 chromium-win-autoplay-policy.patch
+chromium-win-hosted-theme-change.patch
