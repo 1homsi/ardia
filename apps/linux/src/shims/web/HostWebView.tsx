@@ -122,9 +122,9 @@ export function watchPageBelowShell(node: HTMLElement, regions: InputRegionsRegi
   let last = "";
   let shown = false;
   let revision = 0;
-  const stop = watchTabViewport(node, visible, (viewport) => {
+  const stop = watchTabViewport(node, visible, (viewport, coveredByShell) => {
     if (!viewport.visible) regions.setPage(node, false, radii);
-    if (shown && !viewport.visible && visible()) covered?.();
+    if (shown && coveredByShell) covered?.();
     shown = viewport.visible;
     regions.refresh();
     const current = page();
