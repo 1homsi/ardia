@@ -12,6 +12,8 @@ const values = new Map<string, TabLive>();
 const watchers = new Map<string, Set<() => void>>();
 const listeners = new Set<LiveListener>();
 let browser: Browser | null = null;
+let published: BrowserState | null = null;
+const writtenUnpublished = new Set<string>();
 
 export const liveOf = (tabId: string): TabLive => values.get(tabId) ?? IDLE_LIVE;
 
@@ -47,6 +49,7 @@ export function stageLive(tabId: string, patch: Partial<TabLive>): () => void {
   const next = merge(prev, patch);
   if (next === prev) return nothingStaged;
   storeLive(tabId, next);
+  if (!published?.tabs[tabId]) writtenUnpublished.add(tabId);
   return () => {
     if (liveOf(tabId) === next) announceLive(tabId, next, prev);
   };
@@ -67,9 +70,12 @@ const reloadedElsewhere = (tab: Tab, was: Tab) =>
 
 export function bindLiveToBrowser(store: Browser) {
   browser = store;
+  published = store.getState();
   store.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs || !values.size) return;
-    const gone: string[] = [];
+    published = s;
+    const gone = [...writtenUnpublished].filter((id) => !s.tabs[id]);
+    writtenUnpublished.clear();
+    if (s.tabs === prev.tabs || !values.size) return forgetLive(gone);
     for (const id of changedIds(s.tabs, prev.tabs)) {
       const tab = s.tabs[id];
       const was = prev.tabs[id];
