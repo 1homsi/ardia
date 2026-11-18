@@ -11,11 +11,11 @@
       "artifacts": {
         "macos-arm64": {
           "file": "cli-plugin-0.3.0-macos-arm64.tar.gz",
-          "sha256": null
+          "sha256": "076c2139d35b59acc826ea4db8dbce4526f6406bc8e3b2ef5de440d0d28be022"
         },
         "linux-x64": {
           "file": "ardia-cli-0.3.0-linux-x64.tar.gz",
-          "sha256": null
+          "sha256": "a02dd77418a1c1ccdab4a2b22be45d336d4095f951c264d6711bd889d9162afb"
         },
         "installer": {
           "file": "install.sh",
