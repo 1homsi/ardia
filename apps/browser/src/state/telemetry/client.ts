@@ -1,11 +1,11 @@
 import { engineInfo, updaterState } from "../../platform/app";
 import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { MAX_BODY_BYTES } from "./config";
-import { EVENTS_SCOPE, eventRecord, LOGS_SCOPE, logRecord, logsRequest, outcome, type OtlpLogRecord, type QueuedEvent } from "./otlp";
+import { logRecord, outcome, type OtlpLogRecord, type QueuedEvent } from "./otlp";
 import { cleanProperties } from "./sanitize";
 import type { SavedContext } from "./savedContext";
 import type { RequestLogEntry } from "./requestLog";
-import { appInfo, mayPost, post, telemetryHost } from "./transport";
+import { appInfo, mayPost, post } from "./transport";
 import { telemetryRelay, type AskPlacement, type CaptureOptions, type SharingSource } from "./relay";
 import { uuidv4, uuidv7 } from "./ids";
 import { parseSaved, versionedJson } from "../../lib/savedDocument";
@@ -13,6 +13,9 @@ import { withDeadline } from "../../lib/deadline";
 import { isFields, isString } from "../../lib/decode";
 import { consentEpoch, consentNow, consentToken, counted, dismissAsk, onConsentPeriodChange, isSharing, loadChoice, NO_WATCH, resumeSession, save, savedChoice as saved, savedOff, sessionId, startNewSession, stillValid, useTelemetry, type ConsentToken } from "./choice";
 import { flushLocalNow, LOCAL_KEEP_DAYS, recordLocal } from "./localStore";
+import { context, environment, eventsBody, logsBody, resource, setEngineVersion } from "./requestContext";
+
+export { environment, resource };
 
 const QUEUE_DOC = "telemetry-queue.json";
 const QUEUE_VERSION = 1;
@@ -25,36 +28,6 @@ const URGENT_FLUSH_DELAY_MS = 3_000;
 const MAX_BACKOFF_MS = 30 * 60_000;
 
 export { consentEpoch, consentNow, consentToken, counted, dismissAsk, onConsentPeriodChange, isSharing, loadChoice, stillValid, useTelemetry, type ConsentToken };
-
-let engineVersion: string | null = null;
-
-export const environment = (): "dev" | "test" | "production" =>
-  __DEV__ ? "dev" : appInfo().isolatedInstance ? "test" : "production";
-
-function context(): Record<string, unknown> {
-  const info = appInfo();
-  return {
-    $lib: "ardia-telemetry",
-    $lib_version: "1",
-    $app_name: "Ardia",
-    $app_version: info.appVersion,
-    $app_build: info.appBuild,
-    $os: telemetryHost().os,
-    $os_version: info.osVersion,
-    arch: info.arch,
-    engine_version: engineVersion,
-    $environment: environment(),
-    $process_person_profile: false,
-    $geoip_disable: true,
-    $session_id: sessionId(),
-    ...watchProperty(),
-  };
-}
-
-function watchProperty(): Record<string, string> {
-  const { watchReport, watchUntil } = saved();
-  return watchReport && watchUntil !== null && Date.now() < watchUntil ? { watch_report: watchReport } : {};
-}
 
 type Queue = { events: QueuedEvent[]; logs: OtlpLogRecord[] };
 
@@ -221,28 +194,6 @@ async function send(kind: RequestLogEntry["kind"], body: string, count: number) 
   }
 }
 
-export function resource(): Record<string, unknown> {
-  const info = appInfo();
-  return {
-    "service.name": "ardia-app",
-    "service.version": info.appVersion,
-    "deployment.environment": environment() === "production" ? "production" : "development",
-    "os.type": telemetryHost().osType,
-    "os.version": info.osVersion,
-    "host.arch": info.arch,
-    "engine.version": engineVersion,
-  };
-}
-
-const eventsBody = (batch: QueuedEvent[]) =>
-  logsRequest(
-    resource(),
-    EVENTS_SCOPE,
-    batch.map((e) => eventRecord(e.properties.engine_version == null && engineVersion ? { ...e, properties: { ...e.properties, engine_version: engineVersion } } : e)),
-  );
-
-const logsBody = (batch: OtlpLogRecord[]) => logsRequest(resource(), LOGS_SCOPE, batch);
-
 type DrainResult = "done" | "failed" | "stale";
 
 async function drain<T>(
@@ -358,7 +309,7 @@ type ClientSession = {
 export function startClient(continuing = false): ClientSession {
   loadChoice();
   void engineInfo()
-    .then((e) => (engineVersion = `ArdiaCore / Chromium ${e.chromiumVersion}`))
+    .then((e) => setEngineVersion(`ArdiaCore / Chromium ${e.chromiumVersion}`))
     .catch(() => {});
   void updaterState()
     .then((u) => {
