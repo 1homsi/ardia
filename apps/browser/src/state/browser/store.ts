@@ -4,7 +4,7 @@ import { createBookmarksSlice, ensureRoots, type BookmarksSlice } from "../bookm
 import { changedIds } from "./changes";
 import { createGroupsSlice, type GroupsSlice } from "../groups/groups";
 import { createHistorySlice, type HistorySlice } from "../history/history";
-import { engineProfile, IDLE_LIVE, isIncognitoProfile } from "./model";
+import { engineProfile, isIncognitoProfile } from "./model";
 import { createOrganizeSlice, type OrganizeSlice } from "../pins/organize";
 import { createMuteSlice, type MuteSlice } from "../tabs/mute";
 import { createCleanUpSlice, type CleanUpSlice } from "../pins/tabCleanup";
@@ -18,6 +18,7 @@ import { createSettingsSlice, parseSettings, parseSettingsMeta, type SettingsSli
 import { createSplitsSlice, sanitizeSplits, type SplitsSlice } from "../splits/splits";
 import { activated, apply } from "../tabs/tabs";
 import { createTabsSlice, type TabsSlice } from "../tabs/tabsSlice";
+import { bindLiveToBrowser, forgetAllLive } from "../tabs/tabLive";
 import { settle, SettleDidNotConverge } from "./settle";
 import { transactional } from "./transaction";
 import { actionsApart } from "./actionsApart";
@@ -84,11 +85,8 @@ const batched =
     return creator(batchedSet, get, api);
   };
 
-const pageMoved = (s: BrowserState, prev: BrowserState) => {
-  if (s.tabs !== prev.tabs) for (const id of changedIds(s.tabs, prev.tabs)) if (s.tabs[id]?.url !== prev.tabs[id]?.url) return true;
-  if (s.live !== prev.live) for (const id of changedIds(s.live, prev.live)) if (!!s.live[id]?.isLoading !== !!prev.live[id]?.isLoading) return true;
-  return false;
-};
+const pageMoved = (s: BrowserState, prev: BrowserState) =>
+  s.tabs !== prev.tabs && changedIds(s.tabs, prev.tabs).some((id) => s.tabs[id]?.url !== prev.tabs[id]?.url);
 const reportsUnsettled = !__DEV__ && !(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_TEST_CONTEXT;
 const settled = (s: BrowserState, prev: BrowserState) => {
   try {
@@ -172,7 +170,6 @@ export const useBrowser = create<BrowserState>()(actionsApart(transactions.middl
       windows,
       windowOrder,
       tabs,
-      live: Object.fromEntries(Object.keys(tabs).map((id) => [id, IDLE_LIVE])),
       groups,
       splits,
       closedTabs: data.closedTabs ?? [],
@@ -202,9 +199,11 @@ export const useBrowser = create<BrowserState>()(actionsApart(transactions.middl
       },
     };
     for (const id of next.ui.focusOrder) next = apply(next, activated(next, windows[id]!.activeTabIds[windows[id]!.profileId]!));
+    forgetAllLive();
     set(next);
   },
 })))));
+bindLiveToBrowser(useBrowser);
 
 export type { CreateWindowOptions } from "../windows/windows";
 
