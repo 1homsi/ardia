@@ -141,6 +141,7 @@ export function menuState(s: BrowserState, liveOfTab = (id: string) => shownLive
     warnBeforeQuitting: s.settings.warnBeforeQuitting,
     warnBeforeClosingWindow: s.settings.warnBeforeClosingWindow,
     undoReopensClosedTab: s.settings.undoReopensClosedTab,
+    linksOpenInLittleArdia: s.settings.openLinksInLittleArdia,
     downloadsInProgress: s.downloads.filter((d) => d.state === "downloading").length,
     shortcuts: menuBarBindings(s),
     extensions: extensionMenu(s, windowId) };
