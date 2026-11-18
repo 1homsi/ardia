@@ -11,6 +11,8 @@ import { engineProfiles } from "../profiles/engineProfiles";
 import { onProfilesOpened, onProfilesUnloaded, openedEngineProfiles } from "../profiles/profileLoading";
 import { migrateLegacyFile } from "../app/legacyFiles";
 import { during } from "../app/jobActivity";
+import { consentToken } from "../telemetry/client";
+import { warnFor } from "../telemetry/logs";
 
 const LEGACY_FILE = "history.json";
 const LEGACY_TOLERANCE_MS = 60_000;
@@ -195,6 +197,7 @@ function load(engine: string): Promise<void> {
   }
   const state: Load = { running: Promise.resolve(), again: false, queued: [] };
   loads.set(engine, state);
+  const consent = consentToken();
   state.running = (async () => {
     try {
       do {
@@ -212,7 +215,7 @@ function load(engine: string): Promise<void> {
       } while (state.again && inApp(engine));
     } catch (error) {
       const failure = ardiaError(error);
-      console.warn(`[history] couldn't read ${profileLabel(engine)}'s history: ${failure.code} ${failure.message}`, error);
+      warnFor(consent, `[history] couldn't read ${profileLabel(engine)}'s history: ${failure.code} ${failure.message}`, error);
     } finally {
       loads.delete(engine);
     }

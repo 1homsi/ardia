@@ -1,6 +1,6 @@
 import { freezeWatch, type StallTally } from "../../platform/freezeWatch";
 import { experimentOn } from "../../platform/killSwitches";
-import { isSharing, useTelemetry } from "./choice";
+import { consentToken, onConsentPeriodChange, stillValid, type ConsentToken } from "./choice";
 
 export const STALL_BUCKETS = ["250_500ms", "500ms_1s", "1_2s", "2_5s", "5_10s", "over_10s"] as const;
 const HEAP_FLOORS_MB = [0, 64, 128, 256, 512, 1024, 2048];
@@ -26,6 +26,7 @@ const noHangs = () => ({
 });
 
 let epoch = 0;
+let epochConsent: ConsentToken | null = null;
 let gcBase: GcTotals | null = null;
 let hangs = noHangs();
 const openHangs = new Map<string, OpenHang>();
@@ -71,10 +72,11 @@ export const freezeEpoch = () => epoch;
 
 const newEpoch = () => 1 + Math.floor(Math.random() * 0x7fff_fffe);
 
-export function setFreezeConsent(sharing: boolean) {
-  epoch = sharing ? newEpoch() : 0;
+export function setFreezeConsent(consent: ConsentToken | null) {
+  epochConsent = consent;
+  epoch = consent ? newEpoch() : 0;
   if (watching) freezeWatch()?.setConsentEpoch(epoch);
-  gcBase = sharing ? gcTotals() : null;
+  gcBase = consent ? gcTotals() : null;
   hangs = noHangs();
   openHangs.clear();
 }
@@ -82,10 +84,8 @@ export function setFreezeConsent(sharing: boolean) {
 function followConsent() {
   if (followingConsent) return;
   followingConsent = true;
-  setFreezeConsent(isSharing());
-  useTelemetry.subscribe((now, before) => {
-    if (now.sharing !== before.sharing) setFreezeConsent(now.sharing);
-  });
+  setFreezeConsent(consentToken());
+  onConsentPeriodChange(() => setFreezeConsent(consentToken()));
 }
 
 export function startFreezeWatch(): boolean {
@@ -116,8 +116,8 @@ export function noteRendererResponsive(tabId: string, exited: boolean, at = Date
   hangs[`renderer_unresponsive_${HANG_BUCKETS.find(([limit]) => ms < limit)![1]}`]++;
 }
 
-export function takeFreezeCounts(): Record<string, number> {
-  if (!epoch || !isSharing()) return {};
+export function takeFreezeCounts(consent: ConsentToken | null): Record<string, number> {
+  if (!epoch || !stillValid(consent) || consent !== epochConsent) return {};
   const tally = freezeWatch()?.take(epoch) ?? null;
   const fields: Record<string, number> = { ...(tally ? { ...stallFields("main", tally.main), ...stallFields("js", tally.js) } : {}), ...hangs };
   hangs = noHangs();

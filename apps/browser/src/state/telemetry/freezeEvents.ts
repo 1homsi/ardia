@@ -4,8 +4,7 @@ import { withDeadline } from "../../lib/deadline";
 import { activityDuring } from "../app/jobActivity";
 import { useBrowser } from "../browser/store";
 import { useSync } from "../sync/engine";
-import { isSharing } from "./choice";
-import { capture } from "./client";
+import { capture, consentToken, stillValid } from "./client";
 import { freezeEpoch, heapFloorMb } from "./freezes";
 import { claimDailySend } from "./freezeSends";
 import { journeyInFlight } from "./journeys";
@@ -79,8 +78,9 @@ export async function reportFreeze(record: FreezeRecord) {
   const end = record.startedAt + record.durationMs;
   const activity = activityDuring(record.startedAt, end);
   if (activity !== "none") freezeWatch()?.annotate(record.id, activity);
+  const consent = consentToken();
   const epoch = freezeEpoch();
-  if (!epoch || record.epoch !== epoch || !isSharing()) return;
+  if (!epoch || record.epoch !== epoch || !stillValid(consent)) return;
   const frames = scrubFrames(record.samples[0]?.frames ?? []);
   const images = nativeImages(record.images);
   const signature = freezeSignature(record.thread, frames, images);
@@ -88,7 +88,7 @@ export async function reportFreeze(record: FreezeRecord) {
   sentThisSession++;
   signaturesThisSession.add(signature);
   const system = await withDeadline(systemState(), 1_000, null).catch(() => null);
-  if (!isSharing() || freezeEpoch() !== epoch) return;
+  if (!stillValid(consent) || freezeEpoch() !== epoch) return;
   const s = useBrowser.getState();
   const tabs = Object.keys(s.tabs).length;
   capture(
@@ -114,6 +114,7 @@ export async function reportFreeze(record: FreezeRecord) {
       signature,
       samples: record.samples.length,
     },
+    consent,
     { raw: { freeze_frames: nativeFrames(frames), freeze_images: images } },
   );
 }
