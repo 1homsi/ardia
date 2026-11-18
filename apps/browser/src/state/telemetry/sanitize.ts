@@ -116,7 +116,7 @@ export function jsFatalKind(source: unknown, text: unknown): JsFatalKind | null 
   return "unknown";
 }
 
-export const NATIVE_CALL = /^Calling the '([A-Za-z_$][\w$]{0,60})' function has failed$/;
+const NATIVE_CALL = /^Calling the '([A-Za-z_$][\w$]{0,60})' function has failed$/;
 
 export function errorMessage(error: unknown): string {
   const message = error && typeof error === "object" ? (error as { message?: unknown }).message : error;
