@@ -504,3 +504,25 @@ test("PRRT 4607859813 a stale extension listing keeps every skip category in its
   assert.equal(local.sent, false);
   assert.deepEqual([local.properties.import_extensions_skipped_installed, local.properties.import_extensions_skipped_mv2, local.properties.import_extensions_skipped_not_web_store], [2, 1, 1]);
 });
+
+test("Codex 6.2 #4 with sharing on throughout, suggestion counts wait for the next omnibox sample instead of being dropped by a report with none", async () => {
+  client.setSharing(true, "onboarding");
+  track.takeSearchSuggests();
+  track.takeOmniboxLatency();
+  track.noteSearchSuggest("ok", client.consentToken());
+  usage.sessionEnding();
+  for (let i = 0; i < 5; i++) track.sampleOmniboxLatency(9);
+  usage.sessionEnding();
+  assert.equal((await queued("perf_omnibox")).at(-1)?.search_suggest_ok, 1);
+});
+
+test("Codex 6.2 #1 every window that reads the same saved choice without an epoch derives the same consent period", () => {
+  const legacy = { version: 1, sharing: true, installId: "legacy-install", decidedAt: 1700000000000, askDoneAt: 1, crashCursor: 0, lastVersion: null, sessionOpen: false };
+  stub.docs.set("telemetry.json", JSON.stringify(legacy));
+  choice.reloadChoice();
+  const first = client.consentEpoch();
+  stub.docs.set("telemetry.json", JSON.stringify(legacy));
+  choice.reloadChoice();
+  assert.ok(first);
+  assert.equal(client.consentEpoch(), first);
+});

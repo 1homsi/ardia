@@ -85,6 +85,8 @@ function readWatch(doc: SavedObject): Watch {
   };
 }
 
+const legacyEpoch = (doc: SavedObject) => `legacy:${stringOr(doc.installId, "") ?? ""}:${numberOr(doc.decidedAt, 0) ?? 0}`;
+
 function readSaved(doc: SavedObject | null): Saved {
   if (!doc) return DEFAULT;
   const installId = isString(doc.installId) && doc.installId ? doc.installId : null;
@@ -101,7 +103,7 @@ function readSaved(doc: SavedObject | null): Saved {
     lastLaunchAt: numberOr(doc.lastLaunchAt, null),
     lastQuitAt: numberOr(doc.lastQuitAt, null),
     lastBuild: stringOr(doc.lastBuild, null),
-    epoch: stringOr(doc.epoch, null) ?? (sharing.sharing ? uuidv4() : null),
+    epoch: stringOr(doc.epoch, null) ?? (sharing.sharing ? legacyEpoch(doc) : null),
     settingsDay: stringOr(doc.settingsDay, null),
     context: readContext(doc.context),
     ...readWatch(doc),

@@ -25,3 +25,14 @@ test("the leader answers a follower's sharing-off with the verdict of its own ve
   assert.equal(JSON.parse(stub.docs.get("telemetry.json")).sharing, false);
   assert.deepEqual(await offWith(2), { value: false });
 });
+
+test("a follower's sharing change resolves with the leader's verdict after refreshing its view, so a failed save isn't reported as durable", async () => {
+  const { followerChoice } = await import("./telemetryChoiceApply.ts");
+  const refreshed = [];
+  const refresh = async () => void refreshed.push(1);
+  const reported = [];
+  assert.equal(await followerChoice(async () => false, refresh, (e) => reported.push(e)), false);
+  assert.equal(await followerChoice(async () => true, refresh, (e) => reported.push(e)), true);
+  assert.equal(await followerChoice(async () => { throw new Error("no leader"); }, refresh, (e) => reported.push(e)), false);
+  assert.deepEqual([refreshed.length, reported.length], [3, 1]);
+});

@@ -312,10 +312,9 @@ async function sampleMemory(consent: ConsentToken | null) {
 
 function emitOmniboxLatency(consent: ConsentToken | null) {
   const samples = takeOmniboxLatency().sort((a, b) => a - b);
-  const suggests = takeSearchSuggests();
-  if (!samples.length) return;
+  if (!samples.length) return void (stillValid(consent) || takeSearchSuggests());
   const at = (p: number) => percentile(samples, p);
-  capture("perf_omnibox", { ...suggests, samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! }, consent);
+  capture("perf_omnibox", { ...takeSearchSuggests(), samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! }, consent);
 }
 
 function snapshotSettings(consent: ConsentToken | null) {
