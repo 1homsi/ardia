@@ -474,10 +474,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
       NSApp.orderedWindows.contains(where: { $0.isVisible && $0.isOnActiveSpace && isPiP($0) }) else { return }
     let browsers = NSApp.orderedWindows.filter { $0.isVisible && !$0.isMiniaturized && isBrowserWindow($0) }
     guard let browser = browsers.first(where: \.isOnActiveSpace) ?? browsers.first(where: { $0 === lastKeyBrowser }) ?? browsers.first else { return }
+    let stamp = ArdiaConsentStamp.begin()
     browser.makeKeyAndOrderFront(nil)
     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak browser] in
       guard NSApp.isActive, let browser else { return }
-      ShellEvents.send(.app, ["type": "pipActivationReturn", "success": browser.isOnActiveSpace && browser.isKeyWindow])
+      ShellEvents.send(.app, stamp.onto(["type": "pipActivationReturn", "success": browser.isOnActiveSpace && browser.isKeyWindow]))
     }
   }
 

@@ -186,7 +186,7 @@ export const noteTabSwitcherOpened = (closedLeftOut: number, unseenLast: number)
 export const noteApprovalNoticeDeferred = () => counts.approvalNoticesDeferred++;
 
 export const noteDockReopen = (pastFloating: boolean) => void (counts.dockReopens++, pastFloating && counts.dockReopensPastFloating++);
-export const notePiPActivationReturn = (success: boolean) => void (counts.pipActivationReturns++, !success && counts.pipActivationReturnFailures++);
+export const notePiPActivationReturn = (success: boolean, consent?: ConsentToken | null) => bump(consent, { pipActivationReturns: 1, pipActivationReturnFailures: success ? 0 : 1 });
 export function noteReopenedPage(canGoBack: boolean) {
   counts.reopenedPages++;
   if (canGoBack) counts.reopenedPagesWithBack++;
@@ -365,7 +365,7 @@ export function startUsage(continuing = false) {
   setTimeout(() => snapshotSettings(consentToken()), FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
   onAppEvent((e) => {
-    if (e.type === "pipActivationReturn") notePiPActivationReturn(e.success);
+    if (e.type === "pipActivationReturn") notePiPActivationReturn(e.success, nativeConsent(e));
     else if (e.type === "willQuit") {
       clearTimeout(launchCrashRead);
       stopContextSamples();
