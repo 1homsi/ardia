@@ -58,7 +58,7 @@ function fnv1a(text: string): string {
 
 export function freezeSignature(thread: string, frames: readonly FreezeFrame[]): string {
   const own = frames.filter((f) => OWN_IMAGE.test(f.image)).slice(0, SIGNATURE_FRAMES);
-  return own.length ? fnv1a(`${thread}|${own.map((f) => `${f.image}+${f.offset.toString(16)}`).join("|")}`) : `none_${thread}`;
+  return own.length ? `sig_${fnv1a(`${thread}|${own.map((f) => `${f.image}+${f.offset.toString(16)}`).join("|")}`)}` : `none_${thread}`;
 }
 
 export function allowedThisSession(signature: string) {

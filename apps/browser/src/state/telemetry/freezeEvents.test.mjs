@@ -78,7 +78,7 @@ test("a signature is the top three frames from our own images: same place, same 
   const c = events.freezeSignature("js", frames(["hermes", 0x11], ["hermes", 0x20], ["Ardia", 0x30]));
   assert.equal(a, b);
   assert.notEqual(a, c);
-  assert.match(a, /^[0-9a-f]{8}$/);
+  assert.match(a, /^sig_[0-9a-f]{8}$/);
   assert.equal(events.freezeSignature("main", frames(["system", 1])), "none_main");
   assert.notEqual(events.freezeSignature("main", frames(["Ardia", 1])), events.freezeSignature("js", frames(["Ardia", 1])));
 });
@@ -117,7 +117,7 @@ test("app_freeze carries buckets, counts, enums, the signature and scrubbed fram
   assert.equal(sent.gc_count, 7);
   assert.equal(sent.activity, "sessionSave");
   assert.equal(sent.thermal, "serious");
-  assert.match(sent.signature, /^[0-9a-f]{8}$/);
+  assert.match(sent.signature, /^sig_[0-9a-f]{8}$/);
   assert.ok(["sidebar", "top"].includes(sent.layout));
   assert.equal(typeof sent.sync_on, "boolean");
   const text = JSON.stringify(sent);
@@ -126,6 +126,24 @@ test("app_freeze carries buckets, counts, enums, the signature and scrubbed fram
   assert.ok(!/interpretFunction|HadesGC/.test(text), "no symbol names");
   assert.deepEqual(sent.freeze_images, [{ name: "hermes", uuid: "11111111-2222-3333-4444-555555555555" }]);
   assert.ok(sent.freeze_frames.every((f) => f.lang === "native" && /^(hermes|Ardia|system) \+ 0x[0-9a-f]+$/.test(f.function)));
+});
+
+test("a signature whose hash is all digits survives the property scrub, stays distinct and keeps its one send a day", async () => {
+  const { cleanProperties } = await import("./sanitize.ts");
+  client.setSharing(true, "settings");
+  const offsets = [];
+  for (let offset = 1; offsets.length < 2; offset++) if (/^\d+$/.test(events.freezeSignature("js", frames(["Ardia", offset])).replace(/^sig_/, ""))) offsets.push(offset);
+  const signatures = offsets.map((offset) => events.freezeSignature("js", frames(["Ardia", offset])));
+  assert.deepEqual(signatures.map((signature) => cleanProperties({ signature }).signature), signatures);
+  for (const offset of offsets) await events.reportFreeze(record({ samples: [{ state: 1, frames: frames(["Ardia", offset]) }] }));
+  const sent = (await sentFreezes()).map((p) => p.signature);
+  assert.deepEqual(sent, signatures);
+  assert.notEqual(sent[0], sent[1]);
+  const day = Date.UTC(2026, 10, 20);
+  assert.equal(sends.claimDailySend(signatures[0], day), true);
+  assert.equal(sends.claimDailySend(signatures[0], day + 60_000), false, "same signature, same day");
+  assert.equal(sends.claimDailySend(signatures[1], day + 120_000), true);
+  assert.deepEqual(sends.sendsOn(day).signatures, signatures, "the ledger keeps the prefixed form");
 });
 
 test("at most 5 a session, and one of each signature", async () => {
