@@ -203,10 +203,11 @@ export function createLiveDocumentClient(host: ArdiaHost) {
     },
     beginRefresh: async (id: string) => {
       if (closeTokens.size) throw documentError("ERR_DOCUMENT_CLOSING", "Document producers are quiesced");
+      const consent = consentToken();
       await drain();
       const incarnation = canonical.incarnations[id];
       if (!incarnation) throw documentError("ERR_DOCUMENT_DELETED", "Folder no longer exists");
-      const claim: Pending = { operations: [{ type: "claim", id, incarnation }], consent: consentToken() };
+      const claim: Pending = { operations: [{ type: "claim", id, incarnation }], consent };
       pending.push(claim);
       await drain();
       if (claim.skipped) return null;
