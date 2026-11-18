@@ -99,6 +99,7 @@ export const SETTING_SPECS = {
   peekLinksToOtherSites: flag(true, SYNCED),
   newTabLinksOpenIn: oneOf(["tab", "peek", "littleArdia"], "peek", SYNCED),
   popupsOpenAsTabs: flag(false, SYNCED),
+  peekButtons: oneOf(["top", "left", "right"], "top", SYNCED),
   splitLinkModifier: oneOf(["altShift", "alt"], "altShift", SYNCED),
   autoGroupMeetingTabs: flag(true, SYNCED),
   cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
@@ -108,10 +109,11 @@ export const SETTING_SPECS = {
   showTopAppBadges: flag(false, SYNCED),
   showTabHoverMenu: flag(true, SYNCED),
   showFullUrlInTabHoverMenu: flag(false, SYNCED),
-  closedTopAppTiles: flag(true, SYNCED), topAppFolders: flag(false, SYNCED),
+  closedTopAppTiles: flag(true, SYNCED), topAppFolders: flag(true, SYNCED),
   unreadHiddenSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   autoPictureInPicture: flag(true, SYNCED),
+  playingNowAcrossProfiles: flag(false, SYNCED),
   blockAutoplayEverywhere: flag(false, SYNCED),
   blockNotificationRequests: flag(false, SYNCED),
   videoUpscaling: flag(true, SYNCED),
@@ -184,6 +186,7 @@ export const NO_SETTINGS_META: SettingsMeta = { chosen: [], inferred: [] };
 
 export type BatterySaverWhen = Settings["batterySaverWhen"];
 export type PeekModifier = Settings["peekModifier"];
+export type PeekButtons = Settings["peekButtons"];
 export type SplitLinkModifier = Settings["splitLinkModifier"];
 
 export const splitLinkModifierOf = (settings: Pick<Settings, "peekModifier" | "splitLinkModifier">): SplitLinkModifier =>
