@@ -72,6 +72,14 @@ struct ArdiaReveal {
   CGFloat loweredPaneZ{};
   __weak NSView *frontedPage;
   NSUInteger frontGeneration{};
+  BOOL native{};
+  BOOL inputTaken{};
+  NSUInteger press{};
+  __weak ArdiaWebView *covered;
+  __weak ArdiaWebView *focusOwner;
+  __weak NSView *focusFrom;
+  NSHashTable<NSView *> *hitSwaps;
+  NSMapTable<NSView *, NSNumber *> *identityHidden;
 };
 
 struct ArdiaPageReports {
@@ -106,6 +114,7 @@ struct ArdiaPageFocusState {
   __weak NSView *elsewhere;
   BOOL onActivate{};
   BOOL keepsOutgoing{};
+  BOOL storedAtReveal{};
   CFTimeInterval activatedAt{};
   __weak NSWindow *activatedIn;
 };
@@ -261,13 +270,36 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 
 @interface ArdiaWebView (RevealsInternal)
 + (void)dropRevealsInWindow:(NSWindow *)window except:(ArdiaWebView *)keep;
++ (void)dropRevealsInWindow:(NSWindow *)window pressedBy:(NSUInteger)press;
++ (void)replaceRevealsInWindow:(NSWindow *)window with:(ArdiaWebView *)pressed;
++ (void)tabPressReleased;
 - (BOOL)onlyShownInWindow;
 - (void)frontPage:(NSView *)page profile:(ArdiaCoreProfile *)profile;
 - (void)dropFront;
+- (BOOL)revealsFirst;
+- (ArdiaWebView *)revealableOver:(BOOL)pastOtherReveals;
++ (ArdiaWebView *)nativeRevealInWindow:(NSWindow *)window except:(ArdiaWebView *)skip;
+- (BOOL)stayOver:(ArdiaWebView *)shown;
 - (void)revealAhead;
 - (void)endReveal;
 - (void)dropReveal;
+- (void)paintAfterReveal:(BOOL)native;
 - (void)settleRevealsInWindow;
+@end
+
+@interface ArdiaWebView (RevealInput)
+- (void)takeInputIfShown;
+- (void)giveInputBack;
+- (void)hidePageIdentity;
+- (void)showPageIdentity;
+- (void)hidePageIdentityAfterMount;
+- (void)takeHitTesting;
+- (void)giveHitTestingBack;
+- (void)takeFocusFrom:(ArdiaWebView *)shown;
+- (void)giveFocusBack;
+- (void)moveFocusOwnerTo:(ArdiaWebView *)shown;
+- (void)keepAtSettle;
+- (BOOL)underNativeReveal;
 @end
 
 @interface ArdiaWebView (PageMessagesInternal)
@@ -336,6 +368,7 @@ void NoteEvent(int browserId, NSString *name, NSDictionary *payload);
 void AcceptDrops(NSView *root, BOOL accept);
 NSView *PaneUnder(NSView *view, NSView *ancestor);
 NSView *SharedAncestor(NSView *a, NSView *b);
+NSString *ReactTagOf(NSView *view);
 NSView *RenderWidgetIn(NSView *page);
 NSArray *FrameMarkOf(NSView *widget);
 
