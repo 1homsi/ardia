@@ -158,3 +158,39 @@ test("a store subscriber that throws during the URL publication still lets live 
   assert.throws(report, /subscriber failed/);
   assert.deepEqual(heard, ["isLoading false->true"]);
 });
+
+function failingOnFirst(t) {
+  const heard = [];
+  let failed = 0;
+  const offFailing = onLiveChange((id) => {
+    if (!failed++) throw new Error(`listener failed on ${id}`);
+  });
+  const offHearing = onLiveChange((id, live) => heard.push(`${id} ${live.playingAudio}`));
+  t.after(() => (offFailing(), offHearing()));
+  return heard;
+}
+
+test("a live listener that throws doesn't stop the others, nor the tabs queued after it, and its error surfaces", (t) => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com/" });
+  const [a] = S().windows[w].tabIds;
+  const b = S().newTab(w, { url: "https://b.com/", background: true });
+  for (const id of [a, b]) S().updateLive(id, { playingAudio: true });
+  const heard = failingOnFirst(t);
+  assert.throws(() => storeTransaction(() => S().updateTab(a, {}, { playingAudio: false })), /listener failed/);
+  assert.deepEqual(heard, [`${a} false`], "the second listener heard the same edge");
+  heard.length = 0;
+  S().updateLive(b, { playingAudio: false });
+  assert.deepEqual(heard, [`${b} false`]);
+});
+
+test("closing tabs while a live listener throws leaves no entry for any closed tab", (t) => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com/" });
+  const closing = ["b", "c", "d"].map((h) => S().newTab(w, { url: `https://${h}.com/`, background: true }));
+  for (const id of closing) S().updateLive(id, { playingAudio: true, canGoBack: true });
+  const heard = failingOnFirst(t);
+  assert.throws(() => S().closeTabs(closing), /listener failed/);
+  for (const id of closing) assert.equal(liveOf(id), IDLE_LIVE);
+  assert.deepEqual(heard.sort(), closing.map((id) => `${id} false`).sort(), "every closed tab was announced");
+});

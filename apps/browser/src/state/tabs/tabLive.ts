@@ -29,12 +29,22 @@ function storeLive(tabId: string, next: TabLive) {
   else values.set(tabId, next);
 }
 
+let firstFailure: { error: unknown } | null = null;
+
+function heedFailure(callback: () => void) {
+  try {
+    callback();
+  } catch (error) {
+    firstFailure ??= { error };
+  }
+}
+
 function announceLive(tabId: string, next: TabLive, prev: TabLive) {
   for (const id of browser ? liveReachOf(browser.getState(), tabId) : [tabId]) {
     const woken = watchers.get(id);
-    if (woken) for (const listener of [...woken]) listener();
+    if (woken) for (const listener of [...woken]) heedFailure(listener);
   }
-  for (const listener of [...listeners]) listener(tabId, next, prev);
+  for (const listener of [...listeners]) heedFailure(() => listener(tabId, next, prev));
 }
 
 export function drainLive() {
@@ -53,12 +63,19 @@ export function drainLive() {
   } finally {
     draining = false;
   }
+  const failure = firstFailure;
+  firstFailure = null;
+  if (failure) throw failure.error;
 }
 
-export function replaceLive(tabId: string, next: TabLive) {
+function stageReplace(tabId: string, next: TabLive) {
   if (next === liveOf(tabId)) return;
   storeLive(tabId, next);
   unannounced.add(tabId);
+}
+
+export function replaceLive(tabId: string, next: TabLive) {
+  stageReplace(tabId, next);
   drainLive();
 }
 
@@ -78,7 +95,8 @@ export function setLive(tabId: string, patch: Partial<TabLive>) {
 }
 
 export function forgetLive(ids: Iterable<string>) {
-  for (const id of ids) if (values.has(id)) replaceLive(id, IDLE_LIVE);
+  for (const id of ids) stageReplace(id, IDLE_LIVE);
+  drainLive();
 }
 
 export const forgetAllLive = () => forgetLive([...values.keys()]);
@@ -105,7 +123,7 @@ export function bindLiveToBrowser(store: Browser, afterTransaction?: (listener: 
       const was = prev.tabs[id];
       const heldBy = holderOfPage(was);
       if (!tab || (isAsleep(tab) && !isAsleep(was)) || (was && reloadedElsewhere(tab, was))) gone.push(id);
-      else if (heldBy && hasPage(tab)) replaceLive(id, liveOf(heldBy));
+      else if (heldBy && hasPage(tab)) stageReplace(id, liveOf(heldBy));
     }
     forgetLive(gone);
   });
