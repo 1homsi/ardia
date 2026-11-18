@@ -30,6 +30,7 @@ let gcBase: GcTotals | null = null;
 let hangs = noHangs();
 const openHangs = new Map<string, OpenHang>();
 let watching = false;
+let followingConsent = false;
 
 function hermesStats(): HermesStats | null {
   try {
@@ -72,26 +73,37 @@ const newEpoch = () => 1 + Math.floor(Math.random() * 0x7fff_fffe);
 
 export function setFreezeConsent(sharing: boolean) {
   epoch = sharing ? newEpoch() : 0;
-  freezeWatch()?.setConsentEpoch(epoch);
+  if (watching) freezeWatch()?.setConsentEpoch(epoch);
   gcBase = sharing ? gcTotals() : null;
   hangs = noHangs();
   openHangs.clear();
 }
 
-export function startFreezeWatch(): boolean {
-  const watch = freezeWatch();
-  if (watching || !watch || experimentOn("freezeWatchOff")) return false;
-  watching = true;
-  watch.start();
+function followConsent() {
+  if (followingConsent) return;
+  followingConsent = true;
   setFreezeConsent(isSharing());
   useTelemetry.subscribe((now, before) => {
     if (now.sharing !== before.sharing) setFreezeConsent(now.sharing);
   });
+}
+
+export function startFreezeWatch(): boolean {
+  followConsent();
+  const watch = freezeWatch();
+  if (watching || !watch || experimentOn("freezeWatchOff")) return false;
+  watching = true;
+  watch.start();
+  watch.setConsentEpoch(epoch);
   return true;
 }
 
 export function noteRendererUnresponsive(tabId: string, at = Date.now()) {
   if (epoch && !openHangs.has(tabId)) openHangs.set(tabId, { at, epoch });
+}
+
+export function forgetRendererHang(tabId: string) {
+  openHangs.delete(tabId);
 }
 
 export function noteRendererResponsive(tabId: string, exited: boolean, at = Date.now()) {

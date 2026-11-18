@@ -150,6 +150,7 @@ import { buildSeed } from "./seed.mjs";
 import { parseSettings, profileSeed } from "./profile-seed.mjs";
 import { writeSwitches } from "./js-bench.mjs";
 import { frameRows, frameTable, framesLibrary, framesRun } from "./frames-phase.mjs";
+import { sideLaunchEnv } from "./launch-env.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(here, "../..");
@@ -442,9 +443,9 @@ class Instance {
     const exe = join(realpathSync(this.app), "Contents/MacOS", execFileSync("defaults", ["read", join(this.app, "Contents/Info.plist"), "CFBundleExecutable"], { encoding: "utf8" }).trim());
     const main = `^${exe.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`;
     if (spawnSync("pgrep", ["-f", main]).status === 0) throw new Error("a bench instance is still running");
-    const extra = [...opt.env, ...(this.side.role === "control" ? opt["control-env"] : []), ...this.env].filter((e) => !e.startsWith("DYLD_INSERT_LIBRARIES="));
+    const { extra, libraries } = sideLaunchEnv(opt.env, opt["control-env"], this.side.role, this.env);
     writeSwitches(this.dataDir, extra.find((e) => e.startsWith("ARDIA_SWITCHES="))?.slice(19));
-    const dyld = [markerLibrary(), ...(this.frames ? [framesLibrary(toolDir, here)] : []), ...opt.env.filter((e) => e.startsWith("DYLD_INSERT_LIBRARIES=")).map((e) => e.slice(22))].join(":");
+    const dyld = [markerLibrary(), ...(this.frames ? [framesLibrary(toolDir, here)] : []), ...libraries].join(":");
     this.t0 = Date.now();
     const env = appEnv(this.app, mergeLaunchEnv({
       ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: this.dataDir, ARDIA_REMOTE_DEBUGGING_PORT: String(this.port),
