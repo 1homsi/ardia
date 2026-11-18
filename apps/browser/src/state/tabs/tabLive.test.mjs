@@ -4,10 +4,10 @@ import { mount } from "../../test-hooks.mjs";
 
 globalThis.__DEV__ = false;
 await import("../../test-native/index.ts");
-const { useBrowser } = await import("../browser/store.ts");
+const { storeTransaction, useBrowser } = await import("../browser/store.ts");
 const { engineProfile, IDLE_LIVE, viewTabIds } = await import("../browser/model.ts");
 const { useTabLive } = await import("../browser/hooks.ts");
-const { liveOf, shownLiveOf } = await import("./tabLive.ts");
+const { liveOf, onLiveChange, shownLiveOf } = await import("./tabLive.ts");
 const { watchTabState } = await import("./tabStateWatch.ts");
 const { chromeChanged } = await import("./liveTabs.ts");
 const { LOADING, PLAYING, rowFlags } = await import("../sidebar/rowState.ts");
@@ -100,4 +100,29 @@ test("a closed tab's live state is forgotten; a tab Chrome moves between windows
   assert.equal(S().tabs[c].windowId, w1);
   assert.equal(liveOf(c), IDLE_LIVE, "a move that reloads the page starts from idle");
   assert.equal(liveOf(a).canGoBack, true);
+});
+
+test("one report's URL and loading reach store subscribers and live listeners together, held or not", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com/" });
+  const [tab] = S().windows[w].tabIds;
+  const seen = [];
+  const pair = (who, url, loading) => seen.push(`${who} ${url} ${loading}`);
+  const offStore = useBrowser.subscribe((s) => pair("store", s.tabs[tab]?.url, liveOf(tab).isLoading));
+  const offLive = onLiveChange((id, live) => id === tab && pair("live", S().tabs[tab].url, live.isLoading));
+  const report = (url, isLoading) => S().updateTab(tab, { url }, { isLoading });
+  report("https://b.com/", true);
+  report("https://b.com/", false);
+  storeTransaction(() => {
+    report("https://c.com/", true);
+    report("https://c.com/", false);
+  });
+  offStore();
+  offLive();
+  for (const [url, loading] of [["https://b.com/", "true"], ["https://c.com/", "true"]]) {
+    assert.ok(seen.includes(`store ${url} ${loading}`), `a store subscriber saw ${url} loading: ${seen.join(", ")}`);
+    assert.ok(!seen.includes(`store ${url} false`) || seen.indexOf(`store ${url} false`) > seen.indexOf(`store ${url} true`), `a store subscriber saw ${url} before its load started: ${seen.join(", ")}`);
+    assert.ok(seen.indexOf(`live ${url} true`) >= 0, `the live listener saw ${url} loading: ${seen.join(", ")}`);
+  }
+  assert.ok(!seen.some((x) => /^live https:\/\/a\.com\/ true$/.test(x)), "no live listener saw the old URL with the new load");
 });

@@ -19,11 +19,12 @@ export const shownLiveOf = (s: Pick<BrowserState, "tabs">, tabId: string): TabLi
 
 export const liveReachOf = (s: Pick<BrowserState, "tabs">, tabId: string): string[] => [tabId, ...frozenCopiesOf(s, tabId).map((t) => t.id)];
 
-export function replaceLive(tabId: string, next: TabLive) {
-  const prev = liveOf(tabId);
-  if (next === prev) return;
+function storeLive(tabId: string, next: TabLive) {
   if (next === IDLE_LIVE) values.delete(tabId);
   else values.set(tabId, next);
+}
+
+function announceLive(tabId: string, next: TabLive, prev: TabLive) {
   for (const id of browser ? liveReachOf(browser.getState(), tabId) : [tabId]) {
     const woken = watchers.get(id);
     if (woken) for (const listener of [...woken]) listener();
@@ -31,8 +32,28 @@ export function replaceLive(tabId: string, next: TabLive) {
   for (const listener of [...listeners]) listener(tabId, next, prev);
 }
 
+export function replaceLive(tabId: string, next: TabLive) {
+  const prev = liveOf(tabId);
+  if (next === prev) return;
+  storeLive(tabId, next);
+  announceLive(tabId, next, prev);
+}
+
+const nothingStaged = () => {};
+
+export function stageLive(tabId: string, patch: Partial<TabLive>): () => void {
+  if (!browser?.getState().tabs[tabId]) return nothingStaged;
+  const prev = liveOf(tabId);
+  const next = merge(prev, patch);
+  if (next === prev) return nothingStaged;
+  storeLive(tabId, next);
+  return () => {
+    if (liveOf(tabId) === next) announceLive(tabId, next, prev);
+  };
+}
+
 export function setLive(tabId: string, patch: Partial<TabLive>) {
-  if (browser?.getState().tabs[tabId]) replaceLive(tabId, merge(liveOf(tabId), patch));
+  stageLive(tabId, patch)();
 }
 
 export function forgetLive(ids: Iterable<string>) {
