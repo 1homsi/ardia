@@ -475,3 +475,11 @@ test("PRRT 4607475653 search-suggestion counts from before a consent change are 
   assert.ok(sent.length > 0, "the hour sent its omnibox sample");
   assert.ok(sent.every((p) => !p.search_suggest_ok && !p.search_suggest_failed), JSON.stringify(sent));
 });
+
+test("Codex final 1: a queue loaded under one consent period isn't relabelled with the next when the choice is reloaded", async () => {
+  client.setSharing(true, "onboarding");
+  client.capture("old_queue_event", {}, client.consentNow());
+  stub.docs.set("telemetry.json", JSON.stringify({ ...JSON.parse(stub.docs.get("telemetry.json")), epoch: "reloaded-period", decidedAt: 2 }));
+  choice.reloadChoice();
+  assert.deepEqual(await queued("old_queue_event"), []);
+});

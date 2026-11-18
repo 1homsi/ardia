@@ -79,3 +79,11 @@ if (process.argv.includes("--write")) {
     assert.equal(buffer("function f() { const pending = []; noteSave(); }"), false);
   });
 }
+
+test("the uncounted-counter class covers Linux telemetry as well as the browser's", async () => {
+  const { COUNTER_SCOPE, telemetryModule } = await import("../scripts/consentStatic.mjs");
+  assert.ok(COUNTER_SCOPE.test("apps/linux/src/hostTelemetry.ts"));
+  assert.ok(COUNTER_SCOPE.test("apps/browser/src/state/telemetry/usage.ts"));
+  assert.ok(telemetryModule("apps/linux/src/hostTelemetryCounts.ts"));
+  assert.ok(!telemetryModule("apps/linux/src/hostTabs.ts"));
+});

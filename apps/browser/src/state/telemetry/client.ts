@@ -60,6 +60,7 @@ type Queue = { events: QueuedEvent[]; logs: OtlpLogRecord[] };
 
 let queue: Queue = { events: [], logs: [] };
 let queueLoaded = false;
+let queueEpoch: string | null = null;
 let generation = 0;
 
 const isEvent = (v: unknown): v is QueuedEvent =>
@@ -80,6 +81,7 @@ function storedQueue(): Queue {
 function loadQueue() {
   if (queueLoaded) return;
   queueLoaded = true;
+  queueEpoch = saved().epoch;
   const stored = storedQueue();
   queue = { events: [...stored.events, ...queue.events], logs: [...stored.logs, ...queue.logs] };
 }
@@ -121,10 +123,19 @@ export function saveQueueNow(timeoutMs = 1000): Promise<void> {
 function clearQueue() {
   queue = { events: [], logs: [] };
   queueLoaded = true;
+  queueEpoch = saved().epoch;
   clearTimeout(flushTimer);
   flushTimer = undefined;
   persistQueue(true);
 }
+
+onConsentPeriodChange(() => {
+  if (!queueLoaded || saved().epoch === queueEpoch) return;
+  generation++;
+  for (const abort of inflight) abort.abort();
+  inflight.clear();
+  clearQueue();
+});
 
 let droppedWhileOff = 0;
 

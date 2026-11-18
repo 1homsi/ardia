@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { test } from "node:test";
+import { after, test } from "node:test";
 globalThis.require = createRequire(import.meta.url);
 
 const id = (c) => c.repeat(32);
@@ -41,6 +41,11 @@ const { useImportFlow } = await import("./flow.ts");
 const { runImport } = await import("./runImport.ts");
 const { openListedExtensionsInStore, openExtensionStorePage } = await import("./listedExtensions.ts");
 const { takeImportRuns } = await import("../telemetry/importRuns.ts");
+const telemetry = await import("../telemetry/client.ts");
+globalThis.fetch = async () => ({ status: 503 });
+telemetry.loadChoice();
+telemetry.setSharing(true, "onboarding");
+after(() => telemetry.setSharing(false, "settings"));
 
 const S = () => useBrowser.getState();
 const step = () => useImportFlow.getState().step;

@@ -1,14 +1,12 @@
 import { APP_INGEST_KEY } from "@ardia/core";
 import { installErrorReporting, resetAnonymousId, startTelemetry } from "../../browser/src/state/telemetry/index.ts";
 import { captureException } from "../../browser/src/state/telemetry/errors";
-import { capture, consentNow, devState, endSession, flush, loadChoice, queueLog, saveQueueNow, setSharing } from "../../browser/src/state/telemetry/client";
-import { dismissAsk, reloadChoice, savedChoice, useTelemetry, type ConsentToken } from "../../browser/src/state/telemetry/choice";
+import { capture, consentNow, devState, endSession, flush, loadChoice, queueLog, saveQueueNow } from "../../browser/src/state/telemetry/client";
+import { reloadChoice, savedChoice, useTelemetry, type ConsentToken } from "../../browser/src/state/telemetry/choice";
 import { DAILY_DOC } from "../../browser/src/state/telemetry/daily";
 import { requestLog } from "../../browser/src/state/telemetry/requestLog";
-import { adoptInstallId } from "../../browser/src/state/telemetry/installId";
 import { setTelemetryRelay, type ChoiceChange } from "../../browser/src/state/telemetry/relay";
 import { reopenSession } from "../../browser/src/state/telemetry/sessionControl";
-import { startWatch, stopWatch, watchNoticeShown } from "../../browser/src/state/telemetry/watch";
 import { uuidv4 } from "../../browser/src/state/telemetry/ids";
 import { setTelemetryHost } from "../../browser/src/state/telemetry/transport";
 import { emitWindowUsage, sessionEnding } from "../../browser/src/state/telemetry/usage";
@@ -19,6 +17,7 @@ import { hostSupports, invokeHost, type ArdiaHost } from "./host.ts";
 import { startTelemetryLeadership, TELEMETRY_CHANNEL, type LeaderChannel, type LeaderLocks, type TelemetryLeadership, type TelemetryOp } from "./telemetryLeader.ts";
 import { createEndLedger, setTelemetrySettle } from "./telemetrySettle.ts";
 import { parseChoiceChange, shownAfter } from "./telemetryChoice.ts";
+import { applyChoiceDurably } from "./telemetryChoiceApply.ts";
 
 export const TELEMETRY_POST = "ArdiaTelemetry.post";
 export const TELEMETRY_STEP = "telemetry";
@@ -71,23 +70,13 @@ async function saveState() {
   await documentSaved(STATE_DOC).catch(report);
 }
 
-function applyChoice(change: ChoiceChange) {
-  if (change.kind === "sharing") setSharing(change.on, change.source, change.placement);
-  else if (change.kind === "askDismissed") dismissAsk();
-  else if (change.kind === "watchStarted") startWatch(change.reportId, change.days);
-  else if (change.kind === "watchStopped") stopWatch();
-  else if (change.kind === "watchNoticeShown") watchNoticeShown();
-  else adoptInstallId(change.id);
-}
-
 export async function handleTelemetryOp(op: TelemetryOp, arg?: string): Promise<unknown> {
   if (op === "choice") {
     const change = parseChoiceChange(arg);
     if (!change) throw Object.assign(new Error("The telemetry choice isn't one this build knows"), { code: "ERR_TELEMETRY_CHOICE" });
-    applyChoice(change);
-    await documentSaved(STATE_DOC);
+    const durable = await applyChoiceDurably(change);
     leadership?.announce();
-    return true;
+    return durable;
   }
   if (op === "reset") {
     const installId = await resetAnonymousId();

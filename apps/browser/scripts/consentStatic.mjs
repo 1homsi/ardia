@@ -147,10 +147,14 @@ function drainedFunctions(program, files) {
   return seen;
 }
 
+export const COUNTER_SCOPE = /^apps\/(?:browser|linux)\/src\//;
+const LINUX_TELEMETRY = /^apps\/linux\/src\/\w*[Tt]elemetry\w*\.tsx?$/;
+export const telemetryModule = (rel) => TELEMETRY.test(rel) || LINUX_TELEMETRY.test(rel);
+
 export function unclearedCounters(program, files) {
   const drained = drainedFunctions(program, files);
-  const browser = files.filter((file) => relOf(file).startsWith("apps/browser/src/"));
-  const telemetryText = browser.filter((file) => TELEMETRY.test(relOf(file))).map((file) => file.text).join("\n");
+  const browser = files.filter((file) => COUNTER_SCOPE.test(relOf(file)));
+  const telemetryText = browser.filter((file) => telemetryModule(relOf(file))).map((file) => file.text).join("\n");
   const byRel = new Map(browser.map((file) => [relOf(file), file]));
   const drainedInBase = (rel, name) => {
     const base = byRel.get(rel.replace(PLATFORM_VARIANT, ".$2"));
@@ -162,7 +166,7 @@ export function unclearedCounters(program, files) {
     const rel = relOf(file);
     for (const fn of topFunctions(file)) {
       if (!fn.exported || !TAKE.test(fn.name) || drained.has(fn.node) || drainedInBase(rel, fn.name)) continue;
-      if (!TELEMETRY.test(rel) && !new RegExp(`\\b${fn.name}\\b`).test(telemetryText)) excluded.push(fn.name);
+      if (!telemetryModule(rel) && !new RegExp(`\\b${fn.name}\\b`).test(telemetryText)) excluded.push(fn.name);
       else uncleared.push(`${rel} | ${fn.name}`);
     }
   }

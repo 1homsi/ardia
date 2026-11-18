@@ -92,11 +92,26 @@ function incrementTarget(node) {
   return null;
 }
 
+function loopAwaitsAround(fn, node) {
+  for (let at = node.parent; at && at !== fn; at = at.parent) {
+    if (!ts.isIterationStatement(at, false)) continue;
+    let found = false;
+    const visit = (inner) => {
+      if (found || (inner !== at.statement && ts.isFunctionLike(inner))) return;
+      if (ts.isAwaitExpression(inner)) found = true;
+      ts.forEachChild(inner, visit);
+    };
+    visit(at.statement);
+    if (found) return true;
+  }
+  return false;
+}
+
 function suspension(node) {
   for (let fn = enclosingFunction(node), inner = node; fn; inner = fn, fn = enclosingFunction(fn)) {
     const later = laterCallback(fn);
     if (later) return { why: later, fn };
-    if (awaitsBefore(fn, inner)) return { why: "await", fn };
+    if (awaitsBefore(fn, inner) || loopAwaitsAround(fn, inner)) return { why: "await", fn };
     if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return null;
     if (!fn.parent || !ts.isCallExpression(fn.parent) || !fn.parent.arguments.includes(fn)) return null;
   }
@@ -304,8 +319,9 @@ test("the tripwire catches consentNow() and counts after await, in timers, promi
     "function x() { p.then(async () => { if (stillValid(t)) { for (const k of ks) { n++; await work(); } } }); }",
     "function y() { p.then(async () => { for (const k of ks) { if (!stillValid(t)) return; n++; await work(); } }); }",
     "function z() { p.then(async () => { for (const k of ks) { await work(); if (stillValid(t)) n++; } }); }",
+    "async function bare() { for (const x of xs) { n++; await work(); } }",
   ].join("\n");
-  assert.deepEqual(kinds("apps/browser/src/state/telemetry/x.ts", counts), ["count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then"]);
+  assert.deepEqual(kinds("apps/browser/src/state/telemetry/x.ts", counts), ["count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after await"]);
 });
 
 test("the tripwire catches Codex's blind-spot probes", () => {
