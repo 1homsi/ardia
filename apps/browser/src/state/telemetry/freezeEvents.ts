@@ -7,12 +7,11 @@ import { useSync } from "../sync/engine";
 import { isSharing } from "./choice";
 import { capture } from "./client";
 import { freezeEpoch, heapFloorMb } from "./freezes";
-import { localFreezes } from "./freezeRecords";
+import { claimDailySend } from "./freezeSends";
 import { journeyInFlight } from "./journeys";
 import { nativeFrames, nativeImages } from "./sanitize";
 
 export const MAX_FREEZES_PER_SESSION = 5;
-export const MAX_FREEZES_PER_DAY = 20;
 const FRAMES_SENT = 24;
 const SIGNATURE_FRAMES = 3;
 const OWN_IMAGE = /^(Ardia|Chromium Framework|hermes)/;
@@ -62,20 +61,8 @@ export function freezeSignature(thread: string, frames: readonly FreezeFrame[]):
   return own.length ? fnv1a(`${thread}|${own.map((f) => `${f.image}+${f.offset.toString(16)}`).join("|")}`) : `none_${thread}`;
 }
 
-const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
-
-export function allowedToSend(signature: string, record: Pick<FreezeRecord, "id" | "startedAt" | "thread">, earlier: { seq: number; startedMs: number; signature: string }[]) {
-  if (sentThisSession >= MAX_FREEZES_PER_SESSION || signaturesThisSession.has(signature)) return false;
-  const today = earlier.filter((r) => r.seq !== record.id && sameDay(r.startedMs, record.startedAt));
-  return today.length < MAX_FREEZES_PER_DAY && !today.some((r) => r.signature === signature);
-}
-
-function earlierToday() {
-  return localFreezes().map((r) => ({
-    seq: r.seq,
-    startedMs: r.startedMs,
-    signature: freezeSignature(r.thread, (r.samples[0] ?? []).map((f) => ({ image: f.image, offset: parseInt(f.offset, 16) }))),
-  }));
+export function allowedThisSession(signature: string) {
+  return sentThisSession < MAX_FREEZES_PER_SESSION && !signaturesThisSession.has(signature);
 }
 
 function heapFloor(): number | null {
@@ -95,7 +82,7 @@ export async function reportFreeze(record: FreezeRecord) {
   if (!epoch || record.epoch !== epoch || !isSharing()) return;
   const frames = scrubFrames(record.samples[0]?.frames ?? []);
   const signature = freezeSignature(record.thread, frames);
-  if (!allowedToSend(signature, record, earlierToday())) return;
+  if (!allowedThisSession(signature) || !claimDailySend(signature)) return;
   sentThisSession++;
   signaturesThisSession.add(signature);
   const system = await withDeadline(systemState(), 1_000, null).catch(() => null);

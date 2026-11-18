@@ -520,7 +520,9 @@ upward, read with `mach_vm_read_overwrite` so a bad pointer fails instead of fau
 between suspend and resume allocates, locks, logs or calls Objective-C, and a sample whose stretch ended meanwhile is
 dropped). Never with a debugger attached (`P_TRACED`). The watchdog is armed at a loop's after-waiting (when no
 earlier deadline is pending) and disarmed at before-waiting once neither loop is busy and no capture is running, so a
-short stretch costs two timer updates and no wakeup; it re-arms only for a stretch still running. Sampling and the
+short stretch costs two timer updates and no wakeup (a wake's deadline check and arming take the same lock as idle
+cancellation, so a loop that wakes while the other is being disarmed always ends up armed: `ArdiaFreezeArming.h`,
+`tests/freeze-arming.test.cc` under ThreadSanitizer); it re-arms only for a stretch still running. Sampling and the
 2-second write run on their own queue, apart from the queue that allocates (recovery, the JS event, annotations), so a
 thread frozen holding the malloc lock can't stop the write; registration takes a small lock, never a queue.
 
@@ -552,7 +554,7 @@ The job: our own JS jobs mark what they run (`state/app/jobActivity.ts`: `sync`,
 `activity`, `tabs_floor`, `windows`, `sync_on`, `layout`, `action_in_flight` (the journeys' pending new tab, switch,
 navigation or launch), `memory_pressure`, `thermal`, `on_battery`, `uptime`, `signature` (FNV-1a of the top three frames
 from our own images), `samples`, and `freeze_frames`/`freeze_images` in the crash reports' shape. At most 5 a session and
-20 a day, one per signature a day (the day's are read from `freezes.txt`). The dashboard's Performance › Freezes card
+20 a UTC day, one per signature a day, counted in `freeze-sends.json` (the day, its send count and its signatures; apart from the 20-slot local ring, which wraps). The dashboard's Performance › Freezes card
 ranks signatures over 7 days by people affected, then total time frozen.
 
 ## Rows that don't compare with CEF-era numbers (0.2.21 and older)

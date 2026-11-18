@@ -1,4 +1,5 @@
 #import "ArdiaFreezeCapture.h"
+#import "ArdiaFreezeArming.h"
 
 #import <AppKit/AppKit.h>
 #import "ArdiaLaunchConfig.h"
@@ -60,12 +61,8 @@ struct Capture {
 dispatch_queue_t gFireQueue;
 dispatch_queue_t gWorkQueue;
 dispatch_source_t gTimer;
-os_unfair_lock gTimerLock = OS_UNFAIR_LOCK_INIT;
 os_unfair_lock gWatchLock = OS_UNFAIR_LOCK_INIT;
 os_unfair_lock gCaptureLock = OS_UNFAIR_LOCK_INIT;
-std::atomic<uint64_t> gDeadline{0};
-std::atomic<int> gBusy{0};
-std::atomic<int> gCapturing{0};
 std::atomic<bool> gActive{false};
 std::atomic<bool> gReady{false};
 std::atomic<int> gThermal{0};
@@ -277,29 +274,20 @@ void OpenRecords() {
   gSeq = newest;
 }
 
-void ArmAt(uint64_t due) {
-  os_unfair_lock_lock(&gTimerLock);
-  const uint64_t current = gDeadline.load(std::memory_order_relaxed);
-  if (!current || due < current) {
-    gDeadline.store(due, std::memory_order_relaxed);
-    const uint64_t now = mach_absolute_time();
-    const int64_t ns = due > now ? (int64_t)(TicksToMs(due - now) * 1e6) : 0;
-    dispatch_source_set_timer(gTimer, dispatch_time(DISPATCH_TIME_NOW, ns), DISPATCH_TIME_FOREVER, 20 * NSEC_PER_MSEC);
+void SetTimer(void *, uint64_t due) {
+  if (!due) {
+    dispatch_source_set_timer(gTimer, DISPATCH_TIME_FOREVER, DISPATCH_TIME_FOREVER, 0);
+    return;
   }
-  os_unfair_lock_unlock(&gTimerLock);
+  const uint64_t now = mach_absolute_time();
+  const int64_t ns = due > now ? (int64_t)(TicksToMs(due - now) * 1e6) : 0;
+  dispatch_source_set_timer(gTimer, dispatch_time(DISPATCH_TIME_NOW, ns), DISPATCH_TIME_FOREVER, 20 * NSEC_PER_MSEC);
 }
 
-void DisarmIfIdle() {
-  os_unfair_lock_lock(&gTimerLock);
-  if (gDeadline.load(std::memory_order_relaxed) && gBusy.load() == 0 && gCapturing.load() == 0) {
-    gDeadline.store(0, std::memory_order_relaxed);
-    dispatch_source_set_timer(gTimer, DISPATCH_TIME_FOREVER, DISPATCH_TIME_FOREVER, 0);
-  }
-  os_unfair_lock_unlock(&gTimerLock);
-}
+FreezeArming<> gArming(&SetTimer, nullptr);
 
 void Begin(Capture &c, int thread, const Stretch *source, uint64_t stretch, uint64_t start) {
-  if (c.active) gCapturing--;
+  if (c.active) gArming.captureEnded();
   c = {};
   c.active = true;
   c.source = source;
@@ -313,18 +301,16 @@ void Begin(Capture &c, int thread, const Stretch *source, uint64_t stretch, uint
   c.seq = ++gSeq;
   c.slot = gNextSlot;
   gNextSlot = (gNextSlot + 1) % kSlots;
-  gCapturing++;
+  gArming.captureBegan();
 }
 
 void Clear(Capture &c) {
-  if (c.active) gCapturing--;
+  if (c.active) gArming.captureEnded();
   c = {};
 }
 
 void Fire() {
-  os_unfair_lock_lock(&gTimerLock);
-  gDeadline.store(0, std::memory_order_relaxed);
-  os_unfair_lock_unlock(&gTimerLock);
+  gArming.fired();
   if (!gReady.load()) return;
   uint64_t next = UINT64_MAX;
   bool debugger = false, checkedDebugger = false;
@@ -373,7 +359,7 @@ void Fire() {
     }
     os_unfair_lock_unlock(&gCaptureLock);
   }
-  if (next != UINT64_MAX) ArmAt(next);
+  if (next != UINT64_MAX) gArming.armAt(next);
 }
 
 NSDictionary *Describe(const Capture &c) {
@@ -424,7 +410,7 @@ void Finish(const Ended &ended) {
   }
   os_unfair_lock_unlock(&gCaptureLock);
   if (!ours) return;
-  DisarmIfIdle();
+  gArming.disarmIfIdle();
   NSMutableDictionary *record = [Describe(done) mutableCopy];
   record[@"epoch"] = @(ended.epoch);
   if (gEmit) gEmit(record);
@@ -499,7 +485,7 @@ void Unwatch(int thread, const Stretch *stretch) {
     released = gSampled[thread].port;
     gWatched[thread] = false;
     gStretches[thread] = nullptr;
-    if (stretch->start.load(std::memory_order_acquire)) gBusy--;
+    if (stretch->start.load(std::memory_order_acquire)) gArming.sleep();
     os_unfair_lock_lock(&gCaptureLock);
     Clear(gCaptures[thread]);
     os_unfair_lock_unlock(&gCaptureLock);
@@ -509,16 +495,11 @@ void Unwatch(int thread, const Stretch *stretch) {
 }
 
 void Arm() {
-  gBusy++;
-  if (!gTimer || !gActive.load(std::memory_order_relaxed)) return;
-  const uint64_t due = mach_absolute_time() + MsToTicks(kFreezeMs);
-  const uint64_t current = gDeadline.load(std::memory_order_relaxed);
-  if (current && current <= due) return;
-  ArmAt(due);
+  if (gTimer) gArming.wake(mach_absolute_time(), MsToTicks(kFreezeMs), gActive.load(std::memory_order_relaxed));
 }
 
 void Idle() {
-  if (gBusy.fetch_sub(1) == 1 && gCapturing.load() == 0 && gDeadline.load(std::memory_order_relaxed)) DisarmIfIdle();
+  if (gTimer) gArming.sleep();
 }
 
 void StretchEnded(const Ended &ended) {

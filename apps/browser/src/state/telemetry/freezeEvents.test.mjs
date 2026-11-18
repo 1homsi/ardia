@@ -23,6 +23,7 @@ const client = await import("./client.ts");
 const freezes = await import("./freezes.ts");
 const events = await import("./freezeEvents.ts");
 const records = await import("./freezeRecords.ts");
+const sends = await import("./freezeSends.ts");
 const jobs = await import("../app/jobActivity.ts");
 after(() => client.setSharing(false, "settings"));
 
@@ -53,6 +54,7 @@ async function sentFreezes() {
 }
 
 beforeEach(() => {
+  stub.docs.delete("freeze-sends.json");
   client.loadChoice();
   client.setSharing(false, "settings");
   events.resetFreezeEventsForTests();
@@ -135,14 +137,18 @@ test("at most 5 a session, and one of each signature", async () => {
   assert.equal((await sentFreezes()).length, events.MAX_FREEZES_PER_SESSION);
 });
 
-test("at most 20 a day and one of each signature a day, counted from the local record", () => {
-  const now = Date.now();
-  const today = Array.from({ length: 20 }, (_, i) => ({ seq: i + 1, startedMs: now - 1000 * i, signature: `s${i}` }));
-  assert.equal(events.allowedToSend("new", { id: 99, startedAt: now, thread: "js" }, today), false, "20 already today");
-  assert.equal(events.allowedToSend("s3", { id: 99, startedAt: now, thread: "js" }, today.slice(0, 5)), false, "seen today");
-  assert.equal(events.allowedToSend("new", { id: 99, startedAt: now, thread: "js" }, today.slice(0, 5)), true);
-  const yesterday = today.map((r) => ({ ...r, startedMs: now - 86_400_000 * 2 }));
-  assert.equal(events.allowedToSend("s3", { id: 99, startedAt: now, thread: "js" }, yesterday), true, "other days don't count");
+test("the daily ledger: 20 a UTC day, one per signature a day, kept apart from the local ring, and a new day starts fresh", () => {
+  stub.docs.delete("freeze-sends.json");
+  const day = Date.parse("2026-11-17T12:00:00Z");
+  assert.equal(sends.claimDailySend("aaaa0001", day), true);
+  assert.equal(sends.claimDailySend("aaaa0001", day + 3_600_000), false, "same signature, same day");
+  for (let i = 2; i <= 20; i++) assert.equal(sends.claimDailySend(`aaaa${String(i).padStart(4, "0")}`, day), true);
+  assert.equal(sends.claimDailySend("bbbb0001", day), false, "21st of the day");
+  assert.deepEqual([sends.sendsOn(day).sent, sends.sendsOn(day).signatures.length], [20, 20]);
+  assert.equal(sends.claimDailySend("aaaa0001", day + 86_400_000), true, "the next UTC day starts fresh");
+  assert.equal(JSON.parse(stub.docs.get("freeze-sends.json")).version, 1);
+  stub.docs.set("freeze-sends.json", '{"version":1,"day":"2026-11-18","sent":"lots","signatures":[]}');
+  assert.equal(sends.sendsOn(day + 86_400_000).sent, 0, "a malformed document reads as nothing sent");
 });
 
 const slot = (text) => (text + " ".repeat(4096)).slice(0, 4095) + "\n";
@@ -173,4 +179,26 @@ test("the job a freeze overlapped most is its activity", () => {
   save();
   assert.equal(jobs.activityDuring(now - 60_000, now - 50_000), "none");
   assert.equal(jobs.during("import", () => 41) + 1, 42);
+});
+
+test("more than 20 freezes in one day across restarts: 20 sent at most, and a signature sent today isn't sent again after the local ring wraps", async () => {
+  client.setSharing(true, "settings");
+  stub.docs.delete("freeze-sends.json");
+  const ring = [];
+  const writeRing = (rec, frames) => {
+    ring[(rec.id - 1) % 20] = slot(`freeze ${rec.id} js recovered\nstarted_ms ${rec.startedAt}\nduration_ms 2400\ninput_wait_ms 0\ngc_ms 0\nactivity none\nthermal 0\nsample 1 state 1\n${frames.map((f) => `  ${f.image} +0x${f.offset.toString(16)}`).join("\n")}\nend\n`);
+    stub.docs.set("freezes.txt", ring.map((s) => s ?? slot("")).join(""));
+  };
+  const freezeAt = async (id, frames) => {
+    const rec = record({ id, startedAt: Date.now() - 3000, samples: [{ state: 1, frames }] });
+    writeRing(rec, frames);
+    await events.reportFreeze(rec);
+  };
+  for (let i = 1; i <= 30; i++) {
+    if (i % 5 === 1) events.resetFreezeEventsForTests();
+    await freezeAt(1000 + i, frames(["Ardia", 0x10000 * i]));
+  }
+  events.resetFreezeEventsForTests();
+  await freezeAt(1031, frames(["Ardia", 0x10000 * 1]));
+  assert.equal((await sentFreezes()).length, 20);
 });
