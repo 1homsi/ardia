@@ -1469,10 +1469,10 @@ iPhone follows the SwiftUI app on main since the merge of main (8203d0b3c, 2026-
 
 - The owner's tabs pass on a real iPhone (2026-11-17, first built on main's SwiftUI app in 24c1ade07 on `ios-browse-for-me`), in the Expo app:
   - The browsing bar keeps its tabs button (the owner, 2026-11-18: "we should keep the left button coz it look weird"), with its tap and its recent-tabs menu. A swipe up on the bar, once it passes 22 points, is a second way into the deck, from the button, the address or the plus (`barSwipeUp` in `BrowsingScreen.tsx`, `deck_bar_swipes`). On iPhone in portrait the page follows the finger into its card ("The swipe into the deck" under Deck speed). Android's original bar opens the deck at once, as before; the column layouts keep their tabs button and have no swipe.
-  - The deck's header shows a space with no icon by its name alone, with no initial in a circle; the space menus' fallback symbol is `<letter>.square.fill`, then `square.fill`.
+  - A space with no icon shows its name alone, with no initial in a circle, everywhere its title is drawn: the deck's header, the start page and the Spaces sheet's header (build 19, the owner on the sheet's "D Default": "why the spaces one has icon left to it? Doesn't make sense"). A space with a symbol or an emoji keeps it beside the name. The space menus' fallback symbol is `<letter>.square.fill`, then `square.fill`.
   - The deck is the stack; Grid is a choice in Settings › Appearance › Tabs ("How your open tabs are laid out. Swipe up on the bottom bar to see them."), iPhone only. The deck's bars have no grid button.
   - The tabs button with one tab open draws its card upright-ish (−4°) in the same 20 × 26 tile box the pair uses, so it sits centred in the circle; it used to hang off the circle's centre because the lone card had no box around it in the glass button's glyph layer (build 16, the owner: "one tab looks bad in the left button"). Android's original bar centred the lone card already, and the box lands it on the same pixels (`render/tabStack.render.test.tsx`).
-  - The deck's bottom bar has a round Incognito switch on its left (build 16, the owner: "we do want the left button here too. But not tab option, something else"), the same 48-point glass circle 12 points in as the browsing bar's tabs button, with Search Tabs between it and the plus. One tap shows only the Incognito tabs, as Safari's Private; a second tap brings back the normal tabs where they were scrolled. It is the `incognito` flag the plus already follows, so on the Incognito side the plus makes an Incognito tab, and the deck opens on the side of the tab you came from. On Incognito the circle takes the Incognito glass and a white eyes glyph; VoiceOver reads "Incognito, switch" with its state and a hint. With no Incognito tabs the side is empty and says "No Incognito Tabs"; the Archive capsule and the empty deck's Open Archive stay on the normal side; closing the last Incognito card from the deck keeps you on that side. iPhone only: Android's original deck keeps its private tabs among the others and has no switch, and the Duo column keeps the mixed deck (`switchDeckIncognito`, `deck_incognito_switches`).
+  - The deck's bottom bar has a round Incognito switch on its left (build 16, the owner: "we do want the left button here too. But not tab option, something else"), the same 48-point glass circle 12 points in as the browsing bar's tabs button, with Search Tabs between it and the plus. One tap shows only the Incognito tabs, as Safari's Private; a second tap brings back the normal tabs where they were scrolled. It is the `incognito` flag the plus already follows, so on the Incognito side the plus makes an Incognito tab, and the deck opens on the side of the tab you came from. On Incognito the circle takes the Incognito glass and a white eyes glyph. The glyph is SF `eyes` on iPhone, the symbol the New Incognito Tab menu rows and the home screen's quick action already show, in the switch, the Incognito pill, a private card's header icon and a private tab's face (build 19, the owner: "use eyes in here"); Android keeps the drawn pair of capsules. VoiceOver reads "Incognito, switch" with its state and a hint. With no Incognito tabs the side is empty and says "No Incognito Tabs"; the Archive capsule and the empty deck's Open Archive stay on the normal side; closing the last Incognito card from the deck keeps you on that side. iPhone only: Android's original deck keeps its private tabs among the others and has no switch, and the Duo column keeps the mixed deck (`switchDeckIncognito`, `deck_incognito_switches`).
   - Closing a card has no dust cloud. The card flies off the top on main's `flyAway` spring (response 0.32, no bounce), starting at the flick's speed, and the cards after it close the gap in the same frames: the order drops the card at once and a leaving record (`DeckLeave` in `lib/deckGeometry.ts`, timed by one UI-thread clock) draws it until it is off the screen. Closing the last tab lets the card leave before the start screen comes. With Reduce Motion the card fades where it is.
 
 - Find on Page on iPhone is WebKit's own find panel (`UIFindInteraction`), as main's SwiftUI app has, decided from the side-by-side screenshots in `/tmp/ardia-phone-shots/find-on-page/`. The app's own find bar stays for Android, and on iPhone behind the launch switch `-ArdiaAppFind YES` for comparison. `find_opened_system` and `find_opened_bar` count which one opens.
@@ -1941,6 +1941,15 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
     stack it moves right as it shrinks, and it is never smaller than the card.
   - **Kept from Safari:** only the page shows during the pull, over the deck's backdrop; the other cards and the tab
     view's controls come in at release; the commit distance; the return.
+
+- Settings, Archive, History and Bookmarks keep one neutral background, the system's grouped background, whatever
+  space is shown (build 19, the owner: "as different spaces have different bg we shouldn't carry that everywhere").
+  - **Main** tints every one of these pages with the shown space's window tint, so Settings changed colour with the
+    space behind it.
+  - **Ardia:** the space's colour stays where the space is: the start page, the deck and the Spaces sheet. The
+    Appearance row's icon still takes the chosen colour, and the colour picker is unchanged.
+  - **Where:** `SettingsChrome` in ArdiaDesign's `SettingsPieces.swift`, which every Expo UI settings page, the Archive
+    and the library pages apply.
 
 - A page that isn't secure shows a red open lock in the bar, not the words "Not Secure" (the owner's decision,
   16 Nov 2026: "we can show open lock with red i guess see the arc for that").
@@ -3039,9 +3048,10 @@ Whole stack (`SettingsView.swift`):
   `ToolbarItem(.confirmationAction)` "Done", semibold.
 - `.tint(Palette.formAccent)` (#007AFF light, #0A84FF dark) and `.toggleStyle(SettingsSwitchStyle())`: a switch
   tinted `systemGreen`.
-- Every page gets `.settingsChrome()`: `lookBackdrop()` (`scrollContentBackground(.hidden)` over
-  `ProfileBackdrop().ignoresSafeArea()`), `scrollEdgeEffectStyle(.hard, for: .top)`, and the navigation bar's
-  background `look.surface`, always visible.
+- Every page gets `.settingsChrome()`: `scrollContentBackground(.hidden)` over `SettingsSurface.page` (the system's
+  grouped background), `scrollEdgeEffectStyle(.hard, for: .top)`, and the navigation bar's background the same
+  colour, always visible. Main draws the space's window tint here (`ProfileBackdrop`, `look.surface`); see
+  "Deliberately different".
 - Pages with a hero use `.settingsPage(title)`: the inline title stays empty until the content scrolls past 150 pt
   (`onScrollGeometryChange`).
 - Lists are `Form` with `.contentMargins(.top, Spacing.small)` (12 pt).
@@ -3126,7 +3136,7 @@ What Expo UI doesn't have and we add through its extension path (`ExpoUIView` vi
 source:
 - Views: `SettingsIconTile` (already public in ArdiaDesign), `SettingsRowLabel`, `SettingsHero`, `SetupStepRow`,
   `ColorSwatch` row, `CheckmarkRow`, `AppIconPreview`, `ProfileBackdrop`.
-- Modifiers: `settingsChrome`, `settingsPage(title)`, `lookBackdrop`, `chromeSurface(in:interactive:tinted:)` (glass
+- Modifiers: `settingsChrome`, `settingsPage(title)`, `chromeSurface(in:interactive:tinted:)` (glass
   `.regular`/`.interactive()`, or Classic: `look.surface` or the background with a 0.5 pt stroke at 12%),
   `SettingsSwitchStyle`, `PressableStyle`, the `LegibleInk` text style.
 - Tokens as values: `SettingsTint`, `Palette.formAccent`, `Spacing` (4, 8, 12, 16, 20, 24, 32), `Motion.press` and

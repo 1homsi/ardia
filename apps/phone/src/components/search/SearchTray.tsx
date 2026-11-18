@@ -912,7 +912,7 @@ function IncognitoToggle({ beside = false }: { beside?: boolean }) {
       onPress={toggleTrayIncognito}
       style={[styles.incognito, panelField ? styles.panelIncognito : null, beside ? [styles.newTabIncognito, theme.dark || on ? styles.panelFieldDark : styles.panelFieldLight] : null]}
     >
-      {on ? (
+      {on && !beside ? (
         <Animated.Text entering={modeToggleIn} exiting={modeToggleOut} style={[font.footnote, styles.medium, styles.toggleLabel, { color: tabsInk.onDarkSoft }]}>
           Incognito
         </Animated.Text>
@@ -1178,7 +1178,7 @@ const styles = StyleSheet.create({
   newTabFieldRow: { flexDirection: "row", alignItems: "center", gap: space.s },
   newTabField: { flex: 1, minHeight: NEW_TAB_FIELD.height },
   newTabInput: { fontSize: NEW_TAB_FIELD.fontSize, minHeight: NEW_TAB_FIELD.height - floatingPanelLayout.fieldEdge * 2 },
-  newTabIncognito: { width: NEW_TAB_FIELD.incognito, height: NEW_TAB_FIELD.incognito, borderRadius: NEW_TAB_FIELD.incognito / 2, alignItems: "center", justifyContent: "center", paddingHorizontal: 0 },
+  newTabIncognito: { width: NEW_TAB_FIELD.incognito, height: NEW_TAB_FIELD.incognito, borderRadius: NEW_TAB_FIELD.incognito / 2, alignItems: "center", justifyContent: "center", paddingLeft: 0, paddingRight: 0, minWidth: 0, gap: 0 },
   panelInput: { minHeight: browseLayout.searchFieldHeight - floatingPanelLayout.fieldEdge * 2 },
   panelIncognito: { paddingRight: space.xs + 2 },
   incognitoGlyph: { width: INCOGNITO_GLYPH.frame, alignItems: "center", justifyContent: "center" },

@@ -96,7 +96,11 @@ onIPhone("the new-tab panel's field is the large Search field with the mic insid
   const incognito = host(root, "newTabIncognito")!;
   expect(incognito.props.accessibilityLabel).toBe("Activate Incognito");
   expect(capsule.findAll((node) => node.props.accessibilityLabel === "Activate Incognito")).toHaveLength(0);
-  expect(flat(incognito)).toMatchObject({ width: NEW_TAB_FIELD.incognito, height: NEW_TAB_FIELD.incognito });
+  expect(flat(incognito)).toMatchObject({ width: NEW_TAB_FIELD.incognito, height: NEW_TAB_FIELD.incognito, paddingLeft: 0, paddingRight: 0 });
+  act(() => root.root.findAll((node) => node.props.testID === "newTabIncognito" && typeof node.props.onPress === "function")[0]!.props.onPress());
+  const on = host(root, "newTabIncognito")!;
+  expect(on.props.accessibilityLabel).toBe("Deactivate Incognito");
+  expect(on.findAll((node) => typeof node.type === "string" && node.type === "Text" && node.children.join("") === "Incognito")).toHaveLength(0);
   unmount(root);
 });
 
