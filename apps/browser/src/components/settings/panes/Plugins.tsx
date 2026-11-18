@@ -34,7 +34,13 @@ export function PluginsPane({ detail }: SettingsPlace) {
   const consent = usePluginConsent();
   const showing = useRef(false);
   const owned = useRef<string | null>(null);
-  useEffect(() => () => void (owned.current && dismissPluginConsent(owned.current)), []);
+  useEffect(
+    () => () => {
+      if (owned.current) dismissPluginConsent(owned.current);
+      if (showing.current) closeSettingsSheet();
+    },
+    [],
+  );
   useEffect(() => {
     owned.current = consent?.name ?? null;
     if (consent) {

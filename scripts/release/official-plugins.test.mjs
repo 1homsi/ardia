@@ -37,9 +37,15 @@ function scratch({ pluginVersion = "0.3.0", link = false } = {}) {
   writeFileSync(join(artifacts, "install.sh"), readFileSync(join(root, "apps/cli/install.sh")));
   const pin = join(dir, "pin.json");
   const unpublished = structuredClone(realPin);
-  for (const artifact of Object.values(unpublished.plugins[0].artifacts)) artifact.sha256 = null;
-  unpublished.plugins[0].version = "0.3.0";
-  unpublished.plugins[0].release = "https://github.com/ardia-browser/plugins/releases/download/cli-v0.3.0";
+  Object.assign(unpublished.plugins[0], {
+    version: "0.3.0",
+    release: "https://github.com/ardia-browser/plugins/releases/download/cli-v0.3.0",
+    artifacts: {
+      "macos-arm64": { file: "cli-plugin-0.3.0-macos-arm64.tar.gz", sha256: null },
+      "linux-x64": { file: "ardia-cli-0.3.0-linux-x64.tar.gz", sha256: null },
+      installer: { file: "install.sh", sha256: null },
+    },
+  });
   writeFileSync(pin, JSON.stringify(unpublished));
   return { dir, artifacts, pin };
 }
