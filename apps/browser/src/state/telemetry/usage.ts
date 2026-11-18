@@ -128,7 +128,7 @@ function emitCounts(consent: ConsentToken | null) {
   countsSince = Date.now();
 }
 
-watchConsentBoundary(() => (emitWindowUsage(null), void takeSearchSuggests()));
+watchConsentBoundary(() => emitWindowUsage(null));
 export const noteImportedPins = (made: { rows: number; splits: number }, consent?: ConsentToken | null) => bump(consent, { importedPinnedRows: made.rows, importedSplits: made.splits });
 
 export const noteImportedSpaces = (made: { spaces: number; containerSpaces: number; dataProfiles: number; essentials: number; startersNamed: number }, consent?: ConsentToken | null) => bump(consent, { importedSpaces: made.spaces, importedContainerSpaces: made.containerSpaces, importedDataProfiles: made.dataProfiles, importedEssentials: made.essentials, importedStartersNamed: made.startersNamed });
@@ -312,10 +312,9 @@ async function sampleMemory(consent: ConsentToken | null) {
 
 function emitOmniboxLatency(consent: ConsentToken | null) {
   const samples = takeOmniboxLatency().sort((a, b) => a - b);
-  if (!samples.length) return;
-  const suggests = takeSearchSuggests();
+  if (!samples.length) return void (stillValid(consent) || takeSearchSuggests());
   const at = (p: number) => percentile(samples, p);
-  capture("perf_omnibox", { ...suggests, samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! }, consent);
+  capture("perf_omnibox", { ...takeSearchSuggests(), samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! }, consent);
 }
 
 function snapshotSettings(consent: ConsentToken | null) {

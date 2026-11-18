@@ -82,13 +82,28 @@ function awaitsBefore(fn, node) {
   return found;
 }
 
+function loopAwaitsAround(fn, node) {
+  for (let at = node.parent; at && at !== fn; at = at.parent) {
+    if (!ts.isIterationStatement(at, false)) continue;
+    let found = false;
+    const visit = (inner) => {
+      if (found || (inner !== at.statement && ts.isFunctionLike(inner))) return;
+      if (ts.isAwaitExpression(inner)) found = true;
+      ts.forEachChild(inner, visit);
+    };
+    visit(at.statement);
+    if (found) return true;
+  }
+  return false;
+}
+
 function chainOf(node, listeners) {
   const prefix = [];
   for (let fn = enclosing(node), inner = node; fn; inner = fn, fn = enclosing(fn)) {
     prefix.push(fn);
     const kind = continuation(fn, listeners);
     if (kind) return { prefix, direct: kind === "later" };
-    if (awaitsBefore(fn, inner)) return { prefix, direct: true };
+    if (awaitsBefore(fn, inner) || loopAwaitsAround(fn, inner)) return { prefix, direct: true };
     if (!(ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) || !isArgumentOf(fn)) break;
   }
   return { prefix, direct: false };
@@ -126,6 +141,15 @@ export function reachSinks(program, files, listeners) {
     chains.set(call, chain);
     if (chain.direct) reach(calleeOf(call));
     else for (const fn of chain.prefix) waiting.has(fn) ? waiting.get(fn).push(call) : waiting.set(fn, [call]);
+  }
+  for (const call of calls) {
+    const name = calleeName(call);
+    const later = LATER.has(name) || (ts.isPropertyAccessExpression(call.expression) && PROMISE.has(name)) || (LISTENER.test(name) && !listeners.has(name));
+    if (!later) continue;
+    for (const raw of call.arguments) {
+      const arg = unwrapDown(raw);
+      if (ts.isIdentifier(arg) || ts.isPropertyAccessExpression(arg)) reach(declOf(checker, arg));
+    }
   }
   while (work.length) for (const call of waiting.get(work.pop()) ?? []) reach(calleeOf(call));
 

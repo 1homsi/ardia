@@ -529,3 +529,67 @@ test("PRRT 4608136987 search-suggestion counts with no latency sample are droppe
   client.replaceInstallId();
   assert.equal(Object.values(track.takeSearchSuggests()).reduce((a, b) => a + b, 0), 0);
 });
+
+test("Codex 6.2 #4 with sharing on throughout, suggestion counts wait for the next omnibox sample instead of being dropped by a report with none", async () => {
+  client.setSharing(true, "onboarding");
+  track.takeSearchSuggests();
+  track.takeOmniboxLatency();
+  track.noteSearchSuggest("ok", client.consentToken());
+  usage.sessionEnding();
+  for (let i = 0; i < 5; i++) track.sampleOmniboxLatency(9);
+  usage.sessionEnding();
+  assert.equal((await queued("perf_omnibox")).at(-1)?.search_suggest_ok, 1);
+});
+
+test("Codex 6.2 #1 every window that reads the same saved choice without an epoch derives the same consent period", () => {
+  const legacy = { version: 1, sharing: true, installId: "legacy-install", decidedAt: 1700000000000, askDoneAt: 1, crashCursor: 0, lastVersion: null, sessionOpen: false };
+  stub.docs.set("telemetry.json", JSON.stringify(legacy));
+  choice.reloadChoice();
+  const first = client.consentEpoch();
+  stub.docs.set("telemetry.json", JSON.stringify(legacy));
+  choice.reloadChoice();
+  assert.ok(first);
+  assert.equal(client.consentEpoch(), first);
+});
+
+const LEGACY_CHOICE = { version: 1, sharing: true, installId: "legacy-install", decidedAt: 1700000000000, askDoneAt: 1, crashCursor: 0, lastVersion: null, sessionOpen: false };
+const readLegacy = (doc = LEGACY_CHOICE) => (stub.docs.set("telemetry.json", JSON.stringify(doc)), choice.reloadChoice(), client.consentEpoch());
+
+test("a saved choice that already has an epoch keeps it, and a pre-epoch one derives the same epoch from its install ID and decision time in every window", () => {
+  assert.equal(readLegacy({ ...LEGACY_CHOICE, epoch: "saved-epoch" }), "saved-epoch");
+  const derived = readLegacy();
+  assert.equal(derived, "legacy:legacy-install:1700000000000");
+  assert.equal(readLegacy(), derived);
+  assert.notEqual(readLegacy({ ...LEGACY_CHOICE, installId: "other-install" }), derived);
+});
+
+test("the leader's first save writes the derived legacy epoch, so a follower reading the document afterwards is in the same period", () => {
+  const derived = readLegacy();
+  choice.dismissAsk();
+  assert.equal(JSON.parse(stub.docs.get("telemetry.json")).epoch, derived);
+  choice.reloadChoice();
+  assert.equal(client.consentEpoch(), derived);
+});
+
+test("resetting the anonymous ID after a legacy choice was read starts a new random period, is a consent boundary, and every window reads the new epoch", () => {
+  const derived = readLegacy();
+  let boundaries = 0;
+  const stop = client.onConsentPeriodChange(() => boundaries++);
+  try {
+    client.replaceInstallId();
+    const renewed = client.consentEpoch();
+    assert.ok(renewed && renewed !== derived && !renewed.startsWith("legacy:"), renewed);
+    assert.equal(boundaries, 1);
+    const onDisk = JSON.parse(stub.docs.get("telemetry.json"));
+    assert.equal(onDisk.epoch, renewed);
+    assert.notEqual(onDisk.installId, "legacy-install");
+    readLegacy();
+    boundaries = 0;
+    stub.docs.set("telemetry.json", JSON.stringify(onDisk));
+    choice.reloadChoice();
+    assert.equal(client.consentEpoch(), renewed);
+    assert.equal(boundaries, 1);
+  } finally {
+    stop();
+  }
+});

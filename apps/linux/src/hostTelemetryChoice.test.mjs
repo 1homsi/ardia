@@ -37,3 +37,14 @@ test("a follower window reports the leader's save verdict for its choice, and fa
   assert.equal(refreshed.length, 3);
   assert.deepEqual(reported.map(String), ["Error: no leader"]);
 });
+
+test("a follower's sharing change resolves with the leader's verdict after refreshing its view, so a failed save isn't reported as durable", async () => {
+  const { followerChoiceSaved } = await import("./telemetryChoiceApply.ts");
+  const refreshed = [];
+  const refresh = async () => void refreshed.push(1);
+  const reported = [];
+  assert.equal(await followerChoiceSaved(Promise.resolve(false), refresh, (e) => reported.push(e)), false);
+  assert.equal(await followerChoiceSaved(Promise.resolve(true), refresh, (e) => reported.push(e)), true);
+  assert.equal(await followerChoiceSaved(Promise.reject(new Error("no leader")), refresh, (e) => reported.push(e)), false);
+  assert.deepEqual([refreshed.length, reported.length], [3, 1]);
+});

@@ -51,10 +51,14 @@ if (process.argv.includes("--write")) {
         "function onNative() { noteThing(); }",
         "p.then(() => { helperNoter(); helperToken(); helperStart(); helperLog(); });",
         "onAppEvent(() => onNative());",
+        "function byReference() { noteThing(); }",
+        "p.then(byReference);",
+        "function inLoop() { noteThing(); }",
+        "async function loop(xs: number[], work: () => Promise<void>) { for (const x of xs) { inLoop(); await work(); } }",
       ].join("\n"),
     });
     const { sinks } = reachSinks(program, scopeFiles(program), new Set(["onAppEvent"]));
-    assert.deepEqual(sinks.map((s) => `${s.kind}:${s.line}`), ["noter:4", "consentToken:5", "console:8"]);
+    assert.deepEqual(sinks.map((s) => `${s.kind}:${s.line}`), ["noter:4", "consentToken:5", "console:8", "noter:12", "noter:14"]);
   });
 
   test("for await and awaits inside a call's arguments make the callee continuation work, unless the caller forwards its token", () => {
