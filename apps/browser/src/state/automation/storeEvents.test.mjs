@@ -82,3 +82,23 @@ test("a copy that sounded through a holder it only had inside a held transaction
   S().updateLive(quiet, { playingAudio: true });
   assert.deepEqual(copyEvents(), [`media.started ${copy}`], "the copy's real start is sent");
 });
+
+test("audio reports outside a transaction aren't remembered for the next transaction's recheck", (t) => {
+  const { song, quiet } = playingSongShared(t);
+  const w = S().tabs[song].windowId;
+  const extra = ["x", "y"].map((h) => S().newTab(w, { url: `https://${h}.example/`, background: true }));
+  for (const id of [quiet, ...extra]) S().updateLive(id, { playingAudio: true });
+  S().closeTabs(extra);
+  const looked = new Set();
+  const getState = useBrowser.getState;
+  useBrowser.getState = () => {
+    const s = getState();
+    return { ...s, tabs: new Proxy(s.tabs, { get: (target, key) => (looked.add(key), target[key]) }) };
+  };
+  try {
+    storeTransaction(() => {});
+  } finally {
+    useBrowser.getState = getState;
+  }
+  assert.deepEqual(extra.filter((id) => looked.has(id)), [], "closed tabs that once played aren't looked up again");
+});

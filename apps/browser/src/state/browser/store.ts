@@ -100,6 +100,7 @@ const settled = (s: BrowserState, prev: BrowserState) => {
 const transactions = transactional<BrowserState>(pageMoved, settled);
 export const storeTransaction = transactions.transaction;
 export const afterStoreTransactionIdempotent = transactions.afterTransactionIdempotent;
+export const inStoreTransaction = transactions.inTransaction;
 setHeldReportsTransaction(storeTransaction);
 
 export const useBrowser = create<BrowserState>()(actionsApart(transactions.middleware(batched((...a) => ({

@@ -1,4 +1,4 @@
-import { afterStoreTransactionIdempotent, useBrowser, type BrowserState } from "../browser/store";
+import { afterStoreTransactionIdempotent, inStoreTransaction, useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, isIncognitoProfile } from "../browser/model";
 import { usePages } from "../tabs/pageState";
 import { changedIds } from "../browser/changes";
@@ -88,7 +88,7 @@ function startMediaEvents(send: EventSend, wants: ReadonlySet<string>) {
     if (live.playingAudio === prev.playingAudio) return;
     const s = useBrowser.getState();
     const ids = liveReachOf(s, id);
-    for (const tabId of ids) reached.add(tabId);
+    if (inStoreTransaction()) for (const tabId of ids) reached.add(tabId);
     recheck(s, ids);
   });
   const stopReconcile = afterStoreTransactionIdempotent(() => {

@@ -71,5 +71,6 @@ export function transactional<T>(heardAlone?: (s: T, prev: T) => boolean, settle
     afterEach.add(listener);
     return () => void afterEach.delete(listener);
   };
-  return { middleware, transaction, afterTransactionIdempotent };
+  const inTransaction = () => depth > 0;
+  return { middleware, transaction, afterTransactionIdempotent, inTransaction };
 }
