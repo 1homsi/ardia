@@ -1,4 +1,9 @@
-import { Platform, ScrollView, StyleSheet } from "react-native";
+import { Dimensions, Platform, ScrollView, StyleSheet } from "react-native";
+import { State } from "react-native-gesture-handler";
+import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { sheetPullTranslation } from "../components/ui/Sheet";
+import { floatingPanelLayout, space } from "../components/ui";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { newTabPanelShown, NEW_TAB_FIELD, SearchTray } from "../components/search/SearchTray";
 import { DesignProvider } from "../components/ui";
@@ -145,5 +150,105 @@ onAndroid("Android's search keeps its own tray: no new-tab panel", () => {
   const root = tray();
   expect(host(root, "newTabFieldRow")).toBeUndefined();
   expect(host(root, "traySurface")).toBeUndefined();
+  unmount(root);
+});
+
+let seenTop = 0;
+let seenBottom = 0;
+function InsetProbe() {
+  const insets = useSafeAreaInsets();
+  seenTop = insets.top;
+  seenBottom = insets.bottom;
+  return null;
+}
+const trayWithInsets = () => renderSurface(<DesignProvider design="redesigned"><InsetProbe /><SearchTray /></DesignProvider>);
+const pull = (id: string, translationY: number) => {
+  act(() =>
+    fireGestureHandler(getByGestureTestId(id), [
+      { state: State.BEGAN, translationY: 0, velocityY: 0 },
+      { state: State.ACTIVE, translationY: translationY / 2, velocityY: 0 },
+      { state: State.ACTIVE, translationY, velocityY: 0 },
+      { state: State.END, translationY, velocityY: 0 },
+    ]),
+  );
+  act(() => jest.runOnlyPendingTimers());
+};
+const closeSearchDim = (root: Root) => root.root.findAll((node) => node.props.accessibilityLabel === "Close Search" && typeof node.props.onPress === "function")[0]!;
+
+onIPhone("the panel's top sits 28 points under the status bar, as in Arc Search's, whether the keyboard is up or down", () => {
+  act(() => presentSearch("start", ""));
+  const root = trayWithInsets();
+  const window = Dimensions.get("window").height;
+  const gap = space.s + floatingPanelLayout.aboveKeyboard;
+  lift(300);
+  expect(window - 300 - gap - (flat(host(root, "traySurface")).height as number)).toBe(seenTop + 28);
+  act(() => (mockSeen.props!.onLift as (lift: { lift: number; up: boolean }) => void)({ lift: 0, up: false }));
+  expect(window - seenBottom - gap - (flat(host(root, "traySurface")).height as number)).toBe(seenTop + 28);
+  unmount(root);
+});
+
+onIPhone("a tap above the panel closes it, with the keyboard up and with it down, and Close Search comes first for VoiceOver", () => {
+  act(() => presentSearch("start", ""));
+  const root = tray();
+  const dim = host(root, "trayDim")!;
+  expect(dim.props.pointerEvents).toBe("auto");
+  expect(dim.props.accessibilityElementsHidden).toBe(false);
+  const accessible = root.root.findAll((node) => typeof node.type === "string" && (node.props.accessibilityRole === "button" || node.props.accessible === true) && node.props.accessibilityElementsHidden !== true);
+  expect(accessible[0]!.props.accessibilityLabel).toBe("Close Search");
+  act(() => {
+    closeSearchDim(root).props.onPress();
+  });
+  expect(searchState().open).toBe(false);
+  unmount(root);
+});
+
+onIPhone("a drag down that starts on the field closes the panel", () => {
+  act(() => presentSearch("start", ""));
+  const root = tray();
+  lift(300);
+  pull("trayDismissDrag", 240);
+  expect(searchState().open).toBe(false);
+  unmount(root);
+});
+
+onIPhone("a drag down that starts on the list closes the panel while the list is at its top, and a drag up never does", () => {
+  act(() => presentSearch("start", ""));
+  const root = tray();
+  lift(300);
+  act(() => typeSearch("site"));
+  act(() => jest.advanceTimersByTime(50));
+  pull("trayListDrag", -240);
+  expect(searchState().open).toBe(true);
+  pull("trayListDrag", 240);
+  expect(searchState().open).toBe(false);
+  unmount(root);
+});
+
+test("on a list scrolled down, a drag goes to the scroll and moves nothing: one rule with the sheet's", () => {
+  expect(sheetPullTranslation(240, true, false)).toBe(0);
+  expect(sheetPullTranslation(240, true, true)).toBe(240);
+  expect(sheetPullTranslation(-240, true, true)).toBe(0);
+  expect(sheetPullTranslation(240, false, false)).toBe(240);
+});
+
+onIPhone("submitting from the panel closes it", () => {
+  act(() => presentSearch("start", ""));
+  const root = tray();
+  act(() => {
+    browse.submitSearch("example.com");
+  });
+  expect(searchState().open).toBe(false);
+  unmount(root);
+});
+
+onIPhone("with search closed the panel's dim takes no touches, so nothing covers the app", () => {
+  const root = tray();
+  const dim = host(root, "trayDim");
+  if (dim) expect(dim.props.pointerEvents).toBe("none");
+  act(() => presentSearch("start", ""));
+  act(() => dismissSearch());
+  act(() => jest.runOnlyPendingTimers());
+  const after = host(root, "trayDim");
+  if (after) expect(after.props.pointerEvents).toBe("none");
   unmount(root);
 });

@@ -1,6 +1,7 @@
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { countRender } from "../../state/app/interactionPerf";
 import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { SheetScrollContext, SheetScrollView, sheetPullTranslation, type SheetScroll } from "../ui/Sheet";
 import { Host, Image as SystemImage } from "@expo/ui/swift-ui";
 import { font as systemFont } from "@expo/ui/swift-ui/modifiers";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -39,7 +40,11 @@ import { useTrayKeyboard } from "./useTrayKeyboard";
 
 const SHEET_ABOVE_KEYBOARD = 274;
 
-export const NEW_TAB_FIELD = { height: 56, fontSize: 22, incognito: 44 } as const;
+export const NEW_TAB_FIELD = { height: 56, fontSize: 22, incognito: 44, gapAbove: 28 } as const;
+
+type TrayList = { drag: GestureType; scroll: SheetScroll };
+
+const TrayListContext = createContext<TrayList | null>(null);
 
 export const NewTabPanelContext = createContext(false);
 
@@ -451,9 +456,9 @@ function StagedTray() {
   const resting = Math.max(lift.lift, safeBottom);
   const command = useCommandBar(resting);
   const editsPage = useSearchEditsPage();
-  const newTabPanel = newTabPanelShown(editsPage, phoneLayout, command !== null);
+  const newTabPanel = mounted !== null && newTabPanelShown(editsPage, phoneLayout, command !== null);
   const preferred = newTabPanel ? Number.POSITIVE_INFINITY : SHEET_ABOVE_KEYBOARD + browseLayout.searchFieldHeight * (window.fontScale - 1);
-  const trayHeight = command ? command.maxHeight : trayMaxHeight(preferred, window.height - insets.top, resting, space.s + floatingPanelLayout.aboveKeyboard);
+  const trayHeight = command ? command.maxHeight : trayMaxHeight(preferred, window.height - insets.top - (newTabPanel ? NEW_TAB_FIELD.gapAbove : 0), resting, space.s + floatingPanelLayout.aboveKeyboard);
   const newTabPanelNow = useRef(newTabPanel);
   newTabPanelNow.current = newTabPanel;
   const morphs = phoneLayout && !reduceMotion && command === null && pills > 0;
@@ -552,9 +557,10 @@ function StagedTray() {
     if (next.up && next.lift > 0) knownLift = next.lift;
     setLift((was) => (was.lift === next.lift && was.up === next.up ? was : next));
   };
+  const dimUp = newTabPanel ? !closing : lift.up;
   useEffect(() => {
-    dim.value = withTiming(lift.up ? 1 : 0, { duration: reduceMotion ? barReturnMotion.fadeMs : stageMotion.dimMs, easing: tabsCurve.easeOut });
-  }, [lift.up]);
+    dim.value = withTiming(dimUp ? 1 : 0, { duration: reduceMotion ? barReturnMotion.fadeMs : stageMotion.dimMs, easing: tabsCurve.easeOut });
+  }, [dimUp]);
 
   const measuredField = useCallback((height: number) => {
     if (height <= 0) return;
@@ -613,46 +619,53 @@ function StagedTray() {
   const onSettle = useCallback(() => handlers.current.settleHeld(), []);
   const onDismiss = useCallback((velocity: number) => handlers.current.dismissByDrag(velocity), []);
 
-  const dismissDrag = useMemo(
-    () =>
-      Gesture.Pan()
-        .withTestId("trayDismissDrag")
-        .enabled(!closing)
-        .activeOffsetY([-10, 10])
-        .failOffsetX([-24, 24])
-        .onStart(() => {
-          cancelAnimation(drag);
-          grabbed.value = trayDragTranslation(drag.value);
-          released.value = false;
-          runOnJS(onGrab)();
-        })
-        .onUpdate((event) => {
-          const translation = grabbed.value + event.translationY;
-          if (!released.value && trayDragReleasesKeyboard(translation)) {
-            released.value = true;
-            runOnJS(onRelease)();
-          }
-          drag.value = trayDragOffset(translation);
-        })
-        .onEnd((event) => {
-          const translation = grabbed.value + event.translationY;
-          grabbed.value = 0;
-          const velocity = trayVelocity(translation, event.velocityY);
-          if (trayDragDismisses(translation, event.velocityY, heightNow.value)) {
-            runOnJS(onDismiss)(velocity);
-            return;
-          }
-          drag.value = reducedNow.value ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(0, { ...stageMotion.settle, velocity });
-          if (released.value) runOnJS(onSettle)();
-        }),
-    [closing],
-  );
+  const listAtTop = useSharedValue(true);
+  const listScrolls = useSharedValue(false);
+  const listNative = useMemo(() => Gesture.Native(), []);
+  const trayDrag = (testId: string, list: boolean) =>
+    Gesture.Pan()
+      .withTestId(testId)
+      .enabled(!closing)
+      .activeOffsetY([-10, 10])
+      .failOffsetX([-24, 24])
+      .simultaneousWithExternalGesture(list ? listNative : Gesture.Manual().enabled(false))
+      .onStart(() => {
+        cancelAnimation(drag);
+        grabbed.value = trayDragTranslation(drag.value);
+        released.value = false;
+        runOnJS(onGrab)();
+      })
+      .onUpdate((event) => {
+        const pulled = list ? sheetPullTranslation(event.translationY, listScrolls.value, listAtTop.value) : event.translationY;
+        const translation = grabbed.value + pulled;
+        if (!released.value && trayDragReleasesKeyboard(translation)) {
+          released.value = true;
+          runOnJS(onRelease)();
+        }
+        drag.value = trayDragOffset(translation);
+      })
+      .onEnd((event) => {
+        const pulled = list ? sheetPullTranslation(event.translationY, listScrolls.value, listAtTop.value) : event.translationY;
+        const speed = pulled === 0 ? 0 : event.velocityY;
+        const translation = grabbed.value + pulled;
+        grabbed.value = 0;
+        const velocity = trayVelocity(translation, speed);
+        if (trayDragDismisses(translation, speed, heightNow.value)) {
+          runOnJS(onDismiss)(velocity);
+          return;
+        }
+        drag.value = reducedNow.value ? withTiming(0, { duration: trayMotion.reduced, easing: tabsCurve.easeOut }) : withSpring(0, { ...stageMotion.settle, velocity });
+        if (released.value) runOnJS(onSettle)();
+      });
+  const dismissDrag = useMemo(() => trayDrag("trayDismissDrag", false), [closing]);
+  const listDrag = useMemo(() => trayDrag("trayListDrag", true), [closing]);
+  const trayList = useMemo<TrayList>(() => ({ drag: listDrag, scroll: { native: listNative, atTop: listAtTop, scrolls: listScrolls } }), [listDrag, listNative]);
 
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * (1 - clampedProgress(drag.value, travel.value)) }));
   const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.value }] }));
   const panelTint = withAlpha(incognito ? floatingPanelLayout.incognitoFill : theme.surface, reduceTransparency ? 1 : incognito ? floatingPanelLayout.incognitoShare : floatingPanelLayout.tintShare);
   const morphLook = useMemo(() => ({ usesGlass: chrome === "glass", panelTint, panelDark: incognito, classicPanel: theme.surface }), [chrome, panelTint, incognito, theme.surface]);
-  const dimTakesTouches = lift.up && !closing;
+  const dimTakesTouches = (newTabPanel || lift.up) && !closing;
   const field = useMemo<StagedField>(() => ({ holdsScroll, presented, onFieldHeight: measuredField }), [holdsScroll, presented, measuredField]);
 
   return (
@@ -684,8 +697,10 @@ function StagedTray() {
         accessibilityElementsHidden={!dimTakesTouches}
         onPressIn={closeOnPressIn}
         onPress={closeOnPress}
-        style={[StyleSheet.absoluteFill, { backgroundColor: origin === "page" ? theme.trayDim : ink.clear }, dimStyle]}
-      />
+        style={[StyleSheet.absoluteFill, { backgroundColor: newTabPanel || origin === "page" ? theme.trayDim : ink.clear }, dimStyle]}
+      >
+        {newTabPanel && !reduceTransparency ? <LookFrost source={SURFACES_FROST} variant="thin" cornerRadius={0} fill={theme.trayDim} style={StyleSheet.absoluteFill} /> : null}
+      </AnimatedPressable>
       <SearchStagePanel testID="trayPanel" pointerEvents="box-none" style={command ? [styles.stagePanel, { top: command.top }] : [styles.stagePanel, styles.stagePanelBottom]}>
         <Animated.View testID="trayDrag" collapsable={false} style={dragStyle}>
           {mounted !== null ? (
@@ -700,6 +715,7 @@ function StagedTray() {
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: floatingPanelLayout.radius, backgroundColor: panelTint }]} />
                 <View style={{ height: trayHeight, borderRadius: floatingPanelLayout.radius, overflow: "hidden" }}>
                   <NewTabPanelContext.Provider value={newTabPanel}>
+                    <TrayListContext.Provider value={newTabPanel ? trayList : null}>
                     <StagedFieldContext.Provider value={field}>
                       <GestureDetector gesture={dismissDrag}>
                         <View collapsable={false}>
@@ -710,6 +726,7 @@ function StagedTray() {
                     <View testID="trayRowsReveal" nativeID={SEARCH_ROWS_REVEAL_ID} collapsable={false} style={styles.rows}>
                       <TrayRows dismissDrag={dismissDrag} />
                     </View>
+                    </TrayListContext.Provider>
                   </NewTabPanelContext.Provider>
                 </View>
               </View>
@@ -932,6 +949,7 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
     setMenu({ row, y });
   }, []);
   const newTab = useContext(NewTabPanelContext);
+  const list = useContext(TrayListContext);
   const shown = wholeRowsHeight(
     rows.map((_row, index) => bottoms[index] ?? 0),
     room,
@@ -967,6 +985,11 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
     const bottom = layout.y + layout.height;
     setBottoms((known) => (known[index] === bottom ? known : Object.assign([...known], { [index]: bottom })));
   };
+  const rowViews = rows.map((row, index) => (
+    <View key={index} onLayout={(event) => measure(index, event.nativeEvent.layout)}>
+      <SuggestionRow row={row} typed={typed} roles={theme} menu={trayRowActions(row)} onActivate={leaving.activate} onRefine={refine} onMenu={showMenu} />
+    </View>
+  ));
   if (window.fontScale <= LARGE_FONT_SCALE && !newTab) {
     return (
       <Animated.View key="rows" testID="trayRows" entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
@@ -977,19 +1000,27 @@ function TrayRows({ dismissDrag }: { dismissDrag: GestureType }) {
   }
   return (
     <Animated.View key="rows" testID={newTab ? "newTabRows" : undefined} entering={resultsIn} exiting={resultsOut} style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
-      <ScrollView
-        testID={newTab ? "newTabRowsScroll" : undefined}
-        style={newTab || shown === null ? styles.rows : { height: shown, flexGrow: 0 }}
-        contentContainerStyle={styles.rowsContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="none"
-      >
-        {rows.map((row, index) => (
-          <View key={index} onLayout={(event) => measure(index, event.nativeEvent.layout)}>
-            <SuggestionRow row={row} typed={typed} roles={theme} menu={trayRowActions(row)} onActivate={leaving.activate} onRefine={refine} onMenu={showMenu} />
+      {list ? (
+        <GestureDetector gesture={list.drag}>
+          <View style={styles.rows} collapsable={false}>
+            <SheetScrollContext.Provider value={list.scroll}>
+              <SheetScrollView testID="newTabRowsScroll" style={styles.rows} contentContainerStyle={styles.rowsContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="none" bounces={false}>
+                {rowViews}
+              </SheetScrollView>
+            </SheetScrollContext.Provider>
           </View>
-        ))}
-      </ScrollView>
+        </GestureDetector>
+      ) : (
+        <ScrollView
+          testID={newTab ? "newTabRowsScroll" : undefined}
+          style={newTab || shown === null ? styles.rows : { height: shown, flexGrow: 0 }}
+          contentContainerStyle={styles.rowsContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
+        >
+          {rowViews}
+        </ScrollView>
+      )}
       {menuView}
     </Animated.View>
   );

@@ -31,15 +31,20 @@ const AT_TOP_SLOP = 0.5;
 
 export const sheetMaxHeight = (height: number, safeTop: number) => Math.max(Math.min(height - safeTop - menuLayout.sheetTopGap, height * menuLayout.sheetMaxShare), 0);
 
-export const sheetPullOffset = (translationY: number, scrolls: boolean, atTop: boolean) => {
+export const sheetPullTranslation = (translationY: number, scrolls: boolean, atTop: boolean) => {
   "worklet";
-  if (!scrolls) return trayDragOffset(translationY);
-  return atTop && translationY > 0 ? trayDragOffset(translationY) : 0;
+  if (!scrolls) return translationY;
+  return atTop && translationY > 0 ? translationY : 0;
 };
 
-type SheetScroll = { native: ReturnType<typeof Gesture.Native>; atTop: SharedValue<boolean>; scrolls: SharedValue<boolean> };
+export const sheetPullOffset = (translationY: number, scrolls: boolean, atTop: boolean) => {
+  "worklet";
+  return trayDragOffset(sheetPullTranslation(translationY, scrolls, atTop));
+};
 
-const SheetScrollContext = createContext<SheetScroll | null>(null);
+export type SheetScroll = { native: ReturnType<typeof Gesture.Native>; atTop: SharedValue<boolean>; scrolls: SharedValue<boolean> };
+
+export const SheetScrollContext = createContext<SheetScroll | null>(null);
 
 export function SheetScrollView({ children, onLayout, onContentSizeChange, ...rest }: ScrollViewProps) {
   const sheet = useContext(SheetScrollContext);
