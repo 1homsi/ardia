@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, beforeEach, test } from "node:test";
 
 globalThis.__DEV__ = false;
@@ -52,6 +53,7 @@ globalThis.HermesInternal = { getInstrumentedStats: () => ({ ...hermes }) };
 
 const client = await import("./client.ts");
 const freezes = await import("./freezes.ts");
+const { pageEnded } = await import("../tabs/pageEvents.ts");
 after(() => client.setSharing(false, "settings"));
 
 beforeEach(() => {
@@ -169,6 +171,22 @@ test("a page that stops responding is counted when it recovers or is exited, by 
   );
 });
 
+test("a page that crashes, is discarded or closes while it hangs starts its next hang fresh", () => {
+  client.setSharing(true, "settings");
+  freezes.takeFreezeCounts();
+  freezes.noteRendererUnresponsive("crashed", 1000);
+  pageEnded("crashed");
+  freezes.noteRendererUnresponsive("crashed", 900_000);
+  freezes.noteRendererResponsive("crashed", false, 901_000);
+  freezes.noteRendererUnresponsive("ended", 1000);
+  pageEnded("ended");
+  freezes.noteRendererResponsive("ended", false, 2000);
+  const sent = freezes.takeFreezeCounts();
+  assert.equal(sent.renderer_unresponsive, 1, "only the hang after the reload is counted");
+  assert.equal(sent.renderer_unresponsive_under_5s, 1, "timed from the new hang, not the one before the crash");
+  assert.equal(sent.renderer_unresponsive_over_2m, 0);
+});
+
 test("the fields are counts, timings and floors only", () => {
   client.setSharing(true, "settings");
   native.stall("main", 900, { inputWaitMs: 600 });
@@ -176,4 +194,27 @@ test("the fields are counts, timings and floors only", () => {
     assert.match(key, /^[a-z0-9_]+$/);
     assert.ok(Number.isSafeInteger(value) && value >= 0, `${key} is a whole number`);
   }
+});
+
+test("the hourly memory sample takes the freeze counts after its last wait, so they can't cross into another sharing period", () => {
+  const usage = readFileSync(new URL("./usage.ts", import.meta.url), "utf8");
+  const sample = usage.slice(usage.indexOf("async function sampleMemory()"));
+  const taken = sample.indexOf("takeFreezeCounts()");
+  const captured = sample.indexOf('capture("perf_memory"');
+  const body = sample.slice(0, sample.indexOf("\n}\n"));
+  assert.ok(taken > 0 && captured > 0, "sampleMemory takes the freeze counts for perf_memory");
+  assert.ok(body.lastIndexOf("await ") < captured, "no wait between taking the freeze counts and queueing perf_memory");
+  assert.ok(!sample.slice(captured, taken).includes("await "), "nothing awaited after the freeze counts are taken");
+});
+
+test("What's Sent names every freeze measurement perf_memory carries", async () => {
+  const { WHATS_SENT } = await import("./copy.ts");
+  const text = WHATS_SENT.flatMap((group) => group.items).join("\n");
+  for (const said of [
+    "how many of the interface code's stops had their time spent freeing its memory measured",
+    "how much time that was in all and the longest in one stop",
+    "how many of those stops went mostly to freeing memory",
+    "how many of those you ended with Exit Page",
+  ])
+    assert.ok(text.includes(said), said);
 });

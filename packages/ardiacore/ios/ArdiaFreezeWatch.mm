@@ -54,6 +54,8 @@ os_unfair_lock gTallyLock = OS_UNFAIR_LOCK_INIT;
 StallTally gTally[2];
 std::atomic<double> gInputs[kInputRing];
 std::atomic<uint32_t> gInputNext{0};
+std::atomic<double> gJsBusySinceMs{0};
+std::atomic<double> gJsFirstInputMs{-1};
 
 double TicksToMs(uint64_t ticks) {
   static const double scale = [] {
@@ -88,8 +90,8 @@ double ReadGcMs(jsi::Runtime *runtime) {
   }
 }
 
-double FirstInputWaitMs(double startMs, double endMs) {
-  double first = -1;
+double FirstInputWaitMs(double startMs, double endMs, double earliestMs) {
+  double first = earliestMs >= startMs && earliestMs <= endMs ? earliestMs : -1;
   for (int i = 0; i < kInputRing; i++) {
     const double at = gInputs[i].load(std::memory_order_relaxed);
     if (at >= startMs && at <= endMs && (first < 0 || at < first)) first = at;
@@ -130,18 +132,23 @@ void LoopActivity(CFRunLoopObserverRef, CFRunLoopActivity activity, void *info) 
   const uint64_t now = mach_absolute_time();
   const bool js = watch.thread == kJs;
   if (activity == kCFRunLoopAfterWaiting) {
-    watch.start.store(now, std::memory_order_relaxed);
-    watch.epochAtStart = gEpoch.load(std::memory_order_relaxed);
+    const uint64_t epoch = gEpoch.load(std::memory_order_relaxed);
+    if (js) gJsFirstInputMs.store(-1, std::memory_order_relaxed);
+    if (js) gJsBusySinceMs.store(epoch ? TicksToMs(now) : 0, std::memory_order_relaxed);
+    watch.start.store(epoch ? now : 0, std::memory_order_relaxed);
+    watch.epochAtStart = epoch;
     watch.inputWaitMs = 0;
-    watch.gcAtStartMs = js && watch.depth == 1 ? ReadGcMs(watch.runtime) : -1;
+    watch.gcAtStartMs = epoch && js && watch.depth == 1 ? ReadGcMs(watch.runtime) : -1;
     return;
   }
+  if (js) gJsBusySinceMs.store(0, std::memory_order_relaxed);
+  const double earliestInputMs = js ? gJsFirstInputMs.exchange(-1, std::memory_order_relaxed) : -1;
   const uint64_t start = watch.start.exchange(0, std::memory_order_relaxed);
   if (!start) return;
   const double ms = TicksToMs(now - start);
   if (ms < kStallMs) return;
   const double endMs = TicksToMs(now);
-  const double inputWaitMs = js ? FirstInputWaitMs(TicksToMs(start), endMs) : watch.inputWaitMs;
+  const double inputWaitMs = js ? FirstInputWaitMs(TicksToMs(start), endMs, earliestInputMs) : watch.inputWaitMs;
   double gcMs = -1;
   if (js && watch.depth == 1 && watch.gcAtStartMs >= 0) {
     const double gcNow = ReadGcMs(watch.runtime);
@@ -199,7 +206,11 @@ NSDictionary *Describe(const StallTally &tally) {
 }
 
 void ArdiaFreezeNoteInput(NSTimeInterval eventUptime) {
+  if (!gEpoch.load(std::memory_order_relaxed)) return;
   const double eventMs = eventUptime * 1000;
+  const double jsBusySinceMs = gJsBusySinceMs.load(std::memory_order_relaxed);
+  double noInputYet = -1;
+  if (jsBusySinceMs > 0 && eventMs >= jsBusySinceMs) gJsFirstInputMs.compare_exchange_strong(noInputYet, eventMs, std::memory_order_relaxed);
   gInputs[gInputNext.fetch_add(1, std::memory_order_relaxed) % kInputRing].store(eventMs, std::memory_order_relaxed);
   if (!pthread_main_np() || !gMain.start.load(std::memory_order_relaxed)) return;
   gMain.inputWaitMs = std::max(gMain.inputWaitMs, TicksToMs(mach_absolute_time()) - eventMs);

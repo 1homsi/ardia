@@ -302,7 +302,10 @@ async function sampleMemory() {
     }
     if (!total) return;
     noteAppMemory(mb(total));
-    capture("perf_memory", { ...(await takeMainProcessWork()), ...(await takeContentDriftCounts()), ...takeFreezeCounts(), ...(await takeColdTabHoldCounts()),
+    const mainProcessWork = await takeMainProcessWork();
+    const contentDrift = await takeContentDriftCounts();
+    const coldTabHolds = await takeColdTabHoldCounts();
+    capture("perf_memory", { ...mainProcessWork, ...contentDrift, ...takeFreezeCounts(), ...coldTabHolds,
       total_mb: mb(total),
       browser_mb: mb(browser),
       gpu_mb: mb(gpu),
