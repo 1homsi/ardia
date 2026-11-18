@@ -9,7 +9,7 @@ import { capture } from "./client";
 import { freezeEpoch, heapFloorMb } from "./freezes";
 import { claimDailySend } from "./freezeSends";
 import { journeyInFlight } from "./journeys";
-import { nativeFrames, nativeImages } from "./sanitize";
+import { nativeFrames, nativeImages, type NativeImage } from "./sanitize";
 
 export const MAX_FREEZES_PER_SESSION = 5;
 const FRAMES_SENT = 24;
@@ -56,9 +56,10 @@ function fnv1a(text: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
-export function freezeSignature(thread: string, frames: readonly FreezeFrame[]): string {
+export function freezeSignature(thread: string, frames: readonly FreezeFrame[], images: readonly NativeImage[] = []): string {
   const own = frames.filter((f) => OWN_IMAGE.test(f.image)).slice(0, SIGNATURE_FRAMES);
-  return own.length ? `sig_${fnv1a(`${thread}|${own.map((f) => `${f.image}+${f.offset.toString(16)}`).join("|")}`)}` : `none_${thread}`;
+  const build = (image: string) => images.find((i) => i.name === image)?.uuid ?? "";
+  return own.length ? `sig_${fnv1a(`${thread}|${own.map((f) => `${f.image}@${build(f.image)}+${f.offset.toString(16)}`).join("|")}`)}` : `none_${thread}`;
 }
 
 export function allowedThisSession(signature: string) {
@@ -81,7 +82,8 @@ export async function reportFreeze(record: FreezeRecord) {
   const epoch = freezeEpoch();
   if (!epoch || record.epoch !== epoch || !isSharing()) return;
   const frames = scrubFrames(record.samples[0]?.frames ?? []);
-  const signature = freezeSignature(record.thread, frames);
+  const images = nativeImages(record.images);
+  const signature = freezeSignature(record.thread, frames, images);
   if (!allowedThisSession(signature) || !claimDailySend(signature)) return;
   sentThisSession++;
   signaturesThisSession.add(signature);
@@ -112,7 +114,7 @@ export async function reportFreeze(record: FreezeRecord) {
       signature,
       samples: record.samples.length,
     },
-    { raw: { freeze_frames: nativeFrames(frames), freeze_images: nativeImages(record.images) } },
+    { raw: { freeze_frames: nativeFrames(frames), freeze_images: images } },
   );
 }
 

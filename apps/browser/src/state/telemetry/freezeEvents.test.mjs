@@ -146,6 +146,25 @@ test("a signature whose hash is all digits survives the property scrub, stays di
   assert.deepEqual(sends.sendsOn(day).signatures, signatures, "the ledger keeps the prefixed form");
 });
 
+test("a signature names the build: the same offsets in images with other UUIDs hash apart, an identical record hashes the same", async () => {
+  const top = frames(["hermes", 0x10], ["Ardia", 0x20]);
+  const build = (hermes, ardia) => [{ name: "hermes", uuid: hermes }, { name: "Ardia", uuid: ardia }];
+  const a = events.freezeSignature("js", top, build("11111111-2222-3333-4444-555555555555", "aaaaaaaa-2222-3333-4444-555555555555"));
+  assert.match(a, /^sig_[0-9a-f]{8}$/);
+  assert.equal(events.freezeSignature("js", top, build("11111111-2222-3333-4444-555555555555", "aaaaaaaa-2222-3333-4444-555555555555")), a);
+  assert.notEqual(events.freezeSignature("js", top, build("11111111-2222-3333-4444-555555555555", "bbbbbbbb-2222-3333-4444-555555555555")), a);
+  assert.notEqual(events.freezeSignature("js", top, build("99999999-2222-3333-4444-555555555555", "aaaaaaaa-2222-3333-4444-555555555555")), a);
+  assert.equal(events.freezeSignature("js", top, [...build("11111111-2222-3333-4444-555555555555", "aaaaaaaa-2222-3333-4444-555555555555"), { name: "Chromium Framework", uuid: "cccccccc-2222-3333-4444-555555555555" }]), a, "images without a top frame don't count");
+  client.setSharing(true, "settings");
+  const updated = { name: "hermes", uuid: "66666666-2222-3333-4444-555555555555" };
+  await events.reportFreeze(record());
+  events.resetFreezeEventsForTests();
+  await events.reportFreeze(record({ images: [updated] }));
+  const sent = (await sentFreezes()).map((p) => p.signature);
+  assert.equal(sent.length, 2, "the same place after an update is sent again the same day");
+  assert.notEqual(sent[0], sent[1]);
+});
+
 test("at most 5 a session, and one of each signature", async () => {
   client.setSharing(true, "settings");
   await events.reportFreeze(record());
