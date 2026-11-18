@@ -1320,6 +1320,58 @@ Shared and per-phone parts:
     `waits`, `tickMs`, `mainThreadMs` and `droppedReports` where the phone has them.
   Android has all of it (`LookBudget.kt`); the iPhone half is not built yet.
 
+## Browse for Me (iPhone only)
+
+Arc Search's answer page, written on the iPhone. It came from the SwiftUI app (PR #1724, `ios-browse-for-me`) and
+keeps that app's Swift: the logic in ArdiaKit's `ArdiaBrowser/Research` and `ArdiaBrowser/ChatGPT` (with
+`ResearchTests` and `ChatGPTTests`), and the session, the answer page, the ChatGPT account and the settings page in
+`packages/phone/ios` (`ResearchSession`, `ResearchPageLoader`, `ResearchView`, `ChatGPTAccount`,
+`LoopbackCallbackServer`, `KeychainSecret`, `BrowseForMePage`). Android has none of it: the module isn't registered
+there, so the row, the button and the settings entry never appear.
+
+- **Where it starts.** Typing a plain search (three letters or more, not an address, not a bang) adds a Browse for Me
+  row under the typed query (`withBrowseForMe` in `state/search/omnibox.ts`), and voice search has a Browse for Me
+  button beside Search once it has heard words. Incognito changes nothing, and nothing is saved to history.
+- **The bridge.** `BrowseForMeModule` (`ArdiaPhoneBrowseForMe`) has `open(query)`, `isConnected()`, the
+  `onBrowseForMe` event and the `BrowseForMeSettingsView` view. `BrowseForMeHost` owns the one `ChatGPTAccount` and
+  the open `ResearchSession`, and presents `ResearchView` full screen in a `UIHostingController` over React Native's
+  root. What the SwiftUI page took from `AppModel` comes back to JavaScript as events (`state/browseForMe/events.ts`):
+  `openSource` (a source opens as a normal tab), `searchWeb` (Search the Web), `openLink` (Check Usage closes Settings
+  and opens chatgpt.com's usage page), `settled` (the outcome, for the counts below), `account` (ChatGPT connected or
+  not, for the Settings row) and `closed`. The hidden page readers use the page engine's content blocker.
+- **Reading.** DuckDuckGo's HTML results with a plain request (DuckDuckGo shows WebKit a bot check), the first five
+  readable pages (one per site, no video or social sites), three at a time in hidden web views with a throwaway data
+  store and the Reader's extraction (8 s each).
+- **Writing.** Apple Intelligence on the iPhone (`SystemLanguageModel`, Foundation Models) is the default: a short
+  answer with `[n]` citations from the pages' most relevant paragraphs, cut to fit the model's context. Without Apple
+  Intelligence (an older iPhone, turned off, still downloading), or when the model refuses, the answer is the pages'
+  most relevant sentences, cited, and the page says why. The sources sit in a row above the answer.
+- **Continue with ChatGPT.** Settings › Browse for Me (and a button under an on-device answer) signs in with OpenAI's
+  Sign in with ChatGPT plan-usage flow, so answers come from the user's own Plus or Pro plan, straight from the phone,
+  never through a server of ours. It mirrors OpenAI's devkit: discovery, `dynamic_agent_client` with
+  `agent_name_hint` on the first sign-in (the issued `oaiapp_…` client ID is saved per issuer and reused), S256 PKCE,
+  state, nonce and `resource=https://api.openai.com/v1`. The redirect is the documented loopback
+  `http://127.0.0.1:<port>/auth/callback`: a BSD socket listener takes the code and answers with a 302 to
+  `ardia-chatgpt://signed-in`, which closes the `ASWebAuthenticationSession` sheet (at most eight clients, ten seconds
+  each). The ID token's RS256 signature is checked against the issuer's JWKS, failing closed, with its claims, and a
+  later sign-in must return the same account. Tokens live in the Keychain (`com.ardia.browser.ios.chatgpt`, this
+  device only, after first unlock); the hour-long access token refreshes two minutes early, one refresh at a time,
+  and a rotated refresh token is saved before anything else. Answers stream from `POST /v1/responses` with exactly
+  `model`, `instructions`, `input`, `store: false` and `stream: true`, and count only on `response.completed`. Any
+  failure (limit reached, not eligible, network, a stream cut short, an empty answer) drops the partial text and
+  Apple Intelligence writes the answer, with the reason in the note. A model that lists reasoning levels
+  (`supported_reasoning_levels`) gets a Thinking picker, sent as `reasoning.effort`; Automatic sends nothing.
+  Disconnect waits for a refresh in flight, then revokes the latest refresh token and says so when OpenAI doesn't
+  confirm it.
+- **In Settings.** On iPhone, Settings › Experimental lists Browse for Me. Its row reads "ChatGPT" when connected
+  and "On iPhone" otherwise. The Browse for Me page shows "Read aloud coming soon".
+- **Testing.** These need a test build (`ArdiaTestBuild`): `-BrowseResearch <query>` opens the page at launch;
+  `-ArdiaResearchWriter excerpts` skips the model; `-ArdiaChatGPTIssuer <url>` and `-ArdiaChatGPTAPI <url>` point
+  ChatGPT at a fake server.
+  `-ArdiaVoiceHeard <text>` opens voice search as if it had just heard those words, for a capture of its buttons.
+  `-ArdiaSettingsPage browseForMe` opens the settings page.
+- **Left for a person.** A real Plus or Pro sign-in.
+
 ## Telemetry
 
 Off until the user chooses, in Settings (Share anonymous usage stats, with What's Sent) or on onboarding's last step. The consent model is the Mac's: nothing is sent, queued or counted while sharing is off, turning it off drops the queue, the day's counts and any request in flight at once, and an install ID is made only the first time sharing is turned on. Unlike the Mac, the phone sends no `daily_active` ping while sharing is off.
@@ -1335,7 +1387,7 @@ Events (service `ardia-phone`, `$lib` `ardia-phone-telemetry`, tags `app: phone`
 | `perf_launch` | `launch_ms`, `js_ms` | each launch, once the module gives the process start (`ArdiaPhoneSystem.processStartedAt()`, epoch ms) |
 | `perf_backdrop` | `backdrop_ms` | each launch on iPhone, once the native launch backdrop has shown (`system.launchBackdropShownAt()`, epoch ms on the process start's clock) |
 | `perf_launch_tray` | `tray_ms` | each launch with Auto-Open Keyboard on, once the launch tray is up (process start on `ArdiaPhoneSystem.processStartedAt()`'s clock) |
-| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `find_opened_system` and `find_opened_bar` (Find on Page opened in WebKit's own panel, or in the app's find bar), `spaces_swiped` (a swipe in Spaces or on the start page that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `search_tabs_opened` (the deck's Search Tabs field focused, in the redesign), `spaces_picked` (a space picked from the deck's switcher menu, or by a VoiceOver adjustment of the start page's dots, that changed the profile, in the redesign), `tabs_moved_to_space` (a tab moved to another space with the deck card menu's Move to Space, in the redesign), `pages_printed` (a page printed from the page menu's Print, counted when the print sheet opened, in the redesign), `pages_translated` (a page sent to Google Translate from the page menu's Translate, never from an Incognito tab), `pinned_tabs_refound` (a pinned site's tile or row switched to the tab it had opened after that tab had left the pinned address, where it used to open a second copy), `site_permissions_revoked` (a site's camera, microphone or location access revoked from Site Settings, by swipe or by its dialog, on iPhone's Expo UI Settings), `tray_back_swiped` (a search tray closed with Android's predictive back swipe), `card_opens_waited` (a card opened from the deck whose growth landed before its page had laid out and its picture painted, so the page waited up to 250 ms to take over), `native_menus_opened` (a menu opened as the system's own: a deck card's long press, the deck's ···, the space switchers, the + menus, Reader's Text Appearance, the page menu's Send to Device, the tabs button's recent tabs, on iPhone), `library_opened` (History, Bookmarks or Downloads opened in the system sheet from the page menu, on iPhone), `deck_grid_shown` (Grid picked for the deck in Settings › Appearance › Tabs, on iPhone), `landscape_shown` (a launch in which the phone was turned to landscape at least once, counted once a launch), `duo_layout_shown` (a launch that used the column, wide or split layout at least once, counted once a launch, on iPhone), `list_sheets_late` (an Archive or History sheet whose rows were drawn more than 400 ms after it was asked for, on iPhone), `list_pages_added` (Archive or History adding its next 200 rows as you scroll, on iPhone), `search_reveals_late` (a search panel opened whose content had not laid out within 250 ms, so the stage revealed it on its deadline, on iPhone), `address_field_scrolled` (a long address in the search field scrolled sideways with a swipe, on iPhone), `deck_bar_swipes` (the deck opened by swiping up on the browsing bar, the second way in beside the tabs button), `tabs_swiped_closed` and `tabs_swiped_reopened` (a back swipe on a page with no history that closed its tab, and a forward swipe with no forward history that reopened the last closed tab), `page_menu_tapped_away` (the page menu closed by a tap on the page above it, on iPhone), `new_tab_search_opened` (search opened on a new tab in the iPhone's full-height search panel), `deck_incognito_switches` (a tap on the deck bar's Incognito switch that went from the normal tabs to the Incognito tabs, on iPhone), `deck_bar_swipes_returned` (a swipe up on the browsing bar let go before its commit point, so the page grew back, on iPhone), `deck_pulls_hitched` (a swipe up or a tabs tap during whose shrink into the deck two UI-thread frames were more than 50 ms apart, on iPhone) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
+| `usage_counts` | `tabs_opened`, `searches`, `pins_to_mac`, `tabs_sent`, `page_processes_gone`, `links_given_up` (a link whose handling passed its 8 s deadline), `pages_reloaded_online` (a failed page reloaded when the phone came back online), `find_opened_system` and `find_opened_bar` (Find on Page opened in WebKit's own panel, or in the app's find bar), `spaces_swiped` (a swipe in Spaces or on the start page that changed the profile), `tray_hidden_rows_opened` (a tray row opened while it peeked or sat under the keyboard), `deck_pictures_late` (a deck opened from a page whose picture hadn't painted within 250 ms, so it shrank without waiting), `search_tabs_opened` (the deck's Search Tabs field focused, in the redesign), `spaces_picked` (a space picked from the deck's switcher menu, or by a VoiceOver adjustment of the start page's dots, that changed the profile, in the redesign), `tabs_moved_to_space` (a tab moved to another space with the deck card menu's Move to Space, in the redesign), `pages_printed` (a page printed from the page menu's Print, counted when the print sheet opened, in the redesign), `pages_translated` (a page sent to Google Translate from the page menu's Translate, never from an Incognito tab), `pinned_tabs_refound` (a pinned site's tile or row switched to the tab it had opened after that tab had left the pinned address, where it used to open a second copy), `site_permissions_revoked` (a site's camera, microphone or location access revoked from Site Settings, by swipe or by its dialog, on iPhone's Expo UI Settings), `tray_back_swiped` (a search tray closed with Android's predictive back swipe), `card_opens_waited` (a card opened from the deck whose growth landed before its page had laid out and its picture painted, so the page waited up to 250 ms to take over), `native_menus_opened` (a menu opened as the system's own: a deck card's long press, the deck's ···, the space switchers, the + menus, Reader's Text Appearance, the page menu's Send to Device, the tabs button's recent tabs, on iPhone), `library_opened` (History, Bookmarks or Downloads opened in the system sheet from the page menu, on iPhone), `deck_grid_shown` (Grid picked for the deck in Settings › Appearance › Tabs, on iPhone), `landscape_shown` (a launch in which the phone was turned to landscape at least once, counted once a launch), `duo_layout_shown` (a launch that used the column, wide or split layout at least once, counted once a launch, on iPhone), `list_sheets_late` (an Archive or History sheet whose rows were drawn more than 400 ms after it was asked for, on iPhone), `list_pages_added` (Archive or History adding its next 200 rows as you scroll, on iPhone), `search_reveals_late` (a search panel opened whose content had not laid out within 250 ms, so the stage revealed it on its deadline, on iPhone), `address_field_scrolled` (a long address in the search field scrolled sideways with a swipe, on iPhone), `deck_bar_swipes` (the deck opened by swiping up on the browsing bar, the second way in beside the tabs button), `tabs_swiped_closed` and `tabs_swiped_reopened` (a back swipe on a page with no history that closed its tab, and a forward swipe with no forward history that reopened the last closed tab), `page_menu_tapped_away` (the page menu closed by a tap on the page above it, on iPhone), `new_tab_search_opened` (search opened on a new tab in the iPhone's full-height search panel), `deck_incognito_switches` (a tap on the deck bar's Incognito switch that went from the normal tabs to the Incognito tabs, on iPhone), `deck_bar_swipes_returned` (a swipe up on the browsing bar let go before its commit point, so the page grew back, on iPhone), `deck_pulls_hitched` (a swipe up or a tabs tap during whose shrink into the deck two UI-thread frames were more than 50 ms apart, on iPhone), `browse_for_me_opened` (Browse for Me opened from the tray, voice search or a launch argument, on iPhone), `browse_answers_chatgpt`, `browse_answers_on_device`, `browse_answers_excerpts` and `browse_answers_failed` (a Browse for Me answer by who wrote it, or a page that found or read nothing), `browse_chatgpt_fallbacks` (a ChatGPT answer that failed, so Apple Intelligence or the excerpts wrote it instead) | at most once a day, for the last UTC day the app was used before today, when anything was counted; private tabs are never counted |
 
 On the dashboard they are kept out of every Mac section by source and lib (`PHONE_APP_SOURCE` in `apps/dashboard/src/server/sql.ts`).
 
@@ -1378,6 +1430,9 @@ Every count and timing the phone can send, for the owner to read as one set and 
 | `page_menu_tapped_away` | a tap on the page above the iPhone's page menu sheet | Whether people find the way out of the page menu now that it stops at 90% of the screen; zero across iPhone testers after a release means the strip above the sheet stopped closing it |
 | `new_tab_search_opened` | the iPhone's new-tab search panel opening (search not editing a page's address) | How often people start from a new tab's search; a sharp drop after a release means the panel stopped opening on a new tab |
 | `deck_incognito_switches` | the deck bar's Incognito switch on iPhone (build 16 feedback) | Whether people switch the deck to Incognito from its bar; zero across testers after a release means the switch stopped showing or stopped switching. Taps back to the normal tabs are not counted, since they start in Incognito |
+| `browse_for_me_opened` | Browse for Me on Expo | Whether people use Browse for Me at all; zero across testers after a release means the tray row or the voice button stopped opening it |
+| `browse_answers_chatgpt`, `browse_answers_on_device`, `browse_answers_excerpts`, `browse_answers_failed` | Browse for Me on Expo | Who writes the answers: a share of `excerpts` that grows on phones with Apple Intelligence means the model path broke, and a growing `failed` share against `browse_for_me_opened` means search or page reading broke (DuckDuckGo's page changing is the likely cause) |
+| `browse_chatgpt_fallbacks` | Browse for Me on Expo | How often a connected ChatGPT plan fails to answer; a jump after a release, or against `browse_answers_chatgpt`, means the Responses call or the token refresh broke |
 
 ## What is left before the Expo app replaces both native apps
 
@@ -3403,7 +3458,9 @@ starts in that space. Captures without touch: `-BrowseQuery <text>`, `-BrowseSur
 `-ArdiaOnboarding YES`, `-ArdiaOpenSheet archive|spaces|history|bookmarks|downloads`, `-BrowsePlus`,
 `-BrowseOverlay <text>`, `-BrowseCollapsed`, `-BrowseOpen <url>`, `-ArdiaRestingStart`, `-ArdiaColor <name>`,
 `-ArdiaInterfaceStyle glass|classic`, `-ArdiaColorScheme light|dark`, `-ArdiaSettingsPage <route>`,
-`-ArdiaNoSitePermissions`, `-ArdiaDeckQuery <text>` and `-ArdiaDuoCanvas open|half`. Motion captures:
+`-ArdiaNoSitePermissions`, `-ArdiaDeckQuery <text>` and `-ArdiaDuoCanvas open|half`. Browse for Me's: `-BrowseResearch <query>`,
+`-ArdiaResearchWriter excerpts`, `-ArdiaChatGPTIssuer <url>`,
+`-ArdiaChatGPTAPI <url>` and `-ArdiaVoiceHeard <text>` ("Browse for Me (iPhone only)" above). Motion captures:
 `-BrowsePagerFreeze <fraction>`, `-BrowsePagerScript` and `-BrowseLoadFreeze <progress>`. `-BrowseDeckPull <n>`
 replays the swipe into the deck n times in a lab build ("The swipe into the deck" under Deck speed); it doesn't need
 `-ArdiaDemo`.
