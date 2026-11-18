@@ -195,7 +195,9 @@ test("freeze counts go out only with the token of the period they were counted i
   client.setSharing(false, "settings");
   client.setSharing(true, "settings");
   native.stall("main", 900);
-  assert.deepEqual(freezes.takeFreezeCounts(earlier), {}, "an earlier period's token takes nothing");
+  assert.deepEqual(freezes.takeFreezeCounts(earlier), {}, "an earlier period's token sends nothing");
+  assert.equal(freezes.takeFreezeCounts(client.consentToken()).main_stall_500ms_1s, 0, "and what it took is dropped, not kept for later");
+  native.stall("main", 900);
   assert.equal(freezes.takeFreezeCounts(client.consentToken()).main_stall_500ms_1s, 1);
 });
 
