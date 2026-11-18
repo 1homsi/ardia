@@ -443,8 +443,8 @@ class Instance {
     const exe = join(realpathSync(this.app), "Contents/MacOS", execFileSync("defaults", ["read", join(this.app, "Contents/Info.plist"), "CFBundleExecutable"], { encoding: "utf8" }).trim());
     const main = `^${exe.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`;
     if (spawnSync("pgrep", ["-f", main]).status === 0) throw new Error("a bench instance is still running");
-    const { extra, libraries } = sideLaunchEnv(opt.env, opt["control-env"], this.side.role, this.env);
-    writeSwitches(this.dataDir, extra.find((e) => e.startsWith("ARDIA_SWITCHES="))?.slice(19));
+    const { extra, libraries, switches } = sideLaunchEnv(opt.env, opt["control-env"], this.side.role, this.env);
+    writeSwitches(this.dataDir, switches);
     const dyld = [markerLibrary(), ...(this.frames ? [framesLibrary(toolDir, here)] : []), ...libraries].join(":");
     this.t0 = Date.now();
     const env = appEnv(this.app, mergeLaunchEnv({

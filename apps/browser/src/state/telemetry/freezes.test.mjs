@@ -55,6 +55,8 @@ const client = await import("./client.ts");
 const freezes = await import("./freezes.ts");
 const { pageEnded } = await import("../tabs/pageEvents.ts");
 after(() => client.setSharing(false, "settings"));
+client.loadChoice();
+const firstStart = freezes.startFreezeWatch();
 
 beforeEach(() => {
   client.loadChoice();
@@ -62,7 +64,7 @@ beforeEach(() => {
 });
 
 test("the watch starts once and follows the sharing choice with a new epoch each time sharing turns on", () => {
-  assert.equal(freezes.startFreezeWatch(), true);
+  assert.equal(firstStart, true);
   assert.equal(freezes.startFreezeWatch(), false, "a second start is a no-op");
   assert.equal(native.starts, 1);
   assert.equal(native.epoch, 0);

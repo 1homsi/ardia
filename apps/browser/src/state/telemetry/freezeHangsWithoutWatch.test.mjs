@@ -11,11 +11,13 @@ delete NativeModules.ACFreezeWatch;
 const client = await import("./client.ts");
 const freezes = await import("./freezes.ts");
 after(() => client.setSharing(false, "settings"));
+client.loadChoice();
+const startedWithoutWatch = freezes.startFreezeWatch();
 
 test("without the native watcher, as on Linux and Windows, page hangs are still counted while sharing is on", () => {
   client.loadChoice();
   client.setSharing(true, "settings");
-  assert.equal(freezes.startFreezeWatch(), false, "no native watcher to start");
+  assert.equal(startedWithoutWatch, false, "no native watcher to start");
   freezes.noteRendererUnresponsive("tab", 1000);
   freezes.noteRendererResponsive("tab", true, 13_000);
   const sent = freezes.takeFreezeCounts();
