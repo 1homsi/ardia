@@ -1,17 +1,18 @@
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import ts from "typescript";
 import { analyze, compare, readBaseline, reachSinks, scopeFiles, scoreboard, writeBaseline } from "../scripts/consentReach.mjs";
 import { ROOT, isTelemetryBuffer, unstampedEmits } from "../scripts/consentStatic.mjs";
 
-function virtualProgram(sources) {
+function virtualProgram(sources, { root = ROOT, joinPath = join } = {}) {
   const options = { noLib: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, allowImportingTsExtensions: true };
-  const texts = new Map(Object.entries(sources).map(([rel, text]) => [join(ROOT, rel), text]));
+  const posix = (name) => name.split("\\").join("/");
+  const texts = new Map(Object.entries(sources).map(([rel, text]) => [posix(joinPath(root, rel)), text]));
   const host = ts.createCompilerHost(options);
-  host.getSourceFile = (name, version) => (texts.has(name) ? ts.createSourceFile(name, texts.get(name), version, true) : undefined);
-  host.fileExists = (name) => texts.has(name);
-  host.readFile = (name) => texts.get(name);
+  host.getSourceFile = (name, version) => (texts.has(posix(name)) ? ts.createSourceFile(posix(name), texts.get(posix(name)), version, true) : undefined);
+  host.fileExists = (name) => texts.has(posix(name));
+  host.readFile = (name) => texts.get(posix(name));
   return ts.createProgram([...texts.keys()], options, host);
 }
 
@@ -69,6 +70,21 @@ if (process.argv.includes("--write")) {
     assert.deepEqual(unstampedEmits("x.mm", objc), ["x.mm | a.plain", "x.mm | a.unstampedVariable", "x.mm | a.multiLine"]);
     const swift = 'ArdiaEvents.emit("s.plain", data: event)\nlet stamped = stamp.onto(event)\nArdiaEvents.emit("s.stamped", data: stamped)';
     assert.deepEqual(unstampedEmits("x.swift", swift), ["x.swift | s.plain"]);
+    const scoped = [
+      "void first() {",
+      "  NSDictionary *payload = [stamp onto:@{}];",
+      "}",
+      "void second(NSDictionary *payload) {",
+      '  [ArdiaEvents emit:@"b.unrelatedParameter" data:payload];',
+      "}",
+      "void third() {",
+      "  NSDictionary *payload = [[ArdiaConsentStamp begin] onto:@{}];",
+      "  if (ready) {",
+      '    dispatch_async(dispatch_get_main_queue(), ^{ [ArdiaEvents emit:@"b.captured" data:payload]; });',
+      "  }",
+      "}",
+    ].join("\n");
+    assert.deepEqual(unstampedEmits("y.mm", scoped), ["y.mm | b.unrelatedParameter"]);
   });
 
   test("a telemetry buffer is a queue or a retry that also emits telemetry", () => {
@@ -86,4 +102,9 @@ test("the uncounted-counter class covers Linux telemetry as well as the browser'
   assert.ok(COUNTER_SCOPE.test("apps/browser/src/state/telemetry/usage.ts"));
   assert.ok(telemetryModule("apps/linux/src/hostTelemetryCounts.ts"));
   assert.ok(!telemetryModule("apps/linux/src/hostTabs.ts"));
+});
+
+test("the virtual program finds its files when paths are built Windows-style, as TypeScript asks with forward slashes", () => {
+  const program = virtualProgram({ "apps/browser/src/a.ts": "export const a = 1;", "apps/browser/src/b.ts": "export const b = 2;" }, { root: "C:\\repo", joinPath: win32.join });
+  assert.deepEqual(program.getSourceFiles().map((file) => file.fileName.split(/[\\/]/).at(-1)).sort(), ["a.ts", "b.ts"]);
 });

@@ -7,7 +7,7 @@ import { MAX_DRAFT_LINKS } from "../groups/draftGroups";
 import { createProfile } from "../profiles/actions";
 import { noteImportedSpaces } from "../telemetry/usage";
 import { noteDiaSidebar, noteDiaTabProfiles, noteFirefoxFavicons, noteImportRun } from "../telemetry/importRuns";
-import { consentToken } from "../telemetry/client";
+import { consentToken, type ConsentToken } from "../telemetry/client";
 import {
   adoptSpaceIdentity,
   applyResult,
@@ -128,13 +128,14 @@ async function importDiaSpaces(
   result: ImportResult,
   nextDestination: (name: string, color?: string, emoji?: string, shareWith?: string | null) => Promise<string>,
   signal: AbortSignal,
+  consent: ConsentToken | null,
 ): Promise<DiaSpacesImported> {
   const out: DiaSpacesImported = { tabs: 0, groups: 0, skipped: 0, ownProfiles: 0 };
   const primary = result.diaSidebar ? result.diaSidebar.primarySpaceId : result.spaces[0]?.id;
   for (const space of result.spaces) {
     const into = space.id === primary ? dest : await nextDestination(space.name, space.color, undefined, dest);
     if (signal.aborted) return out;
-    const r = importDiaSpace(into, space, result.favicons);
+    const r = importDiaSpace(into, space, result.favicons, consent);
     out.tabs += r.tabs;
     out.groups += r.groups;
     out.skipped += r.skipped;
@@ -290,7 +291,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
         if (first && adoptSpaceIdentity(dest, space)) startersNamed += 1;
         (members[partition] ??= []).push(dest);
         arc.homes.set(space.id, dest);
-        const r = importArcSpace(dest, space, result.favicons);
+        const r = importArcSpace(dest, space, result.favicons, consent);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
         if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
       }
@@ -319,7 +320,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       const dest = await nextDestination(result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
       add(await applyResult(dest, result, source.name, profileKinds, refused));
       if (readsSidebarFile(profile) && !sidebarMissed && result.spaces.length) {
-        const r = await importDiaSpaces(dest, result, nextDestination, signal);
+        const r = await importDiaSpaces(dest, result, nextDestination, signal, consent);
         if (signal.aborted) return;
         total.tabs += r.tabs;
         diaOutcome.groups = r.groups;
@@ -376,7 +377,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   api.forgetUnlockedKeys();
   noteImportRun({ done: order.filter((k) => !failed.has(k)).length, failed: failed.size, secretsLeft }, consent);
   if (total.bookmarks > 0) useBrowser.getState().updateSettings({ bookmarksImportDismissed: true });
-  const listing = await listFoundExtensions(extensionGroups).catch(orWarn(null));
+  const listing = await listFoundExtensions(extensionGroups, consent).catch(orWarn(null));
   if (signal.aborted) return;
   finishImport(signal, {
     counts: total,

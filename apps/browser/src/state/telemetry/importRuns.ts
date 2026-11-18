@@ -95,7 +95,16 @@ const extensionCounts = {
 type ExtensionSkipCounts = { installed: number; manifestV2: number; unpacked: number; policy: number; external: number; notWebStore: number };
 
 export function noteImportExtensionListing(listed: number, skipped: ExtensionSkipCounts, consent?: ConsentToken | null) {
-  countFor(consent, () => countExtensionListing(listed, skipped), { import_extensions_listed: listed });
+  const fields = {
+    import_extensions_listed: listed,
+    import_extensions_skipped_installed: skipped.installed,
+    import_extensions_skipped_mv2: skipped.manifestV2,
+    import_extensions_skipped_unpacked: skipped.unpacked,
+    import_extensions_skipped_policy: skipped.policy,
+    import_extensions_skipped_external: skipped.external,
+    import_extensions_skipped_not_web_store: skipped.notWebStore,
+  };
+  countFor(consent, () => countExtensionListing(listed, skipped), fields);
 }
 
 function countExtensionListing(listed: number, skipped: ExtensionSkipCounts) {

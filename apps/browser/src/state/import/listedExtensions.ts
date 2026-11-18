@@ -2,7 +2,7 @@ import { listExtensions } from "../../platform/extensions";
 import { engineProfile } from "../browser/model";
 import { useBrowser } from "../browser/store";
 import { noteImportExtensionListing, noteImportExtensionStorePages } from "../telemetry/importRuns";
-import { consentToken } from "../telemetry/client";
+import type { ConsentToken } from "../telemetry/client";
 import { openInWebStore } from "./apply";
 import { leftOutCounts, listedCount, planExtensionListing, type ExtensionGroup, type ExtensionListing } from "./extensionListing";
 import { importNow, patchImport } from "./flow";
@@ -20,9 +20,8 @@ function installedIds(profileId: string): Promise<ReadonlySet<string>> {
   return Promise.race([read, late]).finally(() => clearTimeout(timer));
 }
 
-export async function listFoundExtensions(groups: ExtensionGroup[]): Promise<ExtensionListing | null> {
+export async function listFoundExtensions(groups: ExtensionGroup[], consent: ConsentToken | null): Promise<ExtensionListing | null> {
   if (!groups.some((g) => g.list.length)) return null;
-  const consent = consentToken();
   const wanted = [...new Set(groups.filter((g) => g.profileId && g.list.some((e) => !e.skip)).map((g) => g.profileId))];
   const installed = new Map(await Promise.all(wanted.map(async (profileId) => [profileId, await installedIds(profileId)] as const)));
   const listing = planExtensionListing(

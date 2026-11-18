@@ -483,3 +483,24 @@ test("Codex final 1: a queue loaded under one consent period isn't relabelled wi
   choice.reloadChoice();
   assert.deepEqual(await queued("old_queue_event"), []);
 });
+
+test("PRRT 4607859820 pinned rows and splits from an import begun in an earlier period aren't counted in the next", async () => {
+  client.setSharing(true, "onboarding");
+  const earlier = client.consentToken();
+  offAndOn();
+  usage.sessionEnding();
+  usage.noteImportedPins({ rows: 7, splits: 3 }, earlier);
+  usage.sessionEnding();
+  assert.ok((await queued("usage_counts")).every((p) => !p.imported_pinned_rows && !p.imported_splits));
+});
+
+test("PRRT 4607859813 a stale extension listing keeps every skip category in its local record", async () => {
+  const importRuns = await import("./importRuns.ts");
+  client.setSharing(true, "onboarding");
+  const earlier = client.consentToken();
+  offAndOn();
+  importRuns.noteImportExtensionListing(0, { installed: 2, manifestV2: 1, unpacked: 0, policy: 0, external: 0, notWebStore: 1 }, earlier);
+  const local = (await localRecords("usage_counts")).at(-1);
+  assert.equal(local.sent, false);
+  assert.deepEqual([local.properties.import_extensions_skipped_installed, local.properties.import_extensions_skipped_mv2, local.properties.import_extensions_skipped_not_web_store], [2, 1, 1]);
+});

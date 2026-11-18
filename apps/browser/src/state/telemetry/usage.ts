@@ -128,7 +128,7 @@ function emitCounts(consent: ConsentToken | null) {
 }
 
 watchConsentBoundary(() => emitWindowUsage(null));
-export const noteImportedPins = (made: { rows: number; splits: number }) => void ((counts.importedPinnedRows += made.rows), (counts.importedSplits += made.splits));
+export const noteImportedPins = (made: { rows: number; splits: number }, consent?: ConsentToken | null) => bump(consent, { importedPinnedRows: made.rows, importedSplits: made.splits });
 
 export const noteImportedSpaces = (made: { spaces: number; containerSpaces: number; dataProfiles: number; essentials: number; startersNamed: number }, consent?: ConsentToken | null) => bump(consent, { importedSpaces: made.spaces, importedContainerSpaces: made.containerSpaces, importedDataProfiles: made.dataProfiles, importedEssentials: made.essentials, importedStartersNamed: made.startersNamed });
 

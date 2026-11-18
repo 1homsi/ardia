@@ -82,6 +82,7 @@ function loadQueue() {
   if (queueLoaded) return;
   queueLoaded = true;
   queueEpoch = saved().epoch;
+  watchQueueEpoch();
   const stored = storedQueue();
   queue = { events: [...stored.events, ...queue.events], logs: [...stored.logs, ...queue.logs] };
 }
@@ -124,18 +125,26 @@ function clearQueue() {
   queue = { events: [], logs: [] };
   queueLoaded = true;
   queueEpoch = saved().epoch;
+  watchQueueEpoch();
   clearTimeout(flushTimer);
   flushTimer = undefined;
   persistQueue(true);
 }
 
-onConsentPeriodChange(() => {
+function dropQueueOfEarlierPeriod() {
   if (!queueLoaded || saved().epoch === queueEpoch) return;
   generation++;
   for (const abort of inflight) abort.abort();
   inflight.clear();
   clearQueue();
-});
+}
+
+let watchingQueueEpoch = false;
+function watchQueueEpoch() {
+  if (watchingQueueEpoch) return;
+  watchingQueueEpoch = true;
+  onConsentPeriodChange(dropQueueOfEarlierPeriod);
+}
 
 let droppedWhileOff = 0;
 

@@ -74,11 +74,33 @@ function balanced(text, start) {
   return text.slice(start);
 }
 
+const CONTROL = /^(?:if|for|while|switch|else|do|catch|guard|defer|repeat|@\w+)\b|\^\s*(?:\([^)]*\))?\s*$|\b(?:if|for|while|switch)\s*\(/;
+const FUNCTION_HEADER = (header) => /\bfunc\b|\binit\s*\(|^[-+]\s*\(/.test(header) || (/\)\s*$/.test(header) && !CONTROL.test(header));
+
+function enclosingFunctionStart(text, at) {
+  const opens = [];
+  for (let i = 0; i < at; i++) {
+    const c = text[i];
+    if (c === '"') {
+      for (i++; i < at && text[i] !== '"'; i++) if (text[i] === "\\") i++;
+    } else if (c === "{") opens.push(i);
+    else if (c === "}") opens.pop();
+  }
+  for (let k = opens.length - 1; k >= 0; k--) {
+    const open = opens[k];
+    const before = text.slice(0, open);
+    const header = before.slice(Math.max(before.lastIndexOf(";"), before.lastIndexOf("{"), before.lastIndexOf("}")) + 1).trim();
+    if (FUNCTION_HEADER(header)) return open;
+  }
+  return 0;
+}
+
 function stampedBefore(text, at, name, swift) {
-  const assignments = [...text.slice(0, at).matchAll(new RegExp(`\\b${name}\\s*=(?!=)`, "g"))];
+  const from = enclosingFunctionStart(text, at);
+  const assignments = [...text.slice(from, at).matchAll(new RegExp(`\\b${name}\\s*=(?!=)`, "g"))];
   const last = assignments.at(-1);
   if (!last) return false;
-  const rest = text.slice(last.index);
+  const rest = text.slice(from + last.index);
   const end = swift ? rest.indexOf("\n") : rest.indexOf(";");
   return STAMP.test(end < 0 ? rest : rest.slice(0, end));
 }
