@@ -20,7 +20,7 @@ test("without the native watcher, as on Linux and Windows, page hangs are still 
   assert.equal(startedWithoutWatch, false, "no native watcher to start");
   freezes.noteRendererUnresponsive("tab", 1000);
   freezes.noteRendererResponsive("tab", true, 13_000);
-  const sent = freezes.takeFreezeCounts();
+  const sent = freezes.takeFreezeCounts(client.consentToken());
   assert.equal(sent.renderer_unresponsive, 1);
   assert.equal(sent.renderer_unresponsive_exited, 1);
   assert.equal(sent.renderer_unresponsive_5_30s, 1);
@@ -31,8 +31,8 @@ test("without the native watcher, a hang from while sharing was off is dropped a
   client.loadChoice();
   client.setSharing(false, "settings");
   freezes.noteRendererUnresponsive("off", 1000);
-  assert.deepEqual(freezes.takeFreezeCounts(), {});
+  assert.deepEqual(freezes.takeFreezeCounts(client.consentToken()), {});
   client.setSharing(true, "settings");
   freezes.noteRendererResponsive("off", false, 2000);
-  assert.equal(freezes.takeFreezeCounts().renderer_unresponsive, 0);
+  assert.equal(freezes.takeFreezeCounts(client.consentToken()).renderer_unresponsive, 0);
 });

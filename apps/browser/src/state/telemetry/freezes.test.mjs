@@ -79,13 +79,13 @@ test("the watch starts once and follows the sharing choice with a new epoch each
 
 test("each stall lands in its duration bucket, with the longest stall, input waits and the JS thread's GC share", () => {
   client.setSharing(true, "settings");
-  freezes.takeFreezeCounts();
+  freezes.takeFreezeCounts(client.consentToken());
   for (const ms of [300, 499, 700, 1200, 2500, 6000, 31_000]) native.stall("main", ms);
   native.stall("main", 400, { inputWaitMs: 380 });
   native.stall("js", 1200, { gcMs: 900, inputWaitMs: 40 });
   native.stall("js", 6000, { gcMs: 100, inputWaitMs: 5800 });
   native.stall("js", 300);
-  const sent = freezes.takeFreezeCounts();
+  const sent = freezes.takeFreezeCounts(client.consentToken());
   assert.deepEqual(
     Object.fromEntries(Object.entries(sent).filter(([k]) => k.startsWith("main_"))),
     {
@@ -110,14 +110,14 @@ test("each stall lands in its duration bucket, with the longest stall, input wai
   assert.equal(sent.js_stall_gc_ms, 1000);
   assert.equal(sent.js_stall_gc_longest_ms, 900);
   assert.equal(sent.js_stall_gc_bound, 1, "only the stall that was mostly collection is GC-bound");
-  assert.equal(freezes.takeFreezeCounts().main_stall_250_500ms, 0, "taken once");
+  assert.equal(freezes.takeFreezeCounts(client.consentToken()).main_stall_250_500ms, 0, "taken once");
 });
 
 test("Hermes's collections in the period: count, time and the heap's size floor", () => {
   hermes = { js_numGCs: 10, js_gcTime: 1.5, js_heapSize: 200 * 1_048_576 };
   client.setSharing(true, "settings");
   hermes = { js_numGCs: 14, js_gcTime: 2.75, js_heapSize: 300 * 1_048_576 };
-  const sent = freezes.takeFreezeCounts();
+  const sent = freezes.takeFreezeCounts(client.consentToken());
   assert.equal(sent.js_gc_count, 4);
   assert.equal(sent.js_gc_ms, 1250);
   assert.equal(sent.js_heap_mb_floor, 256);
@@ -128,12 +128,12 @@ test("nothing from while sharing was off is sent: stalls, collections and hangs 
   hermes = { js_numGCs: 10, js_gcTime: 1, js_heapSize: 1 };
   native.stall("main", 6000, { epoch: 0 });
   freezes.noteRendererUnresponsive("tab-off", 0);
-  assert.deepEqual(freezes.takeFreezeCounts(), {}, "sharing off sends nothing");
+  assert.deepEqual(freezes.takeFreezeCounts(client.consentToken()), {}, "sharing off sends nothing");
   hermes = { js_numGCs: 50, js_gcTime: 9, js_heapSize: 1 };
   client.setSharing(true, "settings");
   const stale = native.epoch;
   freezes.noteRendererResponsive("tab-off", false, 3000);
-  const sent = freezes.takeFreezeCounts();
+  const sent = freezes.takeFreezeCounts(client.consentToken());
   assert.equal(sent.main_stall_5_10s, 0);
   assert.equal(sent.renderer_unresponsive, 0);
   assert.equal(sent.js_gc_count, 0, "collections before sharing turned on aren't counted");
@@ -141,12 +141,12 @@ test("nothing from while sharing was off is sent: stalls, collections and hangs 
   client.setSharing(false, "settings");
   client.setSharing(true, "settings");
   native.stall("js", 2000, { epoch: stale });
-  assert.equal(freezes.takeFreezeCounts().js_stall_2_5s, 0, "a stall from an earlier sharing period isn't sent in a later one");
+  assert.equal(freezes.takeFreezeCounts(client.consentToken()).js_stall_2_5s, 0, "a stall from an earlier sharing period isn't sent in a later one");
 });
 
 test("a page that stops responding is counted when it recovers or is exited, by how long it hung", () => {
   client.setSharing(true, "settings");
-  freezes.takeFreezeCounts();
+  freezes.takeFreezeCounts(client.consentToken());
   const hangs = [
     ["a", 1_000, false],
     ["b", 12_000, false],
@@ -159,7 +159,7 @@ test("a page that stops responding is counted when it recovers or is exited, by 
     freezes.noteRendererResponsive(tab, exited, 1000 + ms);
   }
   freezes.noteRendererResponsive("never-hung", false, 5000);
-  const sent = freezes.takeFreezeCounts();
+  const sent = freezes.takeFreezeCounts(client.consentToken());
   assert.deepEqual(
     Object.fromEntries(Object.entries(sent).filter(([k]) => k.startsWith("renderer_"))),
     {
@@ -175,7 +175,7 @@ test("a page that stops responding is counted when it recovers or is exited, by 
 
 test("a page that crashes, is discarded or closes while it hangs starts its next hang fresh", () => {
   client.setSharing(true, "settings");
-  freezes.takeFreezeCounts();
+  freezes.takeFreezeCounts(client.consentToken());
   freezes.noteRendererUnresponsive("crashed", 1000);
   pageEnded("crashed");
   freezes.noteRendererUnresponsive("crashed", 900_000);
@@ -183,16 +183,26 @@ test("a page that crashes, is discarded or closes while it hangs starts its next
   freezes.noteRendererUnresponsive("ended", 1000);
   pageEnded("ended");
   freezes.noteRendererResponsive("ended", false, 2000);
-  const sent = freezes.takeFreezeCounts();
+  const sent = freezes.takeFreezeCounts(client.consentToken());
   assert.equal(sent.renderer_unresponsive, 1, "only the hang after the reload is counted");
   assert.equal(sent.renderer_unresponsive_under_5s, 1, "timed from the new hang, not the one before the crash");
   assert.equal(sent.renderer_unresponsive_over_2m, 0);
 });
 
+test("freeze counts go out only with the token of the period they were counted in", () => {
+  client.setSharing(true, "settings");
+  const earlier = client.consentToken();
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  native.stall("main", 900);
+  assert.deepEqual(freezes.takeFreezeCounts(earlier), {}, "an earlier period's token takes nothing");
+  assert.equal(freezes.takeFreezeCounts(client.consentToken()).main_stall_500ms_1s, 1);
+});
+
 test("the fields are counts, timings and floors only", () => {
   client.setSharing(true, "settings");
   native.stall("main", 900, { inputWaitMs: 600 });
-  for (const [key, value] of Object.entries(freezes.takeFreezeCounts())) {
+  for (const [key, value] of Object.entries(freezes.takeFreezeCounts(client.consentToken()))) {
     assert.match(key, /^[a-z0-9_]+$/);
     assert.ok(Number.isSafeInteger(value) && value >= 0, `${key} is a whole number`);
   }
@@ -200,8 +210,8 @@ test("the fields are counts, timings and floors only", () => {
 
 test("the hourly memory sample takes the freeze counts after its last wait, so they can't cross into another sharing period", () => {
   const usage = readFileSync(new URL("./usage.ts", import.meta.url), "utf8");
-  const sample = usage.slice(usage.indexOf("async function sampleMemory()"));
-  const taken = sample.indexOf("takeFreezeCounts()");
+  const sample = usage.slice(usage.indexOf("async function sampleMemory("));
+  const taken = sample.indexOf("takeFreezeCounts(consent)");
   const captured = sample.indexOf('capture("perf_memory"');
   const body = sample.slice(0, sample.indexOf("\n}\n"));
   assert.ok(taken > 0 && captured > 0, "sampleMemory takes the freeze counts for perf_memory");
