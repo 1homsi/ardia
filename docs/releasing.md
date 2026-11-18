@@ -309,14 +309,16 @@ the engine if `engine/` changed (below).
   out yet.
 - **checks**: `pnpm typecheck`, `pnpm test`, `pnpm shaders:check`.
 - **build**, on the `xcode-27` runner (Xcode 27.1, the same build as here), with no secrets: fetches the engine for
-  this exact `engine/` tree (`fetch-engine.sh`), installs (pnpm, Pods, uv), runs
-  `scripts/release.sh <version> --phase build` (the archive, signed ad hoc, and the CLI tarball)
-  and uploads them as one tar. Caches: pnpm, Pods with Hermes, uBO, the engine, the CLI's downloads and Xcode's
+  this exact `engine/` tree (`fetch-engine.sh`), installs (pnpm, Pods), runs
+  `scripts/release.sh <version> --phase build` (the archive, signed ad hoc, and the official plugins pinned in
+  `apps/browser/official-plugins.json`, fetched and SHA-256 checked by `scripts/release/official-plugins.py bundle`)
+  and uploads them as one tar. Caches: pnpm, Pods with Hermes, uBO, the engine and Xcode's
   compilation cache (per Xcode build and month).
 - **sign** installs nothing and restores no cache, so no dependency code runs next to the keys. It
   treats the build as untrusted: `.github/release/unpack-build.py` unpacks it into a new directory outside the checkout
-  only if every member is the archive, `provenance.txt` or the CLI tarball and its `.sha256`, with no absolute or `..`
-  path, hard link, device or path through a symlink, and every symlink resolving inside its own app or dSYM bundle;
+  only if every member is the archive, `provenance.txt` or a file or folder under `plugins/<name>/` (no symlinks there;
+  `plugins/cli/plugin.json` must be there), with no absolute or `..` path, hard link, device or path through a symlink,
+  and every symlink resolving inside its own app or dSYM bundle;
   the app's bundle id, executable and version must be `com.ardia.browser`, `Ardia` and the input version.
   `release.sh --phase sign` reads it from there (`RELEASE_BUILD_INPUT`) into a `dist` it creates fresh, and the export
   takes the expected bundle id as an argument instead of reading it from the build. It takes Sparkle's tools from Sparkle's own 2.9.6 release (SHA-256 pinned; `SPARKLE_BIN`), sets up
@@ -333,7 +335,7 @@ the engine if `engine/` changed (below).
   run if the checkout changed, and only then it runs the launch check (`--phase check`, the final app opened hidden, uBO
   must be ready, the signature must survive), checks the zip's EdDSA signature against the app's `SUPublicEDKey`
   (`.github/release/check-sparkle.sh <dist> <version>`, so a `SPARKLE_ED_PRIVATE_KEY` that doesn't match the app
-  fails here instead of on every update) and uploads the DMG, zip, appcast, notes and CLI tarball. A failed launch check
+  fails here instead of on every update) and uploads the DMG, zip, appcast and notes. A failed launch check
   fails the run, so nothing publishes.
   Every `actions/*` step is pinned by commit SHA.
 - **publish** tags the commit and runs `publish.sh`. Before creating anything, `publish.sh` refuses a build that isn't

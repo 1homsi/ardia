@@ -35,10 +35,13 @@ for folder in "$app"/Contents/Resources/Plugins/*/; do
   [ -n "$recorded" ] || die "Info.plist has no digest for the built-in plugin $name"
   [ "$("$root/scripts/release/plugin-digest.py" "$folder")" = "$recorded" ] \
     || die "the signed $name plugin's files don't match the digest in Info.plist: something changed them after export-sign.sh recorded it"
-  find "$folder" -type f -perm -u+x -print0 | while IFS= read -r -d '' exe; do
+  team="$(codesign -dv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+  find "$folder" -type f \( -name '*.so' -o -name '*.dylib' -o -perm -u+x \) -print0 | while IFS= read -r -d '' exe; do
     file -b "$exe" | grep -q '^Mach-O' || continue
     codesign --verify --strict "$exe" || die "$exe isn't validly signed"
-    codesign -dv "$exe" 2>&1 | grep -q 'flags=.*runtime' || die "$exe isn't signed with the hardened runtime"
+    signed="$(codesign -dv "$exe" 2>&1)"
+    grep -q 'flags=.*runtime' <<<"$signed" || die "$exe isn't signed with the hardened runtime"
+    [ "$(sed -n 's/^TeamIdentifier=//p' <<<"$signed")" = "$team" ] || die "$exe isn't signed by the app's team ($team)"
   done
 done
 [ -f "$app/Contents/Resources/Plugins/cli/plugin.json" ] || die "the app has no built-in Command Line plugin"

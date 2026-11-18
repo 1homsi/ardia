@@ -116,11 +116,12 @@ export function requestPluginConsent(name: string): boolean {
   return true;
 }
 
-export function dismissPluginConsent(name?: string) {
+export function dismissPluginConsent(name?: string): boolean {
   const before = currentPlugins().consent;
-  if (name !== undefined && before?.name !== name) return;
+  if (name !== undefined && before && before.name !== name) return false;
   usePlugins.setState({ consent: null });
   if (before) settleInstall(before.name, { ok: false, reason: "Cancelled." });
+  return true;
 }
 
 export function enablePlugin(name: string, hash: string): boolean {

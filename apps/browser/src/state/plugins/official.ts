@@ -58,7 +58,9 @@ export function useOfficialPlugins(): OfficialPlugin[] {
 
 function linkOutcome(name: string): InstallResult | null {
   const s = currentPlugins();
-  if (!activeManifest(s, name)?.programs.length) return { ok: true };
+  const manifest = activeManifest(s, name);
+  if (!manifest) return { ok: false, reason: `${name} isn't installed any more: it changed or went away while it was being linked.` };
+  if (!manifest.programs.length) return { ok: true };
   const programs = s.programs[name];
   if (!programs || programs.state === "linking" || programs.hash !== s.listings[name]?.hash) return null;
   if (programs.state === "failed") return { ok: false, reason: `It's installed, but its commands couldn't go on PATH: ${programs.reason}` };

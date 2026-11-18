@@ -36,7 +36,11 @@ function scratch({ pluginVersion = "0.3.0", link = false } = {}) {
   tarball(artifacts, "ardia-cli-0.3.0-linux-x64.tar.gz", "ardia-cli-0.3.0", { "bin/ardia": "#!/bin/sh\necho ardia 0.3.0\n", "python/README": "python" });
   writeFileSync(join(artifacts, "install.sh"), readFileSync(join(root, "apps/cli/install.sh")));
   const pin = join(dir, "pin.json");
-  writeFileSync(pin, JSON.stringify(realPin));
+  const unpublished = structuredClone(realPin);
+  for (const artifact of Object.values(unpublished.plugins[0].artifacts)) artifact.sha256 = null;
+  unpublished.plugins[0].version = "0.3.0";
+  unpublished.plugins[0].release = "https://github.com/ardia-browser/plugins/releases/download/cli-v0.3.0";
+  writeFileSync(pin, JSON.stringify(unpublished));
   return { dir, artifacts, pin };
 }
 

@@ -9,8 +9,7 @@ export function PluginConsentSheet({ name, hash, onClosed }: { name: string; has
   const m = listing?.manifest;
   const install = isAlwaysOn(listing);
   const close = () => {
-    dismissPluginConsent(name);
-    onClosed();
+    if (dismissPluginConsent(name)) onClosed();
   };
   const changed = !m || listing?.hash !== hash;
   return (

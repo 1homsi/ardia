@@ -7,6 +7,7 @@ import type { PluginListing, ProcessState, ProgramsState } from "../../../state/
 import {
   consentLines,
   disablePlugin,
+  dismissPluginConsent,
   installOfficialPlugin,
   isAlwaysOn,
   pluginsFolderPath,
@@ -32,7 +33,10 @@ import { PluginConsentSheet } from "../../plugins/PluginConsentSheet";
 export function PluginsPane({ detail }: SettingsPlace) {
   const consent = usePluginConsent();
   const showing = useRef(false);
+  const owned = useRef<string | null>(null);
+  useEffect(() => () => void (owned.current && dismissPluginConsent(owned.current)), []);
   useEffect(() => {
+    owned.current = consent?.name ?? null;
     if (consent) {
       showing.current = true;
       showSettingsSheet(<PluginConsentSheet name={consent.name} hash={consent.hash} onClosed={closeSettingsSheet} />);

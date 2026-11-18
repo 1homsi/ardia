@@ -4,14 +4,16 @@ set -euo pipefail
 usage="usage: scripts/release/cli-bootstrap-smoke.sh <Ardia.app> <version>
 Launches hidden instances of <Ardia.app> on scratch data folders with scratch bin folders. A fresh profile is offered
 the built-in Command Line plugin and gets no ardia until it's installed. A profile that installed it (its plugins.json
-record, as Install writes it) gets ardia linked from the signed copy (so the copy passed the digest check), at
-<version>, and with control on ardia tabs answers."
+record, as Install writes it) gets ardia linked from the signed copy (so the copy passed the digest check), at the
+version apps/browser/official-plugins.json pins (the command's own, not <version>), and with control on ardia tabs
+answers."
 case "${1:-}" in -h | --help | "") echo "$usage"; [ -n "${1:-}" ] && exit 0 || exit 64 ;; esac
 app="$(cd "$1" && pwd -P)"
 version="${2:?$usage}"
 root="$(cd "$(dirname "$0")/../.." && pwd -P)"
 case "$app" in /Applications/*) echo "error: never an installed app" >&2; exit 1 ;; esac
 manifest="$app/Contents/Resources/Plugins/cli/plugin.json"
+pinned="$(python3 -I -c 'import json, sys; print(next(p["version"] for p in json.load(open(sys.argv[1]))["plugins"] if p["name"] == "cli"))' "$root/apps/browser/official-plugins.json")"
 [ -f "$manifest" ] || { echo "error: $app has no built-in Command Line plugin" >&2; exit 1; }
 work="$(cd "$(mktemp -d /tmp/ac-cli.XXXXXX)" && pwd -P)"
 pid=""
@@ -56,7 +58,7 @@ for _ in $(seq 1 300); do [ -L "$bin/ardia" ] && break; sleep 0.2; done
 check "once installed, ardia is linked" "$([ -L "$bin/ardia" ] && echo 1 || echo 0)"
 check "from the signed copy in the store" "$(case "$(readlink "$bin/ardia")" in "$data/Programs/cli/current/bin/ardia") echo 1 ;; *) echo 0 ;; esac)" "$(readlink "$bin/ardia" || true)"
 got="$("$bin/ardia" --version 2>&1 || true)"
-check "it is the release's ardia" "$([ "$got" = "ardia $version" ] && echo 1 || echo 0)" "$got"
+check "it is the pinned ardia $pinned (Ardia $version)" "$([ "$got" = "ardia $pinned" ] && echo 1 || echo 0)" "$got"
 control="$data/Chromium/ArdiaControl.json"
 for _ in $(seq 1 150); do [ -s "$control" ] && break; sleep 0.2; done
 tabs="$(env -i HOME="$HOME" PATH="$bin:/usr/bin:/bin" ARDIA_DATA_DIR="$data" ARDIA_TELEMETRY=off ardia tabs 2>&1)" && ok=1 || ok=0

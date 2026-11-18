@@ -132,6 +132,38 @@ test("a link that fails is reported to the caller; asking again links it and say
   reset();
 });
 
+test("a plugin that goes away while it links doesn't report success", async () => {
+  const TOOL = JSON.stringify({ manifest: 1, name: "gadget", title: "Gadget", alwaysOn: true, official: true, programs: [{ name: "gadget-x", path: "bin/x" }] });
+  await scan([{ name: "cli", text: CLI, ...BUILT_IN }, { name: "other", status: "ok", text: OTHER, folderId: "1:2" }, { name: "gadget", text: TOOL, ...BUILT_IN }]);
+  reset();
+  let release;
+  const gate = new Promise((resolve) => (release = resolve));
+  const linkPrograms = stub.shellNativeModules.ArdiaPlugins.linkPrograms;
+  stub.shellNativeModules.ArdiaPlugins.linkPrograms = async (spec) => (await gate, linkPrograms(spec));
+  try {
+    const done = installOfficialPlugin("gadget", { showSheet: false });
+    assert.ok(lifecycle.enablePlugin("gadget", P().consent.hash));
+    await scan([{ name: "cli", text: CLI, ...BUILT_IN }, { name: "other", status: "ok", text: OTHER, folderId: "1:2" }]);
+    release();
+    const result = await done;
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /isn't installed any more/);
+  } finally {
+    stub.shellNativeModules.ArdiaPlugins.linkPrograms = linkPrograms;
+  }
+  reset();
+});
+
+test("closing the Settings sheet's owner settles its install; a replaced sheet's Cancel leaves the new one", async () => {
+  const done = installOfficialPlugin("cli", { showSheet: false });
+  assert.ok(lifecycle.requestPluginConsent("other"));
+  assert.equal(lifecycle.dismissPluginConsent("cli"), false, "cli's sheet was replaced, so its Cancel owns nothing");
+  assert.equal(P().consent.name, "other");
+  assert.equal(lifecycle.dismissPluginConsent("other"), true);
+  assert.deepEqual(await done, { ok: false, reason: "Another plugin's sheet took its place." });
+  assert.equal(lifecycle.dismissPluginConsent("cli"), true, "with no sheet open, Cancel just closes");
+});
+
 test("one click: Install on the sheet installs it, links ardia adopting the old home, grants control, and the promise settles", async () => {
   reset();
   takePluginCounts();
