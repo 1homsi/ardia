@@ -128,7 +128,7 @@ function emitCounts(consent: ConsentToken | null) {
   countsSince = Date.now();
 }
 
-watchConsentBoundary(() => emitWindowUsage(null));
+watchConsentBoundary(() => (emitWindowUsage(null), void takeSearchSuggests()));
 export const noteImportedPins = (made: { rows: number; splits: number }, consent?: ConsentToken | null) => bump(consent, { importedPinnedRows: made.rows, importedSplits: made.splits });
 
 export const noteImportedSpaces = (made: { spaces: number; containerSpaces: number; dataProfiles: number; essentials: number; startersNamed: number }, consent?: ConsentToken | null) => bump(consent, { importedSpaces: made.spaces, importedContainerSpaces: made.containerSpaces, importedDataProfiles: made.dataProfiles, importedEssentials: made.essentials, importedStartersNamed: made.startersNamed });
@@ -312,8 +312,8 @@ async function sampleMemory(consent: ConsentToken | null) {
 
 function emitOmniboxLatency(consent: ConsentToken | null) {
   const samples = takeOmniboxLatency().sort((a, b) => a - b);
-  const suggests = takeSearchSuggests();
   if (!samples.length) return;
+  const suggests = takeSearchSuggests();
   const at = (p: number) => percentile(samples, p);
   capture("perf_omnibox", { ...suggests, samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! }, consent);
 }

@@ -504,3 +504,28 @@ test("PRRT 4607859813 a stale extension listing keeps every skip category in its
   assert.equal(local.sent, false);
   assert.deepEqual([local.properties.import_extensions_skipped_installed, local.properties.import_extensions_skipped_mv2, local.properties.import_extensions_skipped_not_web_store], [2, 1, 1]);
 });
+
+test("PRRT 4608136987 search-suggestion counts from a normal report with no latency sample are kept for the next report in the same period", async () => {
+  client.setSharing(true, "onboarding");
+  track.takeSearchSuggests();
+  track.takeOmniboxLatency();
+  await queued("perf_omnibox");
+  stub.docs.delete("telemetry-queue.json");
+  track.noteSearchSuggest("ok", client.consentToken());
+  track.noteSearchSuggest("blocked", client.consentToken());
+  usage.emitWindowUsage(client.consentNow());
+  for (let i = 0; i < 5; i++) track.sampleOmniboxLatency(12);
+  usage.emitWindowUsage(client.consentNow());
+  const sent = await queued("perf_omnibox");
+  assert.equal(sent.reduce((n, p) => n + (p.search_suggest_ok ?? 0), 0), 1, JSON.stringify(sent));
+  assert.equal(sent.reduce((n, p) => n + (p.search_suggest_blocked ?? 0), 0), 1, JSON.stringify(sent));
+});
+
+test("PRRT 4608136987 search-suggestion counts with no latency sample are dropped at a consent boundary, not carried into the next period", async () => {
+  client.setSharing(true, "onboarding");
+  track.takeSearchSuggests();
+  track.takeOmniboxLatency();
+  track.noteSearchSuggest("ok", client.consentToken());
+  client.replaceInstallId();
+  assert.equal(Object.values(track.takeSearchSuggests()).reduce((a, b) => a + b, 0), 0);
+});
