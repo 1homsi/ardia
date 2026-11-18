@@ -161,16 +161,22 @@ BOOL TracingPictureInPicture() {
   const NSTimeInterval clickAt = TakeControlPress(clickMs, target, self.window);
   [self traceManualPictureInPicture:[NSString stringWithFormat:@"%@ %@ (control %ld)", clickMs > 0 ? @"click" : @"key or accessibility press", clickAt > 0 ? @"verified" : @"not verified", (long)target]];
   if (clickAt <= 0) return completion(NO);
-  _pictureInPictureRequestStamp = ArdiaConsentStamp.begin;
+  ArdiaConsentStamp *stamp = ArdiaConsentStamp.begin;
+  _pictureInPictureRequestStamp = stamp;
   [self thawHiddenPage];
   __weak ArdiaWebView *weakSelf = self;
+  void (^finish)(BOOL) = ^(BOOL entered) {
+    ArdiaWebView *view = weakSelf;
+    if (view && (!entered || view->_reports.inPictureInPicture) && view->_pictureInPictureRequestStamp == stamp) view->_pictureInPictureRequestStamp = nil;
+    completion(entered);
+  };
   [_tab enterPictureInPictureForClickAt:clickAt
                              completion:^(NSString *route, BOOL opened) {
                                ArdiaWebView *view = weakSelf;
-                               if (!view) return completion(NO);
+                               if (!view) return finish(NO);
                                [view traceManualPictureInPicture:[NSString stringWithFormat:@"route %@ opened=%d", route, opened]];
-                               if (![route isEqualToString:@"session"]) return completion(opened || view->_reports.inPictureInPicture);
-                               [view awaitPictureInPicture:8 completion:completion];
+                               if (![route isEqualToString:@"session"]) return finish(opened || view->_reports.inPictureInPicture);
+                               [view awaitPictureInPicture:8 completion:finish];
                              }];
 }
 

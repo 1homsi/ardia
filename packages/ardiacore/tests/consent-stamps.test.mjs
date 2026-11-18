@@ -79,8 +79,13 @@ test("a Picture in Picture window is stamped when the page enters it, and the re
   assert.match(changed, /ArdiaConsentStamp \*stamp = _pictureInPictureRequestStamp \?: ArdiaConsentStamp\.begin;/);
   assert.match(changed, /if \(\[state\[@"active"\] boolValue\]\) _pictureInPictureRequestStamp = nil;/);
   const request = view.slice(view.indexOf("- (void)requestPictureInPictureForClickAt:"), view.indexOf("- (void)awaitPictureInPicture:"));
-  assert.ok(request.indexOf("_pictureInPictureRequestStamp = ArdiaConsentStamp.begin;") > 0, "a requested entry is stamped when the click is verified");
-  assert.ok(request.indexOf("_pictureInPictureRequestStamp = ArdiaConsentStamp.begin;") < request.indexOf("enterPictureInPictureForClickAt"), "the stamp is taken before the engine is asked to enter");
+  assert.ok(request.indexOf("_pictureInPictureRequestStamp = stamp;") > 0, "a requested entry is stamped when the click is verified");
+  assert.ok(request.indexOf("ArdiaConsentStamp *stamp = ArdiaConsentStamp.begin;") < request.indexOf("_pictureInPictureRequestStamp = stamp;"));
+  assert.ok(request.indexOf("_pictureInPictureRequestStamp = stamp;") < request.indexOf("enterPictureInPictureForClickAt"), "the stamp is taken before the engine is asked to enter");
+  assert.match(request, /if \(view && \(!entered \|\| view->_reports\.inPictureInPicture\) && view->_pictureInPictureRequestStamp == stamp\) view->_pictureInPictureRequestStamp = nil;/, "a request that ends without entering, or after its entry used the stamp, leaves no stamp for a later entry");
+  const entry = request.slice(request.indexOf("enterPictureInPictureForClickAt"));
+  assert.doesNotMatch(entry, /\bcompletion\(/, "every end of the request goes through finish, which clears its stamp");
+  assert.match(entry, /awaitPictureInPicture:8 completion:finish\]/);
   assert.match(read("../ios/ArdiaWebViewInternal.h"), /ArdiaConsentStamp \*_pictureInPictureRequestStamp;/);
   assert.match(changed, /ardia_pip::VideoEntered\(self, [^;]*, stamp\)/);
   assert.match(changed, /ardia_pip::DocumentEntered\(self, stamp\)/);

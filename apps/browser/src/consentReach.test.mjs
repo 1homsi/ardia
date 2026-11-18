@@ -85,6 +85,31 @@ if (process.argv.includes("--write")) {
     assert.deepEqual(sinks.map((s) => `${s.kind}:${s.line}`), ["consentToken:3", "noter:4"]);
   });
 
+  test("CodeRabbit's probes: a helper called before an await in a loop body, and a helper passed by name to a timer, are continuation work", () => {
+    const program = virtualProgram({
+      "apps/browser/src/state/telemetry/usage.ts": [
+        "export type ConsentToken = string & { readonly period: 1 };",
+        "export const consentToken = (): ConsentToken | null => null;",
+        "export function capture(event: string, props: object, consent: ConsentToken | null) {}",
+      ].join("\n"),
+      "apps/browser/src/state/x.ts": [
+        'import { capture, consentToken, type ConsentToken } from "./telemetry/usage";',
+        "declare function work(): Promise<void>;",
+        "declare function setTimeout(cb: () => void, ms: number): void;",
+        'function loopHelper() { capture("e", {}, consentToken()); }',
+        "export async function run() { for (let i = 0; i < 2; i++) { loopHelper(); await work(); } }",
+        'function forwardedHelper(token: ConsentToken | null) { capture("e", {}, token); }',
+        "export async function runForwarding() { const token = consentToken(); for (let i = 0; i < 2; i++) { forwardedHelper(token); await work(); } }",
+        'function namedTimer() { capture("e", {}, consentToken()); }',
+        "setTimeout(namedTimer, 0);",
+        'function inlineTimer() { capture("e", {}, consentToken()); }',
+        "setTimeout(() => inlineTimer(), 0);",
+      ].join("\n"),
+    });
+    const { sinks } = reachSinks(program, scopeFiles(program), new Set());
+    assert.deepEqual(sinks.map((s) => `${s.kind}:${s.line}`), ["consentToken:4", "consentToken:8", "consentToken:10"]);
+  });
+
   test("an imported take function counts as drained only when the drain root calls it", async () => {
     const { unclearedCounters } = await import("../scripts/consentStatic.mjs");
     const drain = (name) => `export function ${name}() {}`;
