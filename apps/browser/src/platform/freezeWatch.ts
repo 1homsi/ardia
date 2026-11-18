@@ -29,7 +29,8 @@ export type FreezeRecord = {
   gcMs: number;
   gcCount: number;
   thermal: number;
-  epoch: number;
+  epoch: string;
+  watchEpoch: number;
   samples: FreezeSample[];
   images: { name: string; uuid: string }[];
 };

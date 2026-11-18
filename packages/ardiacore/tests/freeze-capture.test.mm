@@ -1,4 +1,5 @@
 #import "../ios/ArdiaFreezeCapture.h"
+#import "../ios/ArdiaEvents.h"
 #import "../ios/ArdiaLaunchConfig.h"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-braces"
@@ -31,6 +32,24 @@ static NSString *gDataDir;
 }
 - (BOOL)testFlag:(NSString *)key {
   return [key isEqualToString:@"freezeWatchActive"];
+}
+@end
+
+@implementation ArdiaEvents
++ (NSString *)consentEpoch {
+  return @"period-under-test";
+}
+@end
+
+@implementation ArdiaConsentStamp
+- (instancetype)initWithEpoch:(NSString *)epoch {
+  if ((self = [super init])) _epoch = [epoch copy];
+  return self;
+}
+- (NSDictionary *)onto:(NSDictionary *)payload {
+  NSMutableDictionary *stamped = [payload mutableCopy];
+  stamped[@"epoch"] = _epoch;
+  return stamped;
 }
 @end
 
@@ -122,6 +141,7 @@ int main() {
     NSDictionary *second = records.count > 1 ? records[1] : nil;
     expect([second[@"id"] intValue] == 2 && [second[@"durationMs"] doubleValue] >= 2300, "the delayed finish reports the second freeze with its own length");
     expect([second[@"samples"] count] > 0, "the second freeze keeps its stack samples");
+    expect([second[@"epoch"] isEqualToString:@"period-under-test"] && [second[@"watchEpoch"] intValue] == 1, "the record carries the consent stamp from when its capture began and the watch epoch");
     expect(Slot(1) == "freeze 2 main recovered", "the second freeze's slot, written frozen at 2 s, now says recovered");
     expect(Slot(2) == "freeze 3 main recovered", "the third freeze is recorded too");
     std::fprintf(stderr, "%s\n", failures ? "FAILED" : "all passed");

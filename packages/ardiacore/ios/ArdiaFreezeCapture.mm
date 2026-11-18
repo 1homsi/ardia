@@ -2,6 +2,7 @@
 #import "ArdiaFreezeArming.h"
 
 #import <AppKit/AppKit.h>
+#import "ArdiaEvents.h"
 #import "ArdiaLaunchConfig.h"
 #import "ArdiaStackSample.h"
 
@@ -55,6 +56,7 @@ struct Capture {
   double gcMs;
   double gcCount;
   char activity[25];
+  char consent[48];
   ArdiaStackSample samples[kSamples];
 };
 
@@ -298,6 +300,7 @@ void Begin(Capture &c, int thread, const Stretch *source, uint64_t stretch, uint
   c.gcMs = -1;
   c.gcCount = -1;
   c.thermal = gThermal.load(std::memory_order_relaxed);
+  strlcpy(c.consent, ArdiaEvents.consentEpoch.UTF8String ?: "", sizeof c.consent);
   c.seq = ++gSeq;
   c.slot = gNextSlot;
   gNextSlot = (gNextSlot + 1) % kSlots;
@@ -404,8 +407,8 @@ void Finish(const Ended &ended, Capture done) {
   os_unfair_lock_unlock(&gCaptureLock);
   gArming.disarmIfIdle();
   NSMutableDictionary *record = [Describe(done) mutableCopy];
-  record[@"epoch"] = @(ended.epoch);
-  if (gEmit) gEmit(record);
+  record[@"watchEpoch"] = @(ended.epoch);
+  if (gEmit) gEmit([[[ArdiaConsentStamp alloc] initWithEpoch:@(done.consent)] onto:record]);
 }
 
 void WatchActivation() {

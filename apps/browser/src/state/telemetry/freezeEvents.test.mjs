@@ -38,7 +38,8 @@ const record = (over = {}) => ({
   gcMs: 2100,
   gcCount: 7,
   thermal: 2,
-  epoch: native.epoch,
+  epoch: client.consentToken() ?? "",
+  watchEpoch: native.epoch,
   samples: [{ state: 1, frames: frames(["hermes", 0x1ae2a0], ["hermes", 0x1ae528], ["Ardia", 0x4400], ["system", 0x123]) }],
   images: [
     { name: "hermes", uuid: "11111111-2222-3333-4444-555555555555" },
@@ -87,7 +88,7 @@ test("sharing off: nothing is sent, but the local record still gets the job that
   freezes.startFreezeWatch();
   const end = jobs.beginActivity("sync", Date.now() - 2900);
   end();
-  await events.reportFreeze(record({ epoch: 0 }));
+  await events.reportFreeze(record({ watchEpoch: 0 }));
   assert.deepEqual(await sentFreezes(), []);
   assert.equal(annotations.length, 1);
   assert.equal(annotations[0][1], "sync");
@@ -95,11 +96,15 @@ test("sharing off: nothing is sent, but the local record still gets the job that
 
 test("a freeze from an earlier sharing period isn't sent in a later one", async () => {
   client.setSharing(true, "settings");
-  const stale = native.epoch;
+  const stale = record();
   client.setSharing(false, "settings");
   client.setSharing(true, "settings");
-  await events.reportFreeze(record({ epoch: stale }));
-  assert.deepEqual(await sentFreezes(), []);
+  await events.reportFreeze(stale);
+  await events.reportFreeze(record({ epoch: stale.epoch }));
+  await events.reportFreeze(record({ watchEpoch: stale.watchEpoch }));
+  assert.deepEqual(await sentFreezes(), [], "an earlier period's stamp or watch epoch: dropped");
+  await events.reportFreeze(record());
+  assert.equal((await sentFreezes()).length, 1, "this period's stamp and watch epoch: sent");
 });
 
 test("app_freeze carries buckets, counts, enums, the signature and scrubbed frames and images only", async () => {
