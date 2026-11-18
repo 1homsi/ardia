@@ -9,10 +9,6 @@ struct ResearchView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var copiedAnswer = 0
   @State private var showsCopied = false
-  @AppStorage("ArdiaVoiceTipDismissed") private var voiceTipDismissed = false
-  @AppStorage(ReadingVoices.enabledKey) private var readsAloud = false
-
-  private var readAloud: ReadAloud { session.readAloud }
   private var host: BrowseForMeHost { .shared }
 
   var body: some View {
@@ -38,14 +34,6 @@ struct ResearchView: View {
         .frame(maxWidth: .infinity)
       }
       .scrollBounceBehavior(.basedOnSize)
-      .safeAreaInset(edge: .bottom) {
-        if readsAloud, session.phase == .done {
-          listenBar
-            .padding(.horizontal, Spacing.medium)
-            .padding(.bottom, Spacing.tight)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-      }
       .animation(reduceMotion ? nil : Motion.smooth, value: session.phase)
       .background(Color(.systemBackground))
       .navigationBarTitleDisplayMode(.inline)
@@ -57,15 +45,11 @@ struct ResearchView: View {
       }
     }
     .overlay(alignment: .bottom) { copiedToast }
-    .overlay { simulatedScreenOff }
     .task(id: copiedAnswer) {
       guard copiedAnswer > 0 else { return }
       withAnimation(reduceMotion ? nil : Motion.smooth) { showsCopied = true }
       try? await Task.sleep(for: .seconds(1.5))
       withAnimation(reduceMotion ? nil : Motion.smooth) { showsCopied = false }
-    }
-    .onAppear {
-      if readsAloud { readAloud.watch() }
     }
     .onDisappear { host.closed(session) }
   }
@@ -262,99 +246,8 @@ struct ResearchView: View {
             .foregroundStyle(host.chatGPT.problem == nil ? Color.secondary : Color.red)
         }
       }
-      if showsVoiceTip {
-        voiceTip
-      }
     }
     .padding(.top, Spacing.small)
-  }
-
-  private var showsVoiceTip: Bool {
-    readsAloud && !voiceTipDismissed && !ReadingVoices.hasNaturalVoice
-  }
-
-  private var voiceTip: some View {
-    HStack(alignment: .top, spacing: Spacing.small) {
-      Image(systemName: "waveform")
-        .foregroundStyle(.tint)
-        .accessibilityHidden(true)
-      Text(ReadingVoices.downloadTip)
-        .font(.footnote)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      Button {
-        voiceTipDismissed = true
-      } label: {
-        Image(systemName: "xmark")
-          .font(.footnote.weight(.semibold))
-          .foregroundStyle(.secondary)
-          .frame(width: 28, height: 28)
-          .contentShape(.rect)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(Text("Dismiss"))
-    }
-    .padding(Spacing.small)
-    .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 14, style: .continuous))
-  }
-
-  private var listenBar: some View {
-    let listening = readAloud.listening
-    return HStack(spacing: Spacing.small) {
-      Image(systemName: listening.output == .earpiece ? "ear.fill" : "ear")
-        .font(.title3)
-        .symbolEffect(.variableColor.iterative, isActive: listening.isPlaying && listening.output == .earpiece && !reduceMotion)
-        .frame(width: 28)
-        .accessibilityHidden(true)
-      Text(listenText(listening))
-        .font(.subheadline.weight(.medium))
-        .lineLimit(2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      Menu {
-        VoicePicker { readAloud.voiceChanged() }
-          .pickerStyle(.inline)
-      } label: {
-        Image(systemName: "person.wave.2.fill")
-          .font(.body.weight(.semibold))
-          .frame(width: 44, height: 44)
-          .contentShape(.circle)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(Text("Voice"))
-      Button {
-        readAloud.toggleSpeaker()
-      } label: {
-        Image(systemName: listening.isPlaying && listening.output == .speaker ? "pause.fill" : "speaker.wave.2.fill")
-          .font(.body.weight(.semibold))
-          .frame(width: 44, height: 44)
-          .contentShape(.circle)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(listening.isPlaying && listening.output == .speaker ? Text("Pause") : Text("Play Out Loud"))
-    }
-    .padding(.leading, Spacing.page)
-    .padding(.trailing, Spacing.hairline)
-    .padding(.vertical, Spacing.hairline)
-    .background(alignment: .bottomLeading) {
-      GeometryReader { proxy in
-        Capsule()
-          .fill(.tint.opacity(0.18))
-          .frame(width: proxy.size.width * readAloud.spokenFraction)
-          .animation(.linear(duration: 0.25), value: readAloud.spokenFraction)
-      }
-      .clipShape(.capsule)
-    }
-    .glassEffect(.regular, in: .capsule)
-  }
-
-  private func listenText(_ listening: EarListening) -> String {
-    switch listening.state {
-    case .waiting: String(localized: "Hold your iPhone to your ear to listen")
-    case .playing(.earpiece): String(localized: "Reading at your ear")
-    case .playing(.speaker): String(localized: "Reading out loud")
-    case .paused(.earpiece): String(localized: "Paused. Hold it to your ear to keep listening")
-    case .paused(.speaker): String(localized: "Paused")
-    case .finished: String(localized: "Hold it to your ear to hear it again")
-    }
   }
 
   @ViewBuilder
@@ -369,22 +262,5 @@ struct ResearchView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .accessibilityAddTraits(.updatesFrequently)
     }
-  }
-
-  @ViewBuilder
-  private var simulatedScreenOff: some View {
-    #if targetEnvironment(simulator)
-    if readAloud.isNear {
-      Color.black
-        .ignoresSafeArea()
-        .overlay(alignment: .bottom) {
-          Text(verbatim: "Proximity: near")
-            .font(.caption.monospaced())
-            .foregroundStyle(.white.opacity(0.5))
-            .padding(.bottom, Spacing.section)
-        }
-        .allowsHitTesting(false)
-    }
-    #endif
   }
 }

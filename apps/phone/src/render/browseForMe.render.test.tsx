@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { act, type ReactTestRenderer } from "react-test-renderer";
+import { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 const core = require("expo-modules-core") as { requireOptionalNativeModule: (name: string) => unknown };
 const realOptional = core.requireOptionalNativeModule;
@@ -100,11 +100,17 @@ test("voice search offers Browse for Me beside Search once words are heard, and 
   unmount(voice);
 });
 
-onIos("Settings lists Browse for Me after Search Engine, saying On iPhone until ChatGPT is connected", () => {
+const rowTitles = (node: ReactTestInstance) => [...new Set(node.findAll((child) => typeof child.type === "string" && typeof child.props.title === "string" && typeof child.props.systemImage === "string").map((child) => child.props.title as string))];
+
+const experimental = (root: ReactTestRenderer) => root.root.findAll((node) => typeof node.type === "string" && node.props.title === "Experimental");
+
+onIos("Settings lists Browse for Me alone in an Experimental section, saying On iPhone until ChatGPT is connected, and drops the section without the native page", () => {
   act(() => openSettings());
   const root: ReactTestRenderer = renderSurface(<SettingsView />);
-  const titles = root.root.findAll((node) => typeof node.type === "string" && typeof node.props.title === "string" && typeof node.props.systemImage === "string").map((node) => node.props.title as string);
-  expect(titles.indexOf("Browse for Me")).toBe(titles.indexOf("Search Engine") + 1);
+  const sections = experimental(root);
+  expect(sections.length).toBeGreaterThan(0);
+  expect(rowTitles(sections[0]!)).toEqual(["Browse for Me"]);
+  expect(rowTitles(root.root)).toContain("Search Engine");
   const links = root.root.findAll((node) => typeof node.type === "string" && typeof node.props.value === "string" && !("path" in node.props)).map((node) => node.props.value);
   expect(links).toContain("browseForMe");
   expect(shows(root, "On iPhone")).toBe(true);
@@ -113,6 +119,11 @@ onIos("Settings lists Browse for Me after Search Engine, saying On iPhone until 
   expect(shows(root, "On iPhone")).toBe(false);
   send({ name: "account", connected: false });
   unmount(root);
+  available = false;
+  const without: ReactTestRenderer = renderSurface(<SettingsView />);
+  expect(experimental(without)).toHaveLength(0);
+  expect(rowTitles(without.root)).not.toContain("Browse for Me");
+  unmount(without);
 });
 
 test("a source from the answer page opens as a normal tab, Search the Web searches the query, and Check Usage leaves Settings for its page", () => {

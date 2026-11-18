@@ -1,7 +1,6 @@
 import ArdiaBrowser
 import ArdiaDesign
 import AuthenticationServices
-import AVFoundation
 import SwiftUI
 
 struct ContinueWithChatGPTButton: View {
@@ -38,7 +37,6 @@ struct ContinueWithChatGPTButton: View {
 
 struct BrowseForMePage: View {
   @State private var confirmsDisconnect = false
-  @AppStorage(ReadingVoices.enabledKey) private var readsAloud = false
 
   private var account: ChatGPTAccount { BrowseForMeHost.shared.chatGPT }
 
@@ -100,20 +98,8 @@ struct BrowseForMePage: View {
       }
 
       Section {
-        Toggle("Read Answers Aloud", isOn: $readsAloud)
-          .toggleStyle(SettingsSwitchStyle())
-        if readsAloud {
-          VoicePicker()
-            .tint(.secondary)
-        }
-      } header: {
-        Text("Reading Aloud")
-      } footer: {
-        if readsAloud, !ReadingVoices.hasNaturalVoice {
-          Text(ReadingVoices.downloadTip)
-        } else if !readsAloud {
-          Text("Adds a bar under each answer. Hold your iPhone to your ear to hear it, or play it out loud.")
-        }
+        Text("Read aloud coming soon")
+          .foregroundStyle(.secondary)
       }
     }
     .navigationTitle("Browse for Me")

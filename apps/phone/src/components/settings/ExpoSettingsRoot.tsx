@@ -89,13 +89,6 @@ export function ExpoSettingsRoot() {
               <Text>{engineName}</Text>
             </LabeledContent>
           </NavigationLink>
-          {browseForMeOffered() ? (
-            <NavigationLink value={link({ page: "browseForMe" })}>
-              <LabeledContent label={<ExpoRowLabel title="Browse for Me" systemImage="sparkle.magnifyingglass" tint="nightShade" />}>
-                <Text>{chatGPT ? "ChatGPT" : "On iPhone"}</Text>
-              </LabeledContent>
-            </NavigationLink>
-          ) : null}
           <Toggle isOn={suggestions} onIsOnChange={setSearchSuggestions} modifiers={modifierList(settingsSwitchStyle())}>
             <ExpoRowLabel title="Search Suggestions" systemImage="text.magnifyingglass" tint="blue" />
           </Toggle>
@@ -135,6 +128,15 @@ export function ExpoSettingsRoot() {
             <ExpoRowLabel title="Export Open Tabs" systemImage="square.and.arrow.up.fill" tint="export" />
           </Button>
         </Section>
+        {browseForMeOffered() ? (
+          <Section title="Experimental">
+            <NavigationLink value={link({ page: "browseForMe" })}>
+              <LabeledContent label={<ExpoRowLabel title="Browse for Me" systemImage="sparkle.magnifyingglass" tint="nightShade" />}>
+                <Text>{chatGPT ? "ChatGPT" : "On iPhone"}</Text>
+              </LabeledContent>
+            </NavigationLink>
+          </Section>
+        ) : null}
         <Section footer={<Text>{PHONE_SHARING_COPY.summary}</Text>}>
           <Toggle isOn={sharing} onIsOnChange={(on) => setUsageSharing(on, "settings")} modifiers={modifierList(settingsSwitchStyle())}>
             <ExpoRowLabel title={PHONE_SHARING_COPY.toggle} systemImage="checkmark.shield" tint="neutral" />

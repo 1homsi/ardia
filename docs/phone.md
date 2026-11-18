@@ -1325,9 +1325,9 @@ Shared and per-phone parts:
 Arc Search's answer page, written on the iPhone. It came from the SwiftUI app (PR #1724, `ios-browse-for-me`) and
 keeps that app's Swift: the logic in ArdiaKit's `ArdiaBrowser/Research` and `ArdiaBrowser/ChatGPT` (with
 `ResearchTests` and `ChatGPTTests`), and the session, the answer page, the ChatGPT account and the settings page in
-`packages/phone/ios` (`ResearchSession`, `ResearchPageLoader`, `ResearchView`, `ReadAloud`, `ProximityFeed`,
-`ReadingVoices`, `ChatGPTAccount`, `LoopbackCallbackServer`, `KeychainSecret`, `BrowseForMePage`). Android has none of
-it: the module isn't registered there, so the row, the button and the settings entry never appear.
+`packages/phone/ios` (`ResearchSession`, `ResearchPageLoader`, `ResearchView`, `ChatGPTAccount`,
+`LoopbackCallbackServer`, `KeychainSecret`, `BrowseForMePage`). Android has none of it: the module isn't registered
+there, so the row, the button and the settings entry never appear.
 
 - **Where it starts.** Typing a plain search (three letters or more, not an address, not a bang) adds a Browse for Me
   row under the typed query (`withBrowseForMe` in `state/search/omnibox.ts`), and voice search has a Browse for Me
@@ -1362,27 +1362,15 @@ it: the module isn't registered there, so the row, the button and the settings e
   Apple Intelligence writes the answer, with the reason in the note. A model that lists reasoning levels
   (`supported_reasoning_levels`) gets a Thinking picker, sent as `reasoning.effort`; Automatic sends nothing.
   Disconnect waits for a refresh in flight, then revokes the latest refresh token and says so when OpenAI doesn't
-  confirm it. The Settings root row reads "ChatGPT" when connected and "On iPhone" otherwise.
-- **Reading aloud.** Off until Settings › Browse for Me › Read Answers Aloud is on (`ArdiaReadAloud` in the standard
-  defaults), because iOS's built-in voices are too robotic to lead with. Off, the page has no listen bar and never
-  starts the proximity sensor. On, the listen bar sits under a finished answer with a voice menu (Best Available
-  first) and a speaker button; raising the phone to the ear reads the answer (citations and markup stripped) through
-  the earpiece and lowering it pauses; raising it again resumes, and after the end starts over. The speaker button
-  plays it out loud, and raising the phone moves that to the earpiece. The rules are `EarListening` (tested); the
-  earpiece needs the `.playAndRecord` session, so the microphone prompt can appear the first time (the Info.plist
-  string says so). The voice is the best one installed for the phone's language family (`VoiceRanking`: Premium, then
-  Enhanced, the phone's own region first), or the one picked in the listen bar or Settings › Browse for Me › Voice;
-  iOS has no way for an app to download a voice, so while none is natural the page and Settings say where to get one.
-- **Testing.** These need a test build (`ArdiaTestBuild`), except `-ArdiaReadAloud`, the setting's own defaults key:
-  `-BrowseResearch <query>` opens the page at launch; `-ArdiaResearchWriter excerpts` skips the model;
-  `-ArdiaReadAloud YES` turns reading aloud on; `-ArdiaProximity "4:near,12:far"` plays near and far at those seconds
-  after the page opens, and `xcrun simctl notify_post <udid> com.ardia.browser.ios.proximity.near` (or `.far`) sends
-  one at any time on the simulator; in the simulator a near value blacks the page out, the way the real screen turns
-  off. `-ArdiaChatGPTIssuer <url>` and `-ArdiaChatGPTAPI <url>` point ChatGPT at a fake server.
+  confirm it.
+- **In Settings.** On iPhone, Settings › Experimental lists Browse for Me. Its row reads "ChatGPT" when connected
+  and "On iPhone" otherwise. The Browse for Me page shows "Read aloud coming soon".
+- **Testing.** These need a test build (`ArdiaTestBuild`): `-BrowseResearch <query>` opens the page at launch;
+  `-ArdiaResearchWriter excerpts` skips the model; `-ArdiaChatGPTIssuer <url>` and `-ArdiaChatGPTAPI <url>` point
+  ChatGPT at a fake server.
   `-ArdiaVoiceHeard <text>` opens voice search as if it had just heard those words, for a capture of its buttons.
   `-ArdiaSettingsPage browseForMe` opens the settings page.
-- **Left for a person.** A real Plus or Pro sign-in, a real iPhone's earpiece route and screen-off from the real
-  sensor, and the first microphone prompt.
+- **Left for a person.** A real Plus or Pro sign-in.
 
 ## Telemetry
 
@@ -3471,7 +3459,7 @@ starts in that space. Captures without touch: `-BrowseQuery <text>`, `-BrowseSur
 `-BrowseOverlay <text>`, `-BrowseCollapsed`, `-BrowseOpen <url>`, `-ArdiaRestingStart`, `-ArdiaColor <name>`,
 `-ArdiaInterfaceStyle glass|classic`, `-ArdiaColorScheme light|dark`, `-ArdiaSettingsPage <route>`,
 `-ArdiaNoSitePermissions`, `-ArdiaDeckQuery <text>` and `-ArdiaDuoCanvas open|half`. Browse for Me's: `-BrowseResearch <query>`,
-`-ArdiaReadAloud YES`, `-ArdiaProximity "4:near,12:far"`, `-ArdiaResearchWriter excerpts`, `-ArdiaChatGPTIssuer <url>`,
+`-ArdiaResearchWriter excerpts`, `-ArdiaChatGPTIssuer <url>`,
 `-ArdiaChatGPTAPI <url>` and `-ArdiaVoiceHeard <text>` ("Browse for Me (iPhone only)" above). Motion captures:
 `-BrowsePagerFreeze <fraction>`, `-BrowsePagerScript` and `-BrowseLoadFreeze <progress>`. `-BrowseDeckPull <n>`
 replays the swipe into the deck n times in a lab build ("The swipe into the deck" under Deck speed); it doesn't need

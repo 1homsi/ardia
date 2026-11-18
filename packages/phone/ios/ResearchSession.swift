@@ -41,7 +41,6 @@ final class ResearchSession: Identifiable {
   private(set) var answer = ""
   private(set) var writer: Writer?
   private(set) var chatGPTFellBack = false
-  let readAloud = ReadAloud()
   var onSettled: ((ResearchSession) -> Void)?
 
   @ObservationIgnored private var task: Task<Void, Never>?
@@ -74,7 +73,6 @@ final class ResearchSession: Identifiable {
     sources = []
     answer = ""
     writer = nil
-    readAloud.reset()
     start()
   }
 
@@ -83,7 +81,6 @@ final class ResearchSession: Identifiable {
     task?.cancel()
     answer = ""
     writer = nil
-    readAloud.reset()
     phase = .writing
     task = Task {
       do {
@@ -98,7 +95,6 @@ final class ResearchSession: Identifiable {
   func cancel() {
     task?.cancel()
     task = nil
-    readAloud.stop()
   }
 
   func source(_ number: Int) -> ResearchSource? {
@@ -138,7 +134,6 @@ final class ResearchSession: Identifiable {
   private func finish() {
     if case .failed = phase { return }
     phase = .done
-    readAloud.answerReady(ResearchAnswer.spoken(answer))
   }
 
   private func readSources(_ links: [ResearchLink]) async throws -> [ResearchSource] {

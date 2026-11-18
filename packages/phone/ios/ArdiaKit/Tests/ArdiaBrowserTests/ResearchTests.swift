@@ -104,55 +104,6 @@ import Testing
     #expect(ResearchAnswer.spoken(answer) == "Everest is 8,849 m tall.\nHeight.\nMeasured in 2020.")
   }
 
-  @Test func proximityScriptReadsTimesAndStates() throws {
-    let script = try #require(ProximityScript("6:far, 2:near ,9:1,bogus,10:sideways"))
-    #expect(script.steps == [.init(after: 2, isNear: true), .init(after: 6, isNear: false), .init(after: 9, isNear: true)])
-    #expect(ProximityScript("") == nil)
-    #expect(ProximityScript("x:near") == nil)
-  }
-
-  @Test func holdingToTheEarBeforeTheAnswerStartsItWhenReady() {
-    var listening = EarListening()
-    #expect(listening.proximity(isNear: true) == .none)
-    #expect(listening.answerReady() == .start(.earpiece))
-    #expect(listening.state == .playing(.earpiece))
-  }
-
-  @Test func loweringThePhonePausesAndRaisingItResumes() {
-    var listening = EarListening()
-    _ = listening.answerReady()
-    #expect(listening.proximity(isNear: true) == .start(.earpiece))
-    #expect(listening.proximity(isNear: true) == .none)
-    #expect(listening.proximity(isNear: false) == .pause)
-    #expect(listening.state == .paused(.earpiece))
-    #expect(listening.proximity(isNear: true) == .resume(.earpiece))
-    listening.finished()
-    #expect(listening.proximity(isNear: false) == .none)
-    #expect(listening.proximity(isNear: true) == .start(.earpiece))
-  }
-
-  @Test func speakerPlaybackSurvivesLoweringAndMovesToTheEar() {
-    var listening = EarListening()
-    #expect(listening.toggleSpeaker() == .none)
-    _ = listening.answerReady()
-    #expect(listening.toggleSpeaker() == .start(.speaker))
-    #expect(listening.proximity(isNear: false) == .none)
-    #expect(listening.proximity(isNear: true) == .reroute(.earpiece))
-    #expect(listening.toggleSpeaker() == .reroute(.speaker))
-    #expect(listening.toggleSpeaker() == .pause)
-    #expect(listening.toggleSpeaker() == .resume(.speaker))
-  }
-
-  @Test func aFailedEarpieceRouteLeavesSpeechPaused() {
-    var listening = EarListening()
-    _ = listening.answerReady()
-    #expect(listening.proximity(isNear: true) == .start(.earpiece))
-    listening.routeFailed()
-    #expect(listening.state == .paused(.earpiece))
-    #expect(listening.proximity(isNear: false) == .none)
-    #expect(listening.proximity(isNear: true) == .resume(.earpiece))
-  }
-
   @Test func unreadableSitesIncludeTheirSubdomains() {
     let raw: [ResearchSearch.RawResult] = [
       .init(href: "https://m.facebook.com/page", title: "FB"),
@@ -166,23 +117,5 @@ import Testing
   @Test func extractiveAnswerFallsBackToClippedParagraphs() {
     let source = ResearchSource(id: 1, url: URL(string: "https://a.test")!, title: "A", siteName: "a.test", paragraphs: ["Short.", "Tiny."])
     #expect(ResearchDigest.extractiveAnswer(query: "anything", sources: [source]) == "- Short. [1]")
-  }
-
-  @Test func readingVoicePrefersNaturalVoicesOfTheSameLanguageFamily() {
-    let voices = [
-      VoiceCandidate(id: "samantha", name: "Samantha", language: "en-US", quality: .standard),
-      VoiceCandidate(id: "daniel", name: "Daniel (Enhanced)", language: "en-GB", quality: .enhanced),
-      VoiceCandidate(id: "ava", name: "Ava (Premium)", language: "en-US", quality: .premium),
-      VoiceCandidate(id: "zoe", name: "Zoe (Premium)", language: "en-GB", quality: .premium),
-      VoiceCandidate(id: "karen", name: "Karen", language: "en-AU", quality: .standard),
-      VoiceCandidate(id: "amelie", name: "Amélie (Premium)", language: "fr-CA", quality: .premium),
-    ]
-    let choices = VoiceRanking.choices(from: voices, language: "en-US")
-    #expect(choices.map(\.id) == ["ava", "zoe", "daniel", "samantha", "karen"])
-    #expect(VoiceRanking.best(among: choices)?.id == "ava")
-    let plain = VoiceRanking.choices(from: voices.filter { !$0.isNatural }, language: "en-US")
-    #expect(plain.map(\.id) == ["samantha", "karen"])
-    #expect(VoiceRanking.best(among: plain) == nil)
-    #expect(VoiceRanking.choices(from: voices, language: "en-IN").map(\.id) == ["ava", "zoe", "daniel", "karen", "samantha"])
   }
 }
