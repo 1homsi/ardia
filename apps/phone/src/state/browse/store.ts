@@ -448,8 +448,10 @@ function whenPullPicturePainted(id: string, then: () => void) {
           if (now !== picture) refreshHiddenDeck();
           paints(now);
         } else {
-          if (pullCounts(id)) countUsage("deck_pictures_late");
-          labTrace("PAGELAB deck pull handed over before its picture had painted");
+          if (now === null || !picturePainted(pictureKey(`deck:${id}`, now))) {
+            if (pullCounts(id)) countUsage("deck_pictures_late");
+            labTrace("PAGELAB deck pull handed over before its picture had painted");
+          }
           then();
         }
       });

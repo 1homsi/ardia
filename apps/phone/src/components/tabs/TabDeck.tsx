@@ -63,6 +63,7 @@ import {
   openSpaces,
   openTab,
   reopenLastClosed,
+  stopOpeningTab,
   unveilOpeningPage,
   useBrowse,
   whenPageCoverHidden,
@@ -697,6 +698,7 @@ export const TabDeck = memo(function TabDeck() {
     const now = grown.current;
     if (now?.id === id) {
       if (now.steady && now.opened && useBrowse.getState().opening === id && currentTabs().selectedId === id) settledOpen(id);
+      else if (currentTabs().selectedId !== id) stopOpeningTab(id);
       endGrown();
     } else if (deckPullGrowing() === id) endDeckPull();
   };

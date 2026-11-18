@@ -4,6 +4,7 @@ import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-han
 import { getAnimatedStyle, runOnUI } from "react-native-reanimated";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { DECK_PULL, pullPagePose, pullShrink } from "../lib/deckPull";
+import { forgetPicturePainted, notePicturePainted, pictureKey } from "../lib/shownSnapshots";
 import { framesUntil, landOpeningPage, renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 const mockMotion = { reduced: false };
@@ -564,6 +565,55 @@ onIPhone("the waits for a late picture share one deadline: a first picture that 
   act(() => jest.advanceTimersByTime(began + DECK_PULL.paintDeadlineMs + 60 - Date.now()));
   expect(surface()).toBe("deck");
   expect(counted.mock.calls.filter(([name]) => name === "deck_pictures_late")).toHaveLength(1);
+});
+
+onIPhone("a replacement picture that has painted by the deadline is not counted late, even when the wait that ran out was for the picture it replaced", async () => {
+  const OLD = "file:///snapshots/older.jpg";
+  const { id, snapped } = reducedMotionPage();
+  const captures: ((snapshot: unknown) => void)[] = [];
+  snapped.mockImplementation(() => new Promise((resolve) => captures.push(resolve)) as never);
+  act(() => updateTabById(id, { snapshotFileName: OLD }));
+  app();
+  act(() => void browse.showDeck());
+  landed();
+  await promisesSettled();
+  act(() => jest.advanceTimersByTime(DECK_PULL.captureCapMs));
+  const began = Date.now();
+  act(() => jest.advanceTimersByTime(DECK_PULL.paintDeadlineMs - 150));
+  expect(surface()).toBe("browsing");
+  await act(async () => {
+    captures.forEach((captured) => captured({ uri: FRESH, width: 600, height: 1333 }));
+    for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+  });
+  const replacement = pictureKey(`deck:${id}`, FRESH);
+  act(() => notePicturePainted(replacement));
+  expect(surface()).toBe("browsing");
+  act(() => jest.advanceTimersByTime(began + DECK_PULL.paintDeadlineMs + 60 - Date.now()));
+  forgetPicturePainted(replacement);
+  expect(surface()).toBe("deck");
+  expect(counted).not.toHaveBeenCalledWith("deck_pictures_late");
+});
+
+onIPhone("with Reduce Motion an overtaken card open is cleared when what overtook it left it recorded: a page opened from a link while the page fades in stays in front, and no opening is left behind", () => {
+  mockMotion.reduced = true;
+  withTabs(3);
+  browse.useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const root = renderSurface(<Surfaces />);
+  mounted.push(root);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  framesUntil(() => browse.useBrowse.getState().opening !== null, 14);
+  const opened = browse.useBrowse.getState().opening!;
+  expect(landOpeningPage(root)).toBe(true);
+  framesUntil(() => deckPull.pageLive.value, 4);
+  act(() => browse.openPage("https://example.org/from-a-link", "link"));
+  const linked = currentTabs().selectedId;
+  expect(linked).not.toBe(opened);
+  expect(browse.useBrowse.getState().opening).toBe(opened);
+  act(() => jest.advanceTimersByTime(DECK_PULL.barBackMs + DECK_PULL.barBackCapMs + 100));
+  expect(currentTabs().selectedId).toBe(linked);
+  expect(surface()).toBe("browsing");
+  expect(browse.useBrowse.getState().opening).toBeNull();
+  expect(pull.deckPullGrowing()).toBeNull();
 });
 
 onIPhone("with Reduce Motion a card open that has been overtaken doesn't come back: when another tab is put in front while the page fades in, the fade's end clears the open and leaves that tab selected and in front", () => {
