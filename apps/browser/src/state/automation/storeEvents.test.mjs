@@ -21,3 +21,45 @@ test("tab.idle counts a tab brought back by Restore All as used when it came bac
   stop();
   assert.deepEqual(sent.filter(([, url]) => url === "https://b.com/"), []);
 });
+
+function playingSongShared(t) {
+  S().hydrate({});
+  const a = S().createWindow({ url: "https://a.example/" });
+  const song = S().newTab(a, { url: "https://music.example/" });
+  const quiet = S().newTab(a, { url: "https://quiet.example/" });
+  S().updateSettings({ shareTabsAcrossWindows: true });
+  S().updateLive(song, { playingAudio: true });
+  const sent = [];
+  const stop = startStoreEvents((name, data) => sent.push(`${name} ${data.tabId}`), { events: new Set(["media.started", "media.stopped"]), tabIdle: new Set() });
+  t.after(stop);
+  return { song, quiet, sent };
+}
+
+const freezeOn = (copy, holderId) => useBrowser.setState((x) => ({ tabs: { ...x.tabs, [copy]: { ...x.tabs[copy], page: { kind: "frozen", holderId } } } }));
+
+test("a frozen copy that starts showing a playing page sends media.started once, for the copy alone", (t) => {
+  const { song, sent } = playingSongShared(t);
+  const b = S().createWindow({ url: "https://b.example/" });
+  const copy = Object.values(S().tabs).find((t) => t.windowId === b && t.pinKey === song).id;
+  if (S().tabs[copy].page.holderId !== song) freezeOn(copy, song);
+  assert.equal(S().tabs[copy].page.holderId, song);
+  assert.deepEqual(sent, [`media.started ${copy}`]);
+  S().updateLive(song, { playingAudio: false });
+  assert.deepEqual(sent.slice(1).sort(), [`media.stopped ${copy}`, `media.stopped ${song}`].sort());
+});
+
+test("handing the page to a copy sends nothing; moving the playing tab stops only the tabs that were reported playing", (t) => {
+  const { song, sent } = playingSongShared(t);
+  const b = S().createWindow({ url: "https://b.example/" });
+  const c = S().createWindow({ url: "https://c.example/" });
+  const copyIn = (w) => Object.values(S().tabs).find((x) => x.windowId === w && x.pinKey === song)?.id;
+  const [inB, inC] = [copyIn(b), copyIn(c)];
+  assert.deepEqual(sent.splice(0), [`media.started ${inB}`, `media.started ${inC}`]);
+  S().activate(inB);
+  assert.equal(S().tabs[song].windowId, b, "the page moved to B with its id");
+  assert.deepEqual(sent, [], "a handoff keeps every tab's sound");
+  S().moveTabsToWindow([song], c);
+  const fresh = copyIn(b);
+  assert.ok(fresh && fresh !== inB && !S().tabs[inC], "B got a new copy and C's copy gave way to the page");
+  assert.deepEqual(sent.sort(), [`media.stopped ${inB}`, `media.stopped ${song}`].sort(), "the reload stops the song and the copy that played, not B's new copy");
+});

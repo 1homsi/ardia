@@ -1,7 +1,9 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, isIncognitoProfile } from "../browser/model";
 import { usePages } from "../tabs/pageState";
-import { liveReachOf, onLiveChange } from "../tabs/tabLive";
+import { changedIds } from "../browser/changes";
+import { holderOfPage } from "../tabs/pageSession";
+import { liveReachOf, onLiveChange, shownLiveOf } from "../tabs/tabLive";
 import { focusedWindowOf } from "../windows/ui";
 import { eligibleKind, isEligibleTab, shownPage } from "./automationWindows";
 import type { AutomationEventName } from "./eventNames";
@@ -69,13 +71,30 @@ export function diffMore(s: BrowserState, prev: BrowserState, send: EventSend, w
 }
 
 function startMediaEvents(send: EventSend, wants: ReadonlySet<string>) {
-  return onLiveChange((id, live, prev) => {
+  const audibleIn = (s: BrowserState, tabId: string) => !!s.tabs[tabId] && shownLiveOf(s, tabId).playingAudio;
+  const audible = new Set(Object.keys(useBrowser.getState().tabs).filter((id) => audibleIn(useBrowser.getState(), id)));
+  const recheck = (s: BrowserState, ids: Iterable<string>) => {
+    for (const tabId of ids) {
+      const playing = audibleIn(s, tabId);
+      if (playing === audible.has(tabId)) continue;
+      if (playing) audible.add(tabId);
+      else audible.delete(tabId);
+      const name = playing ? "media.started" : "media.stopped";
+      if (s.tabs[tabId] && wants.has(name) && isEligibleTab(s, tabId)) send(name, tabData(s, tabId));
+    }
+  };
+  const stopLive = onLiveChange((id, live, prev) => {
     if (live.playingAudio === prev.playingAudio) return;
     const s = useBrowser.getState();
-    const name = live.playingAudio ? "media.started" : "media.stopped";
-    if (!wants.has(name)) return;
-    for (const tabId of liveReachOf(s, id)) if (isEligibleTab(s, tabId)) send(name, tabData(s, tabId));
+    recheck(s, liveReachOf(s, id));
   });
+  const stopHolders = useBrowser.subscribe((s, prev) => {
+    if (s.tabs !== prev.tabs) recheck(s, changedIds(s.tabs, prev.tabs).filter((id) => !s.tabs[id] || holderOfPage(s.tabs[id]) !== holderOfPage(prev.tabs[id])));
+  });
+  return () => {
+    stopLive();
+    stopHolders();
+  };
 }
 
 function startCrashes(send: EventSend) {
