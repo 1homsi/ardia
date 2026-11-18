@@ -3,6 +3,7 @@ import type { BangListReply } from "./documents";
 
 export type AppEvent =
   | { type: "reopen"; pastFloating: boolean }
+  | { type: "pipActivationReturn"; success: boolean }
   | { type: "willQuit" }
   | { type: "quitCancelled" }
   | { type: "appearance"; dark: boolean }
