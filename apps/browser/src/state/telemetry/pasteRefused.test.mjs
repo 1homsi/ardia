@@ -186,9 +186,12 @@ test("nothing is sent while sharing is off", () => {
 });
 
 test("a refused paste stamped with an earlier consent period, or with no epoch, stays in the local copy and isn't sent", () => {
+  client.setSharing(true, "settings");
   const earlier = client.consentEpoch();
   client.setSharing(false, "settings");
   client.setSharing(true, "settings");
+  assert.ok(earlier);
+  assert.notEqual(earlier, client.consentEpoch());
   const before = queued().length;
   stub.emitAppEvent({ type: "pasteRefused", reason: "deadline", gateOpen: true, epoch: earlier });
   stub.emitAppEvent({ type: "pasteRefused", reason: "focus_lost", gateOpen: true });
