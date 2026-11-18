@@ -1514,7 +1514,7 @@ What main changed, by screen:
 - Site permissions: camera, microphone and location answers are saved per site and listed and revocable in Site Settings (`SitePermissions.swift`). The Expo iPhone saves and lists them the same way since 942dc45df.
 - Deck: header with the space switcher, an Incognito pill and a `···` menu (Archive, Spaces, New Incognito Tab, Reopen, Close All, Settings); bottom bar of a grid button, Search Tabs and plus (the Expo app's has the Incognito switch where the grid button was); a grid view; a slim Archive capsule under the header; cards about 24 pt lower (`TabSwitcherView.swift`, `DeckChrome.swift`, `TabGridView.swift`, `TabsTokens.swift`, `TabsDeckGeometry.swift`).
 - Start page: no logo; the space switcher at 0.44 of the height, the space's pinned tiles (4 a row, icon only) and page dots; a sideways swipe changes space. In light mode a themed backdrop gets a 34% white veil (`SearchHomeView.swift`, `PinnedTiles.swift`, `ProfileBackdrop.themeVeil`).
-- Tray: a floating glass panel, 8 pt in from the sides and above the keyboard, radius 26; a submitted search lifts it 120 pt and fades it (`SearchTrayHost.swift`).
+- Tray: a floating glass panel, 8 pt in from the sides and above the keyboard, radius 32.75 (concentric with the field: 9 pt in plus half the 47.5 pt field); a submitted search lifts it 120 pt and fades it (`SearchTrayHost.swift`).
 - Spaces: tabs belong to one Mac space; the deck, the tab swipe and Switch to Tab show the current space's tabs, and the app takes its colour (`TabSpaces.swift`). The Spaces sheet gets the switcher and page dots.
 - Settings: an Appearance page (colour, Glass or Classic, Light or Dark, each able to match the Mac through the synced `look`); row icons dropped (`AppearancePage.swift`, `InterfaceStyle.swift`, `SyncedLook`).
 - Onboarding: 28 pt bold titles, capsule buttons, rows and tips without icons, faster steps.
@@ -1553,7 +1553,7 @@ Owner: **screens** (JS), **iPhone** (native), **decision** (needs the owner).
 | Start page | Pinned tiles | match | Tiles draw main's SF Symbols (Calendar, folders) at main's sizes, d09343dba | |
 | Start page | No spaces, sync off (invitation) | match | The Sync With Your Mac capsule alone, same place and size (`r-e-light`/`r-m-light`/invitation) | |
 | Search panel | Empty, recent searches | match | Main's source lists recent searches and the Mac's tabs, no open tab (the audit's SwiftUI row is a Mac tab); rows now refresh live with sync, 2fd28bbe5 | |
-| Search panel | Typing | match | Typed for real: app completes to apple.com as main's; main's row and field measures, no glyph before Switch to Tab, 2fd28bbe5. The Incognito toggle draws SF `eyeglasses` at 17 semibold on iPhone, as main does: the same ink box and pixel count on the simulator | |
+| Search panel | Typing | match | Typed for real: app completes to apple.com as main's; main's row and field measures, no glyph before Switch to Tab, 2fd28bbe5. The Incognito toggle is the address bar's thin specs (`eyeglassesThin`, 26 pt) inside the field, where main draws SF `eyeglasses` at 17 semibold; see "Deliberately different" | owner |
 | Search panel | Incognito | match | Same panel; the field asks for the dark keyboard in Incognito as main's does (6f1653513 native, the panel passes it since this change) | |
 | Search panel | Classic in Incognito, through the morph | match | Seen 2026-11-17 on the iPhone 18 Pro at 006f1afa3 beside main set to Classic by hand: both grow the dark Incognito pill into the same solid dark Classic panel and fold it back into the pill with no tint change (`pr-2184/search-classic-incognito-open.png`, `-close.png`). At rest ours shows the red lock where main shows its eyeglasses: our bar puts not secure before private, and main's frame has no not-secure state on loopback | |
 | Search panel | Landed pill on a real site | match | A dim-tap close on en.wikipedia.org at 006f1afa3: the landed pill is whole (favicon, host, `···`) from the first frame it shows. The favicon-only pill for about 20 frames seen on an earlier build (stage-9, 6d88e1c95 plus one native line) doesn't reproduce at head | |
@@ -1706,7 +1706,7 @@ resets the browsing view's own state: the bar comes back expanded and the sideba
   wide with 59 insets gives a 598 address capsule). 21.5 above the bottom edge, ignoring the safe area. Collapsed
   pill unchanged (30 high, at most 240 wide).
 - Pager: the full screen width.
-- Search tray: the panel is the safe width less 8 each side, so it clears the island; radius 26; 8 above the
+- Search tray: the panel is the safe width less 8 each side, so it clears the island; radius 32.75; 8 above the
   keyboard; height `min(274 + 47.5·(fieldScale − 1), safeH + safeBottom − keyboard − 16)`, the keyboard term
   usually winning in landscape.
 - Deck: side padding `max(left, right)` for the header (+12), the bottom bar (+12) and the grid (+16).
@@ -1941,6 +1941,21 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
     stack it moves right as it shrinks, and it is never smaller than the card.
   - **Kept from Safari:** only the page shows during the pull, over the deck's backdrop; the other cards and the tab
     view's controls come in at release; the commit distance; the return.
+
+- The new-tab search panel (build 19, the owner: "decrease the height of the url bar", "it should continue to bottom
+  not be cut around keyboard", "the roundedness is weird around the url bar", "better to have the eyes icon in the
+  url bar and be clickable"):
+  - **Field:** the standard 47.5 pt Search field at the standard size, where it was a 56 pt field in 22 pt type.
+  - **Incognito:** the address bar's thin specs (`eyeglassesThin`, 26 pt) inside the field, after the mic, and a tap
+    on it switches Incognito, as the field does when editing a page's address. The 44 pt circle beside the field is
+    gone. Main draws SF `eyeglasses` at 17 semibold here.
+  - **Under the keyboard:** the panel's card runs on behind the keyboard to 8 pt above the screen's bottom
+    (`trayPanel` sits the keyboard's lift below the screen and the stage lifts it back); its rows still end 8 pt above
+    the keyboard. Editing a page's address keeps the shorter panel that floats above the keyboard.
+  - **Corners:** every search panel's corners are 32.75 pt, concentric with the field's capsule 9 pt in
+    (`BrowseLayout.panelRadius` for the native morph, `floatingPanelLayout.radius`); they were 26, tighter than the
+    field's own 23.75 pt curve allowed.
+  - **To watch:** `new_tab_search_opened` should hold its level after the release.
 
 - Settings, Archive, History and Bookmarks keep one neutral background, the system's grouped background, whatever
   space is shown (build 19, the owner: "as different spaces have different bg we shouldn't carry that everywhere").
