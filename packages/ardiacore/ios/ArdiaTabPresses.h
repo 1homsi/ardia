@@ -6,14 +6,16 @@ NS_ASSUME_NONNULL_BEGIN
 extern "C" {
 #endif
 
-NSUInteger ArdiaTabPressBegan(NSString *key);
-NSUInteger ArdiaTabPressClaim(NSString *key);
-NSUInteger ArdiaTabPressLatestUnclaimed(void);
-NSArray<NSNumber *> *ArdiaTabPressesTakeUnclaimed(NSUInteger upTo);
-void ArdiaTabSwitchNotePress(NSString *key, NSUInteger press);
-NSUInteger ArdiaTabSwitchTakePress(NSString *key);
+NSUInteger ArdiaTabPressBegan(NSString *key, double stamp);
+NSUInteger ArdiaTabPressClaim(NSString *key, double stamp);
+NSArray<NSNumber *> *ArdiaTabPressesTakeUnheard(NSUInteger upTo);
+void ArdiaTabSwitchNote(NSString *key, NSUInteger press);
+NSUInteger ArdiaTabSwitchTake(NSString *key);
+void ArdiaTabSwitchesForget(NSUInteger press);
 void ArdiaTabSplitsSet(NSArray<NSString *> *keys);
 BOOL ArdiaTabInSplit(NSString *key);
+void ArdiaTabPressesSetJavaScriptThread(void (^_Nullable run)(void (^block)(void)));
+void ArdiaTabPressesOnJavaScriptThread(void (^block)(void));
 
 #ifdef __cplusplus
 }

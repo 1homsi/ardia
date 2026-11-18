@@ -5,7 +5,8 @@ import { appInfo, percentile } from "./transport";
 import { jsStartedAt } from "./jsStart";
 import { fieldTiming } from "../../platform/fieldTiming";
 import { isAsleep } from "../tabs/pageSession";
-import { NATIVE_REVEAL_COUNTS, nativePressTime, type Mark } from "./nativeRevealMarks";
+import { NATIVE_REVEAL_COUNTS, forgetDroppedPress, nativePressTime, type Mark } from "./nativeRevealMarks";
+import { switchingPress } from "../tabs/tabReveal";
 
 let on = false;
 
@@ -59,6 +60,7 @@ function pullMarks(now: number) {
     let list = marks.get(key);
     if (!list) marks.set(key, (list = []));
     list.push([kind, at]);
+    forgetDroppedPress(marks, key, kind);
   }
   for (const [key, list] of marks) {
     const fresh = list.filter(([, at]) => now - at < 120_000);
@@ -296,7 +298,7 @@ function watchStore(s: BrowserState, prev: BrowserState) {
     if (!now || now === before || s.windows[id]!.profileId !== prev.windows[id]?.profileId) continue;
     const heard = Date.now();
     if (prev.tabs[now]) pullMarks(heard);
-    const t0 = (prev.tabs[now] ? nativePressTime(marks, now, heard) : null) ?? lastInput(heard);
+    const t0 = (prev.tabs[now] ? nativePressTime(marks, switchingPress()) : null) ?? lastInput(heard);
     if (t0 === null) continue;
     if (!prev.tabs[now]) {
       if (!s.tabs[now]!.url) begin({ journey: "j2", key: now, t0, heard });

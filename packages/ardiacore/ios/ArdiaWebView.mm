@@ -187,6 +187,7 @@ void AcceptDrops(NSView *root, BOOL accept) {
 
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
   if (!newWindow) [self lendPageToSuccessor];
+  if (self.window && newWindow != self.window && (_visible || _reveal.active)) [ArdiaWebView dropNativeRevealsInWindow:self.window];
   [super viewWillMoveToWindow:newWindow];
 }
 

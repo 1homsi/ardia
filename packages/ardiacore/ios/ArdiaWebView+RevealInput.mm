@@ -2,67 +2,20 @@
 #import "ArdiaFieldTiming.h"
 
 #import <QuartzCore/QuartzCore.h>
-#import <objc/runtime.h>
 
 using namespace ardia_web_view;
 
 namespace {
 
 NSString *const kPageIdentityTag = @"page-identity";
-constexpr NSInteger kPointerEventsAuto = 0;
-constexpr NSInteger kPointerEventsNone = 1;
-constexpr NSInteger kNoPointerEvents = -1;
+constexpr NSEventMask kButtonDowns = NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown | NSEventMaskOtherMouseDown;
+constexpr NSEventMask kButtonUps = NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp | NSEventMaskOtherMouseUp;
+constexpr NSEventMask kButtonDrags = NSEventMaskLeftMouseDragged | NSEventMaskRightMouseDragged | NSEventMaskOtherMouseDragged;
+constexpr NSEventMask kKeys = NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged;
+constexpr NSEventMask kPointer = NSEventMaskMouseMoved | NSEventMaskScrollWheel | NSEventMaskMagnify | NSEventMaskSmartMagnify | NSEventMaskSwipe | NSEventMaskRotate;
 
-NSInteger PointerEventsOf(NSView *view) {
-  return [view respondsToSelector:NSSelectorFromString(@"pointerEvents")] ? [[view valueForKey:@"pointerEvents"] integerValue] : kNoPointerEvents;
-}
-
-BOOL gWritingPointerEvents = NO;
-
-NSMapTable<NSView *, NSNumber *> *ReactPointerEvents() {
-  static NSMapTable<NSView *, NSNumber *> *requested = [NSMapTable weakToStrongObjectsMapTable];
-  return requested;
-}
-
-Class ReactViewClass() {
-  static Class cls = nil;
-  static dispatch_once_t once;
-  dispatch_once(&once, ^{
-    cls = NSClassFromString(@"RCTView");
-    SEL setter = NSSelectorFromString(@"setPointerEvents:");
-    Method method = cls ? class_getInstanceMethod(cls, setter) : nil;
-    if (!method) {
-      cls = nil;
-      return;
-    }
-    IMP original = method_getImplementation(method);
-    method_setImplementation(method, imp_implementationWithBlock(^(NSView *view, NSInteger value) {
-      if (!gWritingPointerEvents) [ReactPointerEvents() removeObjectForKey:view];
-      ((void (*)(id, SEL, NSInteger))original)(view, setter, value);
-    }));
-  });
-  return cls;
-}
-
-void WritePointerEvents(NSView *view, NSInteger value) {
-  gWritingPointerEvents = YES;
-  [view setValue:@(value) forKey:@"pointerEvents"];
-  gWritingPointerEvents = NO;
-}
-
-void OverridePointerEvents(NSHashTable<NSView *> *overridden, NSView *view, NSInteger value) {
-  Class react = ReactViewClass();
-  const NSInteger was = PointerEventsOf(view);
-  if (!react || ![view isKindOfClass:react] || was == kNoPointerEvents || was == value) return;
-  if (![ReactPointerEvents() objectForKey:view]) [ReactPointerEvents() setObject:@(was) forKey:view];
-  [overridden addObject:view];
-  WritePointerEvents(view, value);
-}
-
-BOOL ResponderUnder(NSWindow *window, NSView *ancestor) {
-  NSResponder *responder = window.firstResponder;
-  return ancestor && [responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:ancestor];
-}
+NSUInteger gOnScreenAhead = 0;
+NSUInteger gSwallowedButtons = 0;
 
 void CollectPageIdentity(NSView *root, NSHashTable<NSView *> *found) {
   for (NSView *view in root.subviews) {
@@ -74,6 +27,8 @@ void CollectPageIdentity(NSView *root, NSHashTable<NSView *> *found) {
 }
 
 namespace ardia_web_view {
+
+const NSEventMask kRevealInputMask = kButtonDowns | kButtonUps | kButtonDrags | kKeys | kPointer;
 
 NSString *ReactTagOf(NSView *view) {
   for (NSString *name in @[ @"nativeID", @"nativeId" ]) {
@@ -88,22 +43,74 @@ NSString *ReactTagOf(NSView *view) {
 
 @implementation ArdiaWebView (RevealInput)
 
-- (void)takeInputIfShown {
-  if (!_reveal.active || !_reveal.native || _reveal.inputTaken || _frameHold.awaiting || self.alphaValue < 1) return;
-  ArdiaWebView *covered = _reveal.covered;
-  if (!covered) return;
-  _reveal.inputTaken = YES;
-  [self hidePageIdentity];
-  [self takeHitTesting];
-  [self takeFocusFrom:covered];
+static BOOL InTabPage(id responder) {
+  for (NSView *view = [responder isKindOfClass:NSView.class] ? responder : nil; view; view = view.superview)
+    if ([view isKindOfClass:ArdiaWebView.class]) return !((ArdiaWebView *)view)->_standalone;
+  return NO;
+}
+
++ (ArdiaWebView *)onScreenAheadIn:(NSWindow *)window {
+  if (!gOnScreenAhead || !window) return nil;
+  for (ArdiaWebView *other in LiveViews().allObjects)
+    if (other.window == window && other->_reveal.onScreen) return other;
+  return nil;
+}
+
++ (BOOL)swallowsAheadOfSwitch:(NSEvent *)event {
+  if (!gOnScreenAhead && !gSwallowedButtons) return NO;
+  const NSEventMask type = NSEventMaskFromType(event.type);
+  if (type & (kButtonUps | kButtonDrags)) {
+    const NSUInteger button = 1u << event.buttonNumber;
+    if (!(gSwallowedButtons & button)) return NO;
+    if (type & kButtonUps) gSwallowedButtons &= ~button;
+    return YES;
+  }
+  NSWindow *window = event.window;
+  if (![ArdiaWebView onScreenAheadIn:window]) return NO;
+  if (type & kKeys) return InTabPage(window.firstResponder);
+  if (!InTabPage(HitInWindow(event))) return NO;
+  if (type & kButtonDowns) gSwallowedButtons |= 1u << event.buttonNumber;
+  return YES;
+}
+
+- (void)noteOnScreenAhead:(BOOL)overAnother {
+  if (!_reveal.native) return;
+  const BOOL painted = !_frameHold.awaiting && self.alphaValue >= 1;
+  if (!_reveal.onScreen && (painted || overAnother)) {
+    _reveal.onScreen = YES;
+    gOnScreenAhead++;
+    [self hidePageIdentity];
+  }
+  if (!painted || _reveal.painted) return;
+  _reveal.painted = YES;
+  ArdiaFieldMarkNow([NSString stringWithFormat:@"press:%lu", (unsigned long)_reveal.press], @"nativeReveal");
   ArdiaFieldMarkAtCommit(_transferKey, @"view");
 }
 
-- (void)giveInputBack {
-  _reveal.inputTaken = NO;
-  [self giveHitTestingBack];
-  [self giveFocusBack];
-  [self showPageIdentity];
++ (void)focusPagesAskedAheadOfSwitch {
+  for (ArdiaWebView *view in LiveViews().allObjects) {
+    if ([ArdiaWebView onScreenAheadIn:view.window]) continue;
+    if (view->_visible && view->_focus.onActivate) [view schedulePainting];
+    if (!view->_focus.askedAheadOfSwitch) continue;
+    view->_focus.askedAheadOfSwitch = NO;
+    if (view->_visible) [view focusPage];
+    else [ArdiaWebView focusVisiblePageIn:view.window];
+  }
+}
+
+- (void)leaveScreenAhead {
+  if (!_reveal.onScreen) return;
+  _reveal.onScreen = NO;
+  gOnScreenAhead--;
+  NSMapTable<NSView *, NSNumber *> *hidden = _reveal.identityHidden;
+  _reveal.identityHidden = nil;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  for (NSView *view in hidden.keyEnumerator.allObjects) view.alphaValue = [hidden objectForKey:view].doubleValue;
+  [CATransaction commit];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [ArdiaWebView focusPagesAskedAheadOfSwitch];
+  });
 }
 
 - (void)hidePageIdentity {
@@ -122,100 +129,15 @@ NSString *ReactTagOf(NSView *view) {
   _reveal.identityHidden = hidden;
 }
 
-- (void)showPageIdentity {
-  NSMapTable<NSView *, NSNumber *> *hidden = _reveal.identityHidden;
-  _reveal.identityHidden = nil;
-  [CATransaction begin];
-  [CATransaction setDisableActions:YES];
-  for (NSView *view in hidden.keyEnumerator.allObjects) view.alphaValue = [hidden objectForKey:view].doubleValue;
-  [CATransaction commit];
-}
-
 - (void)hidePageIdentityAfterMount {
   __weak ArdiaWebView *weakSelf = self;
   const NSUInteger generation = _reveal.generation;
   CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(nil, kCFRunLoopBeforeWaiting | kCFRunLoopExit, false, 0, ^(CFRunLoopObserverRef, CFRunLoopActivity) {
     ArdiaWebView *view = weakSelf;
-    if (view && view->_reveal.active && view->_reveal.inputTaken && view->_reveal.generation == generation) [view hidePageIdentity];
+    if (view && view->_reveal.onScreen && view->_reveal.generation == generation) [view hidePageIdentity];
   });
   CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
   CFRelease(observer);
-}
-
-- (void)takeHitTesting {
-  NSView *lowered = _reveal.loweredPane;
-  NSView *shared = lowered.superview;
-  if (!shared) return;
-  NSHashTable<NSView *> *overridden = [NSHashTable weakObjectsHashTable];
-  for (NSView *view = self.superview; view && view != shared; view = view.superview)
-    if (PointerEventsOf(view) == kPointerEventsNone) OverridePointerEvents(overridden, view, kPointerEventsAuto);
-  OverridePointerEvents(overridden, lowered, kPointerEventsNone);
-  _reveal.hitSwaps = overridden;
-}
-
-- (void)giveHitTestingBack {
-  NSHashTable<NSView *> *overridden = _reveal.hitSwaps;
-  _reveal.hitSwaps = nil;
-  for (NSView *view in overridden.allObjects) {
-    NSNumber *requested = [ReactPointerEvents() objectForKey:view];
-    if (!requested) continue;
-    [ReactPointerEvents() removeObjectForKey:view];
-    WritePointerEvents(view, requested.integerValue);
-  }
-}
-
-- (void)takeFocusFrom:(ArdiaWebView *)shown {
-  NSWindow *window = self.window;
-  NSResponder *responder = window.firstResponder;
-  if (!ResponderUnder(window, _reveal.loweredPane)) return;
-  [shown storePageFocusFrom:responder];
-  shown->_focus.storedAtReveal = YES;
-  _reveal.focusOwner = shown;
-  _reveal.focusFrom = (NSView *)responder;
-  [self focusPage];
-  if (ResponderUnder(window, self)) ArdiaFieldMarkNow(_transferKey, @"nativeRevealFocus");
-}
-
-- (void)giveFocusBack {
-  ArdiaWebView *owner = _reveal.focusOwner;
-  NSView *from = _reveal.focusFrom;
-  _reveal.focusOwner = nil;
-  _reveal.focusFrom = nil;
-  if (!owner) return;
-  owner->_focus.storedAtReveal = NO;
-  NSWindow *window = owner.window;
-  NSResponder *responder = window.firstResponder;
-  const BOOL focusStayedHere = !responder || responder == window || ([responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:self]);
-  if (!window || !owner->_visible || !focusStayedHere) return;
-  if (from && from.window == window) [window makeFirstResponder:from];
-  else [owner focusPage];
-}
-
-- (void)moveFocusOwnerTo:(ArdiaWebView *)shown {
-  ArdiaWebView *owner = _reveal.focusOwner;
-  if (!owner || owner == shown) return;
-  owner->_focus.storedAtReveal = NO;
-  _reveal.focusOwner = shown;
-  _reveal.focusFrom = nil;
-}
-
-- (void)keepAtSettle {
-  __weak ArdiaWebView *owner = _reveal.focusOwner;
-  _reveal.focusOwner = nil;
-  _reveal.focusFrom = nil;
-  if (!owner) return;
-  dispatch_async(dispatch_get_main_queue(), ^{
-    ArdiaWebView *outgoing = owner;
-    if (outgoing) outgoing->_focus.storedAtReveal = NO;
-  });
-}
-
-- (BOOL)underNativeReveal {
-  NSWindow *window = self.window;
-  if (!window || _reveal.active) return NO;
-  for (ArdiaWebView *other in LiveViews().allObjects)
-    if (other != self && other.window == window && other->_reveal.active && other->_reveal.inputTaken) return YES;
-  return NO;
 }
 
 @end

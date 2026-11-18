@@ -103,7 +103,7 @@ export function holdTabPress(windowId: string, tabId: string, press: GestureResp
   }
   settleUnansweredPressOut();
   noteRowPressIn(windowId);
-  const nativePress = claimPress(tabId);
+  const nativePress = claimPress(tabId, startedAt);
   const switched = switchesOnPress(windowId, tabId, press);
   const held: TabPress = { windowId, tabId, startedAt, switched, nativePress, at: pointOf(press), windowKey: windowIsKey(windowId), answered: false, out: false, drift: "unknown" };
   heldPress = held;

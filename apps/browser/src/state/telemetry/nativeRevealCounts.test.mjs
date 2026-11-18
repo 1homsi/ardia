@@ -22,14 +22,15 @@ test("pages shown natively before JS switched, and the ones taken back, are coun
   client.loadChoice();
   journeys.startJourneys(null);
   const at = Date.now();
-  marks = [["tab-b", "nativeReveal", at], ["tab-b", "view", at], ["tab-c", "nativeReveal", at + 5], ["tab-c", "nativeRevealDropped", at + 9], ["tab-c", "nativeRevealFocus", at + 6]];
+  marks = [["press:1", "nativePress", at - 2], ["press:1", "nativeReveal", at], ["tab-b", "view", at], ["press:2", "nativePress", at + 3], ["press:2", "nativeReveal", at + 5], ["press:2", "nativeRevealDropped", at + 9], ["press:3", "nativePress", at + 10]];
   journeys.emitJourneys();
   await client.saveQueueNow();
   const sent = JSON.parse(stub.docs.get("telemetry-queue.json")).events.filter((e) => e.event === "perf_journeys");
   assert.equal(sent.length, 1);
   assert.equal(sent[0].properties.j3_native, 2);
   assert.equal(sent[0].properties.j3_native_dropped, 1);
-  assert.equal(sent[0].properties.j3_native_focus, 1);
+  assert.equal(sent[0].properties.j3_native_focus, undefined, "the keyboard never moves ahead of the switch");
+  assert.deepEqual(Object.keys(journeys.devJourneys().marks).filter((key) => key.startsWith("press:")), ["press:1", "press:3"], "a press taken back takes its marks with it");
   assert.equal(JSON.stringify(sent[0]).includes("tab-b"), false, "no tab ids go out");
 });
 
@@ -49,11 +50,16 @@ test("a switch native code showed first is timed from its press, however long JS
   journeys.emitJourneys();
   const pressed = Date.now() - 2600;
   NativeModules.ACFieldTiming.lastInput = () => [pressed + 40, 2];
-  marks = [["b", "nativePress", pressed], ["b", "nativeReveal", pressed + 1], ["b", "view", pressed + 4]];
+  const { switchingByPress } = await import("../tabs/tabReveal.ts");
+  marks = [["press:8", "nativePress", pressed - 900], ["press:8", "nativeReveal", pressed - 899], ["b", "view", pressed - 896], ["press:8", "nativeRevealDropped", pressed - 700], ["press:9", "nativePress", pressed], ["press:9", "nativeReveal", pressed + 1], ["b", "view", pressed + 4]];
   S().activate("b");
+  assert.equal(journeys.devJourneys().pending.length, 0, "a selection no press made is never timed from an earlier press on that tab, taken back or not");
+  S().activate("a");
+  switchingByPress(9, () => S().activate("b"));
   const pending = journeys.devJourneys().pending;
   assert.equal(pending.length, 1, "the release is 2.6 s old by now, yet the journey starts");
-  assert.equal(pending[0].t0, pressed, "from the press, not the release");
+  assert.equal(pending[0].t0, pressed, "from its own press, not the release and not the press before it on the same tab");
+  assert.equal("press:9" in journeys.devJourneys().marks, false, "the mark is used once");
   journeys.emitJourneys(true);
   await client.saveQueueNow();
   const sent = JSON.parse(stub.docs.get("telemetry-queue.json")).events.filter((e) => e.event === "perf_journeys").at(-1);

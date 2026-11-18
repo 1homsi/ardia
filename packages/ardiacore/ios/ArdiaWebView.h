@@ -66,11 +66,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)dropTabReveals:(NSString *)transferKey press:(NSUInteger)press to:(NSString *)incomingKey;
 + (void)dropTabPress:(NSUInteger)press;
 + (void)setNativeTabSwitch:(BOOL)enabled;
-+ (NSUInteger)claimTabPress:(NSString *)transferKey;
++ (NSUInteger)claimTabPress:(NSString *)transferKey stamp:(double)stamp;
 + (void)setTabsInSplits:(NSArray<NSString *> *)transferKeys;
 + (void)setJavaScriptThread:(void (^)(void (^block)(void)))run;
++ (void)endRevealsAheadOfSwitch;
 + (BOOL)revealForPress:(NSEvent *)event;
-+ (void)dropNativeRevealsInWindow:(NSWindow *)window;
++ (void)dropNativeRevealsInWindow:(nullable NSWindow *)window;
 + (void)revealOffered:(NSString *)adoptId over:(NSString *)transferKey press:(NSUInteger)press;
 + (BOOL)discardOffered:(NSString *)adoptId;
 @end

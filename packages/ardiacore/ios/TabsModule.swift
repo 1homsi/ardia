@@ -11,6 +11,10 @@ public class TabsModule: Module {
       ArdiaWebView.setJavaScriptThread { [weak self] block in self?.appContext?.executeOnJavaScriptThread(runBlock: block) }
     }
 
+    OnDestroy {
+      ArdiaWebView.endRevealsAheadOfSwitch()
+    }
+
     Function("prepareTransfer") { (key: String) in
       for engine in PageEngines.all { engine.prepareTransfer(key) }
     }
@@ -22,7 +26,7 @@ public class TabsModule: Module {
     }
     Function("revealTab") { (key: String, press: Int) in ArdiaWebView.revealTab(key, press: UInt(max(press, 0))) }
     Function("dropTabReveals") { (key: String, press: Int, incoming: String) in ArdiaWebView.dropTabReveals(key, press: UInt(max(press, 0)), to: incoming) }
-    Function("claimTabPress") { (key: String) -> Int in Int(ArdiaWebView.claimTabPress(key)) }
+    Function("claimTabPress") { (key: String, stamp: Double) -> Int in Int(ArdiaWebView.claimTabPress(key, stamp: stamp)) }
     Function("dropTabPress") { (press: Int) in ArdiaWebView.dropTabPress(UInt(max(press, 0))) }
     Function("setTabsInSplits") { (keys: [String]) in ArdiaWebView.setTabsInSplits(keys) }
     Function("setNativeTabSwitch") { (enabled: Bool) in ArdiaWebView.setNativeTabSwitch(enabled) }

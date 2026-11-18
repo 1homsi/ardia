@@ -258,7 +258,7 @@ NSView *LingeringPaneOver(NSView *view) {
   }
   [CATransaction commit];
   if (_visible) [self takeFocusFromLingeringPane];
-  [self takeInputIfShown];
+  [self noteOnScreenAhead:NO];
   if (TraceVisibility())
     NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d alpha=%d reveal=%d awaiting=%d",
           _transferKey, _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",

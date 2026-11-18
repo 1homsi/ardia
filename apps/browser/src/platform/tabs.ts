@@ -35,7 +35,7 @@ export const releaseTabTransfer = (tabId: string) => Tabs.releaseTransfer(tabId)
 export const claimLaunchTab = (tabId: string, url: string, profile: string) => Tabs.claimLaunchTab(tabId, url, profile);
 export const revealTab = (tabId: string, press: number) => Tabs.revealTab(tabId, press);
 export const dropTabReveals = (overTabId: string, press: number, toTabId: string) => Tabs.dropTabReveals(overTabId, press, toTabId);
-export const claimTabPress = (tabId: string) => Tabs.claimTabPress(tabId);
+export const claimTabPress = (tabId: string, startedAt: number) => Tabs.claimTabPress(tabId, startedAt);
 export const dropTabPress = (press: number) => Tabs.dropTabPress(press);
 export const setTabsInSplits = (tabIds: string[]) => Tabs.setTabsInSplits(tabIds);
 export const setNativeTabSwitch = (enabled: boolean) => Tabs.setNativeTabSwitch(enabled);

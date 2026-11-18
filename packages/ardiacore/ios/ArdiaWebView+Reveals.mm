@@ -2,6 +2,7 @@
 #import "ArdiaTabParking.h"
 #import "ArdiaFieldTiming.h"
 #import "ArdiaTabPresses.h"
+#import "ArdiaChromeWindowInternal.h"
 
 #include <atomic>
 
@@ -18,8 +19,6 @@ std::atomic<bool> gNativeTabSwitch{false};
 NSString *const kTabSwitchTag = @"tab-switch:";
 NSString *const kTabSelectedTag = @"tab-selected:";
 NSString *const kSmallWindow = @"ardia.window.small";
-
-void (^gOnJavaScriptThread)(void (^)(void));
 
 BOOL IsRowControl(NSView *view) {
   if ([view isKindOfClass:NSControl.class] || [view isKindOfClass:NSText.class]) return YES;
@@ -47,10 +46,8 @@ NSString *TabSwitchKeyOf(NSView *view) {
   return [tag substringFromIndex:[tag rangeOfString:@":"].location + 1].length ? tag : nil;
 }
 
-NSView *HitInWindow(NSEvent *event) {
-  NSView *content = event.window.contentView;
-  NSView *outer = content.superview;
-  return content && outer ? [content hitTest:[outer convertPoint:event.locationInWindow fromView:nil]] : nil;
+NSString *PressMarkKey(NSUInteger press) {
+  return [NSString stringWithFormat:@"press:%lu", (unsigned long)press];
 }
 
 NSString *PressedTabTag(NSEvent *event) {
@@ -69,6 +66,29 @@ void OnMain(void (^block)(void)) {
   if (NSThread.isMainThread) block();
   else dispatch_async(dispatch_get_main_queue(), block);
 }
+
+void EndRevealsWhenTheWindowIsLeft() {
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    void (^everywhere)(NSNotification *) = ^(NSNotification *) {
+      OnMain(^{
+        [ArdiaWebView dropNativeRevealsInWindow:nil];
+      });
+    };
+    void (^inItsWindow)(NSNotification *) = ^(NSNotification *note) {
+      NSWindow *window = [note.object isKindOfClass:NSWindow.class] ? note.object : nil;
+      if (!window || ([note.name isEqualToString:ArdiaWindowSeenDidChange] && [ArdiaWindowController userSees:window])) return;
+      OnMain(^{
+        [ArdiaWebView dropNativeRevealsInWindow:window];
+      });
+    };
+    [center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:everywhere];
+    [NSWorkspace.sharedWorkspace.notificationCenter addObserverForName:NSWorkspaceActiveSpaceDidChangeNotification object:nil queue:nil usingBlock:everywhere];
+    for (NSNotificationName name in @[ NSWindowWillEnterFullScreenNotification, NSWindowWillExitFullScreenNotification, ArdiaWindowSeenDidChange ])
+      [center addObserverForName:name object:nil queue:nil usingBlock:inItsWindow];
+  });
+}
 }
 
 namespace ardia_web_view {
@@ -77,6 +97,12 @@ NSView *PaneUnder(NSView *view, NSView *ancestor) {
   for (NSView *v = view; v; v = v.superview)
     if (v.superview == ancestor) return v;
   return nil;
+}
+
+NSView *HitInWindow(NSEvent *event) {
+  NSView *content = event.window.contentView;
+  NSView *outer = content.superview;
+  return content && outer ? [content hitTest:[outer convertPoint:event.locationInWindow fromView:nil]] : nil;
 }
 
 NSView *SharedAncestor(NSView *a, NSView *b) {
@@ -90,6 +116,16 @@ NSView *SharedAncestor(NSView *a, NSView *b) {
 
 @implementation ArdiaWebView (Reveals)
 
+static BOOL HoldsItsWindow(ArdiaWebView *page) {
+  NSWindow *window = page.window;
+  ArdiaCoreWindow *coreWindow = [ArdiaWindowController forNSWindow:window].coreWindow;
+  if (page->_reports.exclusiveFrames.count || window.attachedSheet || (coreWindow && [ArdiaWindowFullScreen ofWindow:coreWindow create:NO].pageFullScreen)) return YES;
+  const NSRect onScreen = [window convertRectToScreen:[page convertRect:page.bounds toView:nil]];
+  for (NSWindow *child in window.childWindows)
+    if (child.visible && NSIntersectsRect(child.frame, onScreen)) return YES;
+  return NO;
+}
+
 static ArdiaWebView *ViewForKey(NSString *key) {
   for (ArdiaWebView *view in LiveViews().allObjects)
     if (view->_tab && [view->_transferKey isEqualToString:key]) return view;
@@ -99,7 +135,7 @@ static ArdiaWebView *ViewForKey(NSString *key) {
 + (void)revealTab:(NSString *)transferKey press:(NSUInteger)press {
   if (!transferKey.length) return;
   NSString *key = [transferKey copy];
-  ArdiaTabSwitchNotePress(key, press);
+  ArdiaTabSwitchNote(key, press);
   OnMain(^{
     ArdiaWebView *view = ViewForKey(key);
     if (!view.window) return;
@@ -114,39 +150,50 @@ static ArdiaWebView *ViewForKey(NSString *key) {
   gNativeTabSwitch.store(enabled, std::memory_order_relaxed);
 }
 
-+ (NSUInteger)claimTabPress:(NSString *)transferKey {
-  return ArdiaTabPressClaim(transferKey);
++ (NSUInteger)claimTabPress:(NSString *)transferKey stamp:(double)stamp {
+  return ArdiaTabPressClaim(transferKey, stamp);
 }
 
 + (void)setTabsInSplits:(NSArray<NSString *> *)transferKeys {
   ArdiaTabSplitsSet(transferKeys);
+  OnMain(^{
+    for (ArdiaWebView *view in LiveViews().allObjects)
+      if (view.window && (view->_visible || view->_reveal.native) && ArdiaTabInSplit(view->_transferKey)) [ArdiaWebView dropNativeRevealsInWindow:view.window];
+  });
 }
 
 + (void)setJavaScriptThread:(void (^)(void (^)(void)))run {
-  gOnJavaScriptThread = [run copy];
+  ArdiaTabPressesSetJavaScriptThread(run);
+  [ArdiaWebView endRevealsAheadOfSwitch];
 }
 
-+ (void)tabPressReleased {
-  void (^onJavaScriptThread)(void (^)(void)) = gOnJavaScriptThread;
-  const NSUInteger pressed = ArdiaTabPressLatestUnclaimed();
-  if (!pressed || !onJavaScriptThread) return;
-  onJavaScriptThread(^{
++ (void)endRevealsAheadOfSwitch {
+  OnMain(^{
+    [ArdiaWebView dropNativeRevealsInWindow:nil];
+  });
+}
+
++ (void)takeBackPressesUnheardUpTo:(NSUInteger)press {
+  void (^afterTheTouchReachedJavaScript)(void (^)(void)) = ^(void (^then)(void)) {
     dispatch_async(dispatch_get_main_queue(), ^{
-      onJavaScriptThread(^{
-        for (NSNumber *unheard in ArdiaTabPressesTakeUnclaimed(pressed)) [ArdiaWebView dropTabPress:unheard.unsignedIntegerValue];
-      });
+      ArdiaTabPressesOnJavaScriptThread(then);
+    });
+  };
+  afterTheTouchReachedJavaScript(^{
+    afterTheTouchReachedJavaScript(^{
+      for (NSNumber *unheard in ArdiaTabPressesTakeUnheard(press)) [ArdiaWebView dropTabPress:unheard.unsignedIntegerValue];
     });
   });
 }
 
 + (BOOL)revealForPress:(NSEvent *)event {
-  if (event.type == NSEventTypeLeftMouseUp) [ArdiaWebView tabPressReleased];
   if (!gNativeTabSwitch.load(std::memory_order_relaxed) || event.type != NSEventTypeLeftMouseDown) return NO;
   NSWindow *window = event.window;
   NSString *tag = window ? PressedTabTag(event) : nil;
   NSString *key = !tag ? nil : [tag substringFromIndex:[tag rangeOfString:@":"].location + 1];
   if (!key.length) return NO;
-  const NSUInteger press = ArdiaTabPressBegan(key);
+  const NSUInteger press = ArdiaTabPressBegan(key, event.timestamp * 1000);
+  [ArdiaWebView takeBackPressesUnheardUpTo:press];
   if (event.clickCount > 1 || (event.modifierFlags & kClickModifiers)) return NO;
   ArdiaWebView *view = ViewForKey(key);
   if (!view || view.window != window) return NO;
@@ -154,20 +201,20 @@ static ArdiaWebView *ViewForKey(NSString *key) {
     [ArdiaWebView dropNativeRevealsInWindow:window];
     return NO;
   }
+  if (view->_reveal.native) view->_reveal.press = press;
   if ([window.identifier isEqualToString:kSmallWindow] || TypingOutsidePages(window) || ArdiaTabInSplit(key)) return NO;
   ArdiaWebView *shown = [tag hasPrefix:kTabSwitchTag] && view.revealsFirst ? [view revealableOver:YES] : nil;
-  if (!shown) return NO;
-  [ArdiaWebView replaceRevealsInWindow:window with:view];
-  [view revealAhead];
+  if (!shown || HoldsItsWindow(shown)) return NO;
+  EndRevealsWhenTheWindowIsLeft();
+  const BOOL overAnother = [ArdiaWebView replaceRevealsInWindow:window with:view];
   if (!view->_reveal.active) return NO;
   view->_reveal.native = YES;
   view->_reveal.press = press;
-  view->_reveal.covered = shown;
-  ArdiaFieldMark(key, @"nativePress", ArdiaFieldEventTime(event));
-  ArdiaFieldMarkNow(key, @"nativeReveal");
-  [view takeInputIfShown];
+  ArdiaFieldMark(PressMarkKey(press), @"nativePress", ArdiaFieldEventTime(event));
+  [view noteOnScreenAhead:overAnother];
   return YES;
 }
+
 
 + (ArdiaWebView *)nativeRevealInWindow:(NSWindow *)window except:(ArdiaWebView *)skip {
   for (ArdiaWebView *other in LiveViews().allObjects)
@@ -181,29 +228,23 @@ static ArdiaWebView *ViewForKey(NSString *key) {
   NSView *shownPane = PaneUnder(shown, shared);
   if (!shared || !pane || !shownPane.layer || pane == shownPane) return NO;
   if (!NSEqualRects([self convertRect:self.bounds toView:nil], [shown convertRect:shown.bounds toView:nil])) return NO;
-  [self giveHitTestingBack];
   if (NSView *lowered = _reveal.loweredPane) lowered.layer.zPosition = _reveal.loweredPaneZ;
   _reveal.loweredPane = shownPane;
   _reveal.loweredPaneZ = shownPane.layer.zPosition;
   shownPane.layer.zPosition = _reveal.loweredPaneZ - 1;
-  _reveal.covered = shown;
-  [self moveFocusOwnerTo:shown];
-  if (_reveal.inputTaken) {
-    [self takeHitTesting];
-    [self hidePageIdentityAfterMount];
-  }
+  if (_reveal.onScreen) [self hidePageIdentityAfterMount];
   return YES;
 }
 
 + (void)dropNativeRevealsInWindow:(NSWindow *)window {
   for (ArdiaWebView *other in LiveViews().allObjects)
-    if (other.window == window && other->_reveal.native) [other dropReveal];
+    if ((!window || other.window == window) && other->_reveal.native) [other dropReveal];
 }
 
 + (void)dropTabReveals:(NSString *)transferKey press:(NSUInteger)press to:(NSString *)incomingKey {
   if (!transferKey.length) return;
   NSString *key = [transferKey copy];
-  ArdiaTabSwitchNotePress(incomingKey, press);
+  ArdiaTabSwitchNote(incomingKey, press);
   OnMain(^{
     ArdiaWebView *view = ViewForKey(key);
     if (view.window) [ArdiaWebView dropRevealsInWindow:view.window pressedBy:press];
@@ -212,6 +253,7 @@ static ArdiaWebView *ViewForKey(NSString *key) {
 
 + (void)dropTabPress:(NSUInteger)press {
   if (!press) return;
+  ArdiaTabSwitchesForget(press);
   OnMain(^{
     for (ArdiaWebView *view in LiveViews().allObjects)
       if (view->_reveal.active && view->_reveal.native && view->_reveal.press == press) [view dropReveal];
@@ -234,15 +276,21 @@ static ArdiaWebView *ViewForKey(NSString *key) {
   }
 }
 
-+ (void)replaceRevealsInWindow:(NSWindow *)window with:(ArdiaWebView *)pressed {
++ (BOOL)replaceRevealsInWindow:(NSWindow *)window with:(ArdiaWebView *)pressed {
+  NSMutableArray<ArdiaWebView *> *ended = [NSMutableArray array], *endedNative = [NSMutableArray array];
+  BOOL wasOnScreen = NO;
   for (ArdiaWebView *other in LiveViews().allObjects) {
     if (other.window != window) continue;
     [other dropFront];
     if (other == pressed || !other->_reveal.active) continue;
-    const BOOL native = other->_reveal.native;
+    [other->_reveal.native ? endedNative : ended addObject:other];
+    wasOnScreen = wasOnScreen || other->_reveal.onScreen;
     [other endReveal];
-    [other paintAfterReveal:native];
   }
+  [pressed revealAhead];
+  for (ArdiaWebView *other in ended) [other paintAfterReveal:NO];
+  for (ArdiaWebView *other in endedNative) [other paintAfterReveal:YES];
+  return wasOnScreen;
 }
 
 + (void)revealOffered:(NSString *)adoptId over:(NSString *)transferKey press:(NSUInteger)press {
@@ -360,11 +408,11 @@ static ArdiaWebView *ViewForKey(NSString *key) {
 
 - (void)endReveal {
   if (!_reveal.active) return;
-  [self giveInputBack];
+  [self leaveScreenAhead];
   _reveal.active = NO;
   _reveal.native = NO;
+  _reveal.painted = NO;
   _reveal.press = 0;
-  _reveal.covered = nil;
   _reveal.generation++;
   if (NSView *pane = _reveal.loweredPane) pane.layer.zPosition = _reveal.loweredPaneZ;
   _reveal.loweredPane = nil;
@@ -373,7 +421,8 @@ static ArdiaWebView *ViewForKey(NSString *key) {
 - (void)dropReveal {
   if (!_reveal.active) return;
   const BOOL native = _reveal.native;
-  if (native) ArdiaFieldMarkNow(_transferKey, @"nativeRevealDropped");
+  if (_reveal.painted) ArdiaFieldMarkNow(PressMarkKey(_reveal.press), @"nativeRevealDropped");
+  ArdiaTabSwitchesForget(_reveal.press);
   [self endReveal];
   [self paintAfterReveal:native];
 }
@@ -386,10 +435,9 @@ static ArdiaWebView *ViewForKey(NSString *key) {
 
 - (void)settleRevealsInWindow {
   NSWindow *window = self.window;
-  const NSUInteger press = ArdiaTabSwitchTakePress(_transferKey);
+  const NSUInteger press = ArdiaTabSwitchTake(_transferKey);
   ArdiaWebView *pressedLater = window && !_reveal.active ? [ArdiaWebView nativeRevealInWindow:window except:self] : nil;
   if (pressedLater && OlderPress(press, pressedLater->_reveal.press) && [pressedLater stayOver:self]) return;
-  [self keepAtSettle];
   [self endReveal];
   if (window) [ArdiaWebView dropRevealsInWindow:window except:self];
 }

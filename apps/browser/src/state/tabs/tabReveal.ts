@@ -19,7 +19,10 @@ export const PAGE_IDENTITY_TAG = PLATFORM_FEATURES.nativeTabSwitch ? "page-ident
 
 let pressSwitching = 0;
 
-export const claimPress = (tabId: string) => (PLATFORM_FEATURES.nativeTabSwitch ? claimTabPress(tabId) : 0);
+export const claimPress = (tabId: string, startedAt: number | undefined) =>
+  PLATFORM_FEATURES.nativeTabSwitch && startedAt !== undefined ? claimTabPress(tabId, startedAt) : 0;
+
+export const switchingPress = () => pressSwitching;
 
 export function switchingByPress(press: number, run: () => void) {
   const outer = pressSwitching;

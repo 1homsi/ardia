@@ -162,11 +162,14 @@ test("a press carries its native sequence to the switch it makes, and one that l
   const presses = stub.nativeTabPresses;
   let start = 5000;
   const event = (mods = {}) => ({ nativeEvent: { identifier: "0", pageX: 10, pageY: 10, ...mods }, touchHistory: { touchBank: [{ startTimeStamp: ++start }] } });
-  const press = (tabId, mods = {}) => held.holdTabPress("w1", tabId, event(mods));
+  const press = (tabId, mods = {}, native = 0) => {
+    const e = event(mods);
+    if (native) presses.byStart.set(start, native);
+    return held.holdTabPress("w1", tabId, e);
+  };
   const dropped = () => presses.dropped.splice(0);
   setup();
-  presses.next.push(7);
-  press("b");
+  press("b", {}, 7);
   assert.deepEqual(revealed(), ["b by press 7"], "native code can tell this switch from the presses after it");
   assert.deepEqual(dropped(), [], "the press switched, nothing to take back");
   S().activate("c");
@@ -176,16 +179,14 @@ test("a press carries its native sequence to the switch it makes, and one that l
   press("a", { metaKey: true });
   assert.deepEqual([revealed(), dropped()], [[], []], "native code doesn't show a modified click, so nothing to take back");
   S().setSelection("w1", ["a", "b"]);
-  presses.next.push(9);
-  const selected = press("b");
+  const selected = press("b", {}, 9);
   assert.deepEqual([revealed(), dropped()], [[], [9]], "a press on a selected tab doesn't switch on press: only press 9's reveal goes");
   held.clickHeldTabPress("w1", "b", event(), selected);
   assert.deepEqual(revealed(), ["b by press 9"], "its switch on release still belongs to that press");
   S().setSelection("w1", []);
   held.devTabPress.switchOnPress = false;
   try {
-    presses.next.push(12);
-    press("a");
+    press("a", {}, 12);
     assert.deepEqual([revealed(), dropped()], [[], [12]], "with switching on press off, the press leaves it in the background");
   } finally {
     held.devTabPress.switchOnPress = true;
@@ -197,9 +198,28 @@ test("a switch the native view can't show still names the press that made it and
   setup();
   S().updateTab("b", { page: { kind: "asleep" } });
   revealed();
-  stub.nativeTabPresses.next.push(21);
+  stub.nativeTabPresses.byStart.set(9001, 21);
   held.holdTabPress("w1", "b", { nativeEvent: { identifier: "0", pageX: 10, pageY: 10 }, touchHistory: { touchBank: [{ startTimeStamp: 9001 }] } });
   assert.deepEqual(revealed(), ["drop over a by press 21"], "so a page pressed after it stays on screen");
+});
+
+test("a press claims the number native code gave that very event, never an older press on the same tab", async () => {
+  const held = await import("../sidebar/heldTabPress.ts");
+  const event = (startTimeStamp) => ({ nativeEvent: { identifier: "0", pageX: 10, pageY: 10 }, touchHistory: { touchBank: [{ startTimeStamp }] } });
+  setup();
+  revealed();
+  stub.nativeTabPresses.byStart.set(7000, 30);
+  stub.nativeTabPresses.byStart.set(7500, 31);
+  held.holdTabPress("w1", "b", event(7500));
+  assert.deepEqual(revealed(), ["b by press 31"], "press 30 on the same row, which JS never heard, is not taken for it");
+  S().activate("a");
+  revealed();
+  held.holdTabPress("w1", "b", event(8000));
+  assert.deepEqual(revealed(), ["b"], "an event native code never numbered claims nothing");
+  S().activate("a");
+  revealed();
+  held.holdTabPress("w1", "b", { nativeEvent: { identifier: "0", pageX: 10, pageY: 10 } });
+  assert.deepEqual(revealed(), ["b"], "nor does one with no start time");
 });
 
 test("rows of tabs in a split are never tagged for the native reveal, and native code is told which tabs those are", async () => {
