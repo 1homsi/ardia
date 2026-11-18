@@ -251,7 +251,7 @@ export const floatingBarLayout = {
 
 export const floatingPanelLayout = {
   inset: 8,
-  radius: 26,
+  radius: 32.75,
   aboveKeyboard: 8,
   departLift: 120,
   departMs: 200,

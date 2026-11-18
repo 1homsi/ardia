@@ -3,7 +3,7 @@ import { State } from "react-native-gesture-handler";
 import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { sheetPullTranslation } from "../components/ui/Sheet";
-import { floatingPanelLayout, space } from "../components/ui";
+import { browseLayout, floatingPanelLayout, space, Symbol } from "../components/ui";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { newTabPanelShown, NEW_TAB_FIELD, SearchTray } from "../components/search/SearchTray";
 import { DesignProvider } from "../components/ui";
@@ -85,23 +85,38 @@ onIPhone("on a new tab the search panel runs from under the status bar down to t
   unmount(edit);
 });
 
-onIPhone("the new-tab panel's field is the large Search field with the mic inside, and Incognito sits beside it in the panel, outside the field", () => {
+onIPhone("the new-tab panel's field is the standard Search field with the mic and Incognito's specs inside it, and Incognito is clickable there", () => {
   act(() => presentSearch("start", ""));
   const root = tray();
-  const row = host(root, "newTabFieldRow")!;
-  expect(flat(row)).toMatchObject({ flexDirection: "row" });
   const capsule = host(root, "trayFieldCapsule")!;
-  expect(flat(capsule).minHeight).toBe(NEW_TAB_FIELD.height);
-  expect(flat(host(root, "completingField")).fontSize).toBe(NEW_TAB_FIELD.fontSize);
-  const incognito = host(root, "newTabIncognito")!;
-  expect(incognito.props.accessibilityLabel).toBe("Activate Incognito");
-  expect(capsule.findAll((node) => node.props.accessibilityLabel === "Activate Incognito")).toHaveLength(0);
-  expect(flat(incognito)).toMatchObject({ width: NEW_TAB_FIELD.incognito, height: NEW_TAB_FIELD.incognito, paddingLeft: 0, paddingRight: 0 });
-  act(() => root.root.findAll((node) => node.props.testID === "newTabIncognito" && typeof node.props.onPress === "function")[0]!.props.onPress());
-  const on = host(root, "newTabIncognito")!;
-  expect(on.props.accessibilityLabel).toBe("Deactivate Incognito");
-  expect(on.findAll((node) => typeof node.type === "string" && node.type === "Text" && node.children.join("") === "Incognito")).toHaveLength(0);
+  expect(flat(host(root, "completingField")).minHeight).toBe(browseLayout.searchFieldHeight - floatingPanelLayout.fieldEdge * 2);
+  expect(flat(host(root, "completingField")).fontSize).toBeUndefined();
+  expect(capsule.findAll((node) => node.props.accessibilityLabel === "Activate Incognito")).not.toHaveLength(0);
+  expect(capsule.findAll((node) => node.type === Symbol && node.props.name === "eyeglassesThin")).toHaveLength(1);
+  act(() => root.root.findAll((node) => node.props.testID === "trayIncognito" && typeof node.props.onPress === "function")[0]!.props.onPress());
+  expect(useTabs.getState().incognito).toBe(true);
+  expect(host(root, "trayFieldCapsule")!.findAll((node) => node.props.accessibilityLabel === "Deactivate Incognito")).not.toHaveLength(0);
   unmount(root);
+});
+
+onIPhone("the new-tab panel runs on under the keyboard to the screen's bottom, its rows ending above the keyboard, and its corners are concentric with the field's", () => {
+  act(() => presentSearch("start", ""));
+  const root = tray();
+  lift(300);
+  const visible = flat(host(root, "trayRowsReveal"));
+  expect(flat(host(root, "trayPanel")).bottom).toBe(-300);
+  expect(visible.paddingBottom).toBe(300);
+  const surface = flat(host(root, "traySurface")).height as number;
+  unmount(root);
+  act(() => dismissSearch());
+  editPage();
+  const edit = tray();
+  lift(300);
+  expect(flat(host(edit, "trayPanel")).bottom).toBe(-0);
+  expect(flat(host(edit, "trayRowsReveal")).paddingBottom).toBe(0);
+  expect(surface).toBeGreaterThan(flat(host(edit, "traySurface")).height as number);
+  expect(floatingPanelLayout.radius).toBe(floatingPanelLayout.fieldInset + browseLayout.searchFieldHeight / 2);
+  unmount(edit);
 });
 
 onIPhone("more suggestions than fit scroll inside the panel under a field that stays put, and dragging the list keeps the keyboard, as today's tray does", () => {
@@ -120,7 +135,6 @@ onIPhone("editing a page's address keeps today's field, with Incognito inside it
   editPage();
   const root = tray();
   expect(host(root, "newTabFieldRow")).toBeUndefined();
-  expect(host(root, "newTabIncognito")).toBeUndefined();
   expect(host(root, "trayFieldCapsule")!.findAll((node) => node.props.accessibilityLabel === "Activate Incognito").length).toBeGreaterThan(0);
   act(() => typeSearch("site"));
   act(() => jest.advanceTimersByTime(50));
@@ -184,10 +198,11 @@ onIPhone("the panel's top sits 28 points under the status bar, as in Arc Search'
   const root = trayWithInsets();
   const window = Dimensions.get("window").height;
   const gap = space.s + floatingPanelLayout.aboveKeyboard;
+  const aboveKeyboard = () => (flat(host(root, "traySurface")).height as number) + (flat(host(root, "trayPanel")).bottom as number);
   lift(300);
-  expect(window - 300 - gap - (flat(host(root, "traySurface")).height as number)).toBe(seenTop + 28);
+  expect(window - 300 - gap - aboveKeyboard()).toBe(seenTop + 28);
   act(() => (mockSeen.props!.onLift as (lift: { lift: number; up: boolean }) => void)({ lift: 0, up: false }));
-  expect(window - seenBottom - gap - (flat(host(root, "traySurface")).height as number)).toBe(seenTop + 28);
+  expect(window - seenBottom - gap - aboveKeyboard()).toBe(seenTop + 28);
   unmount(root);
 });
 
