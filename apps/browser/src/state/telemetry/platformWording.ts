@@ -33,16 +33,18 @@ const outsideQuotes = (text: string, change: Wording) =>
     .map((part, i) => (i % 2 ? part : change(part)))
     .join("");
 
+export function dropFeaturePhrases(features: PlatformFeatures): Wording {
+  const dropped = Object.entries(PHRASES_ONLY_WITH)
+    .flatMap(([flag, phrase]) => (features[flag as FeatureFlag] ? [] : [phrase].flat()))
+    .sort((a, b) => b.length - a.length);
+  return (text) => dropped.reduce((kept, phrase) => kept.replaceAll(phrase, ""), text);
+}
+
 export function platformWording(terms: PlatformTerms, features: PlatformFeatures, keyText: (mac: string) => string): Wording {
-  const dropped = Object.entries(PHRASES_ONLY_WITH).flatMap(([flag, phrase]) => (features[flag as FeatureFlag] ? [] : [phrase].flat()));
+  const dropPhrases = dropFeaturePhrases(features);
   const rules = termRules(terms);
-  const reword = (part: string) => {
-    let text = part;
-    for (const phrase of dropped) text = text.replaceAll(phrase, "");
-    for (const rule of rules) text = text.replace(rule.mac, () => rule.platform);
-    return text.replace(KEY_RUN, (run) => keyText(run));
-  };
-  return (text) => outsideQuotes(text, reword);
+  const reword = (part: string) => rules.reduce((text, rule) => text.replace(rule.mac, () => rule.platform), part).replace(KEY_RUN, (run) => keyText(run));
+  return (text) => outsideQuotes(dropPhrases(text), reword);
 }
 
 export function rewordInPlace(value: object, words: Wording) {
