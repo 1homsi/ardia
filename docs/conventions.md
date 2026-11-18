@@ -78,6 +78,10 @@ lib/                    pure helpers: url, color, time, keys
   | `shadow.dialog` | 24 pt, (0, 10) | dialogs, sheets, the command panel, NTP cards (with their own opacity); `shadow.popover` (18, (0, 8)) is the lighter menu-material level |
 - No hex, `rgb()`/`rgba()`/`hsl()` literals, `Easing.` curves or numeric animation durations outside files named
   `tokens.ts` or `motion.ts`.
+- **Motion by frequency of use.** High-frequency controls (tab rows, tiles, folders, toolbar buttons, menus, the
+  command bar) get no bounce, squish or overshoot: state changes land on the press, and any curve is short and
+  critically damped. Springs with visible overshoot (`springs.bouncy`) are for rare, larger moves such as the
+  sidebar opening, onboarding and sheets (AGENTS.md, Building features).
 - **Screens are built from `components/ui/` pieces:** Box, Text, Button (icon, text, pill and close variants),
   Popover, Dialog, Row, Field, Switch, Radio, Menu, with token props (`pad="m" fill="panel" radius="l"`). Native views
   (Surface, Symbol, the web view, …) are wrapped there too. Feature code passes `style` only for layout (flex,
