@@ -461,3 +461,17 @@ test("r4607098788 a consent change's own prune finishing late doesn't erase what
   const props = await localReport.reportLocalStore(client.consentToken());
   assert.equal(props?.lines_dropped, 3);
 });
+
+test("PRRT 4607475653 search-suggestion counts from before a consent change are drained at the change even when no latency was sampled, so the next period doesn't send them", async () => {
+  client.setSharing(true, "onboarding");
+  track.takeSearchSuggests();
+  track.takeOmniboxLatency();
+  track.noteSearchSuggest("ok", client.consentToken());
+  track.noteSearchSuggest("failed", client.consentToken());
+  client.replaceInstallId();
+  for (let i = 0; i < 5; i++) track.sampleOmniboxLatency(12);
+  await usage.devHourly();
+  const sent = await queued("perf_omnibox");
+  assert.ok(sent.length > 0, "the hour sent its omnibox sample");
+  assert.ok(sent.every((p) => !p.search_suggest_ok && !p.search_suggest_failed), JSON.stringify(sent));
+});
