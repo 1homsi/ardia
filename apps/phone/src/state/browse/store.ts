@@ -363,6 +363,7 @@ async function enterDeck() {
 
 let pullCapture: { id: string; done: Promise<void> } | null = null;
 let landingFromRest: string | null = null;
+let handingOver: string | null = null;
 let trackedPull: string | null = null;
 
 const pullCounts = (id: string) => !useTabs.getState().incognito && !findTab(currentTabs(), id)?.isPrivate;
@@ -394,7 +395,7 @@ export function deckPullReleased(id: string, lands: boolean) {
 }
 
 function landDeckFromRest(id: string) {
-  if (landingFromRest === id) return;
+  if (landingFromRest === id || handingOver === id) return;
   landingFromRest = id;
   deckPullBegan(id, false);
   if (deckStandbyId() !== id) {
@@ -429,11 +430,29 @@ function cardShowsPicture(id: string) {
 
 function whenPullPicturePainted(id: string, then: () => void) {
   const capture = pullCapture?.id === id ? pullCapture.done : null;
+  const current = () => findTab(currentTabs(), id)?.snapshotFileName ?? null;
+  const paints = (picture: string | null, capMs: number, newer: number) => {
+    if (!picture) {
+      then();
+      return;
+    }
+    whenPicturePainted(pictureKey(`deck:${id}`, picture), capMs, (shown) => {
+      const now = current();
+      if (newer > 0 && now !== picture) {
+        refreshHiddenDeck();
+        paints(now, DECK_PULL.paintCapMs, newer - 1);
+      } else if (shown) then();
+      else if (capMs < DECK_PULL.paintLateCapMs) paints(picture, DECK_PULL.paintLateCapMs, newer);
+      else {
+        if (pullCounts(id)) countUsage("deck_pictures_late");
+        labTrace("PAGELAB deck pull handed over before its picture had painted");
+        then();
+      }
+    });
+  };
   const painted = () => {
     refreshHiddenDeck();
-    const picture = findTab(currentTabs(), id)?.snapshotFileName;
-    if (!picture) then();
-    else whenPicturePainted(pictureKey(`deck:${id}`, picture), DECK_PULL.paintCapMs, then);
+    paints(current(), DECK_PULL.paintCapMs, 1);
   };
   if (!capture) {
     painted();
@@ -461,6 +480,7 @@ function deckPullRefused(id: string) {
 
 export function deckPullSettled(id: string, landed: boolean, worstFrameMs = 0) {
   landingFromRest = null;
+  handingOver = null;
   trackedPull = null;
   if (worstFrameMs > DECK_PULL.hitchMs && pullCounts(id)) countUsage("deck_pulls_hitched");
   if (!landed) {
@@ -468,21 +488,27 @@ export function deckPullSettled(id: string, landed: boolean, worstFrameMs = 0) {
     refreshHiddenDeck();
     return;
   }
+  handingOver = id;
   whenPullPicturePainted(id, () => enterDeckFromPull(id));
 }
 
 function enterDeckFromPull(id: string) {
-  pullCapture = null;
+  if (pullCapture?.id === id) pullCapture = null;
+  const lost = () => {
+    if (handingOver === id) handingOver = null;
+    if (deckPullGrowing() === null) endDeckPull();
+  };
   if (useBrowse.getState().surface !== "browsing" || currentTabs().selectedId !== id) {
-    endDeckPull();
+    lost();
     return;
   }
   runOnUI(handOverDeckPull)();
   requestAnimationFrame(() => {
     if (useBrowse.getState().surface !== "browsing" || currentTabs().selectedId !== id) {
-      endDeckPull();
+      lost();
       return;
     }
+    if (handingOver === id) handingOver = null;
     dismissSearch();
     entranceCapture = null;
     noteDeckPullEntrance(id);
@@ -491,7 +517,7 @@ function enterDeckFromPull(id: string) {
   });
 }
 
-export const deckPullInFlight = () => trackedPull !== null || landingFromRest !== null || pullCapture !== null;
+export const deckPullInFlight = () => trackedPull !== null || landingFromRest !== null || handingOver !== null || pullCapture !== null;
 
 export const peekDeckEntrance = () => useBrowse.getState().deckEntrance;
 

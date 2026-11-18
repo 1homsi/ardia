@@ -1087,6 +1087,7 @@ export const TabDeck = memo(function TabDeck() {
           canScrollForward={deckScrollActionTarget(anchor, count, "forward") !== null}
           canScrollBackward={deckScrollActionTarget(anchor, count, "backward") !== null}
           onScrollAction={(direction) => {
+            if (pulls && reduceMotion && phase.kind === "closing") return;
             const target = deckScrollActionTarget(anchor, count, direction);
             if (target === null) return;
             setAnchor(target);
