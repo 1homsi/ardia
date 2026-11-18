@@ -288,9 +288,21 @@ runs a plugin's program itself, with one exception for built-in plugins:
 - **Stale requests.** Each link and unlink takes the plugin's next generation when it's asked for, and does nothing when
   a newer one was asked for before it runs; its answer to JS is only whether it worked, which commands were linked or
   refused and why, the bin folder, and whether an old install was adopted.
-- **PATH line.** Ardia never runs your shell's startup files to find out: when none of them has an uncommented line
-  that puts `.local/bin` on PATH, it adds one (fish's goes in its config folder, `$XDG_CONFIG_HOME` included), and it
-  records that it's done (`Programs/.path-line`) only once the line is there, so a failed write is tried again.
+- **PATH line** (`PluginCore/PluginLoginPath.swift`). Each time a plugin's commands are linked into `~/.local/bin`,
+  Ardia reads (never runs) the startup files your login shell reads and, when none has an uncommented line that puts
+  `.local/bin` on PATH, appends one to that shell's login file:
+  - zsh reads `.zshenv`, `.zprofile`, `.zshrc` and `.zlogin`, and gets `.zprofile`;
+  - bash (a login shell, as terminals on macOS open) reads the first of `.bash_profile`, `.bash_login` and `.profile`,
+    and `.bashrc` only when that file sources it; the line goes in that first file, or a new `.bash_profile` when there
+    is none, so an existing `.profile` is never hidden;
+  - fish reads `config.fish` and gets `conf.d/ardia.fish` in its config folder (`$XDG_CONFIG_HOME` included);
+  - sh, dash, ksh, mksh and yash read and get `.profile`;
+  - csh, tcsh and other shells are left alone, since the line's syntax differs.
+
+  `Programs/.path-line` records the shell and the file that covers it. Nothing is skipped because of it, so a changed
+  login shell or a removed line is repaired at the next link. The old `install.sh` asked the login shell for its PATH
+  and wrote `.zprofile` (`.bash_profile` for bash), so an adopted install already has its line where zsh and bash
+  read it.
 - **Not sandboxed.** A program isn't a helper: you, or a program you use, run it from a shell, as you, so neither the
   sandbox nor the plugin's other permissions apply to it, and the consent sheet says so ("Puts a command on your PATH:
   ardia. It runs as you, outside Ardia's sandbox, …", and "Adds ~/.local/bin to your PATH in your shell's login file,

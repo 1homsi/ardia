@@ -220,44 +220,12 @@ enum PluginProgramLinks {
     return environment
   }
 
-  static func addsLocalBin(_ text: String) -> Bool {
-    text.split(separator: "\n").contains { raw in
-      let line = raw.trimmingCharacters(in: .whitespaces)
-      return !line.hasPrefix("#") && line.contains(".local/bin") && (line.contains("PATH") || line.contains("fish_add_path"))
-    }
-  }
-
   private static func addToLoginPath(_ places: ProgramPlaces) {
     guard !LaunchConfig.shared.isolated else { return }
     let home = FileManager.default.homeDirectoryForCurrentUser.path
     guard places.binDir == (home as NSString).appendingPathComponent(".local/bin") else { return }
-    let marker = (places.store as NSString).appendingPathComponent(pathMarker)
-    var info = stat()
-    if lstat(marker, &info) == 0 { return }
-    let shellName = (loginShell() as NSString).lastPathComponent
     let configHome = LaunchConfig.shared.environmentForChildProcesses["XDG_CONFIG_HOME"].flatMap { $0.hasPrefix("/") ? $0 : nil } ?? (home as NSString).appendingPathComponent(".config")
-    let rc: String
-    var line = #"export PATH="$HOME/.local/bin:$PATH""#
-    switch shellName {
-    case "fish":
-      rc = (configHome as NSString).appendingPathComponent("fish/conf.d/ardia.fish")
-      line = "contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH"
-      try? FileManager.default.createDirectory(atPath: (rc as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
-    case "bash": rc = (home as NSString).appendingPathComponent(".bash_profile")
-    default: rc = (home as NSString).appendingPathComponent(".zprofile")
-    }
-    let startup = [rc] + [".zshenv", ".zprofile", ".zshrc", ".bash_profile", ".bashrc", ".profile"].map { (home as NSString).appendingPathComponent($0) }
-      + [(configHome as NSString).appendingPathComponent("fish/config.fish")]
-    if !startup.contains(where: { addsLocalBin((try? String(contentsOfFile: $0, encoding: .utf8)) ?? "") }) {
-      let existing = (try? String(contentsOfFile: rc, encoding: .utf8)) ?? ""
-      let text = (existing.isEmpty || existing.hasSuffix("\n") ? "" : "\n") + line + "\n"
-      guard let handle = FileHandle(forWritingAtPath: rc) ?? (FileManager.default.createFile(atPath: rc, contents: nil) ? FileHandle(forWritingAtPath: rc) : nil) else { return }
-      defer { try? handle.close() }
-      _ = try? handle.seekToEnd()
-      guard (try? handle.write(contentsOf: Data(text.utf8))) != nil else { return }
-    }
-    let fd = open(marker, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0o600)
-    if fd >= 0 { close(fd) }
+    _ = PluginLoginPath.ensure(shellPath: loginShell(), home: home, configHome: configHome, marker: (places.store as NSString).appendingPathComponent(pathMarker))
   }
 
   private static func loginShell() -> String {
