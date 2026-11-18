@@ -6,7 +6,7 @@ export default {
   setup: `const s = st();
 const go = (url) => { s.navigate("t1", url, { userInitiated: true }); return sleep(2600); };
 return sleep(1500).then(() => go("http://dailyledger.example/")).then(() => go("http://docpad.example/"))
-  .then(() => done({ back: !!st().live.t1 && st().live.t1.canGoBack, url: st().tabs.t1.url }));`,
+  .then(() => done({ back: !!st().tabs.t1 && ac.tabLive.liveOf("t1").canGoBack, url: st().tabs.t1.url }));`,
   async prepare(instance) {
     const page = await instance.page("docpad");
     return { unload: await page.eval(UNLOAD) };
