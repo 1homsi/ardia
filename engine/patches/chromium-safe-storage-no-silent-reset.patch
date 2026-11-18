@@ -45,7 +45,7 @@
    std::string GetEncryptionPassword() const;
 --- a/crypto/apple/fake_keychain_v2.mm
 +++ b/crypto/apple/fake_keychain_v2.mm
-@@ -402,6 +402,19 @@
+@@ -402,6 +402,20 @@
    return noErr;
  }
  
@@ -54,6 +54,7 @@
 +    std::string_view account_name,
 +    base::span<const uint8_t> password) {
 +  IncrementKeychainAccessHistogram();
++  base::AutoLock auto_lock(lock_);
 +  called_add_generic_ = true;
 +  DCHECK(!password.empty());
 +  if (find_generic_result_ == noErr) {
