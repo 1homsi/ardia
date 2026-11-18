@@ -317,6 +317,7 @@ export const deckChromeLayout = {
   searchTrailFilled: 8,
   searchSpacing: 8,
   searchGlyph: 16.8,
+  incognitoGlyph: 30,
   clearGlyph: 22.8,
   clearHit: 32,
   archiveCenter: 78.5,
