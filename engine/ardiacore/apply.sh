@@ -261,7 +261,7 @@ def gate(s, start, end, why):
 decl_at = """#if BUILDFLAG(IS_ANDROID)
 ChromeMainDelegate::ChromeMainDelegate()
     : ChromeMainDelegate(StartupTimestamps{}) {}
-#endif
+#else
 """
 decl = """// Ardia: ArdiaCore (engine/ardiacore) embeds Chrome: it does some of Chrome's startup itself.
 bool g_ardia_embedder = false;
@@ -430,7 +430,7 @@ PY
 
 hook "$src/chrome/browser/ui/sad_tab_controller.cc" "SadTabController" <<'PY'
 old = """  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
-  DCHECK(browser_view);
+  CHECK(browser_view, base::NotFatalUntil::M162);
 """
 new = """  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
   // Ardia: ArdiaCore's Browsers have no BrowserView (engine/ardiacore).
@@ -1106,24 +1106,19 @@ hook(["bool g_ardia_skip_cpu_health_sampling = false;\n",
       "      g_ardia_skip_cpu_health_sampling ? nullptr\n"], edit, HOOKS)
 PY
 
-hook "$src/components/memory_pressure/system_memory_pressure_evaluator_mac.cc" "the disk space check's relaxed period" <<'PY'
+hook "$src/components/memory_pressure/disk_space_memory_pressure_evaluator_mac.cc" "the disk space check's relaxed period" <<'PY'
 at = "namespace memory_pressure::mac {\n"
 decl = """int g_ardia_disk_space_check_seconds = 0;
 
-namespace {
-constexpr base::ByteSize kArdiaRelaxedDiskSpace = base::GiB(20);
+"""
+relaxed_at = """constexpr base::TimeDelta kDiskSpaceCheckPeriod = base::Seconds(5);
+"""
+relaxed = """constexpr base::ByteSize kArdiaRelaxedDiskSpace = base::GiB(20);
+"""
+old = """  UpdatePressureAndManageNotifications(new_disk_vote);
 }
-
 """
-old = """  if (disk_pressure_vote_ != new_disk_vote) {
-    disk_pressure_vote_ = new_disk_vote;
-    UpdatePressureAndManageNotifications();
-  }
-"""
-new = """  if (disk_pressure_vote_ != new_disk_vote) {
-    disk_pressure_vote_ = new_disk_vote;
-    UpdatePressureAndManageNotifications();
-  }
+new = """  UpdatePressureAndManageNotifications(new_disk_vote);
 
   if (g_ardia_disk_space_check_seconds > 0) {
     const base::TimeDelta period =
@@ -1134,15 +1129,16 @@ new = """  if (disk_pressure_vote_ != new_disk_vote) {
     if (disk_space_check_timer_.GetCurrentDelay() != period) {
       disk_space_check_timer_.Start(
           FROM_HERE, period,
-          base::BindRepeating(&SystemMemoryPressureEvaluator::CheckDiskSpace,
+          base::BindRepeating(&DiskSpaceMemoryPressureEvaluator::CheckDiskSpace,
                               weak_ptr_factory_.GetWeakPtr()));
     }
   }
+}
 """
 def edit(s):
-    assert s.count(at) == 1 and s.count(old) == 1
+    assert s.count(at) == 1 and s.count(old) == 1 and s.count(relaxed_at) == 1
     i = s.index(at)
-    return s[:i] + decl + s[i:].replace(old, new)
+    return s[:i] + decl + s[i:].replace(relaxed_at, relaxed_at + relaxed).replace(old, new)
 hook(["int g_ardia_disk_space_check_seconds = 0;\n",
       "  if (g_ardia_disk_space_check_seconds > 0) {\n"], edit, CONTENT_HOOKS)
 PY
@@ -1553,23 +1549,6 @@ hook(["bool g_ardia_bluetooth_poll_on_demand = false;\n",
       "void BluetoothAdapterMac::OnLowEnergyCentralManagerStateUpdated() {\n",
       "    poll_dirty_ = true;\n",
       "  if (g_ardia_bluetooth_poll_on_demand) {\n    PollAdapterOnDemand();\n  }\n  DCHECK(callback);\n"], edit)
-PY
-
-hook "$src/chrome/browser/extensions/extension_action_storage_manager.cc" "restored browser action defaults notify" <<'PY'
-old = """  SetDefaultsFromValue(value->GetDict(), action);
-}
-"""
-new = """  SetDefaultsFromValue(value->GetDict(), action);
-  if (g_ardia_embedder) {
-    ExtensionActionDispatcher::Get(browser_context_)
-        ->NotifyChange(action, nullptr, browser_context_);
-  }
-}
-"""
-def edit(s):
-    assert s.count(old) == 1
-    return s.replace(old, new)
-hook(["  if (g_ardia_embedder) {\n    ExtensionActionDispatcher::Get(browser_context_)\n"], edit, HOOKS)
 PY
 
 hook "$src/extensions/browser/extension_user_script_loader.cc" "a script loader made once extensions are ready starts at once" <<'PY'
