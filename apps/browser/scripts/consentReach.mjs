@@ -67,12 +67,15 @@ function continuation(fn, listeners) {
   return null;
 }
 
+const suspendsBefore = (at, node) =>
+  (ts.isAwaitExpression(at) && (at.end <= node.pos || (at.pos >= node.pos && at.end <= node.end))) || (ts.isForOfStatement(at) && !!at.awaitModifier && node.pos >= at.expression.end);
+
 function awaitsBefore(fn, node) {
   let found = false;
   const visit = (at) => {
-    if (found || at.pos >= node.pos) return;
+    if (found || at.pos >= node.end) return;
     if (at !== fn && ts.isFunctionLike(at)) return;
-    if (ts.isAwaitExpression(at) && at.end <= node.pos) found = true;
+    if (suspendsBefore(at, node)) found = true;
     ts.forEachChild(at, visit);
   };
   if (fn.body) ts.forEachChild(fn.body, visit);

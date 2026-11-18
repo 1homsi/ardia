@@ -55,12 +55,17 @@ const enclosingFunction = (node) => {
   return null;
 };
 
+const isForAwait = (at) => ts.isForOfStatement(at) && !!at.awaitModifier;
+
+const suspendsBefore = (at, node) =>
+  (ts.isAwaitExpression(at) && (at.end <= node.pos || (at.pos >= node.pos && at.end <= node.end))) || (isForAwait(at) && node.pos >= at.expression.end);
+
 function awaitsBefore(fn, node) {
   let found = false;
   const visit = (at) => {
-    if (found || at.pos >= node.pos) return;
+    if (found || at.pos >= node.end) return;
     if (at !== fn && ts.isFunctionLike(at)) return;
-    if (ts.isAwaitExpression(at) && at.end <= node.pos) found = true;
+    if (suspendsBefore(at, node)) found = true;
     ts.forEachChild(at, visit);
   };
   if (fn.body) ts.forEachChild(fn.body, visit);
@@ -144,7 +149,7 @@ function awaitsBetween(fn, from, to) {
   const visit = (at) => {
     if (found || at.end <= from || at.pos >= to) return;
     if (at !== fn && ts.isFunctionLike(at)) return;
-    if (ts.isAwaitExpression(at) && at.pos >= from && at.end <= to) found = true;
+    if ((ts.isAwaitExpression(at) && at.pos >= from && at.end <= to) || (isForAwait(at) && at.pos >= from && at.expression.end <= to)) found = true;
     ts.forEachChild(at, visit);
   };
   visit(fn);
@@ -159,7 +164,7 @@ function loopSuspendsBelow(node, guardScope, fn) {
 function guardedByStillValid(node, stop) {
   const fn = enclosingFunction(node);
   let scope = node;
-  const fresh = (guard) => !fn || (!awaitsBetween(fn, guard.end, node.pos) && !loopSuspendsBelow(node, scope, fn));
+  const fresh = (guard) => !fn || (!awaitsBetween(fn, guard.end, node.end) && !loopSuspendsBelow(node, scope, fn));
   for (let child = node, at = node.parent; at && at !== stop; child = at, at = at.parent) {
     scope = at;
     if (ts.isIfStatement(at) && child === at.thenStatement && validWhenTrue(at.expression) && fresh(at.expression)) return true;
@@ -349,4 +354,24 @@ test("the tripwire catches console warnings and telemetry noters after a suspens
   assert.deepEqual(kinds(ext, `${noter}function a() { p.catch(() => (noteExtensionActionStateFailure(), null)); }`), ["noteExtensionActionStateFailure without a token after .catch"]);
   assert.deepEqual(kinds(ext, `${noter}function a() { const t = consentToken(); p.catch(() => (noteExtensionActionStateFailure(t), null)); }`), []);
   assert.deepEqual(kinds(ext, `${noter}function a() { noteExtensionActionStateFailure(consentToken()); }`), []);
+});
+
+test("for await suspends: work in and after the loop body is continuation work, and a forwarded token still counts", () => {
+  const rel = "apps/browser/src/state/telemetry/x.ts";
+  assert.deepEqual(kinds(rel, "async function a(xs) { for await (const x of xs) capture('e', {}, consentNow()); }"), ["consentNow after await"]);
+  assert.deepEqual(kinds(rel, "async function b(xs) { for await (const x of xs) {} capture('e', {}, consentNow()); }"), ["consentNow after await"]);
+  assert.deepEqual(kinds(rel, "async function c(xs) { capture('e', {}, consentNow()); for await (const x of xs) {} }"), []);
+  assert.deepEqual(kinds(rel, "let n = 0;\nasync function d(xs) { for await (const x of xs) n++; }"), ["count after await"]);
+  assert.deepEqual(kinds(rel, "let n = 0; function bump(t: ConsentToken | null) { counted(t, () => n++); }\nasync function e(t: ConsentToken | null, xs) { for await (const x of xs) bump(t); }"), []);
+  assert.deepEqual(kinds(rel, "let n = 0;\nfunction f() { p.then(async () => { if (!stillValid(t)) return; for await (const x of xs) n++; }); }"), ["count after .then"]);
+  assert.deepEqual(kinds(rel, "let n = 0;\nfunction g() { p.then(async () => { for await (const x of xs) { if (stillValid(t)) n++; } }); }"), []);
+});
+
+test("a call is entered after the awaits in its own arguments, as it is after an await in an earlier statement", () => {
+  const rel = "apps/browser/src/state/telemetry/x.ts";
+  const bump = "let n = 0; function bump(v) { n++; }\n";
+  assert.deepEqual(kinds(rel, `${bump}async function a() { bump(await work()); }`), ["bump without a token after await"]);
+  assert.deepEqual(kinds(rel, `${bump}async function b() { const v = await work(); bump(v); }`), ["bump without a token after await"]);
+  assert.deepEqual(kinds(rel, `${bump}async function c() { await bump(1); }`), []);
+  assert.deepEqual(kinds(rel, `${bump}function d() { p.then(async () => { if (stillValid(t)) bump(await work()); }); }`), ["bump without a token after .then"]);
 });

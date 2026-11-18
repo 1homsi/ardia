@@ -155,6 +155,7 @@ function drainedFunctions(program, files) {
   const work = [...roots];
   while (work.length) {
     const visit = (node) => {
+      if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || ts.isTypeNode(node)) return;
       if (ts.isIdentifier(node)) {
         const decl = declOf(checker, node);
         if (decl && !seen.has(decl) && !decl.getSourceFile().isDeclarationFile) {

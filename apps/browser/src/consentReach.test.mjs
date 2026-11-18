@@ -57,6 +57,50 @@ if (process.argv.includes("--write")) {
     assert.deepEqual(sinks.map((s) => `${s.kind}:${s.line}`), ["noter:4", "consentToken:5", "console:8"]);
   });
 
+  test("for await and awaits inside a call's arguments make the callee continuation work, unless the caller forwards its token", () => {
+    const program = virtualProgram({
+      "apps/browser/src/state/telemetry/usage.ts": [
+        "export type ConsentToken = string & { readonly period: 1 };",
+        "export const consentToken = (): ConsentToken | null => null;",
+        "export function noteThing(consent?: ConsentToken | null) {}",
+        "export function capture(event: string, props: object, consent: ConsentToken | null) {}",
+      ].join("\n"),
+      "apps/browser/src/state/x.ts": [
+        'import { capture, consentToken, noteThing, type ConsentToken } from "./telemetry/usage";',
+        "declare function work(): Promise<number>;",
+        'function loopHelper() { capture("e", {}, consentToken()); }',
+        "function argHelper(v: number) { noteThing(); }",
+        "function forwarded(token: ConsentToken | null) { noteThing(token); }",
+        "function before() { noteThing(); }",
+        "export async function iterate(xs: AsyncIterable<number>) { before(); for await (const x of xs) loopHelper(); }",
+        "export async function inline() { argHelper(await work()); }",
+        "export async function passOn(token: ConsentToken | null, xs: AsyncIterable<number>) { for await (const x of xs) forwarded(token); }",
+      ].join("\n"),
+    });
+    const { sinks } = reachSinks(program, scopeFiles(program), new Set());
+    assert.deepEqual(sinks.map((s) => `${s.kind}:${s.line}`), ["consentToken:3", "noter:4"]);
+  });
+
+  test("an imported take function counts as drained only when the drain root calls it", async () => {
+    const { unclearedCounters } = await import("../scripts/consentStatic.mjs");
+    const drain = (name) => `export function ${name}() {}`;
+    const program = virtualProgram({
+      "apps/browser/src/state/telemetry/usage.ts": `${drain("emitCounts")}\n${drain("emitWindowUsage")}`,
+      "apps/browser/src/state/telemetry/hourlyExtras.ts": drain("takeHourlyExtras"),
+      "apps/browser/src/state/telemetry/focusFeatureCounts.ts": "",
+      "apps/browser/src/state/telemetry/workCounts.ts": drain("takeWorkCounts"),
+      "apps/browser/src/state/telemetry/tabPresses.ts": drain("emitTabPresses"),
+      "apps/browser/src/state/telemetry/counts.ts": "export function takeCalled() { return 1; }\nexport function takeImportedOnly() { return 1; }\nexport function takeRegistered() { return 1; }",
+      "apps/browser/src/state/telemetry/consentBoundary.ts": [
+        'import { takeCalled, takeImportedOnly, takeRegistered } from "./counts";',
+        "declare function onConsentPeriodChange(fn: () => void): void;",
+        "onConsentPeriodChange(() => void takeCalled());",
+        "onConsentPeriodChange(takeRegistered);",
+      ].join("\n"),
+    });
+    assert.deepEqual(unclearedCounters(program, scopeFiles(program)).uncleared, ["apps/browser/src/state/telemetry/counts.ts | takeImportedOnly"]);
+  });
+
   test("native emits count unless the payload is stamped, on the line or before it", () => {
     const objc = [
       '[ArdiaEvents emit:@"a.plain" data:@{@"x" : @1}];',
