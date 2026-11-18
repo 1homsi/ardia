@@ -167,22 +167,26 @@ export function fadeDeckPullFromRest(id: string, settled: PullSettled, refused: 
       runOnJS(settled)(id, false, 0);
       return;
     }
-    deckPull.stage.value = PULL_STAGE.faded;
+    deckPull.stage.value = PULL_STAGE.landed;
     runOnJS(settled)(id, true, deckPull.worstFrame.value);
   });
+}
+
+export function cutDeckPullFromRest(id: string, settled: PullSettled, refused: (id: string) => void) {
+  "worklet";
+  if (!beginDeckPull(id, 0)) {
+    runOnJS(refused)(id);
+    return;
+  }
+  deckPull.shrink.value = 1;
+  deckPull.reveal.value = 1;
+  deckPull.stage.value = PULL_STAGE.landed;
+  runOnJS(settled)(id, true, 0);
 }
 
 export function handOverDeckPull() {
   "worklet";
   if (deckPull.stage.value === PULL_STAGE.landed || deckPull.stage.value === PULL_STAGE.faded) deckPull.stage.value = PULL_STAGE.handed;
-}
-
-export function wakeDeck(awake: boolean) {
-  runOnUI((on: boolean) => {
-    "worklet";
-    deckPull.warm.value = on;
-    deckPull.primed.value = on;
-  })(awake);
 }
 
 export const usePullBar = create<{ deckOwns: boolean }>()(() => ({ deckOwns: false }));

@@ -885,6 +885,7 @@ export const TabDeck = memo(function TabDeck() {
   const barBand = { bottom: g.barCenterY - tabsLayout.barTouchClearance - g.height };
   const pan = Gesture.Pan()
     .withTestId("deckPan")
+    .enabled(!(pulls && reduceMotion && phase.kind === "closing"))
     .hitSlop(barBand)
     .minDistance(10)
     .onBegin((e) => {

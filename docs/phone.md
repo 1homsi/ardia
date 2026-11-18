@@ -1092,19 +1092,30 @@ The owner's reference is Safari's swipe up on its bottom bar (#2607; the measure
   and takes the card's place when it is laid out and its cover has painted. The bar then cross-fades back to the
   page's in 150 ms. In Grid a tile still opens with the older cut. The separate opening card is now only used in the column layouts.
 - **Grid.** With Grid chosen the waiting deck holds the grid, centred on the page's tab, and the target is that tile.
-- **Reduce Motion.** Nothing tracks the finger and nothing moves: the swipe and the tap cross-fade the page into the
-  deck at rest in 150 ms (`fadeDeckPullFromRest`, with `ReduceMotion.Never`, since Reanimated otherwise skips the
-  fade and cuts). The order is the other way round from the pull (#2647): the page stays in front while its fresh
-  picture is captured and painted in its card under it (bounded by the same caps, 180 ms and 250 ms), and only then
-  fades, so the card is never seen blank; the deck takes over as the fade ends with no second wait. While it waits
-  the deck is woken under the page and the page is drawn at 99% (`deckPull.primed`), which makes the compositor
-  draw both before the fade starts: without it the first fade after a launch stalled about 90 ms and showed in two
-  frames. The bar keeps the browsing glass through the fade, with the tab view's glyphs fading in on it, and the
-  deck's bar takes over when the fade has ended. Opening a card is the same fade backwards
-  (`growDeckPull(…, steady)`): the deck holds still and stays the surface, the page is made under it unseen, fades
-  in over it once it is laid out and its cover has painted, and the deck lets go when the fade has ended. Grid's
-  tile open, and the old entrance when it runs (search, a menu or the reader open, or the deck not ready within
-  0.5 s), are still cuts under Reduce Motion.
+- **Reduce Motion.** Nothing tracks the finger, nothing moves and nothing waits (#2647). What the swipe and the tap
+  do depends on what the page's card can show at once:
+  - **Its picture is painted** (the usual case): the page cross-fades over the deck at rest in 150 ms, starting in
+    the frame the request is handled (`fadeDeckPullFromRest`, with `ReduceMotion.Never`, since Reanimated otherwise
+    skips the fade and cuts). When the fade ends the live page stands in its own card, as at the end of a pull, and
+    the usual handover follows under it: the fresh capture is painted in the card and the deck takes over. If the
+    painted picture was out of date (the page has scrolled since), the card's content corrects in that one frame.
+  - **It has no painted picture** (a page never captured, or a newer picture the waiting deck hasn't drawn): no
+    fade. The live page stands in its card in one frame, a cut as before the swipe followed the finger
+    (`cutDeckPullFromRest`), and the same handover follows. The card is never seen empty either way, because what
+    stands in it is the page itself.
+  With Reduce Motion on, the waiting deck takes each new picture of the page in front as it lands
+  (`showFadingDeckThePicture`), so the first case is the common one; with normal motion it doesn't re-render for
+  that. A touch on the bar wakes the deck under the page and draws the page at 99% (`deckPull.primed`), which makes
+  the compositor draw both before the fade: without it the first fade after a launch stalled about 90 ms and
+  showed in two frames. The bar keeps the browsing glass through the fade, with the tab view's glyphs fading in on
+  it, and the deck's bar takes over after. Opening a card is a fade too (`growDeckPull(…, steady)`): the deck holds
+  still, can't be dragged and stays the surface, the page is made under it unseen, fades in over it once it is laid
+  out and its cover has painted (five to seven frames after the tap on the simulator), and the deck lets go when
+  the fade has ended. Grid's tile open, and the old entrance when it runs (search, a menu or the reader open, or
+  the deck not ready within 0.5 s), are still cuts under Reduce Motion.
+- **A request that outlives its page is dropped.** If the tab in front changes, or the surface does, while a tap
+  is still waiting for the deck to report (at most 0.5 s), the request is cleared and nothing opens; with the same
+  page still in front it falls back to the old entrance as before.
 - **Android, landscape, Duo and iPad** keep the old tree and the old entrance. `useDeckPulled`, `PullGlyphs`,
   `PullGhost`, `usePullBarShift` and the page layer are chosen once by platform (`iPhoneOr`), and `pulls` is false in
   the column layouts.

@@ -62,7 +62,7 @@ function usePulledDeck(base: Base): DeckPulled {
 }
 
 function usePulledBarGlyphs(pulling: Reads<boolean>, chrome: Reads<number>): Reads<number> {
-  return useDerivedValue(() => (pulling.value ? (deckPull.barCleared.value || deckPull.barOwned.value ? 1 : 0) : chrome.value));
+  return useDerivedValue(() => (pulling.value ? (deckPull.barCleared.value || deckPull.barOwned.value || deckPull.stage.value === PULL_STAGE.handed ? 1 : 0) : chrome.value));
 }
 
 function useChromeBarGlyphs(_pulling: Reads<boolean>, chrome: Reads<number>): Reads<number> {
