@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { useBrowser } = await import("../browser/store.ts");
+const { storeTransaction, useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { startStoreEvents } = await import("./storeEvents.ts");
 
@@ -62,4 +62,23 @@ test("handing the page to a copy sends nothing; moving the playing tab stops onl
   const fresh = copyIn(b);
   assert.ok(fresh && fresh !== inB && !S().tabs[inC], "B got a new copy and C's copy gave way to the page");
   assert.deepEqual(sent.sort(), [`media.stopped ${inB}`, `media.stopped ${song}`].sort(), "the reload stops the song and the copy that played, not B's new copy");
+});
+
+test("a copy that sounded through a holder it only had inside a held transaction is quiet again once it ends", (t) => {
+  const { song, quiet, sent } = playingSongShared(t);
+  S().updateLive(song, { playingAudio: false });
+  const b = S().createWindow({ url: "https://b.example/" });
+  const copy = Object.values(S().tabs).find((x) => x.windowId === b && x.pinKey === quiet).id;
+  sent.length = 0;
+  storeTransaction(() => {
+    freezeOn(copy, song);
+    S().updateLive(song, { playingAudio: true });
+    freezeOn(copy, quiet);
+  });
+  assert.equal(S().tabs[copy].page.holderId, quiet);
+  const copyEvents = () => sent.filter((x) => x.endsWith(` ${copy}`));
+  assert.ok(copyEvents().length % 2 === 0, `the copy ends where it started: ${copyEvents().join(", ")}`);
+  sent.length = 0;
+  S().updateLive(quiet, { playingAudio: true });
+  assert.deepEqual(copyEvents(), [`media.started ${copy}`], "the copy's real start is sent");
 });

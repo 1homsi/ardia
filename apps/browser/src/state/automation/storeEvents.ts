@@ -1,4 +1,4 @@
-import { useBrowser, type BrowserState } from "../browser/store";
+import { afterStoreTransaction, useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, isIncognitoProfile } from "../browser/model";
 import { usePages } from "../tabs/pageState";
 import { changedIds } from "../browser/changes";
@@ -83,10 +83,18 @@ function startMediaEvents(send: EventSend, wants: ReadonlySet<string>) {
       if (s.tabs[tabId] && wants.has(name) && isEligibleTab(s, tabId)) send(name, tabData(s, tabId));
     }
   };
+  const reached = new Set<string>();
   const stopLive = onLiveChange((id, live, prev) => {
     if (live.playingAudio === prev.playingAudio) return;
     const s = useBrowser.getState();
-    recheck(s, liveReachOf(s, id));
+    const ids = liveReachOf(s, id);
+    for (const tabId of ids) reached.add(tabId);
+    recheck(s, ids);
+  });
+  const stopReconcile = afterStoreTransaction(() => {
+    const ids = [...reached];
+    reached.clear();
+    recheck(useBrowser.getState(), ids);
   });
   const stopHolders = useBrowser.subscribe((s, prev) => {
     if (s.tabs !== prev.tabs) recheck(s, changedIds(s.tabs, prev.tabs).filter((id) => !s.tabs[id] || holderOfPage(s.tabs[id]) !== holderOfPage(prev.tabs[id])));
@@ -94,6 +102,7 @@ function startMediaEvents(send: EventSend, wants: ReadonlySet<string>) {
   return () => {
     stopLive();
     stopHolders();
+    stopReconcile();
   };
 }
 

@@ -67,6 +67,9 @@ export function transactional<T>(heardAlone?: (s: T, prev: T) => boolean, settle
       }
     }
   };
-  const afterTransaction = (listener: () => void) => void afterEach.add(listener);
+  const afterTransaction = (listener: () => void) => {
+    afterEach.add(listener);
+    return () => void afterEach.delete(listener);
+  };
   return { middleware, transaction, afterTransaction };
 }

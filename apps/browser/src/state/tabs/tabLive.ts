@@ -92,7 +92,7 @@ function forgetUnpublished(s: BrowserState) {
   return gone;
 }
 
-export function bindLiveToBrowser(store: Browser, afterTransaction?: (listener: () => void) => void) {
+export function bindLiveToBrowser(store: Browser, afterTransaction?: (listener: () => void) => unknown) {
   browser = store;
   published = store.getState();
   afterTransaction?.(() => forgetLive(forgetUnpublished(store.getState())));
