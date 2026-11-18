@@ -11,7 +11,6 @@ const client = await import("./client.ts");
 await import("./usage.ts");
 const journeys = await import("./journeys.ts");
 const switcher = await import("./switcherPresses.ts");
-const pinned = await import("./pinnedFoldCounts.ts");
 const popup = await import("./popupProtectedMedia.ts");
 const work = await import("./workCounts.ts");
 const focusReturns = await import("./pageFocusReturns.ts");
@@ -46,7 +45,6 @@ test("2 an identity reset while sharing stays on zeroes the counters noted befor
   sharingOn();
   const counter = consentedCount();
   counter.note();
-  pinned.notePinnedFoldToggled(true);
   popup.notePopupProtectedMedia({ family: "widevine", listed: true, epoch: client.consentEpoch() });
   work.noteLiveSourceFetch(false);
   focusReturns.notePageFocusReturnRequestAfterMenu();
@@ -56,14 +54,13 @@ test("2 an identity reset while sharing stays on zeroes the counters noted befor
   assert.deepEqual(
     {
       consented: counter.take(),
-      pinned: pinned.takePinnedFoldCounts().pinned_section_collapses,
       popup: popup.takePopupProtectedMediaCounts().popup_protected_media_refused_widevine_listed,
       live: work.takeLiveWorkCounts().live_source_fetches ?? 0,
       focusReturns: focusReturns.takePageFocusReturns().page_focus_return_requests_after_menu,
       menuReleases: switcherOpens.takeTabSwitcherMenuReleases(),
       syncCycles: cycles.takeCycleWork().cycles,
     },
-    { consented: 0, pinned: 0, popup: 0, live: 0, focusReturns: 0, menuReleases: 0, syncCycles: 0 },
+    { consented: 0, popup: 0, live: 0, focusReturns: 0, menuReleases: 0, syncCycles: 0 },
   );
 });
 

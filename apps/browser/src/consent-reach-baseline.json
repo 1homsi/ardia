@@ -24,7 +24,6 @@
     "apps/browser/src/state/profiles/profileUnloading.ts": 1,
     "apps/browser/src/state/settings/paneData.ts": 1,
     "apps/browser/src/state/sidebar/actions.ts": 2,
-    "apps/browser/src/state/sidebar/pinnedFold.ts": 1,
     "apps/browser/src/state/sidebar/switcher.ts": 2,
     "apps/browser/src/state/sidebar/tabMenu.ts": 2,
     "apps/browser/src/state/sidebar/tidyUi.ts": 1,
