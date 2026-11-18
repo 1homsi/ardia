@@ -1092,9 +1092,19 @@ The owner's reference is Safari's swipe up on its bottom bar (#2607; the measure
   and takes the card's place when it is laid out and its cover has painted. The bar then cross-fades back to the
   page's in 150 ms. In Grid a tile still opens with the older cut. The separate opening card is now only used in the column layouts.
 - **Grid.** With Grid chosen the waiting deck holds the grid, centred on the page's tab, and the target is that tile.
-- **Reduce Motion.** Nothing tracks the finger: the swipe and the tap cross-fade the page into the deck at rest in
-  150 ms (`fadeDeckPullFromRest`, with `ReduceMotion.Never`, since Reanimated otherwise skips the fade and cuts),
-  through the same handover.
+- **Reduce Motion.** Nothing tracks the finger and nothing moves: the swipe and the tap cross-fade the page into the
+  deck at rest in 150 ms (`fadeDeckPullFromRest`, with `ReduceMotion.Never`, since Reanimated otherwise skips the
+  fade and cuts). The order is the other way round from the pull (#2647): the page stays in front while its fresh
+  picture is captured and painted in its card under it (bounded by the same caps, 180 ms and 250 ms), and only then
+  fades, so the card is never seen blank; the deck takes over as the fade ends with no second wait. While it waits
+  the deck is woken under the page and the page is drawn at 99% (`deckPull.primed`), which makes the compositor
+  draw both before the fade starts: without it the first fade after a launch stalled about 90 ms and showed in two
+  frames. The bar keeps the browsing glass through the fade, with the tab view's glyphs fading in on it, and the
+  deck's bar takes over when the fade has ended. Opening a card is the same fade backwards
+  (`growDeckPull(…, steady)`): the deck holds still and stays the surface, the page is made under it unseen, fades
+  in over it once it is laid out and its cover has painted, and the deck lets go when the fade has ended. Grid's
+  tile open, and the old entrance when it runs (search, a menu or the reader open, or the deck not ready within
+  0.5 s), are still cuts under Reduce Motion.
 - **Android, landscape, Duo and iPad** keep the old tree and the old entrance. `useDeckPulled`, `PullGlyphs`,
   `PullGhost`, `usePullBarShift` and the page layer are chosen once by platform (`iPhoneOr`), and `pulls` is false in
   the column layouts.

@@ -4,7 +4,7 @@ import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-han
 import { getAnimatedStyle } from "react-native-reanimated";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { DECK_PULL, pullPagePose, pullShrink } from "../lib/deckPull";
-import { framesUntil, renderSurface, unmount, withTabs } from "../../test/render/harness";
+import { framesUntil, landOpeningPage, renderSurface, unmount, withTabs } from "../../test/render/harness";
 
 const mockMotion = { reduced: false };
 
@@ -17,6 +17,7 @@ const system = require("../platform/system") as typeof import("../platform/syste
 const perf = require("../state/app/interactionPerf") as typeof import("../state/app/interactionPerf");
 const pull = require("../state/browse/deckPull") as typeof import("../state/browse/deckPull");
 const { runDeckPullScript, DECK_PULL_SCRIPT } = require("../state/browse/deckPullScript") as typeof import("../state/browse/deckPullScript");
+const { sendDeckCommand } = require("../state/browse/deckCommands") as typeof import("../state/browse/deckCommands");
 const deckGrid = require("../state/browse/deckGrid") as typeof import("../state/browse/deckGrid");
 const browse = require("../state/browse/store") as typeof import("../state/browse/store");
 const { setRootSize } = require("../state/app/rootSize") as typeof import("../state/app/rootSize");
@@ -80,6 +81,10 @@ const moved = (node: ReactTestInstance) => {
 const opacity = (node: ReactTestInstance) => (getAnimatedStyle(node).opacity as number | undefined) ?? 1;
 const frame = () => act(() => jest.advanceTimersByTime(16));
 const caughtUp = () => act(() => jest.advanceTimersByTime(320));
+const promisesSettled = () =>
+  act(async () => {
+    for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+  });
 const travelFor = (target: { reach: number; pull: number }, rise: number) => (rise * target.pull) / target.reach;
 const surface = () => browse.useBrowse.getState().surface;
 
@@ -343,6 +348,9 @@ onIPhone("with Reduce Motion nothing tracks the finger: the swipe cross-fades th
   const root = app();
   expect(pull.deckPullFades()).toBe(true);
   swipe([{ dy: -22 }, { dy: -150 }]);
+  expect(deckPull.stage.value).toBe(PULL_STAGE.idle);
+  expect(opacity(host(root, "pagePull")!)).toBeGreaterThanOrEqual(0.99);
+  framesUntil(() => deckPull.stage.value === PULL_STAGE.fading, 30);
   expect(deckPull.stage.value).toBe(PULL_STAGE.fading);
   expect(deckPull.reveal.value).toBe(1);
   const page = host(root, "pagePull")!;
@@ -356,6 +364,103 @@ onIPhone("with Reduce Motion nothing tracks the finger: the swipe cross-fades th
   framesUntil(() => surface() === "deck", 120);
   expect(surface()).toBe("deck");
   expect(counted).toHaveBeenCalledWith("deck_bar_swipes");
+});
+
+onIPhone("with Reduce Motion the page stays in front until the fresh picture of it has painted in its card under it, only then cross-fades over the deck, and the deck takes over, bar and all, as the fade ends: the card is never seen without its picture", async () => {
+  mockMotion.reduced = true;
+  const FRESH = "file:///snapshots/faded-fresh.jpg";
+  const id = currentTabs().selectedId!;
+  act(() => browse.pageStateChanged(id, { url: "https://site0.example/", title: "Site 0", isLoading: false, isLive: true, canGoBack: false, canGoForward: false } as never));
+  const snapped = jest.spyOn(pages, "snapshot").mockImplementation(async () => ({ uri: FRESH, width: 600, height: 1333 }) as never);
+  const root = app();
+  const picture = () => host(root, "deckCards")!.findAll((node) => node.props.source?.uri === FRESH && typeof node.props.onLoad === "function" && typeof node.type !== "string")[0];
+  expect(moved(host(root, "tabDeck")!).translateX).toBe(AWAY);
+  act(() => void browse.showDeck());
+  frame();
+  expect(deckPull.stage.value).toBe(PULL_STAGE.idle);
+  expect(opacity(host(root, "pagePull")!)).toBeGreaterThanOrEqual(0.99);
+  expect(moved(host(root, "tabDeck")!).translateX).toBe(0);
+  expect(picture()).toBeUndefined();
+  await promisesSettled();
+  frame();
+  expect(snapped).toHaveBeenCalledTimes(1);
+  expect(picture()).toBeDefined();
+  expect(deckPull.stage.value).toBe(PULL_STAGE.idle);
+  expect(opacity(host(root, "pagePull")!)).toBeGreaterThanOrEqual(0.99);
+  expect(surface()).toBe("browsing");
+  act(() => picture()!.props.onLoad({ nativeEvent: { source: { width: 600, height: 1333 } } }));
+  frame();
+  frame();
+  expect(deckPull.stage.value).toBe(PULL_STAGE.fading);
+  expect(moved(host(root, "tabDeck")!).translateX).toBe(0);
+  act(() => jest.advanceTimersByTime(DECK_PULL.fadeMs / 2));
+  expect(opacity(host(root, "pagePull")!)).toBeGreaterThan(0);
+  expect(opacity(host(root, "pagePull")!)).toBeLessThan(1);
+  expect(moved(host(root, "pagePull")!).scale).toBe(1);
+  expect(surface()).toBe("browsing");
+  expect(pull.usePullBar.getState().deckOwns).toBe(false);
+  for (const ghost of hosts(root, "pullGhost")) {
+    expect(opacity(ghost)).toBeGreaterThan(0);
+    expect(opacity(ghost)).toBeLessThan(1);
+  }
+  act(() => jest.advanceTimersByTime(DECK_PULL.fadeMs / 2 + 48));
+  expect(surface()).toBe("deck");
+  expect(deckPull.primed.value).toBe(false);
+  expect(deckPull.warm.value).toBe(false);
+  expect(snapped).toHaveBeenCalledTimes(1);
+});
+
+onIPhone("with Reduce Motion the fade doesn't wait for ever: a picture that never paints holds the page for the capture's and the paint's caps, then the fade runs anyway", async () => {
+  mockMotion.reduced = true;
+  const id = currentTabs().selectedId!;
+  act(() => browse.pageStateChanged(id, { url: "https://site0.example/", title: "Site 0", isLoading: false, isLive: true, canGoBack: false, canGoForward: false } as never));
+  jest.spyOn(pages, "snapshot").mockImplementation(async () => ({ uri: "file:///snapshots/never-painted.jpg", width: 600, height: 1333 }) as never);
+  const root = app();
+  act(() => void browse.showDeck());
+  await promisesSettled();
+  frame();
+  expect(deckPull.stage.value).toBe(PULL_STAGE.idle);
+  act(() => jest.advanceTimersByTime(DECK_PULL.paintCapMs - 40));
+  expect(deckPull.stage.value).toBe(PULL_STAGE.idle);
+  expect(opacity(host(root, "pagePull")!)).toBeGreaterThanOrEqual(0.99);
+  act(() => jest.advanceTimersByTime(80));
+  expect(deckPull.stage.value).toBe(PULL_STAGE.fading);
+  framesUntil(() => surface() === "deck", 30);
+  expect(surface()).toBe("deck");
+});
+
+onIPhone("with Reduce Motion a card opens as a cross-fade too: the deck holds still and stays the surface, the page is made under it unseen, and once it is laid out it fades in over the cards and the deck lets go when the fade has ended", () => {
+  mockMotion.reduced = true;
+  withTabs(3);
+  browse.useBrowse.setState({ surface: "deck", sheet: null, deckEntrance: null, frozenOrder: null, opening: null });
+  const root = renderSurface(<Surfaces />);
+  mounted.push(root);
+  const placed = () => hosts(root, "deckCard").map((card) => ({ ...moved(card), opacity: opacity(card) }));
+  const before = placed();
+  expect(before.length).toBeGreaterThan(1);
+  act(() => sendDeckCommand({ kind: "openFocused" }));
+  act(() => jest.advanceTimersByTime(32));
+  expect(surface()).toBe("deck");
+  expect(deckPull.stage.value).toBe(PULL_STAGE.growing);
+  expect(deckPull.steady.value).toBe(true);
+  expect(placed()).toEqual(before);
+  framesUntil(() => browse.useBrowse.getState().opening !== null, 12);
+  expect(surface()).toBe("deck");
+  expect(opacity(host(root, "pagePull")!)).toBe(0);
+  expect(placed()).toEqual(before);
+  expect(landOpeningPage(root)).toBe(true);
+  framesUntil(() => deckPull.pageLive.value, 20);
+  act(() => jest.advanceTimersByTime(DECK_PULL.fadeMs / 2));
+  const page = host(root, "pagePull")!;
+  expect(opacity(page)).toBeGreaterThan(0);
+  expect(opacity(page)).toBeLessThan(1);
+  expect(moved(page).scale).toBe(1);
+  expect(moved(page).translateY).toBe(0);
+  expect(surface()).toBe("deck");
+  expect(placed()).toEqual(before);
+  framesUntil(() => deckPull.stage.value === PULL_STAGE.idle, 60);
+  expect(surface()).toBe("browsing");
+  expect(opacity(host(root, "pagePull")!)).toBe(1);
 });
 
 onIPhone("with Grid chosen the waiting deck holds the grid, the page's target is its own tile, and the swipe lands there", () => {

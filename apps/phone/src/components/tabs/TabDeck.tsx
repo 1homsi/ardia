@@ -651,7 +651,7 @@ export const TabDeck = memo(function TabDeck() {
     const id = order[index];
     if (!id || phase.kind !== "settled" || dragIndex.value === index) return;
     if (redesigned) Keyboard.dismiss();
-    if (reduceMotion || grid) {
+    if (grid || (reduceMotion && !pulls)) {
       settledOpen(id);
       return;
     }
@@ -668,9 +668,9 @@ export const TabDeck = memo(function TabDeck() {
     handedOver.current = null;
     prepared.current = null;
     if (path === "pulledCard") {
-      grown.current = { id, opened: false };
-      growDeckPull(stackPullTarget(g, id, index, scroll.value, redesigned ? cardsShift.value : 0), barBackWithPage);
-      setTimeout(() => handOver(id), criticalSpringLandsMs(OPENING_CARD_RESPONSE, CARD_LANDED) + GROWN_SLACK_MS);
+      grown.current = { id, opened: false, steady: reduceMotion };
+      growDeckPull(stackPullTarget(g, id, index, scroll.value, redesigned ? cardsShift.value : 0), barBackWithPage, reduceMotion);
+      setTimeout(() => handOver(id), reduceMotion ? 0 : criticalSpringLandsMs(OPENING_CARD_RESPONSE, CARD_LANDED) + GROWN_SLACK_MS);
       return;
     }
     if (path !== "deckCard") setOpeningCard({ id, x: deckLeading(g, index - scroll.value) + g.cardWidth / 2, y: g.cardCenterY + (redesigned ? cardsShift.value : 0), path });
@@ -685,7 +685,7 @@ export const TabDeck = memo(function TabDeck() {
     });
   };
 
-  const grown = useRef<{ id: string; opened: boolean } | null>(null);
+  const grown = useRef<{ id: string; opened: boolean; steady: boolean } | null>(null);
   const endGrown = () => {
     grown.current = null;
     scaleProgress.value = 0;
@@ -693,13 +693,17 @@ export const TabDeck = memo(function TabDeck() {
     endDeckPull();
   };
   const barBackWithPage = (id: string) => {
-    if (grown.current?.id === id) endGrown();
-    else if (deckPullGrowing() === id) endDeckPull();
+    const now = grown.current;
+    if (now?.id === id) {
+      if (now.steady && now.opened) settledOpen(id);
+      endGrown();
+    } else if (deckPullGrowing() === id) endDeckPull();
   };
   const openGrown = (id: string) => {
     const now = grown.current;
     if (now?.id === id) now.opened = true;
     showGrowingPage(id);
+    if (now?.id === id && now.steady) return;
     settledOpen(id);
   };
 

@@ -21,6 +21,8 @@ export const deckPull = {
   barCleared: makeMutable(false),
   barOwned: makeMutable(false),
   warm: makeMutable(false),
+  steady: makeMutable(false),
+  primed: makeMutable(false),
   from: makeMutable(0),
   travel: makeMutable(0),
   target: makeMutable<PullTarget | null>(null),
@@ -175,6 +177,14 @@ export function handOverDeckPull() {
   if (deckPull.stage.value === PULL_STAGE.landed || deckPull.stage.value === PULL_STAGE.faded) deckPull.stage.value = PULL_STAGE.handed;
 }
 
+export function wakeDeck(awake: boolean) {
+  runOnUI((on: boolean) => {
+    "worklet";
+    deckPull.warm.value = on;
+    deckPull.primed.value = on;
+  })(awake);
+}
+
 export const usePullBar = create<{ deckOwns: boolean }>()(() => ({ deckOwns: false }));
 
 export function setDeckOwnsBar(deckOwns: boolean) {
@@ -189,6 +199,8 @@ function endDeckPullOnUI() {
   deckPull.barCleared.value = false;
   deckPull.pageLive.value = false;
   deckPull.barBack.value = 0;
+  deckPull.steady.value = false;
+  deckPull.primed.value = false;
 }
 
 export function endDeckPull() {
@@ -203,7 +215,7 @@ let growingId: string | null = null;
 
 export const deckPullGrowing = () => growingId;
 
-function growDeckPullOnUI(target: PullTarget) {
+function growDeckPullOnUI(target: PullTarget, steady: boolean) {
   "worklet";
   if (deckPull.stage.value !== PULL_STAGE.idle) return;
   deckPull.target.value = target;
@@ -215,7 +227,9 @@ function growDeckPullOnUI(target: PullTarget) {
   deckPull.pageLive.value = false;
   deckPull.barCleared.value = true;
   deckPull.barOwned.value = true;
+  deckPull.steady.value = steady;
   deckPull.stage.value = PULL_STAGE.growing;
+  if (steady) return;
   deckPull.reveal.value = withSpring(0, DECK_PULL_SPRING.grow);
   deckPull.shrink.value = withSpring(0, DECK_PULL_SPRING.grow);
 }
@@ -223,11 +237,11 @@ function growDeckPullOnUI(target: PullTarget) {
 let grownEnded: ((id: string) => void) | null = null;
 let grownCap: ReturnType<typeof setTimeout> | undefined;
 
-export function growDeckPull(target: PullTarget, ended: (id: string) => void) {
+export function growDeckPull(target: PullTarget, ended: (id: string) => void, steady = false) {
   growingId = target.id;
   grownEnded = ended;
   setDeckOwnsBar(true);
-  runOnUI(growDeckPullOnUI)(target);
+  runOnUI(growDeckPullOnUI)(target, steady);
 }
 
 function growEnded(id: string) {
@@ -243,6 +257,10 @@ export function showGrowingPage(id: string) {
   runOnUI((opened: string) => {
     "worklet";
     if (deckPull.stage.value !== PULL_STAGE.growing || deckPull.id.value !== opened) return;
+    if (deckPull.steady.value) {
+      deckPull.fade.value = 0;
+      deckPull.fade.value = withTiming(1, { duration: DECK_PULL.fadeMs, reduceMotion: ReduceMotion.Never });
+    }
     deckPull.shrink.value = 0;
     deckPull.pageLive.value = true;
   })(id);
@@ -254,7 +272,7 @@ export function barReturnedToPage() {
   runOnUI((opened: string, done: (id: string) => void) => {
     "worklet";
     if (deckPull.stage.value !== PULL_STAGE.growing || deckPull.id.value !== opened || !deckPull.pageLive.value) return;
-    deckPull.barBack.value = withTiming(1, { duration: DECK_PULL.barBackMs }, () => {
+    deckPull.barBack.value = withTiming(1, { duration: DECK_PULL.barBackMs, reduceMotion: ReduceMotion.Never }, () => {
       "worklet";
       runOnJS(done)(opened);
     });

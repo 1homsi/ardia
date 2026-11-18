@@ -54,7 +54,7 @@ import { DECK_PULL } from "../../lib/deckPull";
 import { runOnUI } from "react-native-reanimated";
 import { showToast } from "../toasts/store";
 import { hideArchiveCard } from "./archiveCard";
-import { deckPullArmed, deckPullFades, deckPullGrowing, deckStandbyId, endDeckPull, fadeDeckPullFromRest, handOverDeckPull, landDeckPullFromRest, noteDeckPullEntrance, whenDeckStandby } from "./deckPull";
+import { deckPullArmed, deckPullFades, deckPullGrowing, deckStandbyId, endDeckPull, fadeDeckPullFromRest, handOverDeckPull, landDeckPullFromRest, noteDeckPullEntrance, wakeDeck, whenDeckStandby } from "./deckPull";
 import { beginInteraction, cutInteraction, INTERACTION_WINDOW_MS } from "../app/interactionPerf";
 import { refreshHiddenDeck, wantDeckStandby } from "./deckStandby";
 import { countUsage } from "../telemetry/telemetry";
@@ -404,42 +404,54 @@ function landDeckFromRest(id: string) {
   }
   whenDeckStandby(id, (ready) => {
     if (landingFromRest !== id) return;
-    if (ready && useBrowse.getState().surface === "browsing" && currentTabs().selectedId === id) {
-      beginInteraction(PULL_LANDING_PERF, INTERACTION_WINDOW_MS.deckPullLanding);
-      runOnUI(deckPullFades() ? fadeDeckPullFromRest : landDeckPullFromRest)(id, deckPullSettled, deckPullRefused);
+    const stillHere = () => landingFromRest === id && useBrowse.getState().surface === "browsing" && currentTabs().selectedId === id;
+    const giveUp = () => {
+      if (fadesOver === id) letDeckRest();
+      landingFromRest = null;
+      pullCapture = null;
+      labTrace("PAGELAB deck pull gave up waiting, the deck opens without it");
+      void enterDeck();
+    };
+    if (!ready || !stillHere()) {
+      giveUp();
       return;
     }
-    landingFromRest = null;
-    pullCapture = null;
-    labTrace("PAGELAB deck pull gave up waiting, the deck opens without it");
-    void enterDeck();
+    if (!deckPullFades()) {
+      beginInteraction(PULL_LANDING_PERF, INTERACTION_WINDOW_MS.deckPullLanding);
+      runOnUI(landDeckPullFromRest)(id, deckPullSettled, deckPullRefused);
+      return;
+    }
+    fadesOver = id;
+    wakeDeck(true);
+    whenPullPicturePainted(id, () => {
+      if (landingFromRest !== id) {
+        if (fadesOver === id) letDeckRest();
+        return;
+      }
+      if (!stillHere()) {
+        giveUp();
+        return;
+      }
+      beginInteraction(PULL_LANDING_PERF, INTERACTION_WINDOW_MS.deckPullLanding);
+      runOnUI(fadeDeckPullFromRest)(id, deckPullSettled, deckPullRefused);
+    });
   });
 }
 
-function deckPullRefused(id: string) {
-  if (landingFromRest !== id) return;
-  landingFromRest = null;
-  if (trackedPull !== null || useBrowse.getState().surface !== "browsing" || currentTabs().selectedId !== id) return;
-  pullCapture = null;
-  labTrace("PAGELAB deck pull refused on the UI thread, the deck opens without it");
-  void enterDeck();
+let fadesOver: string | null = null;
+
+function letDeckRest() {
+  fadesOver = null;
+  wakeDeck(false);
 }
 
-export function deckPullSettled(id: string, landed: boolean, worstFrameMs = 0) {
-  landingFromRest = null;
-  trackedPull = null;
-  if (worstFrameMs > DECK_PULL.hitchMs && pullCounts(id)) countUsage("deck_pulls_hitched");
+function whenPullPicturePainted(id: string, then: () => void) {
   const capture = pullCapture?.id === id ? pullCapture.done : null;
-  if (!landed) {
-    pullCapture = null;
-    refreshHiddenDeck();
-    return;
-  }
   const painted = () => {
     refreshHiddenDeck();
     const picture = findTab(currentTabs(), id)?.snapshotFileName;
-    if (!picture) enterDeckFromPull(id);
-    else whenPicturePainted(pictureKey(`deck:${id}`, picture), DECK_PULL.paintCapMs, () => enterDeckFromPull(id));
+    if (!picture) then();
+    else whenPicturePainted(pictureKey(`deck:${id}`, picture), DECK_PULL.paintCapMs, then);
   };
   if (!capture) {
     painted();
@@ -454,6 +466,31 @@ export function deckPullSettled(id: string, landed: boolean, worstFrameMs = 0) {
   };
   const cap = setTimeout(captured, DECK_PULL.captureCapMs);
   void capture.then(captured);
+}
+
+function deckPullRefused(id: string) {
+  if (landingFromRest !== id) return;
+  landingFromRest = null;
+  if (fadesOver === id) letDeckRest();
+  if (trackedPull !== null || useBrowse.getState().surface !== "browsing" || currentTabs().selectedId !== id) return;
+  pullCapture = null;
+  labTrace("PAGELAB deck pull refused on the UI thread, the deck opens without it");
+  void enterDeck();
+}
+
+export function deckPullSettled(id: string, landed: boolean, worstFrameMs = 0) {
+  landingFromRest = null;
+  trackedPull = null;
+  if (worstFrameMs > DECK_PULL.hitchMs && pullCounts(id)) countUsage("deck_pulls_hitched");
+  const paintedUnderThePage = fadesOver === id;
+  if (paintedUnderThePage) letDeckRest();
+  if (!landed) {
+    pullCapture = null;
+    refreshHiddenDeck();
+    return;
+  }
+  if (paintedUnderThePage) enterDeckFromPull(id);
+  else whenPullPicturePainted(id, () => enterDeckFromPull(id));
 }
 
 function enterDeckFromPull(id: string) {
