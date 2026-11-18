@@ -33,7 +33,7 @@ const server = await new Promise((r) => {
 });
 
 const inst = await launch(appArg, { data: join(scratch, "data"), fresh: true, onboarded: true, metroPort });
-const take = () => inst.eval("return ac.freezes.takeFreezeCounts()", { timeout: 30000 });
+const take = () => inst.eval("return ac.freezes.takeFreezeCounts(acTelemetry.store.getState().epoch)", { timeout: 30000 });
 const settle = async (ms) => {
   await sleep(ms + 400);
   for (const end = Date.now() + 20000; Date.now() < end; await sleep(200)) if (await inst.eval("return true", { timeout: 5000 }).catch(() => false)) return;
