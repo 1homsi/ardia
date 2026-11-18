@@ -93,9 +93,18 @@ enum PluginFiles {
     return .success(folder)
   }
 
+  static func pathParts(_ relative: String) -> [String]? {
+    let pieces = relative.utf8.split(separator: UInt8(ascii: "/"), omittingEmptySubsequences: false)
+    var parts: [String] = []
+    for piece in pieces {
+      guard !piece.isEmpty, !piece.contains(0), let part = String(bytes: piece, encoding: .utf8), part != ".", part != ".." else { return nil }
+      parts.append(part)
+    }
+    return parts.isEmpty ? nil : parts
+  }
+
   static func openBeneath(_ folder: Int32, _ relative: String, flags: Int32) -> Int32 {
-    let parts = relative.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-    guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("\0") }) else { return -1 }
+    guard let parts = pathParts(relative) else { return -1 }
     var directory = folder
     defer { if directory != folder { Darwin.close(directory) } }
     for part in parts.dropLast() {

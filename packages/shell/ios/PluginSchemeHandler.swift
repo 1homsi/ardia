@@ -19,8 +19,8 @@ final class PluginSchemeHandler: NSObject, WKURLSchemeHandler {
 
   static func relativePath(of url: URL, plugin: String) -> String? {
     guard url.scheme == scheme, url.host == plugin, url.user == nil, url.port == nil else { return nil }
-    let parts = url.path.split(separator: "/", omittingEmptySubsequences: false).dropFirst().map(String.init)
-    guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("\0") }) else { return nil }
+    let path = url.path
+    guard path.utf8.first == UInt8(ascii: "/"), let parts = PluginFiles.pathParts(String(path.dropFirst())) else { return nil }
     return parts.joined(separator: "/")
   }
 

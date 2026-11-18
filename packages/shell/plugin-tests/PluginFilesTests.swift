@@ -155,6 +155,20 @@ final class PluginBeneathTests: XCTestCase {
     XCTAssertNil(PluginFiles.localProgram("page/tool", in: folder))
   }
 
+  func testASlashJoinedToACombiningMarkIsStillAPathSeparator() throws {
+    let path = "\(root)/marked"
+    try write("secret", "\(root)/outside2/\u{301}secret.txt")
+    try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(atPath: "\(path)/link", withDestinationPath: "\(root)/outside2")
+    let folder = try XCTUnwrap(PluginFiles.openFolder(path))
+    defer { folder.close() }
+    XCTAssertLessThan(PluginFiles.openBeneath(folder.fd, "link/\u{301}secret.txt", flags: O_RDONLY), 0)
+    XCTAssertEqual(PluginFiles.pathParts("a/\u{301}b"), ["a", "\u{301}b"])
+    XCTAssertNil(PluginFiles.pathParts("a//b"))
+    XCTAssertNil(PluginFiles.pathParts("a/../b"))
+    XCTAssertNil(PluginFiles.pathParts(""))
+  }
+
   func testTheLogOpensOnlyInsideARealDataFolder() throws {
     let data = "\(root)/PluginData/example"
     try FileManager.default.createDirectory(atPath: "\(root)/elsewhere", withIntermediateDirectories: true)
