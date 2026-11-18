@@ -130,9 +130,6 @@ export const TILE_GLOW = { opacity: { dark: 0.15, light: 0.12 }, radius: 1.5, of
 
 export const SIDEBAR_MOTION = { liveFold: duration.long, fold: duration.base, listSlide: 140, listFade: 100, hoverCardFade: 100 } as const;
 
-export const HOVER_CARD_IN_SPRING = { response: 0.25, damping: 0.75 } as const;
-export const HOVER_CARD_OUT_SPRING = { response: 0.2, damping: 0.6 } as const;
-
 export const SLEEPING_TITLE_OPACITY = 0.6;
 
 export const TAB_ROW = {
