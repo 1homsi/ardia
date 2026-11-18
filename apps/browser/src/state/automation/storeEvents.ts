@@ -1,7 +1,7 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, isIncognitoProfile } from "../browser/model";
 import { usePages } from "../tabs/pageState";
-import { onLiveChange } from "../tabs/tabLive";
+import { liveReachOf, onLiveChange } from "../tabs/tabLive";
 import { focusedWindowOf } from "../windows/ui";
 import { eligibleKind, isEligibleTab, shownPage } from "./automationWindows";
 import type { AutomationEventName } from "./eventNames";
@@ -73,7 +73,8 @@ function startMediaEvents(send: EventSend, wants: ReadonlySet<string>) {
     if (live.playingAudio === prev.playingAudio) return;
     const s = useBrowser.getState();
     const name = live.playingAudio ? "media.started" : "media.stopped";
-    if (wants.has(name) && isEligibleTab(s, id)) send(name, tabData(s, id));
+    if (!wants.has(name)) return;
+    for (const tabId of liveReachOf(s, id)) if (isEligibleTab(s, tabId)) send(name, tabData(s, tabId));
   });
 }
 
