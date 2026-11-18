@@ -203,7 +203,7 @@ export const useBrowser = create<BrowserState>()(actionsApart(transactions.middl
     set(next);
   },
 })))));
-bindLiveToBrowser(useBrowser);
+bindLiveToBrowser(useBrowser, transactions.afterTransaction);
 
 export type { CreateWindowOptions } from "../windows/windows";
 

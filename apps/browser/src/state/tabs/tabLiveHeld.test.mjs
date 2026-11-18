@@ -8,7 +8,7 @@ const { bindLiveToBrowser, liveOf, setLive } = await import("./tabLive.ts");
 
 const held = transactional();
 const store = create()(held.middleware(() => ({ tabs: {} })));
-bindLiveToBrowser(store);
+bindLiveToBrowser(store, held.afterTransaction);
 
 const tab = (id) => ({ id, url: `https://${id}.com/`, page: { kind: "loaded" } });
 const withTab = (id) => store.setState((s) => ({ tabs: { ...s.tabs, [id]: tab(id) } }));
@@ -36,4 +36,15 @@ test("a tab added and given live state while held keeps it once published", () =
   });
   assert.equal(liveOf("kept"), IDLE_LIVE);
   assert.equal(liveOf("other").canGoBack, true);
+});
+
+test("a tab added and given live state inside a transaction that restores the starting state leaves no live entry", () => {
+  const start = store.getState();
+  held.transaction(() => {
+    withTab("undone");
+    setLive("undone", { isLoading: true });
+    store.setState(start, true);
+  });
+  assert.equal(store.getState(), start, "nothing was published");
+  assert.equal(liveOf("undone"), IDLE_LIVE);
 });

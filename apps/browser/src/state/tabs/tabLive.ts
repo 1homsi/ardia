@@ -86,13 +86,19 @@ export const forgetAllLive = () => forgetLive([...values.keys()]);
 const reloadedElsewhere = (tab: Tab, was: Tab) =>
   (tab.windowId !== was.windowId || tab.profileId !== was.profileId) && navigationOf(tab)?.seq !== navigationOf(was)?.seq;
 
-export function bindLiveToBrowser(store: Browser) {
+function forgetUnpublished(s: BrowserState) {
+  const gone = [...writtenUnpublished].filter((id) => !s.tabs[id]);
+  writtenUnpublished.clear();
+  return gone;
+}
+
+export function bindLiveToBrowser(store: Browser, afterTransaction?: (listener: () => void) => void) {
   browser = store;
   published = store.getState();
+  afterTransaction?.(() => forgetLive(forgetUnpublished(store.getState())));
   store.subscribe((s, prev) => {
     published = s;
-    const gone = [...writtenUnpublished].filter((id) => !s.tabs[id]);
-    writtenUnpublished.clear();
+    const gone = forgetUnpublished(s);
     if (s.tabs === prev.tabs || !values.size) return forgetLive(gone);
     for (const id of changedIds(s.tabs, prev.tabs)) {
       const tab = s.tabs[id];
