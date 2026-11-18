@@ -352,6 +352,7 @@ const BODIES: readonly string[] = [
   "<path d=\"M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM40,128a88.1,88.1,0,0,1,88-88V216A88.1,88.1,0,0,1,40,128Z\"/>",
   "<path d=\"M248,152a8,8,0,0,1-8,8H224v16a8,8,0,0,1-16,0V160H192a8,8,0,0,1,0-16h16V128a8,8,0,0,1,16,0v16h16A8,8,0,0,1,248,152ZM56,72H72V88a8,8,0,0,0,16,0V72h16a8,8,0,0,0,0-16H88V40a8,8,0,0,0-16,0V56H56a8,8,0,0,0,0,16ZM184,192h-8v-8a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16ZM219.31,80,80,219.31a16,16,0,0,1-22.62,0L36.68,198.63a16,16,0,0,1,0-22.63L176,36.69a16,16,0,0,1,22.63,0l20.68,20.68A16,16,0,0,1,219.31,80ZM208,68.69,187.31,48l-32,32L176,100.69Z\"/>",
   "<path d=\"M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48ZM64,168H48a8,8,0,0,1,0-16H64a8,8,0,0,1,0,16Zm96,0H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm48,0H192a8,8,0,0,1,0-16h16a8,8,0,0,1,0,16Zm0-32H48a8,8,0,0,1,0-16H208a8,8,0,0,1,0,16Zm0-32H48a8,8,0,0,1,0-16H208a8,8,0,0,1,0,16Z\"/>",
+  "<path d=\"M165.78,224H208a16,16,0,0,0,16-16V170.35A8,8,0,0,0,212.94,163a23.37,23.37,0,0,1-8.94,1.77c-13.23,0-24-11.1-24-24.73s10.77-24.73,24-24.73a23.37,23.37,0,0,1,8.94,1.77A8,8,0,0,0,224,109.65V72a16,16,0,0,0-16-16H171.78a35.36,35.36,0,0,0,.22-4,36,36,0,0,0-72,0,35.36,35.36,0,0,0,.22,4H64A16,16,0,0,0,48,72v32.22a35.36,35.36,0,0,0-4-.22,36,36,0,0,0,0,72,35.36,35.36,0,0,0,4-.22V208a16,16,0,0,0,16,16h42.22\"/>",
 ];
 
 const ENCODED: Record<string, readonly EncodedLayer[]> = {
@@ -673,6 +674,7 @@ const ENCODED: Record<string, readonly EncodedLayer[]> = {
   "keyboard.fill": [[347,256,1,1,0,[[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1]]]],
   "slider.horizontal.2.square": [[328,256,1,1,0,[[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1]]]],
   "play.tv": [[72,24,1,1,0,[[1.3069,0.9975,0.0197,-0.0059,0,0,1],[1.3069,1.0375,0.0009,-0.0246,0,0,1],[1.3106,1.0325,0.0047,-0.0077,0,0,1],[1.3163,1.035,0.0113,-0.0265,0,0,1],[1.3256,1.03,0.0216,-0.0415,0.012,0,1]]]],
+  "puzzlepiece.fill": [[348,256,1,1,0,[[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1],[1.35,1,0,0,0,0,1]]]],
 };
 
 const WEIGHTS: readonly SymbolWeight[] = ["light","regular","medium","semibold","bold"];
@@ -1023,6 +1025,7 @@ const NUDGES: Record<string, string> = {
   "keyboard.fill": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "slider.horizontal.2.square": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "play.tv": "c9g9debbeabegacfdfabfebb9bcfafbb9bbccf8fdcdaegbb8edbebcf8bdfbec9a9cdadcdbf8fdbc9efbb8fdbfbbf8acebfcbacdfafbfcg9gdcciefbc8gdc6bbg8bdfbfdjbjdfaf5f",
+  "puzzlepiece.fill": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 };
 
 export function symbolNudge(name: string, weight: SymbolWeight, pointSize: number): readonly [number, number] {

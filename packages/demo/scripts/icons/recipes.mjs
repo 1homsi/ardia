@@ -50,6 +50,7 @@ export const RECIPES = {
   "circle.lefthalf.filled": phosphorFill("circle-half"),
   "wand.and.rays": phosphorFill("magic-wand"),
   "keyboard.fill": phosphorFill("keyboard"),
+  "puzzlepiece.fill": phosphorFill("puzzle-piece"),
   "slider.horizontal.2.square": phosphorFill("sliders-horizontal"),
   "plus.square.on.square": one(O("square", at(1.1, -0.13, -0.13)), O("square", { knockout: 0.07, ...at(1.1, 0.13, 0.13) }), L("lucide:plus", at(0.5, 0.13, 0.13))),
   "star.square.on.square": one(O("square", at(1.1, -0.13, -0.13)), O("square", { knockout: 0.07, ...at(1.1, 0.13, 0.13) }), L("phosphor-fill:star-fill", at(0.48, 0.13, 0.13))),
