@@ -1,4 +1,4 @@
-import { afterStoreTransaction, useBrowser, type BrowserState } from "../browser/store";
+import { afterStoreTransactionIdempotent, useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, isIncognitoProfile } from "../browser/model";
 import { usePages } from "../tabs/pageState";
 import { changedIds } from "../browser/changes";
@@ -91,7 +91,7 @@ function startMediaEvents(send: EventSend, wants: ReadonlySet<string>) {
     for (const tabId of ids) reached.add(tabId);
     recheck(s, ids);
   });
-  const stopReconcile = afterStoreTransaction(() => {
+  const stopReconcile = afterStoreTransactionIdempotent(() => {
     const ids = [...reached];
     reached.clear();
     recheck(useBrowser.getState(), ids);

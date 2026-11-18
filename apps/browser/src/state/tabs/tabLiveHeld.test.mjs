@@ -8,7 +8,7 @@ const { bindLiveToBrowser, liveOf, setLive } = await import("./tabLive.ts");
 
 const held = transactional();
 const store = create()(held.middleware(() => ({ tabs: {} })));
-bindLiveToBrowser(store, held.afterTransaction);
+bindLiveToBrowser(store, held.afterTransactionIdempotent);
 
 const tab = (id) => ({ id, url: `https://${id}.com/`, page: { kind: "loaded" } });
 const withTab = (id) => store.setState((s) => ({ tabs: { ...s.tabs, [id]: tab(id) } }));

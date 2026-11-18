@@ -99,7 +99,7 @@ const settled = (s: BrowserState, prev: BrowserState) => {
 };
 const transactions = transactional<BrowserState>(pageMoved, settled);
 export const storeTransaction = transactions.transaction;
-export const afterStoreTransaction = transactions.afterTransaction;
+export const afterStoreTransactionIdempotent = transactions.afterTransactionIdempotent;
 setHeldReportsTransaction(storeTransaction);
 
 export const useBrowser = create<BrowserState>()(actionsApart(transactions.middleware(batched((...a) => ({
@@ -204,7 +204,7 @@ export const useBrowser = create<BrowserState>()(actionsApart(transactions.middl
     set(next);
   },
 })))));
-bindLiveToBrowser(useBrowser, transactions.afterTransaction);
+bindLiveToBrowser(useBrowser, transactions.afterTransactionIdempotent);
 
 export type { CreateWindowOptions } from "../windows/windows";
 
