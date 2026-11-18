@@ -24,6 +24,7 @@ const BUILT_IN = { status: "ok", folderId: "bundled", bundled: true };
 const { installOfficialPlugin } = await import("./official.ts");
 setConsentPeriod(true, "test-epoch");
 S().hydrate({});
+S().updateSettings({ cliControl: true });
 host.legacyInstalled = true;
 host.linkResult = { ok: true, linked: ["ardia"], refused: {}, binDir: "/home/.local/bin", adopted: true };
 host.folders = [{ name: "cli", text: CLI, ...BUILT_IN }];
@@ -56,7 +57,7 @@ test("an ardia installed the old way is adopted silently on update: installed, l
   assert.equal(host.links.length, 1);
   assert.equal(host.links[0].adopt, true);
   assert.equal(P().programs.cli.state, "linked");
-  assert.equal(S().settings.cliControl, false, "adoption doesn't change control: the old install already set it");
+  assert.equal(S().settings.cliControl, true, "control was on, so it stays on");
   assert.equal(officialPlugins(P(), true, () => false)[0].state, "installed");
   const counts = takePluginCounts();
   assert.equal(counts.plugin_adoptions, 1);

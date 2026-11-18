@@ -14,11 +14,11 @@ type Entry = Omit<OfficialPlugin, "state" | "version">;
 type ComingSoon = Entry & { experiment: "officialPluginsAi" };
 
 export const OFFICIAL_CATALOGUE: readonly Entry[] = [
-  { name: "cli", title: "Command Line", blurb: "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.", icon: "terminal.fill" },
+  { name: "cli", title: "Command Line", blurb: "Drive Ardia from your terminal or an agent.", icon: "terminal.fill" },
 ];
 
 export const COMING_SOON: readonly ComingSoon[] = [
-  { name: "ai", title: "AI", blurb: "A chat that reads and uses your tabs with your permission, on your own Claude plan.", icon: "sparkles", experiment: "officialPluginsAi" },
+  { name: "ai", title: "AI", blurb: "Chat that can use your tabs, on your Claude plan.", icon: "sparkles", experiment: "officialPluginsAi" },
 ];
 
 const officialListing = (s: Pick<PluginsStore, "listings">, name: string): PluginListing | undefined => {
@@ -59,13 +59,13 @@ export function useOfficialPlugins(): OfficialPlugin[] {
 function linkOutcome(name: string): InstallResult | null {
   const s = currentPlugins();
   const manifest = activeManifest(s, name);
-  if (!manifest) return { ok: false, reason: `${name} isn't installed any more: it changed or went away while it was being linked.` };
+  if (!manifest) return { ok: false, reason: "It changed while installing. Try again." };
   if (!manifest.programs.length) return { ok: true };
   const programs = s.programs[name];
   if (!programs || programs.state === "linking" || programs.hash !== s.listings[name]?.hash) return null;
-  if (programs.state === "failed") return { ok: false, reason: `It's installed, but its commands couldn't go on PATH: ${programs.reason}` };
+  if (programs.state === "failed") return { ok: false, reason: `Installed, but not on your PATH: ${programs.reason}` };
   const refused = Object.values(programs.refused);
-  return refused.length ? { ok: false, reason: `It's installed, but ${refused[0]}` } : { ok: true };
+  return refused.length ? { ok: false, reason: `Installed, but ${refused[0]}` } : { ok: true };
 }
 
 function linked(name: string): Promise<InstallResult> {
@@ -82,16 +82,16 @@ function linked(name: string): Promise<InstallResult> {
 }
 
 export function installOfficialPlugin(name: string, options: { showSheet?: boolean } = {}): Promise<InstallResult> {
-  if (!PLATFORM_FEATURES.plugins) return Promise.resolve({ ok: false, reason: `Plugins aren't available on ${PLATFORM_TERMS.os} yet.` });
+  if (!PLATFORM_FEATURES.plugins) return Promise.resolve({ ok: false, reason: `Not available on ${PLATFORM_TERMS.os} yet.` });
   const s = currentPlugins();
   const listing = officialListing(s, name);
-  if (!listing) return Promise.resolve({ ok: false, reason: `${name} isn't an official plugin in this Ardia.` });
+  if (!listing) return Promise.resolve({ ok: false, reason: "Not an official plugin." });
   if (installedOf(s, listing)) {
     relinkPrograms(name);
     return linked(name);
   }
-  if (!listing.manifest || !listing.hash) return Promise.resolve({ ok: false, reason: listing.problems[0] ?? `${name} can't load.` });
-  if (!requestPluginConsent(name)) return Promise.resolve({ ok: false, reason: `${name} can't be installed right now.` });
+  if (!listing.manifest || !listing.hash) return Promise.resolve({ ok: false, reason: listing.problems[0] ?? "It can't load." });
+  if (!requestPluginConsent(name)) return Promise.resolve({ ok: false, reason: "Can't install it right now." });
   const done = waitForInstall(name);
   if (options.showSheet !== false) openSettings("plugins", null, name);
   return done.then((result) => (result.ok ? linked(name) : result));

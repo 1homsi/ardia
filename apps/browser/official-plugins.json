@@ -4,7 +4,7 @@
     {
       "name": "cli",
       "title": "Command Line",
-      "blurb": "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.",
+      "blurb": "Drive Ardia from your terminal or an agent.",
       "icon": "terminal.fill",
       "version": "0.3.0",
       "release": "https://github.com/ardia-browser/plugins/releases/download/cli-v0.3.0",
@@ -28,7 +28,7 @@
     {
       "name": "ai",
       "title": "AI",
-      "blurb": "A chat that reads and uses your tabs with your permission, on your own Claude plan.",
+      "blurb": "Chat that can use your tabs, on your Claude plan.",
       "icon": "sparkles",
       "experiment": "officialPluginsAi"
     }

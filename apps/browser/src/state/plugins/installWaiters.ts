@@ -10,6 +10,6 @@ export function settleInstall(name: string, result: InstallResult) {
 }
 
 export function waitForInstall(name: string): Promise<InstallResult> {
-  settleInstall(name, { ok: false, reason: "Another install of it started." });
+  settleInstall(name, { ok: false, reason: "Another install started." });
   return new Promise((resolve) => waiters.set(name, resolve));
 }

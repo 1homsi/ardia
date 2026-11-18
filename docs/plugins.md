@@ -54,7 +54,9 @@ removed, unless they're always on (below). The command-line plugin, `cli`, is th
 - **Adopted on update**: on the first scan after launch, an always-on plugin that owns a reserved program (`cli`, for
   `ardia`) and isn't installed yet is installed silently when the old installer's home holds a live install
   (`CLI/current` resolves to a version folder), so someone who had `ardia` keeps it with no click and one `ardia` on
-  PATH. `usage_counts.plugin_adoptions` counts it; it changes no setting.
+  PATH. Only when control is on: with `cliControl` off the old install is left alone and the plugin stays available
+  until the user installs it (`ADOPT_WITH_CONTROL_OFF`, false; `usage_counts.plugin_adoptions_waiting`).
+  `usage_counts.plugin_adoptions` counts adoptions; one changes no setting.
 - **Auto install** (`"autoInstall": true`, built-in plugins only, with `alwaysOn`) installs it on every profile with no
   click, as the CLI was at first. No plugin ships with it today; it's the switch back if that's wanted. Such a plugin's
   first link turns `control` on once (below).
@@ -307,9 +309,8 @@ runs a plugin's program itself, with one exception for built-in plugins:
   and wrote `.zprofile` (`.bash_profile` for bash), so an adopted install already has its line where zsh and bash
   read it.
 - **Not sandboxed.** A program isn't a helper: you, or a program you use, run it from a shell, as you, so neither the
-  sandbox nor the plugin's other permissions apply to it, and the consent sheet says so ("Puts a command on your PATH:
-  ardia. It runs as you, outside Ardia's sandbox, …", and "Adds ~/.local/bin to your PATH in your shell's login file,
-  if it isn't there yet"). It reaches Ardia the way any program does: the control socket
+  sandbox nor the plugin's other permissions apply to it, and the consent sheet says so ("Adds ardia to your PATH. It runs as you,
+  outside Ardia's sandbox", and "Adds ~/.local/bin to your PATH in your shell's login file"). It reaches Ardia the way any program does: the control socket
   and the token server, while "Let the ardia command control Ardia" is on (`docs/automation.md`, `docs/cli.md`).
 
 Code: `PluginCore/PluginPrograms.swift` (the store, links and leases; `plugin-tests/PluginProgramsTests.swift`),
@@ -337,7 +338,7 @@ Needs a `process`.
 | `fullUrls` | Those URLs in full (needs `tabs`) |
 | `commands` | The helper may run Ardia's commands, the same ones and with the same refusals as the `ardia` command (`docs/automation.md` › Which commands) |
 | `network` | The helper may connect beyond this Mac. Without it, only to this Mac's own addresses |
-| `control` | For an `autoInstall` built-in plugin, its first link on a data folder turns on "Let the ardia command control Ardia" unless you turned that off yourself, once (`controlGranted`), as the first install of the `ardia` command always did. For any other plugin, Install or Turn On also turns on "Let the ardia command control Ardia" (`cliControl`, `docs/automation.md`). It's the user's setting from then on: turning the plugin off leaves it as it is, and only you turn it off (Settings › Advanced, or the pill's Stop). It isn't a settings default, so nothing restores it behind your back, and `config.json` still can't set it. The consent sheet says what it means: any program you run can then drive your tabs and pages, with your logins |
+| `control` | Install or Turn On turns on `cliControl`, the ardia command's control of Ardia; the sheet says "Lets any program you run drive your tabs and pages, with your logins" (for an always-on plugin, "… while it's installed. There's no off switch"). On macOS there's no switch afterwards: while an always-on plugin that asks for it is installed, each launch turns it back on, and the control pill's Stop holds only until the next launch. For an `autoInstall` built-in plugin, its first link turns it on once unless you'd turned it off. `config.json` can't set it. |
 
 Contributions grant their own reach and are shown too: running a program, adding a page, adding commands, changing
 named Ardia settings, offering tools.

@@ -135,12 +135,40 @@ function PerformanceSection() {
 
 const viaPlugin = PLATFORM_FEATURES.plugins;
 
-function pluginInstallLine(plugin: PluginListing | undefined, programs: ProgramsState | undefined, installed: boolean): string {
-  if (!plugin?.manifest) return "This build of Ardia doesn't include the ardia command.";
-  if (!installed) return `The ardia command isn't installed. It comes with the ${plugin.manifest.title} plugin, in Plugins.`;
-  if (programs?.state === "linked") return programs.linked.includes("ardia") ? `ardia is on your PATH (${programs.binDir}).` : Object.values(programs.refused).join("; ");
-  if (programs?.state === "failed") return `ardia couldn't go on your PATH: ${programs.reason}`;
-  return "Putting ardia on your PATH…";
+function pluginCommandLine(plugin: PluginListing | undefined, programs: ProgramsState | undefined, installed: boolean): string {
+  if (!plugin?.manifest) return "Not in this build.";
+  if (!installed) return "Not installed.";
+  if (programs?.state === "linked") return programs.linked.includes("ardia") ? "On your PATH. It can control Ardia." : Object.values(programs.refused).join("; ");
+  if (programs?.state === "failed") return `Not on your PATH: ${programs.reason}`;
+  return "Putting it on your PATH…";
+}
+
+function PluginCommandRow() {
+  const cli = useCli();
+  const plugin = usePluginListing(CLI_PLUGIN);
+  const programs = usePluginPrograms(CLI_PLUGIN);
+  const installed = usePluginActive(CLI_PLUGIN);
+  const failed = canRelink(programs);
+  return (
+    <Row
+      anchor="advanced.ardiaCommand"
+      description={
+        <View>
+          <Text selectable size="caption" tone={failed ? "destructive" : "textSecondary"} style={NOTE()}>
+            {pluginCommandLine(plugin, programs, installed)}
+          </Text>
+          {cli.server?.state === "external" ? (
+            <Text size="caption" tone="textSecondary" style={NOTE()}>
+              This instance has its own DevTools port.
+            </Text>
+          ) : null}
+          {plugin?.manifest && !installed ? <Button variant="text" look="link" pad="none" title="Open Plugins" onPress={() => goToSettingsPane("plugins")} /> : null}
+        </View>
+      }
+    >
+      {failed ? <Button title="Try Again" onPress={() => relinkPrograms(CLI_PLUGIN)} /> : null}
+    </Row>
+  );
 }
 
 function CommandLineSection() {
@@ -157,23 +185,19 @@ function CommandLineSection() {
           ? server.connections
             ? `Connected now: ${server.connections === 1 ? "1 session" : `${server.connections} sessions`}.`
             : "On. Nothing is connected."
-          : viaPlugin
-            ? "Lets the ardia command open, read and act in every page you're signed in to. It stays on after you quit."
-            : "Installs the ardia command and lets it open, read and act in every page you're signed in to. It stays on after you quit.";
-  const plugin = usePluginListing(CLI_PLUGIN);
-  const programs = usePluginPrograms(CLI_PLUGIN);
-  const pluginOn = usePluginActive(CLI_PLUGIN);
-  const failed = viaPlugin ? canRelink(programs) : !!cli.error && !cli.installing;
+          : "Installs the ardia command and lets it open, read and act in every page you're signed in to. It stays on after you quit.";
+  const failed = !!cli.error && !cli.installing;
   const setOn = (next: boolean) => {
     updateSettings({ cliControl: next });
-    if (!viaPlugin && next && !cli.installing && (!cli.installedVersion || cli.error)) void installCliInBackground("settings");
+    if (next && !cli.installing && (!cli.installedVersion || cli.error)) void installCliInBackground("settings");
   };
-  const tryAgain = () => (viaPlugin ? relinkPrograms(CLI_PLUGIN) : void installCliInBackground("settings"));
-  const installLine = viaPlugin ? pluginInstallLine(plugin, programs, pluginOn) : on || cli.installedVersion || cli.installing || failed ? describeCliInstall(cli) : null;
+  const tryAgain = () => void installCliInBackground("settings");
+  const installLine = on || cli.installedVersion || cli.installing || failed ? describeCliInstall(cli) : null;
   return (
     <>
       <SectionHeader title="Command line and automation" />
       <Group>
+        {viaPlugin ? <PluginCommandRow /> : (
         <Row
           anchor="advanced.ardiaCommand"
           description={
@@ -186,14 +210,14 @@ function CommandLineSection() {
                   {installLine}
                 </Text>
               ) : null}
-              {viaPlugin && plugin?.manifest && !pluginOn ? <Button variant="text" look="link" pad="none" title="Open Plugins" onPress={() => goToSettingsPane("plugins")} /> : null}
             </View>
           }
         >
-          {failed && (on || viaPlugin) ? <Button title="Try Again" onPress={tryAgain} /> : null}
-          {on && !viaPlugin && !failed && cli.installedVersion && !cli.installing ? <Button title="Reinstall" onPress={() => void installCliInBackground("settings")} /> : null}
+          {failed && on ? <Button title="Try Again" onPress={tryAgain} /> : null}
+          {on && !failed && cli.installedVersion && !cli.installing ? <Button title="Reinstall" onPress={() => void installCliInBackground("settings")} /> : null}
           <Toggle value={on} accessibilityLabel="ardia command" onChange={setOn} />
         </Row>
+        )}
         <SettingToggle anchor="advanced.compactCliPill" />
         {ruleRows}
       </Group>

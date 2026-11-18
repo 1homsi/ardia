@@ -71,7 +71,7 @@ test("a profile that never installed the command line has it offered and nothing
   assert.deepEqual(launch.sweeps, [[]], "at launch every command of a plugin that isn't installed comes off PATH");
   assert.equal(S().settings.cliControl, false);
   assert.deepEqual(officialPlugins(P(), true, hidden), [
-    { name: "cli", title: "Command Line", blurb: "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.", icon: "terminal.fill", version: "0.3.0", state: "available" },
+    { name: "cli", title: "Command Line", blurb: "Drive Ardia from your terminal or an agent.", icon: "terminal.fill", version: "0.3.0", state: "available" },
   ]);
   assert.deepEqual(pluginSocketMethod("plugins.official", {}), { result: officialPlugins(P()) });
 });
@@ -84,8 +84,8 @@ test("the seam: unsupported where plugins aren't, coming soon only behind its fl
   const shown = officialPlugins(P(), true, (flag) => flag === "officialPluginsAi");
   assert.deepEqual(shown.at(-1), { name: "ai", title: "AI", blurb: shown.at(-1).blurb, icon: "sparkles", version: null, state: "comingSoon" });
   assert.equal(officialPlugins(P(), false, () => true).at(-1).state, "unsupported");
-  assert.deepEqual(await installOfficialPlugin("other", { showSheet: false }), { ok: false, reason: "other isn't an official plugin in this Ardia." });
-  assert.deepEqual(await installOfficialPlugin("ai", { showSheet: false }), { ok: false, reason: "ai isn't an official plugin in this Ardia." });
+  assert.deepEqual(await installOfficialPlugin("other", { showSheet: false }), { ok: false, reason: "Not an official plugin." });
+  assert.deepEqual(await installOfficialPlugin("ai", { showSheet: false }), { ok: false, reason: "Not an official plugin." });
   const fake = JSON.stringify({ manifest: 1, name: "fake", title: "Fake", official: true, autoInstall: true, alwaysOn: true });
   await scan([{ name: "cli", text: CLI, ...BUILT_IN }, { name: "fake", status: "ok", text: fake, folderId: "4:4" }, { name: "other", status: "ok", text: OTHER, folderId: "1:2" }]);
   assert.deepEqual(P().listings.fake.problems, [
@@ -102,9 +102,9 @@ test("cancelling the sheet installs nothing and says so; a second ask or another
   const first = installOfficialPlugin("cli", { showSheet: false });
   assert.equal(P().consent.name, "cli");
   const second = installOfficialPlugin("cli", { showSheet: false });
-  assert.deepEqual(await first, { ok: false, reason: "Another install of it started." });
+  assert.deepEqual(await first, { ok: false, reason: "Another install started." });
   assert.ok(lifecycle.requestPluginConsent("other"));
-  assert.deepEqual(await second, { ok: false, reason: "Another plugin's sheet took its place." });
+  assert.deepEqual(await second, { ok: false, reason: "Another install started." });
   const stale = P().listings.cli.hash;
   assert.equal(lifecycle.enablePlugin("cli", stale), false, "a replaced sheet can't approve");
   lifecycle.dismissPluginConsent("cli");
@@ -124,7 +124,7 @@ test("a link that fails is reported to the caller; asking again links it and say
   host.linkResult = { ok: false, reason: "busy" };
   const done = installOfficialPlugin("tool", { showSheet: false });
   assert.ok(lifecycle.enablePlugin("tool", P().consent.hash));
-  assert.deepEqual(await done, { ok: false, reason: "It's installed, but its commands couldn't go on PATH: busy" }, "a real failure isn't cancelled");
+  assert.deepEqual(await done, { ok: false, reason: "Installed, but not on your PATH: busy" }, "a real failure isn't cancelled");
   host.linkResult = null;
   assert.deepEqual(await installOfficialPlugin("tool", { showSheet: false }), { ok: true });
   assert.deepEqual(P().programs.tool.linked, ["tool-x"]);
@@ -147,7 +147,7 @@ test("a plugin that goes away while it links doesn't report success", async () =
     release();
     const result = await done;
     assert.equal(result.ok, false);
-    assert.match(result.reason, /isn't installed any more/);
+    assert.match(result.reason, /changed while installing/);
   } finally {
     stub.shellNativeModules.ArdiaPlugins.linkPrograms = linkPrograms;
   }
@@ -160,7 +160,7 @@ test("closing the Settings sheet's owner settles its install; a replaced sheet's
   assert.equal(lifecycle.dismissPluginConsent("cli"), false, "cli's sheet was replaced, so its Cancel owns nothing");
   assert.equal(P().consent.name, "other");
   assert.equal(lifecycle.dismissPluginConsent("other"), true);
-  assert.deepEqual(await done, { ok: false, reason: "Another plugin's sheet took its place." });
+  assert.deepEqual(await done, { ok: false, reason: "Another install started." });
   assert.equal(lifecycle.dismissPluginConsent("cli"), true, "with no sheet open, Cancel just closes");
 });
 
@@ -324,9 +324,12 @@ test("a plugin you added has its programs removed with it", async () => {
 
 test("what the command line gets, as Settings shows it", () => {
   const texts = consentLines(readManifest(CLI).manifest).map((l) => l.text);
-  assert.ok(texts.some((t) => t.startsWith("Puts a command on your PATH: ardia. It runs as you, outside Ardia's sandbox")));
-  assert.ok(texts.includes("Adds ~/.local/bin to your PATH in your shell's login file, if it isn't there yet"));
-  assert.ok(texts.includes("Runs ardia skills install --auto, then ardia skills refresh, after each update"));
+  assert.deepEqual(texts, [
+    "Adds ardia to your PATH. It runs as you, outside Ardia's sandbox",
+    "After updates, runs ardia skills install --auto, ardia skills refresh",
+    "Adds ~/.local/bin to your PATH in your shell's login file",
+    "Lets any program you run drive your tabs and pages, with your logins, while it's installed. There's no off switch",
+  ], "four honest lines: the program, what runs after updates, the PATH line and control");
   assert.ok(!texts.some((t) => t.includes("in the background")), "a program-only plugin runs nothing in the background");
 });
 

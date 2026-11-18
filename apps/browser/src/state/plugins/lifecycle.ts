@@ -111,7 +111,7 @@ export function requestPluginConsent(name: string): boolean {
   const listing = currentPlugins().listings[name];
   if (!listing?.manifest || !listing.hash || isInstalled(currentPlugins(), name)) return false;
   const before = currentPlugins().consent;
-  if (before && before.name !== name) settleInstall(before.name, { ok: false, reason: "Another plugin's sheet took its place." });
+  if (before && before.name !== name) settleInstall(before.name, { ok: false, reason: "Another install started." });
   usePlugins.setState({ consent: { name, hash: listing.hash } });
   return true;
 }

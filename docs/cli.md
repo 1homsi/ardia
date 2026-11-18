@@ -32,21 +32,28 @@ is what Ardia does for it: how it ships, how it's installed, and the contract th
 ## Installing it
 
 On macOS it's the **Command Line** plugin (`docs/plugins.md` › Built-in plugins, › programs, › Official plugins): a
-fresh profile is offered it in Settings › Plugins and onboarding (Settings › Advanced › Command line says it isn't
-installed and links to Plugins, but doesn't install it itself), and one click
-installs it through the consent sheet. Once installed it stays: Ardia keeps `~/.local/bin/ardia` linked to its copy in
+fresh profile is offered it in Settings › Plugins and onboarding, and one click installs it through the consent sheet.
+Settings › Advanced › Command line has no switch on macOS: it's one line of status ("Not installed." with Open
+Plugins, "On your PATH. It can control Ardia.", or why it isn't on PATH, with Try Again). Once installed it stays: Ardia keeps `~/.local/bin/ardia` linked to its copy in
 `~/Library/Application Support/Ardia/Programs/cli/`, makes a new copy when the app brings a new version (checked against
 the signed digest), and runs its after-update actions once per version (`ardia skills install --auto`,
-`ardia skills refresh`, `ardia computer refresh`). Installing turns on "Let the ardia command control Ardia", as the
-sheet says; after that the setting is the user's. An `ardia` installed the old way (`~/Library/Application
-Support/Ardia/CLI/current`) is adopted on update with no click: the plugin counts as installed, the link moves to the new
-copy, and `CLI/current` points into the store, so paths saved through it keep working. There's no uninstall from
+`ardia skills refresh`, `ardia computer refresh`). **Installed means control is on**: installing turns `cliControl` on
+(the sheet says so), and each launch turns it back on while Command Line is installed. The control pill's Stop turns
+it off until the next launch. An `ardia` installed the old way (`~/Library/Application Support/Ardia/CLI/current`) is
+adopted on update with no click when control was on: the plugin counts as installed, the link moves to the new copy,
+and `CLI/current` points into the store, so paths saved through it keep working. When control was off, it isn't
+adopted (`ADOPT_WITH_CONTROL_OFF` in `state/plugins/programs.ts` is false): the old `ardia` stays on PATH, untouched,
+control stays off, and Command Line shows as available. The old command then reports Ardia unreachable with its own
+old wording until the user installs Command Line, which adopts it and turns control on as the sheet says
+(`usage_counts.plugin_adoptions_waiting` counts these). There's no uninstall from
 Settings; removing the link brings it back at the next launch.
 
 On Linux, Settings › Advanced › Command line installs it from the package (`install.sh --version <app version> --sha256
 <digest>` with a `file://` URL), as before.
 
-`cliControl` (`state/app/cliControl.ts`), the control pill and the token server stay in the app (`docs/automation.md`).
+`cliControl` (`state/app/cliControl.ts`) stays the stored key, the control pill and the token server stay in the app
+(`docs/automation.md`), and on Linux and in older data folders it means what it always did; Linux keeps its switch in
+Settings › Advanced.
 
 ## The contract
 

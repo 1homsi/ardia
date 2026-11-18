@@ -89,6 +89,7 @@ function sweepAtLaunch() {
 
 export function reconcilePrograms(consent?: ConsentToken | null) {
   sweepAtLaunch();
+  keepControlWhileInstalled();
   const s = currentPlugins();
   for (const name of s.order) {
     const manifest = activeManifest(s, name);
@@ -109,6 +110,19 @@ export function relinkPrograms(name: string) {
 }
 
 let adoptionChecked = false;
+let controlKept = false;
+
+export const ADOPT_WITH_CONTROL_OFF = false;
+
+const asksControl = (name: string) => !!currentPlugins().listings[name]?.manifest?.permissions.includes("control");
+
+function keepControlWhileInstalled() {
+  const s = currentPlugins();
+  if (controlKept || !s.loaded) return;
+  controlKept = true;
+  if (useBrowser.getState().settings.cliControl) return;
+  if (s.order.some((name) => isAlwaysOn(s.listings[name]) && isInstalled(s, name) && asksControl(name))) useBrowser.getState().updateSettings({ cliControl: true });
+}
 
 const ownsReservedProgram = (name: string) => !!currentPlugins().listings[name]?.manifest?.programs.some((p) => RESERVED_PROGRAMS[p.name] === name);
 
@@ -123,10 +137,16 @@ export async function adoptLegacyInstalls(consent: ConsentToken | null): Promise
     const now = currentPlugins();
     const listing = now.listings[name];
     if (!listing?.hash || !isAlwaysOn(listing) || isInstalled(now, name)) continue;
+    const controlOff = asksControl(name) && !useBrowser.getState().settings.cliControl;
+    if (controlOff && !ADOPT_WITH_CONTROL_OFF) {
+      notePlugin("plugin_adoptions_waiting", consent);
+      continue;
+    }
     const records = { ...now.records, [name]: { ...recordOf(now, name), enabled: true, approved: listing.hash, installed: true } };
     if (!writePluginRecords(records, consent)) continue;
     usePlugins.setState((s) => ({ records, consent: s.consent?.name === name ? null : s.consent }));
     settleInstall(name, { ok: true });
+    if (controlOff) useBrowser.getState().updateSettings({ cliControl: true });
     notePlugin("plugin_adoptions", consent);
     adopted = true;
   }
