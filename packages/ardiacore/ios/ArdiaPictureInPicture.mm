@@ -85,7 +85,7 @@ void InstallDragMonitor() {
                                                       gDragged = nil;
                                                       [dragged dragEnded:event];
                                                       if (gGrabSkip && ardia_pip_seek::IsClick(gGrabTravel))
-                                                        [dragged skipBy:gGrabSkip at:gGrabLocal clickCount:gGrabClicks];
+                                                        [dragged skipDraggedBy:gGrabSkip at:gGrabLocal clickCount:gGrabClicks];
                                                       ardia_host::NotePointer(event, @"pipDrag");
                                                     } else {
                                                       [dragged dragMoved:event];

@@ -161,6 +161,7 @@ BOOL TracingPictureInPicture() {
   const NSTimeInterval clickAt = TakeControlPress(clickMs, target, self.window);
   [self traceManualPictureInPicture:[NSString stringWithFormat:@"%@ %@ (control %ld)", clickMs > 0 ? @"click" : @"key or accessibility press", clickAt > 0 ? @"verified" : @"not verified", (long)target]];
   if (clickAt <= 0) return completion(NO);
+  _pictureInPictureRequestStamp = ArdiaConsentStamp.begin;
   [self thawHiddenPage];
   __weak ArdiaWebView *weakSelf = self;
   [_tab enterPictureInPictureForClickAt:clickAt
@@ -229,7 +230,8 @@ BOOL TracingPictureInPicture() {
 }
 
 - (void)tab:(ArdiaCoreTab *)tab didChangePictureInPicture:(NSDictionary<NSString *, id> *)state {
-  ArdiaConsentStamp *stamp = ArdiaConsentStamp.begin;
+  ArdiaConsentStamp *stamp = _pictureInPictureRequestStamp ?: ArdiaConsentStamp.begin;
+  if ([state[@"active"] boolValue]) _pictureInPictureRequestStamp = nil;
   const BOOL active = [state[@"active"] boolValue];
   NSMutableDictionary *payload = [@{@"kind" : [state[@"kind"] isEqual:@"document"] ? @"document" : @"video", @"active" : @(active)} mutableCopy];
   if (!active && state[@"closedBy"]) {

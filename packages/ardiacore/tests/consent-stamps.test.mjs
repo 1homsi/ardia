@@ -76,7 +76,12 @@ test("a lost-hover episode keeps the stamp it opened with, and its close sends t
 test("a Picture in Picture window is stamped when the page enters it, and the retries that find its window send that stamp", () => {
   const view = read("../ios/ArdiaWebView+PictureInPicture.mm");
   const changed = view.slice(view.indexOf("didChangePictureInPicture"), view.indexOf("requestsActivation"));
-  assert.match(changed, /ArdiaConsentStamp \*stamp = ArdiaConsentStamp\.begin;/);
+  assert.match(changed, /ArdiaConsentStamp \*stamp = _pictureInPictureRequestStamp \?: ArdiaConsentStamp\.begin;/);
+  assert.match(changed, /if \(\[state\[@"active"\] boolValue\]\) _pictureInPictureRequestStamp = nil;/);
+  const request = view.slice(view.indexOf("- (void)requestPictureInPictureForClickAt:"), view.indexOf("- (void)awaitPictureInPicture:"));
+  assert.ok(request.indexOf("_pictureInPictureRequestStamp = ArdiaConsentStamp.begin;") > 0, "a requested entry is stamped when the click is verified");
+  assert.ok(request.indexOf("_pictureInPictureRequestStamp = ArdiaConsentStamp.begin;") < request.indexOf("enterPictureInPictureForClickAt"), "the stamp is taken before the engine is asked to enter");
+  assert.match(read("../ios/ArdiaWebViewInternal.h"), /ArdiaConsentStamp \*_pictureInPictureRequestStamp;/);
   assert.match(changed, /ardia_pip::VideoEntered\(self, [^;]*, stamp\)/);
   assert.match(changed, /ardia_pip::DocumentEntered\(self, stamp\)/);
   const pip = read("../ios/ArdiaPictureInPicture.mm");
@@ -93,6 +98,17 @@ test("a Picture in Picture drag is stamped when it begins and its report sends t
   const began = swipe.slice(swipe.indexOf("- (void)dragBegan:"), swipe.indexOf("- (void)dragBegan:") + 900);
   assert.match(began, /_dragStamp = ArdiaConsentStamp\.begin;/);
   assert.match(swipe, /emit:@"pictureInPictureDragged" payload:\[_dragStamp onto:/);
+});
+
+test("a click skip sends the stamp taken at mouse-down, and only the keyboard skip takes a fresh one", () => {
+  const skip = read("../ios/ArdiaPiPController+Skip.mm");
+  assert.match(skip, /- \(BOOL\)skipDraggedBy:\(double\)seconds at:\(NSPoint\)point clickCount:\(NSInteger\)clickCount \{\s*return \[self skipBy:seconds at:point clickCount:clickCount stamp:_dragStamp\];/);
+  assert.match(skip, /- \(BOOL\)skipBy:\(double\)seconds at:\(NSPoint\)point clickCount:\(NSInteger\)clickCount \{\s*return \[self skipBy:seconds at:point clickCount:clickCount stamp:ArdiaConsentStamp\.begin\];/);
+  assert.match(skip, /emit:@"pictureInPictureSkip" payload:\[stamp onto:/);
+  const pip = read("../ios/ArdiaPictureInPicture.mm");
+  const up = pip.slice(pip.indexOf("NSEventTypeLeftMouseUp) {"), pip.indexOf("[dragged dragMoved:event]"));
+  assert.match(up, /\[dragged skipDraggedBy:gGrabSkip at:gGrabLocal clickCount:gGrabClicks\]/);
+  assert.doesNotMatch(up, /skipBy:/);
 });
 
 test("a hover-loss episode carries the consent epoch from when its mouse event arrived, taken before the hop to the main queue", () => {

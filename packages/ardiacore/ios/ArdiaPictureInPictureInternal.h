@@ -139,6 +139,8 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 
 @interface ArdiaPiPController (Skip)
 - (BOOL)skipBy:(double)seconds at:(NSPoint)point clickCount:(NSInteger)clickCount;
+- (BOOL)skipDraggedBy:(double)seconds at:(NSPoint)point clickCount:(NSInteger)clickCount;
+- (BOOL)skipBy:(double)seconds at:(NSPoint)point clickCount:(NSInteger)clickCount stamp:(ArdiaConsentStamp *)stamp;
 - (NSDictionary *)skipInfo;
 @end
 
