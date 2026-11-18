@@ -56,7 +56,9 @@ printf '{"plugins":{"cli":{"enabled":true,"approved":"%s","values":{},"applied":
 launch "$data" "$bin"
 for _ in $(seq 1 300); do [ -L "$bin/ardia" ] && break; sleep 0.2; done
 check "once installed, ardia is linked" "$([ -L "$bin/ardia" ] && echo 1 || echo 0)"
-check "from the signed copy in the store" "$(case "$(readlink "$bin/ardia")" in "$data/Programs/cli/current/bin/ardia") echo 1 ;; *) echo 0 ;; esac)" "$(readlink "$bin/ardia" || true)"
+linked="$(readlink "$bin/ardia" || true)"
+store="$(cd "$data" && pwd -P)/Programs/cli/current/bin/ardia"
+check "from the signed copy in the store" "$([ "$linked" = "$store" ] || [ "$linked" = "$data/Programs/cli/current/bin/ardia" ] && echo 1 || echo 0)" "$linked"
 got="$("$bin/ardia" --version 2>&1 || true)"
 check "it is the pinned ardia $pinned (Ardia $version)" "$([ "$got" = "ardia $pinned" ] && echo 1 || echo 0)" "$got"
 control="$data/Chromium/ArdiaControl.json"
