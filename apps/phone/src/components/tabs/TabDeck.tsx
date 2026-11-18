@@ -64,6 +64,7 @@ import {
   openTab,
   reopenLastClosed,
   unveilOpeningPage,
+  useBrowse,
   whenPageCoverHidden,
   whenPageLaidOut,
 } from "../../state/browse/store";
@@ -695,7 +696,7 @@ export const TabDeck = memo(function TabDeck() {
   const barBackWithPage = (id: string) => {
     const now = grown.current;
     if (now?.id === id) {
-      if (now.steady && now.opened) settledOpen(id);
+      if (now.steady && now.opened && useBrowse.getState().opening === id && currentTabs().selectedId === id) settledOpen(id);
       endGrown();
     } else if (deckPullGrowing() === id) endDeckPull();
   };
