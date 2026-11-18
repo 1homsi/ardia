@@ -188,14 +188,20 @@ function readStateDoc(): SavedObject | null {
 }
 
 let loaded = false;
+let launchConsent: ConsentToken | null | undefined;
 
 export function loadChoice() {
   if (loaded) return;
   loaded = true;
   saved = readSaved(readStateDoc());
   setConsentPeriod(saved.sharing, saved.epoch);
+  if (launchConsent === undefined) launchConsent = consentToken();
   useTelemetry.setState(shown(saved));
 }
+
+export const choiceLoaded = () => loaded;
+
+export const consentAtLaunch = () => launchConsent ?? null;
 
 export function reloadChoice() {
   loaded = false;
