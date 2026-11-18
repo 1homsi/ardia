@@ -22,3 +22,10 @@ export async function applyChoiceDurably(change: ChoiceChange): Promise<boolean>
   await documentSaved(STATE_DOC);
   return true;
 }
+
+export function followerChoiceSaved(request: Promise<unknown>, refresh: () => Promise<void>, report: (error: unknown) => void): Promise<boolean> {
+  return request.then(
+    (saved) => refresh().then(() => saved === true),
+    (error: unknown) => (report(error), refresh().then(() => false)),
+  );
+}

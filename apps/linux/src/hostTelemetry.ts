@@ -17,7 +17,7 @@ import { hostSupports, invokeHost, type ArdiaHost } from "./host.ts";
 import { startTelemetryLeadership, TELEMETRY_CHANNEL, type LeaderChannel, type LeaderLocks, type TelemetryLeadership, type TelemetryOp } from "./telemetryLeader.ts";
 import { createEndLedger, setTelemetrySettle } from "./telemetrySettle.ts";
 import { parseChoiceChange, shownAfter } from "./telemetryChoice.ts";
-import { applyChoiceDurably } from "./telemetryChoiceApply.ts";
+import { applyChoiceDurably, followerChoiceSaved } from "./telemetryChoiceApply.ts";
 
 export const TELEMETRY_POST = "ArdiaTelemetry.post";
 export const TELEMETRY_STEP = "telemetry";
@@ -136,10 +136,7 @@ export function startHostTelemetry(options: { host: ArdiaHost; candidate: boolea
       change: (change) => {
         const shown = shownAfter(change);
         if (shown) useTelemetry.setState(shown);
-        return current.request("choice", RESET_TIMEOUT_MS, JSON.stringify(change)).then(
-          () => refreshState().then(() => true),
-          (error: unknown) => (report(error), refreshState().then(() => false)),
-        );
+        return followerChoiceSaved(current.request("choice", RESET_TIMEOUT_MS, JSON.stringify(change)), refreshState, report);
       },
       installId: () => {
         const known = savedChoice().installId;

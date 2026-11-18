@@ -25,3 +25,15 @@ test("the leader answers a follower's sharing-off with the verdict of its own ve
   assert.equal(JSON.parse(stub.docs.get("telemetry.json")).sharing, false);
   assert.deepEqual(await offWith(2), { value: false });
 });
+
+test("a follower window reports the leader's save verdict for its choice, and false when the request itself fails", async () => {
+  const { followerChoiceSaved } = await import("./telemetryChoiceApply.ts");
+  const refreshed = [];
+  const refresh = async () => { refreshed.push(true); };
+  const reported = [];
+  assert.equal(await followerChoiceSaved(Promise.resolve(false), refresh, (error) => reported.push(error)), false);
+  assert.equal(await followerChoiceSaved(Promise.resolve(true), refresh, (error) => reported.push(error)), true);
+  assert.equal(await followerChoiceSaved(Promise.reject(new Error("no leader")), refresh, (error) => reported.push(error)), false);
+  assert.equal(refreshed.length, 3);
+  assert.deepEqual(reported.map(String), ["Error: no leader"]);
+});
