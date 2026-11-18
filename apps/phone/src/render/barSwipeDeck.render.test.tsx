@@ -76,3 +76,29 @@ test("a swipe up from an Incognito tab opens the deck but isn't counted", () => 
   expect(counted).not.toHaveBeenCalledWith("deck_bar_swipes");
   unmount(root);
 });
+
+test("the swipe sits beside the tabs button, not in place of it: the button is inside the swiping bar, a tap on it still opens the deck and a long press still opens its menu, and a swipe up opens the deck as well", () => {
+  const root = page("redesigned");
+  const bar = root.root.findAll((node) => node.props.testID === "pageBar" && typeof node.type === "string")[0]!;
+  for (const id of ["floatingBarTabs", "floatingBarAddress", "floatingBarPlus"]) expect(bar.findAll((node) => node.props.testID === id && typeof node.type === "string")).toHaveLength(1);
+  const button = root.root.findAll((node) => node.props.accessibilityLabel === "Tabs" && typeof node.props.onPress === "function")[0]!;
+  act(() => button.props.onPress());
+  expect(shown).toHaveBeenCalledTimes(1);
+  expect(counted).not.toHaveBeenCalledWith("deck_bar_swipes");
+  if (typeof button.props.onLongPress === "function") {
+    act(() => button.props.onLongPress());
+    expect(shown).toHaveBeenCalledTimes(1);
+  }
+  drag(0, -40);
+  expect(shown).toHaveBeenCalledTimes(2);
+  expect(counted).toHaveBeenCalledWith("deck_bar_swipes");
+  unmount(root);
+});
+
+test("a sideways drag on the bar is the tab pager's, not the swipe's: the swipe fails once the finger has moved 14 points sideways", () => {
+  const root = page("redesigned");
+  const config = (getByGestureTestId("barSwipeUp") as unknown as { config: Record<string, number | undefined> }).config;
+  expect(config.failOffsetXEnd).toBe(PAGER.minimumDistance);
+  expect(config.activeOffsetXStart).toBeUndefined();
+  unmount(root);
+});

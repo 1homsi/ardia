@@ -12,7 +12,8 @@ import { DESIGNS, designFor, type Design } from "../lib/design";
 import * as pageActions from "../state/page/actions";
 import { useBrowse } from "../state/browse/store";
 import { currentTabs, useTabs } from "../state/tabs/store";
-import { renderSurface, unmount, withTabs } from "../../test/render/harness";
+import { renderSurface, someTabs, unmount, withTabs } from "../../test/render/harness";
+import type { BrowserTab } from "../state/tabs/tabModels";
 
 const safeArea = require("react-native-safe-area-context") as { useSafeAreaInsets: () => { top: number; bottom: number; left: number; right: number } };
 
@@ -52,17 +53,30 @@ test.each(DESIGNS)("the %s design draws its own page bar and only that one", (de
   unmount(root);
 });
 
-test("the redesigned bar is two glass pieces, the address capsule and the plus, with no tabs button, 48 points tall, 8 apart and 12 in from the sides, their bottom 21.5 points above the screen's edge on iPhone and 8 above Android's 3-button bar", () => {
+test("the redesigned bar is three glass pieces, 48 points tall, 8 apart and 12 in from the sides, their bottom 21.5 points above the screen's edge on iPhone and 8 above Android's 3-button bar", () => {
   const root = page("redesigned");
   const row = StyleSheet.flatten(host(root, "floatingBar")!.props.style);
   expect(row).toMatchObject({ gap: 8, paddingHorizontal: 12, height: 48 });
   let place = host(root, "floatingBar")!.parent;
   while (place && (typeof place.type !== "string" || StyleSheet.flatten(place.props.style)?.bottom === undefined)) place = place.parent;
   expect(StyleSheet.flatten(place!.props.style).bottom).toBe(Platform.OS === "android" ? 34 + 8 : 21.5);
-  expect(host(root, "floatingBarTabs")).toBeUndefined();
-  expect(StyleSheet.flatten(host(root, "floatingBarPlus")!.props.style)).toMatchObject({ width: 48, height: 48, borderRadius: 24 });
+  for (const piece of ["floatingBarTabs", "floatingBarPlus"]) expect(StyleSheet.flatten(host(root, piece)!.props.style)).toMatchObject({ width: 48, height: 48, borderRadius: 24 });
   expect(StyleSheet.flatten(host(root, "floatingBarAddress")!.props.style)).toMatchObject({ flex: 1, height: 48, borderRadius: 24 });
   unmount(root);
+});
+
+test("the redesigned bar's tabs button and its recent-tabs menu hold only the tabs of the page's own mode, so a normal page never shows an Incognito page's picture; the original bar keeps them all", () => {
+  act(() => useTabs.setState((state) => ({ ...state, privates: someTabs(2, true) })));
+  const modes = (root: ReturnType<typeof renderSurface>, bar: typeof FloatingBar | typeof BottomBar) => (root.root.findAll((node) => node.type === bar)[0]!.props.order as BrowserTab[]).map((tab) => tab.isPrivate);
+  const normal = page("redesigned");
+  expect(modes(normal, FloatingBar)).toEqual([false, false, false]);
+  unmount(normal);
+  const incognito = page("redesigned", currentTabs().privates[0]!);
+  expect(modes(incognito, FloatingBar)).toEqual([true, true]);
+  unmount(incognito);
+  const original = page("original");
+  expect(modes(original, BottomBar)).toHaveLength(5);
+  unmount(original);
 });
 
 test("the address capsule shows the page's host, and a tap on it searches with the page's address while the dots open the page menu", () => {
@@ -165,7 +179,7 @@ test("the bar's glass and glyphs follow the page's sampled bottom colour, not th
   const tab = currentTabs().open[0]!;
   act(() => storeTone(tab.id, { top: "#FFFFFF", bottom: "#FFFFFF" }));
   const light = page("redesigned", { ...tab, isPrivate: true });
-  expect(StyleSheet.flatten(host(light, "floatingBarPlus")!.props.style).backgroundColor).toBe("#FFFFFF");
+  expect(StyleSheet.flatten(host(light, "floatingBarTabs")!.props.style).backgroundColor).toBe("#FFFFFF");
   const symbols = light.root.findAll((node) => node.type === Symbol);
   expect(symbols.find((node) => node.props.name === "ellipsis")!.props.size).toBeCloseTo(23.3);
   expect(symbols.find((node) => node.props.name === "plus")!.props.size).toBeCloseTo(23.6);
@@ -173,7 +187,7 @@ test("the bar's glass and glyphs follow the page's sampled bottom colour, not th
   unmount(light);
   act(() => storeTone(tab.id, { top: "#101418", bottom: "#101418" }));
   const dark = page("redesigned", tab);
-  expect(StyleSheet.flatten(host(dark, "floatingBarPlus")!.props.style).backgroundColor).toBe("#000000");
+  expect(StyleSheet.flatten(host(dark, "floatingBarTabs")!.props.style).backgroundColor).toBe("#000000");
   unmount(dark);
 });
 
@@ -182,7 +196,7 @@ test("before a page has reported a colour, the redesigned bar takes the app's ow
   for (const scheme of ["light", "dark"] as const) {
     const spy = jest.spyOn(require("react-native"), "useColorScheme").mockReturnValue(scheme);
     const root = page("redesigned", tab);
-    expect(StyleSheet.flatten(host(root, "floatingBarPlus")!.props.style).backgroundColor).toBe(scheme === "dark" ? "#000000" : "#FFFFFF");
+    expect(StyleSheet.flatten(host(root, "floatingBarTabs")!.props.style).backgroundColor).toBe(scheme === "dark" ? "#000000" : "#FFFFFF");
     unmount(root);
     spy.mockRestore();
   }

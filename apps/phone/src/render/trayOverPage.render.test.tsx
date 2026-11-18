@@ -31,7 +31,7 @@ test("with the look's fallback views, the page under an open tray takes no touch
   expect(lookModule.lookIsNative()).toBe(false);
   const cancel = jest.spyOn(browse, "cancelSearch");
   const root = renderSurface(<Surfaces />);
-  const page = root.root.findAll((node) => typeof node.type === "string" && (node.props.accessibilityLabel === "Tabs" || node.props.accessibilityLabel === "Address"))[0]!;
+  const page = root.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Tabs")[0]!;
   expect(page).toBeDefined();
   expect(blocksTouches(page)).toBe(false);
   act(() => presentSearch("page", ""));

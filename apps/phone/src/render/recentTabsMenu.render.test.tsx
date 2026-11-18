@@ -18,17 +18,16 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-test("the recent-tabs menu lists a tab with no title or host by its address on Android, as Compose does, and as New Tab on iPhone, as SwiftUI does; on iPhone it opens from the address, which also offers Show Tabs", () => {
+test("the recent-tabs menu lists a tab with no title or host by its address on Android, as Compose does, and as New Tab on iPhone, as SwiftUI does", () => {
   const selected = currentTabs().open.find((tab) => tab.id === currentTabs().selectedId)!;
   const root = renderSurface(<BrowsingScreen tab={selected} />);
-  const tabs = root.root.findAll((node) => node.props.accessibilityLabel === (Platform.OS === "android" ? "Tabs" : "Address") && typeof node.props.onLongPress === "function")[0]!;
+  const tabs = root.root.findAll((node) => node.props.accessibilityLabel === "Tabs" && typeof node.props.onLongPress === "function")[0]!;
   act(() => tabs.props.onLongPress());
   const text = textOf(root);
   if (Platform.OS === "android") {
     expect(text).toContain("data:text/html,otter");
   } else {
     expect(text).toContain("New Tab");
-    expect(text).toContain("Show Tabs");
     expect(text).not.toContain("data:text/html,otter");
   }
   unmount(root);

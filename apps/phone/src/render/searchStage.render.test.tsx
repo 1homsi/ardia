@@ -230,7 +230,7 @@ onIPhone("nothing above the bar's glass fades: the capsule, the pill and the sid
   const root = page();
   open();
   advance(300);
-  for (const id of ["floatingBarCentre", "floatingBarTrailing", "floatingBarFold"]) {
+  for (const id of ["floatingBarCentre", "floatingBarLeading", "floatingBarTrailing", "floatingBarFold"]) {
     const node = host(root, id);
     if (node) expect(opacity(node)).toBe(1);
   }
@@ -240,24 +240,24 @@ onIPhone("nothing above the bar's glass fades: the capsule, the pill and the sid
   expect(glassOf(root, "floatingBarAddress").props).toMatchObject({ shown: true, shownMs: 0 });
 });
 
-onIPhone("the plus shrinks 0.8 and slides 12 points out while search is open, and comes back after it closes; there is no tabs button to move", () => {
+onIPhone("the side buttons shrink 0.8 and slide 12 points out while search is open, and come back after it closes", () => {
   const root = page();
   open();
   advance(200);
-  expect(host(root, "floatingBarLeading")).toBeUndefined();
-  expect(host(root, "floatingBarTabs")).toBeUndefined();
-  const trailing = getAnimatedStyle(host(root, "floatingBarTrailing")!) as { opacity?: number; transform: Record<string, number>[] };
-  expect(trailing.opacity).toBeUndefined();
-  expect(opacity(host(root, "floatingBarPlusGlyphs"))).toBe(0);
+  const leading = getAnimatedStyle(host(root, "floatingBarLeading")!) as { opacity?: number; transform: Record<string, number>[] };
+  expect(leading.opacity).toBeUndefined();
+  expect(opacity(host(root, "floatingBarTabsGlyphs"))).toBe(0);
+  expect(glassOf(root, "floatingBarTabs").props.shown).toBe(false);
   expect(glassOf(root, "floatingBarPlus").props.shown).toBe(false);
-  expect(Object.assign({}, ...trailing.transform)).toEqual({ translateX: 12, scale: 0.8 });
+  expect(Object.assign({}, ...leading.transform)).toEqual({ translateX: -12, scale: 0.8 });
+  expect(Object.assign({}, ...(getAnimatedStyle(host(root, "floatingBarTrailing")!) as { transform: Record<string, number>[] }).transform)).toEqual({ translateX: 12, scale: 0.8 });
   expect(host(root, "floatingBarPlus")).toBeDefined();
   act(() => browse.cancelSearch());
   advance(100);
-  expect(opacity(host(root, "floatingBarPlusGlyphs"))).toBe(0);
+  expect(opacity(host(root, "floatingBarTabsGlyphs"))).toBe(0);
   advance(800);
-  expect(opacity(host(root, "floatingBarPlusGlyphs"))).toBeCloseTo(1, 2);
-  expect(glassOf(root, "floatingBarPlus").props.shown).toBe(true);
+  expect(opacity(host(root, "floatingBarTabsGlyphs"))).toBeCloseTo(1, 2);
+  expect(glassOf(root, "floatingBarTabs").props.shown).toBe(true);
 });
 
 onIPhone("cancel lands the panel in the bar's pill, Go departs, and without a pill to land in it drops", () => {
@@ -319,7 +319,7 @@ onIPhone("a long address holds its scroll from the open until the reveal, and fr
 onIPhone("the dim fades in once the stage says the panel is up, and fades with the drag as it pulls the panel down", () => {
   jest.spyOn(Keyboard, "isVisible").mockReturnValue(true);
   const root = page();
-  open();
+  act(() => presentSearch("page", "site0.example", null, { currentUrl: "https://site0.example/", currentTabId: currentTabs().open[0]!.id }));
   reveal();
   expect(opacity(host(root, "trayDim"))).toBe(0);
   lift(300, true);

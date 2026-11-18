@@ -75,7 +75,7 @@ test("in landscape the deck's header and bottom bar pad by the wider side inset 
   unmount(root);
 });
 
-test("in landscape the page bar stays one centred row: the wider side inset on both sides, then the bar's own 12, the address capsule taking what the plus leaves, 654 points on an 852 screen", () => {
+test("in landscape the page bar stays one centred row: the wider side inset on both sides, then the bar's own 12, leaving main's 598-point address capsule on an 852 screen", () => {
   act(() => browse.useBrowse.setState({ surface: "browsing", sheet: null, deckEntrance: null, frozenOrder: null, opening: null }));
   const root = redesigned(<BrowsingScreen tab={currentTabs().open[0]!} />);
   const bar = root.root.findAll((node) => node.type === FloatingBar)[0]!;
@@ -84,7 +84,7 @@ test("in landscape the page bar stays one centred row: the wider side inset on b
   expect(flat(controls!).paddingHorizontal).toBe(59);
   const row = bar.findAll((node) => typeof node.type === "string" && flat(node).flexDirection === "row" && flat(node).paddingHorizontal === 12)[0]!;
   const { gap, height } = flat(row) as { gap: number; height: number };
-  expect(LANDSCAPE.width - 2 * (59 + 12) - height - gap).toBe(654);
+  expect(LANDSCAPE.width - 2 * (59 + 12) - 2 * height - 2 * gap).toBe(598);
   unmount(root);
 });
 
@@ -147,7 +147,7 @@ test("in landscape a sheet stops at the side insets and fits the shorter window,
   act(() => Dimensions.set({ window: { ...PORTRAIT, ...LANDSCAPE }, screen: { ...PORTRAIT, ...LANDSCAPE } }));
   const after = flat(panel(root));
   expect(after).toMatchObject({ left: 59, right: 59, paddingBottom: 21 });
-  expect(after.maxHeight).toBe(LANDSCAPE.height - INSETS.top - (Platform.OS === "ios" ? 0 : 24));
+  expect(after.maxHeight).toBe(Math.min(LANDSCAPE.height - INSETS.top - (Platform.OS === "ios" ? 0 : 24), LANDSCAPE.height * (Platform.OS === "ios" ? 0.9 : 1)));
   expect(after.maxHeight as number).toBeLessThan(before.maxHeight as number);
   unmount(root);
 });

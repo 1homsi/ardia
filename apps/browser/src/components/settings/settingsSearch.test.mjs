@@ -43,6 +43,8 @@ const TOP = [
   ["pip", ["tabs.autoPictureInPicture"]],
   ["picture in picture", ["tabs.autoPictureInPicture"]],
   ["mini player", ["tabs.autoPictureInPicture"]],
+  ["playing now", ["tabs.playingNowAcrossProfiles"]],
+  ["now playing profiles", ["tabs.playingNowAcrossProfiles"]],
   ["downloads", ["general.downloadsFolder"]],
   ["download folder", ["general.downloadsFolder"]],
   ["shortcuts", ["shortcuts.menuCommands", "shortcuts.extensionShortcuts"]],
@@ -59,6 +61,10 @@ const TOP = [
   ["font", ["advanced.chromeSettings"]],
   ["default zoom", ["advanced.chromeSettings"]],
   ["chrome settings", ["advanced.chromeSettings"]],
+  ["preload", ["profiles.preloadPages"]],
+  ["preload pages", ["profiles.preloadPages"]],
+  ["prerender", ["profiles.preloadPages"]],
+  ["preconnect", ["profiles.preloadPages"]],
   ["telemetry", ["general.crashDetails", "general.shareDiagnostics", "general.crashDetails"]],
   ["what's sent", ["general.crashDetails"]],
   ["whats sent", ["general.crashDetails"]],
@@ -216,7 +222,7 @@ test("a long matching text shows the part around its match", () => {
 });
 
 test("every pane has settings", () => {
-  for (const pane of ["general", "profiles", "tabs", "appearance", "automations", "shortcuts", "advanced"]) assert.ok(SETTINGS.some((s) => s.pane === pane), pane);
+  for (const pane of ["general", "profiles", "tabs", "appearance", "automations", "plugins", "shortcuts", "advanced"]) assert.ok(SETTINGS.some((s) => s.pane === pane), pane);
 });
 
 test("search still finds a row hidden until something else is on, when the row says what it needs", async () => {
