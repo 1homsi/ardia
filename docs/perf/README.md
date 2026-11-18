@@ -532,6 +532,18 @@ thread's recovery rewrites the slot with its length, and JS adds the job that wa
 copies the latest; Copy Diagnostics carries one line (count today, longest, last cause). Hermes's offsets name GC
 (`HadesGC::*`) or the interpreter (`Interpreter::interpretFunction`) from the release framework's own local symbols.
 
+Idle cost of the watchdog, 2026-11-17: native-bench `--only idle` on a Release build with `ARDIA_TEST=freezeWatchActive=1`
+on both sides (hidden instances are never active, so without it the watchdog never arms), against the same app with
+`ARDIA_SWITCHES=freezeWatchOff=on`, interleaved, 4 runs a side, 60 s idles. Load ran from 38 to 730 during the run, so
+only the wakeup counts mean anything.
+
+| Idle, median (range) | Watch off | Watch and watchdog on |
+|---|---:|---:|
+| Wakeups/s, browser process, 1 tab | 2.1 (1.8–2.3) | 1.9 (1.8–2.0) |
+| Wakeups/s, browser process, 20 tabs | 3.2 (2.9–7.4) | 2.8 (2.6–3.0) |
+| Wakeups/s, all processes, 1 tab | 6.5 (6.5–7.0) | 6.8 (6.0–11.2) |
+| Wakeups/s, all processes, 20 tabs | 15.0 (10.2–65.5) | 14.8 (9.2–19.0) |
+
 The job: our own JS jobs mark what they run (`state/app/jobActivity.ts`: `sync`, `sessionSave`, `memoryTrim` (its forced
 `gc()`), `omniboxSuggest`, `liveFolders`, `historyApply`, `import`), and a freeze is given the one it overlapped most.
 
