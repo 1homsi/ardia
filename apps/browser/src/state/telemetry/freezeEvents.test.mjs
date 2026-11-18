@@ -27,6 +27,7 @@ const sends = await import("./freezeSends.ts");
 const jobs = await import("../app/jobActivity.ts");
 after(() => client.setSharing(false, "settings"));
 
+const reportFreeze = (r) => events.reportFreeze(r, r.epoch || null);
 const frames = (...pairs) => pairs.map(([image, offset]) => ({ image, offset }));
 let nextId = 100;
 const record = (over = {}) => ({
@@ -88,7 +89,7 @@ test("sharing off: nothing is sent, but the local record still gets the job that
   freezes.startFreezeWatch();
   const end = jobs.beginActivity("sync", Date.now() - 2900);
   end();
-  await events.reportFreeze(record({ watchEpoch: 0 }));
+  await reportFreeze(record({ watchEpoch: 0 }));
   assert.deepEqual(await sentFreezes(), []);
   assert.equal(annotations.length, 1);
   assert.equal(annotations[0][1], "sync");
@@ -99,18 +100,18 @@ test("a freeze from an earlier sharing period isn't sent in a later one", async 
   const stale = record();
   client.setSharing(false, "settings");
   client.setSharing(true, "settings");
-  await events.reportFreeze(stale);
-  await events.reportFreeze(record({ epoch: stale.epoch }));
-  await events.reportFreeze(record({ watchEpoch: stale.watchEpoch }));
+  await reportFreeze(stale);
+  await reportFreeze(record({ epoch: stale.epoch }));
+  await reportFreeze(record({ watchEpoch: stale.watchEpoch }));
   assert.deepEqual(await sentFreezes(), [], "an earlier period's stamp or watch epoch: dropped");
-  await events.reportFreeze(record());
+  await reportFreeze(record());
   assert.equal((await sentFreezes()).length, 1, "this period's stamp and watch epoch: sent");
 });
 
 test("app_freeze carries buckets, counts, enums, the signature and scrubbed frames and images only", async () => {
   client.setSharing(true, "settings");
   const done = jobs.beginActivity("sessionSave", Date.now() - 3100);
-  await events.reportFreeze(record());
+  await reportFreeze(record());
   done();
   const [sent] = await sentFreezes();
   assert.ok(sent);
@@ -140,7 +141,7 @@ test("a signature whose hash is all digits survives the property scrub, stays di
   for (let offset = 1; offsets.length < 2; offset++) if (/^\d+$/.test(events.freezeSignature("js", frames(["Ardia", offset])).replace(/^sig_/, ""))) offsets.push(offset);
   const signatures = offsets.map((offset) => events.freezeSignature("js", frames(["Ardia", offset])));
   assert.deepEqual(signatures.map((signature) => cleanProperties({ signature }).signature), signatures);
-  for (const offset of offsets) await events.reportFreeze(record({ samples: [{ state: 1, frames: frames(["Ardia", offset]) }] }));
+  for (const offset of offsets) await reportFreeze(record({ samples: [{ state: 1, frames: frames(["Ardia", offset]) }] }));
   const sent = (await sentFreezes()).map((p) => p.signature);
   assert.deepEqual(sent, signatures);
   assert.notEqual(sent[0], sent[1]);
@@ -162,9 +163,9 @@ test("a signature names the build: the same offsets in images with other UUIDs h
   assert.equal(events.freezeSignature("js", top, [...build("11111111-2222-3333-4444-555555555555", "aaaaaaaa-2222-3333-4444-555555555555"), { name: "Chromium Framework", uuid: "cccccccc-2222-3333-4444-555555555555" }]), a, "images without a top frame don't count");
   client.setSharing(true, "settings");
   const updated = { name: "hermes", uuid: "66666666-2222-3333-4444-555555555555" };
-  await events.reportFreeze(record());
+  await reportFreeze(record());
   events.resetFreezeEventsForTests();
-  await events.reportFreeze(record({ images: [updated] }));
+  await reportFreeze(record({ images: [updated] }));
   const sent = (await sentFreezes()).map((p) => p.signature);
   assert.equal(sent.length, 2, "the same place after an update is sent again the same day");
   assert.notEqual(sent[0], sent[1]);
@@ -172,10 +173,10 @@ test("a signature names the build: the same offsets in images with other UUIDs h
 
 test("at most 5 a session, and one of each signature", async () => {
   client.setSharing(true, "settings");
-  await events.reportFreeze(record());
-  await events.reportFreeze(record());
+  await reportFreeze(record());
+  await reportFreeze(record());
   assert.equal((await sentFreezes()).length, 1, "same signature twice: sent once");
-  for (let i = 1; i <= 6; i++) await events.reportFreeze(record({ samples: [{ state: 1, frames: frames(["Ardia", 0x1000 * i]) }] }));
+  for (let i = 1; i <= 6; i++) await reportFreeze(record({ samples: [{ state: 1, frames: frames(["Ardia", 0x1000 * i]) }] }));
   assert.equal((await sentFreezes()).length, events.MAX_FREEZES_PER_SESSION);
 });
 
@@ -234,7 +235,7 @@ test("more than 20 freezes in one day across restarts: 20 sent at most, and a si
   const freezeAt = async (id, frames) => {
     const rec = record({ id, startedAt: Date.now() - 3000, samples: [{ state: 1, frames }] });
     writeRing(rec, frames);
-    await events.reportFreeze(rec);
+    await reportFreeze(rec);
   };
   for (let i = 1; i <= 30; i++) {
     if (i % 5 === 1) events.resetFreezeEventsForTests();

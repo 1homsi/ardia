@@ -8,6 +8,7 @@ import { capture, stillValid, type ConsentToken } from "./client";
 import { freezeEpoch, heapFloorMb } from "./freezes";
 import { claimDailySend } from "./freezeSends";
 import { journeyInFlight } from "./journeys";
+import { nativeConsent } from "./nativeConsent";
 import { nativeFrames, nativeImages, type NativeImage } from "./sanitize";
 
 export const MAX_FREEZES_PER_SESSION = 5;
@@ -74,11 +75,10 @@ function heapFloor(): number | null {
   }
 }
 
-export async function reportFreeze(record: FreezeRecord) {
+export async function reportFreeze(record: FreezeRecord, consent: ConsentToken | null) {
   const end = record.startedAt + record.durationMs;
   const activity = activityDuring(record.startedAt, end);
   if (activity !== "none") freezeWatch()?.annotate(record.id, activity);
-  const consent = record.epoch as ConsentToken;
   const epoch = freezeEpoch();
   if (!epoch || record.watchEpoch !== epoch || !stillValid(consent)) return;
   const frames = scrubFrames(record.samples[0]?.frames ?? []);
@@ -124,7 +124,7 @@ let watching = false;
 export function watchFreezes() {
   if (watching) return;
   watching = true;
-  onFreeze((record) => void reportFreeze(record).catch(() => {}));
+  onFreeze((record) => void reportFreeze(record, nativeConsent(record)).catch(() => {}));
 }
 
 export const resetFreezeEventsForTests = () => {
