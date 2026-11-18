@@ -132,7 +132,7 @@ async function start() {
     startHostData();
     startHostTabLifecycle(ardiaHost, useBrowser);
     startShellAbove(ardiaHost);
-    onPageCovered((tabId) => useToolbarAutoHide.getState().peek[tabId] && noteToolbarPeekPageHidden());
+    onPageCovered((tabId) => linuxTelemetryHooks.leading() && useToolbarAutoHide.getState().peek[tabId] && noteToolbarPeekPageHidden());
     startPipPlayer(ardiaHost);
     watchTabSwitches(useBrowser);
     setPopupDismissal({ popup: () => useExtensions.getState().popup, windowOf: (tabId) => useBrowser.getState().tabs[tabId]?.windowId, close: () => useExtensions.setState({ popup: null }) });
