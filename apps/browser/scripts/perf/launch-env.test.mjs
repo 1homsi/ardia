@@ -11,6 +11,12 @@ test("the control loads the shared libraries and its own, and gets its own varia
   assert.deepEqual(extra, ["ARDIA_X=1", "ARDIA_SWITCHES=freezeWatchOff=on", "ARDIA_INSTANCE=1"]);
 });
 
+test("the switches written for a launch are the whole value after ARDIA_SWITCHES=", () => {
+  assert.equal(sideLaunchEnv([], controlOnly, "control").switches, "freezeWatchOff=on");
+  assert.equal(sideLaunchEnv(["ARDIA_SWITCHES=a=on,b=off"], [], "candidate").switches, "a=on,b=off");
+  assert.equal(sideLaunchEnv([], controlOnly, "candidate").switches, undefined);
+});
+
 test("the candidate gets none of the control's libraries or variables", () => {
   const { extra, libraries } = sideLaunchEnv(shared, controlOnly, "candidate");
   assert.deepEqual(libraries, ["/tmp/shared.dylib"]);
