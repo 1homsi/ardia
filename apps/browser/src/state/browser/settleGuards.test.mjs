@@ -9,6 +9,8 @@ const { livePinTables } = await import("../pins/pinChoices.ts");
 const { mirrorPins } = await import("../pins/pinMirror.ts");
 const { settlePinHomes } = await import("../pins/pinHomes.ts");
 const { settleShownTabs } = await import("../groups/shownTabs.ts");
+const { pinKeyOf } = await import("./model.ts");
+const { asleepFrom } = await import("../tabs/pageSession.ts");
 
 const S = () => useBrowser.getState();
 
@@ -63,8 +65,31 @@ test("the guarded steps still act when what they read changes", () => {
   const prev = S();
   const unpinned = { ...prev, tabs: { ...prev.tabs, [ids[2]]: { ...prev.tabs[ids[2]], pin: null } } };
   assert.notEqual(livePinTables(unpinned, prev), null, "unpinning prunes the pin tables");
-  const reordered = { ...prev, windows: { ...prev.windows, [w]: { ...prev.windows[w], tabIds: [...prev.windows[w].tabIds].reverse() } } };
-  assert.ok(mirrorPins(reordered, prev) !== undefined);
   const homeless = { ...prev, tabs: { ...prev.tabs, [ids[4]]: { ...prev.tabs[ids[4]], pinnedUrl: null } } };
   assert.notEqual(settlePinHomes(homeless, prev), null, "a pinned tab without a home gets one");
+});
+
+test("reordering pins in one window reaches the second window, and an inactive shown pin is dropped when it sleeps", () => {
+  const { w, ids } = session();
+  const other = S().windowOrder.find((id) => id !== w);
+  const pinOrder = (s, windowId) => s.windows[windowId].tabIds.filter((id) => s.tabs[id].pin).map((id) => pinKeyOf(s.tabs[id]));
+  const prev = S();
+  const pinned = prev.windows[w].tabIds.filter((id) => prev.tabs[id].pin);
+  const rest = prev.windows[w].tabIds.filter((id) => !prev.tabs[id].pin);
+  const reordered = { ...prev, windows: { ...prev.windows, [w]: { ...prev.windows[w], tabIds: [...[...pinned].reverse(), ...rest] } } };
+  const mirrored = mirrorPins(reordered, prev);
+  assert.ok(mirrored, "mirrorPins acts on a pin reorder");
+  assert.deepEqual(pinOrder(mirrored, other), pinOrder(reordered, w), "the second window follows the new pin order");
+
+  const group = S().groupTabs(ids.slice(20, 22), { pinned: true });
+  S().updateGroup(group, { collapsed: true });
+  const sleeper = ids[21];
+  useBrowser.setState((x) => ({ groups: { ...x.groups, [group]: { ...x.groups[group], shownTabIds: [sleeper] } } }));
+  const shown = S();
+  assert.notEqual(shown.windows[w].activeTabIds[shown.windows[w].profileId], sleeper);
+  assert.deepEqual(shown.groups[group].shownTabIds, [sleeper], "the pin is shown in the collapsed folder");
+  const slept = { ...shown, tabs: { ...shown.tabs, [sleeper]: { ...shown.tabs[sleeper], page: asleepFrom(shown.tabs[sleeper]) } } };
+  const pruned = settleShownTabs(slept, shown);
+  assert.ok(pruned, "settleShownTabs acts when a shown pin sleeps");
+  assert.equal(pruned.groups[group].shownTabIds, undefined, "the sleeping pin is no longer shown");
 });
