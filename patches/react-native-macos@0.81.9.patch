@@ -649,7 +649,7 @@ index 386405335b411e70a82909033febc7dd5b4adabe..2b8d3d5576b83c20e6387c189943e172
 +
  @end
 diff --git a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm b/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
-index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..787ba38620c63ad70e859e92fc4230d7d9ca530f 100644
+index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..8dd0ed47d79287cd7fcaad15ba3b1eca6f5ac6b9 100644
 --- a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
 +++ b/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
 @@ -17,8 +17,119 @@
@@ -1703,7 +1703,7 @@ index 152e76da136756ebc962ece4cc84e84df7cfce0e..4e38bf09796d31dfc63cf79a081e40ea
   * Hide subviews if they are outside the view bounds.
   * This is an optimisation used predominantly with RKScrollViews
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d81366c0c82f 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..6fe598a779a504c6ad8d46805cb215fc4c2a5211 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
 @@ -136,6 +136,95 @@ - (RCTPlatformView *)react_findClipView // [macOS]
@@ -1874,7 +1874,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
    }
  
    [self reactViewDidMoveToWindow]; // [macOS] Github#1412
-@@ -801,41 +927,60 @@ - (void)viewDidMoveToWindow
+@@ -801,41 +927,69 @@ - (void)viewDidMoveToWindow
    [super viewDidMoveToWindow];
  }
  
@@ -1952,6 +1952,12 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
 +    _ardiaClippedTo = bounds;
 +  }
 +  CGRect kept = [self convertRect:CGRectInset(bounds, -ArdiaClipMargin, -ArdiaClipMargin) fromView:shown];
++  // [Ardia: the child that holds the keyboard focus stays shown. Hiding it takes the focus away, which ended a tab
++  // rename in the sidebar as soon as its row had scrolled out of the margin. Ardia]
++  NSView *focused = (NSView *)self.window.firstResponder;
++  if (![focused isKindOfClass:[NSView class]] || ![focused isDescendantOf:self]) {
++    focused = nil;
++  }
 +  for (NSView *view in self.subviews) {
 +    if (![view isKindOfClass:[RCTView class]]) {
 +      continue;
@@ -1959,12 +1965,15 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
 +    CGRect frame = view.frame;
 +    BOOL outside = !all && (CGRectGetMaxY(frame) < CGRectGetMinY(kept) || CGRectGetMinY(frame) > CGRectGetMaxY(kept) ||
 +                            CGRectGetMaxX(frame) < CGRectGetMinX(kept) || CGRectGetMinX(frame) > CGRectGetMaxX(kept));
++    if (outside && focused != nil && [focused isDescendantOf:view]) {
++      outside = NO;
++    }
 +    if (!outside || hiding) {
 +      [(RCTView *)view ardia_setClipped:outside];
      }
    }
  }
-@@ -943,28 +1088,63 @@ - (void)react_updateClippedSubviewsWithClipRect:(CGRect)clipRect relativeToView:
+@@ -943,28 +1097,63 @@ - (void)react_updateClippedSubviewsWithClipRect:(CGRect)clipRect relativeToView:
  
  - (void)setRemoveClippedSubviews:(BOOL)removeClippedSubviews
  {
@@ -2028,7 +2037,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
  }
  
  - (void)layoutSubviews
-@@ -1196,11 +1376,41 @@ - (void)reactSetFrame:(CGRect)frame
+@@ -1196,11 +1385,41 @@ - (void)reactSetFrame:(CGRect)frame
    // be rendered as a stretchable image, we'll need to re-render.
    // TODO: detect up-front if re-rendering is necessary
    CGSize oldSize = self.bounds.size;
@@ -2070,7 +2079,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
  
  - (void)displayLayer:(CALayer *)layer
  {
-@@ -1248,17 +1458,8 @@ - (void)displayLayer:(CALayer *)layer
+@@ -1248,17 +1467,8 @@ - (void)displayLayer:(CALayer *)layer
    RCTUIColor *backgroundColor = _backgroundColor;
  #endif // macOS]
  
@@ -2090,7 +2099,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
  
    if (useIOSBorderRendering) {
      layer.cornerRadius = cornerRadii.topLeftHorizontal;
-@@ -1293,9 +1494,10 @@ - (void)displayLayer:(CALayer *)layer
+@@ -1293,9 +1503,10 @@ - (void)displayLayer:(CALayer *)layer
    layer.contents = (id)image.CGImage;
    layer.contentsScale = image.scale;
  #else // [macOS
@@ -2102,7 +2111,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
  #endif // macOS]
    layer.needsDisplayOnBoundsChange = YES;
    layer.magnificationFilter = kCAFilterNearest;
-@@ -1514,6 +1716,20 @@ - (BOOL)acceptsFirstResponder
+@@ -1514,6 +1725,20 @@ - (BOOL)acceptsFirstResponder
  	return [self focusable] || [super acceptsFirstResponder];
  }
  
@@ -2123,7 +2132,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,22 +1738,295 @@ - (void)updateTrackingAreas
+@@ -1522,22 +1747,295 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -2152,19 +2161,19 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
 +      if (_hasMouseOver) {
 +        [RCTView ardia_markHoverDirty]; // [Ardia: hover follows layout: the resized view may have left the pointer. Ardia]
 +      }
-+    }
-+  }
-+
+     }
+   }
+ 
 +  // [Ardia: hover follows layout: the views the check looks at. Ardia]
 +  if (hasMouseHoverEvent) {
 +    if (ArdiaHoverViews == nil) {
 +      ArdiaHoverViews = [NSHashTable weakObjectsHashTable];
-     }
++    }
 +    [ArdiaHoverViews addObject:self];
 +  } else {
 +    [ArdiaHoverViews removeObject:self];
-   }
- 
++  }
++
    [super updateTrackingAreas];
  }
  
@@ -2420,7 +2429,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
    _hasMouseOver = YES;
    [self sendMouseEventWithBlock:self.onMouseEnter
                     locationInfo:[self locationInfoFromEvent:event]
-@@ -1547,6 +2036,9 @@ - (void)mouseEntered:(NSEvent *)event
+@@ -1547,6 +2045,9 @@ - (void)mouseEntered:(NSEvent *)event
  
  - (void)mouseExited:(NSEvent *)event
  {
@@ -2430,7 +2439,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
    _hasMouseOver = NO;
    [self sendMouseEventWithBlock:self.onMouseLeave
                     locationInfo:[self locationInfoFromEvent:event]
-@@ -1768,7 +2260,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
+@@ -1768,7 +2269,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
    static const char kRCTViewKeyboardEventEmittedKey = 0;
    NSNumber *emitted = objc_getAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey);
    BOOL alreadyEmitted = [emitted boolValue];
@@ -2439,7 +2448,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..ead4de99e22493ce56bf9571e036d813
      [_eventDispatcher sendEvent:keyboardEvent];
      objc_setAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
    }
-@@ -1794,3 +2286,19 @@ - (void)keyUp:(NSEvent *)event {
+@@ -1794,3 +2295,19 @@ - (void)keyUp:(NSEvent *)event {
  #endif // macOS]
  
  @end
