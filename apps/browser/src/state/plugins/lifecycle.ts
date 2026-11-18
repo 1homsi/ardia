@@ -120,7 +120,7 @@ export function dismissPluginConsent(name?: string): boolean {
   const before = currentPlugins().consent;
   if (name !== undefined && before && before.name !== name) return false;
   usePlugins.setState({ consent: null });
-  if (before) settleInstall(before.name, { ok: false, reason: "Cancelled." });
+  if (before) settleInstall(before.name, { ok: false, reason: "Cancelled.", cancelled: true });
   return true;
 }
 
@@ -137,7 +137,8 @@ export function enablePlugin(name: string, hash: string): boolean {
   const plan = kept ? { patch: {}, applied: before.applied } : planEnable(manifest, records, name, before.applied);
   const builtIn = isAlwaysOn(listing) ? { installed: true, ...(before.controlGranted ? { controlGranted: true } : {}) } : {};
   if (!saveRecords({ ...records, [name]: { enabled: true, approved: hash, values, applied: plan.applied, ...builtIn } }, consent)) return false;
-  applySettingsPatch(kept || !manifest.permissions.includes("control") || useBrowser.getState().settings.cliControl ? plan.patch : { ...plan.patch, cliControl: true });
+  const asksControl = manifest.permissions.includes("control");
+  applySettingsPatch(kept || !asksControl || useBrowser.getState().settings.cliControl ? plan.patch : { ...plan.patch, cliControl: true });
   usePlugins.setState({ consent: null });
   notePlugin("plugin_enables", consent);
   reconcilePlugins(consent);

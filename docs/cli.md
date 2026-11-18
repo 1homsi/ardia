@@ -32,7 +32,8 @@ is what Ardia does for it: how it ships, how it's installed, and the contract th
 ## Installing it
 
 On macOS it's the **Command Line** plugin (`docs/plugins.md` › Built-in plugins, › programs, › Official plugins): a
-fresh profile is offered it in Settings › Plugins, Settings › Advanced › Command line and onboarding, and one click
+fresh profile is offered it in Settings › Plugins and onboarding (Settings › Advanced › Command line says it isn't
+installed and links to Plugins, but doesn't install it itself), and one click
 installs it through the consent sheet. Once installed it stays: Ardia keeps `~/.local/bin/ardia` linked to its copy in
 `~/Library/Application Support/Ardia/Programs/cli/`, makes a new copy when the app brings a new version (checked against
 the signed digest), and runs its after-update actions once per version (`ardia skills install --auto`,

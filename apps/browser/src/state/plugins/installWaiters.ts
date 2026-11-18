@@ -1,4 +1,4 @@
-export type InstallResult = { ok: boolean; reason?: string };
+export type InstallResult = { ok: true } | { ok: false; reason: string; cancelled?: true };
 
 const waiters = new Map<string, (result: InstallResult) => void>();
 

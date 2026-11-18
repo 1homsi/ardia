@@ -84,9 +84,12 @@ builds on; `programs.test.mjs` and `adoption.test.mjs` pin it.
   (`officialPluginsAi`, off by default), and never install.
 - `installOfficialPlugin(name, { showSheet? }): Promise<{ ok: boolean; reason?: string }>` opens the consent sheet (in
   Settings › Plugins on that plugin, unless `showSheet: false` and the caller shows `PluginConsentSheet` itself) and
-  settles when it's decided: `{ ok: true }` once installed and its commands are on PATH, `{ ok: false, reason }` on
-  Cancel, when another install or another plugin's sheet takes its place, when it can't load, or when it installed
-  but its commands couldn't be linked (asking again retries the link and needs no new approval). A replaced sheet
+  settles when it's decided, as `InstallResult = { ok: true } | { ok: false; reason: string; cancelled?: true }`:
+  `{ ok: true }` once installed and its commands are on PATH; `{ ok: false, cancelled: true, reason: "Cancelled." }`
+  when the user closed the sheet (Cancel, or the Settings window it was in); `{ ok: false, reason }` with no
+  `cancelled` when another install or another plugin's sheet takes its place, when it can't load, or when it
+  installed but its commands couldn't be linked (asking again retries the link and needs no new approval). Show
+  `reason`, and treat `cancelled` as no error. A replaced sheet
   can neither approve nor cancel the newer one, and an old install adopted while the sheet is open closes it with
   `{ ok: true }`.
 - `PluginConsentSheet({ name, hash, onClosed })` (`components/plugins/PluginConsentSheet.tsx`) is the sheet itself, and

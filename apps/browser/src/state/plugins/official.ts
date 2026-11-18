@@ -14,7 +14,7 @@ type Entry = Omit<OfficialPlugin, "state" | "version">;
 type ComingSoon = Entry & { experiment: "officialPluginsAi" };
 
 export const OFFICIAL_CATALOGUE: readonly Entry[] = [
-  { name: "cli", title: "Command Line", blurb: "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.", icon: "terminal" },
+  { name: "cli", title: "Command Line", blurb: "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.", icon: "terminal.fill" },
 ];
 
 export const COMING_SOON: readonly ComingSoon[] = [

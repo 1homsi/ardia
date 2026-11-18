@@ -5,7 +5,7 @@
       "name": "cli",
       "title": "Command Line",
       "blurb": "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.",
-      "icon": "terminal",
+      "icon": "terminal.fill",
       "version": "0.3.0",
       "release": "https://github.com/ardia-browser/plugins/releases/download/cli-v0.3.0",
       "artifacts": {

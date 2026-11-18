@@ -7,7 +7,7 @@ export function consentLines(m: PluginManifest): ConsentLine[] {
   const lines: ConsentLine[] = [];
   if (m.process) lines.push({ icon: "gearshape", text: `Runs a program in the background: ${m.process.run.join(" ")}` });
   for (const p of m.programs) {
-    lines.push({ icon: "terminal", text: `Puts a command on your PATH: ${p.name}. It runs as you, outside Ardia's sandbox, whenever you or a program you use runs it, and can read and change what your account can` });
+    lines.push({ icon: "terminal.fill", text: `Puts a command on your PATH: ${p.name}. It runs as you, outside Ardia's sandbox, whenever you or a program you use runs it, and can read and change what your account can` });
     if (p.afterUpdate.length) lines.push({ icon: "arrow.triangle.2.circlepath", text: `Runs ${p.afterUpdate.map((a) => [p.name, ...a].join(" ")).join(", then ")}, after each update` });
   }
   if (m.programs.length) lines.push({ icon: "doc.text", text: "Adds ~/.local/bin to your PATH in your shell's login file, if it isn't there yet" });

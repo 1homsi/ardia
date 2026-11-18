@@ -2,9 +2,9 @@ import { useState } from "react";
 import { View } from "react-native";
 import { CLI_PLUGIN, describeCliInstall, installCliInBackground, useCli } from "../../../state/app/cliControl";
 import { usePluginActive, usePluginListing, usePluginPrograms } from "../../../state/plugins/hooks";
-import { canRelink, installOfficialPlugin, relinkPrograms } from "../../../state/plugins/actions";
+import { canRelink, relinkPrograms } from "../../../state/plugins/actions";
 import type { PluginListing, ProgramsState } from "../../../state/plugins/store";
-import type { SettingsPlace } from "../../../state/settings/settingsWindows";
+import { goToSettingsPane, type SettingsPlace } from "../../../state/settings/settingsWindows";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { openChromeSettings } from "../../../state/pages/urls";
@@ -137,7 +137,7 @@ const viaPlugin = PLATFORM_FEATURES.plugins;
 
 function pluginInstallLine(plugin: PluginListing | undefined, programs: ProgramsState | undefined, installed: boolean): string {
   if (!plugin?.manifest) return "This build of Ardia doesn't include the ardia command.";
-  if (!installed) return `The ardia command isn't installed. It comes with Ardia's ${plugin.manifest.title} plugin: install it once and it stays.`;
+  if (!installed) return `The ardia command isn't installed. It comes with the ${plugin.manifest.title} plugin, in Plugins.`;
   if (programs?.state === "linked") return programs.linked.includes("ardia") ? `ardia is on your PATH (${programs.binDir}).` : Object.values(programs.refused).join("; ");
   if (programs?.state === "failed") return `ardia couldn't go on your PATH: ${programs.reason}`;
   return "Putting ardia on your PATH…";
@@ -186,10 +186,10 @@ function CommandLineSection() {
                   {installLine}
                 </Text>
               ) : null}
+              {viaPlugin && plugin?.manifest && !pluginOn ? <Button variant="text" look="link" pad="none" title="Open Plugins" onPress={() => goToSettingsPane("plugins")} /> : null}
             </View>
           }
         >
-          {viaPlugin && plugin?.manifest && !pluginOn ? <Button title="Install…" onPress={() => void installOfficialPlugin(CLI_PLUGIN)} /> : null}
           {failed && (on || viaPlugin) ? <Button title="Try Again" onPress={tryAgain} /> : null}
           {on && !viaPlugin && !failed && cli.installedVersion && !cli.installing ? <Button title="Reinstall" onPress={() => void installCliInBackground("settings")} /> : null}
           <Toggle value={on} accessibilityLabel="ardia command" onChange={setOn} />

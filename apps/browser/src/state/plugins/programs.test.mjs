@@ -25,7 +25,7 @@ const CLI = JSON.stringify({
   version: "0.3.0",
   alwaysOn: true,
   official: true,
-  icon: "terminal",
+  icon: "terminal.fill",
   permissions: ["control"],
   programs: [{ name: "ardia", path: "bin/ardia", afterUpdate: AFTER }],
 });
@@ -71,7 +71,7 @@ test("a profile that never installed the command line has it offered and nothing
   assert.deepEqual(launch.sweeps, [[]], "at launch every command of a plugin that isn't installed comes off PATH");
   assert.equal(S().settings.cliControl, false);
   assert.deepEqual(officialPlugins(P(), true, hidden), [
-    { name: "cli", title: "Command Line", blurb: "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.", icon: "terminal", version: "0.3.0", state: "available" },
+    { name: "cli", title: "Command Line", blurb: "The ardia command: drive Ardia, read pages and run its commands from your terminal or an agent.", icon: "terminal.fill", version: "0.3.0", state: "available" },
   ]);
   assert.deepEqual(pluginSocketMethod("plugins.official", {}), { result: officialPlugins(P()) });
 });
@@ -111,7 +111,7 @@ test("cancelling the sheet installs nothing and says so; a second ask or another
   assert.equal(P().consent.name, "other", "a replaced sheet's Cancel leaves the newer sheet");
   const third = installOfficialPlugin("cli", { showSheet: false });
   lifecycle.dismissPluginConsent();
-  assert.deepEqual(await third, { ok: false, reason: "Cancelled." });
+  assert.deepEqual(await third, { ok: false, reason: "Cancelled.", cancelled: true });
   await settle();
   assert.deepEqual(host.links, []);
   assert.equal(officialPlugins(P(), true, hidden)[0].state, "available");
@@ -124,7 +124,7 @@ test("a link that fails is reported to the caller; asking again links it and say
   host.linkResult = { ok: false, reason: "busy" };
   const done = installOfficialPlugin("tool", { showSheet: false });
   assert.ok(lifecycle.enablePlugin("tool", P().consent.hash));
-  assert.deepEqual(await done, { ok: false, reason: "It's installed, but its commands couldn't go on PATH: busy" });
+  assert.deepEqual(await done, { ok: false, reason: "It's installed, but its commands couldn't go on PATH: busy" }, "a real failure isn't cancelled");
   host.linkResult = null;
   assert.deepEqual(await installOfficialPlugin("tool", { showSheet: false }), { ok: true });
   assert.deepEqual(P().programs.tool.linked, ["tool-x"]);
@@ -162,6 +162,23 @@ test("closing the Settings sheet's owner settles its install; a replaced sheet's
   assert.equal(lifecycle.dismissPluginConsent("other"), true);
   assert.deepEqual(await done, { ok: false, reason: "Another plugin's sheet took its place." });
   assert.equal(lifecycle.dismissPluginConsent("cli"), true, "with no sheet open, Cancel just closes");
+});
+
+test("only a closed sheet counts as cancelled: Cancel and a closed Settings window say so, a failure or a replaced sheet doesn't", async () => {
+  const closed = installOfficialPlugin("cli", { showSheet: false });
+  lifecycle.dismissPluginConsent("cli");
+  assert.deepEqual(await closed, { ok: false, reason: "Cancelled.", cancelled: true }, "Cancel on the sheet");
+  const settingsClosed = installOfficialPlugin("cli", { showSheet: false });
+  const owned = P().consent.name;
+  lifecycle.dismissPluginConsent(owned);
+  assert.deepEqual(await settingsClosed, { ok: false, reason: "Cancelled.", cancelled: true }, "the Plugins pane dismisses the request it owns when Settings closes");
+  const replaced = installOfficialPlugin("cli", { showSheet: false });
+  assert.ok(lifecycle.requestPluginConsent("other"));
+  const answer = await replaced;
+  assert.equal(answer.ok, false);
+  assert.equal(answer.cancelled, undefined);
+  lifecycle.dismissPluginConsent("other");
+  assert.equal((await installOfficialPlugin("not-a-plugin", { showSheet: false })).cancelled, undefined, "a plugin that isn't official fails, not cancels");
 });
 
 test("one click: Install on the sheet installs it, links ardia adopting the old home, grants control, and the promise settles", async () => {
