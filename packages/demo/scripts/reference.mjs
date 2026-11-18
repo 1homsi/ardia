@@ -167,7 +167,7 @@ for (const theme of themes) {
     },
   };
   try {
-    for (let i = 0; i < 100 && !(await evaluate(`const s = ac.store.getState(); return !s.live.t_browser?.isLoading && !!s.tabs.t_browser`)); i++) await settle(100);
+    for (let i = 0; i < 100 && !(await evaluate(`const s = ac.store.getState(); return !ac.tabLive.liveOf("t_browser").isLoading && !!s.tabs.t_browser`)); i++) await settle(100);
     await settle(2500);
     if (theme === themes[0] && flag("favicons")) report.favicons = await harvestFavicons(evaluate);
     mkdirSync(join(out, theme), { recursive: true });
