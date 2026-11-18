@@ -39,6 +39,8 @@ export function HoverSlot({
   const hasHover = hover != null && hover !== false;
   const showHover = hovered && hasHover;
   const edge = align === "start" ? { left: 0 } : { right: 0 };
+  const hasChildren = children != null && children !== false;
+  if (reserve === "hover" && !fitsContent && !showHover && !hasChildren && style === undefined) return null;
   return (
     <View
       style={[
@@ -46,7 +48,7 @@ export function HoverSlot({
         style,
       ]}
     >
-      {children != null && children !== false ? (
+      {hasChildren ? (
         <View pointerEvents={showHover ? "none" : "box-none"} style={{ flexDirection: "row", alignItems: "center", opacity: showHover ? 0 : 1 }}>
           {children}
         </View>

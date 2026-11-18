@@ -8,7 +8,7 @@ import { middleClickTab } from "../../state/sidebar/clearTabs";
 import { dismissHover } from "../../state/sidebar/hover";
 import { openTabMenu } from "../../state/sidebar/menus";
 import { clickHeldTabPress, holdTabPress, pressOutTabPress, type TabPress } from "../../state/sidebar/heldTabPress";
-import { ContextMenuArea, MouseArea } from "../ui";
+import { ContextMenuArea } from "../ui";
 import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 
 const SQUISH = { row: buttonMotion.rowPressScale, tile: buttonMotion.tilePressScale } as const;
@@ -37,32 +37,31 @@ export function TabPressArea({
   const pressMotion = usePressScaleMotion(!!squish, squish ? SQUISH[squish] : undefined);
   const scale = pressMotion.scale;
   return (
-    <MouseArea onMiddleClick={() => middleClickTab(tab.id)} style={style}>
-      <ContextMenuArea
-        onContextMenu={() => {
-          dismissHover();
-          void openTabMenu(windowId, tab);
+    <ContextMenuArea
+      onMiddleClick={() => middleClickTab(tab.id)}
+      onContextMenu={() => {
+        dismissHover();
+        void openTabMenu(windowId, tab);
+      }}
+      style={style}
+    >
+      <Pressable
+        onPressIn={(e) => {
+          pressMotion.onPressIn?.();
+          press.current = holdTabPress(windowId, tab.id, e, press.current);
         }}
-        style={style}
+        onPress={(e) => clickHeldTabPress(windowId, tab.id, e, press.current)}
+        onPressOut={(e) => {
+          pressMotion.onPressOut?.();
+          pressOutTabPress(press.current, e);
+        }}
+        style={pressStyle}
+        hitSlop={hitSlop}
+        tooltip={tooltip ?? (plainTooltip ? titleTooltip(tab) : undefined)}
       >
-        <Pressable
-          onPressIn={(e) => {
-            pressMotion.onPressIn?.();
-            press.current = holdTabPress(windowId, tab.id, e, press.current);
-          }}
-          onPress={(e) => clickHeldTabPress(windowId, tab.id, e, press.current)}
-          onPressOut={(e) => {
-            pressMotion.onPressOut?.();
-            pressOutTabPress(press.current, e);
-          }}
-          style={pressStyle}
-          hitSlop={hitSlop}
-          tooltip={tooltip ?? (plainTooltip ? titleTooltip(tab) : undefined)}
-        >
-          {scale ? (state) => <Animated.View style={{ transform: [{ scale }] }}>{typeof children === "function" ? children(state) : children}</Animated.View> : children}
-        </Pressable>
-      </ContextMenuArea>
-    </MouseArea>
+        {scale ? (state) => <Animated.View style={{ transform: [{ scale }] }}>{typeof children === "function" ? children(state) : children}</Animated.View> : children}
+      </Pressable>
+    </ContextMenuArea>
   );
 }
 
