@@ -200,3 +200,27 @@ test("a Picture in Picture window shown while sharing was off and buffered until
     client.setSharing(false, "settings");
   }
 });
+
+test("a Picture in Picture window the engine reported while sharing was off, delivered after sharing is on, isn't sent", { todo: "known gap, consent-reach-baseline arrivalStamps: the Linux engine emits pictureInPicture with no epoch, so the host can only stamp it on arrival" }, async () => {
+  const client = await import("../../browser/src/state/telemetry/client.ts");
+  const docs = (await import("../../browser/src/test-native/index.ts")).docs;
+  const bodies = [];
+  const fetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => (bodies.push(String(init?.body ?? "")), { status: 200 });
+  client.loadChoice();
+  client.setSharing(false, "settings");
+  try {
+    const h = setup();
+    assert.ok(h.receiver.install({ lease, snapshot: { watermark: 1, events: [] } }));
+    const emittedWhileOff = message(2, "pictureInPicture", { kind: "video", active: true, fullScreenSpaces: false, leftTab: true });
+    client.setSharing(true, "settings");
+    h.send(emittedWhileOff);
+    await client.flush();
+    await client.saveQueueNow();
+    const queued = JSON.parse(docs.get("telemetry-queue.json") ?? '{"events":[]}').events.filter((e) => e.event === "pip_shown");
+    assert.deepEqual({ queued, posted: bodies.filter((body) => body.includes("pip_shown")) }, { queued: [], posted: [] });
+  } finally {
+    globalThis.fetch = fetch;
+    client.setSharing(false, "settings");
+  }
+});
