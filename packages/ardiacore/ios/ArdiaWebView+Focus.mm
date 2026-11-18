@@ -147,12 +147,21 @@ static BOOL InTabPage(NSView *view) {
 }
 
 - (void)focusPage {
-  if ([ArdiaWebView onScreenAheadIn:self.window]) {
-    _focus.askedAheadOfSwitch = YES;
-    return;
-  }
+  if ([ArdiaWebView onScreenAheadIn:self.window]) return [self askFocusAheadOfSwitch:NO];
   if ([ArdiaEarlyWindow veils:_tab]) return [ArdiaEarlyWindow requestFocus:_tab];
   [_tab focus];
+}
+
+- (BOOL)focusPageIfUnfocused {
+  NSWindow *window = self.window;
+  NSResponder *responder = window.firstResponder;
+  if (!window || (responder && responder != window)) return NO;
+  if ([ArdiaWebView onScreenAheadIn:window]) {
+    [self askFocusAheadOfSwitch:YES];
+    return NO;
+  }
+  [self focusPage];
+  return YES;
 }
 
 - (void)tabDidGainFocus:(ArdiaCoreTab *)tab {

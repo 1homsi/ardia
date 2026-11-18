@@ -170,6 +170,7 @@ void AcceptDrops(NSView *root, BOOL accept) {
 - (void)dealloc {
   if (_interfaceScaleObserver) [NSNotificationCenter.defaultCenter removeObserver:_interfaceScaleObserver];
   if (_sightObserver) [NSNotificationCenter.defaultCenter removeObserver:_sightObserver];
+  [self leaveScreenAhead];
   [self closeBrowser];
 }
 
@@ -188,6 +189,7 @@ void AcceptDrops(NSView *root, BOOL accept) {
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
   if (!newWindow) [self lendPageToSuccessor];
   if (self.window && newWindow != self.window && (_visible || _reveal.active)) [ArdiaWebView dropNativeRevealsInWindow:self.window];
+  if (newWindow != self.window) [self leaveScreenAhead];
   [super viewWillMoveToWindow:newWindow];
 }
 

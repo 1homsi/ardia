@@ -154,11 +154,13 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   _tab = nil;
   _life.detached();
   _focus.onActivate = NO;
+  _focus.askedAheadOfSwitch = {};
   _focus.page = ArdiaPageFocus::Unknown;
   _focus.devTools = nil;
   _life.handingOff = NO;
   _leave.active = NO;
   _leave.generation++;
+  [self leaveScreenAhead];
 }
 
 - (void)stashPageReports {
@@ -362,7 +364,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
     NSView *page = _tab.view;
     if (page.superview == self) [self addSubview:devToolsView positioned:NSWindowBelow relativeTo:page];
     else [self addSubview:devToolsView];
-    AcceptDrops(devToolsView, _visible);
+    [self acceptDropsIfShown];
   }
   [self layoutPage];
 }

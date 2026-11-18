@@ -408,7 +408,6 @@ static ArdiaWebView *ViewForKey(NSString *key) {
 
 - (void)endReveal {
   if (!_reveal.active) return;
-  [self leaveScreenAhead];
   _reveal.active = NO;
   _reveal.native = NO;
   _reveal.painted = NO;
@@ -416,6 +415,7 @@ static ArdiaWebView *ViewForKey(NSString *key) {
   _reveal.generation++;
   if (NSView *pane = _reveal.loweredPane) pane.layer.zPosition = _reveal.loweredPaneZ;
   _reveal.loweredPane = nil;
+  [self leaveScreenAheadOnceGone];
 }
 
 - (void)dropReveal {
@@ -430,6 +430,10 @@ static ArdiaWebView *ViewForKey(NSString *key) {
 - (void)paintAfterReveal:(BOOL)native {
   if (!native || _visible) return [self schedulePainting];
   [self leaveScreen];
+  if (_leave.active) {
+    _leave.active = NO;
+    _leave.generation++;
+  }
   [self applyPainting];
 }
 

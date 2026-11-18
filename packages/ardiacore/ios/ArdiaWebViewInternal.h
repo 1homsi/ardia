@@ -76,7 +76,7 @@ struct ArdiaReveal {
   BOOL onScreen{};
   BOOL painted{};
   NSUInteger press{};
-  NSMapTable<NSView *, NSNumber *> *identityHidden;
+  __weak NSWindow *onScreenIn;
 };
 
 struct ArdiaPageReports {
@@ -106,13 +106,19 @@ struct ArdiaCommits {
   int documents{};
 };
 
+struct ArdiaFocusAsk {
+  BOOL asked{};
+  BOOL onlyIfUnfocused{};
+  __weak ArdiaCoreTab *tab;
+};
+
 struct ArdiaPageFocusState {
   ArdiaPageFocus page{ArdiaPageFocus::Unknown};
   __weak NSView *devTools;
   __weak NSView *elsewhere;
   BOOL onActivate{};
   BOOL keepsOutgoing{};
-  BOOL askedAheadOfSwitch{};
+  ArdiaFocusAsk askedAheadOfSwitch;
   CFTimeInterval activatedAt{};
   __weak NSWindow *activatedIn;
 };
@@ -287,9 +293,15 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 
 @interface ArdiaWebView (RevealInput)
 + (ArdiaWebView *)onScreenAheadIn:(NSWindow *)window;
++ (BOOL)anyRevealGap;
 + (BOOL)swallowsAheadOfSwitch:(NSEvent *)event;
++ (void)revealGapChangedIn:(NSWindow *)window;
 - (void)noteOnScreenAhead:(BOOL)overAnother;
+- (void)settleOnScreenAhead;
+- (void)leaveScreenAheadOnceGone;
 - (void)leaveScreenAhead;
+- (void)acceptDropsIfShown;
+- (void)askFocusAheadOfSwitch:(BOOL)onlyIfUnfocused;
 + (void)focusPagesAskedAheadOfSwitch;
 - (void)hidePageIdentity;
 - (void)hidePageIdentityAfterMount;

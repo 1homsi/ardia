@@ -128,6 +128,7 @@ NSWindow *AppWindowAt(NSPoint screen) {
 + (void)installSwitchPrewarm {
   static id monitor;
   if (monitor) return;
+  [ArdiaWebView installRevealGuards];
   monitor = [NSEvent addLocalMonitorForEventsMatchingMask:kRevealInputMask handler:^NSEvent *(NSEvent *event) {
     if ([ArdiaWebView swallowsAheadOfSwitch:event]) return nil;
     if (event.type != NSEventTypeLeftMouseDown && event.type != NSEventTypeLeftMouseUp) return event;

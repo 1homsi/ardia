@@ -81,6 +81,15 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)endOutgoingFocusFrom:(NSResponder *)responder NS_SWIFT_NAME(endOutgoingFocus(from:));
 + (BOOL)focusVisiblePageIn:(NSWindow *)window NS_SWIFT_NAME(focusVisiblePage(in:));
 - (void)focusPage;
+- (BOOL)focusPageIfUnfocused;
+@end
+
+@interface ArdiaWebView (RevealGap)
++ (BOOL)revealGapIn:(nullable NSWindow *)window NS_SWIFT_NAME(revealGap(in:));
++ (BOOL)refusesInputAheadOfSwitch:(nullable id)target NS_SWIFT_NAME(refusesInputAheadOfSwitch(_:));
++ (void)setAppWideKeys:(nullable BOOL (^)(NSEvent *event))perform;
++ (void)installRevealGuards;
++ (NSUInteger)guardedAccessibilityCalls;
 @end
 
 @interface ArdiaWebView (NeighbourPages)
