@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const posted = [];
@@ -16,10 +16,11 @@ globalThis.acTestNativeModules = {
 };
 const stub = await import("../../test-native/index.ts");
 stub.docs.set("telemetry.json", JSON.stringify({ version: 99, sharing: true, installId: "notify", decidedAt: 1, askDoneAt: 1, crashCursor: 0, lastVersion: null, sessionOpen: false }));
-globalThis.fetch = async () => ({ status: 200 });
+globalThis.fetch = async () => ({ status: 503 });
 
 const client = await import("./client.ts");
 client.loadChoice();
+after(() => client.setSharing(false, "settings"));
 const { WEB_NOTIFICATION_FAILED, recordWebNotificationPost, webNotificationFailureProperties } = await import("./webNotificationFailures.ts");
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");

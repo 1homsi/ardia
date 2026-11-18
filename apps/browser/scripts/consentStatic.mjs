@@ -154,8 +154,12 @@ function drainedFunctions(program, files) {
   const seen = new Set(roots);
   const work = [...roots];
   while (work.length) {
+    const called = (node) => {
+      const at = ts.isPropertyAccessExpression(node.parent) && node.parent.name === node ? node.parent : node;
+      return !!at.parent && ts.isCallExpression(at.parent) && at.parent.expression === at;
+    };
     const visit = (node) => {
-      if (ts.isIdentifier(node)) {
+      if (ts.isIdentifier(node) && called(node)) {
         const decl = declOf(checker, node);
         if (decl && !seen.has(decl) && !decl.getSourceFile().isDeclarationFile) {
           seen.add(decl);

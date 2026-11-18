@@ -159,7 +159,17 @@ function loopSuspendsBelow(node, guardScope, fn) {
 function guardedByStillValid(node, stop) {
   const fn = enclosingFunction(node);
   let scope = node;
-  const fresh = (guard) => !fn || (!awaitsBetween(fn, guard.end, node.pos) && !loopSuspendsBelow(node, scope, fn));
+  const checkEnd = (guard) => {
+    let first = null;
+    const visit = (at) => {
+      if (first) return;
+      if (ts.isCallExpression(at) && calleeName(at) === "stillValid") first = at;
+      else ts.forEachChild(at, visit);
+    };
+    visit(guard);
+    return (first ?? guard).end;
+  };
+  const fresh = (guard) => !fn || (!awaitsBetween(fn, checkEnd(guard), node.pos) && !loopSuspendsBelow(node, scope, fn));
   for (let child = node, at = node.parent; at && at !== stop; child = at, at = at.parent) {
     scope = at;
     if (ts.isIfStatement(at) && child === at.thenStatement && validWhenTrue(at.expression) && fresh(at.expression)) return true;
@@ -320,8 +330,9 @@ test("the tripwire catches consentNow() and counts after await, in timers, promi
     "function y() { p.then(async () => { for (const k of ks) { if (!stillValid(t)) return; n++; await work(); } }); }",
     "function z() { p.then(async () => { for (const k of ks) { await work(); if (stillValid(t)) n++; } }); }",
     "async function bare() { for (const x of xs) { n++; await work(); } }",
+    "function cond() { p.then(async () => { if (stillValid(t) && await work()) n++; }); }",
   ].join("\n");
-  assert.deepEqual(kinds("apps/browser/src/state/telemetry/x.ts", counts), ["count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after await"]);
+  assert.deepEqual(kinds("apps/browser/src/state/telemetry/x.ts", counts), ["count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after await", "count after .then"]);
 });
 
 test("the tripwire catches Codex's blind-spot probes", () => {
