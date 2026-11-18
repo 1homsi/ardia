@@ -28,6 +28,20 @@ done
 [ -d "$app/Contents/PlugIns/ArdiaDockTile.plugin" ] || die "no dock tile plug-in"
 [ ! -e "$app/Contents/Helpers/ArdiaFairPlay.app" ] || die "the removed FairPlay helper is still in the app"
 [ -f "$app/Contents/embedded.provisionprofile" ] || die "no Developer ID provisioning profile (keychain groups need it)"
+for folder in "$app"/Contents/Resources/Plugins/*/; do
+  [ -d "$folder" ] || continue
+  name="$(basename "$folder")"
+  recorded="$(plutil -extract "ArdiaBuiltInPlugins.$name" raw "$app/Contents/Info.plist" 2>/dev/null || true)"
+  [ -n "$recorded" ] || die "Info.plist has no digest for the built-in plugin $name"
+  [ "$("$root/scripts/release/plugin-digest.py" "$folder")" = "$recorded" ] \
+    || die "the signed $name plugin's files don't match the digest in Info.plist: something changed them after export-sign.sh recorded it"
+  find "$folder" -type f -perm -u+x -print0 | while IFS= read -r -d '' exe; do
+    file -b "$exe" | grep -q '^Mach-O' || continue
+    codesign --verify --strict "$exe" || die "$exe isn't validly signed"
+    codesign -dv "$exe" 2>&1 | grep -q 'flags=.*runtime' || die "$exe isn't signed with the hardened runtime"
+  done
+done
+[ -f "$app/Contents/Resources/Plugins/cli/plugin.json" ] || die "the app has no built-in Command Line plugin"
 [ -f "$app/Contents/Resources/Extensions/ublock/manifest.json" ] || die "no uBlock Origin in the app"
 [ -f "$app/Contents/Resources/ContentRules/rulesets.json" ] || die "no WebKit content rules in the app"
 for file in "$root"/LICENSE* "$root/NOTICE"; do
