@@ -103,16 +103,51 @@ function suspension(node) {
   return null;
 }
 
-const callsStillValid = (expr) => contains(expr, (at) => ts.isCallExpression(at) && calleeName(at) === "stillValid");
+const unwrap = (expr) => (ts.isParenthesizedExpression(expr) ? unwrap(expr.expression) : expr);
+const binary = (expr, kind) => ts.isBinaryExpression(expr) && expr.operatorToken.kind === kind;
+const notOf = (expr) => (ts.isPrefixUnaryExpression(expr) && expr.operator === ts.SyntaxKind.ExclamationToken ? unwrap(expr.operand) : null);
+
+function validWhenTrue(raw) {
+  const expr = unwrap(raw);
+  if (ts.isCallExpression(expr) && calleeName(expr) === "stillValid") return true;
+  if (binary(expr, ts.SyntaxKind.AmpersandAmpersandToken)) return validWhenTrue(expr.left) || validWhenTrue(expr.right);
+  const negated = notOf(expr);
+  return negated ? validWhenFalse(negated) : false;
+}
+
+function validWhenFalse(raw) {
+  const expr = unwrap(raw);
+  if (binary(expr, ts.SyntaxKind.BarBarToken)) return validWhenFalse(expr.left) || validWhenFalse(expr.right);
+  const negated = notOf(expr);
+  return negated ? validWhenTrue(negated) : false;
+}
+
 const exits = (statement) => ts.isReturnStatement(statement) || ts.isThrowStatement(statement) || (ts.isBlock(statement) && statement.statements.length === 1 && exits(statement.statements[0]));
 
+function awaitsBetween(fn, from, to) {
+  let found = false;
+  const visit = (at) => {
+    if (found || at.end <= from || at.pos >= to) return;
+    if (at !== fn && ts.isFunctionLike(at)) return;
+    if (ts.isAwaitExpression(at) && at.pos >= from && at.end <= to) found = true;
+    ts.forEachChild(at, visit);
+  };
+  visit(fn);
+  return found;
+}
+
 function guardedByStillValid(node, stop) {
+  const fn = enclosingFunction(node);
+  const fresh = (guard) => !fn || !awaitsBetween(fn, guard.end, node.pos);
   for (let child = node, at = node.parent; at && at !== stop; child = at, at = at.parent) {
-    if (ts.isIfStatement(at) && child === at.thenStatement && callsStillValid(at.expression)) return true;
-    if (ts.isConditionalExpression(at) && child === at.whenTrue && callsStillValid(at.condition)) return true;
-    if (ts.isBinaryExpression(at) && at.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && child === at.right && callsStillValid(at.left)) return true;
+    if (ts.isIfStatement(at) && child === at.thenStatement && validWhenTrue(at.expression) && fresh(at.expression)) return true;
+    if (ts.isIfStatement(at) && child === at.elseStatement && validWhenFalse(at.expression) && fresh(at.expression)) return true;
+    if (ts.isConditionalExpression(at) && child === at.whenTrue && validWhenTrue(at.condition) && fresh(at.condition)) return true;
+    if (ts.isConditionalExpression(at) && child === at.whenFalse && validWhenFalse(at.condition) && fresh(at.condition)) return true;
+    if (binary(at, ts.SyntaxKind.AmpersandAmpersandToken) && child === at.right && validWhenTrue(at.left) && fresh(at.left)) return true;
+    if (binary(at, ts.SyntaxKind.BarBarToken) && child === at.right && validWhenFalse(at.left) && fresh(at.left)) return true;
     if (ts.isCallExpression(at) && calleeName(at) === "counted" && at.arguments[1] === child) return true;
-    if (ts.isBlock(at) && at.statements.some((s) => s.end <= child.pos && ts.isIfStatement(s) && !s.elseStatement && exits(s.thenStatement) && callsStillValid(s.expression))) return true;
+    if (ts.isBlock(at) && at.statements.some((s) => s.end <= child.pos && ts.isIfStatement(s) && !s.elseStatement && exits(s.thenStatement) && validWhenFalse(s.expression) && fresh(s.expression))) return true;
   }
   return false;
 }
@@ -253,8 +288,14 @@ test("the tripwire catches consentNow() and counts after await, in timers, promi
     "function k() { p.then(() => { if (!stillValid(t)) return; n++; }); }",
     "function l() { p.then(() => { stillValid(t); n++; }); }",
     "function m() { p.then(() => counted(t, () => {}, () => n++)); }",
+    "function o() { p.then(() => { if (!stillValid(t)) n++; }); }",
+    "function q() { p.then(() => { if (stillValid(t)) return; n++; }); }",
+    "function r() { p.then(async () => { if (!stillValid(t)) return; await work(); n++; }); }",
+    "function u() { p.then(async () => { await work(); if (!stillValid(t)) return; n++; }); }",
+    "function v() { p.then(() => { if (!stillValid(t)) local(); else n++; }); }",
+    "function w() { p.then(async () => { if (stillValid(t)) { await work(); n++; } }); }",
   ].join("\n");
-  assert.deepEqual(kinds("apps/browser/src/state/telemetry/x.ts", counts), ["count after .then", "count after .then", "count after .then"]);
+  assert.deepEqual(kinds("apps/browser/src/state/telemetry/x.ts", counts), ["count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then", "count after .then"]);
 });
 
 test("the tripwire catches Codex's blind-spot probes", () => {
