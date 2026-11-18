@@ -1,6 +1,6 @@
 import { freezeWatch, type StallTally } from "../../platform/freezeWatch";
 import { experimentOn } from "../../platform/killSwitches";
-import { consentToken, onConsentPeriodChange, stillValid, type ConsentToken } from "./choice";
+import { isSharing, onConsentPeriodChange, stillValid, type ConsentToken } from "./choice";
 
 export const STALL_BUCKETS = ["250_500ms", "500ms_1s", "1_2s", "2_5s", "5_10s", "over_10s"] as const;
 const HEAP_FLOORS_MB = [0, 64, 128, 256, 512, 1024, 2048];
@@ -26,7 +26,6 @@ const noHangs = () => ({
 });
 
 let epoch = 0;
-let epochConsent: ConsentToken | null = null;
 let gcBase: GcTotals | null = null;
 let hangs = noHangs();
 const openHangs = new Map<string, OpenHang>();
@@ -70,11 +69,10 @@ export function stallFields(thread: "main" | "js", tally: StallTally | null | un
 
 const newEpoch = () => 1 + Math.floor(Math.random() * 0x7fff_fffe);
 
-export function setFreezeConsent(consent: ConsentToken | null) {
-  epochConsent = consent;
-  epoch = consent ? newEpoch() : 0;
+export function setFreezeConsent(sharing: boolean) {
+  epoch = sharing ? newEpoch() : 0;
   if (watching) freezeWatch()?.setConsentEpoch(epoch);
-  gcBase = consent ? gcTotals() : null;
+  gcBase = sharing ? gcTotals() : null;
   hangs = noHangs();
   openHangs.clear();
 }
@@ -82,8 +80,8 @@ export function setFreezeConsent(consent: ConsentToken | null) {
 function followConsent() {
   if (followingConsent) return;
   followingConsent = true;
-  setFreezeConsent(consentToken());
-  onConsentPeriodChange(() => setFreezeConsent(consentToken()));
+  setFreezeConsent(isSharing());
+  onConsentPeriodChange(() => setFreezeConsent(isSharing()));
 }
 
 export function startFreezeWatch(): boolean {
@@ -115,16 +113,18 @@ export function noteRendererResponsive(tabId: string, exited: boolean, at = Date
 }
 
 export function takeFreezeCounts(consent: ConsentToken | null): Record<string, number> {
-  if (!epoch || !stillValid(consent) || consent !== epochConsent) return {};
-  const tally = freezeWatch()?.take(epoch) ?? null;
-  const fields: Record<string, number> = { ...(tally ? { ...stallFields("main", tally.main), ...stallFields("js", tally.js) } : {}), ...hangs };
+  const tally = epoch ? (freezeWatch()?.take(epoch) ?? null) : null;
+  const taken = hangs;
   hangs = noHangs();
-  const gc = gcTotals();
-  if (watching && gc && gcBase) {
-    fields.js_gc_count = Math.max(0, gc.count - gcBase.count);
-    fields.js_gc_ms = Math.max(0, Math.round(gc.ms - gcBase.ms));
-  }
+  const gc = epoch ? gcTotals() : null;
+  const base = gcBase;
   gcBase = gc;
+  if (!epoch || !stillValid(consent)) return {};
+  const fields: Record<string, number> = { ...(tally ? { ...stallFields("main", tally.main), ...stallFields("js", tally.js) } : {}), ...taken };
+  if (watching && gc && base) {
+    fields.js_gc_count = Math.max(0, gc.count - base.count);
+    fields.js_gc_ms = Math.max(0, Math.round(gc.ms - base.ms));
+  }
   const heap = hermesStats()?.js_heapSize;
   if (watching && typeof heap === "number" && heap >= 0) fields.js_heap_mb_floor = heapFloorMb(heap);
   return fields;
