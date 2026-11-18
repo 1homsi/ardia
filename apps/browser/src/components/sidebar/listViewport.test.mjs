@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { createListViewport, seenSliding, shiftedBand } = await import("./listViewport.ts");
+const { seenSliding, shiftedBand, withOverscan } = await import("./listViewport.ts");
 
 test("a slide is seen when any point of its path crosses the visible band", () => {
   const band = { top: 1000, bottom: 1800 };
@@ -14,18 +14,10 @@ test("a slide is seen when any point of its path crosses the visible band", () =
   assert.equal(seenSliding(5000, 34, 0, null), true, "with no band every slide is seen");
 });
 
-test("a band moves into a list's own coordinates, and listeners hear each change until they stop", () => {
+test("a band moves into a list's own coordinates and reaches one viewport past each edge", () => {
   assert.deepEqual(shiftedBand({ top: 100, bottom: 900 }, 37), { top: 63, bottom: 863 });
   assert.equal(shiftedBand(null, 37), null);
-  let band = { top: 0, bottom: 500 };
-  const viewport = createListViewport(() => band);
-  let heard = 0;
-  const stop = viewport.watch(() => heard++);
-  band = { top: 200, bottom: 700 };
-  viewport.changed();
-  assert.equal(heard, 1);
-  assert.deepEqual(viewport.band(), { top: 200, bottom: 700 });
-  stop();
-  viewport.changed();
-  assert.equal(heard, 1);
+  assert.deepEqual(withOverscan(1000, 800), { top: 200, bottom: 2600 });
+  assert.equal(seenSliding(2500, 34, -37, withOverscan(1000, 800)), true, "a row one viewport below is still animated");
+  assert.equal(seenSliding(2700, 34, -37, withOverscan(1000, 800)), false);
 });
