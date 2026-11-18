@@ -897,6 +897,7 @@ function VoiceButton() {
 }
 
 const INCOGNITO_GLYPH = 26;
+const INCOGNITO_PLATE = 34;
 
 function IncognitoToggle() {
   const theme = useTrayTheme();
@@ -910,12 +911,8 @@ function IncognitoToggle() {
       onPress={toggleTrayIncognito}
       style={[styles.incognito, panelField ? styles.panelIncognito : null]}
     >
-      {on ? (
-        <Animated.Text entering={modeToggleIn} exiting={modeToggleOut} style={[font.footnote, styles.medium, styles.toggleLabel, { color: tabsInk.onDarkSoft }]}>
-          Incognito
-        </Animated.Text>
-      ) : null}
       <View testID="trayIncognitoGlyph" style={styles.incognitoGlyph}>
+        {on ? <Animated.View testID="trayIncognitoPlate" entering={modeToggleIn} exiting={modeToggleOut} style={styles.incognitoPlate} /> : null}
         <Symbol name="eyeglassesThin" size={INCOGNITO_GLYPH} color={on ? tabsInk.onDark : theme.foregroundTertiary} />
       </View>
     </Pressable>
@@ -1172,6 +1169,14 @@ const styles = StyleSheet.create({
   panelInput: { minHeight: browseLayout.searchFieldHeight - floatingPanelLayout.fieldEdge * 2 },
   panelIncognito: { paddingRight: space.xs + 2 },
   incognitoGlyph: { width: INCOGNITO_GLYPH, alignItems: "center", justifyContent: "center" },
+  incognitoPlate: {
+    position: "absolute",
+    width: INCOGNITO_PLATE,
+    height: INCOGNITO_PLATE,
+    borderRadius: capsule(INCOGNITO_PLATE),
+    borderCurve: "continuous",
+    backgroundColor: floatingPanelLayout.fieldDark.fill,
+  },
   field: {
     minHeight: browseLayout.searchFieldHeight,
     borderRadius: capsule(browseLayout.searchFieldHeight),
@@ -1192,7 +1197,6 @@ const styles = StyleSheet.create({
   incognito: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space.xs + 2,
     minWidth: 36,
     minHeight: 40,
     justifyContent: "flex-end",
@@ -1201,8 +1205,6 @@ const styles = StyleSheet.create({
   incognitoNote: { alignItems: "center", justifyContent: "center", paddingHorizontal: space.l },
   semibold: { fontWeight: "600" },
   centered: { textAlign: "center" },
-  toggleLabel: { transformOrigin: "100% 50%" },
-  medium: { fontWeight: "500" },
   rowsContent: { paddingHorizontal: space.s, paddingBottom: space.s },
   highlight: { position: "absolute", borderRadius: radius.row },
 });
