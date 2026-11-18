@@ -19,7 +19,7 @@ import type { ClosedTab, Tab, TabLive } from "../browser/types";
 import { activated, apply, closingTabs, withNewTab, type CloseOptions, type NewTabOptions } from "./tabs";
 import { hasPage, loadedPage, navigationOf, renavigated, wakeOf, withWake } from "./pageSession";
 import { cancelOpening, gateOpening, isGatedUrl, settleOpening } from "./openingGate";
-import { setLive, stageLive } from "./tabLive";
+import { drainLive, setLive, stageLive } from "./tabLive";
 
 
 export type TabsSlice = {
@@ -199,9 +199,12 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     const supersedes = !!wakeOf(tab) && !("page" in patch) && url !== undefined && url !== tab.url;
     const change = supersedes ? { ...patch, page: withWake(tab.page, undefined) } : patch;
     const next = merge(tab, url !== undefined && url !== tab.url ? { ...onUrlChange(s, tab, url), ...change } : change);
-    const announceLive = livePatch ? stageLive(id, livePatch) : undefined;
-    if (next !== tab) set((s) => ({ tabs: { ...s.tabs, [id]: next } }));
-    announceLive?.();
+    if (livePatch) stageLive(id, livePatch);
+    try {
+      if (next !== tab) set((s) => ({ tabs: { ...s.tabs, [id]: next } }));
+    } finally {
+      drainLive();
+    }
   },
 
   updateLive(id, patch) {

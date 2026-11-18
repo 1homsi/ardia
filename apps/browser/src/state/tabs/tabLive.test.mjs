@@ -126,3 +126,35 @@ test("one report's URL and loading reach store subscribers and live listeners to
   }
   assert.ok(!seen.some((x) => /^live https:\/\/a\.com\/ true$/.test(x)), "no live listener saw the old URL with the new load");
 });
+
+function urlReportWith(t, duringPublication) {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com/" });
+  const [tab] = S().windows[w].tabIds;
+  const heard = [];
+  const offStore = useBrowser.subscribe((s, prev) => {
+    if (s.tabs[tab]?.url === "https://b.com/" && prev.tabs[tab]?.url !== "https://b.com/") duringPublication(tab);
+  });
+  const offLive = onLiveChange((id, live, prev) => {
+    if (id !== tab) return;
+    for (const key of ["isLoading", "canGoBack"]) if (live[key] !== prev[key]) heard.push(`${key} ${prev[key]}->${live[key]}`);
+  });
+  t.after(() => (offStore(), offLive()));
+  return { tab, heard, report: () => S().updateTab(tab, { url: "https://b.com/" }, { isLoading: true }) };
+}
+
+test("a live write made by a store subscriber during the URL publication keeps the report's loading edge", (t) => {
+  const { tab, heard, report } = urlReportWith(t, (id) => S().updateLive(id, { canGoBack: true }));
+  report();
+  assert.deepEqual(heard.filter((x) => x.startsWith("isLoading")), ["isLoading false->true"]);
+  assert.deepEqual(heard.filter((x) => x.startsWith("canGoBack")), ["canGoBack false->true"]);
+  assert.deepEqual(liveOf(tab), { ...IDLE_LIVE, isLoading: true, canGoBack: true });
+});
+
+test("a store subscriber that throws during the URL publication still lets live listeners hear the report", (t) => {
+  const { heard, report } = urlReportWith(t, () => {
+    throw new Error("subscriber failed");
+  });
+  assert.throws(report, /subscriber failed/);
+  assert.deepEqual(heard, ["isLoading false->true"]);
+});

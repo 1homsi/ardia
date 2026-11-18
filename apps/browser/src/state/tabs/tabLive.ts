@@ -14,6 +14,9 @@ const listeners = new Set<LiveListener>();
 let browser: Browser | null = null;
 let published: BrowserState | null = null;
 const writtenUnpublished = new Set<string>();
+const announced = new Map<string, TabLive>();
+const unannounced = new Set<string>();
+let draining = false;
 
 export const liveOf = (tabId: string): TabLive => values.get(tabId) ?? IDLE_LIVE;
 
@@ -34,29 +37,44 @@ function announceLive(tabId: string, next: TabLive, prev: TabLive) {
   for (const listener of [...listeners]) listener(tabId, next, prev);
 }
 
-export function replaceLive(tabId: string, next: TabLive) {
-  const prev = liveOf(tabId);
-  if (next === prev) return;
-  storeLive(tabId, next);
-  announceLive(tabId, next, prev);
+export function drainLive() {
+  if (draining) return;
+  draining = true;
+  try {
+    for (const tabId of unannounced) {
+      unannounced.delete(tabId);
+      const next = liveOf(tabId);
+      const prev = announced.get(tabId) ?? IDLE_LIVE;
+      if (next === prev) continue;
+      if (next === IDLE_LIVE) announced.delete(tabId);
+      else announced.set(tabId, next);
+      announceLive(tabId, next, prev);
+    }
+  } finally {
+    draining = false;
+  }
 }
 
-const nothingStaged = () => {};
+export function replaceLive(tabId: string, next: TabLive) {
+  if (next === liveOf(tabId)) return;
+  storeLive(tabId, next);
+  unannounced.add(tabId);
+  drainLive();
+}
 
-export function stageLive(tabId: string, patch: Partial<TabLive>): () => void {
-  if (!browser?.getState().tabs[tabId]) return nothingStaged;
+export function stageLive(tabId: string, patch: Partial<TabLive>) {
+  if (!browser?.getState().tabs[tabId]) return;
   const prev = liveOf(tabId);
   const next = merge(prev, patch);
-  if (next === prev) return nothingStaged;
+  if (next === prev) return;
   storeLive(tabId, next);
+  unannounced.add(tabId);
   if (!published?.tabs[tabId]) writtenUnpublished.add(tabId);
-  return () => {
-    if (liveOf(tabId) === next) announceLive(tabId, next, prev);
-  };
 }
 
 export function setLive(tabId: string, patch: Partial<TabLive>) {
-  stageLive(tabId, patch)();
+  stageLive(tabId, patch);
+  drainLive();
 }
 
 export function forgetLive(ids: Iterable<string>) {
