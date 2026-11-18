@@ -392,24 +392,16 @@ NSDictionary *Describe(const Capture &c) {
   };
 }
 
-void Finish(const Ended &ended) {
-  Capture done;
+void Finish(const Ended &ended, Capture done) {
+  done.durationMs = std::max(ended.ms, 1.0);
+  done.inputWaitMs = ended.inputWaitMs;
+  done.gcMs = ended.gcMs;
+  done.gcCount = ended.gcCount;
   os_unfair_lock_lock(&gCaptureLock);
-  Capture &c = gCaptures[ended.thread];
-  const bool ours = c.active && c.stretch == ended.id && c.source == ended.source;
-  if (ours) {
-    c.durationMs = std::max(ended.ms, 1.0);
-    c.inputWaitMs = ended.inputWaitMs;
-    c.gcMs = ended.gcMs;
-    c.gcCount = ended.gcCount;
-    WriteSlot(c);
-    gKept[gKeptNext] = c;
-    gKeptNext = (gKeptNext + 1) % kKept;
-    done = c;
-    Clear(c);
-  }
+  WriteSlot(done);
+  gKept[gKeptNext] = done;
+  gKeptNext = (gKeptNext + 1) % kKept;
   os_unfair_lock_unlock(&gCaptureLock);
-  if (!ours) return;
   gArming.disarmIfIdle();
   NSMutableDictionary *record = [Describe(done) mutableCopy];
   record[@"epoch"] = @(ended.epoch);
@@ -504,9 +496,19 @@ void Idle() {
 
 void StretchEnded(const Ended &ended) {
   if (!gWorkQueue || ended.ms < kFreezeMs) return;
+  Capture done;
+  os_unfair_lock_lock(&gCaptureLock);
+  Capture &c = gCaptures[ended.thread];
+  const bool ours = c.active && c.stretch == ended.id && c.source == ended.source;
+  if (ours) {
+    done = c;
+    Clear(c);
+  }
+  os_unfair_lock_unlock(&gCaptureLock);
+  if (!ours) return;
   const Ended copy = ended;
   dispatch_async(gWorkQueue, ^{
-    Finish(copy);
+    Finish(copy, done);
   });
 }
 
