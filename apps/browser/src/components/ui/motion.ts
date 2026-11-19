@@ -159,6 +159,10 @@ export function usePressScaleMotion(enabled = true, pressedScale: number = butto
     Animated.spring(value, { toValue: pressed ? bounceDip(pressedScale) : 1, ...(pressed ? springs.press : springs.release), restDisplacementThreshold, restSpeedThreshold, useNativeDriver: true }).start();
   };
 
+  const still = (value: Animated.Value, pressed: boolean) => {
+    Animated.spring(value, { toValue: pressed ? pressedScale : 1, ...springs.snappy, useNativeDriver: true }).start();
+  };
+
   const bounce = (value: Animated.Value, pressed: boolean) => {
     if (pressed) {
       pressedAt.current = Date.now();
@@ -169,7 +173,8 @@ export function usePressScaleMotion(enabled = true, pressedScale: number = butto
     if (!wait) return settle(value, false);
     release.current = setTimeout(() => {
       release.current = null;
-      settle(value, false);
+      if (pressMotionNow() === "bounce") settle(value, false);
+      else still(value, false);
     }, wait);
   };
 
@@ -177,13 +182,14 @@ export function usePressScaleMotion(enabled = true, pressedScale: number = butto
     const value = scale.current;
     cancelRelease();
     if (!enabled || !value) return;
-    value.stopAnimation();
     if (reduceMotion() !== false) {
+      value.stopAnimation();
       value.setValue(1);
       return;
     }
     if (pressMotionNow() === "bounce") return bounce(value, pressed);
-    Animated.spring(value, { toValue: pressed ? pressedScale : 1, ...springs.snappy, useNativeDriver: true }).start();
+    value.stopAnimation();
+    still(value, pressed);
   };
 
   return {
