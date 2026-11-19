@@ -3469,21 +3469,23 @@ This was `docs/ios.md`'s, for main's SwiftUI app; since the clean-up the workflo
     `iphone=true` on the Release workflow runs the same pair: its dry run signs, its real run uploads to Internal after
     the Mac release publishes. Public Testers stay a separate `mode=public-link -f build=<number>` run on the owner's
     word.
-- **"Get a build on my phone"** means a development-signed build installed over USB on the owner's iPhone, never a
-  TestFlight upload:
-  1. With the iPhone plugged in and Developer Mode on, `xcrun devicectl list devices` gives its UDID.
-  2. `gh workflow run ios-release.yml --ref <branch> -f mode=device -f udid=<udid>` registers the iPhone and builds
-     the `ios-device-build` .ipa from that ref. It uses no TestFlight build number.
-     Its version is the Mac app's `MARKETING_VERSION` unless `version` is set.
-  3. On the Mac connected to the iPhone, download and unpack the IPA, then install the app bundle.
+- **"Get a build on my phone"** means installing on the owner's iPhone over USB. Connect the iPhone with Developer
+  Mode on and use `xcrun devicectl list devices` to identify it.
+  - **Local Xcode.** When the connected Mac has development signing set up, build for the wired iPhone using
+    `apps/phone/ios/Ardia.xcworkspace` and the `Ardia` scheme. Install the resulting development-signed `.app` with
+    `xcrun devicectl device install app --device <udid> <path-to-Ardia.app>`. Use Xcode's Run on the wired iPhone
+    for a USB debugging session.
+  - **CI-signed IPA.** `gh workflow run ios-release.yml --ref <branch> -f mode=device -f udid=<udid>` registers the
+    iPhone and builds the `ios-device-build` IPA from that ref. Its version defaults to the Mac app's
+    `MARKETING_VERSION`. On the Mac connected to the iPhone, download and unpack the IPA, then install the app.
 
-     ```sh
-     gh run download <run-id> -n ios-device-build -D <scratch-dir>
-     ditto -x -k <scratch-dir>/Ardia.ipa <scratch-dir>/unpacked
-     xcrun devicectl device install app --device <udid> <scratch-dir>/unpacked/Payload/Ardia.app
-     ```
+    ```sh
+    gh run download <run-id> -n ios-device-build -D <scratch-dir>
+    ditto -x -k <scratch-dir>/Ardia.ipa <scratch-dir>/unpacked
+    xcrun devicectl device install app --device <udid> <scratch-dir>/unpacked/Payload/Ardia.app
+    ```
 
-     Confirm that `devicectl` reports `App installed` for `com.ardia.browser.ios`.
+  Confirm installation of `com.ardia.browser.ios` on the wired iPhone.
 - **The app record.** "Ardia", bundle id `com.ardia.browser.ios`, team `U5L5T3NGVV`; the extensions are `.widgets`,
   `.share` and `.open`, sharing the app group `group.com.ardia.browser.ios`.
 - **The workflow** (`.github/workflows/ios-release.yml`). What each mode touches in App Store Connect:

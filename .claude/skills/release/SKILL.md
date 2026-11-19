@@ -343,8 +343,8 @@ The release itself is then a second run with `dry_run=false` on the same commit.
 
 **iPhone TestFlight.** Add `-f iphone=true` to both desktop runs only when the owner asks for TestFlight as part of the
 release. Both use the iPhone version pinned in `ios-release.yml`, and the real run uploads to Internal. Use the
-separate `public-link` run for public testers. A request to get a build on the owner's phone uses `mode=device` and a
-USB install. See `docs/phone.md` for the commands.
+separate `public-link` run for public testers. A request to get a build on the owner's phone means a USB install.
+Use a local Xcode development build or the iOS Release `device` IPA. See `docs/phone.md` for both paths.
 
 The engine is never packed by a release: when engine/ changed since the last prebuilt engine, release.sh stops and
 asks for `scripts/publish-engine.sh` first, which publishes `engine-<tree:12>` (with the Helium source and the unstripped
