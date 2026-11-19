@@ -155,6 +155,29 @@ you type. It has no Settings row: plugins (github.com/mantrakp04/ardia-plugins) 
   Telemetry: `settings_snapshot` carries `setting_commandBarStart_hidePinned`, `_hideTopApps` and `_limit` with their
   defaults.
 
+### Press motion and folder style
+
+`settings.pressMotion` and `settings.folderStyle` bring back how 0.2.47-nightly.6 felt and looked. They have no
+Settings row: plugins (github.com/ardia-browser/plugins, `nightly6-feel`) and people write them here.
+
+```json
+"pressMotion": "bounce", "folderStyle": "neutral"
+```
+
+- `pressMotion`: `"still"` (the default) or `"bounce"`. Bounce squishes what you press and springs it back about 13 %
+  past rest, as in 0.2.47-nightly.6 (#2469): sidebar tab rows, group and live folder headers, live items, the New
+  Tab row and folder panel rows to 0.975, pinned tiles, tile folders and top-strip pins to 0.94, an icon button's
+  whole plate to 0.9 and other pressable controls to 0.97, holding the dip at least 90 ms. A New Tab card's lift and
+  a finished live item's check mark settle on `springs.bouncy`. macOS Reduce Motion still turns it off.
+- `folderStyle`: `"accent"` (the default, #443AFF) or `"neutral"`. Neutral draws a folder with no colour of its own
+  white in dark mode and #6E6E73 in light mode, and a live folder shows its service's icon instead of the folder, as
+  in 0.2.47-nightly.6 (#2250). A coloured group keeps its colour either way.
+- Neither is synced: they belong to this Mac. A change applies at once.
+- Code: `lib/pressMotion.ts` (the value `components/ui` reads), `useSquish` and `Squish` (`components/ui/Squish.tsx`),
+  `usePressScaleMotion` and `liftSpring` (`components/ui/motion.ts`), `folderPalette` (`components/sidebar/tokens.ts`)
+  and `LiveFolderIcon`. Telemetry: `settings_snapshot` carries `setting_pressMotion` and `setting_folderStyle` with
+  their defaults; watch how many installs pick `bounce` and `neutral`.
+
 ### The file wins
 
 `config.json` is read-only to the app. Ardia never writes it, so there is nothing to race with.

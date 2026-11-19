@@ -36,3 +36,13 @@ test("a folder with no colour of its own takes the profile's colour, and a colou
     assert.notDeepEqual(folderPalette(color, true, PROFILE), folderPalette(null, true, PROFILE), color);
   }
 });
+
+test("folderStyle neutral draws a no-colour folder white in dark mode and grey in light mode, as in 0.2.47-nightly.6", () => {
+  for (const color of [null, undefined, "none"]) {
+    assert.equal(folderPalette(color, false, "#0A84FF", "neutral").stroke, "#6E6E73", String(color));
+    assert.notDeepEqual(folderPalette(color, true, "#0A84FF", "neutral"), folderPalette(color, true, "#0A84FF"), String(color));
+    assert.deepEqual(folderPalette(color, true, "#0A84FF", "neutral"), folderPalette(color, true, "#C07A98", "neutral"), String(color));
+  }
+  for (const color of TAB_GROUP_COLORS) assert.deepEqual(folderPalette(color, true, "#0A84FF", "neutral"), folderPalette(color, true, "#0A84FF"), color);
+});
+
