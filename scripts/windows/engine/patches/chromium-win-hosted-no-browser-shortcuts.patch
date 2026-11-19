@@ -13,7 +13,26 @@
  #include <algorithm>
  #include <memory>
  #include <optional>
-@@ -6442,6 +6448,14 @@
+@@ -1674,6 +1680,18 @@
+       return true;
+     }
+   }
++#if BUILDFLAG(IS_WIN)
++  // Ardia: a window the app hosts registers no shortcuts, but Chromium still
++  // names a command's default shortcut, as the full-screen bubble needs.
++  if (g_ardia_win_hosts_normal_windows && GetIsNormalType()) {
++    for (const auto& entry : GetAcceleratorList()) {
++      if (entry.command_id == cmd_id) {
++        *accelerator = ui::Accelerator(entry.keycode, entry.modifiers);
++        return true;
++      }
++    }
++  }
++#endif
+   return false;
+ }
+ 
+@@ -6442,6 +6460,14 @@
    views::FocusManager* focus_manager = GetFocusManager();
    CHECK(focus_manager, base::NotFatalUntil::M162);
  
