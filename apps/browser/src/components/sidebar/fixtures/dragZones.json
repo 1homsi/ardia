@@ -43,23 +43,31 @@
   {
    "step": "move 240,330",
    "drop": {
-    "type": "split",
-    "targetId": "a",
-    "side": "right"
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
    },
-   "gapKey": null,
-   "split": {
-    "key": "t:a",
-    "side": "right"
-   },
-   "line": null
+   "gapKey": "g:G(G)",
+   "line": {
+    "x": 6,
+    "y": 343.5,
+    "w": 180
+   }
   },
   {
    "step": "move 240.5,330",
    "drop": {
     "type": "none"
    },
-   "split": null
+   "gapKey": null,
+   "line": null
   },
   {
    "step": "move 60,330",
@@ -1053,6 +1061,20 @@
   {
    "step": "move 60,200",
    "drop": {
+    "type": "split",
+    "targetId": "p2",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p2",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
     "type": "tabs",
     "placement": {
      "pinned": true,
@@ -1067,6 +1089,7 @@
     ]
    },
    "gapKey": "t:p2",
+   "split": null,
    "line": {
     "x": 6,
     "y": 185.5,
@@ -1074,10 +1097,21 @@
    }
   },
   {
-   "step": "move 60,185"
+   "step": "move 60,160",
+   "drop": {
+    "type": "split",
+    "targetId": "p1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p1",
+    "side": "left"
+   },
+   "line": null
   },
   {
-   "step": "move 60,160",
+   "step": "move 60,140",
    "drop": {
     "type": "tabs",
     "placement": {
@@ -1093,14 +1127,12 @@
     ]
    },
    "gapKey": "t:p1",
+   "split": null,
    "line": {
     "x": 6,
     "y": 148.5,
     "w": 180
    }
-  },
-  {
-   "step": "move 60,140"
   },
   {
    "step": "end true",
@@ -4500,60 +4532,16 @@
   {
    "step": "move 60,200",
    "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": true,
-     "row": true,
-     "beforeId": "p2"
-    },
-    "sequence": [
-     "t:p1",
-     "t:c",
-     "t:p2",
-     "g:G(PG)"
-    ]
+    "type": "split",
+    "targetId": "p2",
+    "side": "left"
    },
-   "gapKey": "t:p2",
-   "line": {
-    "x": 6,
-    "y": 185.5,
-    "w": 180
-   }
-  },
-  {
-   "step": "move 60,185"
-  },
-  {
-   "step": "move 60,160",
-   "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": true,
-     "row": true,
-     "beforeId": "p1"
-    },
-    "sequence": [
-     "t:c",
-     "t:p1",
-     "t:p2",
-     "g:G(PG)"
-    ]
+   "gapKey": null,
+   "split": {
+    "key": "t:p2",
+    "side": "left"
    },
-   "gapKey": "t:p1",
-   "line": {
-    "x": 6,
-    "y": 148.5,
-    "w": 180
-   }
-  },
-  {
-   "step": "move 60,140"
-  },
-  {
-   "step": "move 60,140"
-  },
-  {
-   "step": "move 60,160"
+   "line": null
   },
   {
    "step": "move 60,185",
@@ -4572,6 +4560,7 @@
     ]
    },
    "gapKey": "t:p2",
+   "split": null,
    "line": {
     "x": 6,
     "y": 185.5,
@@ -4579,7 +4568,97 @@
    }
   },
   {
-   "step": "move 60,200"
+   "step": "move 60,160",
+   "drop": {
+    "type": "split",
+    "targetId": "p1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p1",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:c",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "split": null,
+   "line": {
+    "x": 6,
+    "y": 148.5,
+    "w": 180
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "split",
+    "targetId": "p1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p1",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:c",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "split": null,
+   "line": {
+    "x": 6,
+    "y": 185.5,
+    "w": 180
+   }
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "split",
+    "targetId": "p2",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p2",
+    "side": "left"
+   },
+   "line": null
   },
   {
    "step": "move 60,215",
@@ -4598,6 +4677,7 @@
     ]
    },
    "gapKey": "g:G(PG)",
+   "split": null,
    "line": {
     "x": 6,
     "y": 222.5,
@@ -5640,60 +5720,16 @@
   {
    "step": "move 60,200",
    "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": true,
-     "row": true,
-     "beforeId": "p2"
-    },
-    "sequence": [
-     "t:p1",
-     "t:h1",
-     "t:p2",
-     "g:G(PG)"
-    ]
+    "type": "split",
+    "targetId": "p2",
+    "side": "left"
    },
-   "gapKey": "t:p2",
-   "line": {
-    "x": 6,
-    "y": 185.5,
-    "w": 180
-   }
-  },
-  {
-   "step": "move 60,185"
-  },
-  {
-   "step": "move 60,160",
-   "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": true,
-     "row": true,
-     "beforeId": "p1"
-    },
-    "sequence": [
-     "t:h1",
-     "t:p1",
-     "t:p2",
-     "g:G(PG)"
-    ]
+   "gapKey": null,
+   "split": {
+    "key": "t:p2",
+    "side": "left"
    },
-   "gapKey": "t:p1",
-   "line": {
-    "x": 6,
-    "y": 148.5,
-    "w": 180
-   }
-  },
-  {
-   "step": "move 60,140"
-  },
-  {
-   "step": "move 60,140"
-  },
-  {
-   "step": "move 60,160"
+   "line": null
   },
   {
    "step": "move 60,185",
@@ -5712,6 +5748,7 @@
     ]
    },
    "gapKey": "t:p2",
+   "split": null,
    "line": {
     "x": 6,
     "y": 185.5,
@@ -5719,7 +5756,97 @@
    }
   },
   {
-   "step": "move 60,200"
+   "step": "move 60,160",
+   "drop": {
+    "type": "split",
+    "targetId": "p1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p1",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:h1",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "split": null,
+   "line": {
+    "x": 6,
+    "y": 148.5,
+    "w": 180
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "split",
+    "targetId": "p1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p1",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:h1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "split": null,
+   "line": {
+    "x": 6,
+    "y": 185.5,
+    "w": 180
+   }
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "split",
+    "targetId": "p2",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p2",
+    "side": "left"
+   },
+   "line": null
   },
   {
    "step": "move 60,215",
@@ -5738,6 +5865,7 @@
     ]
    },
    "gapKey": "g:G(PG)",
+   "split": null,
    "line": {
     "x": 6,
     "y": 222.5,
@@ -7484,28 +7612,21 @@
    }
   },
   {
-   "step": "move 60,270"
+   "step": "move 60,270",
+   "drop": {
+    "type": "split",
+    "targetId": "pg1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:pg1",
+    "side": "left"
+   },
+   "line": null
   },
   {
-   "step": "move 60,285",
-   "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": false,
-     "groupId": "G(PG)",
-     "beforeId": null
-    },
-    "sequence": [
-     "t:p2",
-     "g:G(PG)"
-    ]
-   },
-   "gapKey": "tail:group:G(PG)",
-   "line": {
-    "x": 22,
-    "y": 296.5,
-    "w": 164
-   }
+   "step": "move 60,285"
   },
   {
    "step": "move 60,300",
@@ -7524,6 +7645,7 @@
     ]
    },
    "gapKey": "tail:pinnedGroups",
+   "split": null,
    "line": {
     "x": 6,
     "y": 296.5,
@@ -7553,6 +7675,20 @@
   {
    "step": "move 60,330",
    "drop": {
+    "type": "split",
+    "targetId": "a",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:a",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,345",
+   "drop": {
     "type": "tabs",
     "placement": {
      "pinned": false,
@@ -7564,14 +7700,12 @@
     ]
    },
    "gapKey": "g:G(G)",
+   "split": null,
    "line": {
     "x": 6,
     "y": 343.5,
     "w": 180
    }
-  },
-  {
-   "step": "move 60,345"
   },
   {
    "step": "move 60,360"
@@ -7603,6 +7737,20 @@
   {
    "step": "move 60,405",
    "drop": {
+    "type": "split",
+    "targetId": "g1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:g1",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
     "type": "tabs",
     "placement": {
      "pinned": false,
@@ -7615,14 +7763,12 @@
     ]
    },
    "gapKey": "g:G(H)",
+   "split": null,
    "line": {
     "x": 22,
     "y": 417.5,
     "w": 164
    }
-  },
-  {
-   "step": "move 60,420"
   },
   {
    "step": "move 60,440",
@@ -7651,23 +7797,16 @@
   {
    "step": "move 60,480",
    "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": false,
-     "groupId": "G(H)",
-     "beforeId": null
-    },
-    "sequence": [
-     "t:p2",
-     "g:G(PG)"
-    ]
+    "type": "split",
+    "targetId": "h1",
+    "side": "left"
    },
-   "gapKey": "tail:group:G(H)",
-   "line": {
-    "x": 38,
-    "y": 491.5,
-    "w": 148
-   }
+   "gapKey": null,
+   "split": {
+    "key": "t:h1",
+    "side": "left"
+   },
+   "line": null
   },
   {
    "step": "move 60,500",
@@ -7684,6 +7823,7 @@
     ]
    },
    "gapKey": "t:g2",
+   "split": null,
    "line": {
     "x": 22,
     "y": 491.5,
@@ -7733,25 +7873,28 @@
   {
    "step": "move 60,590",
    "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": false,
-     "beforeId": "c"
-    },
-    "sequence": [
-     "t:p2",
-     "g:G(PG)"
-    ]
+    "type": "split",
+    "targetId": "s1",
+    "side": "left"
    },
-   "gapKey": "t:c",
-   "line": {
-    "x": 6,
-    "y": 602.5,
-    "w": 180
-   }
+   "gapKey": null,
+   "split": {
+    "key": "s:S(s1+s2)",
+    "side": "left"
+   },
+   "line": null
   },
   {
-   "step": "move 60,620"
+   "step": "move 60,620",
+   "drop": {
+    "type": "split",
+    "targetId": "c",
+    "side": "left"
+   },
+   "split": {
+    "key": "t:c",
+    "side": "left"
+   }
   },
   {
    "step": "move 60,650",
@@ -7767,6 +7910,7 @@
     ]
    },
    "gapKey": "tail:list",
+   "split": null,
    "line": {
     "x": 6,
     "y": 639.5,
@@ -7779,25 +7923,28 @@
   {
    "step": "move 60,620",
    "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": false,
-     "beforeId": "c"
-    },
-    "sequence": [
-     "t:p2",
-     "g:G(PG)"
-    ]
+    "type": "split",
+    "targetId": "c",
+    "side": "left"
    },
-   "gapKey": "t:c",
-   "line": {
-    "x": 6,
-    "y": 602.5,
-    "w": 180
-   }
+   "gapKey": null,
+   "split": {
+    "key": "t:c",
+    "side": "left"
+   },
+   "line": null
   },
   {
-   "step": "move 60,590"
+   "step": "move 60,590",
+   "drop": {
+    "type": "split",
+    "targetId": "s1",
+    "side": "left"
+   },
+   "split": {
+    "key": "s:S(s1+s2)",
+    "side": "left"
+   }
   },
   {
    "step": "move 60,560",
@@ -7813,6 +7960,7 @@
     ]
    },
    "gapKey": "s:S(s1+s2)",
+   "split": null,
    "line": {
     "x": 6,
     "y": 565.5,
@@ -7863,23 +8011,16 @@
   {
    "step": "move 60,480",
    "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": false,
-     "groupId": "G(H)",
-     "beforeId": null
-    },
-    "sequence": [
-     "t:p2",
-     "g:G(PG)"
-    ]
+    "type": "split",
+    "targetId": "h1",
+    "side": "left"
    },
-   "gapKey": "tail:group:G(H)",
-   "line": {
-    "x": 38,
-    "y": 491.5,
-    "w": 148
-   }
+   "gapKey": null,
+   "split": {
+    "key": "t:h1",
+    "side": "left"
+   },
+   "line": null
   },
   {
    "step": "move 60,460",
@@ -7896,6 +8037,7 @@
     ]
    },
    "gapKey": "t:h1",
+   "split": null,
    "line": {
     "x": 38,
     "y": 454.5,
@@ -7927,7 +8069,18 @@
    }
   },
   {
-   "step": "move 60,405"
+   "step": "move 60,405",
+   "drop": {
+    "type": "split",
+    "targetId": "g1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:g1",
+    "side": "left"
+   },
+   "line": null
   },
   {
    "step": "move 60,390",
@@ -7944,6 +8097,7 @@
     ]
    },
    "gapKey": "t:g1",
+   "split": null,
    "line": {
     "x": 22,
     "y": 380.5,
@@ -7977,7 +8131,18 @@
    "step": "move 60,345"
   },
   {
-   "step": "move 60,330"
+   "step": "move 60,330",
+   "drop": {
+    "type": "split",
+    "targetId": "a",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:a",
+    "side": "left"
+   },
+   "line": null
   },
   {
    "step": "move 60,315",
@@ -7993,6 +8158,7 @@
     ]
    },
    "gapKey": "t:a",
+   "split": null,
    "line": {
     "x": 6,
     "y": 306.5,
@@ -8025,26 +8191,22 @@
   {
    "step": "move 60,285",
    "drop": {
-    "type": "tabs",
-    "placement": {
-     "pinned": false,
-     "groupId": "G(PG)",
-     "beforeId": null
-    },
-    "sequence": [
-     "t:p2",
-     "g:G(PG)"
-    ]
+    "type": "split",
+    "targetId": "pg1",
+    "side": "left"
    },
-   "gapKey": "tail:group:G(PG)",
-   "line": {
-    "x": 22,
-    "y": 296.5,
-    "w": 164
-   }
+   "gapKey": null,
+   "split": {
+    "key": "t:pg1",
+    "side": "left"
+   },
+   "line": null
   },
   {
-   "step": "move 60,270",
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,255",
    "drop": {
     "type": "tabs",
     "placement": {
@@ -8058,14 +8220,12 @@
     ]
    },
    "gapKey": "t:pg1",
+   "split": null,
    "line": {
     "x": 22,
     "y": 259.5,
     "w": 164
    }
-  },
-  {
-   "step": "move 60,255"
   },
   {
    "step": "move 60,240",
@@ -8751,6 +8911,20 @@
   {
    "step": "move 60,240",
    "drop": {
+    "type": "split",
+    "targetId": "p2",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p2",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
     "type": "tabs",
     "placement": {
      "pinned": true,
@@ -8766,14 +8940,12 @@
     ]
    },
    "gapKey": "t:p2",
+   "split": null,
    "line": {
     "x": 6,
     "y": 222.5,
     "w": 180
    }
-  },
-  {
-   "step": "move 60,215"
   },
   {
    "step": "move 60,200",
@@ -8805,6 +8977,20 @@
   {
    "step": "move 60,160",
    "drop": {
+    "type": "split",
+    "targetId": "p1",
+    "side": "left"
+   },
+   "gapKey": null,
+   "split": {
+    "key": "t:p1",
+    "side": "left"
+   },
+   "line": null
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
     "type": "tabs",
     "placement": {
      "pinned": true,
@@ -8820,14 +9006,12 @@
     ]
    },
    "gapKey": "t:p1",
+   "split": null,
    "line": {
     "x": 6,
     "y": 148.5,
     "w": 180
    }
-  },
-  {
-   "step": "move 60,140"
   },
   {
    "step": "end true",
@@ -9492,19 +9676,29 @@
    "line": null
   },
   {
-   "step": "move 5,325"
+   "step": "move 5,325",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "split": null,
+   "line": {
+    "x": 6,
+    "y": 343.5,
+    "w": 180
+   }
   },
   {
-   "step": "move 239,325",
-   "drop": {
-    "type": "split",
-    "targetId": "a",
-    "side": "right"
-   },
-   "split": {
-    "key": "t:a",
-    "side": "right"
-   }
+   "step": "move 239,325"
   },
   {
    "step": "move 60,316.6",
@@ -9513,10 +9707,12 @@
     "targetId": "a",
     "side": "left"
    },
+   "gapKey": null,
    "split": {
     "key": "t:a",
     "side": "left"
-   }
+   },
+   "line": null
   },
   {
    "step": "move 60,333.4"
@@ -10647,13 +10843,13 @@
    "step": "move 60,291",
    "drop": {
     "type": "split",
-    "targetId": "c",
-    "side": "left"
+    "targetId": "d",
+    "side": "right"
    },
    "gapKey": null,
    "split": {
-    "key": "t:c",
-    "side": "left"
+    "key": "t:d",
+    "side": "right"
    },
    "line": null
   },

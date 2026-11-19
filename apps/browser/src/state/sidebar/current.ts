@@ -4,7 +4,7 @@ import { descendantIds } from "../groups/groups";
 import { cleanUpCandidates } from "../pins/tabCleanup";
 import { sharedTabsIn, sharesTabs } from "../tabs/tabShare";
 import { addressBarInSidebar } from "../windows/layout";
-import { splitsOnRow } from "../splits/splits";
+import { splitsOnRow } from "../splits/lanes";
 
 const store = () => useBrowser.getState();
 

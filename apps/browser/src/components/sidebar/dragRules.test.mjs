@@ -27,8 +27,12 @@ test("away: the 40 pt bound is strict on both sides, and a drag outside the wind
 
 test("split: the middle half of a row, strictly, its side by the row's halves, with no line", () => {
   const t = zones["split bounds"];
-  for (const label of ["move 60,325", "move 5,325", "move 60,316.6", "move 60,333.4"]) assert.deepEqual([at(t, label).drop.type, at(t, label).drop.side, at(t, label).line], ["split", "left", null], label);
-  assert.deepEqual([at(t, "move 239,325").drop.type, at(t, "move 239,325").drop.side], ["split", "right"]);
+  for (const label of ["move 60,325", "move 60,316.6", "move 60,333.4"]) assert.deepEqual([at(t, label).drop.type, at(t, label).drop.side, at(t, label).line], ["split", "left", null], label);
+  for (const label of ["move 5,325", "move 239,325"]) {
+    assert.notEqual(at(t, label).drop.type, "split", `${label}: beside the row, not over it`);
+    assert.ok(at(t, label).line, label);
+  }
+  assert.deepEqual([at(zones["away bounds"], "move 240,330").drop.type, at(zones["away bounds"], "move 240,330").split], ["tabs", null], "right of the row, short of the away zone: the line");
   assert.notEqual(at(t, "move 60,333.5").drop.type, "split");
   assert.notEqual(at(t, "move 60,316.5").drop.type, "split");
   assert.ok(at(t, "move 60,316.5").line, "outside the band: the line");
@@ -86,7 +90,7 @@ test("splits: one row of pitch, never splitting a row, into groups, pinned rows 
 });
 
 test("ties: equal transformed y goes by x then registration, and a pointer on a midpoint lands after", () => {
-  assert.equal(at(zones["tie order"], "move 60,291").drop.type, "split");
+  assert.deepEqual(at(zones["tie order"], "move 60,291").drop, { type: "split", targetId: "d", side: "right" }, "the row under the pointer, not the first registered at that height");
   assert.equal(committed(zones["tie order"]).tabIds.join(), "b,c,d,a");
 });
 

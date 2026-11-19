@@ -813,7 +813,11 @@
     "sequence": []
    },
    "gapKey": "t:a",
-   "line": null
+   "line": {
+    "x": 6,
+    "y": 164,
+    "w": 180
+   }
   },
   {
    "step": "end true",
@@ -823,6 +827,7 @@
    "gapKey": null,
    "pitch": 0,
    "gridGrowth": 0,
+   "line": null,
    "sources": []
   },
   {

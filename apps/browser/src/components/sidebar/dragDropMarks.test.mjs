@@ -9,15 +9,16 @@ const { pinGrid } = await import("./pinZone.ts");
 const { useBrowser } = await import("../../state/browser/store.ts");
 const { addToTileFolder, tileFolderOf } = await import("../../state/pins/tileFolders.ts");
 const { useFolderPanel } = await import("../../state/sidebar/tileFolderUi.ts");
+const { devTabPresses } = await import("../../state/telemetry/tabPresses.ts");
 const { S, entryKey, tailKey, mount, sceneLayout, readDrag, GAP, ROW, TILE } = D;
 
 const frameOf = (m, key) => m.L.entries.find((e) => e.key === key).frame;
 const at = (f, fx, fy) => ({ x: f.x + f.w * fx, y: f.y + f.h * fy });
 const panes = () => Object.values(S().splits).map((v) => splitTabIdsOf(v));
 
-async function dragOver(m, key, to, { splitView = true, select = null } = {}) {
+async function dragOver(m, key, to, { splitView = true, select = null, viewport } = {}) {
   if (select) S().setSelection(m.w, select);
-  const { c } = mount({ entries: m.L.entries, regions: m.regions });
+  const { c } = mount({ entries: m.L.entries, regions: m.regions, ...(viewport ? { viewport } : {}) });
   c.splitView = splitView;
   const f = frameOf(m, key);
   await c.begin(key, f.x + 20, f.y + 10);
@@ -81,15 +82,119 @@ test("a selection never splits: the middle of a row is a plain insertion slot", 
   r.c.end(false);
 });
 
-test("a group, a split row or a pinned row from another lane never splits a row", async () => {
+test("a group or a split row never splits a row", async () => {
   const b = (m) => at(frameOf(m, entryKey("tab", m.id.b)), 0.7, 0.5);
-  for (const keyOf of [(m) => entryKey("group", m.G), (m) => entryKey("split", m.SP), (m) => entryKey("tab", m.id.p1)]) {
+  for (const keyOf of [(m) => entryKey("group", m.G), (m) => entryKey("split", m.SP)]) {
     const m = mixedScene();
     const r = await dragOver(m, keyOf(m), b(m));
     assert.notEqual(r.drop.type, "split", keyOf(m));
     assert.equal(r.marks.split, null);
     r.c.end(false);
   }
+});
+
+test("a list tab dropped on a pinned row's right half joins it as a pinned split, and a pinned row on a list tab's half joins the list", async () => {
+  const m = mixedScene();
+  const p1 = entryKey("tab", m.id.p1);
+  const r = await dragOver(m, entryKey("tab", m.id.c), at(frameOf(m, p1), 0.75, 0.5));
+  assert.deepEqual(r.drop, { type: "split", targetId: m.id.p1, side: "right" });
+  assert.deepEqual(r.marks.split, { key: p1, side: "right" });
+  assert.equal(r.marks.line, null);
+  r.c.end(true);
+  await D.settle();
+  assert.ok(panes().some((p) => JSON.stringify(p) === JSON.stringify([m.id.p1, m.id.c])), JSON.stringify(panes()));
+  assert.equal(S().tabs[m.id.c].pin?.as, "row");
+  const order = S().windows[m.w].tabIds;
+  assert.equal(order.indexOf(m.id.c), order.indexOf(m.id.p1) + 1);
+
+  const n = mixedScene();
+  const b = entryKey("tab", n.id.b);
+  const r2 = await dragOver(n, entryKey("tab", n.id.p2), at(frameOf(n, b), 0.25, 0.5));
+  assert.deepEqual(r2.drop, { type: "split", targetId: n.id.b, side: "left" });
+  r2.c.end(true);
+  await D.settle();
+  assert.ok(panes().some((p) => JSON.stringify(p) === JSON.stringify([n.id.p2, n.id.b])), JSON.stringify(panes()));
+  assert.equal(S().tabs[n.id.p2].pin, null);
+});
+
+const splitCounts = () => {
+  const t = devTabPresses();
+  return [t.drops_split_left, t.drops_split_right, t.drops_split_pinned, t.drops_split_unpinned];
+};
+const counted = (before) => splitCounts().map((n, i) => n - before[i]);
+
+test("a split drop is counted only when the split is made, with its side and any section change", async () => {
+  const m = mixedScene();
+  let before = splitCounts();
+  const made = await dragOver(m, entryKey("tab", m.id.c), at(frameOf(m, entryKey("tab", m.id.p1)), 0.75, 0.5));
+  made.c.end(true);
+  await D.settle();
+  assert.deepEqual(counted(before), [0, 1, 1, 0], "right half, pinned by the drop");
+
+  const full = mixedScene();
+  S().openSplitPane(full.w, { tabId: full.id.a, anchorTabId: full.id.s2, side: "right" });
+  useToasts.setState({ toasts: {} });
+  before = splitCounts();
+  const refused = await dragOver(full, entryKey("tab", full.id.c), at(frameOf(full, entryKey("split", full.SP)), 0.9, 0.5));
+  assert.equal(refused.drop.type, "split");
+  refused.c.end(true);
+  await D.settle();
+  assert.deepEqual(counted(before), [0, 0, 0, 0], "a full split counts nothing");
+  assert.equal(useToasts.getState().toasts[full.w]?.title, "Cannot Add New Pane", "and still says why");
+
+  const gone = mixedScene();
+  before = splitCounts();
+  const late = await dragOver(gone, entryKey("tab", gone.id.c), at(frameOf(gone, entryKey("tab", gone.id.b)), 0.25, 0.5));
+  assert.equal(late.drop.type, "split");
+  S().pinTabs([gone.id.c], true, false);
+  late.c.end(true);
+  await D.settle();
+  assert.deepEqual(counted(before), [0, 0, 0, 0], "a drop the split refuses at let-go counts nothing");
+  assert.deepEqual(panes(), [[gone.id.s1, gone.id.s2]]);
+});
+
+test("beside a row, short of the away zone, the pointer gets the line, not the row's half", async () => {
+  for (const dx of [-3, 8, 30]) {
+    const m = mixedScene();
+    const f = frameOf(m, entryKey("tab", m.id.b));
+    const x = dx < 0 ? f.x + dx : f.x + f.w + dx;
+    const r = await dragOver(m, entryKey("tab", m.id.c), { x, y: f.y + f.h / 2 });
+    assert.notEqual(r.drop.type, "split", `${dx}`);
+    assert.equal(r.marks.split, null);
+    assert.ok(r.marks.line, `${dx}`);
+    r.c.end(false);
+  }
+});
+
+test("an accepted drop whose slot is scrolled past the list's top keeps its line, held at the visible edge", async () => {
+  const m = mixedScene();
+  const a = frameOf(m, entryKey("tab", m.id.a));
+  const viewport = { x: 0, y: a.y + 2, w: 200, h: 500 };
+  const r = await dragOver(m, entryKey("tab", m.id.c), at(a, 0.5, 0.2), { viewport });
+  assert.equal(r.drop.type, "tabs");
+  assert.equal(r.drop.placement.beforeId, m.id.a, "the drop target is unchanged");
+  assert.deepEqual(r.marks.line, { x: a.x, y: viewport.y, w: a.w });
+  r.c.end(false);
+});
+
+test("a group's only tab let go inside its own group lands on its own row, not a group's height above it", async (t) => {
+  globalThis.__DEV__ = true;
+  t.after(() => void (globalThis.__DEV__ = false));
+  const W = world("a", "solo", "b");
+  const G = S().groupTabs([W.id.solo], { pinned: false, name: "G" });
+  const L = sceneLayout({ top: 150 });
+  L.row(W.id.a);
+  L.group(G, {}, (n) => L.row(W.id.solo, n));
+  L.row(W.id.b);
+  L.tail("list");
+  const m = { ...W, L, regions: regionsOf(L, { list: [150, L.y] }) };
+  const solo = frameOf(m, entryKey("tab", W.id.solo));
+  const r = await dragOver(m, entryKey("tab", W.id.solo), at(solo, 0.5, 0.85));
+  assert.equal(r.gapKey, tailKey({ group: G }));
+  r.c.end(true);
+  assert.equal(r.c.landed?.y, solo.y, JSON.stringify({ landed: r.c.landed, solo }));
+  await D.settle();
+  assert.deepEqual(S().groups[G].tabIds, [W.id.solo]);
 });
 
 test("without split view the middle of a row reorders, and nothing groups", async () => {
@@ -164,6 +269,16 @@ test("a row over the Top Apps takes the shape of the tile it would become, and i
   const tile = await dragOver(tilesScene(), entryKey("tab", S().windows[Object.keys(S().windows)[0]].tabIds.find((id) => S().tabs[id].pin)), { x: t2.x + 4, y: t2.y + TILE / 2 });
   assert.equal(tile.marks.tile, null, "a tile dragged along the grid is already a tile");
   tile.c.end(false);
+});
+
+test("a Top Apps tile over the middle of a list row gets the line, never a split", async () => {
+  const m = tilesScene();
+  const b = frameOf(m, entryKey("tab", m.id.b));
+  const r = await dragOver(m, entryKey("tab", m.id.t2), at(b, 0.75, 0.5));
+  assert.notEqual(r.drop.type, "split");
+  assert.equal(r.marks.split, null);
+  assert.ok(r.marks.line);
+  r.c.end(false);
 });
 
 test("a Top Apps tile over the list takes the shape of a list row, and its tile shape back over the grid", async () => {

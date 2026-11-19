@@ -122,7 +122,7 @@ export class DragGeometry {
     for (const i of live) {
       if ((i.kind !== "row" && i.kind !== "split") || i.section === "folder") continue;
       const f = this.shown(i);
-      if (y > f.y + f.h * 0.25 && y < f.y + f.h * 0.75) return { key: i.key, side: x < f.x + f.w / 2 ? "left" : "right" };
+      if (x >= f.x && x <= f.x + f.w && y > f.y + f.h * 0.25 && y < f.y + f.h * 0.75) return { key: i.key, side: x < f.x + f.w / 2 ? "left" : "right" };
     }
     return null;
   }
@@ -132,8 +132,8 @@ export class DragGeometry {
     const f = this.shown(target);
     const y = target.kind === "tail" ? f.y + layout.rowGap / 2 : f.y - layout.rowGap / 2;
     const viewport = this.drag.viewport;
-    if (!this.still(target) && viewport && (y < viewport.y || y > viewport.y + viewport.h)) return null;
-    return { x: f.x - this.rootFrame.x, y: y - this.rootFrame.y, w: f.w };
+    const shown = this.still(target) || !viewport ? y : Math.min(Math.max(y, viewport.y), viewport.y + viewport.h);
+    return { x: f.x - this.rootFrame.x, y: shown - this.rootFrame.y, w: f.w };
   }
 
   protected pointed(tiles: Frame, cells: Item[], count: number, home: number | null, x: number, y: number, folders: boolean): Pointed | null {

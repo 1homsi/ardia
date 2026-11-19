@@ -12,7 +12,7 @@ import { arrangeLive } from "../../state/sidebar/pinnedOrder";
 import { suppressHover } from "../../state/sidebar/hover";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
-import { boxed, type Drop, EDGE, type Item, measure, tabCell } from "./dragModel";
+import { boxed, type Drop, EDGE, type Item, measure, tabCell, tailKey } from "./dragModel";
 import { DragTargeting } from "./dragTargeting";
 import { type DragSession, newDragSession } from "./dragGeometry";
 import { captureEscape } from "../../state/drag/dragNative";
@@ -144,8 +144,10 @@ export class DragController extends DragTargeting {
     const dropped = commit && !splitDrop && measured && sources.length > 0;
     if (dropped && drop.type === "none") noteDragWithoutDrop();
     if (dropped && drop.type === "split") {
-      noteSidebarDrop(drop.side === "left" ? "split_left" : "split_right");
-      dropTabOnRow(dragged[0]!, drop.targetId, drop.side);
+      const made = dropTabOnRow(dragged[0]!, drop.targetId, drop.side);
+      if (made) noteSidebarDrop(drop.side === "left" ? "split_left" : "split_right");
+      if (made?.adopted === "row") noteSidebarDrop("split_pinned");
+      else if (made?.adopted === "list") noteSidebarDrop("split_unpinned");
     } else if (dropped) {
       const kind = marks.tile ? "tile" : marks.line ? "line" : null;
       if (kind && drop.type !== "none") noteSidebarDrop(kind);
@@ -204,7 +206,8 @@ export class DragController extends DragTargeting {
     const to = target && this.at(target.frame, this.still(target));
     if (!target?.frame || !to) return home && { x: home.x, y: home.y };
     const group = source.parentGroup ? this.items.get(entryKey("group", source.parentGroup)) : undefined;
-    const emptied = !!group?.frame && group !== target && group.tabIds.every((id) => source.tabIds.includes(id));
+    const insideGroup = !!source.parentGroup && (target.parentGroup === source.parentGroup || target.key === tailKey({ group: source.parentGroup }));
+    const emptied = !!group?.frame && group !== target && !insideGroup && group.tabIds.every((id) => source.tabIds.includes(id));
     const leaving = emptied ? group! : source;
     const above = !!leaving.frame && leaving.frame.y < target.frame.y;
     const container = target.kind === "tail" ? [...this.items.values()].find((i) => i !== source && i.kind !== "tail" && i.frame && i.section === target.section && i.parentGroup === target.parentGroup) : target;
