@@ -40,6 +40,12 @@ export const MAX_SPLIT_PANES = 3;
 
 export const splitViewAvailable = PLATFORM_FEATURES.splitView;
 
+export function splitsOnRow(s: Pick<BrowserState, "tabs">, tabId: string, rowTabId: string): boolean {
+  const tab = s.tabs[tabId];
+  const row = s.tabs[rowTabId];
+  return !!tab && !!row && tab.id !== row.id && tab.windowId === row.windowId && tab.profileId === row.profileId && (tab.pin?.as ?? null) === (row.pin?.as ?? null);
+}
+
 export const splitsWhereUnavailable = (s: Pick<BrowserState, "splits">, available = splitViewAvailable): Pick<BrowserState, "splits"> | null =>
   available || !Object.keys(s.splits).length ? null : { splits: {} };
 

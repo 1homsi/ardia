@@ -4,7 +4,7 @@ import { closeTab } from "../browser/actions";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { storeAction, useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
-import { isStacked, MAX_SPLIT_PANES, type OpenPaneOptions, splitOf, type SplitSide, splitTabIds, splitTabIdsOf } from "./splits";
+import { isStacked, MAX_SPLIT_PANES, type OpenPaneOptions, splitOf, type SplitSide, splitsOnRow, splitTabIds, splitTabIdsOf } from "./splits";
 import type { AdoptId } from "../browser/types";
 import { noteSplit } from "../telemetry/usage";
 import { returnFocusToPage } from "../sidebar/actions";
@@ -62,6 +62,16 @@ export function dropTabIntoSplit(tabId: string, targetTabId: string, side: Split
   const target = store().tabs[targetTabId];
   if (!target || tabId === targetTabId) return;
   openSplitPane(target.windowId, { tabId, anchorTabId: targetTabId, side });
+}
+
+export function dropTabOnRow(tabId: string, rowTabId: string, side: "left" | "right") {
+  if (!splitsOnRow(store(), tabId, rowTabId)) return;
+  const split = splitOf(store(), rowTabId);
+  const panes = splitTabIdsOf(split);
+  if (panes?.includes(tabId)) return;
+  const anchor = panes ? (side === "left" ? panes[0]! : panes.at(-1)!) : rowTabId;
+  const stacked = split?.orientation === "vertical";
+  dropTabIntoSplit(tabId, anchor, stacked ? (side === "left" ? "top" : "bottom") : side);
 }
 
 export function closePane(tabId: string) {
