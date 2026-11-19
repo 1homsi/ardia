@@ -1,5 +1,5 @@
 import { Children, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { copy } from "../../lib/platformCopy";
 import {
@@ -39,8 +39,6 @@ import { syncOffered } from "../../state/sync/offer";
 
 export const usePageMenuInk = () => pageMenuInk[useTheme().dark ? "dark" : "light"];
 
-const LIBRARY_ROWS = Platform.OS === "ios";
-
 function openFromMenu(section: LibrarySection) {
   closePageMenu();
   openLibrary(section);
@@ -68,13 +66,11 @@ export function PageMenuWords({ tabId, model, onTranslate }: { tabId: string; mo
           {model.isWebPage && devices.length ? <SendRow devices={devices} /> : null}
           {canPrintPages() ? <Row title="Print" enabled={model.print} onPress={printCurrentPage} /> : null}
         </Group>
-        {LIBRARY_ROWS ? (
-          <Group>
-            <Row title="History" enabled onPress={() => openFromMenu("history")} />
-            <Row title="Bookmarks" enabled onPress={() => openFromMenu("bookmarks")} />
-            <Row title="Downloads" enabled onPress={() => openFromMenu("downloads")} />
-          </Group>
-        ) : null}
+        <Group>
+          <Row title="History" enabled onPress={() => openFromMenu("history")} />
+          <Row title="Bookmarks" enabled onPress={() => openFromMenu("bookmarks")} />
+          <Row title="Downloads" enabled onPress={() => openFromMenu("downloads")} />
+        </Group>
         <Group>
           {model.pageRows ? <ToggleRow title="Night Shade" value={model.nightShadeOn} enabled={model.isWebPage} onChange={setNightShadeOn} /> : null}
           {model.pageRows ? <ZoomRow model={model} large={large} /> : null}

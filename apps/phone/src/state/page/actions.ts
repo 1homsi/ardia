@@ -29,6 +29,7 @@ import { copy } from "../../lib/platformCopy";
 import { launchValues } from "../../platform/launch";
 import { COPIED_LINK } from "../browse/tabMenus";
 import { syncData } from "../sync/store";
+import { libraryBack } from "../library/store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 import { syncOffered } from "../../platform/system";
 
@@ -448,6 +449,7 @@ export function handleSystemBack(): boolean {
     return true;
   }
   if (popSettings()) return true;
+  if (libraryBack()) return true;
   const { surface, sheet } = useBrowse.getState();
   const id = selectedId();
   const ui = pageUi();

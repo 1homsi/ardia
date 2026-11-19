@@ -90,35 +90,34 @@ export function SettingsRoot() {
           </Pressable>
         ) : null}
       </View>
-      {redesigned ? (
-        <Group>
+      <Group header="General">
+        {redesigned ? (
           <AppearanceRow />
-        </Group>
-      ) : (
-        <Group>
-          <ColorRow />
-          {syncEnabled ? <MatchMyMac /> : null}
-        </Group>
-      )}
-      <Group>
-        <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} divider={offersDefault} onPress={() => pushSettings({ page: "siteSettings" })} />
-        {offersDefault ? <NavRow title="Default Browser" icon="safariFill" tint={settingsTint.defaultBrowser} onPress={() => pushSettings({ page: "defaultBrowser" })} /> : null}
+        ) : (
+          <>
+            <ColorRow />
+            {syncEnabled ? <MatchMyMac /> : null}
+          </>
+        )}
+        <View style={[styles.divider, { backgroundColor: theme.separator }]} />
+        <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} divider onPress={() => pushSettings({ page: "siteSettings" })} />
+        {offersDefault ? <NavRow title="Default Browser" icon="safariFill" tint={settingsTint.defaultBrowser} divider onPress={() => pushSettings({ page: "defaultBrowser" })} /> : null}
+        <PickerRow title="Open App Links In" icon="arrowUpForwardAppFill" tint={settingsTint.appLinks} options={APP_LINKS} selected={appLinks} onSelect={setAppLinks} />
       </Group>
-      <Group>
+      <Group header="Search">
         <NavRow title="Search Engine" icon="magnifyingglass" tint={settingsTint.search} value={engineName} divider onPress={() => pushSettings({ page: "searchEngine" })} />
         <ToggleRow title="Search Suggestions" icon="textMagnifyingglass" tint={settingsTint.blue} value={suggestions} divider onChange={setSearchSuggestions} />
         <ToggleRow title="Auto-Open Keyboard" icon="keyboardFill" tint={settingsTint.keyboard} value={keyboard} onChange={setAutoOpenKeyboard} />
       </Group>
-      <Group>
+      <Group header="Tabs">
         <PickerRow title="Archive Inactive Tabs" icon="archivebox" tint={settingsTint.archive} options={INTERVALS} selected={interval} divider onSelect={setArchiveInterval} />
-        <PickerRow title="Open App Links In" icon="arrowUpForwardAppFill" tint={settingsTint.appLinks} options={APP_LINKS} selected={appLinks} divider onSelect={setAppLinks} />
-        <NavRow title="Clear Browsing Data" icon="eraserFill" tint={settingsTint.clearData} divider onPress={() => pushSettings({ page: "clearData" })} />
         <Pressable accessibilityRole="button" onPress={exportOpenTabs} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
           <IconTile icon="squareAndArrowUp" tint={settingsTint.export} />
           <Text style={[font.body, { color: theme.label }]}>Export Open Tabs</Text>
         </Pressable>
       </Group>
-      <Group footer={PHONE_SHARING_COPY.summary}>
+      <Group header="Privacy">
+        <NavRow title="Clear Browsing Data" icon="eraserFill" tint={settingsTint.clearData} divider onPress={() => pushSettings({ page: "clearData" })} />
         <ToggleRow
           title={PHONE_SHARING_COPY.toggle}
           icon="checkmarkShield"
@@ -139,7 +138,7 @@ export function SettingsRoot() {
           ) : null}
         </Group>
       ) : null}
-      <Group>
+      <Group header="About">
         <Pressable accessibilityRole="button" onPress={showOnboardingFromSettings} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
           <IconTile icon="handWave" tint={settingsTint.onboarding} />
           <Text style={[font.body, { color: theme.label }]}>Show Onboarding</Text>
