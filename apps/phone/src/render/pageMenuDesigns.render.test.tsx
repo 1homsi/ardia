@@ -8,6 +8,7 @@ import { DesignProvider } from "../components/ui";
 import type { Design } from "../lib/design";
 import { openPageMenu } from "../state/page/actions";
 import { usePageUi } from "../state/page/store";
+import { setPageSummariesEnabled, usePageSummariesSwitch } from "../state/pageSummary/enabled";
 import { registerPageHandle, usePages } from "../state/pages/store";
 import { useSettingsNav } from "../state/settings/nav";
 import { useBrowse } from "../state/browse/store";
@@ -36,6 +37,7 @@ beforeEach(() => {
   jest.spyOn(pages, "canPrint").mockReturnValue(true);
   printed = jest.spyOn(pages, "print").mockResolvedValue(true);
   counted = jest.spyOn(telemetry, "countUsage").mockImplementation(() => undefined);
+  usePageSummariesSwitch.setState({ enabled: true });
 });
 
 afterEach(() => {
@@ -211,6 +213,49 @@ test("Summarize Page shows only where the phone summarizes, under Find on Page",
   const rows = wordRows(root);
   expect(rows[rows.indexOf("Find on Page") + 1]).toBe("Summarize Page");
   expect(host(root, "pageMenuRow:Summarize Page")!.props.accessibilityState).toMatchObject({ disabled: false });
+  unmount(root);
+});
+
+test("Summarize Page stays out of the menu until Pinch to Summarize is turned on in Settings", async () => {
+  jest.spyOn(pages, "canSummarize").mockReturnValue(true);
+  usePageSummariesSwitch.setState({ enabled: false });
+  const root = await openMenu("redesigned");
+  expect(wordRows(root)).not.toContain("Summarize Page");
+  act(() => usePageSummariesSwitch.setState({ enabled: true }));
+  expect(wordRows(root)).toContain("Summarize Page");
+  unmount(root);
+  usePageSummariesSwitch.setState({ enabled: false });
+  const original = await openMenu("original");
+  expect(textOf(original)).not.toContain("Summarize Page");
+  unmount(original);
+});
+
+test("turning Pinch to Summarize off while the menu closes cancels the summary request", async () => {
+  jest.spyOn(pages, "canSummarize").mockReturnValue(true);
+  const summarized = jest.spyOn(pages, "summarize").mockResolvedValue(true);
+  const root = await openMenu("redesigned");
+  await pressButton(root, "Summarize Page");
+  await act(async () => {
+    usePageSummariesSwitch.setState({ enabled: false });
+    jest.advanceTimersByTime(1000);
+  });
+  expect(summarized).not.toHaveBeenCalled();
+  unmount(root);
+});
+
+test("turning Pinch to Summarize back on does not revive a request queued before it was turned off", async () => {
+  jest.spyOn(pages, "canSummarize").mockReturnValue(true);
+  jest.spyOn(pages, "switchesSummaries").mockReturnValue(true);
+  jest.spyOn(pages, "setSummariesEnabled").mockImplementation(async (enabled) => enabled);
+  const summarized = jest.spyOn(pages, "summarize").mockResolvedValue(true);
+  const root = await openMenu("redesigned");
+  await pressButton(root, "Summarize Page");
+  await act(async () => {
+    await setPageSummariesEnabled(false);
+    await setPageSummariesEnabled(true);
+    jest.advanceTimersByTime(1000);
+  });
+  expect(summarized).not.toHaveBeenCalled();
   unmount(root);
 });
 

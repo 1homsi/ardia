@@ -77,10 +77,6 @@ export const materialEnter = WorkletEasing.bezier(0.05, 0.7, 0.1, 1);
 
 export const materialExit = WorkletEasing.bezier(0.3, 0, 0.8, 0.15);
 
-export const materialStandard = WorkletEasing.bezier(0.2, 0, 0, 1);
-
-export const sharedAxisMotion = { ms: 300, slide: 30, handoff: 0.35, settleCapMs: 600 } as const;
-
 export const trayMotion = {
   settle: iPhoneOr(spring(0.26, 1), spring(0.34, 0.86)),
   dismiss: iPhoneOr(spring(0.14, 1), spring(0.32, 1)),

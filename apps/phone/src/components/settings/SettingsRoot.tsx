@@ -21,6 +21,7 @@ import { browseForMeOffered, refreshChatGPTConnected, useChatGPTConnected } from
 import { browseForMeRowValue } from "../../state/browseForMe/copy";
 import { pageSummaryChoiceOffered, refreshPageSummaryProvider, usePageSummaryProvider } from "../../state/pageSummary/store";
 import { pageSummaryRowValue } from "../../state/pageSummary/copy";
+import { refreshPageSummariesEnabled, usePageSummariesEnabled } from "../../state/pageSummary/enabled";
 
 const APP_LINKS = [
   { id: "ardia" as const, title: "Ardia" },
@@ -49,11 +50,13 @@ export function SettingsRoot() {
   const redesigned = useDesign() === "redesigned";
   const chatGPT = useChatGPTConnected();
   const summaryProvider = usePageSummaryProvider();
+  const summaries = usePageSummariesEnabled();
   const offersBrowseForMe = browseForMeOffered();
   const offersSummaryChoice = pageSummaryChoiceOffered();
   useEffect(() => {
     void refreshChatGPTConnected();
     void refreshPageSummaryProvider();
+    void refreshPageSummariesEnabled();
   }, []);
   return (
     <SettingsPage title="Settings" trailing={<BarButton title="Done" emphasized onPress={closeSettings} />}>
@@ -134,7 +137,7 @@ export function SettingsRoot() {
             <NavRow title="Browse for Me" icon="sparkleMagnifyingglass" tint={settingsTint.nightShade} value={browseForMeRowValue(chatGPT)} divider={offersSummaryChoice} onPress={() => pushSettings({ page: "browseForMe" })} />
           ) : null}
           {offersSummaryChoice ? (
-            <NavRow title="Pinch to Summarize" icon="sparkles" tint={settingsTint.nightShade} value={pageSummaryRowValue(summaryProvider, chatGPT)} onPress={() => pushSettings({ page: "pageSummary" })} />
+            <NavRow title="Pinch to Summarize" icon="sparkles" tint={settingsTint.nightShade} value={pageSummaryRowValue(summaries, summaryProvider, chatGPT)} onPress={() => pushSettings({ page: "pageSummary" })} />
           ) : null}
         </Group>
       ) : null}

@@ -36,6 +36,7 @@ import { useTab } from "../../state/tabs/hooks";
 import { capsule, ChromeSurface, font, menuLayout, pageMenuInk, pageMenuLayout, pageMenuMotion, PressScale, SheetScrollView, space, Symbol, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 import { MenuTrigger } from "../ui/MenuTrigger";
 import { syncOffered } from "../../state/sync/offer";
+import { usePageSummariesEnabled } from "../../state/pageSummary/enabled";
 
 export const usePageMenuInk = () => pageMenuInk[useTheme().dark ? "dark" : "light"];
 
@@ -49,6 +50,7 @@ const useAccessibilityText = () => useWindowDimensions().fontScale >= copy().men
 export function PageMenuWords({ tabId, model, onTranslate }: { tabId: string; model: MenuModel; onTranslate: () => void }) {
   const large = useAccessibilityText();
   const devices = useSendTargets(tabId);
+  const offersSummary = usePageSummariesEnabled() && canSummarizePages();
   return (
     <SheetScrollView testID="pageMenuWords" contentContainerStyle={[styles.column, large ? styles.largeBottom : null]} bounces={false}>
       <View style={styles.bar}>
@@ -62,7 +64,7 @@ export function PageMenuWords({ tabId, model, onTranslate }: { tabId: string; mo
       <View style={styles.groups}>
         <Group>
           <Row title="Find on Page" enabled={model.find} onPress={showFind} />
-          {canSummarizePages() ? <Row title="Summarize Page" enabled={model.summarize} onPress={summarizeCurrentPage} /> : null}
+          {offersSummary ? <Row title="Summarize Page" enabled={model.summarize} onPress={summarizeCurrentPage} /> : null}
           {model.isWebPage && devices.length ? <SendRow devices={devices} /> : null}
           {canPrintPages() ? <Row title="Print" enabled={model.print} onPress={printCurrentPage} /> : null}
         </Group>

@@ -24,6 +24,7 @@ import { closeVoiceSearch, useVoice } from "../voice/store";
 import { addOnlineAgainListener } from "../../platform/network";
 import { countUsage } from "../telemetry/telemetry";
 import { pageSummaryOpenedCount, pageSummarySettledCounts } from "../../lib/telemetrySchema";
+import { pageSummariesEnabled, pageSummariesRevision, refreshPageSummariesEnabled } from "../pageSummary/enabled";
 import { dismissArchiveCard } from "../browse/archiveCard";
 import { copy } from "../../lib/platformCopy";
 import { launchValues } from "../../platform/launch";
@@ -106,12 +107,14 @@ export function canSummarizePages(): boolean {
 
 export function summarizeCurrentPage() {
   const tab = selectedTab();
-  if (!tab) return;
+  if (!tab || !pageSummariesEnabled()) return;
   const navigation = usePages.getState().navigation[tab.id];
   const url = navigation?.url ?? tab.url;
   if (!isSyncableUrl(url) || navigation?.isLoading) return;
+  const revision = pageSummariesRevision();
 
   afterMenuHidden = () => {
+    if (!pageSummariesEnabled() || pageSummariesRevision() !== revision) return;
     const current = selectedTab();
     const latest = usePages.getState().navigation[tab.id];
     if (current?.id !== tab.id || useBrowse.getState().surface !== "browsing" || latest?.isLoading || (latest?.url ?? current.url) !== url) return;
@@ -433,6 +436,7 @@ export function startPageUi() {
   if (started) return;
   started = true;
   listenToPages(pageEvent);
+  void refreshPageSummariesEnabled();
   try {
     downloads.addListener(downloadEvent);
   } catch {
