@@ -15,7 +15,7 @@ import { spring } from "../ui/motion";
 import { useDropRow, useDropTile } from "./DragProvider";
 import type { GhostShapeMark } from "../../state/sidebar/dragMarks";
 import { folderOf } from "./dragModel";
-import { ghostIcon } from "../../state/pins/rowIcons";
+import { ghostIcon, ghostTileIcon } from "../../state/pins/rowIcons";
 
 export function DragGhost({ ghost }: { ghost: Ghost }) {
   const theme = useTheme();
@@ -31,6 +31,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
   const tile = item.kind === "tile";
   const folderTile = !!folderOf(item);
   const drawn = folderTile || groupId ? null : ghostIcon(tab, item.kind === "row");
+  const tileDrawn = folderTile || groupId ? null : ghostTileIcon(tab);
   const textOnly = item.kind === "row" && !drawn;
   const onPage = useTabDrag((d) => d.phase === "tab" && d.onPage);
   const tileTarget = useDropTile();
@@ -45,6 +46,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
   const rowShown = tile ? (shape ? morph : 0) : away;
   const tileNow = tile ? !target : !!target;
   const icon = drawn ? <TabIcon url={tab?.url ?? ""} favicon={tab?.favicon} icon={drawn.icon} profileId={tab?.profileId} /> : null;
+  const tileIcon = tileDrawn ? <TabIcon url={tab?.url ?? ""} favicon={tab?.favicon} icon={tileDrawn.icon} profileId={tab?.profileId} /> : null;
   return (
     <Animated.View
       pointerEvents="none"
@@ -82,7 +84,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
             <FadeLabel text={label} fontSize={SIDEBAR_TYPE.title} weight={item.kind === "group" || item.kind === "live" ? "medium" : "regular"} color={theme.textPrimary} style={{ flex: 1, height: TAB_ROW.titleHeight, marginLeft: textOnly ? TAB_ROW.titleGap : space.m }} />
           </Animated.View>
         ) : null}
-        {icon && (tile || shape) ? <Animated.View style={[TILE_ICON, { opacity: tileShown }]}>{icon}</Animated.View> : null}
+        {tileIcon && (tile || shape) ? <Animated.View style={[TILE_ICON, { opacity: tileShown }]}>{tileIcon}</Animated.View> : null}
       </Panel>
       {count > 1 && !folderTile ? (
         <Badge text={count} tone="accent" size="m" style={COUNT_BADGE} />
