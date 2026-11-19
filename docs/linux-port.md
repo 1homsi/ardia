@@ -897,6 +897,9 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   `…` beside them. The profile name beside it follows the Mac's rule
   (`ProfileIndicator.tsx`): only in an Incognito window or with two or more profiles, cut when at least 52 px of it
   fit, a person icon below that, and nothing when not even the icon fits (a 190 px sidebar with the Downloads button).
+  With the address bar in the sidebar the header holds no profile name, as on the Mac: the toggle at the left, back,
+  forward and reload at the right edge, and in full screen the menu button in reload's slot with the three one pitch
+  left of it.
 - **Materials.** `VisualEffect`, `GlassEffect`, popover bubbles and the window's vibrancy take light or dark from the
   theme scope they render in (`useSurfaceDark`), not the app appearance, so an Incognito window is dark in a light
   app and a toast is light there.
