@@ -96,8 +96,8 @@ phones a build that isn't a release says Dev.
   `iphone=true` opts in to the same TestFlight version. The dry run signs the iPhone archive and the real run uploads
   to Internal after the desktop release publishes. The Public Testers submission is a separate `public-link` run.
   If the iPhone job fails after the desktop release publishes, rerun the failed job or dispatch iOS Release on the
-  same commit. For a USB install on the owner's phone, use a local Xcode development build or the `device` IPA.
-  See [iPhone release and USB installs](phone.md#testflight-the-workflow-its-certificate-and-its-testers).
+  same commit. For a direct install on the owner's iPhone, use a local Xcode development build or the `device` IPA
+  over USB or Xcode's paired wireless connection. See [iPhone release and direct installs](phone.md#testflight-the-workflow-its-certificate-and-its-testers).
 - **Android.** The Expo app's release version is its versionName, and its versionCode is major × 100,000,000 + minor ×
   1,000,000 + patch × 1,000 plus the nightly number, or 999 for a stable (0.2.47-nightly.2 is 2047002, 0.2.47 is
   2047999; `apps/phone/scripts/android-version.ts`). A build without one is Dev. It ships as an APK on GitHub Releases
