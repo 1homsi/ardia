@@ -132,7 +132,7 @@ export const springs = {
   release: spring(springSpec.release),
 } as const;
 
-export const liftSpring = () => (pressMotionNow() === "bounce" ? springs.bouncy : springs.snappy);
+export const liftSpring = () => (pressMotionNow() === "bounce" && reduceMotion() === false ? springs.bouncy : springs.snappy);
 
 export function usePressScaleMotion(enabled = true, pressedScale: number = buttonMotion.iconPressScale) {
   const scale = useRef<Animated.Value | null>(null);

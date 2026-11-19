@@ -4,6 +4,9 @@ import { test } from "node:test";
 const { buttonMotion, springSpec, hoverFade, springs, liftSpring, bounceDip, bouncePressMotion, pressReleaseDelay } = await import("./motion.ts");
 const { pressMotionNow, setPressMotion } = await import("../../lib/pressMotion.ts");
 const { SETTING_SPECS } = await import("../../state/settings/settings.ts");
+const { reduceMotionKnown } = await import("./reduceMotion.ts");
+
+await reduceMotionKnown;
 
 function overshoot({ damping }) {
   return damping >= 1 ? 0 : Math.exp((-Math.PI * damping) / Math.sqrt(1 - damping * damping));
@@ -92,3 +95,9 @@ test("pressMotion bounce restores nightly.6's dips, springs and shortest visible
   assert.match(squish, /usePressMotion\(\) === "bounce" && !!kind/, "rows and tiles squish only in bounce mode");
   assert.match(squish, /return style \? <Animated\.View style=\{style\}>\{children\}<\/Animated\.View> : children;/, "still mode adds no view around a row");
 });
+
+test("a row being renamed doesn't squish, so a pressMotion change can't remount its rename field", () => {
+  assert.match(source("../sidebar/TabRow.tsx"), /<TabPressArea windowId=\{windowId\} tab=\{tab\} squish=\{renaming \? undefined : "row"\}/);
+  assert.match(source("../sidebar/GroupBlock.tsx"), /useSquish\(renaming \? null : "row"\)/);
+});
+
