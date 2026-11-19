@@ -157,11 +157,11 @@ you type. It has no Settings row: plugins (github.com/mantrakp04/ardia-plugins) 
 
 ### Press motion and folder style
 
-`settings.pressMotion` and `settings.folderStyle` bring back how 0.2.47-nightly.6 felt and looked. They have no
+`settings.pressMotion`, `settings.folderStyle` and `settings.liveFolderIcon` bring back how 0.2.47-nightly.6 felt and looked. They have no
 Settings row: plugins (github.com/ardia-browser/plugins, `nightly6-feel`) and people write them here.
 
 ```json
-"pressMotion": "bounce", "folderStyle": "neutral"
+"pressMotion": "bounce", "folderStyle": "neutral", "liveFolderIcon": "service"
 ```
 
 - `pressMotion`: `"still"` (the default) or `"bounce"`. Bounce squishes what you press and springs it back about 13 %
@@ -170,13 +170,15 @@ Settings row: plugins (github.com/ardia-browser/plugins, `nightly6-feel`) and pe
   whole plate to 0.9 and other pressable controls to 0.97, holding the dip at least 90 ms. A New Tab card's lift and
   a finished live item's check mark settle on `springs.bouncy`. macOS Reduce Motion still turns it off.
 - `folderStyle`: `"accent"` (the default, #443AFF) or `"neutral"`. Neutral draws a folder with no colour of its own
-  white in dark mode and #6E6E73 in light mode, and a live folder shows its service's icon instead of the folder, as
-  in 0.2.47-nightly.6 (#2250). A coloured group keeps its colour either way.
-- Neither is synced: they belong to this Mac. A change applies at once.
+  white in dark mode and #6E6E73 in light mode, as in 0.2.47-nightly.6 (#2250). A coloured group keeps its colour
+  either way.
+- `liveFolderIcon`: `"folder"` (the default) or `"service"`. Service shows a live folder's service icon (GitHub,
+  Notion, …) instead of the folder, as in 0.2.47-nightly.6 (#2250). An icon you picked for the folder wins either way.
+- None of them is synced: they belong to this Mac. A change applies at once.
 - Code: `lib/pressMotion.ts` (the value `components/ui` reads), `useSquish` and `Squish` (`components/ui/Squish.tsx`),
   `usePressScaleMotion` and `liftSpring` (`components/ui/motion.ts`), `folderPalette` (`components/sidebar/tokens.ts`)
-  and `LiveFolderIcon`. Telemetry: `settings_snapshot` carries `setting_pressMotion` and `setting_folderStyle` with
-  their defaults; watch how many installs pick `bounce` and `neutral`.
+  and `LiveFolderIcon`. Telemetry: `settings_snapshot` carries `setting_pressMotion`, `setting_folderStyle` and
+  `setting_liveFolderIcon` with their defaults; watch how many installs pick `bounce`, `neutral` and `service`.
 
 ### The file wins
 

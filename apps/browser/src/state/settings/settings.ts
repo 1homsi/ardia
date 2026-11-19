@@ -164,6 +164,7 @@ export const SETTING_SPECS = {
   commandBarStart: shaped<CommandBarStart>({}, isCommandBarStart, COMMAND_BAR_START_SCHEMA),
   pressMotion: oneOf(PRESS_MOTIONS, "still"),
   folderStyle: oneOf(["accent", "neutral"], "accent"),
+  liveFolderIcon: oneOf(["folder", "service"], "folder"),
   spacesFollowAppearance: flag(true),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   showProfileDots: flag(true, SYNCED),

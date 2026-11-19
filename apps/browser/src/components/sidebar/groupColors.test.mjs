@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { TAB_GROUP_COLORS } from "@ardia/core";
 import { folderPalette, groupBoxAtRest, groupSurface, groupTint } from "./tokens.ts";
 import { GROUP_COLORS } from "../../state/groups/tokens.ts";
+import { SETTING_SPECS } from "../../state/settings/settings.ts";
 
 const TOKENS = { groupFill: "rgba(255,255,255,0.1)", groupStroke: "rgba(255,255,255,0.1)" };
 
@@ -46,3 +47,8 @@ test("folderStyle neutral draws a no-colour folder white in dark mode and grey i
   for (const color of TAB_GROUP_COLORS) assert.deepEqual(folderPalette(color, true, "#0A84FF", "neutral"), folderPalette(color, true, "#0A84FF"), color);
 });
 
+test("a live folder's service icon is its own opt-in, apart from the folder colour, and off by default", () => {
+  assert.deepEqual([SETTING_SPECS.liveFolderIcon.default, SETTING_SPECS.liveFolderIcon.values], ["folder", ["folder", "service"]]);
+  assert.deepEqual([SETTING_SPECS.folderStyle.default, SETTING_SPECS.folderStyle.values], ["accent", ["accent", "neutral"]]);
+  for (const key of ["pressMotion", "folderStyle", "liveFolderIcon"]) assert.equal(SETTING_SPECS[key].synced, false, key);
+});
