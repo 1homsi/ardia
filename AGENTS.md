@@ -203,6 +203,10 @@ rules are for the owner's Mac.
 
   The owner has authorized releases to go all the way through. After an update, the app opens the
   release notes on ardia.dev.
+- **iPhone builds.** Upload to TestFlight only when the owner asks, at the version pinned in iOS Release. Let App Store
+  Connect pick the build number. "Get a build on my phone" means iOS Release's `device` mode, a
+  development-signed build installed over USB on the owner's iPhone, never a TestFlight upload. The steps are in
+  `docs/phone.md` › TestFlight: the workflow, its certificate and its testers.
 - **No tweet drafts.** Don't write announcement drafts or make tweet images for a release.
 - **Other public actions** (a site deploy outside a release, posting anywhere) need the owner's OK first.
 
