@@ -154,7 +154,10 @@ test("the sidebar's header tools hold no profile name: back, forward and reload 
   const fullScreen = split(277, 0, true);
   assert.deepEqual(fullScreen, { tools: true, navigation: 242, menuLeft: 236 }, "in full screen the menu sits where reload would, one pitch right of it");
   assert.equal(fullScreen.navigation - slot.edge - slot.button / 2 + slot.pitch, fullScreen.menuLeft + 16);
-  assert.deepEqual(split(60, 0, true), { tools: true, navigation: 45, menuLeft: 45 }, "a sidebar too narrow for the buttons keeps the menu clear of the toggle");
+  const narrowest = split(160, 0, true);
+  assert.deepEqual(narrowest, { tools: true, navigation: 125, menuLeft: 119 }, "at the 160 px minimum the menu still sits at the edge");
+  assert.ok(narrowest.navigation - slot.edge - slot.button / 2 + 16 <= narrowest.menuLeft, "and clears the last navigation button's plate");
+  assert.deepEqual(split(60, 0, true),{ tools: true, navigation: 45, menuLeft: 45 }, "a sidebar too narrow for the buttons keeps the menu clear of the toggle");
 });
 
 function clusterHarness() {
