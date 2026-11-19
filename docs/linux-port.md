@@ -159,7 +159,8 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
     behind a panel is blurred by the panel's own CSS backdrop filter. Native extension popups sit above everything
     and are never blurred.
   - **When it's off.** Glass needs `kNativeViewHostManagesLayers` and GPU compositing, as content's own compositing
-    state says (`--disable-gpu-compositing`, a runtime fallback to software, or a software compositor all count).
+    state says (`--disable-gpu-compositing` and a runtime fallback to software both count; Chromium 158 dropped
+    the per-compositor software switch).
     Software compositing, SwiftShader and llvmpipe advertise `glassPanels: false`, and a runtime fallback turns glass
     off at once.
   - **Video.** Glass over playing video, in a page, a side panel or the in-window player, stays live. Viz never
