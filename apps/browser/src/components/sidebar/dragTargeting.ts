@@ -136,7 +136,7 @@ export class DragTargeting extends DragGeometry {
     const into = dropped ? (aim.into ?? null) : null;
     const split = drop.type === "split" ? (aim.split ?? null) : null;
     const folderTarget = aim.folderTarget ?? null;
-    const line = dropped && !into && drop.type !== "split" && drop.type !== "folder" && gapKey ? this.lineAt(this.items.get(gapKey)) : null;
+    const line = dropped && !into && drop.type !== "split" && (drop.type !== "folder" || inPanel) && gapKey ? this.lineAt(this.items.get(gapKey)) : null;
 
     const listRow = live.find((i) => i.kind === "row" && i.section === "list" && !i.parentGroup)?.frame ?? list;
     const row = source.kind === "tile" && !folderOf(source) && !overTiles && dropped && listRow ? { w: listRow.w, h: layout.rowHeight } : null;

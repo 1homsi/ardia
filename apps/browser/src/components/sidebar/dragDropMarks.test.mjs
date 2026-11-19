@@ -8,6 +8,7 @@ const { useToasts } = await import("../../state/app/toasts.ts");
 const { pinGrid } = await import("./pinZone.ts");
 const { useBrowser } = await import("../../state/browser/store.ts");
 const { addToTileFolder, tileFolderOf } = await import("../../state/pins/tileFolders.ts");
+const { useFolderPanel } = await import("../../state/sidebar/tileFolderUi.ts");
 const { S, entryKey, tailKey, mount, sceneLayout, readDrag, GAP, ROW, TILE } = D;
 
 const frameOf = (m, key) => m.L.entries.find((e) => e.key === key).frame;
@@ -223,4 +224,65 @@ test("a tile held over its own place never becomes a folder target, past the hol
   assert.notEqual(now.marks.folderTarget, entryKey("tab", m.id.t1));
   assert.notEqual(now.hold?.key, entryKey("tab", m.id.t1));
   r.c.end(false);
+});
+
+function panelScene() {
+  const W = world("a", "b", "t1", "t2", "t3", "t4");
+  const { id } = W;
+  S().pinTabs([id.t1, id.t2, id.t3, id.t4], true);
+  S().updateSettings({ topAppFolders: true });
+  const members = [id.t1, id.t2, id.t3];
+  useBrowser.setState(addToTileFolder(S(), members.slice(1), members[0]), true);
+  const folderId = tileFolderOf(S().tabs[id.t1]).id;
+  const L = sceneLayout({ top: 60 });
+  const grid = L.tiles([{ folderId, members }, id.t4]).frame;
+  L.skip(20);
+  const listTop = L.y;
+  L.row(id.a).row(id.b).tail("list");
+  const regions = { tiles: grid, ...regionsOf(L, { list: [listTop, L.y] }) };
+  useFolderPanel.setState({ open: { windowId: W.w, folderId, anchor: { x: 6, y: 60, width: 87, height: TILE } } });
+  const P = sceneLayout({ top: 120, x: 26, width: 150 });
+  P.folderMembers(members);
+  L.entries.push(...P.entries);
+  regions.folder = { x: 20, y: 110, w: 162, h: P.y - 110 + 10 };
+  return { ...W, L, folderId, members, regions };
+}
+
+test("inside an open folder panel a member dragged up or down gets the line at its slot, between members and below the last", async () => {
+  const m = panelScene();
+  const [t1, t2, t3] = m.members;
+  const second = frameOf(m, `fm:${t2}`);
+  const r = await dragOver(m, `fm:${t3}`, { x: second.x + 40, y: second.y + ROW * 0.15 });
+  try {
+    assert.deepEqual(r.drop, { type: "folder", ontoId: t1, beforeId: t2 });
+    assert.deepEqual(r.marks.line, { x: second.x, y: second.y - GAP / 2, w: second.w });
+    assert.equal(r.marks.folderTarget, null, "a reorder inside the panel lights no tile");
+    const tail = frameOf(m, tailKey("folder"));
+    r.c.move(second.x + 40, tail.y + 6);
+    const end = readDrag(r.c);
+    assert.equal(end.drop.type, "folder");
+    assert.equal(end.drop.beforeId, null);
+    assert.deepEqual(end.marks.line, { x: tail.x, y: tail.y + GAP / 2, w: tail.w });
+  } finally {
+    r.c.end(false);
+    useFolderPanel.setState({ open: null });
+  }
+});
+
+test("a row held over a tile until it would make a folder shows the ring and no line", async () => {
+  const m = tilesScene();
+  const grid = m.regions.tiles;
+  const reflowed = pinGrid(3, grid.w);
+  const centre = { x: grid.x + reflowed.width / 2, y: grid.y + TILE / 2 };
+  const r = await dragOver(m, entryKey("tab", m.id.a), [{ x: centre.x + 2, y: centre.y }, centre]);
+  try {
+    await new Promise((done) => setTimeout(done, 450));
+    r.c.move(centre.x + 1, centre.y);
+    const held = readDrag(r.c);
+    assert.equal(held.drop.type, "folder");
+    assert.equal(held.marks.folderTarget, entryKey("tab", m.id.t1));
+    assert.equal(held.marks.line, null);
+  } finally {
+    r.c.end(false);
+  }
 });
