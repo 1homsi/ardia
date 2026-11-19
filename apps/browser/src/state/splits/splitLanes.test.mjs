@@ -51,6 +51,18 @@ test("a list tab dropped on a pinned row's right half becomes a pinned row in th
   assert.equal(activeTabId(S(), w), id.c);
 });
 
+test("a split that mixes a pinned row and a new unpinned pane gives the dropped tab the row's section on either half", () => {
+  for (const side of ["left", "right"]) {
+    const { id } = pinnedRows();
+    const fresh = S().openSplitPane(S().tabs[id.a].windowId, { anchorTabId: id.a, side: "right" });
+    assert.equal(fresh.ok, true);
+    assert.equal(lane(fresh.tabId), "list", "a tab opened for the split stays unpinned");
+    assert.deepEqual(dropTabOnRow(id.c, id.a, side), { adopted: "row" }, side);
+    assert.equal(lane(id.c), "row", side);
+    assert.ok(splitTabIdsOf(splitOfTab(id.c)).includes(id.a), side);
+  }
+});
+
 test("on the left half the dropped tab takes the left pane and still sits right below the row", () => {
   const { w, id } = pinnedRows();
   assert.deepEqual(dropTabOnRow(id.d, id.b, "left"), { adopted: "row" });

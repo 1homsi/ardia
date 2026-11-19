@@ -68,12 +68,15 @@ export function dropTabIntoSplit(tabId: string, targetTabId: string, side: Split
 export type RowSplitDrop = { adopted: SplitLane | null };
 
 export function dropTabOnRow(tabId: string, rowTabId: string, side: "left" | "right"): RowSplitDrop | null {
-  const tab = store().tabs[tabId];
-  if (!tab || !splitsOnRow(store(), tabId, rowTabId)) return null;
-  const split = splitOf(store(), rowTabId);
+  const s = store();
+  const tab = s.tabs[tabId];
+  const row = s.tabs[rowTabId];
+  if (!tab || !row || !splitsOnRow(s, tabId, rowTabId)) return null;
+  const split = splitOf(s, rowTabId);
   const panes = splitTabIdsOf(split);
   if (panes?.includes(tabId)) return null;
-  const anchor = panes ? (side === "left" ? panes[0]! : panes.at(-1)!) : rowTabId;
+  const rowPanes = panes?.filter((id) => s.tabs[id] && splitLane(s.tabs[id]!) === splitLane(row));
+  const anchor = rowPanes?.length ? (side === "left" ? rowPanes[0]! : rowPanes.at(-1)!) : rowTabId;
   const stacked = split?.orientation === "vertical";
   if (!dropTabIntoSplit(tabId, anchor, stacked ? (side === "left" ? "top" : "bottom") : side)) return null;
   const now = store().tabs[tabId];
