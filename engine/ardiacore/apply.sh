@@ -300,24 +300,24 @@ reps = [
 crash_keys = "  crash_reporter::InitializeCrashKeys();\n"
 crash_keys_gated = "  if (!g_ardia_embedder) {\n    crash_reporter::InitializeCrashKeys();\n  }\n"
 start1 = "#if BUILDFLAG(IS_POSIX)\n  ChromeCrashReporterClient::Create();\n"
-end1 = "#endif  // !defined(BUILDING_CHROME_RENDERER)\n"
+end1 = "  InitMacCrashReporter(command_line, process_type);\n  SetUpInstallerPreferences(command_line);\n#endif\n"
 start2 = "#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_MAC)\n  // Zygote needs to call InitCrashReporter() in RunZygote().\n"
 end2 = "  crash_keys::SetCrashKeysFromCommandLine(command_line);\n"
 def edit(s):
     assert s.count(decl_at) == 1 and s.count(crash_keys) == 1 and s.count(start1) == 1
-    assert s.count(start2) == 1 and s.count(end2) == 1
+    assert s.count(start2) == 1 and s.count(end2) == 1 and s.count(end1) == 1
     s = s.replace(decl_at, decl + decl_at).replace(crash_keys, crash_keys_gated)
     for old, new in reps:
         assert s.count(old) == 1, old
         s = s.replace(old, new)
-    s = gate(s, start1, end1, "has no crash reporter, and sets up its data dir itself.")
+    s = gate(s, start1, end1, "has no crash reporter (nor the Mac's Crashpad), and sets up its data dir itself.")
     return gate(s, start2, end2, "has no crash reporter.")
 hook(["bool g_ardia_embedder = false;\n",
       "    crash_reporter::InitializeCrashKeys();\n",
       "      g_ardia_resource_bundle_delegate,  // Ardia: ArdiaCore\n",
       "            locale, g_ardia_resource_bundle_delegate,  // Ardia: ArdiaCore\n",
       "  bool record = !g_ardia_embedder;\n",
-      "  // Ardia: ArdiaCore has no crash reporter, and sets up its data dir itself.\n",
+      "  // Ardia: ArdiaCore has no crash reporter (nor the Mac's Crashpad), and sets up its data dir itself.\n",
       "  // Ardia: ArdiaCore has no crash reporter.\n"], edit, HOOKS)
 PY
 
