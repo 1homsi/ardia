@@ -5,7 +5,8 @@ import { font, ink, radius, shadow, sidebarFont, sidebarIconSize, sidebarPoints,
 import type { GroupColor } from "../../state/browser/types";
 import type { Settings } from "../../state/settings/settings";
 import { GROUP_COLORS } from "../../state/groups/tokens";
-import { mix } from "../../lib/color";
+import { contrastRatio, mix, parseColor, toHex } from "../../lib/color";
+import { fromOklab, hexColor, oklab } from "../../lib/profileLook";
 
 const DARK = {
   groupFill: "rgba(255,255,255,0.1)",
@@ -231,11 +232,61 @@ type FolderStyle = Settings["folderStyle"];
 
 const FOLDER_NEUTRAL = { dark: "#FFFFFF", light: "#6E6E73" } as const;
 
-export function folderPalette(color: GroupColor | null | undefined, dark: boolean, profileTint: string, style: FolderStyle = "profile") {
-  const tint = groupTint(color) ?? (style === "neutral" ? FOLDER_NEUTRAL[dark ? "dark" : "light"] : profileTint);
-  return dark
-    ? { stroke: mix("#FFFFFF", tint, 0.64), face: mix("#211E29", tint, 0.12), insideTop: mix("#211E29", tint, 0.4), insideBottom: mix("#15121E", tint, 0.24) }
-    : { stroke: tint, face: mix("#FFFFFF", tint, 0.06), insideTop: mix("#FFFFFF", tint, 0.34), insideBottom: mix("#FFFFFF", tint, 0.64) };
+export const FOLDER_OUTLINE_CONTRAST = 3.3;
+
+const FOLDER_INK = {
+  light: { outlineStart: 0.62, outlineEnd: 0.2, outlineChroma: 1, pastelChroma: 2, pastelChromaMax: 0.1, face: 0.94, faceChroma: 0.6, faceChromaMax: 0.05, insideTop: 0.3, insideBottom: 0.55 },
+  dark: { outlineStart: 0.8, outlineEnd: 0.98, outlineChroma: 0.75, pastelChroma: 0, pastelChromaMax: 0, face: 0.32, faceChroma: 0.5, faceChromaMax: 0.05, insideTop: 0.45, insideBottom: 0.2 },
+} as const;
+
+const OUTLINE_STEP = 0.01;
+
+type Lch = { l: number; c: number; h: number };
+
+function lch(color: string): Lch {
+  const [l, a, b] = oklab(hexColor(color));
+  return { l, c: Math.hypot(a, b), h: Math.atan2(b, a) };
+}
+
+const inGamut = (rgb: number[]) => rgb.every((v) => v >= -1e-4 && v <= 1 + 1e-4);
+
+function lchHex({ l, c, h }: Lch): string {
+  const at = (chroma: number) => fromOklab([l, chroma * Math.cos(h), chroma * Math.sin(h)]);
+  let [low, high] = [0, c];
+  if (inGamut(at(c))) low = c;
+  else
+    for (let i = 0; i < 16; i++) {
+      const mid = (low + high) / 2;
+      if (inGamut(at(mid))) low = mid;
+      else high = mid;
+    }
+  return toHex(at(low).map((v) => Math.min(1, Math.max(0, v)) * 255));
+}
+
+const worstContrast = (color: string, backdrops: readonly string[]) => Math.min(...backdrops.map((backdrop) => contrastRatio(color, backdrop)));
+
+function folderOutline(tintHex: string, dark: boolean, backdrops: readonly string[]): string {
+  const ink = FOLDER_INK[dark ? "dark" : "light"];
+  const tint = lch(tintHex);
+  const c = Math.max(tint.c * ink.outlineChroma, Math.min(tint.c * ink.pastelChroma, ink.pastelChromaMax));
+  const step = dark ? OUTLINE_STEP : -OUTLINE_STEP;
+  const start = dark ? Math.max(tint.l, ink.outlineStart) : Math.min(tint.l, ink.outlineStart);
+  let l = start;
+  let outline = start === tint.l ? toHex(parseColor(tintHex).slice(0, 3)) : lchHex({ l, c, h: tint.h });
+  while (backdrops.length && worstContrast(outline, backdrops) < FOLDER_OUTLINE_CONTRAST && (dark ? l < ink.outlineEnd : l > ink.outlineEnd)) {
+    l += step;
+    outline = lchHex({ l, c, h: tint.h });
+  }
+  return outline;
+}
+
+export function folderPalette(color: GroupColor | null | undefined, dark: boolean, profileTint: string, style: FolderStyle = "profile", backdrops: readonly string[] = []) {
+  const ink = FOLDER_INK[dark ? "dark" : "light"];
+  const tintHex = groupTint(color) ?? (style === "neutral" ? FOLDER_NEUTRAL[dark ? "dark" : "light"] : profileTint);
+  const tint = lch(tintHex);
+  const stroke = folderOutline(tintHex, dark, backdrops);
+  const face = lchHex({ l: ink.face, c: Math.min(tint.c * ink.faceChroma, ink.faceChromaMax), h: tint.h });
+  return { stroke, face, insideTop: mix(face, stroke, ink.insideTop), insideBottom: mix(face, stroke, ink.insideBottom) };
 }
 
 export function groupSurface(color: GroupColor | null | undefined, tokens: SidebarTokens): { fill: string; stroke: string } {
