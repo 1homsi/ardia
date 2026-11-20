@@ -296,18 +296,34 @@ function folderOutline(tintHex: string, side: FolderInkSide, backdrops: readonly
 
 const FOLDER_FACE_SPLIT = (FOLDER_INK.light.outlineStart + FOLDER_INK.dark.outlineStart) / 2;
 
+const faceSideFor = (l: number): FolderInkSide => (l < FOLDER_FACE_SPLIT ? "light" : "dark");
+
+let greyLightness: { hex: string; l: number }[] | null = null;
+
+function greys() {
+  greyLightness ??= Array.from({ length: 256 }, (_, v) => {
+    const hex = toHex([v, v, v]);
+    return { hex, l: lch(hex).l };
+  });
+  return greyLightness;
+}
+
 function nearestLegibleOutline(tintHex: string, side: FolderInkSide, backdrops: readonly string[]): FolderOutline | null {
   const tint = lch(tintHex);
   const start = outlineStart(tint, side);
-  for (const c of [outlineChroma(tint, side), 0]) {
-    for (let k = 1; k * OUTLINE_STEP <= 1; k++) {
-      for (const l of [start - k * OUTLINE_STEP, start + k * OUTLINE_STEP]) {
-        if (l < 0 || l > 1) continue;
-        const stroke = lchHex({ l, c, h: tint.h });
-        const contrast = worstContrast(stroke, backdrops);
-        if (contrast >= FOLDER_OUTLINE_CONTRAST) return { side: l < FOLDER_FACE_SPLIT ? "light" : "dark", stroke, contrast };
-      }
+  const c = outlineChroma(tint, side);
+  for (let k = 1; k * OUTLINE_STEP <= 1; k++) {
+    for (const l of [start - k * OUTLINE_STEP, start + k * OUTLINE_STEP]) {
+      if (l < 0 || l > 1) continue;
+      const stroke = lchHex({ l, c, h: tint.h });
+      const contrast = worstContrast(stroke, backdrops);
+      if (contrast >= FOLDER_OUTLINE_CONTRAST) return { side: faceSideFor(l), stroke, contrast };
     }
+  }
+  const byDistance = [...greys()].sort((a, b) => Math.abs(a.l - start) - Math.abs(b.l - start));
+  for (const grey of byDistance) {
+    const contrast = worstContrast(grey.hex, backdrops);
+    if (contrast >= FOLDER_OUTLINE_CONTRAST) return { side: faceSideFor(grey.l), stroke: grey.hex, contrast };
   }
   return null;
 }

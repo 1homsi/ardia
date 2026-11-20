@@ -93,9 +93,10 @@ test("over a two-colour sidebar, a folder's outline finds the mid tone that stan
   const worst = (color, backdrops) => Math.min(...backdrops.map((backdrop) => contrastRatio(color, backdrop)));
   const navy = "#1B2A5C";
   for (const dark of [false, true]) {
-    const backdrops = ["#000000", "#E1E1E1"];
-    const { stroke } = folderPalette(null, dark, navy, "profile", backdrops);
-    assert.ok(worst(stroke, backdrops) >= FOLDER_OUTLINE_CONTRAST, `${dark}: ${stroke} on ${backdrops} is ${worst(stroke, backdrops).toFixed(2)}`);
+    for (const backdrops of [["#000000", "#E1E1E1"], ["#000000", "#8D8D8D"], ["#060606", "#C0C0C0"]]) {
+      const { stroke } = folderPalette(null, dark, navy, "profile", backdrops);
+      assert.ok(worst(stroke, backdrops) >= FOLDER_OUTLINE_CONTRAST, `${dark}: ${stroke} on ${backdrops} is ${worst(stroke, backdrops).toFixed(2)}`);
+    }
   }
   for (const tint of [navy, "#6DC4FC", "#999999", "#E0457B", "#FFF59D"]) {
     for (const dark of [false, true]) {
@@ -103,7 +104,7 @@ test("over a two-colour sidebar, a folder's outline finds the mid tone that stan
         for (let b = a; b <= 255; b += 15) {
           const backdrops = [grey(a), grey(b)];
           let reachable = false;
-          for (let v = 0; v <= 255 && !reachable; v++) reachable = worst(grey(v), backdrops) >= FOLDER_OUTLINE_CONTRAST + 0.1;
+          for (let v = 0; v <= 255 && !reachable; v++) reachable = worst(grey(v), backdrops) >= FOLDER_OUTLINE_CONTRAST;
           if (!reachable) continue;
           const { stroke } = folderPalette(null, dark, tint, "profile", backdrops);
           assert.ok(worst(stroke, backdrops) >= FOLDER_OUTLINE_CONTRAST, `${tint} ${dark} on ${backdrops}: ${stroke} is ${worst(stroke, backdrops).toFixed(2)}`);
