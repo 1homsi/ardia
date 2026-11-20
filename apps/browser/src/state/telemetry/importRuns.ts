@@ -16,6 +16,7 @@ let diaGroups = 0;
 let diaSpaceProfiles = 0;
 let firefoxProfiles = 0;
 let firefoxFavicons = 0;
+let searchEngineOffersTaken = 0;
 let historyImportCalls = 0;
 let historyImportCallsFailed = 0;
 
@@ -60,6 +61,10 @@ export function noteFirefoxFavicons(icons: number, consent?: ConsentToken | null
   }, { import_firefox_profiles: 1, import_firefox_favicons: icons });
 }
 
+export function noteSearchEngineOfferTaken() {
+  searchEngineOffersTaken += 1;
+}
+
 export function noteHistoryImport(batches: number, failed: number, consent?: ConsentToken | null) {
   if (!batches) return;
   countFor(consent, () => {
@@ -85,6 +90,7 @@ export function takeImportRuns() {
     import_dia_space_profiles: diaSpaceProfiles,
     import_firefox_profiles: firefoxProfiles,
     import_firefox_favicons: firefoxFavicons,
+    import_search_engine_offers_taken: searchEngineOffersTaken,
     import_history_batches: historyImportCalls,
     import_history_batches_failed: historyImportCallsFailed,
   };
@@ -103,6 +109,7 @@ export function takeImportRuns() {
   diaSpaceProfiles = 0;
   firefoxProfiles = 0;
   firefoxFavicons = 0;
+  searchEngineOffersTaken = 0;
   historyImportCalls = 0;
   historyImportCallsFailed = 0;
   return { ...taken, ...takeImportExtensionCounts() };

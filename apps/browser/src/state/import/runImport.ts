@@ -8,26 +8,13 @@ import { createProfile } from "../profiles/actions";
 import { noteImportedSpaces } from "../telemetry/usage";
 import { noteDiaSidebar, noteDiaTabProfiles, noteFirefoxFavicons, noteImportRun, noteUntitledBookmarks } from "../telemetry/importRuns";
 import { consentToken, type ConsentToken } from "../telemetry/client";
-import {
-  adoptSpaceIdentity,
-  applyResult,
-  emptyCounts,
-  importFavorites,
-  importDiaProfile,
-  profileColorFor,
-  profileNamed,
-  type BrowserProfile,
-  type DiaTabsResult,
-  type ImportCounts,
-  type ImportedExtension,
-  type ImportKind,
-  type ImportResult,
-  untitledLinks,
-} from "./apply";
+import { adoptSpaceIdentity, applyResult, emptyCounts, importFavorites, importDiaProfile, profileColorFor, profileNamed, untitledLinks } from "./apply";
+import type { BrowserProfile, DiaTabsResult, ImportCounts, ImportedExtension, ImportKind, ImportedSearchEngine, ImportResult } from "./apply";
 import { diaProfilesFor, diaProfilesWithoutFolder } from "./diaTabs";
 import { importArcSpace, importDiaSpace } from "./sidebarTree";
 import { arcNotes, importArcArchive, importArcRouting, withArcGlyph } from "./arcExtras";
 import { noteArcImport } from "../telemetry/importRuns";
+import { adoptImportedEngine } from "./searchEngine";
 import { planSidebar } from "./sidebarPlan";
 import {
   APP_TAB_KINDS,
@@ -214,6 +201,7 @@ async function runImportJob(wanted: ReadonlySet<ImportKind>, withoutKey: boolean
   const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null, shareTopApps?: boolean) =>
     destination(target, destinationIndex++, name, color, emoji, shareWith, shareTopApps);
   const found = new Map<string, ImportedExtension>();
+  const engines: { profile: BrowserProfile; engine?: ImportedSearchEngine }[] = [];
   const left: string[] = [];
   let extensionsProfile = "";
   let profileDest = "";
@@ -272,6 +260,7 @@ async function runImportJob(wanted: ReadonlySet<ImportKind>, withoutKey: boolean
     }
     const viaApp = asksApp(profile) || recoverable.length > 0;
     const diaOutcome = { file: readsSidebarFile(profile) && !sidebarMissed, unreadable: sidebarMissed, appleScript: viaApp, groups: 0, ownProfiles: 0 };
+    engines.push({ profile, engine: result.searchEngine });
     for (const k of result.failed) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
     arc.routing ??= result.arcRouting;
     arc.archive ??= result.arcArchive;
@@ -390,11 +379,13 @@ async function runImportJob(wanted: ReadonlySet<ImportKind>, withoutKey: boolean
   if (total.bookmarks > 0) useBrowser.getState().updateSettings({ bookmarksImportDismissed: true });
   const listing = await listFoundExtensions(extensionGroups, consent).catch(orWarn(null));
   if (signal.aborted) return;
+  const engine = adoptImportedEngine(source, engines, consent);
   finishImport(signal, {
     counts: total,
     failures: [...failed].map(([kind, names]) => ({ kind, profiles: selected.length > 1 ? names : [] })),
     notes: [...new Set(left)],
     extensions: { profileId: extensionsProfile, list: [...found.values()], opened: false, listing },
+    searchEngine: engine?.notice ?? undefined,
   });
 }
 
