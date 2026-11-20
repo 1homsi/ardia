@@ -269,12 +269,20 @@ type FolderInkSide = keyof typeof FOLDER_INK;
 
 type FolderOutline = { side: FolderInkSide; stroke: string; contrast: number };
 
+const outlineChroma = (tint: Lch, side: FolderInkSide) => {
+  const ink = FOLDER_INK[side];
+  return Math.max(tint.c * ink.outlineChroma, Math.min(tint.c * ink.pastelChroma, ink.pastelChromaMax));
+};
+
+const outlineStart = (tint: Lch, side: FolderInkSide) =>
+  side === "dark" ? Math.max(tint.l, FOLDER_INK.dark.outlineStart) : Math.min(tint.l, FOLDER_INK.light.outlineStart);
+
 function folderOutline(tintHex: string, side: FolderInkSide, backdrops: readonly string[]): FolderOutline {
   const ink = FOLDER_INK[side];
   const lightens = side === "dark";
   const tint = lch(tintHex);
-  const c = Math.max(tint.c * ink.outlineChroma, Math.min(tint.c * ink.pastelChroma, ink.pastelChromaMax));
-  const start = lightens ? Math.max(tint.l, ink.outlineStart) : Math.min(tint.l, ink.outlineStart);
+  const c = outlineChroma(tint, side);
+  const start = outlineStart(tint, side);
   let l = start;
   let stroke = start === tint.l ? toHex(parseColor(tintHex).slice(0, 3)) : lchHex({ l, c, h: tint.h });
   let contrast = backdrops.length ? worstContrast(stroke, backdrops) : Infinity;
@@ -286,10 +294,32 @@ function folderOutline(tintHex: string, side: FolderInkSide, backdrops: readonly
   return { side, stroke, contrast };
 }
 
+const FOLDER_FACE_SPLIT = (FOLDER_INK.light.outlineStart + FOLDER_INK.dark.outlineStart) / 2;
+
+function nearestLegibleOutline(tintHex: string, side: FolderInkSide, backdrops: readonly string[]): FolderOutline | null {
+  const tint = lch(tintHex);
+  const start = outlineStart(tint, side);
+  for (const c of [outlineChroma(tint, side), 0]) {
+    for (let k = 1; k * OUTLINE_STEP <= 1; k++) {
+      for (const l of [start - k * OUTLINE_STEP, start + k * OUTLINE_STEP]) {
+        if (l < 0 || l > 1) continue;
+        const stroke = lchHex({ l, c, h: tint.h });
+        const contrast = worstContrast(stroke, backdrops);
+        if (contrast >= FOLDER_OUTLINE_CONTRAST) return { side: l < FOLDER_FACE_SPLIT ? "light" : "dark", stroke, contrast };
+      }
+    }
+  }
+  return null;
+}
+
 function legibleFolderOutline(tintHex: string, dark: boolean, backdrops: readonly string[]): FolderOutline {
-  const preferred = folderOutline(tintHex, dark ? "dark" : "light", backdrops);
+  const side: FolderInkSide = dark ? "dark" : "light";
+  const preferred = folderOutline(tintHex, side, backdrops);
   if (preferred.contrast >= FOLDER_OUTLINE_CONTRAST) return preferred;
   const opposite = folderOutline(tintHex, dark ? "light" : "dark", backdrops);
+  if (opposite.contrast >= FOLDER_OUTLINE_CONTRAST) return opposite;
+  const nearest = nearestLegibleOutline(tintHex, side, backdrops);
+  if (nearest) return nearest;
   return opposite.contrast > preferred.contrast ? opposite : preferred;
 }
 

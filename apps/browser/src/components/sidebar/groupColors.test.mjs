@@ -88,6 +88,31 @@ test("a folder with its own colour gets the same treatment in its group's tint, 
   }
 });
 
+test("over a two-colour sidebar, a folder's outline finds the mid tone that stands out from both colours when one exists", () => {
+  const grey = (v) => "#" + v.toString(16).padStart(2, "0").repeat(3);
+  const worst = (color, backdrops) => Math.min(...backdrops.map((backdrop) => contrastRatio(color, backdrop)));
+  const navy = "#1B2A5C";
+  for (const dark of [false, true]) {
+    const backdrops = ["#000000", "#E1E1E1"];
+    const { stroke } = folderPalette(null, dark, navy, "profile", backdrops);
+    assert.ok(worst(stroke, backdrops) >= FOLDER_OUTLINE_CONTRAST, `${dark}: ${stroke} on ${backdrops} is ${worst(stroke, backdrops).toFixed(2)}`);
+  }
+  for (const tint of [navy, "#6DC4FC", "#999999", "#E0457B", "#FFF59D"]) {
+    for (const dark of [false, true]) {
+      for (let a = 0; a <= 255; a += 15) {
+        for (let b = a; b <= 255; b += 15) {
+          const backdrops = [grey(a), grey(b)];
+          let reachable = false;
+          for (let v = 0; v <= 255 && !reachable; v++) reachable = worst(grey(v), backdrops) >= FOLDER_OUTLINE_CONTRAST + 0.1;
+          if (!reachable) continue;
+          const { stroke } = folderPalette(null, dark, tint, "profile", backdrops);
+          assert.ok(worst(stroke, backdrops) >= FOLDER_OUTLINE_CONTRAST, `${tint} ${dark} on ${backdrops}: ${stroke} is ${worst(stroke, backdrops).toFixed(2)}`);
+        }
+      }
+    }
+  }
+});
+
 test("folderStyle neutral draws a no-colour folder white in dark mode and grey in light mode, as in 0.2.47-nightly.6", () => {
   for (const color of [null, undefined, "none"]) {
     assert.equal(folderPalette(color, false, "#0A84FF", "neutral").stroke, "#6E6E73", String(color));
