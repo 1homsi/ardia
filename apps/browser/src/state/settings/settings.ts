@@ -163,7 +163,7 @@ export const SETTING_SPECS = {
   commandBarPlacement: oneOf(["field", "centred", "centredOnClick"], "field", SYNCED),
   commandBarStart: shaped<CommandBarStart>({}, isCommandBarStart, COMMAND_BAR_START_SCHEMA),
   pressMotion: oneOf(PRESS_MOTIONS, "still"),
-  folderStyle: oneOf(["accent", "neutral"], "accent"),
+  folderStyle: oneOf(["profile", "neutral"], "profile"),
   liveFolderIcon: oneOf(["folder", "service"], "folder"),
   spacesFollowAppearance: flag(true),
   defaultProfileId: text(DEFAULT_PROFILE_ID),

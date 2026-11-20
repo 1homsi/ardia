@@ -169,9 +169,9 @@ Settings row: plugins (github.com/ardia-browser/plugins, `nightly6-feel`) and pe
   Tab row and folder panel rows to 0.975, pinned tiles, tile folders and top-strip pins to 0.94, an icon button's
   whole plate to 0.9 and other pressable controls to 0.97, holding the dip at least 90 ms. A New Tab card's lift and
   a finished live item's check mark settle on `springs.bouncy`. macOS Reduce Motion still turns it off.
-- `folderStyle`: `"accent"` (the default, #443AFF) or `"neutral"`. Neutral draws a folder with no colour of its own
-  white in dark mode and #6E6E73 in light mode, as in 0.2.47-nightly.6 (#2250). A coloured group keeps its colour
-  either way.
+- `folderStyle`: `"profile"` (the default: a folder with no colour of its own takes the profile's colour) or
+  `"neutral"`, which draws it white in dark mode and #6E6E73 in light mode, as in 0.2.47-nightly.6 (#2250). A
+  coloured group keeps its colour either way.
 - `liveFolderIcon`: `"folder"` (the default) or `"service"`. Service shows a live folder's service icon (GitHub,
   Notion, …) instead of the folder, as in 0.2.47-nightly.6 (#2250). An icon you picked for the folder wins either way.
 - None of them is synced: they belong to this Mac. A change applies at once.

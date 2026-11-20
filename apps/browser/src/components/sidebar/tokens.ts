@@ -231,7 +231,7 @@ type FolderStyle = Settings["folderStyle"];
 
 const FOLDER_NEUTRAL = { dark: "#FFFFFF", light: "#6E6E73" } as const;
 
-export function folderPalette(color: GroupColor | null | undefined, dark: boolean, profileTint: string, style: FolderStyle = "accent") {
+export function folderPalette(color: GroupColor | null | undefined, dark: boolean, profileTint: string, style: FolderStyle = "profile") {
   const tint = groupTint(color) ?? (style === "neutral" ? FOLDER_NEUTRAL[dark ? "dark" : "light"] : profileTint);
   return dark
     ? { stroke: mix("#FFFFFF", tint, 0.64), face: mix("#211E29", tint, 0.12), insideTop: mix("#211E29", tint, 0.4), insideBottom: mix("#15121E", tint, 0.24) }

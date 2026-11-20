@@ -49,6 +49,6 @@ test("folderStyle neutral draws a no-colour folder white in dark mode and grey i
 
 test("a live folder's service icon is its own opt-in, apart from the folder colour, and off by default", () => {
   assert.deepEqual([SETTING_SPECS.liveFolderIcon.default, SETTING_SPECS.liveFolderIcon.values], ["folder", ["folder", "service"]]);
-  assert.deepEqual([SETTING_SPECS.folderStyle.default, SETTING_SPECS.folderStyle.values], ["accent", ["accent", "neutral"]]);
+  assert.deepEqual([SETTING_SPECS.folderStyle.default, SETTING_SPECS.folderStyle.values], ["profile", ["profile", "neutral"]]);
   for (const key of ["pressMotion", "folderStyle", "liveFolderIcon"]) assert.equal(SETTING_SPECS[key].synced, false, key);
 });
