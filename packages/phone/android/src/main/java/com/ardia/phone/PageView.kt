@@ -227,15 +227,15 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) touchesSummary = isOnSummary(event.x, event.y)
-        if (!touchesSummary) {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> insetSettlement.touching = true
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> insetSettlement.touching = false
-            }
-            pinches.observe(event)
+        val action = event.actionMasked
+        if (action == MotionEvent.ACTION_DOWN) touchesSummary = isOnSummary(event.x, event.y)
+        if (!touchesSummary) pinches.observe(event)
+        val handled = super.dispatchTouchEvent(event)
+        when (action) {
+            MotionEvent.ACTION_DOWN -> insetSettlement.touching = handled && !touchesSummary
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> insetSettlement.touching = false
         }
-        return super.dispatchTouchEvent(event)
+        return handled
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
