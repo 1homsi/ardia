@@ -63,6 +63,21 @@ definePlugin({ views: { releases: Releases }, commands: { refresh: async () => a
   `Form.PasswordField`, `Form.Toggle`, `Form.Select`), `SidebarView` (`SidebarView.Section`, `SidebarView.Item`),
   `Popover`, `ActionPanel`, `Action` (`Action.OpenInBrowser`, `Action.CopyToClipboard`), `WebView` (one of the
   plugin's own files), and the small pieces `Box`, `Text`, `Badge`, `Button`, `Divider`, `EmptyState`, `Progress`.
+- **Action shortcuts.** `shortcut` on an `Action`, `Action.OpenInBrowser` or `Action.CopyToClipboard` is `cmd` plus
+  any of `ctrl`, `opt` (`option`, `alt`) and `shift`, joined by `+`, then one key: `a`–`z`, `0`–`9`, one of `` - = [ ]
+  \ ; ' , . / ` ``, `space` or `f1`–`f12` (`"cmd+shift+e"`, `"cmd+k"`, or in glyphs `"⇧⌘E"`). `cmd` is Ctrl on Windows
+  and Linux. Ardia drops a shortcut it can't read and one that would shadow a key it needs: no `cmd` (a plain or
+  shifted key types into a field), `shift` with a digit or punctuation (a different character on each layout), any
+  `cmd` shortcut on `q`, `w`, `t`, `n`, `h` or `m`, editing and system keys (`cmd+a`, `cmd+c`, `cmd+v`, `cmd+x`,
+  `cmd+z`, `cmd+shift+z`, `cmd+shift+v`, `cmd+opt+shift+v`, `cmd+,`, `` cmd+` ``, `cmd+space`, `cmd+ctrl+space`,
+  `cmd+opt+space`, `cmd+ctrl+f`, `cmd+ctrl+q`), and, at the moment of the press, any shortcut one of Ardia's own
+  commands holds, which is most `cmd` letters (rebinding a command frees its key; Settings › Shortcuts lists them).
+  Escape, Return, Tab, the arrows and Delete aren't keys a shortcut can use. The shortcuts that work are the active
+  ones: in a `List`, the selected item's actions, then the list's own; in a `Detail` or `Form`, the actions it shows,
+  ahead of any nested inside it; the first action in a panel wins a key two of them declare. A press runs the action
+  exactly as a click does, and works while typing in the list's search field or a form field, and in a command view
+  wherever its focus is. Action menus show each shortcut beside its action, and action buttons show it as their
+  tooltip.
 - **Hooks**: `useState`, `useReducer`, `useEffect`, `useLayoutEffect`, `useMemo`, `useCallback`, `useRef`,
   `useContext`, `useId`, and `useSurface` (which surface and window a view is in).
 - **`ardia`**: `tabs`, `workspace`, `activePage`, `commands`, `tools`, `storage`, `secrets`, `net.fetch`, `ui`
@@ -999,7 +1014,8 @@ in the local copy. Hourly `usage_counts`:
   (an old `ardia` install's home taken over), `plugin_adoptions`, `plugin_adoptions_waiting`.
 - v2: `plugin_activations` (main started by an activation event), `plugin_activation_failures`,
   `plugin_surface_renders` (a native view committed), `plugin_panel_opens`, `plugin_toolbar_runs`,
-  `plugin_menu_runs`, `plugin_omnibox_queries`, `plugin_ui_prompts` (a quick pick, input box or confirm shown),
+  `plugin_menu_runs`, `plugin_action_shortcuts` (an action run by its declared shortcut), `plugin_omnibox_queries`,
+  `plugin_ui_prompts` (a quick pick, input box or confirm shown),
   `plugin_net_fetches`, `plugin_net_refusals` (a fetch outside `permissions.network` or to a private address),
   `plugin_storage_writes`, `plugin_storage_cancels` (a storage request dropped because the plugin was being removed),
   `plugin_secret_writes`, `plugin_page_reads` (`activePage` reads), `plugin_decide_calls`,
