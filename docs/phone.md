@@ -2169,8 +2169,10 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
 
 - Collapse Bottom Bar on Android is enabled when no valid saved choice exists. Explicit on and off values,
   including imported values, win. iPhone keeps its existing default and spring. Android keeps the 30 dp host pill
-  mounted but hidden from touch and accessibility while expanded. Collapse and expand retarget one Reanimated
-  value over 180 ms with transform and opacity changes. Remove animations snaps to the endpoint. The page's
+  mounted but hidden from touch and accessibility while expanded. Collapse and expand run iPhone's fold on
+  iPhone's spring (0.26 s, no bounce): the bar shrinks to 62 % into the pill as the pill grows out of it, and the
+  pill's surface fades with it, since Android has no glass to fade. No hardware layer wraps the bar or the pill, so
+  their shadows aren't cut off at the edges. Remove animations snaps to the endpoint. The page's
   direction update no longer waits for a second effect to choose the toolbar state. Tapping the pill expands it;
   the next upward then downward scroll can collapse it again. The deck keeps its own motion settings.
   Watch the consent-gated `usage_counts.bottom_bar_collapses` count, never recorded in Incognito. This measures
@@ -2190,7 +2192,7 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
   - **What Android's page view does with them** (`PageView`, `PageBands`):
     - it lays the WebView out between the bands and paints the bands in those colours;
     - a collapse or expand changes only transforms and opacity while scrolling. A bottom-only viewport change
-      waits for the 180 ms toolbar transition and 120 ms without WebView scroll movement, including a fling,
+      waits 300 ms for the toolbar's fold and 120 ms without WebView scroll movement, including a fling,
       with no finger still on the page. Only the latest endpoint is applied, once. Fixed footers and the page's
       end then fit above the settled bar or pill. Top insets, view size changes, Find, search, full-screen video
       and turning collapse off apply their viewport clearance immediately. A pending change belongs to its

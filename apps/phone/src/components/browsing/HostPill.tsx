@@ -53,26 +53,20 @@ export function useBarFold(collapsed: boolean, reduceMotion: boolean) {
     const target = collapsed ? 1 : 0;
     const settled = (finished?: boolean) => {
       "worklet";
-      if (finished && target === 0) runOnJS(unmountPill)();
+      if (finished && target === 0 && !android) runOnJS(unmountPill)();
     };
-    if (android) {
-      fold.value = withTiming(target, { duration: reduceMotion ? 0 : hostPillLayout.androidFoldMs, easing: EASE_OUT });
-      return;
-    }
-    fold.value = reduceMotion ? withTiming(target, { duration: tabsMotion.barCollapseReduced, easing: EASE_OUT }, settled) : withSpring(target, tabsMotion.barCollapse, settled);
+    fold.value = reduceMotion ? withTiming(target, { duration: android ? 0 : tabsMotion.barCollapseReduced, easing: EASE_OUT }, settled) : withSpring(target, tabsMotion.barCollapse, settled);
   }, [collapsed, reduceMotion]);
   const shrink = reduceMotion ? 1 : hostPillLayout.collapsedScale;
   const bar = useAnimatedStyle(() => {
-    if (android) return { opacity: 1 - fold.value, transform: [{ translateY: reduceMotion ? 0 : 10 * fold.value }, { scale: reduceMotion ? 1 : 1 - 0.06 * fold.value }] };
     const scale = 1 + (shrink - 1) * fold.value;
     return { opacity: 1 - fold.value, transform: [{ translateY: (floatingBarLayout.control / 2) * (1 - scale) }, { scale }] };
-  }, [shrink, reduceMotion]);
+  }, [shrink]);
   const pill = useAnimatedStyle(() => {
-    if (android) return { opacity: fold.value, transform: [{ translateY: reduceMotion ? 0 : 4 * (1 - fold.value) }, { scale: reduceMotion ? 1 : 0.96 + 0.04 * fold.value }] };
     const scale = 1 / shrink + (1 - 1 / shrink) * fold.value;
-    return { transform: [{ translateY: (hostPillLayout.height / 2) * (1 - scale) }, { scale }] };
-  }, [shrink, reduceMotion]);
-  const pillContent = useAnimatedStyle(() => ({ opacity: android ? 1 : fold.value }));
+    return { opacity: android ? fold.value : 1, transform: [{ translateY: (hostPillLayout.height / 2) * (1 - scale) }, { scale }] };
+  }, [shrink]);
+  const pillContent = useAnimatedStyle(() => ({ opacity: fold.value }));
   return { bar, pill, pillContent, pillMounted: android || presence.mounted };
 }
 
