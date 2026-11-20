@@ -302,8 +302,8 @@ export const SplitRowItem = memo(function SplitRowItem({
           fill={active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear}
           selected={active}
           border={splitBorder}
-          padLeft={SPLIT_PANE.inset - splitBorder}
-          padRight={SPLIT_PANE.inset - splitBorder}
+          padLeft={SPLIT_PANE.inset}
+          padRight={SPLIT_PANE.inset}
         >
           <PreviewFade preview={preview}>
             {tabIds.map((id, i) => (
