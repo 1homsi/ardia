@@ -2171,8 +2171,9 @@ Not audited at all: Compose's `SyncSetupContent` internals inside onboarding.
   including imported values, win. iPhone keeps its existing default and spring. Android keeps the 30 dp host pill
   mounted but hidden from touch and accessibility while expanded. Collapse and expand run iPhone's fold on
   iPhone's spring (0.26 s, no bounce): the bar shrinks to 62 % into the pill as the pill grows out of it, and the
-  pill's surface fades with it, since Android has no glass to fade. No hardware layer wraps the bar or the pill, so
-  their shadows aren't cut off at the edges. Remove animations snaps to the endpoint. The page's
+  pill's surface fades with it, since Android has no glass to fade. On Android the bar and the pill cast no shadow:
+  inside the folds' hardware layers a shadow was cut flat at the pill's edges, and without the layers the shadows laid
+  a grey strip the bar's height across the page (POCO F4, 2026-11-20). Remove animations snaps to the endpoint. The page's
   direction update no longer waits for a second effect to choose the toolbar state. Tapping the pill expands it;
   the next upward then downward scroll can collapse it again. The deck keeps its own motion settings.
   Watch the consent-gated `usage_counts.bottom_bar_collapses` count, never recorded in Incognito. This measures

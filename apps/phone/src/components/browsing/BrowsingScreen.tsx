@@ -201,6 +201,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
                   <Animated.View
                     testID="floatingBarFold"
                     collapsable={false}
+                    renderToHardwareTextureAndroid={Platform.OS === "android"}
                     style={collapse.fold.bar}
                     pointerEvents={collapse.collapsed ? "none" : "box-none"}
                     importantForAccessibility={collapse.collapsed ? "no-hide-descendants" : "auto"}
@@ -225,6 +226,7 @@ export const BrowsingScreen = memo(function BrowsingScreen({ tab }: { tab: Brows
                     <Animated.View
                       testID="hostPillFold"
                       collapsable={false}
+                      renderToHardwareTextureAndroid={Platform.OS === "android"}
                         style={[styles.pillPlace, collapse.fold.pill]}
                       pointerEvents={collapse.collapsed ? "box-none" : "none"}
                       importantForAccessibility={collapse.collapsed ? "auto" : "no-hide-descendants"}
