@@ -123,8 +123,7 @@ export const TabRow = memo(function TabRow({
             selected={active && !quiet}
             border={border}
             stroke={selected && !active ? tokens.multiSelectedStroke : undefined}
-            padLeft={(textOnly ? TAB_ROW.contentLeft - TAB_ROW.titleGap : TAB_ROW.contentLeft) - border}
-            padRight={TAB_ROW.trailing - border}
+            padLeft={textOnly ? TAB_ROW.contentLeft - TAB_ROW.titleGap : TAB_ROW.contentLeft}
           >
             <PreviewFade preview={preview}>
             <View {...(tab.pinnedUrl ? backToPin.hoverProps : null)} style={textOnly ? NO_SLOT : undefined}>
