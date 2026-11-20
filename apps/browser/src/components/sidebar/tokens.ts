@@ -265,26 +265,48 @@ function lchHex({ l, c, h }: Lch): string {
 
 const worstContrast = (color: string, backdrops: readonly string[]) => Math.min(...backdrops.map((backdrop) => contrastRatio(color, backdrop)));
 
-function folderOutline(tintHex: string, dark: boolean, backdrops: readonly string[]): string {
-  const ink = FOLDER_INK[dark ? "dark" : "light"];
+type FolderInkSide = keyof typeof FOLDER_INK;
+
+type FolderOutline = { side: FolderInkSide; stroke: string; contrast: number };
+
+function folderOutline(tintHex: string, side: FolderInkSide, backdrops: readonly string[]): FolderOutline {
+  const ink = FOLDER_INK[side];
+  const lightens = side === "dark";
   const tint = lch(tintHex);
   const c = Math.max(tint.c * ink.outlineChroma, Math.min(tint.c * ink.pastelChroma, ink.pastelChromaMax));
-  const step = dark ? OUTLINE_STEP : -OUTLINE_STEP;
-  const start = dark ? Math.max(tint.l, ink.outlineStart) : Math.min(tint.l, ink.outlineStart);
+  const start = lightens ? Math.max(tint.l, ink.outlineStart) : Math.min(tint.l, ink.outlineStart);
   let l = start;
-  let outline = start === tint.l ? toHex(parseColor(tintHex).slice(0, 3)) : lchHex({ l, c, h: tint.h });
-  while (backdrops.length && worstContrast(outline, backdrops) < FOLDER_OUTLINE_CONTRAST && (dark ? l < ink.outlineEnd : l > ink.outlineEnd)) {
-    l += step;
-    outline = lchHex({ l, c, h: tint.h });
+  let stroke = start === tint.l ? toHex(parseColor(tintHex).slice(0, 3)) : lchHex({ l, c, h: tint.h });
+  let contrast = backdrops.length ? worstContrast(stroke, backdrops) : Infinity;
+  while (contrast < FOLDER_OUTLINE_CONTRAST && (lightens ? l < ink.outlineEnd : l > ink.outlineEnd)) {
+    l += lightens ? OUTLINE_STEP : -OUTLINE_STEP;
+    stroke = lchHex({ l, c, h: tint.h });
+    contrast = worstContrast(stroke, backdrops);
   }
-  return outline;
+  return { side, stroke, contrast };
+}
+
+function legibleFolderOutline(tintHex: string, dark: boolean, backdrops: readonly string[]): FolderOutline {
+  const preferred = folderOutline(tintHex, dark ? "dark" : "light", backdrops);
+  if (preferred.contrast >= FOLDER_OUTLINE_CONTRAST) return preferred;
+  const opposite = folderOutline(tintHex, dark ? "light" : "dark", backdrops);
+  return opposite.contrast > preferred.contrast ? opposite : preferred;
+}
+
+function neutralFolderPalette(dark: boolean) {
+  const tint = FOLDER_NEUTRAL[dark ? "dark" : "light"];
+  return dark
+    ? { stroke: mix("#FFFFFF", tint, 0.64), face: mix("#211E29", tint, 0.12), insideTop: mix("#211E29", tint, 0.4), insideBottom: mix("#15121E", tint, 0.24) }
+    : { stroke: tint, face: mix("#FFFFFF", tint, 0.06), insideTop: mix("#FFFFFF", tint, 0.34), insideBottom: mix("#FFFFFF", tint, 0.64) };
 }
 
 export function folderPalette(color: GroupColor | null | undefined, dark: boolean, profileTint: string, style: FolderStyle = "profile", backdrops: readonly string[] = []) {
-  const ink = FOLDER_INK[dark ? "dark" : "light"];
-  const tintHex = groupTint(color) ?? (style === "neutral" ? FOLDER_NEUTRAL[dark ? "dark" : "light"] : profileTint);
+  const groupHex = groupTint(color);
+  if (!groupHex && style === "neutral") return neutralFolderPalette(dark);
+  const tintHex = groupHex ?? profileTint;
   const tint = lch(tintHex);
-  const stroke = folderOutline(tintHex, dark, backdrops);
+  const { side, stroke } = legibleFolderOutline(tintHex, dark, backdrops);
+  const ink = FOLDER_INK[side];
   const face = lchHex({ l: ink.face, c: Math.min(tint.c * ink.faceChroma, ink.faceChromaMax), h: tint.h });
   return { stroke, face, insideTop: mix(face, stroke, ink.insideTop), insideBottom: mix(face, stroke, ink.insideBottom) };
 }

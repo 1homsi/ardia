@@ -27,11 +27,12 @@ test("a neutral group keeps Dia's look, its box only under the pointer, and None
   assert.deepEqual(groupSurface("none", TOKENS), { fill: "transparent", stroke: "transparent" });
 });
 
-const pastelTheme = (hex) => ({ stops: [{ color: hexColor(hex), x: 0.5, y: 0.5 }], intensity: 0.8, grain: 0, texture: "grain", translucency: 0, mode: "auto" });
+const pastelTheme = (hex, mode = "auto") => ({ stops: [{ color: hexColor(hex), x: 0.5, y: 0.5 }], intensity: 0.8, grain: 0, texture: "grain", translucency: 0, mode });
 
 const FOLDER_PROFILES = [
   ...Object.keys(PROFILE_COLORS).map((color) => ({ color })),
   ...["#6DC4FC", "#BFD9F2", "#FFF59D", "#F7C8E0", "#1B2A5C", "#7A1020"].map((hex) => ({ color: "blue", theme: pastelTheme(hex) })),
+  ...["light", "dark"].map((mode) => ({ color: "blue", theme: pastelTheme("#999999", mode) })),
 ];
 
 const hue = (hex) => {
@@ -95,6 +96,25 @@ test("folderStyle neutral draws a no-colour folder white in dark mode and grey i
     assert.deepEqual(folderPalette(color, true, "#0A84FF", "neutral"), folderPalette(color, true, "#C07A98", "neutral"), String(color));
   }
   for (const color of TAB_GROUP_COLORS) assert.deepEqual(folderPalette(color, true, "#0A84FF", "neutral"), folderPalette(color, true, "#0A84FF"), color);
+});
+
+test("folderStyle neutral keeps nightly.6's no-colour folder over any sidebar, while group colours still meet the outline contrast", () => {
+  const nightly6 = {
+    light: { stroke: "#6E6E73", face: "#F6F6F7", insideTop: "#CECECF", insideBottom: "#A2A2A5" },
+    dark: { stroke: "#FFFFFF", face: "#3C3943", insideTop: "#7A787F", insideBottom: "#4D4B54" },
+  };
+  for (const profile of FOLDER_PROFILES) {
+    for (const appDark of [false, true]) {
+      const theme = profileTheme(profile, appDark);
+      const tint = theme.powerUpColor ?? theme.accent;
+      assert.deepEqual(folderPalette(null, theme.dark, tint, "neutral", theme.windowTint), nightly6[theme.dark ? "dark" : "light"], `${theme.windowTint}`);
+      for (const color of TAB_GROUP_COLORS) {
+        const { stroke } = folderPalette(color, theme.dark, tint, "neutral", theme.windowTint);
+        const worst = Math.min(...theme.windowTint.map((backdrop) => contrastRatio(stroke, backdrop)));
+        assert.ok(worst >= FOLDER_OUTLINE_CONTRAST, `${color} on ${theme.windowTint}: ${stroke} is ${worst.toFixed(2)}`);
+      }
+    }
+  }
 });
 
 test("a live folder's service icon is its own opt-in, apart from the folder colour, and off by default", () => {
