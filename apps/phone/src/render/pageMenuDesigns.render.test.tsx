@@ -156,7 +156,7 @@ test("the redesign puts Send above Block Ads and Trackers, in the first group", 
   unmount(root);
 });
 
-test("the redesign's Reader, Find on Page, Copy Link and Share are square rounded tiles with their label under them, in one row under a pill navigation bar, on a floating card", async () => {
+test("the redesign's Reader, Find on Page, Copy Link and Share are square rounded tiles with their label under them, in one row under a pill navigation bar, in the bottom sheet", async () => {
   const root = await openMenu("redesigned");
   const capsules = hosts(root, (id) => id.startsWith("pageMenuAction:"));
   expect(capsules.map((node) => node.props.testID)).toEqual(["pageMenuAction:Reader", "pageMenuAction:Find on Page", "pageMenuAction:Copy Link", "pageMenuAction:Share"]);
@@ -169,10 +169,8 @@ test("the redesign's Reader, Find on Page, Copy Link and Share are square rounde
   expect(textOf({ root: nav } as never)).toContain("Site 0");
   expect(host(root, "pageMenuCapsuleRow")!.findAll((node) => node.props.testID === "pageMenuTitle" && typeof node.type === "string")).toHaveLength(1);
   expect(StyleSheet.flatten(nav.props.style).borderRadius).toBe(StyleSheet.flatten(host(root, "pageMenuCapsuleRow")!.props.style).minHeight / 2);
-  expect(host(root, "sheetFill")).toBeUndefined();
-  const card = StyleSheet.flatten(host(root, "pageMenuCard")!.props.style);
-  expect(card.borderRadius).toBe(30);
-  expect(card.bottom).toBeGreaterThan(48);
+  expect(host(root, "pageMenuCard")).toBeUndefined();
+  expect(StyleSheet.flatten(host(root, "sheetFill")!.props.style)).toMatchObject({ backgroundColor: "#F2F2F7" });
   unmount(root);
 });
 

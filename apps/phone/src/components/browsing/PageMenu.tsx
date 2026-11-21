@@ -51,7 +51,7 @@ import { ConfirmDialog, FloatingMenu, font, MaterialIconButton, menuLayout, Pres
 import { MaterialPageMenu, MaterialPageMenuItems, MaterialSiteSettingsContent, MaterialSiteSettingsHeader } from "./MaterialPageMenu";
 import { countSearchExpansion, MaterialSearchField, MaterialSearchResults, useMaterialSheetSearch } from "../search/MaterialSearchView";
 import { barAddress } from "./FloatingBar";
-import { PageMenuCard, PageMenuWords } from "./PageMenuWords";
+import { PageMenuWords, usePageMenuInk } from "./PageMenuWords";
 import { MaterialAddressContent } from "../ui/MaterialBottomBar";
 import { useMaterialTheme } from "../ui/materialTheme";
 import { MaterialSheet, useMaterialRipple } from "../ui/MaterialSurfaces";
@@ -73,6 +73,7 @@ export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boole
   const docked = useMenuDocked();
   const design = useDesign();
   const redesigned = design === "redesigned";
+  const ink = usePageMenuInk();
   const hidden = () => {
     onHidden();
     pageMenuHidden();
@@ -89,12 +90,10 @@ export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boole
   }
   if (redesigned) {
     return (
-      <>
-        <PageMenuCard open={open} onDismiss={closePageMenu} onHidden={hidden} onTapAway={tappedAway}>
-          <PageMenuWords tabId={tabId} model={model} onTranslate={translate} />
-        </PageMenuCard>
+      <Sheet open={open} onDismiss={closePageMenu} onHidden={hidden} fill={ink.solid} onTapAway={tappedAway}>
         {confirmation}
-      </>
+        <PageMenuWords tabId={tabId} model={model} onTranslate={translate} />
+      </Sheet>
     );
   }
   return (
