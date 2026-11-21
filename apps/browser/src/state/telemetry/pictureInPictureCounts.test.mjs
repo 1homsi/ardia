@@ -127,3 +127,28 @@ test("activations asked for by a press or a move on a Picture in Picture window,
   usage.sessionEnding();
   assert.equal((await sentCounts()).length, before + 1);
 });
+
+test("activations Ardia handed back after it was left over a Picture in Picture window, and repeats, are counted, then start again from zero", async () => {
+  client.loadChoice();
+  client.setSharing(true, "onboarding");
+  const sentCounts = async () => {
+    await client.saveQueueNow();
+    const saved = JSON.parse(stub.docs.get("telemetry-queue.json") ?? '{"events":[]}');
+    return saved.events
+      .filter((e) => e.event === "usage_counts" && e.properties.pip_activation_hand_backs)
+      .map((e) => [e.properties.pip_activation_hand_backs, e.properties.pip_activation_hand_back_repeats]);
+  };
+  const before = (await sentCounts()).length;
+
+  pipCounts.notePictureInPictureHandBack({ again: false, epoch: client.consentEpoch() });
+  pipCounts.notePictureInPictureHandBack({ again: true, epoch: client.consentEpoch() });
+  pipCounts.notePictureInPictureHandBack({ again: false, epoch: client.consentEpoch() });
+  pipCounts.notePictureInPictureHandBack({ again: false, epoch: "an epoch from before" });
+  usage.sessionEnding();
+  const sent = await sentCounts();
+  assert.equal(sent.length, before + 1);
+  assert.deepEqual(sent.at(-1), [3, 1]);
+
+  usage.sessionEnding();
+  assert.equal((await sentCounts()).length, before + 1);
+});

@@ -37,3 +37,16 @@ test("every way back to the tab goes through the one activation and says whether
   assert.doesNotMatch(webKitBack, /NSApp\.activate\(\)/);
   assert.match(webKitBack, /"fromOtherApp": fromOtherApp/);
 });
+
+test("an activation that arrives right after Ardia was left gives focus back and doesn't raise a browser window", () => {
+  const windows = read("../../shell/ios/WindowManager.swift"), leaving = read("../../shell/ios/LeavingOverPiP.swift");
+  assert.match(windows, /if ArdiaChromeWindowHost\.consumePictureInPictureActivation\(\) \|\| leaving\.givesFocusBack\(\) \{ return \}\s*DispatchQueue\.main\.async \{ \[weak self\] in self\?\.focusBrowserPastPiP\(\) \}/,
+    "the PiP's own activation is consumed first, then the hand-back is checked, and only then is a browser raised");
+  assert.match(leaving, /resignedActiveAt = ProcessInfo\.processInfo\.systemUptime/);
+  assert.match(leaving, /now - resignedActiveAt < LeavingOverPiP\.justNow/);
+  assert.match(leaving, /!NSEvent\.modifierFlags\.contains\(\.command\)/, "Cmd+Tab back to Ardia is the user's choice and still raises the browser");
+  assert.match(leaving, /isOnActiveSpace && isPiP\(\$0\)/);
+  assert.match(leaving, /if !again, let app = appLeftFor/, "a second hand-back in a row is not repeated, so two apps can't trade focus forever");
+  assert.match(leaving, /"type": "pipActivationHandBack", "again": again/);
+  assert.match(leaving, /static let justNow = 1\.0/);
+});

@@ -16,6 +16,8 @@ const noStandIns = () => ({ pinches: 0, timeouts: 0 });
 let standIns = noStandIns();
 const noActivations = () => ({ asked: 0, failed: 0 });
 let activations = noActivations();
+const noHandBacks = () => ({ given: 0, repeats: 0 });
+let handBacks = noHandBacks();
 
 export function noteAutoPictureInPictureNothingPlaying() {
   nothingPlaying++;
@@ -87,10 +89,22 @@ export function notePictureInPictureActivated(activation: PictureInPictureActiva
   );
 }
 
+export function notePictureInPictureHandBack(handBack: { again: boolean; epoch: string }) {
+  const { again } = handBack;
+  counted(
+    nativeConsent(handBack),
+    () => {
+      handBacks.given++;
+      if (again) handBacks.repeats++;
+    },
+  );
+}
+
 export function takePictureInPictureCounts() {
-  const taken = { nothingPlaying, backToTab: { ...backToTab }, backToTabFromOtherApp, drags, resizes, clickSkips: { ...clickSkips }, handleUnstashes, standIns, activations };
+  const taken = { nothingPlaying, backToTab: { ...backToTab }, backToTabFromOtherApp, drags, resizes, clickSkips: { ...clickSkips }, handleUnstashes, standIns, activations, handBacks };
   standIns = noStandIns();
   activations = noActivations();
+  handBacks = noHandBacks();
   nothingPlaying = 0;
   handleUnstashes = 0;
   drags = noDrags();
