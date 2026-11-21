@@ -296,9 +296,13 @@ try {
         await pip(`mouse:down:${Math.round(s.width / 2)},${Math.round(s.height / 2)}`);
         await pip(`mouse:up:${Math.round(s.width / 2)},${Math.round(s.height / 2)}`);
         await page.eval("document.exitPictureInPicture().then(() => 'ok', (e) => String(e))");
-        const closedAt = (await asked()) - before;
-        await until("the report after the close", async () => (await asked()) > before, 3000);
-        return `${closedAt} reported before the close, 1 after`;
+        await until("the window to close", async () => !(await shown()), 1200);
+        if ((await asked()) !== before) throw new Error("inconclusive: the report came before the window had closed");
+        await until("the report after the close", async () => (await asked()) > before, 4000);
+        await sleep(400);
+        const reported = (await asked()) - before;
+        if (reported !== 1) throw new Error(`${reported} reports for one press`);
+        return "the window closed first, then 1 report";
       } finally {
         await engine("windows.dev", { window: native, action: "fakeAppActive:1" }).catch(() => null);
       }

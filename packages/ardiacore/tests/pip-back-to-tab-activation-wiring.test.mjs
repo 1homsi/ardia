@@ -40,8 +40,10 @@ test("every way back to the tab goes through the one activation and says whether
 
 test("an activation that arrives right after Ardia was left gives focus back and doesn't raise a browser window", () => {
   const windows = read("../../shell/ios/WindowManager.swift"), leaving = read("../../shell/ios/LeavingOverPiP.swift");
-  assert.match(windows, /if ArdiaChromeWindowHost\.consumePictureInPictureActivation\(\) \|\| leaving\.givesFocusBack\(\) \{ return \}\s*DispatchQueue\.main\.async \{ \[weak self\] in self\?\.focusBrowserPastPiP\(\) \}/,
-    "the PiP's own activation is consumed first, then the hand-back is checked, and only then is a browser raised");
+  assert.match(windows, /if ArdiaChromeWindowHost\.consumePictureInPictureActivation\(\) \{ return \}\s*DispatchQueue\.main\.async \{ \[weak self\] in if self\?\.leaving\.givesFocusBack\(\) != true \{ self\?\.focusBrowserPastPiP\(\) \} \}/,
+    "the PiP's own activation is consumed first; once the key window has settled the hand-back is checked, and only then is a browser raised");
+  assert.match(leaving, /NSApp\.modalWindow == nil, NSApp\.keyWindow\.map\(\{ isPiP\(\$0\) \|\| !\$0\.isOnActiveSpace \}\) \?\? true/,
+    "a click back into a browser window or a dialog is the user's choice: focus is only handed back when the PiP, or nothing on this Space, took the key");
   assert.match(leaving, /resignedActiveAt = ProcessInfo\.processInfo\.systemUptime/);
   assert.match(leaving, /now - resignedActiveAt < LeavingOverPiP\.justNow/);
   assert.match(leaving, /!NSEvent\.modifierFlags\.contains\(\.command\)/, "Cmd+Tab back to Ardia is the user's choice and still raises the browser");

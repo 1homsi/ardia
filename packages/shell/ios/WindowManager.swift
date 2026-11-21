@@ -465,8 +465,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   @objc private func appDidBecomeActive(_ notification: Notification) {
-    if ArdiaChromeWindowHost.consumePictureInPictureActivation() || leaving.givesFocusBack() { return }
-    DispatchQueue.main.async { [weak self] in self?.focusBrowserPastPiP() }
+    if ArdiaChromeWindowHost.consumePictureInPictureActivation() { return }
+    DispatchQueue.main.async { [weak self] in if self?.leaving.givesFocusBack() != true { self?.focusBrowserPastPiP() } }
   }
 
   private func focusBrowserPastPiP() {

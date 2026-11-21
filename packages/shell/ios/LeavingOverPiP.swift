@@ -25,7 +25,8 @@ final class LeavingOverPiP: NSObject {
   func givesFocusBack() -> Bool {
     let now = ProcessInfo.processInfo.systemUptime
     let isPiP = { (window: NSWindow) in ArdiaChromeWindowHost.isVideoPicture(inPictureWindow: window) }
-    guard !LaunchConfig.shared.background, now - resignedActiveAt < LeavingOverPiP.justNow, !NSEvent.modifierFlags.contains(.command),
+    guard !LaunchConfig.shared.background, NSApp.isActive, now - resignedActiveAt < LeavingOverPiP.justNow, !NSEvent.modifierFlags.contains(.command),
+      NSApp.modalWindow == nil, NSApp.keyWindow.map({ isPiP($0) || !$0.isOnActiveSpace }) ?? true,
       NSApp.orderedWindows.contains(where: { $0.isVisible && $0.isOnActiveSpace && isPiP($0) }) else { return false }
     let again = now - gaveFocusBackAt < 2 * LeavingOverPiP.justNow
     gaveFocusBackAt = now
