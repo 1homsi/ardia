@@ -33,6 +33,7 @@ import {
   tabsCurve,
   tabsLayout,
   useReduceMotion,
+  useTheme,
   type MenuItem,
   type SymbolName,
 } from "../ui";
@@ -224,7 +225,8 @@ function PinnedTileButton({ tile, width, profileId, dark, incognito, menuPlace }
 }
 
 function TileIcon({ tile, isFolder, dark }: { tile: PinnedTile; isFolder: boolean; dark: boolean }) {
-  const roles = rolesFor(dark);
+  const theme = useTheme();
+  const roles = theme.dark === dark ? theme : rolesFor(dark);
   const systemSymbol = Platform.OS === "ios" && settingsUIAvailable() ? (isFolder ? "folder.fill" : spaceSymbol(tile.icon)) : null;
   if (systemSymbol)
     return (

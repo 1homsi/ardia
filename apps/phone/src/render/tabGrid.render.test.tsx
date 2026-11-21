@@ -1,6 +1,8 @@
 import { Platform, StyleSheet } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { renderSurface, someTabs, unmount } from "../../test/render/harness";
+import { DEFAULT_PROFILE_COLOR, PROFILE_PRESETS } from "../components/ui/theme";
+import { lookAccents, presetLook } from "../lib/profileLook";
 import { idOf, resetNativeMenus, titles, type NativeItem } from "./nativeMenusMock";
 
 jest.mock("@ardia/phone-native", () => require("./nativeMenusMock").nativeMenusModule(jest.requireActual("@ardia/phone-native")));
@@ -185,7 +187,8 @@ test("the selected tab's card carries main's 2.5 pt accent edge and the selected
   const roles = rolesFor(false);
   const at = cardLabels(root).indexOf(selected.title);
   const edges = hosts(root, "tabGridEdge").map(flat);
-  expect(edges[at]).toMatchObject({ borderWidth: 2.5, borderColor: roles.formAccent });
+  const lookAccent = lookAccents(presetLook(PROFILE_PRESETS.find((preset) => preset.key === DEFAULT_PROFILE_COLOR)!), false)!.formAccent;
+  expect(edges[at]).toMatchObject({ borderWidth: 2.5, borderColor: lookAccent });
   edges.filter((_, index) => index !== at).forEach((edge) => expect(edge).toMatchObject({ borderWidth: 0.5, borderColor: roles.cardEdge }));
   expect(cards(root)[at]!.props.accessibilityState).toEqual({ selected: true });
   expect(cards(root).filter((card) => card.props.accessibilityState.selected)).toHaveLength(1);
