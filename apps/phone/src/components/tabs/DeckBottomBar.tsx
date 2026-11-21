@@ -12,6 +12,7 @@ import { countUsage } from "../../state/telemetry/telemetry";
 import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
 import { capsule, chromeLayout, ChromeSurface, deckChromeLayout, deckChromeMotion, font, iPhoneOr, PressScale, rolesFor, startLayout, tabsCurve, tabsLayout, tabsMotion, useReduceMotion, useTheme, type MenuItem, SystemGlyph } from "../ui";
 import { MenuTrigger } from "../ui/MenuTrigger";
+import { deckLook } from "./deckLook";
 import { useKeyboardTopFromBottom } from "../search/useKeyboardHeight";
 import { FadingGlyphs, GlassPlusButton, type ChromeFade } from "./ChromeButtons";
 import { besideStrip, DUO_BAR, duoFieldReach, type BottomBarLayout } from "../../lib/bottomBarSpan";
@@ -99,7 +100,7 @@ export function SearchTabsField({ search, testID = "deckSearchTabs", style, rest
   const { input, text, change, focus, blur } = search;
   return (
     <Pressable accessible={false} onPress={() => input.current?.focus()} style={style} collapsable={false} pointerEvents={resting ? "none" : "auto"} importantForAccessibility={resting ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={resting}>
-      <ChromeSurface testID={testID} shape="capsule" cornerRadius={capsule(deckChromeLayout.barCircle)} dark={dark} shown={glassShown} shownMs={glassShownMs} style={[styles.search, { paddingRight: text ? deckChromeLayout.searchTrailFilled : deckChromeLayout.searchTrail }]}>
+      <ChromeSurface testID={testID} shape="capsule" cornerRadius={deckLook.fieldCorner} dark={dark} shown={glassShown} shownMs={glassShownMs} style={[styles.search, { paddingRight: text ? deckChromeLayout.searchTrailFilled : deckChromeLayout.searchTrail }]}>
         <Animated.View testID={`${testID}Fade`} style={[styles.searchRow, contentStyle]}>
           <FadingGlyphs testID={`${testID}Content`} fade={glyphFade} style={styles.searchRow}>
             <View pointerEvents="none">
@@ -221,12 +222,12 @@ const styles = StyleSheet.create({
   bar: { height: deckChromeLayout.barCircle, flexDirection: "row", alignItems: "center", gap: deckChromeLayout.barGap },
   strip: { position: "absolute", width: DUO_BAR.button, height: DUO_BAR.button },
   searchHit: { flex: 1, height: deckChromeLayout.barCircle },
-  grows: { overflow: "hidden", borderRadius: capsule(deckChromeLayout.barCircle) },
+  grows: { overflow: "hidden", borderRadius: deckLook.fieldCorner },
   searchCircle: { position: "absolute", top: 0, width: DUO_BAR.button, height: DUO_BAR.button },
   circleLeading: { left: 0 },
   circleTrailing: { right: 0 },
   circleHit: { width: DUO_BAR.button, height: DUO_BAR.button },
-  search: { flex: 1, paddingLeft: deckChromeLayout.searchLead },
+  search: { flex: 1, paddingLeft: deckChromeLayout.searchLead + 3 },
   searchRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: deckChromeLayout.searchSpacing },
   field: { flex: 1, paddingVertical: 0 },
   clear: { width: deckChromeLayout.clearHit, height: deckChromeLayout.clearHit, alignItems: "center", justifyContent: "center" },

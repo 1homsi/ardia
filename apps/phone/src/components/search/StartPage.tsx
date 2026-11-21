@@ -9,10 +9,9 @@ import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { countUsage } from "../../state/telemetry/telemetry";
 import { useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { chromeLayout, LookBackdrop, LookBackdropBase, space, startLayout, startMotion, tabsCurve, tabsLayout, useReduceMotion, useTheme, type SymbolName } from "../ui";
-import { GlassCircleButton } from "../tabs/ChromeButtons";
-import { PlusMenuButton } from "../tabs/DeckBottomBar";
-import { StartSpaces, startBarCenterY, type StartGeometry } from "./StartSpaces";
+import { chromeLayout, space, startLayout, startMotion, tabsCurve, tabsLayout, useReduceMotion, useTheme, type SymbolName } from "../ui";
+import { StartCircleButton, StartPlusButton } from "./StartBarButtons";
+import { StartMark, StartSpaces, startBarCenterY, type StartGeometry } from "./StartSpaces";
 import { useBottomBarLayout } from "../ui/useBottomBarLayout";
 import { barSpanCenter, besideStrip, DUO_BAR } from "../../lib/bottomBarSpan";
 
@@ -40,9 +39,9 @@ export function StartPage() {
   const plusMenuLeft = Math.min(Math.max(barSpanCenter(width, barSpan) - tabsLayout.menuWidth / 2, space.l), width - tabsLayout.menuWidth - space.l);
   const stripX = strip ? strip.centerX - DUO_BAR.button / 2 : 0;
   const leading = useStartLeading(incognito);
-  const tabs = <GlassCircleButton icon={leading.icon} label={leading.label} testID={leading.testID} dark={dark} incognito={incognito} onPress={leading.onPress} />;
+  const tabs = <StartCircleButton icon={leading.icon} label={leading.label} testID={leading.testID} dark={dark} incognito={incognito} onPress={leading.onPress} />;
   const plus = (
-    <PlusMenuButton
+    <StartPlusButton
       width={strip ? DUO_BAR.button : startLayout.barPlus.width}
       label={incognito ? "New Incognito Tab" : "New Tab"}
       testID="startBarPlus"
@@ -54,15 +53,14 @@ export function StartPage() {
   );
   return (
     <View testID="startPage" style={StyleSheet.absoluteFill}>
-      <LookBackdropBase themed={!incognito} incognito={incognito} />
-      <LookBackdrop themed={!incognito} incognito={incognito} baseOutside veiled />
-      <Animated.View testID="startContent" {...hidden} style={[StyleSheet.absoluteFill, contentStyle]}>
-        <StartSpaces geometry={geometry} dark={dark} incognito={incognito} />
+      <StartSpaces geometry={geometry} dark={dark} incognito={incognito} interactive={!trayUp} />
+      <Animated.View testID="startContent" {...hidden} style={[styles.mark, { paddingBottom: height - barTop }, contentStyle]}>
+        <StartMark incognito={incognito} />
       </Animated.View>
       <Animated.View testID="startBar" {...hidden} style={[styles.bar, { top: barTop, paddingLeft: barSpan.left, paddingRight: barSpan.right }, strip?.ends ? styles.barEnds : null, barStyle]}>
         {strip ? null : tabs}
         {strip ? null : plus}
-        <GlassCircleButton icon="gearshape" label="Settings" testID="startBarSettings" dark={dark} incognito={incognito} onPress={() => openSettings()} />
+        <StartCircleButton icon="gearshape" label="Settings" testID="startBarSettings" dark={dark} incognito={incognito} onPress={() => openSettings()} />
       </Animated.View>
       {strip ? (
         <>
@@ -91,6 +89,7 @@ function useStartLeading(incognito: boolean): { icon: SymbolName; label: string;
 }
 
 const styles = StyleSheet.create({
+  mark: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
   bar: { position: "absolute", left: 0, right: 0, height: startLayout.barCircle, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: startLayout.barGap },
   barEnds: { justifyContent: "flex-end" },
   strip: { position: "absolute", width: DUO_BAR.button, height: DUO_BAR.button, alignItems: "center", justifyContent: "center" },
