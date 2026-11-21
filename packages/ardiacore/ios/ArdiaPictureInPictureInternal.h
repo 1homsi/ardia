@@ -190,7 +190,7 @@ BOOL PreventsActivation(NSWindow *window);
 extern NSInteger gActivations;
 void MarkBackToTabActivation();
 BOOL ConsumeBackToTabActivation();
-void ActivateApp(NSString *why);
+BOOL ActivateApp(NSString *why);
 void ActivateWithOnlyPictureInPicture(ArdiaPiPController *controller, BOOL move);
 BOOL ActiveOnlyForPictureInPicture();
 BOOL ThrowEnabled();
