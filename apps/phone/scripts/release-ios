@@ -2,7 +2,7 @@
 # Build the Expo iPhone app for App Store Connect and send it to TestFlight.
 #
 #   apps/phone/scripts/release-ios <build number> [--version <release version>] [--commit REV] [--no-upload]
-#                                  [--development] [--unsigned] [--default-browser] [--out <dir>]
+#                                  [--development] [--unsigned] [--no-default-browser] [--out <dir>]
 #   apps/phone/scripts/release-ios -h | --help
 #
 # The Expo counterpart of main's scripts/release-ios.sh, which archives the SwiftUI app. Same app record, same
@@ -21,7 +21,7 @@
 # Checks before anything leaves the machine: the bundle id, every target's version and build, the release
 # version, three extensions, the stamp, Hermes bytecode, the lab off, the stripped frameworks, the app's
 # dSYM matching its binary, the default browser flag and, when signed, the entitlements (the app group,
-# and the web-browser entitlement only with --default-browser).
+# and the web-browser entitlement unless --no-default-browser).
 #
 # --unsigned archives without signing and stops after the checks: proof without the Apple account.
 # --no-upload signs the archive and stops: nothing reaches App Store Connect, whose app-store export opens an
@@ -46,14 +46,14 @@ help() {
   exit 0
 }
 
-build="" release_version="" rev=HEAD upload=1 development=0 unsigned=0 default_browser=NO out=""
+build="" release_version="" rev=HEAD upload=1 development=0 unsigned=0 default_browser=YES out=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -h | --help) help ;;
     --no-upload) upload=0; shift ;;
     --development) development=1; upload=0; shift ;;
     --unsigned) unsigned=1; upload=0; shift ;;
-    --default-browser) default_browser=YES; shift ;;
+    --no-default-browser) default_browser=NO; shift ;;
     --out) [ $# -ge 2 ] || die "--out needs a directory"; out="$2"; shift 2 ;;
     --version) [ $# -ge 2 ] || die "--version needs a release version"; release_version="$2"; shift 2 ;;
     --commit) [ $# -ge 2 ] || die "--commit needs a revision"; rev="$2"; shift 2 ;;
