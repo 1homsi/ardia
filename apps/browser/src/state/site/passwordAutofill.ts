@@ -8,6 +8,7 @@ import { engineProfile } from "../browser/model";
 import { consentToken, type ConsentToken } from "../telemetry/choice";
 import { warnFor } from "../telemetry/consoleConsent";
 import { noteOfferToSaveRestore, noteProfilesMovedBack } from "../telemetry/retiredPasswordManagerCounts";
+import { readPluginRecords } from "../plugins/savedState";
 
 export const passwordAutofill = resource("passwordAutofill", (profile: string) => getPasswordAutofill(profile).catch(() => true));
 
@@ -164,10 +165,14 @@ async function restoreHeldOff(consent: ConsentToken | null, tries: number, delay
 
 let started: Promise<void> | null = null;
 
+const RETIRED_MANAGER_PLUGIN = "apple-passwords";
+
+const rollbackCouldPickAPlugin = () => readPluginRecords()[RETIRED_MANAGER_PLUGIN]?.enabled === true;
+
 export function restoreRetiredPasswordManagers(): Promise<void> {
   if (started) return started;
   const consent = consentToken();
-  noteProfilesMovedBack(keepArdiaChoice(readRecord().heldOff.length > 0), consent);
+  noteProfilesMovedBack(keepArdiaChoice(readRecord().heldOff.length > 0 || rollbackCouldPickAPlugin()), consent);
   started = restoreHeldOff(consent, RESTORE_RETRY.tries, RESTORE_RETRY.firstMs);
   return started;
 }

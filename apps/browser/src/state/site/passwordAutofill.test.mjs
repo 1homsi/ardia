@@ -62,6 +62,20 @@ test("with no held-off record, a profile that never chose is left as it is: no s
   takeRetiredPasswordManagerCounts();
 });
 
+test("with Apple Passwords still on in plugins.json and nothing held off, an unset profile is saved as Ardia so a rollback to 0.2.47 can't pick the plugin", async () => {
+  S().hydrate({ profiles: { default: profile("default", undefined), work: profile("work", "ardia") }, profileOrder: ["default", "work"] });
+  stub.docs.delete(RECORD);
+  stub.docs.set("plugins.json", JSON.stringify({ plugins: { "apple-passwords": { enabled: true, approved: "d8476938b3d33c28cb5494dd4fe670accce05a3f61b1d458c737a8f43505824e", values: {}, applied: {} } }, version: 1 }));
+  try {
+    await launch();
+    assert.equal(S().profiles.default.passwordManager, "ardia");
+    assert.equal(stub.docs.has(RECORD), false, "no journal is made for it");
+  } finally {
+    stub.docs.delete("plugins.json");
+    takeRetiredPasswordManagerCounts();
+  }
+});
+
 test("a crash between the write and the record update sets it again next launch, and a value lost before it reached disk is set again", async () => {
   stub.docs.set(RECORD, record(["work"]));
   stub.profileToggles.user.set("work", { passwords: true });
