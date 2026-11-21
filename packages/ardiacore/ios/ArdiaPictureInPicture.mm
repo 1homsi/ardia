@@ -297,9 +297,11 @@ void ActivateWithOnlyPictureInPicture(ArdiaPiPController *controller, BOOL move)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
   const BOOL known = GetCurrentProcess(&process) == noErr;
-  if (!bringForward || !known || bringForward(&process, (uint32_t)window.windowNumber, kUserGenerated) != kCGErrorSuccess)
-    [NSApp activateIgnoringOtherApps:YES];
 #pragma clang diagnostic pop
+  if (!bringForward || !known || bringForward(&process, (uint32_t)window.windowNumber, kUserGenerated) != kCGErrorSuccess) {
+    ConsumeBackToTabActivation();
+    return EndActiveOnlyForPictureInPicture();
+  }
   [window makeKeyWindow];
 }
 

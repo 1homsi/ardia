@@ -6,6 +6,8 @@ final class LeavingOverPiP: NSObject {
   private var resignedActiveAt: TimeInterval = 0
   private var gaveFocusBackAt: TimeInterval = 0
   private var appLeftFor: NSRunningApplication?
+  private var commandHeldSinceLeaving = false
+  private var commandWatch: Timer?
 
   override init() {
     super.init()
@@ -15,6 +17,14 @@ final class LeavingOverPiP: NSObject {
 
   @objc private func appDidResignActive(_ notification: Notification) {
     resignedActiveAt = ProcessInfo.processInfo.systemUptime
+    commandHeldSinceLeaving = false
+    commandWatch?.invalidate()
+    let watch = Timer(timeInterval: 0.03, repeats: true) { [weak self] timer in
+      guard let self, ProcessInfo.processInfo.systemUptime - self.resignedActiveAt < LeavingOverPiP.justNow else { return timer.invalidate() }
+      if NSEvent.modifierFlags.contains(.command) { self.commandHeldSinceLeaving = true }
+    }
+    RunLoop.main.add(watch, forMode: .common)
+    commandWatch = watch
   }
 
   @objc private func otherAppActivated(_ notification: Notification) {
@@ -25,7 +35,7 @@ final class LeavingOverPiP: NSObject {
   func givesFocusBack() -> Bool {
     let now = ProcessInfo.processInfo.systemUptime
     let isPiP = { (window: NSWindow) in ArdiaChromeWindowHost.isVideoPicture(inPictureWindow: window) }
-    guard !LaunchConfig.shared.background, NSApp.isActive, now - resignedActiveAt < LeavingOverPiP.justNow, !NSEvent.modifierFlags.contains(.command),
+    guard !LaunchConfig.shared.background, NSApp.isActive, now - resignedActiveAt < LeavingOverPiP.justNow, !commandHeldSinceLeaving, !NSEvent.modifierFlags.contains(.command),
       NSApp.modalWindow == nil, NSApp.keyWindow.map({ isPiP($0) || !$0.isOnActiveSpace }) ?? true,
       NSApp.orderedWindows.contains(where: { $0.isVisible && $0.isOnActiveSpace && isPiP($0) }) else { return false }
     guard let app = appLeftFor, !app.isTerminated else { return false }
