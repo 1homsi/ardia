@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   Action,
   ActionPanel,
@@ -1501,6 +1502,29 @@ describe("createHostRuntime", () => {
     assert.equal(stopped, true);
     assert.equal(runtime.surfaceCount(), 0);
     assert.equal(runtime.registry.views.size, 0);
+  });
+});
+
+describe("v2-showcase fixture", () => {
+  const fixture = (path) => new URL(`../../../tests/fixtures/plugins/v2-showcase/${path}`, import.meta.url);
+
+  test("its plugin.json reads and passes the app's checks with no problems", async () => {
+    const { readManifest } = await import("../../../apps/browser/src/lib/pluginManifest.ts");
+    const { appProblems } = await import("../../../apps/browser/src/state/plugins/appChecks.ts");
+    const { useBrowser } = await import("../../../apps/browser/src/state/browser/store.ts");
+    const read = readManifest(readFileSync(fixture("plugin.json"), "utf8"));
+    assert.deepEqual(read.problems, []);
+    assert.deepEqual(appProblems(read.manifest, useBrowser.getState().settings, "99.0.0"), []);
+    assert.equal(read.manifest.name, "v2-showcase");
+    assert.deepEqual(read.manifest.hooks, ["tab.opening", "tab.activated", "tab.opened", "tab.closed"]);
+    assert.equal(read.manifest.permissions.workspace, true);
+  });
+
+  test("its bundle carries no comments and speaks the host's method names", () => {
+    const bundle = readFileSync(fixture("dist/index.js"), "utf8");
+    assert.equal(/^\s*\/\/ |\/\*/m.test(bundle), false);
+    for (const method of ["tabs.readActivePage", "ui.showToast", "ui.showQuickPick", "toolbar.update", "panel.open"]) assert.ok(bundle.includes(`"${method}"`), method);
+    assert.equal(bundle.includes('"tabs.close"'), false);
   });
 });
 
