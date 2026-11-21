@@ -1,4 +1,4 @@
-import { Children, useState, type ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { copy } from "../../lib/platformCopy";
