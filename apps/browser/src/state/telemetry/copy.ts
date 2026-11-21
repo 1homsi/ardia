@@ -151,6 +151,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times a click on the left or right side of a Picture in Picture video skipped it back or ahead 10 seconds, each side separately, summed up once an hour",
       "How many times a click on the arrow of a Picture in Picture window tucked at the edge of the screen brought it back, summed up once an hour",
       "How many times you pinched a Picture in Picture window to resize it, and how many pinches or edge drags ended before Chromium had drawn the window at its new size, summed up once an hour. Never its size or where it was",
+      "How many times a press or a two-finger move on a Picture in Picture window made Ardia the active app so a pinch could reach it, and how many of those didn't take, summed up once an hour",
       "How many times you dragged a Picture in Picture window, how many of those drags let the spot you grabbed slip from under the pointer, and how many had a window move that took longer than 8 ms, summed up once an hour. Never where it was",
       "How many times you resized a Picture in Picture window by its edge, and how many of those began inside the window while the pointer wasn't showing the resize arrows, summed up once an hour. Never its size or where it was",
       "How many times a Picture in Picture window (a video or a page) closed, split by whether it was automatic or one you opened, and by whether Ardia asked for the close or Chromium closed it by itself, summed up once an hour. Never which page",

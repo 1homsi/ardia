@@ -4,6 +4,7 @@
 #import "ArdiaPiPThrowMath.h"
 #import "ArdiaPiPSeekMath.h"
 
+#import <ApplicationServices/ApplicationServices.h>
 #import <dlfcn.h>
 #import <objc/runtime.h>
 #import <QuartzCore/QuartzCore.h>
@@ -76,6 +77,7 @@ void InstallDragMonitor() {
                                                     if ([ArdiaPiPZoom continueEdgeResize:event]) return nil;
                                                     if (event.type == NSEventTypeLeftMouseDown) {
                                                       NSWindow *window = event.window;
+                                                      if (window && [ArdiaPiPController forWindow:window]) ActivateWithOnlyPictureInPicture([ArdiaPiPController forWindow:window], NO);
                                                       if ([ArdiaPiPZoom beginEdgeResize:window event:event]) return nil;
                                                       ArdiaPiPController *grabbed =
                                                           GrabsWindowBackground(window, event) ? [ArdiaPiPController forWindow:window] : nil;
@@ -238,6 +240,34 @@ BOOL ConsumeBackToTabActivation() {
   const BOOL pending = NSProcessInfo.processInfo.systemUptime <= gBackToTabActivationUntil;
   gBackToTabActivationUntil = 0;
   return pending;
+}
+
+void ActivateWithOnlyPictureInPicture(ArdiaPiPController *controller, BOOL move) {
+  NSWindow *window = controller.window;
+  if (!window || NSApp.active) return;
+  gActivations++;
+  ArdiaConsentStamp *stamp = ArdiaConsentStamp.begin;
+  __weak ArdiaPiPController *weakController = controller;
+  auto report = ^{
+    [weakController.view emit:@"pictureInPictureActivated" payload:[stamp onto:@{@"move" : @(move), @"activated" : @(NSApp.active)}]];
+  };
+  if (ardia_host::Background()) {
+    ardia_host::LogActivation(@"activate with only Picture in Picture in front (skipped in a test instance)");
+    return dispatch_async(dispatch_get_main_queue(), report);
+  }
+  MarkBackToTabActivation();
+  typedef CGError (*BringsOneWindowForward)(ProcessSerialNumber *, uint32_t, uint32_t);
+  static const auto bringForward = (BringsOneWindowForward)dlsym(RTLD_DEFAULT, "_SLPSSetFrontProcessWithOptions");
+  static const uint32_t kUserGenerated = 0x200;
+  ProcessSerialNumber process;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+  const BOOL known = GetCurrentProcess(&process) == noErr;
+  if (!bringForward || !known || bringForward(&process, (uint32_t)window.windowNumber, kUserGenerated) != kCGErrorSuccess)
+    [NSApp activateIgnoringOtherApps:YES];
+#pragma clang diagnostic pop
+  [window makeKeyWindow];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), report);
 }
 
 void WatchZoom() { InstallZoomMonitor(); }

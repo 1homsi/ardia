@@ -191,6 +191,7 @@ extern NSInteger gActivations;
 void MarkBackToTabActivation();
 BOOL ConsumeBackToTabActivation();
 void ActivateApp(NSString *why);
+void ActivateWithOnlyPictureInPicture(ArdiaPiPController *controller, BOOL move);
 BOOL ThrowEnabled();
 NSPoint PointerOf(NSEvent *event);
 ardia_pip_throw::Rect ThrowRect(NSRect r);
