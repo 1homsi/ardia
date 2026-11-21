@@ -42,6 +42,26 @@ test("every profile keeps an explicit ardia choice, and an offer to save Ardia t
   assert.deepEqual(takeRetiredPasswordManagerCounts(), { password_manager_offer_to_save_restored: 2 });
 });
 
+test("with no held-off record, a profile that never chose is left as it is: no store change and no write at launch", async () => {
+  S().hydrate({ profiles: { default: profile("default", undefined), work: profile("work", undefined) }, profileOrder: ["default", "work"] });
+  stub.docs.delete(RECORD);
+  const profilesBefore = S().profiles;
+  let changes = 0;
+  const stop = useBrowser.subscribe(() => changes++);
+  takeRetiredPasswordManagerCounts();
+  await launch();
+  stop();
+  assert.equal(S().profiles, profilesBefore, "the profiles are the same object, so nothing is saved");
+  assert.equal(changes, 0);
+  assert.equal(stub.docs.has(RECORD), false, "no record is written");
+  assert.deepEqual(takeRetiredPasswordManagerCounts(), {});
+  S().hydrate({ profiles: { default: profile("default", "plugin:apple-passwords"), work: profile("work", undefined) }, profileOrder: ["default", "work"] });
+  await launch();
+  assert.equal(S().profiles.default.passwordManager, "ardia", "an explicit retired choice still moves back");
+  assert.equal(S().profiles.work.passwordManager, undefined, "with nothing held off, an unset profile needs no stamp");
+  takeRetiredPasswordManagerCounts();
+});
+
 test("a crash between the write and the record update sets it again next launch, and a value lost before it reached disk is set again", async () => {
   stub.docs.set(RECORD, record(["work"]));
   stub.profileToggles.user.set("work", { passwords: true });
