@@ -71,161 +71,171 @@ const url = `http://127.0.0.1:${server.address().port}/index.html?n=${Date.now()
 const r = reporter(join(out, "pip-resize.log"), { name: "pip-resize" });
 let instance;
 try {
-  instance = flags.attach
-    ? attach(data)
-    : await launch(app, {
-        data, fresh: true, onboarded: true,
-        session: session({ tabs: [{ id: "home", url: "about:blank", title: "Home" }] }),
-        ready: "return !!globalThis.expo?.modules?.ArdiaEngine && Object.keys(ac.store.getState().windows).length > 0",
-      });
-} catch (e) {
-  console.log(`FAIL launch: ${e.message}`);
-  server.close();
-  process.exit(1);
-}
-
-const evalApp = (body, timeout) => instance.eval(body, { timeout });
-const engine = (name, args = {}) => evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)})`);
-const pip = (action) => engine("tabs.devPictureInPictureAction", { action });
-const until = async (what, test, ms = 15000) => {
-  for (const end = Date.now() + ms; Date.now() < end; await sleep(150)) {
-    const v = await test().catch(() => null);
-    if (v) return v;
+    instance = flags.attach
+      ? attach(data)
+      : await launch(app, {
+          data, fresh: true, onboarded: true,
+          session: session({ tabs: [{ id: "home", url: "about:blank", title: "Home" }] }),
+          ready: "return !!globalThis.expo?.modules?.ArdiaEngine && Object.keys(ac.store.getState().windows).length > 0",
+        });
+  } catch (e) {
+    console.log(`FAIL launch: ${e.message}`);
+    server.close();
+    process.exit(1);
   }
-  throw new Error(`timed out waiting for ${what}`);
-};
-const rect = (s) => s.match(/-?[\d.]+/g).map(Number);
-const shown = async () => (await engine("tabs.devPictureInPicture"))?.find((w) => w.video && w.styled && w.visible) ?? null;
-const state = async () => {
-  const w = await shown();
-  if (!w) return null;
-  const [x, y, width, height] = rect(w.frame);
-  return { x, y, width, height };
-};
-const size = (s) => `${s.width}x${s.height}`;
 
-let tabId;
-const eventCount = async (name) => (await engine("tabs.devEvents", { tabId })).filter((e) => e.name === name).length;
+  const evalApp = (body, timeout) => instance.eval(body, { timeout });
+  const engine = (name, args = {}) => evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)})`);
+  const pip = (action) => engine("tabs.devPictureInPictureAction", { action });
+  const until = async (what, test, ms = 15000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(150)) {
+      const v = await test().catch(() => null);
+      if (v) return v;
+    }
+    throw new Error(`timed out waiting for ${what}`);
+  };
+  const rect = (s) => s.match(/-?[\d.]+/g).map(Number);
+  const shown = async () => (await engine("tabs.devPictureInPicture"))?.find((w) => w.video && w.styled && w.visible) ?? null;
+  const state = async () => {
+    const w = await shown();
+    if (!w) return null;
+    const [x, y, width, height] = rect(w.frame);
+    return { x, y, width, height };
+  };
+  const size = (s) => `${s.width}x${s.height}`;
 
-const ok = await r.check("open the video in Picture in Picture", async () => {
-  const windowId = await evalApp(`const s = ac.store.getState(); return Object.values(s.windows).find((w) => w.kind !== "small").id`);
-  tabId = await evalApp(`return ac.store.getState().newTab(${JSON.stringify(windowId)}, { url: ${JSON.stringify(url)} })`);
-  await evalApp(`ac.actions.switchToTab(${JSON.stringify(tabId)}); return true`);
-  const page = await until("the page", () => instance.page(url, { timeout: 2000 }));
-  await until("the page's script", async () => (await page.eval("typeof window.ready")) === "object");
-  const ready = await page.eval("window.ready", { timeout: 15000 });
-  if (ready !== "ok") throw new Error(`the video didn't play: ${ready}`);
-  const entered = await page.eval("document.getElementById('v').requestPictureInPicture().then(() => 'ok', (e) => String(e))", { userGesture: true });
-  if (entered !== "ok") throw new Error(`no PiP: ${entered}`);
-  await until("the styled PiP window", shown, 8000);
-  await pip("alpha:1");
-  await sleep(800);
-  return size(await state());
-});
+  let tabId;
+  const eventCount = async (name) => (await engine("tabs.devEvents", { tabId })).filter((e) => e.name === name).length;
 
-if (ok) {
-  await r.check("a 2 s pinch moves the stand-in every frame while the real window waits, then the real window takes its size", async () => {
-    const before = await state();
-    const events = await eventCount("pictureInPictureStandIn");
-    await pip("pinch:1.6,240,120");
-    await sleep(500);
-    const standIn = await pip("standIn");
-    const middle = await state();
-    await until("the hand-off", async () => !(await pip("standIn")), 5000);
-    const stats = JSON.parse(await pip("pinchStats"));
-    const after = await state();
-    const problems = [];
-    if (!standIn) problems.push("no stand-in during the pinch");
-    if (middle.width !== before.width) problems.push(`the real window resized mid-pinch (${size(middle)})`);
-    const fps = stats.fps || 60;
-    if (stats.applied < fps * 2 * 0.8 || stats.gapMsMedian > (1000 / fps) * 1.5)
-      problems.push(`the stand-in moved ${stats.applied} times, median ${stats.gapMsMedian} ms apart, on a ${fps} Hz display`);
-    if (after.width < before.width * 1.5) problems.push(`the real window ended at ${size(after)}`);
-    if ((await eventCount("pictureInPictureStandIn")) !== events + 1) problems.push("no pictureInPictureStandIn event");
-    if (problems.length) throw new Error(problems.join("; "));
-    return { before: size(before), after: size(after), fps: stats.fps, applied: stats.applied, gapMsMedian: stats.gapMsMedian, gapMsMax: stats.gapMsMax };
+  let ok = false;
+  try {
+  ok = await r.check("open the video in Picture in Picture", async () => {
+    const windowId = await evalApp(`const s = ac.store.getState(); return Object.values(s.windows).find((w) => w.kind !== "small").id`);
+    tabId = await evalApp(`return ac.store.getState().newTab(${JSON.stringify(windowId)}, { url: ${JSON.stringify(url)} })`);
+    await evalApp(`ac.actions.switchToTab(${JSON.stringify(tabId)}); return true`);
+    const page = await until("the page", () => instance.page(url, { timeout: 2000 }));
+    await until("the page's script", async () => (await page.eval("typeof window.ready")) === "object");
+    const ready = await page.eval("window.ready", { timeout: 15000 });
+    if (ready !== "ok") throw new Error(`the video didn't play: ${ready}`);
+    const entered = await page.eval("document.getElementById('v').requestPictureInPicture().then(() => 'ok', (e) => String(e))", { userGesture: true });
+    if (entered !== "ok") throw new Error(`no PiP: ${entered}`);
+    await until("the styled PiP window", shown, 8000);
+    await pip("alpha:1");
+    await sleep(800);
+    return size(await state());
   });
 
-  await r.check("two quick pinches share one stand-in and are counted as two", async () => {
-    const events = await eventCount("pictureInPictureStandIn");
-    await pip("pinch:1.2,24,120");
-    await sleep(120);
-    const first = await pip("standIn");
-    await sleep(150);
-    await pip("pinch:0.85,24,120");
-    await sleep(120);
-    const second = await pip("standIn");
-    await until("the hand-off", async () => !(await pip("standIn")), 5000);
-    if (!first || first !== second) throw new Error(`stand-ins ${first} and ${second}`);
-    const counted = (await eventCount("pictureInPictureStandIn")) - events;
-    if (counted !== 2) throw new Error(`${counted} pictureInPictureStandIn events for two pinches`);
-    return { standIn: first, events: counted };
-  });
-
-  const s0 = await state();
-  const box = await engine("tabs.devPictureInPicture").then((ws) => rect(ws.find((w) => w.video && w.styled && w.visible).visibleFrame));
-  await pip(`frame:{{${Math.round(box[0] + box[2] / 2 - 200)}, ${Math.round(box[1] + box[3] / 2 - 112)}}, {400, 225}}`);
-  await sleep(800);
-  const drag = async (name, at, by, expect) => {
-    await r.check(name, async () => {
+  if (ok) {
+    await r.check("a 2 s pinch moves the stand-in every frame while the real window waits, then the real window takes its size", async () => {
       const before = await state();
-      const events = await eventCount("pictureInPictureResized");
-      const [x, y] = at(before);
-      await pip(`mouse:down:${x},${y}`);
-      await sleep(60);
+      const events = await eventCount("pictureInPictureStandIn");
+      await pip("pinch:1.6,240,120");
+      await sleep(500);
       const standIn = await pip("standIn");
-      for (let i = 1; i <= 12; i++) {
-        await pip(`mouse:dragged:${Math.round(x + (by[0] * i) / 12)},${Math.round(y + (by[1] * i) / 12)}`);
-        await sleep(16);
-      }
-      await pip(`mouse:up:${x + by[0]},${y + by[1]}`);
+      const middle = await state();
       await until("the hand-off", async () => !(await pip("standIn")), 5000);
+      const stats = JSON.parse(await pip("pinchStats"));
       const after = await state();
       const problems = [];
-      if (!standIn) problems.push("no stand-in during the drag");
-      const wrong = expect(before, after);
-      if (wrong) problems.push(wrong);
-      if (Math.abs(after.width / after.height - before.width / before.height) > 0.02) problems.push("the aspect ratio changed");
-      if ((await eventCount("pictureInPictureResized")) !== events + 1) problems.push("no pictureInPictureResized event");
+      if (!standIn) problems.push("no stand-in during the pinch");
+      if (middle.width !== before.width) problems.push(`the real window resized mid-pinch (${size(middle)})`);
+      const fps = stats.fps || 60;
+      if (stats.applied < fps * 2 * 0.8 || stats.gapMsMedian > (1000 / fps) * 1.5)
+        problems.push(`the stand-in moved ${stats.applied} times, median ${stats.gapMsMedian} ms apart, on a ${fps} Hz display`);
+      if (after.width < before.width * 1.5) problems.push(`the real window ended at ${size(after)}`);
+      if ((await eventCount("pictureInPictureStandIn")) !== events + 1) problems.push("no pictureInPictureStandIn event");
       if (problems.length) throw new Error(problems.join("; "));
-      return { before: `${before.x},${before.y} ${size(before)}`, after: `${after.x},${after.y} ${size(after)}` };
+      return { before: size(before), after: size(after), fps: stats.fps, applied: stats.applied, gapMsMedian: stats.gapMsMedian, gapMsMax: stats.gapMsMax };
     });
-  };
-  await drag("dragging the right edge out 100 pt widens the window and keeps its left edge", (s) => [s.width - 2, Math.round(s.height / 2)], [100, 0],
-    (b, a) => (Math.abs(a.width - (b.width + 100)) > 2 ? `width ${a.width}` : Math.abs(a.x - b.x) > 1 ? `left edge moved to ${a.x}` : null));
-  await drag("dragging the bottom-left corner in shrinks the window and keeps its top-right corner", (s) => [2, s.height - 2], [80, -40],
-    (b, a) => (a.width > b.width - 60 ? `width ${a.width}` : Math.abs(a.x + a.width - (b.x + b.width)) > 1 || Math.abs(a.y + a.height - (b.y + b.height)) > 1 ? "the top-right corner moved" : null));
-  await drag("dragging the top edge up makes the window taller and keeps its bottom edge", (s) => [Math.round(s.width / 2), 2], [0, -60],
-    (b, a) => (a.height < b.height + 50 ? `height ${a.height}` : Math.abs(a.y - b.y) > 1 ? `bottom edge moved to ${a.y}` : null));
 
-  await r.check("a pinch right after a mouse resize grows the window with its aspect ratio", async () => {
-    const before = await state();
-    await pip("pinch:1.3,60,120");
-    await until("the hand-off", async () => !(await pip("standIn")), 5000);
-    const after = await state();
-    if (!after || after.width < before.width * 1.2) throw new Error(`the window ended at ${after && size(after)}`);
-    if (Math.abs(after.width / after.height - before.width / before.height) > 0.02) throw new Error("the aspect ratio changed");
-    return { before: size(before), after: size(after), start: size(s0) };
-  });
+    await r.check("two quick pinches share one stand-in and are counted as two", async () => {
+      const events = await eventCount("pictureInPictureStandIn");
+      await pip("pinch:1.2,24,120");
+      await sleep(120);
+      const first = await pip("standIn");
+      await sleep(100);
+      const stillThere = await pip("standIn");
+      if (first && stillThere !== first) throw new Error(`the first stand-in ${first} was gone before the second pinch (${stillThere || "none"})`);
+      await pip("pinch:0.85,24,120");
+      await sleep(120);
+      const second = await pip("standIn");
+      await until("the hand-off", async () => !(await pip("standIn")), 5000);
+      if (!first || first !== second) throw new Error(`stand-ins ${first} and ${second}`);
+      const counted = (await eventCount("pictureInPictureStandIn")) - events;
+      if (counted !== 2) throw new Error(`${counted} pictureInPictureStandIn events for two pinches`);
+      return { standIn: first, events: counted };
+    });
+
+    const s0 = await state();
+    const box = await engine("tabs.devPictureInPicture").then((ws) => rect(ws.find((w) => w.video && w.styled && w.visible).visibleFrame));
+    await pip(`frame:{{${Math.round(box[0] + box[2] / 2 - 200)}, ${Math.round(box[1] + box[3] / 2 - 112)}}, {400, 225}}`);
+    await sleep(800);
+    const drag = async (name, at, by, expect) => {
+      await r.check(name, async () => {
+        const before = await state();
+        const events = await eventCount("pictureInPictureResized");
+        const [x, y] = at(before);
+        await pip(`mouse:down:${x},${y}`);
+        await sleep(60);
+        const standIn = await pip("standIn");
+        for (let i = 1; i <= 12; i++) {
+          await pip(`mouse:dragged:${Math.round(x + (by[0] * i) / 12)},${Math.round(y + (by[1] * i) / 12)}`);
+          await sleep(16);
+        }
+        await pip(`mouse:up:${x + by[0]},${y + by[1]}`);
+        await until("the hand-off", async () => !(await pip("standIn")), 5000);
+        const after = await state();
+        const problems = [];
+        if (!standIn) problems.push("no stand-in during the drag");
+        const wrong = expect(before, after);
+        if (wrong) problems.push(wrong);
+        if (Math.abs(after.width / after.height - before.width / before.height) > 0.02) problems.push("the aspect ratio changed");
+        if ((await eventCount("pictureInPictureResized")) !== events + 1) problems.push("no pictureInPictureResized event");
+        if (problems.length) throw new Error(problems.join("; "));
+        return { before: `${before.x},${before.y} ${size(before)}`, after: `${after.x},${after.y} ${size(after)}` };
+      });
+    };
+    await drag("dragging the right edge out 100 pt widens the window and keeps its left edge", (s) => [s.width - 2, Math.round(s.height / 2)], [100, 0],
+      (b, a) => (Math.abs(a.width - (b.width + 100)) > 2 ? `width ${a.width}` : Math.abs(a.x - b.x) > 1 ? `left edge moved to ${a.x}` : null));
+    await drag("dragging the bottom-left corner in shrinks the window and keeps its top-right corner", (s) => [2, s.height - 2], [80, -40],
+      (b, a) => (a.width > b.width - 60 ? `width ${a.width}` : Math.abs(a.x + a.width - (b.x + b.width)) > 1 || Math.abs(a.y + a.height - (b.y + b.height)) > 1 ? "the top-right corner moved" : null));
+    await drag("dragging the top-right corner straight left shrinks the window and keeps its bottom-left corner", (s) => [s.width - 2, 2], [-80, 0],
+      (b, a) => (a.width > b.width - 60 ? `width ${a.width}` : Math.abs(a.x - b.x) > 1 || Math.abs(a.y - b.y) > 1 ? "the bottom-left corner moved" : null));
+    await drag("dragging the top edge up makes the window taller and keeps its bottom edge", (s) => [Math.round(s.width / 2), 2], [0, -60],
+      (b, a) => (a.height < b.height + 50 ? `height ${a.height}` : Math.abs(a.y - b.y) > 1 ? `bottom edge moved to ${a.y}` : null));
+
+    await r.check("a pinch right after a mouse resize grows the window with its aspect ratio", async () => {
+      const before = await state();
+      await pip("pinch:1.3,60,120");
+      await until("the hand-off", async () => !(await pip("standIn")), 5000);
+      const after = await state();
+      if (!after || after.width < before.width * 1.2) throw new Error(`the window ended at ${after && size(after)}`);
+      if (Math.abs(after.width / after.height - before.width / before.height) > 0.02) throw new Error("the aspect ratio changed");
+      return { before: size(before), after: size(after), start: size(s0) };
+    });
+  }
+
+  if (ok) {
+    await r.check("closing Picture in Picture in the middle of a pinch takes the stand-in away", async () => {
+      await pip("pinch:1.5,240,120");
+      await sleep(400);
+      const standIn = await pip("standIn");
+      if (!standIn) throw new Error("no stand-in during the pinch");
+      const page = await instance.page(url, { timeout: 5000 });
+      await page.eval("document.exitPictureInPicture().then(() => 'ok', (e) => String(e))");
+      await sleep(1500);
+      const panels = await engine("tabs.devPictureInPicture");
+      const left = execFileSync("sh", ["-c", `/usr/bin/swift -e 'import CoreGraphics; let l = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]; print(l.contains { ($0[kCGWindowNumber as String] as? Int) == ${Number(standIn)} && (($0[kCGWindowIsOnscreen as String] as? Bool) ?? false) })' 2>/dev/null || echo unknown`]).toString().trim();
+      if (left !== "false") throw new Error(`the stand-in window ${standIn} is still on screen (${left})`);
+      return { standIn, pipWindows: panels?.length ?? 0 };
+    });
+  }
+
+} catch (error) {
+  r.record("the run", { error });
+} finally {
+  server.close();
+  if (!flags.keep && !flags.attach) await instance.quit().catch(() => {});
 }
-
-if (ok) {
-  await r.check("closing Picture in Picture in the middle of a pinch takes the stand-in away", async () => {
-    await pip("pinch:1.5,240,120");
-    await sleep(400);
-    const standIn = await pip("standIn");
-    if (!standIn) throw new Error("no stand-in during the pinch");
-    const page = await instance.page(url, { timeout: 5000 });
-    await page.eval("document.exitPictureInPicture().then(() => 'ok', (e) => String(e))");
-    await sleep(1500);
-    const panels = await engine("tabs.devPictureInPicture");
-    const left = execFileSync("sh", ["-c", `/usr/bin/swift -e 'import CoreGraphics; let l = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]; print(l.contains { ($0[kCGWindowNumber as String] as? Int) == ${Number(standIn)} && (($0[kCGWindowIsOnscreen as String] as? Bool) ?? false) })' 2>/dev/null || echo unknown`]).toString().trim();
-    if (left !== "false") throw new Error(`the stand-in window ${standIn} is still on screen (${left})`);
-    return { standIn, pipWindows: panels?.length ?? 0 };
-  });
-}
-
 const passed = r.summary();
-server.close();
-if (!flags.keep && !flags.attach) await instance.quit();
 process.exit(passed ? 0 : 1);
