@@ -137,14 +137,17 @@ if (ok) {
     const problems = [];
     if (!standIn) problems.push("no stand-in during the pinch");
     if (middle.width !== before.width) problems.push(`the real window resized mid-pinch (${size(middle)})`);
-    if (stats.applied < 200 || stats.gapMsMedian > 15) problems.push(`the stand-in moved ${stats.applied} times, median ${stats.gapMsMedian} ms apart`);
+    const fps = stats.fps || 60;
+    if (stats.applied < fps * 2 * 0.8 || stats.gapMsMedian > (1000 / fps) * 1.5)
+      problems.push(`the stand-in moved ${stats.applied} times, median ${stats.gapMsMedian} ms apart, on a ${fps} Hz display`);
     if (after.width < before.width * 1.5) problems.push(`the real window ended at ${size(after)}`);
     if ((await eventCount("pictureInPictureStandIn")) !== events + 1) problems.push("no pictureInPictureStandIn event");
     if (problems.length) throw new Error(problems.join("; "));
-    return { before: size(before), after: size(after), applied: stats.applied, gapMsMedian: stats.gapMsMedian, gapMsMax: stats.gapMsMax };
+    return { before: size(before), after: size(after), fps: stats.fps, applied: stats.applied, gapMsMedian: stats.gapMsMedian, gapMsMax: stats.gapMsMax };
   });
 
-  await r.check("two quick pinches share one stand-in", async () => {
+  await r.check("two quick pinches share one stand-in and are counted as two", async () => {
+    const events = await eventCount("pictureInPictureStandIn");
     await pip("pinch:1.2,24,120");
     await sleep(120);
     const first = await pip("standIn");
@@ -154,7 +157,9 @@ if (ok) {
     const second = await pip("standIn");
     await until("the hand-off", async () => !(await pip("standIn")), 5000);
     if (!first || first !== second) throw new Error(`stand-ins ${first} and ${second}`);
-    return { standIn: first };
+    const counted = (await eventCount("pictureInPictureStandIn")) - events;
+    if (counted !== 2) throw new Error(`${counted} pictureInPictureStandIn events for two pinches`);
+    return { standIn: first, events: counted };
   });
 
   const s0 = await state();
@@ -201,6 +206,22 @@ if (ok) {
     if (!after || after.width < before.width * 1.2) throw new Error(`the window ended at ${after && size(after)}`);
     if (Math.abs(after.width / after.height - before.width / before.height) > 0.02) throw new Error("the aspect ratio changed");
     return { before: size(before), after: size(after), start: size(s0) };
+  });
+}
+
+if (ok) {
+  await r.check("closing Picture in Picture in the middle of a pinch takes the stand-in away", async () => {
+    await pip("pinch:1.5,240,120");
+    await sleep(400);
+    const standIn = await pip("standIn");
+    if (!standIn) throw new Error("no stand-in during the pinch");
+    const page = await instance.page(url, { timeout: 5000 });
+    await page.eval("document.exitPictureInPicture().then(() => 'ok', (e) => String(e))");
+    await sleep(1500);
+    const panels = await engine("tabs.devPictureInPicture");
+    const left = execFileSync("sh", ["-c", `/usr/bin/swift -e 'import CoreGraphics; let l = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]; print(l.contains { ($0[kCGWindowNumber as String] as? Int) == ${Number(standIn)} && (($0[kCGWindowIsOnscreen as String] as? Bool) ?? false) })' 2>/dev/null || echo unknown`]).toString().trim();
+    if (left !== "false") throw new Error(`the stand-in window ${standIn} is still on screen (${left})`);
+    return { standIn, pipWindows: panels?.length ?? 0 };
   });
 }
 

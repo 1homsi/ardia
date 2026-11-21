@@ -144,7 +144,8 @@ static __weak NSWindow *gZoomGesture;
   __block int left = steps;
   [zoom pinchBegan];
   [NSTimer scheduledTimerWithTimeInterval:1.0 / hz repeats:YES block:^(NSTimer *timer) {
-    if (left-- <= 0 || !window.visible) {
+    if (!window.visible) return [timer invalidate];
+    if (left-- <= 0) {
       [zoom pinchEnded];
       return [timer invalidate];
     }
@@ -159,6 +160,7 @@ static __weak NSWindow *gZoomGesture;
   std::sort(gaps.begin(), gaps.end());
   auto at = [&](double q) { return gaps.empty() ? 0.0 : std::round(gaps[std::min(gaps.size() - 1, (size_t)(q * (gaps.size() - 1)))] * 100) / 100; };
   return @{
+    @"fps" : @(window.screen.maximumFramesPerSecond),
     @"applied" : @(zoom->_appliedAt.size()),
     @"gapMsMedian" : @(at(0.5)),
     @"gapMsP90" : @(at(0.9)),
@@ -236,8 +238,12 @@ static __weak ArdiaPiPZoom *gEdgeResizing;
 
 - (void)pinchBegan {
   _follow = ardia_pip_zoom::kPinchFollow;
+  [_ease invalidate], _ease = nil, _target = 0;
   if (_standIn && _handingOff) {
+    [self gestureEnded:NO];
     _handingOff = NO;
+    _standInStamp = ArdiaConsentStamp.begin;
+    _standInPinch = YES;
     return;
   }
   [self finishHandOff:NO];
@@ -342,6 +348,8 @@ static __weak ArdiaPiPZoom *gEdgeResizing;
 }
 
 - (void)tick:(CADisplayLink *)link {
+  NSWindow *window = _window;
+  if (!window || !window.visible) return [self cancelStandIn];
   const CFTimeInterval now = link.timestamp;
   const double dt = _tickedAt > 0 ? MIN(now - _tickedAt, 0.05) : 1.0 / 120;
   _tickedAt = now;
@@ -396,14 +404,26 @@ static __weak ArdiaPiPZoom *gEdgeResizing;
   _releasedAt = _tickedAt > 0 ? _tickedAt : CACurrentMediaTime();
 }
 
+- (void)gestureEnded:(BOOL)timedOut {
+  ArdiaConsentStamp *stamp = _standInStamp;
+  _standInStamp = nil;
+  if (!stamp) return;
+  [[ArdiaPiPController forWindow:_window].view emit:@"pictureInPictureStandIn"
+                                            payload:[stamp onto:@{@"pinch" : @(_standInPinch), @"timedOut" : @(timedOut)}]];
+}
+
+- (void)cancelStandIn {
+  _standInStamp = nil;
+  if (gEdgeResizing == self) gEdgeResizing = nil;
+  _handingOff = NO;
+  [self finishHandOff:NO];
+}
+
 - (void)finishHandOff:(BOOL)timedOut {
   NSPanel *panel = _standIn;
   if (!panel) return;
-  ArdiaConsentStamp *stamp = _standInStamp;
+  if (_handingOff) [self gestureEnded:timedOut];
   _standInStamp = nil;
-  if (stamp && _handingOff)
-    [[ArdiaPiPController forWindow:_window].view emit:@"pictureInPictureStandIn"
-                                              payload:[stamp onto:@{@"pinch" : @(_standInPinch), @"timedOut" : @(timedOut)}]];
   _standIn = nil;
   _handingOff = NO;
   [_link invalidate];
