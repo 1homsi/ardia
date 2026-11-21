@@ -48,7 +48,8 @@ test("an activation that arrives right after Ardia was left gives focus back and
   assert.match(leaving, /now - resignedActiveAt < LeavingOverPiP\.justNow/);
   assert.match(leaving, /!NSEvent\.modifierFlags\.contains\(\.command\)/, "Cmd+Tab back to Ardia is the user's choice and still raises the browser");
   assert.match(leaving, /isOnActiveSpace && isPiP\(\$0\)/);
-  assert.match(leaving, /if !again, let app = appLeftFor/, "a second hand-back in a row is not repeated, so two apps can't trade focus forever");
+  assert.match(leaving, /guard let app = appLeftFor, !app\.isTerminated else \{ return false \}/, "with no app to go back to (it quit), Ardia keeps the activation and the browser is raised as before");
+  assert.match(leaving, /if !again \{\s*if #available\(macOS 14\.0, \*\) \{ app\.activate\(from: \.current, options: \[\]\) \}/, "a second hand-back in a row is not repeated, so two apps can't trade focus forever");
   assert.match(leaving, /"type": "pipActivationHandBack", "again": again/);
   assert.match(leaving, /static let justNow = 1\.0/);
 });
