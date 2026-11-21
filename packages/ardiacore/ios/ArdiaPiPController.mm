@@ -384,6 +384,12 @@ NSString *CornerName(int corner) {
   [self animateTo:frame];
 }
 
+- (void)unstashFromHandle {
+  if (_stashedEdge == ArdiaPiPEdgeNone) return;
+  [self unstash];
+  [self.view emit:@"pictureInPictureUnstashed" payload:[(_dragStamp ?: ArdiaConsentStamp.begin) onto:@{}]];
+}
+
 - (void)setStashedEdge:(ArdiaPiPEdge)edge {
   _stashedEdge = edge;
   ArdiaPiPHandle *handle = _overlay.handle;

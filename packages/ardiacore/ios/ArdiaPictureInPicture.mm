@@ -97,7 +97,7 @@ void InstallDragMonitor() {
                                                       [dragged dragEnded:event];
                                                       if (gGrabSkip && ardia_pip_seek::IsClick(gGrabTravel))
                                                         [dragged skipDraggedBy:gGrabSkip at:gGrabLocal clickCount:gGrabClicks];
-                                                      if (gGrabHandle && ardia_pip_seek::IsClick(gGrabTravel)) [dragged unstash];
+                                                      if (gGrabHandle && ardia_pip_seek::IsClick(gGrabTravel)) [dragged unstashFromHandle];
                                                       ardia_host::NotePointer(event, @"pipDrag");
                                                     } else {
                                                       [dragged dragMoved:event];

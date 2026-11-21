@@ -27,6 +27,7 @@ import type {
   PictureInPictureDrag,
   PictureInPictureResize,
   PictureInPictureSkip,
+  PictureInPictureUnstash,
   ProtectedMediaRequest,
   ScrollState,
   SecurityInfo,
@@ -62,6 +63,7 @@ type NativeEvents = {
   onPictureInPictureDragged: PictureInPictureDrag;
   onPictureInPictureResized: PictureInPictureResize;
   onPictureInPictureSkip: PictureInPictureSkip;
+  onPictureInPictureUnstashed: PictureInPictureUnstash;
   onMediaFault: MediaFault;
   onActivateRequest: ActivateRequest;
   onDisplayMediaRequest: DisplayMediaRequest;
@@ -116,6 +118,7 @@ const PAGE_EVENTS = {
   onPictureInPictureDragged: "pictureInPictureDragged",
   onPictureInPictureResized: "pictureInPictureResized",
   onPictureInPictureSkip: "pictureInPictureSkip",
+  onPictureInPictureUnstashed: "pictureInPictureUnstashed",
   onMediaFault: "mediaFault",
   onActivateRequest: "activateRequest",
   onDisplayMediaRequest: "displayMediaRequest",
@@ -168,6 +171,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onPictureInPictureDragged: (e) => [{ offCursor: !!e.offCursor, slowMove: !!e.slowMove, epoch: e.epoch }],
   onPictureInPictureResized: (e) => [{ inside: !!e.inside, cursorShown: !!e.cursorShown, epoch: e.epoch }],
   onPictureInPictureSkip: (e) => [{ seconds: e.seconds, epoch: e.epoch }],
+  onPictureInPictureUnstashed: (e) => [{ epoch: e.epoch }],
   onMediaFault: (e) => [e],
   onActivateRequest: (e) => [e],
   onDisplayMediaRequest: (e) => [e],

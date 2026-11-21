@@ -73,6 +73,7 @@ using namespace ardia_pip;
                atStart:NO];
     return NSStringFromPoint(point);
   };
+  __block NSString *rightClickAt = @"", *leftClickAt = @"";
   auto dragTo = [=](CGFloat x) {
     self->_sawDrag = YES;
     [window setFrameOrigin:NSMakePoint(x, NSMinY(window.frame))];
@@ -104,12 +105,12 @@ using namespace ardia_pip;
   });
   after(3.4, ^{
     record(@"Chrome's move re-stashes", self.stashedEdge == ArdiaPiPEdgeRight && fabs(NSMinX(window.frame) - (NSMaxX(visibleRight) - kPeek)) < 0.5, nil);
-    record(@"clicking the right handle", YES, @{@"at" : clickHandle()});
+    rightClickAt = clickHandle();
   });
   after(4.6, ^{
     record(@"handle click brings it back", self.stashedEdge == ArdiaPiPEdgeNone && self.overlay.handle.hidden &&
                                                 fabs(NSMaxX(window.frame) - (NSMaxX(visibleRight) - kReturnMargin)) < 0.5,
-           nil);
+           @{@"clickedAt" : rightClickAt});
     dragTo(NSMinX(visibleLeft) - NSWidth(window.frame) * 0.7);
   });
   after(5.8, ^{
@@ -118,12 +119,12 @@ using namespace ardia_pip;
                                                 NSMinX(self.overlay.handle.frame) == NSWidth(self.overlay.bounds) - kPeek,
            @{@"handle" : NSStringFromRect(self.overlay.handle.frame)});
     snapshot(@"stashed-left");
-    record(@"clicking the left handle", YES, @{@"at" : clickHandle()});
+    leftClickAt = clickHandle();
   });
   after(7.0, ^{
     record(@"left handle click brings it back", self.stashedEdge == ArdiaPiPEdgeNone && self.overlay.handle.hidden &&
                                                      fabs(NSMinX(window.frame) - (NSMinX(visibleLeft) + kReturnMargin)) < 0.5,
-           nil);
+           @{@"clickedAt" : leftClickAt});
     dragTo(NSMinX(visibleLeft) - NSWidth(window.frame) * 0.7);
   });
   after(8.2, ^{
