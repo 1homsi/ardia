@@ -3,15 +3,15 @@ import { shape } from "../ui";
 export const pageMenuCardInk = {
   light: {
     solid: "#F2F2F7",
-    cell: "rgba(255,255,255,0.8)",
+    cell: "#FFFFFF",
     cellPressed: "rgba(255,255,255,0.4)",
     rowPressed: "rgba(0,0,0,0.06)",
     separator: "rgba(60,60,67,0.12)",
     stepper: "rgba(118,118,128,0.12)",
   },
   dark: {
-    solid: "#2C2C2E",
-    cell: "rgba(255,255,255,0.09)",
+    solid: "#1C1C1E",
+    cell: "#2C2C2E",
     cellPressed: "rgba(255,255,255,0.18)",
     rowPressed: "rgba(255,255,255,0.1)",
     separator: "rgba(255,255,255,0.08)",

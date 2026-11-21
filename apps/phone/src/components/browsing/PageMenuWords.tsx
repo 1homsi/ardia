@@ -52,7 +52,6 @@ export function PageMenuWords({ tabId, model, onTranslate }: { tabId: string; mo
   const large = useAccessibilityText();
   const devices = useSendTargets(tabId);
   const offersSummary = usePageSummariesEnabled() && canSummarizePages();
-  const [more, setMore] = useState(false);
   return (
     <SheetScrollView testID="pageMenuWords" style={styles.scroll} contentContainerStyle={[styles.column, large ? styles.largeBottom : null]} bounces={false}>
       <NavigationBar tabId={tabId} model={model} large={large} />
@@ -68,29 +67,24 @@ export function PageMenuWords({ tabId, model, onTranslate }: { tabId: string; mo
         {model.pageRows ? (
           <ToggleRow icon={model.blockersEnabled ? "handRaised" : "handRaisedSlash"} title="Block Ads and Trackers" value={model.blockersEnabled} enabled={model.isWebPage} detail={model.blockedCount} onChange={setBlockersOn} />
         ) : null}
-        {more ? null : <Row icon="ellipsis" title="More" enabled onPress={() => setMore(true)} />}
       </Group>
-      {more ? (
-        <>
-          <Group>
-            {model.pageRows ? <ToggleRow icon={model.nightShadeOn ? "moonFill" : "moon"} title="Night Shade" value={model.nightShadeOn} enabled={model.isWebPage} onChange={setNightShadeOn} /> : null}
-            {model.pageRows ? <ZoomRow model={model} large={large} /> : null}
-            {model.pageRows ? <ToggleRow icon="desktop" title="Desktop Site" value={model.desktopSite} enabled={model.isWebPage} onChange={setDesktopSite} /> : null}
-            {model.pageRows ? <Row icon="translate" title={model.translateTitle} enabled={model.translate} onPress={onTranslate} /> : null}
-            {canPrintPages() ? <Row icon="printer" title="Print" enabled={model.print} onPress={printCurrentPage} /> : null}
-            <Row icon="gearshape" title="Site Settings" enabled onPress={openSiteSettingsSheet} />
-          </Group>
-          <Group>
-            <Row icon="clockArrow" title="History" enabled onPress={() => openFromMenu("history")} />
-            <Row icon="star" title="Bookmarks" enabled onPress={() => openFromMenu("bookmarks")} />
-            <Row icon="arrowDownCircle" title="Downloads" enabled onPress={() => openFromMenu("downloads")} />
-          </Group>
-          {model.pageRows && model.offersDefaultBrowser ? (
-            <Group>
-              <Row icon="arrowUpForwardAppFill" title="Open in Default Browser" enabled onPress={openInDefaultBrowser} />
-            </Group>
-          ) : null}
-        </>
+      <Group>
+        {model.pageRows ? <ToggleRow icon={model.nightShadeOn ? "moonFill" : "moon"} title="Night Shade" value={model.nightShadeOn} enabled={model.isWebPage} onChange={setNightShadeOn} /> : null}
+        {model.pageRows ? <ZoomRow model={model} large={large} /> : null}
+        {model.pageRows ? <ToggleRow icon="desktop" title="Desktop Site" value={model.desktopSite} enabled={model.isWebPage} onChange={setDesktopSite} /> : null}
+        {model.pageRows ? <Row icon="translate" title={model.translateTitle} enabled={model.translate} onPress={onTranslate} /> : null}
+        {canPrintPages() ? <Row icon="printer" title="Print" enabled={model.print} onPress={printCurrentPage} /> : null}
+        <Row icon="gearshape" title="Site Settings" enabled onPress={openSiteSettingsSheet} />
+      </Group>
+      <Group>
+        <Row icon="clockArrow" title="History" enabled onPress={() => openFromMenu("history")} />
+        <Row icon="star" title="Bookmarks" enabled onPress={() => openFromMenu("bookmarks")} />
+        <Row icon="arrowDownCircle" title="Downloads" enabled onPress={() => openFromMenu("downloads")} />
+      </Group>
+      {model.pageRows && model.offersDefaultBrowser ? (
+        <Group>
+          <Row icon="arrowUpForwardAppFill" title="Open in Default Browser" enabled onPress={openInDefaultBrowser} />
+        </Group>
       ) : null}
     </SheetScrollView>
   );

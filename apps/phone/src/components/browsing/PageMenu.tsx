@@ -47,11 +47,12 @@ import { useSearchFromDockedMenu, useSearchOpen, useSearchSession } from "../../
 import { cancelSearch } from "../../state/browse/store";
 import { useTab } from "../../state/tabs/hooks";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { ConfirmDialog, FloatingMenu, font, MaterialIconButton, menuLayout, PressScale, shape, Sheet, smoothCorners, space, Symbol, tabsMotion, Toggle, useDesign, useTheme, type SymbolName } from "../ui";
+import { ConfirmDialog, settingsUIAvailable, FloatingMenu, font, MaterialIconButton, menuLayout, PressScale, shape, Sheet, smoothCorners, space, Symbol, tabsMotion, Toggle, useDesign, useTheme, type SymbolName } from "../ui";
 import { MaterialPageMenu, MaterialPageMenuItems, MaterialSiteSettingsContent, MaterialSiteSettingsHeader } from "./MaterialPageMenu";
 import { countSearchExpansion, MaterialSearchField, MaterialSearchResults, useMaterialSheetSearch } from "../search/MaterialSearchView";
 import { barAddress } from "./FloatingBar";
 import { PageMenuWords, usePageMenuInk } from "./PageMenuWords";
+import { SystemPageMenu } from "./SystemPageMenu";
 import { MaterialAddressContent } from "../ui/MaterialBottomBar";
 import { useMaterialTheme } from "../ui/materialTheme";
 import { MaterialSheet, useMaterialRipple } from "../ui/MaterialSurfaces";
@@ -87,6 +88,9 @@ export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boole
   const tappedAway = isPrivate ? undefined : () => countUsage("page_menu_tapped_away");
   if (design === "material" && docked) {
     return <DockedPageMenu tabId={tabId} tab={tab} model={model} page={page} open={open} onHidden={hidden} onTranslate={translate}>{confirmation}</DockedPageMenu>;
+  }
+  if (redesigned && Platform.OS === "ios" && settingsUIAvailable()) {
+    return <SystemPageMenu tabId={tabId} model={model} open={open} asksTranslation={confirmsTranslation} onAsksTranslationChange={setConfirmsTranslation} onTranslate={translate} onHidden={hidden} />;
   }
   if (redesigned) {
     return (
