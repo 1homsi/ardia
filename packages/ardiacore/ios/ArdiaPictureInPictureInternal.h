@@ -56,7 +56,6 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (CGFloat)cornerRadius;
 - (void)backToTab;
 - (void)unstash;
-- (void)unstashFromHandle;
 - (NSMenu *)menu;
 - (void)stopMotion;
 - (void)abandonSwipe;
@@ -146,6 +145,7 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (void)followPointer:(NSEvent *)event;
 - (void)dragMoved:(NSEvent *)event;
 - (void)dragEnded:(NSEvent *)event;
+- (void)unstashFromHandle;
 - (void)devSwipe:(NSArray<NSString *> *)args;
 - (void)devDrag:(NSArray<NSString *> *)args;
 @end
