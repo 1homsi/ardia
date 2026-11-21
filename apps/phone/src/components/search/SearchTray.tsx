@@ -1,7 +1,7 @@
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { IncognitoEyes } from "../ui/IncognitoEyes";
 import { countRender } from "../../state/app/interactionPerf";
-import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SheetScrollContext, SheetScrollView, sheetPullTranslation, type SheetScroll } from "../ui/Sheet";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { cancelAnimation, FadeIn, FadeOut, runOnJS, runOnUI, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
@@ -29,7 +29,7 @@ import { coverTray, followTrayBack, trayBackTravel, useTrayCovers } from "../../
 import { useIncognito } from "../../state/tabs/hooks";
 import { useTabs } from "../../state/tabs/store";
 import { countUsage, reportLaunchTray } from "../../state/telemetry/telemetry";
-import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, stageMotion, barReturnMotion, Symbol, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, tabsMotion, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, settingsUIAvailable, SystemGlyph } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, MotionView, moveTo, radius, screenReaderActions, type MotionCurve, type MotionTarget, rolesFor, trayLandingDelayMs, space, stageMotion, barReturnMotion, SURFACES_FROST, tabsCurve, tabsInk, tabsLayout, trayMotion, trayShadow, useTheme, FadeView, fadeIsNative, ChromeSurface, floatingPanelLayout, useDesign, useReduceTransparency, useReduceMotion, SystemGlyph } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { MaterialSearchTray } from "./MaterialSearchView";
 import { TrayInput, type TrayInputHandle } from "./TrayInput";
@@ -788,22 +788,6 @@ const letKeyboardGo = () => putKeyboardAway();
 const resultsIn = FadeIn.duration(trayMotion.resultsIn);
 const resultsOut = FadeOut.duration(trayMotion.resultsIn);
 
-const modeToggleIn = () => {
-  "worklet";
-  return {
-    initialValues: { opacity: 0, transform: [{ scale: 0.9 }] },
-    animations: { opacity: withSpring(1, trayMotion.modeToggle), transform: [{ scale: withSpring(1, trayMotion.modeToggle) }] },
-  };
-};
-
-const modeToggleOut = () => {
-  "worklet";
-  return {
-    initialValues: { opacity: 1, transform: [{ scale: 1 }] },
-    animations: { opacity: withSpring(0, trayMotion.modeToggle), transform: [{ scale: withSpring(0.9, trayMotion.modeToggle) }] },
-  };
-};
-
 let trayInput: TrayInputHandle | null = null;
 
 const focusTray = () => trayInput?.focus();
@@ -907,7 +891,6 @@ function VoiceButton() {
 }
 
 const INCOGNITO_GLYPH = 26;
-const INCOGNITO_PLATE = 34;
 
 function IncognitoToggle() {
   const theme = useTrayTheme();
@@ -922,8 +905,7 @@ function IncognitoToggle() {
       style={[styles.incognito, panelField ? styles.panelIncognito : null]}
     >
       <View testID="trayIncognitoGlyph" style={styles.incognitoGlyph}>
-        {on && Platform.OS !== "android" ? <Animated.View testID="trayIncognitoPlate" entering={modeToggleIn} exiting={modeToggleOut} style={styles.incognitoPlate} /> : null}
-        <IncognitoEyes incognito={on} size={INCOGNITO_GLYPH} color={on ? tabsInk.onDark : theme.foregroundTertiary} />
+        <IncognitoEyes incognito={on} size={INCOGNITO_GLYPH} color={theme.foregroundTertiary} />
       </View>
     </Pressable>
   );
@@ -1180,14 +1162,6 @@ const styles = StyleSheet.create({
   panelInput: { minHeight: browseLayout.searchFieldHeight - floatingPanelLayout.fieldEdge * 2 },
   panelIncognito: { paddingRight: space.xs + 2 },
   incognitoGlyph: { width: INCOGNITO_GLYPH, alignItems: "center", justifyContent: "center" },
-  incognitoPlate: {
-    position: "absolute",
-    width: INCOGNITO_PLATE,
-    height: INCOGNITO_PLATE,
-    borderRadius: capsule(INCOGNITO_PLATE),
-    borderCurve: "continuous",
-    backgroundColor: floatingPanelLayout.fieldDark.fill,
-  },
   field: {
     minHeight: browseLayout.searchFieldHeight,
     borderRadius: capsule(browseLayout.searchFieldHeight),

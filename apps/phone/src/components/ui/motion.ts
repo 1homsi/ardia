@@ -83,7 +83,6 @@ export const trayMotion = {
   dimEasing: WorkletEasing.bezier(0, 0, 0.58, 1),
   reduced: 200,
   resultsIn: 100,
-  modeToggle: spring(0.2, 1),
   rise: trayRise,
 } as const;
 

@@ -86,7 +86,7 @@ onIPhone("on a new tab the search panel runs from under the status bar down to t
   unmount(edit);
 });
 
-onIPhone("the new-tab panel's field is the standard Search field with the mic and Incognito's specs inside it, and Incognito is clickable there", () => {
+onIPhone("the new-tab panel's field is the standard Search field with the mic and Incognito's eyes inside it, and Incognito is clickable there", () => {
   act(() => presentSearch("start", ""));
   const root = tray();
   const capsule = host(root, "trayFieldCapsule")!;
@@ -100,11 +100,7 @@ onIPhone("the new-tab panel's field is the standard Search field with the mic an
   const incognitoCapsule = host(root, "trayFieldCapsule")!;
   expect(incognitoCapsule.findAll((node) => node.props.accessibilityLabel === "Deactivate Incognito")).not.toHaveLength(0);
   expect(incognitoCapsule.findAll((node) => node.type === IncognitoEyes && node.props.incognito === true)).toHaveLength(1);
-  if (Platform.OS === "android") expect(host(root, "trayIncognitoPlate")).toBeUndefined();
-  else {
-    const plate = flat(host(root, "trayIncognitoPlate"));
-    expect(plate.borderRadius).toBe((plate.width as number) / 2);
-  }
+  expect(host(root, "trayIncognitoPlate")).toBeUndefined();
   expect(incognitoCapsule.findAll((node) => node.children.includes("Incognito"))).toHaveLength(0);
   unmount(root);
 });
