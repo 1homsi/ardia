@@ -282,6 +282,27 @@ try {
       if (left !== "false") throw new Error(`the stand-in window ${standIn} is still on screen (${left})`);
       return { standIn, pipWindows: panels?.length ?? 0 };
     });
+    await r.check("a press that asked for activation is still reported when the window closes before the report", async () => {
+      const page = await instance.page(url, { timeout: 5000 });
+      const entered = await page.eval("document.getElementById('v').requestPictureInPicture().then(() => 'ok', (e) => String(e))", { userGesture: true });
+      if (entered !== "ok") throw new Error(`no PiP: ${entered}`);
+      await until("the styled PiP window", shown, 8000);
+      const asked = async () => (await engine("tabs.devEvents", { tabId })).filter((e) => e.name === "pictureInPictureActivated").length;
+      const native = (await engine("windows.list"))[0]?.window;
+      await engine("windows.dev", { window: native, action: "fakeAppActive:0" });
+      try {
+        const before = await asked();
+        const s = await state();
+        await pip(`mouse:down:${Math.round(s.width / 2)},${Math.round(s.height / 2)}`);
+        await pip(`mouse:up:${Math.round(s.width / 2)},${Math.round(s.height / 2)}`);
+        await page.eval("document.exitPictureInPicture().then(() => 'ok', (e) => String(e))");
+        const closedAt = (await asked()) - before;
+        await until("the report after the close", async () => (await asked()) > before, 3000);
+        return `${closedAt} reported before the close, 1 after`;
+      } finally {
+        await engine("windows.dev", { window: native, action: "fakeAppActive:1" }).catch(() => null);
+      }
+    });
   }
 
 } catch (error) {

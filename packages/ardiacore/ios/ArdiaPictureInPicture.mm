@@ -242,19 +242,36 @@ BOOL ConsumeBackToTabActivation() {
   return pending;
 }
 
+static BOOL gActiveOnlyForPictureInPicture;
+
+static void WatchActiveOnlyForPictureInPicture() {
+  static BOOL watching;
+  if (watching) return;
+  watching = YES;
+  NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+  [center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
+    gActiveOnlyForPictureInPicture = NO;
+  }];
+  [center addObserverForName:NSWindowDidBecomeKeyNotification object:nil queue:nil usingBlock:^(NSNotification *note) {
+    if (![ArdiaPiPController forWindow:note.object]) gActiveOnlyForPictureInPicture = NO;
+  }];
+}
+
+BOOL ActiveOnlyForPictureInPicture() { return gActiveOnlyForPictureInPicture; }
+
 void ActivateWithOnlyPictureInPicture(ArdiaPiPController *controller, BOOL move) {
   NSWindow *window = controller.window;
   if (!window || NSApp.active) return;
   gActivations++;
-  ArdiaConsentStamp *stamp = ArdiaConsentStamp.begin;
-  __weak ArdiaPiPController *weakController = controller;
-  auto report = ^{
-    [weakController.view emit:@"pictureInPictureActivated" payload:[stamp onto:@{@"move" : @(move), @"activated" : @(NSApp.active)}]];
-  };
-  if (ardia_host::Background()) {
-    ardia_host::LogActivation(@"activate with only Picture in Picture in front (skipped in a test instance)");
-    return dispatch_async(dispatch_get_main_queue(), report);
-  }
+  ArdiaConsentStamp *activationStamp = ArdiaConsentStamp.begin;
+  __weak ArdiaWebView *source = controller.view;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    if (!NSApp.active) gActiveOnlyForPictureInPicture = NO;
+    [source emit:@"pictureInPictureActivated" payload:[activationStamp onto:@{@"move" : @(move), @"activated" : @(NSApp.active)}]];
+  });
+  if (ardia_host::Background()) return ardia_host::LogActivation(@"activate with only Picture in Picture in front (skipped in a test instance)");
+  WatchActiveOnlyForPictureInPicture();
+  gActiveOnlyForPictureInPicture = YES;
   MarkBackToTabActivation();
   typedef CGError (*BringsOneWindowForward)(ProcessSerialNumber *, uint32_t, uint32_t);
   static const auto bringForward = (BringsOneWindowForward)dlsym(RTLD_DEFAULT, "_SLPSSetFrontProcessWithOptions");
@@ -267,7 +284,6 @@ void ActivateWithOnlyPictureInPicture(ArdiaPiPController *controller, BOOL move)
     [NSApp activateIgnoringOtherApps:YES];
 #pragma clang diagnostic pop
   [window makeKeyWindow];
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), report);
 }
 
 void WatchZoom() { InstallZoomMonitor(); }
@@ -416,6 +432,10 @@ void DocumentEntered(ArdiaWebView *view, ArdiaConsentStamp *stamp) {
 
 + (BOOL)consumePictureInPictureActivation {
   return ConsumeBackToTabActivation();
+}
+
++ (BOOL)activeOnlyForPictureInPicture {
+  return ActiveOnlyForPictureInPicture();
 }
 
 @end
