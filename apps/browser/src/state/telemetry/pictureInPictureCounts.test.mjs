@@ -8,6 +8,7 @@ globalThis.fetch = async () => ({ status: 503 });
 const client = await import("./client.ts");
 const usage = await import("./usage.ts");
 const pipCounts = await import("./pictureInPictureCounts.ts");
+const nativeConsent = await import("./nativeConsent.ts");
 after(() => client.setSharing(false, "settings"));
 
 async function sentUsageCounts() {
@@ -140,10 +141,10 @@ test("activations Ardia handed back after it was left over a Picture in Picture 
   };
   const before = (await sentCounts()).length;
 
-  pipCounts.notePictureInPictureHandBack({ again: false, epoch: client.consentEpoch() });
-  pipCounts.notePictureInPictureHandBack({ again: true, epoch: client.consentEpoch() });
-  pipCounts.notePictureInPictureHandBack({ again: false, epoch: client.consentEpoch() });
-  pipCounts.notePictureInPictureHandBack({ again: false, epoch: "an epoch from before" });
+  pipCounts.notePictureInPictureHandBack(false, nativeConsent.nativeConsent({ epoch: client.consentEpoch() }));
+  pipCounts.notePictureInPictureHandBack(true, nativeConsent.nativeConsent({ epoch: client.consentEpoch() }));
+  pipCounts.notePictureInPictureHandBack(false, nativeConsent.nativeConsent({ epoch: client.consentEpoch() }));
+  pipCounts.notePictureInPictureHandBack(false, nativeConsent.nativeConsent({ epoch: "an epoch from before" }));
   usage.sessionEnding();
   const sent = await sentCounts();
   assert.equal(sent.length, before + 1);

@@ -375,7 +375,7 @@ export function startUsage(continuing = false) {
   setTimeout(() => snapshotSettings(consentToken()), FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
   onAppEvent((e) => {
-    if (e.type === "pipActivationReturn") notePiPActivationReturn(e.success, nativeConsent(e)); else if (e.type === "pipActivationHandBack") notePictureInPictureHandBack(e);
+    if (e.type === "pipActivationReturn") notePiPActivationReturn(e.success, nativeConsent(e)); else if (e.type === "pipActivationHandBack") notePictureInPictureHandBack(e.again, nativeConsent(e));
     else if (e.type === "willQuit") {
       clearTimeout(launchCrashRead);
       stopContextSamples();

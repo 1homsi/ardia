@@ -1,6 +1,6 @@
 import type { PictureInPictureActivation, PictureInPictureDrag, PictureInPictureResize, PictureInPictureSkip, PictureInPictureStandIn, PictureInPictureUnstash } from "../../platform/media";
 import type { PageEngine } from "../engines/engines";
-import { counted } from "./client";
+import { counted, type ConsentToken } from "./client";
 import { nativeConsent } from "./nativeConsent";
 
 let nothingPlaying = 0;
@@ -89,10 +89,9 @@ export function notePictureInPictureActivated(activation: PictureInPictureActiva
   );
 }
 
-export function notePictureInPictureHandBack(handBack: { again: boolean; epoch: string }) {
-  const { again } = handBack;
+export function notePictureInPictureHandBack(again: boolean, consent: ConsentToken | null) {
   counted(
-    nativeConsent(handBack),
+    consent,
     () => {
       handBacks.given++;
       if (again) handBacks.repeats++;
